@@ -1,13 +1,13 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { Background, Logo, darkLight, scaleRect, withAlpha } from '@demo-studio/components/kit';
+import { Background, darkLight, scaleRect, withAlpha } from '@demo-studio/components/kit';
 import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
 
 type Params = { radius: number; shadow: 'none' | 'soft' | 'strong' };
 
-/** Same rects as `geometry` / `geometry_vertical` in component.yaml (design px). */
+/** Same screen rects as `geometry` / `geometry_vertical` in component.yaml (design px). */
 const GEOMETRY = {
-  landscape: { screen: { x: 180, y: 54, w: 1560, h: 878 }, brandmark: { x: 1810, y: 1020, w: 80, h: 30 } },
-  vertical: { screen: { x: 40, y: 600, w: 1000, h: 563 }, brandmark: { x: 960, y: 1840, w: 80, h: 40 } },
+  landscape: { screen: { x: 180, y: 54, w: 1560, h: 878 } },
+  vertical: { screen: { x: 40, y: 600, w: 1000, h: 563 } },
 };
 
 function shadowCss(kind: Params['shadow'], color: string, unit: number): string {
@@ -38,19 +38,13 @@ function Skeleton({ theme, unit }: { theme: ThemeTokens; unit: number }) {
   );
 }
 
-/** The capture in a rounded card on the theme background, with the brand mark in a corner. */
+/**
+ * The capture in a rounded card on the theme background. The composition draws the caption component in the
+ * `caption` rect and the theme's brand mark in the `brandmark` rect of the geometry: a layout draws neither.
+ */
 export default function Layout({ theme, params, unit, variant, screen }: ComponentProps<Params>) {
   const g = GEOMETRY[variant === 'vertical' ? 'vertical' : 'landscape'];
   const s = scaleRect(g.screen, unit);
-  const mark = theme.brandmark;
-  const showMark = mark !== undefined && mark.position !== 'none';
-  const m = scaleRect(g.brandmark, unit);
-  const markStyle: CSSProperties =
-    mark?.position === 'bottom-left'
-      ? { left: s.x, top: m.y }
-      : mark?.position === 'top-right'
-        ? { left: m.x, top: 16 * unit }
-        : { left: m.x, top: m.y };
   return (
     <Background theme={theme}>
       <div
@@ -68,11 +62,6 @@ export default function Layout({ theme, params, unit, variant, screen }: Compone
       >
         {screen ? (screen as ReactNode) : <Skeleton theme={theme} unit={unit} />}
       </div>
-      {showMark ? (
-        <div style={{ position: 'absolute', ...markStyle, opacity: mark?.opacity ?? 0.85 }}>
-          <Logo theme={theme} size={mark?.size ?? Math.min(g.brandmark.h, 30)} unit={unit} />
-        </div>
-      ) : null}
     </Background>
   );
 }

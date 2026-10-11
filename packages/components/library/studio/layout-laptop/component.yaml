@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
+# A laptop mock-up (dark bezel around the screen, a thin base below) on the theme background. The geometry below is
+# what the planner and the review use: keep index.tsx in sync.
+id: studio/layout-laptop
+version: 0.1.0
+kind: layout
+name: Laptop
+description: The capture on the screen of a laptop mock-up (dark bezel, thin base) on the theme background, caption area below.
+tags: [placeholder, device, laptop]
+slots:
+  screen: {type: screen, required: true, description: The capture (video + camera moves).}
+params:
+  type: object
+  properties:
+    bezel: {type: string, enum: [dark, light], default: dark, description: Colour of the bezel and base.}
+tokens: [colors.text, colors.paper, background]
+geometry:
+  frame: {x: 220, y: 40, w: 1480, h: 800}
+  screen: {x: 312, y: 66, w: 1296, h: 729}
+  caption: {x: 220, y: 880, w: 1480, h: 110}
+  brandmark: {x: 1500, y: 915, w: 200, h: 40}
+  radius: 4
+geometry_vertical:
+  frame: {x: 40, y: 600, w: 1000, h: 543}
+  screen: {x: 102, y: 618, w: 876, h: 493}
+  caption: {x: 40, y: 1180, w: 1000, h: 220}
+  brandmark: {x: 880, y: 1840, w: 160, h: 40}
+  radius: 4
+variants: [landscape, vertical]
+preview:
+  at: [1]

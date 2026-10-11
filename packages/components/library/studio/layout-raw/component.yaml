@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): stand-in until the full version lands in L2.7.
+# The capture fills the frame (no card, no caption area: a caption component places itself over the capture).
+id: studio/layout-raw
+version: 0.1.0
+kind: layout
+name: Raw
+description: The capture fills the whole frame, edge to edge; captions are drawn over it.
+tags: [placeholder, raw, full-frame]
+slots:
+  screen: {type: screen, required: true, description: The capture (video + camera moves).}
+params:
+  type: object
+  properties: {}
+tokens: [background]
+geometry:
+  screen: {x: 0, y: 0, w: 1920, h: 1080}
+  radius: 0
+geometry_vertical:
+  screen: {x: 0, y: 0, w: 1080, h: 1920}
+  radius: 0
+variants: [landscape, vertical]
+preview:
+  at: [1]

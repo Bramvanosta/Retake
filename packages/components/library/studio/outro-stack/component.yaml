@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
+# Big logo, wordmark, accent rule, tagline and url, centred and staggered on the theme background.
+id: studio/outro-stack
+version: 0.1.0
+kind: outro
+name: Outro stack
+description: Big logo, wordmark, accent rule, tagline and url, centred, rising in one after the other on the theme background.
+tags: [placeholder, outro, reference-look]
+slots:
+  tagline: {type: text, default_from: scenario.outro.tagline, max_chars: 70, description: One closing line.}
+  url: {type: url, default_from: theme.brand.url, max_chars: 40, description: Address shown under the tagline.}
+  logo: {type: image, default_from: theme.logo, description: Logo image (the theme logo by default).}
+params:
+  type: object
+  properties:
+    logo_size: {type: number, minimum: 48, maximum: 240, default: 150, description: Logo height in design px.}
+    stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.15, description: Seconds between the entrances of two lines.}
+tokens: [colors.accent, colors.text, colors.muted, background, fonts.display, fonts.body, logo, wordmark, brand.url]
+duration: {default: 3, min: 1.5, max: 8}
+variants: [landscape, vertical]
+preview:
+  slots: {tagline: Ready when you are.}
+  at: [0.3, 1.2, 2.6]

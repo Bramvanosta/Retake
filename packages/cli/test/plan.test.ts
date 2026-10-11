@@ -50,14 +50,19 @@ describe('studio plan', () => {
     const r = await studio('plan', 'demo', '20261011-182524-catalogue');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.out).toMatch(/^catalogue \(run 20261011-182524-catalogue\) — landscape 1920×1080 @ 30 fps — \d+\.\d\d s/);
-    expect(r.out).toMatch(/intro\s+intro\s+—\s+studio\/intro-stack \(theme, MISSING\)/);
+    expect(r.out).toMatch(/intro\s+intro\s+—\s+studio\/intro-stack \(theme\)/);
     expect(r.out).toMatch(/availability\s+clip\s+crossfade 0\.37 s\s+studio\/layout-card/);
     expect(r.out).toContain('speed 1× 3.60 s, 1.6× 15.74 s');
     expect(r.out).toContain('zoom 1.3× step 5');
     expect(r.out).toContain('Captions (3)');
     expect(r.out).toContain('"import": page load');
-    // No component library in this workspace: one warning per missing component, listing its uses.
-    expect(r.out).toMatch(/scene "import", scene "availability", scene "add-product": no caption component could be resolved/);
+    // The built-in library resolves every component of the theme.
+    expect(r.out).not.toContain('MISSING');
+    expect(r.out).toContain('Warnings (0)');
+    // A component that does not exist: one warning per problem, listing its uses; the renderer draws a stand-in.
+    const missing = await studio('plan', 'demo', '20261011-182524-catalogue', '--frame', 'acme/nope');
+    expect(missing.code, missing.err).toBe(EXIT.ok);
+    expect(missing.out).toMatch(/component "acme\/nope" not found/);
   });
 
   it('"latest" picks the newest capture run (of --scenario): dry runs and runs without a timeline are skipped', async () => {

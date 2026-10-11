@@ -144,14 +144,15 @@ describe('scaffold behaviour', () => {
     expect(inArea).toContain('left:180px;top:952px;width:1560px;height:104px');
   });
 
-  it('layout: places the screen in the geometry rect (skeleton in previews) with the brand mark', () => {
+  it('layout: places the screen in the geometry rect (skeleton in previews); the brand mark is left to the composition', () => {
     const preview = render('layout');
     expect(preview).toContain('left:180px;top:54px;width:1560px;height:878px');
-    expect(preview).toContain('>A</div>'); // monogram brand mark (no logo URL in LIGHT)
+    // The composition draws the brand mark in the geometry's brandmark rect: a layout must not draw a second one.
+    expect(preview).not.toContain('>A</div>');
     const withScreen = render('layout', { extra: { screen: createElement('video', { src: 'capture.mp4' }) } });
     expect(withScreen).toContain('<video src="capture.mp4">');
     expect(render('layout', { variant: 'vertical' })).toContain('left:40px;top:600px;width:1000px;height:563px');
-    expect(render('layout', { theme: { ...LIGHT, brandmark: { position: 'none' } } })).not.toContain('>A</div>');
+    expect(manifests.layout.geometry?.brandmark).toEqual({ x: 1810, y: 1020, w: 80, h: 30 });
     // The TSX geometry is the manifest's.
     expect(manifests.layout.geometry?.screen).toEqual({ x: 180, y: 54, w: 1560, h: 878 });
     expect(manifests.layout.geometry_vertical?.screen).toEqual({ x: 40, y: 600, w: 1000, h: 563 });
@@ -177,9 +178,15 @@ describe('scaffold behaviour', () => {
       render('transition', { at: 6, params, extra: { screen, direction, durationInFrames: 12 } });
     expect(mid('entering')).toMatch(/^<div style="position:absolute;inset:0;opacity:0\.5\d*"><i>segment<\/i><\/div>$/);
     expect(mid('exiting')).toMatch(/opacity:1"><i>segment<\/i>/);
-    const dip = render('transition', { at: 3, params: { through: 'paper' }, extra: { screen, direction: 'exiting', durationInFrames: 12 } });
-    expect(dip).toContain(`background:${LIGHT.colors.paper}`);
-    expect(render('transition', { at: 3, params: { through: 'paper' }, extra: { screen, direction: 'entering', durationInFrames: 12 } })).toMatch(/^<div style="position:absolute;inset:0;opacity:0">/);
+    // A dip does not overlap: exiting covers frames [0, 6) of 12 (opaque on its last one), entering [6, 12).
+    const dip = (at: number, direction: 'entering' | 'exiting') =>
+      render('transition', { at, params: { through: 'paper' }, extra: { screen, direction, durationInFrames: 12 } });
+    const veil = (html: string) => Number(new RegExp(`background:${LIGHT.colors.paper};opacity:([\\d.e-]+)`).exec(html)?.[1]);
+    expect(dip(0, 'exiting')).toContain(`background:${LIGHT.colors.paper}`);
+    expect(veil(dip(0, 'exiting'))).toBeLessThan(0.2);
+    expect(veil(dip(5, 'exiting'))).toBe(1);
+    expect(veil(dip(6, 'entering'))).toBeGreaterThan(0.8);
+    expect(veil(dip(11, 'entering'))).toBeLessThan(0.2);
   });
 
   it('interstitial: draws the last frame under a veil when given', () => {

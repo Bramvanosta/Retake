@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
+# A phone mock-up for narrow (mobile) captures: rounded dark body, the capture on its screen (a wide capture is
+# letterboxed). The geometry below is what the planner and the review use: keep index.tsx in sync.
+id: studio/layout-phone
+version: 0.1.0
+kind: layout
+name: Phone
+description: The capture on the screen of a phone mock-up (rounded dark body), for narrow mobile captures, caption area below.
+tags: [placeholder, device, phone, mobile]
+slots:
+  screen: {type: screen, required: true, description: The capture (video + camera moves).}
+params:
+  type: object
+  properties:
+    body: {type: string, enum: [dark, light], default: dark, description: Colour of the phone body.}
+tokens: [colors.text, colors.paper, background]
+geometry:
+  frame: {x: 744, y: 40, w: 432, h: 894}
+  screen: {x: 762, y: 58, w: 396, h: 858}
+  caption: {x: 180, y: 950, w: 1560, h: 100}
+  brandmark: {x: 1540, y: 980, w: 200, h: 40}
+  radius: 48
+geometry_vertical:
+  frame: {x: 246, y: 206, w: 588, h: 1218}
+  screen: {x: 270, y: 230, w: 540, h: 1170}
+  caption: {x: 40, y: 1460, w: 1000, h: 220}
+  brandmark: {x: 880, y: 1840, w: 160, h: 40}
+  radius: 56
+variants: [landscape, vertical]
+preview:
+  at: [1]

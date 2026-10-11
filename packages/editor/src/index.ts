@@ -1,7 +1,8 @@
 /**
  * @demo-studio/editor — the edit planner (`planEdit`: timeline + theme + components → EditPlan, pure and
- * deterministic) and the EditPlan contract shared with the compositions and the review (docs/DESIGN-phase2.md §2).
- * Rendering (Remotion) arrives in L2.4.
+ * deterministic), the EditPlan contract shared with the compositions and the review, and the render pipeline
+ * (`renderVideo` / `renderStill` / `listRenders`: Remotion bundle cache, local asset server) — docs/DESIGN-phase2.md
+ * §2. The compositions themselves (src/remotion, React) are only loaded by the render bundle.
  */
 export * from './plan-types.js';
 export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S } from './plan.js';
@@ -14,3 +15,40 @@ export { FALLBACK_GEOMETRY, RAW_GEOMETRY, fitRect, mapSourceRect, planLayout, vi
 export type { SourceView } from './layout.js';
 export { BUILTIN_DEFAULTS, TRANSITION_COMPONENTS, transitionKindOf } from './resolve.js';
 export { resolvePlanAssets, summarizePlan } from './summary.js';
+export { RenderCancelledError, RenderError } from './render/types.js';
+export type { RenderProgress, RenderRecord, RenderStage } from './render/types.js';
+export {
+  COMPOSITION_IDS,
+  FRAME_JPEG_QUALITY,
+  RENDER_ENCODING,
+  defaultConcurrency,
+  probeMedia,
+  renderPlan,
+  renderStill,
+  renderVideo,
+} from './render/render.js';
+export type { RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderVideoOptions } from './render/render.js';
+export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runScenario, takenVersions } from './render/runs.js';
+export type { RunRef } from './render/runs.js';
+export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
+export type { AssetServer } from './render/asset-server.js';
+export {
+  BUNDLE_CACHE_KEEP,
+  BUNDLE_FORMAT,
+  COMPOSITION_DEPS,
+  EDITOR_DIR,
+  bundleCacheDir,
+  bundleComponentsFor,
+  bundleHash,
+  compositionFiles,
+  ensureBundle,
+  entrySource,
+  listCachedBundles,
+  planComponentIds,
+  registryModuleSource,
+} from './render/bundle.js';
+export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
+export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
+export type { RenderBrowser } from './render/browser.js';
+export { brandmarkRect, envelopeAt, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './remotion/frames.js';
+export type { TransitionWindow } from './remotion/frames.js';

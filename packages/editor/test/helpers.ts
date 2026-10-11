@@ -1,7 +1,8 @@
 /**
  * Test helpers of the planner: a temp workspace whose components/studio/* are created from the scaffolds
- * (createComponent) — the built-in library arrives in L2.5 — with the params the starter themes pass, the real
- * templates and fixture project of the repo, the two real fixture timelines and a builder of synthetic timelines.
+ * (createComponent) with the params the starter themes pass — the planner tests do not depend on the built-in library
+ * (placeholders since L2.4, replaced in L2.5/L2.7: builtinDir null) —, the real templates and fixture project of the
+ * repo, the two real fixture timelines and a builder of synthetic timelines.
  */
 import { readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -44,7 +45,7 @@ export const STUDIO_COMPONENTS: Array<[string, ComponentKind]> = [
   ['studio/transition-fade-black', 'transition'],
 ];
 
-/** Params the starter themes pass that the scaffolds do not declare (the L2.5 library declares them). */
+/** Params the starter themes pass that the scaffolds do not declare (the built-in library declares them). */
 const EXTRA_PARAMS: Record<string, string[]> = {
   'studio/layout-card': ['    width: {type: number, minimum: 400, maximum: 1920, default: 1560}'],
   'studio/intro-minimal': ['    logo_only: {type: boolean, default: false}'],

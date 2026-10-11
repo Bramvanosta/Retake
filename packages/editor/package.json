@@ -23,6 +23,7 @@
     "@remotion/cli": "4.0.534",
     "@remotion/media-utils": "4.0.534",
     "@remotion/renderer": "4.0.534",
+    "playwright-core": "1.56.1",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "remotion": "4.0.534"

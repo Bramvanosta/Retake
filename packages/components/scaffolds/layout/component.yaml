@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../../schema/component.schema.json
 # Layout scaffold: the capture in a rounded card with a soft shadow on the theme background, the caption area below
-# and the brand mark in a corner. The geometry below is what the planner and the review use: keep index.tsx in sync.
+# and the brand mark in a corner (the composition draws the caption component and the brand mark in the `caption`
+# and `brandmark` rects). The geometry below is what the planner and the review use: keep index.tsx in sync.
 id: scaffolds/layout
 version: 0.1.0
 kind: layout
@@ -13,7 +14,7 @@ params:
   properties:
     radius: {type: number, minimum: 0, maximum: 64, default: 18, description: Corner radius of the card in design px.}
     shadow: {type: string, enum: [none, soft, strong], default: soft, description: Shadow under the card.}
-tokens: [colors.text, colors.paper, background, logo, brandmark]
+tokens: [colors.text, colors.paper, background]
 geometry:
   screen: {x: 180, y: 54, w: 1560, h: 878}
   caption: {x: 180, y: 952, w: 1560, h: 104}

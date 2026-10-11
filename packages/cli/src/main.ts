@@ -12,6 +12,8 @@ import type { LoginOptions } from './commands/misc.js';
 import { planCommand } from './commands/plan.js';
 import type { PlanCommandOptions } from './commands/plan.js';
 import { listCommand, newCommand } from './commands/project.js';
+import { renderCommand, stillCommand } from './commands/render.js';
+import type { RenderCommandOptions, StillCommandOptions } from './commands/render.js';
 import type { NewOptions } from './commands/project.js';
 import { runCommand } from './commands/run.js';
 import type { RunCommandOptions } from './commands/run.js';
@@ -111,6 +113,36 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--json', 'print the plan as JSON')
     .option('--out <file>', 'write the plan JSON to a file')
     .action(action((u, g, p: string, r: string, o: PlanCommandOptions) => planCommand(u, g, p, r, o)));
+
+  program
+    .command('render')
+    .description('render a capture into a finished video: renders/<scenario>-v<N>.mp4 + .json (theme, components, captions)')
+    .argument('<project>', 'project slug or directory')
+    .argument('<scenario>', 'scenario name')
+    .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
+    .option('--theme <name>', 'render with another theme (template name or ./path) instead of the one the run used')
+    .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, raw or a layout component id')
+    .option('--vertical', 'the vertical 9:16 variant (1080×1920), written as <scenario>-v<N>-vertical.mp4')
+    .option('--scale <n>', 'output size multiplier of 1920×1080 (default: the capture scale)')
+    .option('--no-intro', 'leave the intro out')
+    .option('--no-outro', 'leave the outro out')
+    .option('--out <file>', 'write the video (and its .json record) here instead of renders/')
+    .option('--concurrency <n>', 'frames rendered in parallel (default: 3/4 of the CPUs, at most 8)')
+    .option('--json', 'print the render record (without the plan) as JSON')
+    .action(action((u, g, p: string, s: string, o: RenderCommandOptions) => renderCommand(u, g, p, s, o)));
+
+  program
+    .command('still')
+    .description('render one frame of the planned video as a PNG (renders/stills/)')
+    .argument('<project>', 'project slug or directory')
+    .argument('<scenario>', 'scenario name')
+    .requiredOption('--frame <n>', 'output frame number (0-based)')
+    .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
+    .option('--theme <name>', 'plan with another theme (template name or ./path)')
+    .option('--vertical', 'a frame of the vertical 9:16 variant')
+    .option('--out <file>', 'PNG file to write')
+    .option('--json', 'print the result as JSON')
+    .action(action((u, g, p: string, s: string, o: StillCommandOptions) => stillCommand(u, g, p, s, o)));
 
   const hooks = program.command('hooks').description('run hooks or replay rollbacks outside a capture');
   hooks

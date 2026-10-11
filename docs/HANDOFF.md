@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.3. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.4. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -72,28 +72,67 @@ automatically with themeable components, and let Claude operate everything throu
   caption-below `position`, *-minimal `logo_only`). Plans: catalogue 59.0 s, quote 56.3 s (no page loads, crossfades
   at every non-contiguous join, card + interstitial + €720.00 callout in the quote). 476 tests pass (6 Postgres tests
   skipped).
-- **Requirements:** 529 tracked; 257 done, 60 partial; the open ones are assigned to lots L1.2 … L6 (R-ARCH-03 moved
+- **L2.4 done** (render pipeline): placeholder built-in library `packages/components/library/studio/*` — the 18 ids the
+  starter themes and the legacy mapping use (intro-stack/-minimal, outro-stack/-minimal, card-title,
+  interstitial-clock/-plain, layout-card/-browser/-laptop/-phone/-raw, caption-below/-overlay, overlay-callout/
+  -lower-third, transition-crossfade/-fade-black), theme-driven, tag `placeholder`, accepting the params the themes
+  pass; layouts draw exactly their declared geometry (layout-card accepts `width` but draws 1560 × 877.5 until geometry
+  follows params) and no longer draw the brand mark (the composition does; scaffold layout changed accordingly).
+  Compositions `DemoVideo`/`DemoVertical` in `packages/editor/src/remotion/` (Root.tsx, DemoVideo.tsx, frames.ts pure
+  helpers, fonts.ts, modules.ts). Render pipeline in `packages/editor/src/render/`: generated entry + registry module
+  and bundle cache (bundle.ts, `<root>/.demo-studio/cache/remotion-<hash>/`, ≈ 10 s per bundle), asset server
+  (asset-server.ts), browser choice (browser.ts, playwright-core registry), `renderVideo`/`renderPlan`/`renderStill`
+  (render.ts), runs/versions/`listRenders` (runs.ts), RenderRecord types (types.ts). CLI `studio render` and
+  `studio still` (packages/cli/src/commands/render.ts); README "Rendering"; DESIGN-phase2 §2.2 updated. 513 tests pass
+  (6 Postgres tests skipped); new: components/test/library.test.ts, editor/test/render-units.test.ts,
+  editor/test/render-real.test.ts (colour-coded synthetic capture: every sampled output frame shows the plan's source
+  frame), cli/test/render.test.ts. Fixture renders `projects/northfield-fixture/renders/{catalogue,quote}-v1.mp4`
+  (runs 20261011-182524-catalogue / 20261011-182706-quote) checked frame by frame.
+- **Requirements:** 529 tracked; 273 done, 85 partial; the open ones are assigned to lots L1.2 … L6 (R-ARCH-03 moved
   to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer — zooms only come from explicit
-  hints; needs a product decision).
-- **Groundwork for phase 2:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3).
-  `packages/{review,mcp}` are otherwise empty; `studio render|review|export|record|mcp|ui` print "available in
-  phase N".
+  hints; needs a product decision). L2.4: all 16 done; R-PROJ-10 / R-PRJ-01 (the `review/` folder) moved to L2.6,
+  R-TPL-04 (style_bias has no consumer yet) to L2.5; the R-LIB-*/R-ED-10..14 items are partial (placeholders).
+- **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
+  with a placeholder library (L2.4). `packages/{review,mcp}` are otherwise empty; `studio review|export|record|mcp|ui`
+  print "available in phase N".
 
 ## Next lot
-**L2.4 — render pipeline** (M): `DemoVideo`/`DemoVertical` render a plan (segments with their fade envelopes and
-`transition` components, clips = layout component with `screen` = `<Freeze frame={srcFrames[f]}><OffthreadVideo/>`
-under the camera transform, caption component with `cues` + `layout.caption` as `area`, overlays with
-`mapSourceRect(anchor)`, brandmark, music), generated component registry module, bundle cache, local asset server
-(serve `plan.assets`, then `resolvePlanAssets(plan, urlFor)`), `renderVideo`/`renderStill`/`listRenders`,
-`studio render` — unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs
-`docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP. Notes for L2.4: the scaffolds render in Remotion (checked with a
-scratch bundle: alias `@demo-studio/components/kit` to `src/kit/index.ts` with `extensionAlias {'.js': ['.ts','.tsx',
-'.js']}`, register `theme.font_faces` with FontFace + delayRender, theme asset URLs via the asset server). Uses marked
-`missing: true` in a plan have no registered component: draw the scaffold of their kind (`scaffoldDir(kind)`) as the
-stand-in until the L2.5 library lands. Notes for L2.5: the planner takes layout geometry from the manifest as is — a
-layout param that moves the screen (e.g. layout-card `width`) must be reflected in its declared geometry; the
-transition kind comes from the id (`…fade-black`) or `params.through` (a dip) / `params.kind`, its length from
-`params.duration`, else the template's `transitions.duration`.
+**L2.5 — reference-look components** (M): replace the placeholders `studio/intro-stack`, `outro-stack`, `layout-card`,
+`caption-below`, `interstitial-clock`, `transition-crossfade` with the measured values of `docs/reference/look.md`
+(R-LIB-00/01/03/06/08/13/17, R-LOOK-01..22, R-THM-04/07, R-ED-11/16, R-TPL-04) — unless the user picks otherwise (L1.2
+robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
+
+Render commands (fixture captures exist: runs 20261011-182524-catalogue and 20261011-182706-quote):
+```
+node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
+node packages/cli/dist/bin.js render northfield-fixture quote --theme motion
+node packages/cli/dist/bin.js still northfield-fixture quote --frame 1409  # one frame as PNG (renders/stills/)
+```
+Render times here (4 CPUs, no GPU, concurrency 3, 1080p): catalogue 59.0 s → 3 m 38 s, quote 56.3 s → 2 m 59 s
+(≈ 8–9 output fps; card frames are no cheaper than clip frames: Chrome software raster + JPEG capture dominate;
+concurrency 4, x264 `veryfast`, multi-process Chrome or PNG frames did not help more than ±10 %); a new bundle ≈ 10 s;
+a still ≈ 1–2 s with a cached bundle (≈ 12 s when the bundle must be built).
+
+Notes for L2.5:
+- Look at stills while iterating: `studio still … --frame n` (or `renderStill`) renders one frame in ~1 s once the
+  bundle is cached; every edit of a component file changes the bundle hash (rebuild ≈ 10 s). Key frames worth
+  checking: intro middle (frame 48), first frame after each crossfade (segment.from + transition.frames), mid-clip,
+  the catalogue "Awards" zoom peak (frame 1579), the quote card (353), interstitial (1155), callout (1409), outro.
+- Layout geometry is static and the planner places captions/overlays from it: if layout-card's `width` should move the
+  card, teach the planner to derive geometry from params (e.g. a geometry function of params, or one geometry per
+  param value) — the placeholder draws the declared 1560 × 877.5 card (exactly 16:9; the manifest geometry is
+  {180, 40, 1560, 877.5}). The reference wants the card at y 40 and the caption block at y ≈ 930–1040.
+- The brand mark is drawn by the composition (`Brandmark` in DemoVideo.tsx: logo `theme.brandmark.size` (30) +
+  wordmark at 0.8× height, gap 10, right-aligned in the layout's `brandmark` rect, vertically centred); the reference
+  values (wordmark display 24 px, y ≈ 985) can be matched there or by the geometry's brandmark rect.
+- Transition contract (types.ts `direction`): a crossfade renders both segments over the overlap; a dip splits its
+  frames (⌊n/2⌋ exiting, the rest entering). The crossfade placeholder eases the entering opacity with (f+1)/(n+1) so
+  no frame is fully old or fully new inside the overlap.
+- Captions: cues of a clip end at the clip end (overlap included): the caption fades out over the last 0.25 s, so it
+  crossfades with its clip. Caption text styles come from `theme.captions` (editorial line 35 px; look.md says ≈ 38).
+- `style_bias` reaches every component (`theme.style_bias`) but no component uses it yet (R-TPL-04 partial).
+- Vertical: the layouts' `geometry_vertical` screens are 16:9, so the vertical "crop" is the whole capture (small
+  text); real 9:16 reframing is L2.8.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for
@@ -119,7 +158,9 @@ transition kind comes from the id (`…fade-black`) or `params.through` (a dip) 
 
 ## Environment notes (Linux cloud container)
 - Chromium 141 via playwright-core 1.56.1 (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`); new headless
-  (`channel: 'chromium'`). Remotion renders with `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
+  (`channel: 'chromium'`). Remotion renders with
+  `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` (found through playwright-core's
+  registry; `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` overrides).
 - ffmpeg 6.1 on PATH. Postgres 16 installed (`pg_ctlcluster 16 main start`, run as the postgres user).
 - No GPU: pages with heavy effects (backdrop blur) are captured at 6–10 fps during cursor motion (L1.3). No display and
   no macOS: login, `--headed`, Keychain and notifications are verified by the user on a Mac (L1.5).

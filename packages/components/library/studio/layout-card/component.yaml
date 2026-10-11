@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
+# The capture in a rounded card with a soft shadow on the theme background; the caption area below it and the brand
+# mark (drawn by the composition) right-aligned with the card. The geometry below is that of the default `width`
+# (1560 × 877.5, exactly 16:9): keep index.tsx in sync.
+id: studio/layout-card
+version: 0.1.0
+kind: layout
+name: Card
+description: The capture in a rounded card with a soft shadow on the theme background, the caption area below, the brand mark right-aligned with the card.
+tags: [placeholder, card, reference-look]
+slots:
+  screen: {type: screen, required: true, description: The capture (video + camera moves).}
+params:
+  type: object
+  properties:
+    width: {type: number, minimum: 400, maximum: 1920, default: 1560, description: "Card width in design px (landscape, 16:9, centred). Placeholder: accepted but the card is drawn at the declared geometry (1560) until the planner derives geometry from params (L2.5)."}
+    radius: {type: number, minimum: 0, maximum: 64, default: 18, description: Corner radius of the card in design px.}
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: Shadow under the card.}
+tokens: [colors.text, colors.paper, background]
+geometry:
+  screen: {x: 180, y: 40, w: 1560, h: 877.5}
+  caption: {x: 180, y: 930, w: 1560, h: 110}
+  brandmark: {x: 1540, y: 965, w: 200, h: 40}
+  radius: 18
+geometry_vertical:
+  screen: {x: 40, y: 560, w: 1000, h: 562.5}
+  caption: {x: 40, y: 1142.5, w: 1000, h: 220}
+  brandmark: {x: 880, y: 1840, w: 160, h: 40}
+  radius: 18
+variants: [landscape, vertical]
+preview:
+  at: [1]

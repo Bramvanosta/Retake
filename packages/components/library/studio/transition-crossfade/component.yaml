@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): stand-in until the reference-look version lands in L2.5.
+# Crossfade: the composition renders the component twice over the overlap — around the outgoing segment (direction:
+# exiting, which holds its last frame) and around the incoming one (direction: entering, drawn on top, fading in);
+# progress = frame / durationInFrames. The planner reads its length from `duration`.
+id: studio/transition-crossfade
+version: 0.1.0
+kind: transition
+name: Crossfade
+description: The incoming segment fades in over the outgoing one (which holds its last frame), with a gentle ease.
+tags: [placeholder, transition, crossfade, reference-look]
+slots:
+  screen: {type: screen, required: true, description: The segment this render wraps.}
+params:
+  type: object
+  properties:
+    duration: {type: number, minimum: 0, maximum: 3, default: 0.35, description: Length of the crossfade in seconds.}
+tokens: []
+duration: {default: 0.35, min: 0.1, max: 3}
+variants: [landscape, vertical]
+preview:
+  at: [0.17]

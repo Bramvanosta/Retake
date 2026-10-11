@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
+# "Time passes": the last frame of the previous clip dims under a dark veil, then a clock (the minute hand sweeps
+# about one turn) and the text fade in, centred.
+id: studio/interstitial-clock
+version: 0.1.0
+kind: interstitial
+name: Interstitial clock
+description: The last frame dims under a dark veil; a clock whose minute hand sweeps one turn and the text fade in, centred.
+tags: [placeholder, interstitial, clock, reference-look]
+slots:
+  text: {type: text, required: true, default_from: interstitial.text, max_chars: 50, description: What happens meanwhile ("Two days later").}
+  kicker: {type: text, default_from: interstitial.kicker, max_chars: 40, description: Small uppercase line above the clock.}
+  screen: {type: screen, description: "The last frame of the previous clip, drawn dimmed under the card."}
+params:
+  type: object
+  properties:
+    dim: {type: number, minimum: 0, maximum: 1, default: 0.9, description: Opacity of the dark veil over the last frame.}
+    turns: {type: number, minimum: 0, maximum: 3, default: 1, description: Turns of the minute hand during the card.}
+tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body]
+duration: {default: 2.6, min: 1, max: 8}
+variants: [landscape, vertical]
+preview:
+  slots: {text: A few hours later}
+  at: [0.3, 1.4]

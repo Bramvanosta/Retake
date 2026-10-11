@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
+# Full-screen chapter card: kicker, display title and an optional line of text, rising in on the theme background.
+id: studio/card-title
+version: 0.1.0
+kind: card
+name: Title card
+description: Full-screen chapter card with an uppercase kicker, a display title and an optional line of text, rising in on the theme background.
+tags: [placeholder, card, chapter]
+slots:
+  title: {type: text, required: true, max_chars: 60, description: The card title.}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
+  text: {type: text, max_chars: 140, description: Optional supporting line under the title.}
+params:
+  type: object
+  properties:
+    align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
+tokens: [colors.accent, colors.text, colors.muted, background, fonts.display, fonts.body]
+duration: {default: 2.5, min: 1, max: 10}
+variants: [landscape, vertical]
+preview:
+  slots: {title: From quote to order, kicker: Chapter two, text: The same totals follow the customer to checkout.}
+  at: [0.3, 1.5]

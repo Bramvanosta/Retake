@@ -26,8 +26,8 @@ requirements of a lot with their gaps.
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
-| L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | next |
-| L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | todo |
+| L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | **done** |
+| L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | next |
 | L2.6 | Review package + `studio review` | M | todo |
 | L2.7 | Library completion (browser/laptop/phone/raw, cards, overlays, previews per theme) | M | todo |
 | L2.8 | Variants & export (vertical 9:16, 4K, music bed, export formats) | M | todo |
@@ -166,6 +166,20 @@ requirements of a lot with their gaps.
   `renderVideo` / `renderStill` / `listRenders`, RenderRecord + versioned names, silent audio, progress/abort/
   concurrency, `studio render` (R-RND-*, R-ED-01/18/19/23/24/25, R-CLI2-01, R-PRJ-01, R-PROJ-10, R-TPL-04).
 - **Acceptance:** catalogue fixture rendered end to end with placeholder components; frames inspected.
+- **Done:** placeholder built-in library `packages/components/library/studio/*` (the 18 ids of the starter themes and
+  the legacy mapping, theme-driven, tag `placeholder`, params the themes pass, layouts draw exactly their declared
+  geometry; validated + rendered in both themes by `packages/components/test/library.test.ts`); compositions
+  `DemoVideo` / `DemoVertical` (`packages/editor/src/remotion/`: segments, transition windows — crossfade overlap, dip
+  split ⌊n/2⌋ —, fade envelope fallback, layout with the capture under the camera, captions in the caption area,
+  overlays through layout + camera, brand mark drawn by the composition, interstitial backdrop, music bed, FontFace +
+  delayRender, scaffold stand-ins for `missing`); the capture frame is an `OffthreadVideo` in a shifted `Sequence`, not
+  `Freeze` (Remotion clamps a frozen position to the composition length — the first catalogue render showed a frame 3 s
+  early at the "Awards" zoom; regression-tested with a colour-coded capture); generated registry module + bundle cache
+  (`.demo-studio/cache/remotion-<hash>/`); asset server (Range, CORS); `renderVideo` / `renderPlan` / `renderStill` /
+  `listRenders` (RenderRecord, versions with locks, H.264 CRF 16 yuv420p BT.709 faststart, silent AAC, progress,
+  AbortSignal, concurrency); `studio render` / `studio still`; README "Rendering". 513 tests pass (6 Postgres tests
+  skipped). Fixture renders: catalogue 59.00 s in 3 m 38 s, quote 56.27 s in 2 m 59 s (concurrency 3, 4 CPUs); key
+  frames inspected; R-PROJ-10 / R-PRJ-01 (review/ folder) moved to L2.6, R-TPL-04 (style_bias) to L2.5.
 
 ### L2.5 — Reference-look components (M)
 - **Scope:** studio/intro-stack, outro-stack, layout-card, caption-below, interstitial-clock, transition-crossfade with

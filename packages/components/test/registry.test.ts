@@ -65,12 +65,13 @@ describe('loadComponentRegistry (R-REG-01, R-REG-02, R-REG-12)', () => {
     expect(reg.list().map((c) => c.manifest.id)).toEqual(['acme/badge']);
   });
 
-  it('the bundled library is scanned by default (empty until L2.5) and a missing workspace folder is fine', async () => {
+  it('the bundled library is scanned by default (placeholders until L2.5 / L2.7) and a missing workspace folder is fine', async () => {
     const empty = await tempDir();
     try {
       const reg = await loadComponentRegistry({ root: empty.dir });
       expect(reg.builtinDir).toBe(LIBRARY_DIR);
-      expect(reg.list()).toEqual([]);
+      expect(reg.list()).toHaveLength(18);
+      expect(reg.list().every((c) => c.source === 'builtin' && c.manifest.id.startsWith('studio/'))).toBe(true);
       expect(reg.notices).toEqual([]);
     } finally {
       await empty.cleanup();

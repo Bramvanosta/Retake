@@ -172,8 +172,11 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   /** overlay: the box it points at, in output px (a point is a 0×0 box), when the step recorded one. */
   anchor?: { x: number; y: number; w: number; h: number };
   /**
-   * transition: the component renders twice over the overlap — once around the outgoing segment ('exiting') and
-   * once around the incoming one ('entering', drawn on top); progress = frame / durationInFrames.
+   * transition: the component renders twice — once around the outgoing segment ('exiting') and once around the
+   * incoming one ('entering', drawn on top); progress = frame / durationInFrames. A crossfade overlaps the two
+   * segments (both renders see frames [0, n), the outgoing one holding its last frame); a dip (fade-black) does not:
+   * the exiting render covers frames [0, ⌊n/2⌋) at the end of the outgoing segment, the entering one [⌊n/2⌋, n) at
+   * the start of the incoming one.
    */
   direction?: 'entering' | 'exiting';
 }

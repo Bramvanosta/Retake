@@ -141,6 +141,9 @@ importers:
       '@remotion/renderer':
         specifier: 4.0.534
         version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      playwright-core:
+        specifier: 1.56.1
+        version: 1.56.1
       react:
         specifier: 19.1.1
         version: 19.1.1

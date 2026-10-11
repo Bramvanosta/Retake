@@ -107,6 +107,7 @@ capture: {width: 1920, height: 1080, scale: 1, fps: 30}
 frame: browser   # raw | browser | laptop | phone | card
 template: editorial
 locale: en
+mailbox: {provider: mailpit, url: http://localhost:8025}   # optional test mailbox for wait_for_email (host must be allowed)
 ```
 
 ## 5. Template (brand & motion style)
@@ -179,7 +180,10 @@ scenes:
   - interstitial: {text: A few hours later, duration: 2.6}
 ```
 
-Actions (v1): `open`, `click`, `double_click`, `hover`, `type`, `press`, `select`, `pick` (multi-select popover), `menu` (row action menus with optional confirm), `scroll`, `drag`, `drop_file`, `wait`, `wait_for`, `hold`, `assert`, `screenshot`, `new_tab` (follow href), `switch_page`, `eval` (escape hatch JS), `notify` (macOS notification), `emit` (custom event into the timeline), `cursor: {show|hide|move}`.
+Actions (v1): `open`, `click`, `double_click`, `hover`, `type`, `press`, `select`, `pick` (multi-select popover), `menu` (row action menus with optional confirm), `scroll`, `drag`, `drop_file`, `wait`, `wait_for`, `hold`, `assert`, `screenshot`, `new_tab` (follow href), `switch_page`, `eval` (escape hatch JS), `notify` (macOS notification), `emit` (custom event into the timeline), `cursor: {show|hide|move}`,
+`wait_for_email` (wait for a message in the project's test mailbox and capture it: from, to, subject, text, rendered HTML image; `as: <name>`),
+`download` (click a link/button, capture the file — download event or a document opened in a new tab, with the session's cookies — into the run; PDFs are rasterised page by page; `as: <name>`).
+Captured emails and documents are run artefacts that components reference by name (slots `email: <name>`, `document: <name>`); a document can also be a project file (`document: assets/quote.pdf`).
 Target syntax: `text`, `contains`, `role` + `name`, `label`, `aria`, `css`, `in` (dialog/menu/row), `nth`, `last_visible: true`.
 
 ## 7. Runner behaviour (web)
@@ -234,6 +238,10 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
 - **Themes** (templates) provide the tokens (colours, fonts, logo, wordmark, brand name, url, background, cursor) and
   pick a default component (+ params) per kind. A component adapts to any theme; a theme can be applied to any
   component — previews are always rendered with the user's theme.
+- Built-in families include, besides intros/outros/cards/layouts/captions: **email** components (`mail-notification` —
+  a system-style banner sliding over the footage; `mail-view` — a mail client card showing the captured email,
+  scrolling when long) and **document** components (`document-pdf` — an A4 page on the theme background with a
+  paper shadow and a slow push-in or scroll), fed by captured emails/documents or by values written in the scenario.
 - Scenarios can override per use: `intro: {component, params}`, `interstitial: {component, text}`, generic full-screen
   `card: {component, slots, duration}` entries, scene `frame: <component>`, step `overlay: {component, slots, duration}`.
 - Sources, in resolution order: the workspace (`components/`, created by the user or by Claude through a skill), the

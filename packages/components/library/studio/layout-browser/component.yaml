@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
+# The capture under a light browser chrome bar (window dots + the page URL) in a rounded window on the theme
+# background. The geometry below is what the planner and the review use: keep index.tsx in sync.
+id: studio/layout-browser
+version: 0.1.0
+kind: layout
+name: Browser window
+description: The capture in a rounded browser window (chrome bar with window dots and the real page URL) on the theme background, caption area below.
+tags: [placeholder, browser, window]
+slots:
+  screen: {type: screen, required: true, description: The capture (video + camera moves).}
+params:
+  type: object
+  properties:
+    radius: {type: number, minimum: 0, maximum: 40, default: 14, description: Corner radius of the window in design px.}
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: Shadow under the window.}
+    show_url: {type: boolean, default: true, description: Show the page URL in the chrome bar.}
+tokens: [colors.text, colors.paper, colors.muted, background, fonts.body]
+geometry:
+  frame: {x: 216, y: 36, w: 1488, h: 877}
+  chrome: {x: 216, y: 36, w: 1488, h: 40}
+  screen: {x: 216, y: 76, w: 1488, h: 837}
+  caption: {x: 216, y: 930, w: 1488, h: 110}
+  brandmark: {x: 1504, y: 965, w: 200, h: 40}
+  radius: 14
+geometry_vertical:
+  frame: {x: 40, y: 520, w: 1000, h: 603}
+  chrome: {x: 40, y: 520, w: 1000, h: 40}
+  screen: {x: 40, y: 560, w: 1000, h: 563}
+  caption: {x: 40, y: 1163, w: 1000, h: 220}
+  brandmark: {x: 880, y: 1840, w: 160, h: 40}
+  radius: 14
+variants: [landscape, vertical]
+preview:
+  at: [1]

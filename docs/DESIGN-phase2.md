@@ -44,6 +44,10 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/overlay-lower-third | overlay | lower third (title + subtitle) |
 | studio/transition-crossfade, studio/transition-fade-black | transition | |
 
+Since L2.4 every id above exists as a theme-driven **placeholder** (manifest tag `placeholder`) that accepts the params
+the themes and legacy fields pass and, for layouts, draws exactly its declared geometry; L2.5 (reference look) and L2.7
+replace them.
+
 ### 1.3 Registry (`@demo-studio/components`, implemented in L2.2)
 ```ts
 loadComponentRegistry(opts: { root: string /* workspace */; componentsDir?; builtinDir? | null }): Promise<ComponentRegistry>
@@ -175,13 +179,25 @@ listRenders(project): Promise<RenderRecord[]>
   smoothed cursor/target track.
 
 ### 2.2 Composition & rendering
-`DemoVideo` / `DemoVertical` (Remotion) take `{ plan }` and render only the plan: background, one Sequence per segment
-with its fade envelope, the segment component, for clips the layout component with `screen` = `<Freeze
-frame={srcFrames[f]}><OffthreadVideo/></Freeze>` under the camera transform, the caption component and overlays,
-brandmark, optional music bed. Components are imported through a GENERATED registry module (built-in + workspace
-component entries) so user components are bundled too; the bundle is cached under `<root>/.demo-studio/cache/` keyed by
-a hash of editor + component sources. Assets (capture, fonts, logo, music) are served by a local static HTTP server
-during the render. Browser: `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell.
+`DemoVideo` / `DemoVertical` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
+background, one Sequence per segment with its transition component (or, without one, its plain fade envelope), the
+segment component, for clips the layout component with `screen` = the capture frame `srcFrames[f]` under the camera
+transform, the caption component (cues, `area` = the layout's caption rect) and overlays (anchor mapped per frame with
+`mapSourceRect`), the brand mark (theme logo + wordmark in the layout's `brandmark` rect — layouts do not draw it),
+optional music bed. Interstitials receive the previous clip's last frame (layout + capture + brand mark) as `screen`.
+Transitions render twice: a crossfade over the overlap of the two segments (both see transition frames [0, n)), a dip
+without overlap (frames [0, ⌊n/2⌋) at the end of the outgoing segment, [⌊n/2⌋, n) at the start of the incoming one).
+The capture frame is an `OffthreadVideo` inside a `Sequence` shifted to that frame — not `<Freeze
+frame={srcFrames[f]}>`: Remotion clamps a frozen timeline position to the composition length, so a capture frame
+index past the end of the edit would show the wrong frame. Theme fonts are registered with FontFace (delayRender)
+before anything is drawn; uses marked `missing` render with the scaffold of their kind. Components are imported through
+a GENERATED registry module (the plan's component entries, built-in or workspace, + the scaffolds) so user components
+are bundled too; the bundle is cached under `<root>/.demo-studio/cache/remotion-<hash>/` keyed by a hash of the
+composition sources, the kit, the bundled component folders and the Remotion version. Assets (capture, fonts, logo,
+music) are served by a local static HTTP server (127.0.0.1, Range, CORS) during the render. Browser:
+`$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell. Output: H.264 CRF 16, yuv420p BT.709,
+faststart, always an audio track (silent AAC without music); the video is encoded under a temporary name and renamed,
+so a failed or cancelled render leaves nothing under the final name.
 
 ## 3. Review (`packages/review`)
 

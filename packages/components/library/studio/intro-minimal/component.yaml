@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
+# Kicker and title only (or, with logo_only, the logo and wordmark only), fading in on the theme background.
+id: studio/intro-minimal
+version: 0.1.0
+kind: intro
+name: Intro minimal
+description: Kicker and title fading in on the theme background — or only the logo and wordmark (logo_only).
+tags: [placeholder, intro, minimal]
+slots:
+  title: {type: text, default_from: scenario.title.text, max_chars: 60, description: The video title.}
+  kicker: {type: text, default_from: scenario.title.kicker, max_chars: 40, description: Small uppercase line above the title.}
+  logo: {type: image, default_from: theme.logo, description: Logo image (the theme logo by default).}
+params:
+  type: object
+  properties:
+    logo_only: {type: boolean, default: false, description: Show only the logo and the wordmark.}
+    align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
+tokens: [colors.accent, colors.text, background, fonts.display, fonts.body, logo, wordmark]
+duration: {default: 2.6, min: 1.2, max: 8}
+variants: [landscape, vertical]
+preview:
+  slots: {title: Quotes in two clicks, kicker: Product tour}
+  at: [0.4, 1.6]

@@ -23,12 +23,18 @@ afterAll(async () => {
 });
 
 describe('studio components', () => {
-  it('list: empty workspace (the built-in library arrives in L2.5)', async () => {
+  it('list: an empty workspace lists the built-in library (placeholders until L2.5 / L2.7)', async () => {
     const r = await studio('components', 'list');
     expect(r.code, r.err).toBe(EXIT.ok);
-    expect(r.out).toContain('none yet — create one with `studio components create <namespace/name> --kind <kind>`');
-    const json = JSON.parse((await studio('components', 'list', '--json')).out) as { components: unknown[]; components_dir: string };
-    expect(json.components).toEqual([]);
+    expect(r.out).not.toContain('none yet');
+    expect(r.out).toMatch(/studio\/layout-card\s+layout\s+built-in\s+0\.1\.0/);
+    const json = JSON.parse((await studio('components', 'list', '--json')).out) as {
+      components: Array<{ id: string; source: string; tags?: string[] }>;
+      components_dir: string;
+    };
+    expect(json.components.filter((c) => c.source === 'workspace')).toEqual([]);
+    expect(json.components).toHaveLength(18);
+    for (const c of json.components) expect(c.tags, c.id).toContain('placeholder');
     expect(json.components_dir).toBe(join(ws, 'components'));
   });
 
@@ -45,7 +51,14 @@ describe('studio components', () => {
     const layouts = JSON.parse((await studio('components', 'list', '--kind', 'layout', '--json')).out) as {
       components: Array<{ id: string; kind: string; source: string; params: Record<string, unknown>; slots: string[] }>;
     };
-    expect(layouts.components).toEqual([
+    expect(layouts.components.filter((c) => c.source === 'builtin').map((c) => c.id)).toEqual([
+      'studio/layout-browser',
+      'studio/layout-card',
+      'studio/layout-laptop',
+      'studio/layout-phone',
+      'studio/layout-raw',
+    ]);
+    expect(layouts.components.filter((c) => c.source === 'workspace')).toEqual([
       expect.objectContaining({ id: 'acme/my-layout', kind: 'layout', source: 'workspace', params: { radius: 18, shadow: 'soft' }, slots: ['screen'] }),
     ]);
 

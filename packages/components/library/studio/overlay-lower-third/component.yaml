@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
+# A lower third: an accent bar, the kicker and the text on a paper panel at the bottom-left of the frame (the anchor
+# is not used). Slides in, fades out at the end. Same slots as studio/overlay-callout, so the two are interchangeable.
+id: studio/overlay-lower-third
+version: 0.1.0
+kind: overlay
+name: Lower third
+description: Paper panel with an accent bar, a small kicker and the text at the bottom-left of the frame; slides in and fades out.
+tags: [placeholder, overlay, lower-third]
+slots:
+  text: {type: text, required: true, max_chars: 60, description: Main line.}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the text.}
+params:
+  type: object
+  properties:
+    side: {type: string, enum: [left, right], default: left, description: Corner of the frame.}
+    max_width: {type: number, minimum: 300, maximum: 1400, default: 760, description: Widest panel in design px.}
+tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body]
+duration: {default: 3, min: 1, max: 30}
+variants: [landscape, vertical]
+preview:
+  slots: {text: Orders sync with the warehouse, kicker: Behind the scenes}
+  at: [1]

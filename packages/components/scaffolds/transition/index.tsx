@@ -17,10 +17,13 @@ export default function Transition({ theme, params, durationInFrames, direction,
     return <div style={{ position: 'absolute', inset: 0, opacity: entering ? ease(p) : 1 }}>{content}</div>;
   }
   const color = theme.colors[params.through];
-  // Exiting: veil 0 → 1 over the first half. Entering: hidden first half, then veil 1 → 0.
-  const veil = entering ? clamp(2 - 2 * p) : clamp(2 * p);
+  // A dip does not overlap: the exiting render covers frames [0, ⌊n/2⌋) (veil 0 → 1, opaque on its last frame), the
+  // entering one [⌊n/2⌋, n) (veil 1 → 0).
+  const n = Math.max(1, durationInFrames);
+  const half = Math.max(1, Math.floor(n / 2));
+  const veil = entering ? clamp(1 - (frame - half + 1) / (n - half + 1)) : clamp((frame + 1) / half);
   return (
-    <div style={{ position: 'absolute', inset: 0, opacity: entering && p < 0.5 ? 0 : 1 }}>
+    <div style={{ position: 'absolute', inset: 0 }}>
       {content}
       <div style={{ position: 'absolute', inset: 0, background: color, opacity: ease(veil) }} />
     </div>

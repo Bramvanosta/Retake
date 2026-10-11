@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=../../schema/component.schema.json
-# Transition scaffold: a crossfade, or a dip through a theme colour. The component renders twice over the overlap:
-# around the outgoing segment (direction: exiting) and around the incoming one (direction: entering, on top);
-# progress = frame / durationInFrames.
+# Transition scaffold: a crossfade, or a dip through a theme colour. The component renders twice: around the outgoing
+# segment (direction: exiting) and around the incoming one (direction: entering, on top); progress = frame /
+# durationInFrames. A crossfade overlaps the two segments (both renders see frames [0, n)); a dip does not: the
+# exiting render covers frames [0, ⌊n/2⌋) and the entering one [⌊n/2⌋, n).
 id: scaffolds/transition
 version: 0.1.0
 kind: transition

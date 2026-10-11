@@ -17,6 +17,7 @@ profiles live in **your own workspace folder**, never in this repository.
 - [Project layout](#project-layout)
 - [Scenario language](#scenario-language)
 - [Editing: the edit plan](#editing-the-edit-plan)
+- [Rendering](#rendering)
 - [Signing in once: pre-authenticated profiles](#signing-in-once-pre-authenticated-profiles)
 - [Security](#security)
 - [Outputs of a run](#outputs-of-a-run)
@@ -127,6 +128,9 @@ studio components list [--kind K] [--json]            # workspace components, th
 studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
 studio components create <namespace/name> --kind K [--description D] [--name N] [--json]
 studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical] [--json] [--out FILE]
+studio render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical] [--scale N] [--no-intro]
+              [--no-outro] [--out FILE] [--concurrency N] [--json]
+studio still <project> <scenario> --frame N [--run ID|latest] [--theme T] [--vertical] [--out FILE] [--json]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
 studio login <project> [--env E] [--page KEY] [--url URL]
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
@@ -158,8 +162,11 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **components** lists, validates and scaffolds components — see [Components](#components).
 - **plan** shows how a capture will be edited (segments, components, speeds, trims, zooms, captions, warnings)
   without rendering — see [Editing](#editing-the-edit-plan).
-- **render**, **review**, **export** (phase 2), **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and
-  say when they arrive.
+- **render** plans and renders the latest capture of a scenario (or `--run`) into `renders/<scenario>-v<N>.mp4` with a
+  progress bar and a summary; **still** renders one frame of the planned video as a PNG — see
+  [Rendering](#rendering).
+- **review**, **export** (phase 2), **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and say when they
+  arrive.
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
 invalid command line.
@@ -494,8 +501,11 @@ components/<namespace>/<name>/     # in your workspace (studio.yaml components_d
 **Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. Ids
 resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
 marketplace cache: a workspace component with a built-in id overrides it (`studio components list` warns). The built-in
-library arrives with lots L2.5 (reference look) and L2.7; until then `packages/components/scaffolds/<kind>/` holds one
-valid, theme-driven placeholder per kind.
+library (`packages/components/library/studio/*`) has a component for every id the starter themes and the legacy
+template fields use; they are theme-driven **placeholders** (tag `placeholder`) until the measured reference-look
+versions land in L2.5 (intro-stack, outro-stack, layout-card, caption-below, interstitial-clock, transition-crossfade)
+and L2.7 (the others). `packages/components/scaffolds/<kind>/` holds one valid, theme-driven template per kind
+(`studio components create` copies it; the renderer draws it as the stand-in of a missing component).
 
 **How a theme picks components.** A template's `components:` map (or its legacy fields, see
 [Templates](#templates-themes)) names the default component and params of each kind; a scenario overrides it per use
@@ -659,7 +669,7 @@ kind or segment id), `theme` (the caller loads that template) and `music`.
 
 `studio plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
 JSON with `--out` (or prints it with `--json`); `--theme`, `--frame` and `--vertical` try another theme, frame or the
-9:16 variant. In a workspace whose `components/studio/*` exist (here: created from the scaffolds):
+9:16 variant:
 
 ```
 $ studio plan northfield-fixture latest --scenario catalogue
@@ -680,8 +690,68 @@ Segments
    …
 ```
 
-(Until the built-in library lands in L2.5, components resolve only from your workspace `components/` folder: the
-summary marks the others `MISSING` and the warnings list their uses.)
+A component that resolves nowhere is marked `MISSING` in the summary (the warnings list its uses) and rendered with
+the scaffold of its kind as a stand-in.
+
+## Rendering
+
+`studio render <project> <scenario>` plans the latest capture of a scenario (or `--run <id|dir|latest>`) and renders
+the plan with [Remotion](https://www.remotion.dev):
+
+```
+$ studio render northfield-fixture catalogue
+✓ rendered catalogue-v1 → projects/northfield-fixture/renders/catalogue-v1.mp4
+  59.00 s · 1770 frames @ 30 fps · 1920×1080 · 8.5 MB · h264 crf 16, silent audio · checked: 59.01 s, 1920×1080, 1 audio track
+  theme editorial · run 20261011-182524-catalogue · bundle built in 9.9 s · render 3 m 27 s (concurrency 3) · total 3 m 38 s
+  record projects/northfield-fixture/renders/catalogue-v1.json
+```
+
+- **Outputs**: `renders/<scenario>-v<N>.mp4` (`-v<N>-vertical.mp4` for `--vertical`) and its **RenderRecord**
+  `renders/<scenario>-v<N>.json`: id, project, scenario, run id and directory, theme, overrides, variant, status,
+  duration, frames, fps, size, file size, encoding, what ffprobe saw in the file, bundle hash, browser, timings,
+  warnings and the whole plan. N is the next free version of the scenario (both variants share the counter); `--out`
+  writes elsewhere. The video is encoded under a temporary name and renamed when complete: a failed or cancelled
+  render (Ctrl-C, or an `AbortSignal` through the API) leaves nothing under the final names.
+- **Encoding**: H.264 CRF 16, `yuv420p` limited-range BT.709 (tagged), `+faststart` (moov first), and always an audio
+  track: AAC silence when there is no music (checked with ffprobe after the render, added with ffmpeg if ever missing).
+- **Options**: `--theme` (another template, the scenario untouched), `--frame` (frame style or layout component id for
+  every scene), `--vertical` (1080×1920), `--scale` (output size × 1920×1080), `--no-intro`, `--no-outro`,
+  `--concurrency` (frames rendered in parallel; default ¾ of the CPUs, 1–8), `--json` (the record without the plan).
+- **Stills**: `studio still <project> <scenario> --frame <n>` renders output frame n of the planned video as a PNG
+  (default `renders/stills/<scenario>-f<n>.png`) — the quick way to look at one moment of an edit.
+
+How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
+
+- **Compositions** `DemoVideo` (landscape) and `DemoVertical` take `{ plan }` and draw only the plan: the theme
+  background; one `Sequence` per segment with its transition component (rendered around the end of the outgoing
+  segment and the start of the incoming one: a crossfade overlaps them, a dip splits its frames) or its plain fade
+  envelope; the segment's component with its slots and params; for clips, the layout component whose `screen` is the
+  capture — the plan's source frame of every output frame (`OffthreadVideo` shifted by a `Sequence` to that frame:
+  `Freeze` cannot be used because Remotion clamps a frozen position to the composition's length, which would show the
+  wrong frame for captures longer than the edit), letterboxed to its aspect ratio and moved by the per-frame camera
+  (zoom + centre mapped into the layout's screen rect) —, the caption component with the clip's cues in the layout's
+  caption area, the overlays placed from their capture-pixel anchor through layout and camera, the brand mark in the
+  layout's `brandmark` rect (layouts never draw it), and the music bed (fades, ducked under clips). Interstitials get
+  the previous clip's last frame (layout, capture, brand mark) as their `screen`. Theme fonts are registered with
+  `FontFace` before anything is drawn (text fitting measures with the real fonts). A component the plan marks
+  `missing` is drawn by the scaffold of its kind.
+- **Generated registry module**: each render bundles a generated entry and registry module that import the
+  implementation of every component the plan uses — built-in or from your workspace `components/` — plus the
+  scaffolds, so your own components are bundled exactly like the built-in ones.
+- **Bundle cache**: `<workspace>/.demo-studio/cache/remotion-<hash>/` (git-ignored), the hash covering the composition
+  sources, the kit, every bundled component folder and the Remotion version; a render rebuilds the bundle (≈ 10 s)
+  only when one of them changed, and the six most recently used bundles are kept.
+- **Assets**: the capture, fonts, logo, wordmark and music (`ds-asset:` URLs in the plan) are served by a local HTTP
+  server on 127.0.0.1 (random port, random path token, Range requests, CORS) for the duration of the render.
+- **Browser**: `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell (found through
+  playwright-core's browser registry: `playwright-core install chromium-headless-shell`), else Remotion's own.
+- **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?})`
+  → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `encoding`, `done`); `renderStill({plan,
+  frame, out})` → the PNG path; `listRenders(project)` → the records of `renders/`; `renderPlan({plan, out})` renders
+  any plan.
+
+Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
+(≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached.
 
 ## Signing in once: pre-authenticated profiles
 
@@ -745,7 +815,8 @@ packages/hooks        setup/teardown hooks (http, sql, shell, js), rollback jour
 packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), actions, screencast, encoder, timeline
 packages/cli          the `studio` command
 packages/components   components: manifest schema, registry, validation, scaffolds, theme tokens, kit (L2.2)
-packages/editor       edit planner (planEdit → EditPlan) and the plan contract; rendering arrives in L2.4
+packages/editor       edit planner (planEdit → EditPlan), the Remotion compositions (src/remotion) and the render
+                      pipeline (bundle cache, asset server, renderVideo / renderStill / listRenders)
 packages/review, mcp  phase 2 and 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests
 projects/             the fixture project (your projects live in your workspace)
@@ -762,7 +833,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`) and the edit planner (L2.3: `planEdit`, `studio plan`) done; render pipeline, library and review next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`) and the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`) done; reference-look components, review and the rest of the library next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
