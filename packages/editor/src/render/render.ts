@@ -487,10 +487,29 @@ export interface RenderStillOptions {
 
 /** Render one output frame of a plan to a PNG; returns the file. */
 export async function renderStill(opts: RenderStillOptions): Promise<string> {
-  const out = resolve(opts.out);
-  const frame = Math.round(opts.frame);
-  if (!(frame >= 0 && frame < opts.plan.durationInFrames)) {
-    throw new RenderError(`frame ${opts.frame} is outside the video (0–${opts.plan.durationInFrames - 1})`);
+  const [file] = await renderStills({ ...opts, frames: [{ frame: opts.frame, out: opts.out }] });
+  return file;
+}
+
+export interface RenderStillsOptions {
+  plan: EditPlan;
+  /** Output frames (0-based) and the .png each one goes to. */
+  frames: Array<{ frame: number; out: string }>;
+  root?: string;
+  registry?: ComponentRegistry;
+  cacheDir?: string;
+}
+
+/**
+ * Render several output frames of a plan to PNGs in ONE session (bundle, asset server and browser are opened once:
+ * ≈ 0.3–0.6 s per extra frame instead of ≈ 1–2 s per `renderStill`). Returns the files in the order given.
+ */
+export async function renderStills(opts: RenderStillsOptions): Promise<string[]> {
+  for (const f of opts.frames) {
+    const frame = Math.round(f.frame);
+    if (!(frame >= 0 && frame < opts.plan.durationInFrames)) {
+      throw new RenderError(`frame ${f.frame} is outside the video (0–${opts.plan.durationInFrames - 1})`);
+    }
   }
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
   const session = await openSession({ plan: opts.plan, root, registry: opts.registry, cacheDir: opts.cacheDir });
@@ -505,20 +524,25 @@ export async function renderStill(opts: RenderStillOptions): Promise<string> {
       puppeteerInstance: session.puppeteer,
       browserExecutable: session.browser.path,
     });
-    await mkdir(dirname(out), { recursive: true });
-    await still({
-      ...COMMON,
-      composition,
-      serveUrl: session.serveUrl,
-      frame,
-      output: out,
-      imageFormat: 'png',
-      overwrite: true,
-      inputProps,
-      puppeteerInstance: session.puppeteer,
-      browserExecutable: session.browser.path,
-    });
-    return out;
+    const files: string[] = [];
+    for (const f of opts.frames) {
+      const out = resolve(f.out);
+      await mkdir(dirname(out), { recursive: true });
+      await still({
+        ...COMMON,
+        composition,
+        serveUrl: session.serveUrl,
+        frame: Math.round(f.frame),
+        output: out,
+        imageFormat: 'png',
+        overwrite: true,
+        inputProps,
+        puppeteerInstance: session.puppeteer,
+        browserExecutable: session.browser.path,
+      });
+      files.push(out);
+    }
+    return files;
   } catch (e) {
     if (e instanceof RenderError) throw e;
     throw new RenderError(`still failed: ${(e as Error).message}`);

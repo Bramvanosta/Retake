@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.4. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.5. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -88,19 +88,44 @@ automatically with themeable components, and let Claude operate everything throu
   editor/test/render-real.test.ts (colour-coded synthetic capture: every sampled output frame shows the plan's source
   frame), cli/test/render.test.ts. Fixture renders `projects/northfield-fixture/renders/{catalogue,quote}-v1.mp4`
   (runs 20261011-182524-catalogue / 20261011-182706-quote) checked frame by frame.
-- **Requirements:** 529 tracked; 273 done, 85 partial; the open ones are assigned to lots L1.2 … L6 (R-ARCH-03 moved
-  to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer — zooms only come from explicit
-  hints; needs a product decision). L2.4: all 16 done; R-PROJ-10 / R-PRJ-01 (the `review/` folder) moved to L2.6,
-  R-TPL-04 (style_bias has no consumer yet) to L2.5; the R-LIB-*/R-ED-10..14 items are partial (placeholders).
+- **L2.5 done** (reference-look components): `studio/intro-stack`, `outro-stack`, `layout-card`, `caption-below`,
+  `interstitial-clock`, `transition-crossfade` rewritten (tag `reference-look`, 1.0.0; the 12 other ids stay
+  placeholders until L2.7). Every colour/font/logo/wordmark from the theme; text placed by its CAP BAND (look.md
+  positions are cap centres) with the new kit `fontMetrics` / `capTextLayout` / `<CapText>` (canvas metrics in the
+  browser, estimate in Node); intro/outro = bands + measured gaps, whole stack centred; wordmark = a visual height
+  (image, or the brand name in the display font × 1.3 — kit `Wordmark` semantics changed accordingly); night tone =
+  `colors.dark` else the darker of text/paper; readability guard (`readableOn`); `biasMotion(style_bias)` (real = the
+  reference motion; balanced/motion: more rise, scale/tracking settles, self-drawing caption rule and clock ring,
+  1–2 % crossfade scale). **Geometry expressions**: layout manifests may write every geometry value as an expression
+  over numeric params, `vars` and `aspect` (packages/components/src/geometry.ts; parseManifest checks them; JSON schema
+  `GeometryValue`); `planEdit` evaluates them per use with the capture aspect (warning + fallback when they fail or
+  leave the frame); the composition passes the evaluated rects to the layout as `props.rects`. layout-card: width 1560
+  → card {180, 40, 1560 × 878}, caption {180, 930, 1220 × 110}, brand mark {1420, 965, 320 × 40}; width 1400 →
+  {260, 85, 1400 × 788}; height follows the capture aspect (≤ 878). Caption-below: kicker row centred 28 px and line
+  cap-centred 65.5 px under the caption area top; a caption enters 0.15 s after the clip start and leaves 0.15 s
+  before its end (no double exposure in crossfades). Interstitial veil: ease-in over 0.6 s (matches the reference at
+  ≈ 0.4 s better than look.md's 0.5 s). Kit radial background refitted to the reference (lighter at the top).
+  Editorial caption line 35 → 38 px. `renderStills` (several frames in one browser session). interstitial-plain
+  `tone: paper` now uses the theme paper (was light on the dark motion theme). Tests: components/test/geometry.test.ts,
+  editor/test/planner-geometry.test.ts, editor/test/render-look.test.ts (pixel analysis of real stills: rule, card
+  edges, caption, brand mark, logo rows, clock, texts within ≤ 3 px; motion at 0.4/1.0/1.3 s; width 1400 on screen;
+  half size; determinism), library.test.ts rewritten for the reference look. 540 tests pass (6 Postgres tests
+  skipped). Fixture renders `renders/{catalogue,quote}-v3.mp4` compared side by side with the reference stills.
+- **Requirements:** 561 tracked; 304 done, 75 partial, 167 todo, 15 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer —
+  decided: L2.8). L2.4: all 16 done. L2.5: all done; R-LOOK-03 (video/scene length flags) and R-LOOK-05 (at most one
+  slow zoom per video) moved to L2.6 (review checks), R-LIB-00 (whole library final) to L2.7; the other R-LIB-*/
+  R-ED-10/12..14 items stay partial (placeholders, L2.7).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
-  with a placeholder library (L2.4). `packages/{review,mcp}` are otherwise empty; `studio review|export|record|mcp|ui`
-  print "available in phase N".
+  (L2.4) + reference-look components with geometry expressions (L2.5). `packages/{review,mcp}` are otherwise empty;
+  `studio review|export|record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.5 — reference-look components** (M): replace the placeholders `studio/intro-stack`, `outro-stack`, `layout-card`,
-`caption-below`, `interstitial-clock`, `transition-crossfade` with the measured values of `docs/reference/look.md`
-(R-LIB-00/01/03/06/08/13/17, R-LOOK-01..22, R-THM-04/07, R-ED-11/16, R-TPL-04) — unless the user picks otherwise (L1.2
-robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
+**L2.6 — review package + `studio review`** (M): `reviewRender` (contact sheets, per-scene sheets, key frames,
+output-time timeline, report.json + report.md, base64 thumbnails, every check of DESIGN-phase2 §3, diff vs the previous
+render) and `studio review` (R-REV-*, R-CLI2-02, R-GOAL-06, R-PROJ-10 / R-PRJ-01, R-LOOK-03/05) — unless the user picks
+otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See
+ROADMAP.
 
 Render commands (fixture captures exist: runs 20261011-182524-catalogue and 20261011-182706-quote):
 ```
@@ -108,31 +133,40 @@ node packages/cli/dist/bin.js render northfield-fixture catalogue        # → r
 node packages/cli/dist/bin.js render northfield-fixture quote --theme motion
 node packages/cli/dist/bin.js still northfield-fixture quote --frame 1409  # one frame as PNG (renders/stills/)
 ```
-Render times here (4 CPUs, no GPU, concurrency 3, 1080p): catalogue 59.0 s → 3 m 38 s, quote 56.3 s → 2 m 59 s
-(≈ 8–9 output fps; card frames are no cheaper than clip frames: Chrome software raster + JPEG capture dominate;
-concurrency 4, x264 `veryfast`, multi-process Chrome or PNG frames did not help more than ±10 %); a new bundle ≈ 10 s;
-a still ≈ 1–2 s with a cached bundle (≈ 12 s when the bundle must be built).
+Render times here (4 CPUs, no GPU, concurrency 3, 1080p; L2.5 components): catalogue 59.0 s → 3 m 37 s total (render 3 m
+26 s + bundle 10 s), quote 56.3 s → 2 m 58 s (cached bundle) — as in L2.4 (≈ 8–9 output fps; card frames are no cheaper
+than clip frames: Chrome software raster + JPEG capture dominate; concurrency 4, x264 `veryfast`, multi-process Chrome
+or PNG frames did not help more than ±10 %); a new bundle ≈ 10 s; a still ≈ 1–2 s with a cached bundle (≈ 12 s when the
+bundle must be built); `renderStills` ≈ 0.3–0.6 s per extra frame in the same session.
 
-Notes for L2.5:
-- Look at stills while iterating: `studio still … --frame n` (or `renderStill`) renders one frame in ~1 s once the
-  bundle is cached; every edit of a component file changes the bundle hash (rebuild ≈ 10 s). Key frames worth
-  checking: intro middle (frame 48), first frame after each crossfade (segment.from + transition.frames), mid-clip,
-  the catalogue "Awards" zoom peak (frame 1579), the quote card (353), interstitial (1155), callout (1409), outro.
-- Layout geometry is static and the planner places captions/overlays from it: if layout-card's `width` should move the
-  card, teach the planner to derive geometry from params (e.g. a geometry function of params, or one geometry per
-  param value) — the placeholder draws the declared 1560 × 877.5 card (exactly 16:9; the manifest geometry is
-  {180, 40, 1560, 877.5}). The reference wants the card at y 40 and the caption block at y ≈ 930–1040.
-- The brand mark is drawn by the composition (`Brandmark` in DemoVideo.tsx: logo `theme.brandmark.size` (30) +
-  wordmark at 0.8× height, gap 10, right-aligned in the layout's `brandmark` rect, vertically centred); the reference
-  values (wordmark display 24 px, y ≈ 985) can be matched there or by the geometry's brandmark rect.
-- Transition contract (types.ts `direction`): a crossfade renders both segments over the overlap; a dip splits its
-  frames (⌊n/2⌋ exiting, the rest entering). The crossfade placeholder eases the entering opacity with (f+1)/(n+1) so
-  no frame is fully old or fully new inside the overlap.
-- Captions: cues of a clip end at the clip end (overlap included): the caption fades out over the last 0.25 s, so it
-  crossfades with its clip. Caption text styles come from `theme.captions` (editorial line 35 px; look.md says ≈ 38).
-- `style_bias` reaches every component (`theme.style_bias`) but no component uses it yet (R-TPL-04 partial).
-- Vertical: the layouts' `geometry_vertical` screens are 16:9, so the vertical "crop" is the whole capture (small
-  text); real 9:16 reframing is L2.8.
+Notes for L2.6:
+- Rendering many frames: `renderStills({plan, frames: [{frame, out}…]})` keeps one bundle + asset server + browser for
+  all frames (≈ 0.3–0.6 s per frame) — the base for contact sheets and key frames. Pixel helpers worth promoting into
+  the review package: `readImage` (ffmpeg → rgb24), `bbox`, `solidRect` in packages/editor/test/render-look.test.ts.
+- Key frames of the fixture plans: intro hold (intro.from + 78), crossfade midpoints (segment.from +
+  ⌊transition.frames / 2⌋), mid-clip, interstitial (from + 45 = full dark card), outro (from + 84); the catalogue
+  "Awards" zoom peak (1579), the quote card (353) and callout (1409).
+- Layout rects for review checks: `plan.layout` / `clip.layout` are the EVALUATED geometry (capture, card, caption,
+  brandmark, radius in output px) — never re-read the manifest geometry (it may contain expressions).
+- Caption timing (caption-below): a cue starting at the clip start shows from +0.15 s, one ending with the clip is gone
+  0.15 s before its end; the review's caption/scene checks should allow that margin. "Caption too long" should use
+  `fitText` with the theme caption style and the caption rect (caption-below shrinks to 62 % before cutting) rather
+  than a raw character count: the fixture captions (56–87 chars) all fit on one line.
+- R-LOOK-03: the fixture plans are 59.0 s and 56.3 s (just under the 1–2 min target) — decide whether the duration
+  check is a warning or info. R-LOOK-05 (at most one slow zoom per video): count `clip.zooms`.
+- Side-by-side with the reference (L2.5, frames of catalogue-v3 / quote-v3): positions match within ≤ 3 px (card,
+  caption kicker/line, brand mark, intro row/kicker/title/rule, clock, interstitial text, outro stack); the intro
+  build-up at 0.4 / 1.0 / 2.6 s, the interstitial start / middle / end and the outro at 0.4 / 2.5 s match the
+  reference's timing; the background now matches its samples within 1–2 levels. Remaining differences are
+  brand-related: the editorial display face (Instrument Serif) is narrower and lighter than the reference's serif, so
+  titles, captions and the interstitial text look lighter; the placeholder brand's wordmark is shorter. The reference
+  shows the clip's caption fading during the interstitial dim; ours has already left (it leaves before the clip end).
+- Still placeholders (L2.7): intro-minimal, outro-minimal, card-title, interstitial-plain, layout-browser/-laptop/
+  -phone/-raw, caption-overlay, overlay-callout/-lower-third, transition-fade-black — the motion and default themes
+  use several of them; with the six reference-look components forced (overrides.components) both themes render
+  natively (checked by eye). Their geometry can use expressions too (layout-browser width…).
+- Vertical: layout-card's `geometry_vertical` follows the capture aspect too (card 1000 wide, centred block); real 9:16
+  reframing is L2.8.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

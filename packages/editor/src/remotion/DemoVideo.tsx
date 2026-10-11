@@ -13,7 +13,7 @@ import type { ComponentProps, ThemeTokens } from '@demo-studio/components';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, PlanSegment, ResolvedComponent } from '../plan-types.js';
 import { mapSourceRect, viewOf } from '../layout.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, envelopeAt, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './frames.js';
+import { brandmarkRect, envelopeAt, layoutRects, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 
@@ -147,7 +147,12 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
   const f = stillAt ?? current;
   return (
     <AbsoluteFill>
-      <Use rc={clip.component} plan={plan} durationInFrames={clip.durationInFrames} extra={{ screen: <CaptureScreen plan={plan} clip={clip} frame={stillAt} />, url: urlAt(clip, f) }} />
+      <Use
+        rc={clip.component}
+        plan={plan}
+        durationInFrames={clip.durationInFrames}
+        extra={{ screen: <CaptureScreen plan={plan} clip={clip} frame={stillAt} />, url: urlAt(clip, f), rects: layoutRects(clip.layout) }}
+      />
       <Brandmark plan={plan} clip={clip} />
       {!still && clip.caption && clip.cues.length > 0 ? (
         <Use rc={clip.caption} plan={plan} durationInFrames={clip.durationInFrames} extra={{ cues: clip.cues, ...(clip.layout.caption ? { area: clip.layout.caption } : {}) }} />

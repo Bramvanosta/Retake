@@ -11,7 +11,7 @@ clock for time jumps.
 | Background | radial `#f8f4ef` → `#ebe4dc` |
 | Fonts | display Instrument Serif Regular, body Inter Regular / SemiBold / Bold |
 | Frame | `card`, 1560 px wide, radius 18, soft shadow |
-| Captions | below the card — kicker Inter SemiBold 15 px uppercase in the accent, line Instrument Serif 35 px |
+| Captions | below the card — kicker Inter SemiBold 15 px uppercase in the accent, line Instrument Serif 38 px |
 | Intro / outro | logo + kicker + title, 3.2 s / logo + wordmark + tagline + url, 3.0 s |
 | Interstitial / transitions | `dark-clock` / 0.35 s crossfade between scenes |
 | Cursor | dark arrow, ripple `rgba(138, 35, 50, 0.45)` |

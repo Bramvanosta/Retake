@@ -6,6 +6,9 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Img } from 'remotion';
 import type { ThemeTokens } from '../types.js';
 import { fitText } from './fit-text.js';
+import { fontMetrics } from './metrics.js';
+import type { CapTextLayout } from './metrics.js';
+import { roundTo } from './motion.js';
 import type { FitTextOptions } from './fit-text.js';
 import { backgroundCss, cssFontFamily, safeAreaRect } from './style.js';
 
@@ -49,7 +52,18 @@ export function Logo(props: { theme: ThemeTokens; size: number; unit?: number; s
   );
 }
 
-/** The wordmark image at `height` design px, or the brand name set in the display font. */
+/**
+ * Text size of a brand name drawn as the wordmark, relative to the wordmark's visual height: a tight-cropped wordmark
+ * image `height` px tall and the brand name set at `height × WORDMARK_TEXT_SCALE` in the display font look the same
+ * size (the ascender band of a display face is ≈ 0.77 em).
+ */
+export const WORDMARK_TEXT_SCALE = 1.3;
+
+/**
+ * The wordmark at `height` design px of VISUAL height: the wordmark image that tall, or the brand name set in the
+ * display font at `height × WORDMARK_TEXT_SCALE`, its baseline on the bottom of the box (so it lines up with an
+ * image wordmark and centres on a logo like one).
+ */
 export function Wordmark(props: { theme: ThemeTokens; height: number; unit?: number; color?: string; style?: CSSProperties }): ReactNode {
   const { theme, height, unit = 1 } = props;
   const px = height * unit;
@@ -58,14 +72,21 @@ export function Wordmark(props: { theme: ThemeTokens; height: number; unit?: num
   }
   const text = theme.wordmark?.text ?? theme.brand.name;
   if (!text) return null;
+  const size = roundTo(px * WORDMARK_TEXT_SCALE, 3);
+  const m = fontMetrics({ family: theme.fonts.display, size });
+  // Line box = the visual height; move the baseline (half-leading + ascent from the top) onto the bottom edge.
+  const baseline = (px - (m.ascent + m.descent)) / 2 + m.ascent;
   return (
     <span
       style={{
+        display: 'block',
+        height: px,
         fontFamily: cssFontFamily(theme.fonts.display, 'serif'),
-        fontSize: px,
-        lineHeight: 1,
+        fontSize: size,
+        lineHeight: `${px}px`,
         whiteSpace: 'nowrap',
         color: props.color ?? theme.colors.text,
+        transform: `translateY(${roundTo(px - baseline, 2)}px)`,
         ...props.style,
       }}
     >
@@ -111,6 +132,55 @@ export function FitText(props: FitTextProps): ReactNode {
         <div key={i} style={{ whiteSpace: 'pre' }}>
           {line || ' '}
         </div>
+      ))}
+    </div>
+  );
+}
+
+export interface CapTextProps {
+  /** From `capTextLayout` (the fitted lines, size and cap offsets). */
+  layout: CapTextLayout;
+  /** Left edge (align left), centre (align center) or right edge (align right) of the text, px. */
+  x: number;
+  /** Where the cap top of the first line goes, px. */
+  capTop: number;
+  align?: 'left' | 'center' | 'right';
+  color?: string;
+  style?: CSSProperties;
+}
+
+/**
+ * Text placed by its cap band (absolute, in the parent's coordinates): the first line's cap top at `capTop`, whatever
+ * the font's ascent/descent. Centred text with letter-spacing is shifted by half the trailing spacing so it looks
+ * centred.
+ */
+export function CapText(props: CapTextProps): ReactNode {
+  const { layout: l, x, capTop, align = 'left', color, style } = props;
+  const ls = l.font.letterSpacing ?? 0;
+  const box = Math.ceil(l.width + 2 * Math.abs(ls) * l.fontSize + 4);
+  const left = align === 'left' ? x : align === 'center' ? x - box / 2 : x - box;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: roundTo(left, 2),
+        top: roundTo(capTop + l.boxOffset, 2),
+        width: box,
+        fontFamily: cssFontFamily(l.font.family),
+        fontWeight: l.font.weight,
+        fontStyle: l.font.style,
+        fontSize: l.fontSize,
+        lineHeight: `${roundTo(l.lineHeightPx, 3)}px`,
+        letterSpacing: ls ? `${ls}em` : undefined,
+        textIndent: align === 'center' && ls ? `${ls}em` : undefined,
+        textAlign: align,
+        whiteSpace: 'pre',
+        color,
+        ...style,
+      }}
+    >
+      {l.lines.map((line, i) => (
+        <div key={i}>{line || ' '}</div>
       ))}
     </div>
   );

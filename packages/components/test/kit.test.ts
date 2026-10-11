@@ -10,6 +10,7 @@ import {
   Logo,
   SafeArea,
   Wordmark,
+  WORDMARK_TEXT_SCALE,
   activeIndex,
   backgroundCss,
   balanceLines,
@@ -207,7 +208,7 @@ describe('kit style helpers', () => {
     expect(cssFontFamily('ds-x', 'serif')).toBe('"ds-x", serif');
     expect(cssFontFamily('"A", serif')).toBe('"A", serif');
     expect(cssFontFamily('system-ui')).toBe('system-ui');
-    expect(backgroundCss(LIGHT)).toBe('radial-gradient(ellipse 120% 120% at 50% 35%, #f8f4ef 0%, #ebe4dc 100%)');
+    expect(backgroundCss(LIGHT)).toBe('radial-gradient(ellipse 150% 100% at 50% 0%, #f8f4ef 0%, 60%, #ebe4dc 100%)');
     expect(backgroundCss(DARK)).toBe('linear-gradient(180deg, #1b1e2b 0%, #0d0f16 100%)');
     expect(backgroundCss({ ...LIGHT, background: { type: 'solid', color: '#ffffff' } })).toBe('#ffffff');
     expect(backgroundCss({ ...LIGHT, background: { type: 'solid' } })).toBe(LIGHT.colors.paper);
@@ -244,7 +245,7 @@ describe('kit React elements (render-tested)', () => {
   const html = (el: Parameters<typeof renderToString>[0]) => renderToString(el);
 
   it('Background draws the theme background', () => {
-    expect(html(createElement(Background, { theme: LIGHT }))).toContain('radial-gradient(ellipse 120% 120% at 50% 35%, #f8f4ef 0%, #ebe4dc 100%)');
+    expect(html(createElement(Background, { theme: LIGHT }))).toContain('radial-gradient(ellipse 150% 100% at 50% 0%, #f8f4ef 0%, 60%, #ebe4dc 100%)');
     expect(html(createElement(Background, { theme: DARK }))).toContain('linear-gradient(180deg, #1b1e2b 0%, #0d0f16 100%)');
   });
 
@@ -258,12 +259,17 @@ describe('kit React elements (render-tested)', () => {
     expect(html(createElement(Logo, { theme: { ...LIGHT, brand: {} }, size: 50 }))).toBe('');
   });
 
-  it('Wordmark: the wordmark image, else the brand name in the display font', () => {
-    expect(html(createElement(Wordmark, { theme: DARK, height: 30 }))).toMatch(/<img[^>]*src="http:\/\/assets\.local\/wordmark\.svg"[^>]*alt="Pulse"/);
+  it('Wordmark: the wordmark image, else the brand name in the display font, both at the same visual height', () => {
+    const img = html(createElement(Wordmark, { theme: DARK, height: 30 }));
+    expect(img).toMatch(/<img[^>]*src="http:\/\/assets\.local\/wordmark\.svg"[^>]*alt="Pulse"/);
+    expect(img).toContain('height:30px');
     const text = html(createElement(Wordmark, { theme: LIGHT, height: 30, unit: 0.5 }));
     expect(text).toContain('>Atelier</span>');
     expect(text).toContain('font-family:&quot;ds-light-display&quot;, serif');
-    expect(text).toContain('font-size:15px');
+    // Visual height 15 px: a box that tall, the text set at 15 × WORDMARK_TEXT_SCALE with its baseline on the bottom.
+    expect(text).toContain(`font-size:${15 * WORDMARK_TEXT_SCALE}px`);
+    expect(text).toContain('height:15px');
+    expect(text).toMatch(/transform:translateY\(-?[\d.]+px\)/);
     expect(html(createElement(Wordmark, { theme: { ...LIGHT, wordmark: undefined, brand: {} }, height: 30 }))).toBe('');
   });
 

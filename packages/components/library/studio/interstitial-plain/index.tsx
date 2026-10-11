@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { Background, FitText, cssFontFamily, darkLight, fadeIn, progress, rise, withAlpha } from '@demo-studio/components/kit';
+import { Background, FitText, cssFontFamily, darkLight, fadeIn, progress, readableOn, rise, withAlpha } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { tone: 'dark' | 'paper'; dim: number };
@@ -10,14 +10,16 @@ export default function InterstitialPlain({ theme, slots, params, unit, width, f
   const frame = useCurrentFrame();
   const dark = params.tone !== 'paper';
   const tones = darkLight(theme);
-  const ink = dark ? tones.light : tones.dark;
-  const veil = fadeIn(frame, fps, { duration: 0.35 }) * params.dim;
+  // tone paper: a card in the theme's paper colour (dark on a dark theme) with text-coloured type.
+  const card = dark ? tones.dark : theme.colors.paper;
+  const ink = dark ? tones.light : readableOn(theme.colors.paper, theme.colors.text, tones.dark === theme.colors.paper ? tones.light : tones.dark);
+  const veil = fadeIn(frame, fps, { duration: 0.35 }) * (screen ? params.dim : 1);
   const run = progress(frame, fps, { delay: 0.2, duration: Math.max(0.1, durationInFrames / fps - 0.4), ease: 'linear' });
   const line = 240 * unit;
   return (
     <Background theme={theme}>
       {screen ? <div style={{ position: 'absolute', inset: 0 }}>{screen as ReactNode}</div> : null}
-      <div style={{ position: 'absolute', inset: 0, background: dark ? withAlpha(tones.dark, screen ? veil : 0.94) : withAlpha(tones.light, 0.96) }} />
+      <div style={{ position: 'absolute', inset: 0, background: withAlpha(card, dark ? 1 : 0.96), opacity: veil }} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
         {slots.kicker ? (
           <div
@@ -28,7 +30,7 @@ export default function InterstitialPlain({ theme, slots, params, unit, width, f
               fontSize: 20 * unit,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
-              color: dark ? withAlpha(tones.light, 0.7) : theme.colors.accent,
+              color: dark ? withAlpha(tones.light, 0.7) : readableOn(card, theme.colors.accent, ink, 2.2),
               marginBottom: 16 * unit,
             }}
           >

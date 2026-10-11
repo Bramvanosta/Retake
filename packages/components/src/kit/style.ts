@@ -19,7 +19,9 @@ export function backgroundCss(theme: Pick<ThemeTokens, 'background' | 'colors'>)
   const to = b.to ?? from;
   switch (b.type) {
     case 'radial':
-      return `radial-gradient(ellipse 120% 120% at 50% 35%, ${from} 0%, ${to} 100%)`;
+      // The reference "paper" (look.md): lightest at the top centre, reaching `to` along the bottom edge, a wide
+      // ellipse so the sides barely darken; the 60 % hint keeps the upper half light (measured on the reference).
+      return `radial-gradient(ellipse 150% 100% at 50% 0%, ${from} 0%, 60%, ${to} 100%)`;
     case 'linear':
       return `linear-gradient(180deg, ${from} 0%, ${to} 100%)`;
     default:
@@ -120,4 +122,49 @@ export function darkLight(theme: Pick<ThemeTokens, 'colors'>): { dark: string; l
   const lp = luminance(paper);
   if (lt !== undefined && lp !== undefined && lt > lp) return { dark: paper, light: text };
   return { dark: text, light: paper };
+}
+
+function parseHex(color: string): [number, number, number] | undefined {
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!hex) return undefined;
+  let h = hex[1];
+  if (h.length === 3) h = [...h].map((c) => c + c).join('');
+  return [0, 2, 4].map((i) => Number.parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+}
+
+/**
+ * `a` mixed with `t` (0..1) of `b`: a hex colour when both are hex (deterministic, sRGB), else CSS color-mix().
+ * Used to derive quiet tones from the theme (e.g. a ring between the dark tone and the paper).
+ */
+export function mixColors(a: string, b: string, t: number): string {
+  const k = Math.max(0, Math.min(1, t));
+  const ca = parseHex(a);
+  const cb = parseHex(b);
+  if (!ca || !cb) return `color-mix(in srgb, ${a} ${round((1 - k) * 100)}%, ${b})`;
+  const ch = (i: number) => Math.round(ca[i] + (cb[i] - ca[i]) * k).toString(16).padStart(2, '0');
+  return `#${ch(0)}${ch(1)}${ch(2)}`;
+}
+
+/**
+ * The theme's night tone for dark cards and veils: `colors.dark` when the theme defines it, else the darker of
+ * text / paper (the text colour of a light theme, the paper of a dark one).
+ */
+export function nightTone(theme: Pick<ThemeTokens, 'colors'>): string {
+  return theme.colors.dark ?? darkLight(theme).dark;
+}
+
+/** True when the theme background reads as dark (light text on it). */
+export function isDarkBackground(theme: Pick<ThemeTokens, 'background' | 'colors'>): boolean {
+  const l = luminance(backgroundSample(theme));
+  if (l !== undefined) return l < 0.18;
+  const lp = luminance(theme.colors.paper);
+  return lp !== undefined && lp < 0.18;
+}
+
+/** A representative colour of the theme background (solid colour, or the middle of the gradient) for contrast checks. */
+export function backgroundSample(theme: Pick<ThemeTokens, 'background' | 'colors'>): string {
+  const b = theme.background;
+  if (b.type === 'solid') return b.color ?? b.from ?? theme.colors.paper;
+  const from = b.from ?? b.color ?? theme.colors.paper;
+  return mixColors(from, b.to ?? from, 0.5);
 }

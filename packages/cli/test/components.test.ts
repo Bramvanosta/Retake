@@ -23,18 +23,24 @@ afterAll(async () => {
 });
 
 describe('studio components', () => {
-  it('list: an empty workspace lists the built-in library (placeholders until L2.5 / L2.7)', async () => {
+  it('list: an empty workspace lists the built-in library (reference look since L2.5, placeholders until L2.7)', async () => {
     const r = await studio('components', 'list');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.out).not.toContain('none yet');
-    expect(r.out).toMatch(/studio\/layout-card\s+layout\s+built-in\s+0\.1\.0/);
+    expect(r.out).toMatch(/studio\/layout-card\s+layout\s+built-in\s+1\.0\.0/);
+    expect(r.out).toMatch(/studio\/layout-browser\s+layout\s+built-in\s+0\.1\.0/);
     const json = JSON.parse((await studio('components', 'list', '--json')).out) as {
       components: Array<{ id: string; source: string; tags?: string[] }>;
       components_dir: string;
     };
     expect(json.components.filter((c) => c.source === 'workspace')).toEqual([]);
     expect(json.components).toHaveLength(18);
-    for (const c of json.components) expect(c.tags, c.id).toContain('placeholder');
+    const reference = ['studio/caption-below', 'studio/interstitial-clock', 'studio/intro-stack', 'studio/layout-card', 'studio/outro-stack', 'studio/transition-crossfade'];
+    for (const c of json.components) {
+      if (reference.includes(c.id)) expect(c.tags, c.id).not.toContain('placeholder');
+      else expect(c.tags, c.id).toContain('placeholder');
+    }
+    expect(json.components.filter((c) => c.tags?.includes('reference-look') && !c.tags.includes('placeholder')).map((c) => c.id).sort()).toEqual(reference);
     expect(json.components_dir).toBe(join(ws, 'components'));
   });
 

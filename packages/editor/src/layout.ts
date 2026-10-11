@@ -11,17 +11,30 @@ import { clamp, round } from './util.js';
 export const FALLBACK_GEOMETRY: Readonly<Record<PlanVariant, LayoutGeometry>> = {
   landscape: {
     screen: { x: 180, y: 40, w: 1560, h: 878 },
-    caption: { x: 180, y: 930, w: 1560, h: 110 },
-    brandmark: { x: 1540, y: 965, w: 200, h: 40 },
+    caption: { x: 180, y: 930, w: 1220, h: 110 },
+    brandmark: { x: 1420, y: 965, w: 320, h: 40 },
     radius: 18,
   },
   vertical: {
     screen: { x: 40, y: 560, w: 1000, h: 563 },
-    caption: { x: 40, y: 1163, w: 1000, h: 220 },
-    brandmark: { x: 880, y: 1840, w: 160, h: 40 },
+    caption: { x: 40, y: 1135, w: 1000, h: 220 },
+    brandmark: { x: 700, y: 1840, w: 340, h: 40 },
     radius: 18,
   },
 };
+
+/** Names of the rects of an evaluated geometry that leave the design space of the variant. */
+export function geometryOutside(g: LayoutGeometry, variant: PlanVariant): string[] {
+  const space = variant === 'landscape' ? { w: 1920, h: 1080 } : { w: 1080, h: 1920 };
+  const eps = 0.5;
+  const out: string[] = [];
+  for (const name of ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const) {
+    const r = g[name];
+    if (!r) continue;
+    if (r.w <= 0 || r.h <= 0 || r.x < -eps || r.y < -eps || r.x + r.w > space.w + eps || r.y + r.h > space.h + eps) out.push(name);
+  }
+  return out;
+}
 
 /** Full-frame geometry (frame style `raw` without a component). */
 export const RAW_GEOMETRY: Readonly<Record<PlanVariant, LayoutGeometry>> = {

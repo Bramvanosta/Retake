@@ -16,11 +16,11 @@ import type {
   TimelineVideo,
   TransitionKind,
 } from '@demo-studio/core';
-import { fontFileFace, themeTokens } from '@demo-studio/components';
-import type { CaptionCue, ComponentRegistry, SlotContext } from '@demo-studio/components';
+import { evalLayoutGeometry, fontFileFace, themeTokens } from '@demo-studio/components';
+import type { CaptionCue, ComponentRegistry, LayoutGeometry, SlotContext } from '@demo-studio/components';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase, clampView, isStatic, reframeTrack } from './camera.js';
 import type { ZoomMove } from './camera.js';
-import { FALLBACK_GEOMETRY, RAW_GEOMETRY, planLayout } from './layout.js';
+import { FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from './layout.js';
 import { PLAN_ASSET_SCHEME } from './plan-types.js';
 import type {
   CameraFrame,
@@ -342,9 +342,23 @@ export function planEdit(input: PlanEditInput): EditPlan {
   };
   const layoutOf = (rc: ResolvedComponent | null, frameSpec: FrameSpec, where: string): PlanLayout => {
     const manifest = resolver.manifest(rc);
-    const geometry = variant === 'landscape' ? manifest?.geometry : manifest?.geometry_vertical;
+    const spec = variant === 'landscape' ? manifest?.geometry : manifest?.geometry_vertical;
     const radius = typeof rc?.params.radius === 'number' ? rc.params.radius : undefined;
-    if (geometry) return planLayout(geometry, { variant, unit, cssWidth: cssW, cssHeight: cssH, radius });
+    if (spec && rc) {
+      // The geometry follows the params of this use (and the capture aspect): e.g. a theme `width` moves the card and
+      // the caption / brand mark rects with it.
+      let geometry: LayoutGeometry | undefined;
+      try {
+        geometry = evalLayoutGeometry(spec, rc.params, { aspect: cssW / cssH });
+      } catch (e) {
+        warnings.add(`${where}: layout ${rc.id}: ${(e as Error).message}: default geometry used`);
+      }
+      if (geometry) {
+        const outside = geometryOutside(geometry, variant);
+        if (outside.length > 0) warnings.add(`${where}: layout ${rc.id} with ${JSON.stringify(rc.params)}: ${outside.join(', ')} leave${outside.length === 1 ? 's' : ''} the frame`);
+        return planLayout(geometry, { variant, unit, cssWidth: cssW, cssHeight: cssH, radius: geometry.radius ?? radius });
+      }
+    }
     const raw = frameSpec === 'raw' || rc?.id.endsWith('layout-raw');
     if (rc && !rc.missing) warnings.add(`${where}: layout ${rc.id} declares no ${variant === 'landscape' ? 'geometry' : 'geometry_vertical'}: default geometry used`);
     return planLayout((raw ? RAW_GEOMETRY : FALLBACK_GEOMETRY)[variant], { variant, unit, cssWidth: cssW, cssHeight: cssH, radius, fallback: true });

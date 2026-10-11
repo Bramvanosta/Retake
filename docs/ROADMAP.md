@@ -28,8 +28,8 @@ requirements of a lot with their gaps.
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | **done** |
-| L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | next |
-| L2.6 | Review package + `studio review` | M | todo |
+| L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | **done** |
+| L2.6 | Review package + `studio review` | M | next |
 | L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | todo |
 | L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | todo |
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | todo |
@@ -191,17 +191,30 @@ requirements of a lot with their gaps.
   R-ED-11/16).
 - **Acceptance:** stills compared with the reference measurements (positions within a few px); both themes
   (editorial, motion) render natively; Claude reviews the stills.
+- **Done:** the six components rewritten (tag `reference-look`, 1.0.0; theme tokens only; text placed by its cap band
+  with the new kit `fontMetrics` / `capTextLayout` / `<CapText>`; `biasMotion(style_bias)` for balanced/motion;
+  wordmark = brand name in the display font without an image); layout geometry follows params through **geometry
+  expressions** in component.yaml (params, `vars`, `aspect`; validated, evaluated by the planner per use, passed to the
+  layout as `props.rects`) — layout-card width moves card + caption + brand mark; kit background "lighter at the top"
+  fitted to the reference; editorial caption line 38 px; `renderStills` (one browser session); interstitial-plain
+  `tone: paper` fixed for dark themes. Measured on real renders (`packages/editor/test/render-look.test.ts`: rule,
+  card edges, caption, brand mark, logo rows, clock, texts within ≤ 3 px of look.md, motion at 0.4/1.0/1.3 s, width
+  1400 on screen, half-size render, determinism); 540 tests pass (6 Postgres tests skipped). Fixture renders
+  catalogue-v3 (59.00 s in 3 m 37 s) and quote-v3 (56.27 s in 2 m 58 s), compared side by side with the reference
+  stills (notes in HANDOFF); R-LOOK-03/05 (review checks) moved to L2.6, R-LIB-00 to L2.7.
 
 ### L2.6 — Review package (M)
 - **Scope:** `reviewRender`: contact sheets (paginated), per-scene sheets, key frames, output-time timeline, report.json
   + report.md, base64 thumbnails, every check of DESIGN-phase2 §3, diff vs previous render; `studio review`
-  (R-REV-*, R-CLI2-02, R-GOAL-06).
+  (R-REV-*, R-CLI2-02, R-GOAL-06); the look checks moved from L2.5: video 1–2 min / scenes 4–25 s, at most one slow
+  zoom per video (R-LOOK-03/05).
 - **Acceptance:** review of the L2.5 render; synthetic bad renders trigger each check.
 
 ### L2.7 — Layouts & previews (M)
 - **Scope:** layout-browser (real URL from the timeline), laptop, phone, **tablet**, raw; caption-overlay; card-title;
   intro/outro-minimal; interstitial-plain; overlay-callout, lower-third; transition-fade-black — replacing the L2.4
-  placeholders; layout geometry following params (e.g. layout-card width); previews generated per theme
+  placeholders; their geometry as expressions over their params where it should follow them (the mechanism exists
+  since L2.5: layout-card); previews generated per theme
   (R-LIB-02/04/05/07/09..12/14..16/18/19, R-ED-10/12/13/14, R-CMP-12/13).
 
 ### L2.8 — Variants & export (M)

@@ -1,33 +1,43 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
-# The capture in a rounded card with a soft shadow on the theme background; the caption area below it and the brand
-# mark (drawn by the composition) right-aligned with the card. The geometry below is that of the default `width`
-# (1560 × 877.5, exactly 16:9): keep index.tsx in sync.
+# Reference look (docs/reference/look.md, "Clip layout"): the capture in a rounded card with a soft shadow on the
+# theme background, the caption area below it, the brand mark (drawn by the composition) right-aligned with the card.
+# The geometry follows the params: `width` sizes the card (its height follows the capture's aspect, at most 878), the
+# card + caption block is centred vertically, and the caption and brand mark rects move with the card. At the default
+# width and a 16:9 capture: card {180, 40, 1560 × 878}, caption {180, 930, 1220 × 110}, brand mark {1420, 965, 320 × 40}.
 id: studio/layout-card
-version: 0.1.0
+version: 1.0.0
 kind: layout
 name: Card
 description: The capture in a rounded card with a soft shadow on the theme background, the caption area below, the brand mark right-aligned with the card.
-tags: [placeholder, card, reference-look]
+tags: [card, reference-look]
 slots:
   screen: {type: screen, required: true, description: The capture (video + camera moves).}
 params:
   type: object
   properties:
-    width: {type: number, minimum: 400, maximum: 1920, default: 1560, description: "Card width in design px (landscape, 16:9, centred). Placeholder: accepted but the card is drawn at the declared geometry (1560) until the planner derives geometry from params (L2.5)."}
+    width: {type: number, minimum: 400, maximum: 1920, default: 1560, description: "Card width in design px (landscape; centred). Its height follows the capture aspect, at most 878 px so the caption block fits below: wider cards on 16:9 captures are capped at 1560."}
     radius: {type: number, minimum: 0, maximum: 64, default: 18, description: Corner radius of the card in design px.}
-    shadow: {type: string, enum: [none, soft, strong], default: soft, description: Shadow under the card.}
-tokens: [colors.text, colors.paper, background]
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under the card (tinted with the theme's dark tone)."}
+tokens: [colors.text, colors.paper, colors.dark, background]
 geometry:
-  screen: {x: 180, y: 40, w: 1560, h: 877.5}
-  caption: {x: 180, y: 930, w: 1560, h: 110}
-  brandmark: {x: 1540, y: 965, w: 200, h: 40}
-  radius: 18
+  vars:
+    h: min(round(width / aspect), 878)          # card height: the capture's aspect, the caption block must fit below
+    w: min(width, floor(878 * aspect))
+    x: round((1920 - w) / 2)
+    y: round((958 - h) / 2)                     # card + 12 px gap + 110 px caption block, centred (y 40 at h 878)
+  screen: {x: x, y: y, w: w, h: h}
+  frame: {x: x, y: y, w: w, h: h}             # the card (whole px); the capture is fitted inside
+  caption: {x: x, y: y + h + 12, w: w - 340, h: 110}
+  brandmark: {x: x + w - 320, y: y + h + 47, w: 320, h: 40}
+  radius: radius
 geometry_vertical:
-  screen: {x: 40, y: 560, w: 1000, h: 562.5}
-  caption: {x: 40, y: 1142.5, w: 1000, h: 220}
-  brandmark: {x: 880, y: 1840, w: 160, h: 40}
-  radius: 18
+  vars:
+    h: min(round(1000 / aspect), 1100)
+  screen: {x: 40, y: round((1688 - h) / 2), w: 1000, h: h}
+  frame: {x: 40, y: round((1688 - h) / 2), w: 1000, h: h}
+  caption: {x: 40, y: round((1688 - h) / 2) + h + 12, w: 1000, h: 220}
+  brandmark: {x: 700, y: 1840, w: 340, h: 40}
+  radius: radius
 variants: [landscape, vertical]
 preview:
   at: [1]

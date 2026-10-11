@@ -44,9 +44,31 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/overlay-lower-third | overlay | lower third (title + subtitle) |
 | studio/transition-crossfade, studio/transition-fade-black | transition | |
 
-Since L2.4 every id above exists as a theme-driven **placeholder** (manifest tag `placeholder`) that accepts the params
-the themes and legacy fields pass and, for layouts, draws exactly its declared geometry; L2.5 (reference look) and L2.7
-replace them.
+Since L2.4 every id above exists; since L2.5 the six reference-look components (intro-stack, outro-stack, layout-card,
+caption-below, interstitial-clock, transition-crossfade; tag `reference-look`, version 1.x) reproduce
+`docs/reference/look.md` — positions measured on real renders by `packages/editor/test/render-look.test.ts` — and the
+others are theme-driven **placeholders** (tag `placeholder`) until L2.7.
+
+Reference-look rules shared by the six (all values design px × unit, every colour/font/logo from the theme):
+- **Text is placed by its cap band** (`capTextLayout` + `<CapText>` in the kit): look.md positions are cap centres;
+  the kit measures the font (canvas: cap height, ascent, descent) and puts the line box where the caps land on the
+  wanted y, whatever the font. Intro and outro build a vertical rhythm of bands (logo row, kicker caps, title caps →
+  baseline, rule, tagline, url) with the measured gaps and centre the whole stack, so a missing kicker or a two-line
+  title stays balanced while the full stack lands on the reference positions.
+- **Wordmark**: a visual height (image height; the brand name in the display font at height × 1.3 when the theme has
+  no wordmark image — R-LOOK-22): intro 33, brand mark 24, outro 71.
+- **Night tone** of dark cards and veils: `colors.dark` when the theme defines it, else the darker of text / paper
+  (editorial: its ink `#1f1413`; motion: its paper `#11131c`); the clock ring is the night tone mixed 25 % towards
+  the paper (editorial → `#544b48`; the reference measures `#544846`).
+- **Readability guard**: colours that would not read on the theme background (contrast) fall back to the dark/light
+  pair of the theme.
+- **style_bias** (R-TPL-04): `biasMotion(bias)` → `real` = the reference motion; `balanced` / `motion` = more rise
+  (×1.5 / ×2), a small scale settle (logo row, clock, crossfade 1–2 %), a tracking settle on the intro title, the
+  caption rule and the clock ring draw themselves. The card layout is static at every bias (a frame never moves on its
+  own).
+- **Captions at clip edges**: a caption whose cue starts at the clip start enters 0.15 s late and one that ends with
+  the clip leaves 0.15 s early, so two captions never double-expose in the middle of a crossfade; inside a clip, cue
+  changes are back to back (out 0.25 s, in 0.35 s with a 7 px rise) and a kicker shared by contiguous cues stays.
 
 ### 1.3 Registry (`@demo-studio/components`, implemented in L2.2)
 ```ts
@@ -62,6 +84,7 @@ ComponentRegistry = {
   notices: RegistryNotice[]; componentsDir; builtinDir?
 }
 ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'workspace' | 'builtin' }
+evalLayoutGeometry(spec, params, { aspect? }): LayoutGeometry   // geometry expressions → design px (see below)
 parseManifest(text, file?, { folderId? }): { manifest?, issues: ComponentIssue[] }   // strict zod schema + semantic checks
 validateComponent(dir): Promise<ComponentIssue[]>   // manifest, id = folder, entry exists, params schema + defaults,
 //  preview samples fill required slots, layout geometry, esbuild compile (imports: react, remotion, the kit and own
@@ -70,6 +93,30 @@ createComponent(root, { id, kind, description, name? }): Promise<CreatedComponen
 themeTokens(template: LoadedTemplate, urls: { logo?, wordmark?, fonts? }): ThemeTokens
 fillSlots(manifest, given, ctx): { slots, from, missing, tooLong, unknown }   // default_from sources (planner, previews)
 ```
+**Geometry expressions (L2.5).** A layout's geometry may follow its params: every value of `geometry` /
+`geometry_vertical` (rect `x`, `y`, `w`, `h`, `radius`) is a number or an arithmetic expression over the component's
+numeric/boolean params, the geometry's `vars` (named values, computed in order) and the built-in `aspect` (capture
+width / height; 16:9 when unknown). Grammar: numbers, identifiers, `+ - * / %`, unary minus, parentheses, `min`,
+`max`, `round`, `floor`, `ceil`, `abs` — a manifest stays data (no component code runs in Node; the planner, the
+review, the validator and later the Studio UI evaluate it). Chosen over a geometry function exported by the component
+(it would execute workspace — later marketplace — code in the planner and make planning async) and over one geometry
+per param value (does not scale to numbers). Contract:
+- `parseManifest` checks every expression (syntax with position, unknown names with did-you-mean, string params, vars
+  shadowing a param, `aspect` as a var) and the geometry evaluated with the param defaults (positive sizes, inside the
+  design space); the JSON Schema accepts `number | string` (`GeometryValue`).
+- `planEdit` evaluates the geometry of each layout use with its resolved params and the capture aspect
+  (`evalLayoutGeometry`), then fits the capture as before (`planLayout`); a use whose geometry cannot be evaluated
+  falls back to the default geometry with a warning, one that leaves the frame is a warning. `geometry.radius` wins
+  over a `radius` param.
+- The composition passes the evaluated layout to the layout component as `props.rects` (output px: `screen` = where
+  the capture goes, `frame` = the card / device outline, `caption`, `brandmark`, `chrome`, `radius`), so the component
+  never re-derives the geometry; without `rects` (unit previews) a layout falls back to its default geometry
+  (layout-card's `defaultRects`, tested equal to its manifest).
+- studio/layout-card: `width` sizes the card, its height follows the capture aspect (≤ 878 so the caption block
+  fits), the card + 12 px + 110 px caption block is centred vertically, the caption rect is the card's left part
+  (width − 340) and the brand mark rect the card's right 320 px: width 1560 at 16:9 → card {180, 40, 1560 × 878},
+  caption {180, 930, 1220 × 110}, brand mark {1420, 965, 320 × 40} (look.md); width 1400 → {260, 85, 1400 × 788}.
+
 `packages/components/scaffolds/<kind>/` are valid, theme-driven components (`scaffolds/<kind>` ids) used by
 `createComponent` and, as stand-ins, by the render pipeline until the library lands. Props added for kinds that need
 them: `area` (caption: the layout's caption rect), `anchor` (overlay: target box in output px), `direction`
@@ -143,6 +190,7 @@ renderVideo(opts: { project; run /* id or dir */; scenario?; template?; override
                     concurrency? }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical") and renders/<scenario>-v<N>.json (RenderRecord incl. plan + overrides)
 renderStill(opts: { plan; frame; out }): Promise<string>
+renderStills(opts: { plan; frames: Array<{ frame; out }> }): Promise<string[]>   // one browser session for all frames
 previewComponent(opts: { component: string; template: LoadedTemplate; slots?; params?; out_dir; video?: boolean }): Promise<string[]>
 previewTemplate(opts: { template; out_dir }): Promise<string[]>   // intro, clip with caption over a placeholder screen, interstitial, outro
 exportRender(opts: { project; render; formats: ExportFormat[] }): Promise<ExportResult>
@@ -182,8 +230,8 @@ listRenders(project): Promise<RenderRecord[]>
 `DemoVideo` / `DemoVertical` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
 background, one Sequence per segment with its transition component (or, without one, its plain fade envelope), the
 segment component, for clips the layout component with `screen` = the capture frame `srcFrames[f]` under the camera
-transform, the caption component (cues, `area` = the layout's caption rect) and overlays (anchor mapped per frame with
-`mapSourceRect`), the brand mark (theme logo + wordmark in the layout's `brandmark` rect — layouts do not draw it),
+transform and `rects` = the clip's PlanLayout in output px, the caption component (cues, `area` = the layout's
+caption rect) and overlays (anchor mapped per frame with `mapSourceRect`), the brand mark (theme logo + wordmark in the layout's `brandmark` rect — layouts do not draw it),
 optional music bed. Interstitials receive the previous clip's last frame (layout + capture + brand mark) as `screen`.
 Transitions render twice: a crossfade over the overlap of the two segments (both see transition frames [0, n)), a dip
 without overlap (frames [0, ⌊n/2⌋) at the end of the outgoing segment, [⌊n/2⌋, n) at the start of the incoming one).

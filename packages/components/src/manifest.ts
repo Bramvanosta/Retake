@@ -17,9 +17,10 @@ import {
   locatedIssue,
 } from '@demo-studio/core';
 import type { ComponentKind, LocatedIssue } from '@demo-studio/core';
-import { applyParamDefaults, checkParamsSchema, isPlainObject, validateParamValue } from './json-schema.js';
+import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
+import { GEOMETRY_BUILTINS, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';
-import type { ComponentIssue, ComponentManifest, LayoutGeometry } from './types.js';
+import type { ComponentIssue, ComponentManifest, LayoutGeometry, LayoutGeometrySpec } from './types.js';
 
 export const MANIFEST_FILE = 'component.yaml';
 export const DEFAULT_ENTRY = 'index.tsx';
@@ -92,25 +93,48 @@ export const SlotSpecSchema = z
   })
   .meta({ id: 'SlotSpec', description: 'A value the component renders (title, kicker, logo, url…).' });
 
+/** A geometry value: design px, or an arithmetic expression over the numeric params, `vars` and `aspect`. */
+export const GeometryValueSchema = z
+  .union([
+    z.number(),
+    z
+      .string()
+      .min(1)
+      .describe(
+        'Expression over the numeric params, the geometry vars and `aspect` (capture width / height): + - * / %, ' +
+          'parentheses, min(), max(), round(), floor(), ceil(), abs() — e.g. "round((1920 - width) / 2)".',
+      ),
+  ])
+  .meta({ id: 'GeometryValue', description: 'Design px, or an expression over the params (e.g. "(1920 - width) / 2").' });
+
 export const RectSchema = z
   .strictObject({
-    x: z.number().describe('Left, in design px.'),
-    y: z.number().describe('Top, in design px.'),
-    w: z.number().gt(0).describe('Width, in design px.'),
-    h: z.number().gt(0).describe('Height, in design px.'),
+    x: GeometryValueSchema.describe('Left, in design px.'),
+    y: GeometryValueSchema.describe('Top, in design px.'),
+    w: GeometryValueSchema.describe('Width, in design px (> 0).'),
+    h: GeometryValueSchema.describe('Height, in design px (> 0).'),
   })
   .meta({ id: 'Rect', description: 'Rectangle in the design space (1920×1080 landscape, 1080×1920 vertical).' });
 
 export const LayoutGeometrySchema = z
   .strictObject({
+    vars: z
+      .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, { error: 'a var name is a letter or _ followed by letters, digits or _' }), GeometryValueSchema)
+      .describe('Named values computed in order (each may use the params, `aspect` and the vars above it).')
+      .optional(),
     screen: RectSchema.describe('Where the capture pixels go (the planner keeps the capture aspect ratio inside it).'),
     frame: RectSchema.describe('Outer shape around the screen (card, device…); defaults to screen.').optional(),
     chrome: RectSchema.describe('Browser chrome bar, when the layout draws one.').optional(),
     caption: RectSchema.describe('Caption area used by the caption component.').optional(),
     brandmark: RectSchema.describe('Brand mark area.').optional(),
-    radius: z.number().min(0).describe('Corner radius of the screen/frame, in design px.').optional(),
+    radius: GeometryValueSchema.describe('Corner radius of the screen/frame, in design px (≥ 0).').optional(),
   })
-  .meta({ id: 'LayoutGeometry', description: 'Layout geometry, so the planner and the review can reason without rendering.' });
+  .meta({
+    id: 'LayoutGeometry',
+    description:
+      'Layout geometry, so the planner and the review can reason without rendering. Values may be expressions over ' +
+      'the params: the planner evaluates them for each use (e.g. a theme width moves the card and the caption rect).',
+  });
 
 /** The params schema is checked by `checkParamsSchema` (supported JSON Schema subset); zod only wants a mapping. */
 export const ParamsJsonSchemaSchema = z
@@ -170,20 +194,91 @@ function rectInside(r: { x: number; y: number; w: number; h: number }, space: { 
   return r.x >= -eps && r.y >= -eps && r.x + r.w <= space.width + eps && r.y + r.h <= space.height + eps;
 }
 
-function checkGeometry(g: LayoutGeometry, key: 'geometry' | 'geometry_vertical', out: LocatedIssue[]): void {
+const GEOMETRY_RECTS = ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const;
+
+/**
+ * Geometry checks: every expression parses and only names numeric/boolean params, earlier vars or `aspect`; the
+ * geometry evaluated with the param defaults (capture aspect 16:9) has positive sizes and stays inside the design
+ * space.
+ */
+function checkGeometry(g: LayoutGeometrySpec, key: 'geometry' | 'geometry_vertical', paramTypes: ReadonlyMap<string, string>, out: LocatedIssue[], defaults: Record<string, unknown>): void {
   const space = key === 'geometry' ? DESIGN_SPACE.landscape : DESIGN_SPACE.vertical;
-  for (const name of ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const) {
+  const known = new Set<string>([...GEOMETRY_BUILTINS, ...[...paramTypes].filter(([, t]) => t === 'number' || t === 'integer' || t === 'boolean').map(([n]) => n)]);
+  let syntaxOk = true;
+  const check = (path: Array<string | number>, v: unknown) => {
+    if (typeof v !== 'string') return;
+    let ids: string[];
+    try {
+      ids = expressionIdentifiers(v);
+    } catch (e) {
+      syntaxOk = false;
+      out.push(locatedIssue('error', [key, ...path], `invalid expression "${v}": ${(e as Error).message}`));
+      return;
+    }
+    for (const id of ids) {
+      if (known.has(id)) continue;
+      syntaxOk = false;
+      const type = paramTypes.get(id);
+      const s = didYouMean(id, [...known]);
+      out.push(
+        locatedIssue(
+          'error',
+          [key, ...path],
+          type
+            ? `"${id}" is a ${type} param: expressions only use number, integer or boolean params`
+            : `unknown name "${id}" in "${v}"${s ? ` (did you mean "${s}"?)` : ''}; known: ${[...known].join(', ')}`,
+        ),
+      );
+    }
+  };
+  for (const [name, v] of Object.entries(g.vars ?? {})) {
+    check(['vars', name], v);
+    if (name === 'aspect') {
+      syntaxOk = false;
+      out.push(locatedIssue('error', [key, 'vars', name], '"aspect" is built in (the capture width / height)'));
+    } else if (paramTypes.has(name)) {
+      // A var may not shadow a param (it would silently change what the name means).
+      syntaxOk = false;
+      out.push(locatedIssue('error', [key, 'vars', name], `var "${name}" has the name of a param`));
+    }
+    known.add(name);
+  }
+  for (const name of GEOMETRY_RECTS) {
     const r = g[name];
-    if (r && !rectInside(r, space)) {
+    if (r) for (const k of ['x', 'y', 'w', 'h'] as const) check([name, k], r[k]);
+  }
+  check(['radius'], g.radius);
+  if (!syntaxOk) return;
+  let e: LayoutGeometry;
+  try {
+    e = evalLayoutGeometry(g, defaults);
+  } catch (err) {
+    out.push(locatedIssue('error', [key], `the geometry cannot be evaluated with the param defaults: ${(err as Error).message}`));
+    return;
+  }
+  const dynamic = geometryIsDynamic(g);
+  const withDefaults = dynamic ? ' (with the param defaults, capture 16:9)' : '';
+  for (const name of GEOMETRY_RECTS) {
+    const r = e[name];
+    if (!r) continue;
+    let sized = true;
+    for (const k of ['w', 'h'] as const) {
+      if (r[k] <= 0) {
+        sized = false;
+        out.push(locatedIssue('error', [key, name, k], `must be > 0${typeof g[name]?.[k] === 'string' ? `, is ${r[k]}${withDefaults}` : ''}`));
+      }
+    }
+    if (sized && !rectInside(r, space)) {
       out.push(
         locatedIssue(
           'error',
           [key, name],
-          `${name} rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}} leaves the ${space.width}×${space.height} design space`,
+          `${name} rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}}${withDefaults} leaves the ${space.width}×${space.height} design space`,
         ),
       );
     }
   }
+  if (e.radius !== undefined && e.radius < 0) out.push(locatedIssue('error', [key, 'radius'], `must be ≥ 0, is ${e.radius}${withDefaults}`));
 }
 
 /** Semantic checks of a structurally valid manifest. Exported for tests; use `parseManifest`. */
@@ -238,8 +333,20 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
       if (m[key] !== undefined) out.push(locatedIssue('warning', [key], `${key} is only used by layout components (this one is ${kind})`, { path: [key], key: true }));
     }
   }
-  for (const key of ['geometry', 'geometry_vertical'] as const) {
-    if (m[key] !== undefined && ok([key])) checkGeometry(m[key] as LayoutGeometry, key, out);
+  if (m.geometry !== undefined || m.geometry_vertical !== undefined) {
+    const paramTypes = new Map<string, string>();
+    let defaults: Record<string, unknown> = {};
+    if (m.params !== undefined && ok(['params']) && !hasErrors(checkParamsSchema(m.params, ['params']))) {
+      const props = isPlainObject((m.params as JsonSchemaNode).properties) ? ((m.params as JsonSchemaNode).properties as Record<string, unknown>) : {};
+      for (const [name, sch] of Object.entries(props)) {
+        const t = isPlainObject(sch) ? sch.type : undefined;
+        paramTypes.set(name, typeof t === 'string' ? t : Array.isArray(t) ? t.join('|') : 'value');
+      }
+      defaults = paramDefaults(m.params as JsonSchemaNode);
+    }
+    for (const key of ['geometry', 'geometry_vertical'] as const) {
+      if (m[key] !== undefined && ok([key])) checkGeometry(m[key] as LayoutGeometrySpec, key, paramTypes, out, defaults);
+    }
   }
 
   // Duration.

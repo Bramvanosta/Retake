@@ -25,7 +25,7 @@ frame: {style: card, width: 1560, radius: 18, shadow: soft}
 captions:
   position: below
   kicker: {font: body, weight: 600, size: 15, uppercase: true, color: accent, letter_spacing: 0.14}
-  line: {font: display, size: 35, color: text}
+  line: {font: display, size: 38, color: text}
 
 intro: {duration: 3.2, layout: logo-kicker-title}
 outro: {duration: 3.0, layout: logo-wordmark-tagline-url, url: example.com}

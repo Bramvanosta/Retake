@@ -213,26 +213,37 @@
       "additionalProperties": false,
       "description": "A value the component renders (title, kicker, logo, url…)."
     },
+    "GeometryValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expression over the numeric params, the geometry vars and `aspect` (capture width / height): + - * / %, parentheses, min(), max(), round(), floor(), ceil(), abs() — e.g. \"round((1920 - width) / 2)\"."
+        }
+      ],
+      "description": "Design px, or an expression over the params (e.g. \"(1920 - width) / 2\")."
+    },
     "Rect": {
       "type": "object",
       "properties": {
         "x": {
-          "type": "number",
-          "description": "Left, in design px."
+          "description": "Left, in design px.",
+          "$ref": "#/$defs/GeometryValue"
         },
         "y": {
-          "type": "number",
-          "description": "Top, in design px."
+          "description": "Top, in design px.",
+          "$ref": "#/$defs/GeometryValue"
         },
         "w": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Width, in design px."
+          "description": "Width, in design px (> 0).",
+          "$ref": "#/$defs/GeometryValue"
         },
         "h": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Height, in design px."
+          "description": "Height, in design px (> 0).",
+          "$ref": "#/$defs/GeometryValue"
         }
       },
       "required": [
@@ -247,6 +258,17 @@
     "LayoutGeometry": {
       "type": "object",
       "properties": {
+        "vars": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/GeometryValue"
+          },
+          "description": "Named values computed in order (each may use the params, `aspect` and the vars above it)."
+        },
         "screen": {
           "description": "Where the capture pixels go (the planner keeps the capture aspect ratio inside it).",
           "$ref": "#/$defs/Rect"
@@ -268,16 +290,15 @@
           "$ref": "#/$defs/Rect"
         },
         "radius": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Corner radius of the screen/frame, in design px."
+          "description": "Corner radius of the screen/frame, in design px (≥ 0).",
+          "$ref": "#/$defs/GeometryValue"
         }
       },
       "required": [
         "screen"
       ],
       "additionalProperties": false,
-      "description": "Layout geometry, so the planner and the review can reason without rendering."
+      "description": "Layout geometry, so the planner and the review can reason without rendering. Values may be expressions over the params: the planner evaluates them for each use (e.g. a theme width moves the card and the caption rect)."
     },
     "ParamSchema": {
       "type": "object",

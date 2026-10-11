@@ -25,9 +25,10 @@ export {
   probeMedia,
   renderPlan,
   renderStill,
+  renderStills,
   renderVideo,
 } from './render/render.js';
-export type { RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderVideoOptions } from './render/render.js';
+export type { RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
 export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runScenario, takenVersions } from './render/runs.js';
 export type { RunRef } from './render/runs.js';
 export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';

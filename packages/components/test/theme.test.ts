@@ -38,7 +38,7 @@ describe('themeTokens (R-REG-11)', () => {
     // Caption styles: colour keys resolved to CSS colours, fonts to family names.
     expect(t.captions).toEqual({
       kicker: { font: 'ds-editorial-body', weight: 600, size: 15, uppercase: true, color: tpl.colors.accent, letter_spacing: 0.14 },
-      line: { font: 'ds-editorial-display', size: 35, color: tpl.colors.text },
+      line: { font: 'ds-editorial-display', size: 38, color: tpl.colors.text },
     });
     // Tokens are copies: editing them does not touch the template.
     t.colors.accent = '#000000';

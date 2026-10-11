@@ -1,13 +1,14 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
-# Logo + wordmark row, kicker, display title and an accent rule drawn from the centre, rising in one after the other on
-# the theme background. Every colour, font and the logo come from the theme; sizes are 1920-wide design px (× unit).
+# Reference look (docs/reference/look.md, "Intro"): logo mark 64 + wordmark on one row, uppercase kicker in the accent,
+# display title 96 px and an accent rule 120 × 2 drawn from the centre; the stack is centred (row y ≈ 417, kicker ≈ 529,
+# title ≈ 612, rule ≈ 694 at 1920×1080). Motion: row fades in 0–0.5 s, kicker + title fade in with a short rise
+# 0.6–1.2 s, the rule draws ≈ 1.0–1.5 s, hold. Every colour, font, the logo and the wordmark come from the theme.
 id: studio/intro-stack
-version: 0.1.0
+version: 1.0.0
 kind: intro
 name: Intro stack
-description: Logo and wordmark, uppercase kicker, display title and an accent rule, rising in one after the other on the theme background.
-tags: [placeholder, intro, reference-look]
+description: Logo and wordmark, uppercase kicker, display title and an accent rule drawn from the centre, staggered in on the theme background (the reference intro).
+tags: [intro, reference-look]
 slots:
   title: {type: text, required: true, default_from: scenario.title.text, max_chars: 60, description: The video title.}
   kicker: {type: text, default_from: scenario.title.kicker, max_chars: 40, description: Small uppercase line above the title.}
@@ -17,8 +18,8 @@ params:
   properties:
     align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
     rule: {type: boolean, default: true, description: Draw the accent rule under the title.}
-    stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.15, description: Seconds between the entrances of two lines.}
-tokens: [colors.accent, colors.text, background, fonts.display, fonts.body, logo, wordmark]
+    stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.15, description: Seconds between the kicker and the title entrances (the rule starts drawing 0.2 s after the title).}
+tokens: [colors.accent, colors.text, background, fonts.display, fonts.body, logo, wordmark, style_bias]
 duration: {default: 3.2, min: 1.5, max: 8}
 variants: [landscape, vertical]
 preview:

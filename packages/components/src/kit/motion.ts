@@ -97,3 +97,25 @@ export function activeIndex<T extends { from: number; to: number }>(cues: readon
   for (let i = 0; i < cues.length; i++) if (frame >= cues[i].from && frame < cues[i].to) return i;
   return -1;
 }
+
+/**
+ * How much motion a theme wants (template `style_bias`), for components to scale their entrances by:
+ * `real` = the subtle reference motion (factor 1, no scale, no tracking change); `balanced` and `motion` add a little
+ * travel, a small scale settle and a tracking settle on display text — slightly richer, never gimmicky.
+ */
+export interface BiasMotion {
+  /** Multiplier of rise distances. */
+  travel: number;
+  /** Scale an element settles from (1 − settle → 1); 0 = no scale. */
+  settle: number;
+  /** em of extra letter-spacing display text settles from (→ its final tracking); 0 = none. */
+  tracking: number;
+  /** Multiplier of entrance durations (> 1 = slower, softer). */
+  pace: number;
+}
+
+export function biasMotion(bias: 'real' | 'balanced' | 'motion' | undefined): BiasMotion {
+  if (bias === 'motion') return { travel: 2, settle: 0.04, tracking: 0.03, pace: 1.1 };
+  if (bias === 'balanced') return { travel: 1.5, settle: 0.02, tracking: 0.015, pace: 1.05 };
+  return { travel: 1, settle: 0, tracking: 0, pace: 1 };
+}

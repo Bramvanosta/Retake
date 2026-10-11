@@ -51,7 +51,35 @@ export interface Rect1920 {
   h: number;
 }
 
-/** Layout components declare their geometry so the planner and the review can reason without rendering. */
+/**
+ * A rect of a layout manifest: each value is a number or an arithmetic expression over the numeric params, the
+ * geometry `vars` and `aspect` (see ./geometry.ts).
+ */
+export interface RectSpec1920 {
+  x: number | string;
+  y: number | string;
+  w: number | string;
+  h: number | string;
+}
+
+/**
+ * The geometry as written in component.yaml: like LayoutGeometry, with expressions allowed for every value and
+ * named intermediate values (`vars`, evaluated in order). `evalLayoutGeometry(spec, params, {aspect})` resolves it.
+ */
+export interface LayoutGeometrySpec {
+  vars?: Record<string, number | string>;
+  screen: RectSpec1920;
+  frame?: RectSpec1920;
+  chrome?: RectSpec1920;
+  caption?: RectSpec1920;
+  brandmark?: RectSpec1920;
+  radius?: number | string;
+}
+
+/**
+ * Layout components declare their geometry so the planner and the review can reason without rendering: this is the
+ * evaluated form (design px), for one set of params and one capture aspect.
+ */
 export interface LayoutGeometry {
   /** Where the capture pixels go (for a 16:9 capture; the planner keeps the capture aspect ratio inside it). */
   screen: Rect1920;
@@ -86,9 +114,9 @@ export interface ComponentManifest {
   tokens?: string[];
   /** Seconds (cards, intros, outros, interstitials, overlays). */
   duration?: { default: number; min?: number; max?: number };
-  /** Layout kind only. */
-  geometry?: LayoutGeometry;
-  geometry_vertical?: LayoutGeometry;
+  /** Layout kind only: values may be expressions over the params (evaluated by `evalLayoutGeometry`). */
+  geometry?: LayoutGeometrySpec;
+  geometry_vertical?: LayoutGeometrySpec;
   variants?: Array<'landscape' | 'vertical'>;
   /** Sample values used to render previews with any theme. */
   preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[] };
@@ -141,6 +169,16 @@ export interface ThemeTokens {
   motion?: { zoom_ease: [number, number, number, number] };
 }
 
+/** A layout's evaluated rects in output px (`ComponentProps.rects`). */
+export interface LayoutRects {
+  screen: { x: number; y: number; w: number; h: number };
+  frame: { x: number; y: number; w: number; h: number };
+  chrome?: { x: number; y: number; w: number; h: number };
+  caption?: { x: number; y: number; w: number; h: number };
+  brandmark?: { x: number; y: number; w: number; h: number };
+  radius: number;
+}
+
 /** Props received by every component implementation (default export of its entry). */
 export interface ComponentProps<P extends Record<string, unknown> = Record<string, unknown>> {
   theme: ThemeTokens;
@@ -162,6 +200,13 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   screen?: unknown;
   /** layout with chrome: the URL to show. */
   url?: string;
+  /**
+   * layout: where to draw, in output px — the manifest geometry evaluated by the planner with this use's params and
+   * the capture aspect (`screen` = where the capture pixels go, `frame` = the card / device outline around them,
+   * `radius` in output px). The planner places captions, overlays and the brand mark from the same rects, so a layout
+   * draws exactly there. Absent outside a plan (unit previews): the layout falls back to its default geometry.
+   */
+  rects?: LayoutRects;
   /** caption: cues in frames relative to the segment. */
   cues?: CaptionCue[];
   /**

@@ -1,12 +1,14 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
-# Big logo, wordmark, accent rule, tagline and url, centred and staggered on the theme background.
+# Reference look (docs/reference/look.md, "Outro"): logo mark 150, wordmark (the brand name in the display font when
+# the theme has no wordmark image), accent rule 120 × 2, tagline (body 30, muted) and url (body SemiBold 18 uppercase,
+# muted 70 %), centred (logo y 333–483, wordmark ≈ 571, rule ≈ 647, tagline ≈ 690, url ≈ 737 at 1920×1080). Motion:
+# logo fades + scales in (0.92 → 1), wordmark 0.2 s later, then rule / tagline / url staggered.
 id: studio/outro-stack
-version: 0.1.0
+version: 1.0.0
 kind: outro
 name: Outro stack
-description: Big logo, wordmark, accent rule, tagline and url, centred, rising in one after the other on the theme background.
-tags: [placeholder, outro, reference-look]
+description: Big logo, wordmark, accent rule, tagline and url, centred and staggered in on the theme background (the reference outro).
+tags: [outro, reference-look]
 slots:
   tagline: {type: text, default_from: scenario.outro.tagline, max_chars: 70, description: One closing line.}
   url: {type: url, default_from: theme.brand.url, max_chars: 40, description: Address shown under the tagline.}
@@ -15,8 +17,8 @@ params:
   type: object
   properties:
     logo_size: {type: number, minimum: 48, maximum: 240, default: 150, description: Logo height in design px.}
-    stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.15, description: Seconds between the entrances of two lines.}
-tokens: [colors.accent, colors.text, colors.muted, background, fonts.display, fonts.body, logo, wordmark, brand.url]
+    stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.15, description: "Seconds between the rule, the tagline and the url entrances."}
+tokens: [colors.accent, colors.text, colors.muted, background, fonts.display, fonts.body, logo, wordmark, brand.url, style_bias]
 duration: {default: 3, min: 1.5, max: 8}
 variants: [landscape, vertical]
 preview:

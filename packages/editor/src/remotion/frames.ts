@@ -3,7 +3,8 @@
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
 import type { ComponentKind } from '@demo-studio/core';
-import type { ClipSegment, EditPlan, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
+import type { LayoutRects } from '@demo-studio/components';
+import type { ClipSegment, EditPlan, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
 import { clamp } from '../util.js';
 
 /**
@@ -76,6 +77,18 @@ export function envelopeAt(seg: Pick<PlanSegment, 'fadeIn' | 'fadeOut' | 'durati
     else opacity *= 1 - p;
   }
   return { opacity: clamp(opacity, 0, 1), black: clamp(black, 0, 1) };
+}
+
+/**
+ * The rects a layout component draws at (`ComponentProps.rects`): the planner's layout in output px — the capture
+ * rect as `screen`, the card / device outline as `frame`.
+ */
+export function layoutRects(layout: PlanLayout): LayoutRects {
+  const out: LayoutRects = { screen: { ...layout.capture }, frame: { ...layout.card }, radius: layout.radius };
+  if (layout.chrome) out.chrome = { ...layout.chrome };
+  if (layout.caption) out.caption = { ...layout.caption };
+  if (layout.brandmark) out.brandmark = { ...layout.brandmark };
+  return out;
 }
 
 /** The URL shown by a browser-chrome layout at frame `f` of a clip. */

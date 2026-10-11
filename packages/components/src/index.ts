@@ -15,6 +15,7 @@ export {
   SLOT_SOURCES,
   THEME_TOKENS,
   SlotSpecSchema,
+  GeometryValueSchema,
   RectSchema,
   LayoutGeometrySchema,
   ComponentManifestFileSchema,
@@ -23,6 +24,19 @@ export {
   parseManifest,
 } from './manifest.js';
 export type { ComponentManifestFile, ParsedManifest, ParseManifestOptions } from './manifest.js';
+export {
+  DEFAULT_CAPTURE_ASPECT,
+  GEOMETRY_BUILTINS,
+  GEOMETRY_FUNCTIONS,
+  GeometryExpressionError,
+  evalGeometryValue,
+  evalLayoutGeometry,
+  expressionIdentifiers,
+  geometryIsDynamic,
+  geometryScope,
+  parseGeometryExpression,
+} from './geometry.js';
+export type { GeometryValue } from './geometry.js';
 export {
   PARAM_TYPES,
   SUPPORTED_KEYWORDS,

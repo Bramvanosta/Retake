@@ -1,13 +1,15 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the reference-look version lands in L2.5.
-# The active cue in the layout's caption area (props.area): an accent rule and the uppercase kicker over one display
-# line, styled by the theme's caption text styles. At a cue change the old line fades out and the new one rises in.
+# Reference look (docs/reference/look.md, "Clip layout"): in the layout's caption area (12 px under the card), left-aligned
+# with the card (x + 6): a kicker row centred 28 px below the area top — accent rule 36 × 2, 12 px gap, the kicker in the
+# theme's caption kicker style — and the caption line (theme caption line style, one line, fitted) cap-centred 65.5 px
+# below the top (y ≈ 957 / 996 at 1920×1080). At a cue change the old line fades out (0.25 s) and the new one fades in
+# (0.35 s) with a 7 px rise; a kicker shared by consecutive cues stays.
 id: studio/caption-below
-version: 0.1.0
+version: 1.0.0
 kind: caption
 name: Caption below
-description: Accent rule and uppercase kicker over a display line in the layout's caption area; the old line fades out and the new one rises in at each cue change.
-tags: [placeholder, caption, reference-look]
+description: Accent rule and uppercase kicker over one display line in the layout's caption area, left-aligned with the card; the old line fades out and the new one rises in at each cue change.
+tags: [caption, reference-look]
 slots:
   text: {type: text, default_from: scene.caption.text, max_chars: 90, description: Caption line (when no cues are given).}
   kicker: {type: text, default_from: scene.caption.kicker, max_chars: 40, description: Small line above the caption.}
@@ -16,9 +18,9 @@ params:
   properties:
     position: {type: string, enum: [below, above], default: below, description: "below: the layout's caption area; above: a band at the top of the frame."}
     align: {type: string, enum: [left, center], default: left, description: Alignment in the caption area.}
-    max_lines: {type: integer, minimum: 1, maximum: 3, default: 1, description: Lines before the text shrinks.}
+    max_lines: {type: integer, minimum: 1, maximum: 3, default: 1, description: "Lines of the caption line (it shrinks to fit first, down to 62 % of the theme size; vertical: at least 2)."}
     rule: {type: boolean, default: true, description: Short accent rule before the kicker.}
-tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body, captions.kicker, captions.line]
+tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body, captions.kicker, captions.line, style_bias]
 variants: [landscape, vertical]
 preview:
   slots: {text: Pick a customer and the price list follows., kicker: Quotes}

@@ -7,6 +7,7 @@
 export * from './easing.js';
 export * from './motion.js';
 export * from './fit-text.js';
+export * from './metrics.js';
 export * from './style.js';
 export * from './elements.js';
-export type { ComponentProps, ThemeTokens, ThemeTextStyle, CaptionCue } from '../types.js';
+export type { ComponentProps, ThemeTokens, ThemeTextStyle, CaptionCue, LayoutRects } from '../types.js';

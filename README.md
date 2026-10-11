@@ -502,10 +502,11 @@ components/<namespace>/<name>/     # in your workspace (studio.yaml components_d
 resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
 marketplace cache: a workspace component with a built-in id overrides it (`studio components list` warns). The built-in
 library (`packages/components/library/studio/*`) has a component for every id the starter themes and the legacy
-template fields use; they are theme-driven **placeholders** (tag `placeholder`) until the measured reference-look
-versions land in L2.5 (intro-stack, outro-stack, layout-card, caption-below, interstitial-clock, transition-crossfade)
-and L2.7 (the others). `packages/components/scaffolds/<kind>/` holds one valid, theme-driven template per kind
-(`studio components create` copies it; the renderer draws it as the stand-in of a missing component).
+template fields use: the **reference look** of `docs/reference/look.md` (tag `reference-look`, measured on renders:
+`studio/intro-stack`, `outro-stack`, `layout-card`, `caption-below`, `interstitial-clock`, `transition-crossfade`)
+and theme-driven **placeholders** for the others (tag `placeholder`, until L2.7).
+`packages/components/scaffolds/<kind>/` holds one valid, theme-driven template per kind (`studio components create`
+copies it; the renderer draws it as the stand-in of a missing component).
 
 **How a theme picks components.** A template's `components:` map (or its legacy fields, see
 [Templates](#templates-themes)) names the default component and params of each kind; a scenario overrides it per use
@@ -545,8 +546,36 @@ preview:                          # sample values: previews render with any them
 |---|---|
 | `slots.<name>` | `type`: `text`, `image` (URL), `url` (shown as text), `color`, `screen` (the capture: layouts, interstitials, transitions); `required`; `default_from`: `theme.logo`, `theme.wordmark`, `theme.brand.name`, `theme.brand.url`, `theme.outro.tagline`, `theme.outro.url`, `scenario.title.text`, `scenario.title.kicker`, `scenario.outro.tagline`, `scenario.outro.url`, `scene.caption.text`, `scene.caption.kicker`, `interstitial.text`, `interstitial.kicker`; `max_chars` (text and url) |
 | `params` | JSON Schema subset: `type`, `properties`, `required`, `additionalProperties`, `default`, `enum`, `const`, `minimum`/`maximum` (+ exclusive), `multipleOf`, `minLength`/`maxLength`, `pattern`, `items`, `minItems`/`maxItems`, `uniqueItems`, `anyOf`, `oneOf` (+ annotations such as `description`). Objects are **closed** unless they set `additionalProperties`. Every `default` must match its schema |
-| `geometry`, `geometry_vertical` | layouts only, required: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920) design space, and `radius` — the planner and the review reason on them without rendering |
+| `geometry`, `geometry_vertical` | layouts only, required: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920) design space, and `radius` — the planner and the review reason on them without rendering. Every value may be an **expression** over the numeric params (see below) |
 | `preview` | `slots` must give a sample for every required slot that is not filled from the theme; `params` are validated; `at` = seconds of the preview stills |
+
+**Geometry that follows params.** A layout's geometry values are numbers or arithmetic expressions over its numeric
+(or boolean: 1 / 0) params, the geometry's own `vars` (computed in order) and `aspect` (the capture's width / height;
+16:9 in previews): `+ - * / %`, parentheses, `min()`, `max()`, `round()`, `floor()`, `ceil()`, `abs()` — nothing else,
+so a manifest stays data. The planner evaluates the geometry with the params of each use (theme `components` entry,
+legacy `frame.width`, scenario, overrides) and the capture aspect; captions, overlays and the brand mark are placed from
+the evaluated rects, and the composition hands the same rects to the layout component (`props.rects`, output px), so
+the card is drawn exactly where the captions expect it. `studio components validate` parses every expression, rejects
+unknown names (did you mean) and string params, and checks the geometry evaluated with the param defaults stays inside
+the design space; at plan time a use whose geometry cannot be evaluated or leaves the frame is a plan warning. The
+built-in card layout:
+
+```yaml
+geometry:
+  vars:
+    h: min(round(width / aspect), 878)          # the capture's aspect; the caption block must fit below
+    w: min(width, floor(878 * aspect))
+    x: round((1920 - w) / 2)
+    y: round((958 - h) / 2)                     # card + 12 px + 110 px caption block, centred
+  screen: {x: x, y: y, w: w, h: h}
+  frame: {x: x, y: y, w: w, h: h}
+  caption: {x: x, y: y + h + 12, w: w - 340, h: 110}
+  brandmark: {x: x + w - 320, y: y + h + 47, w: 320, h: 40}
+  radius: radius
+```
+
+(width 1560, 16:9 → the reference card {180, 40, 1560 × 878}; width 1400 → {260, 85, 1400 × 788} with the caption and
+the brand mark under it.)
 
 ### Implementation
 
@@ -577,13 +606,16 @@ size everything in 1920-wide design px times `props.unit` (2 for 4K, 0.5 for pre
 `useCurrentFrame()` only — no `Math.random()` (use `random(seed)` from remotion), `Date`, timers or network; import
 only `react`, `remotion`, `@demo-studio/components/kit` and the component's own files. Props: `theme`, `slots`,
 `params` (defaults applied), `unit`, `width`, `height`, `fps`, `durationInFrames`, `variant`, and per kind `screen`
-(layout: the capture; interstitial: the last frame; transition: the wrapped segment), `url` (browser chrome), `cues` +
-`area` (caption: cues in segment frames, the layout's caption rect), `anchor` (overlay: the target box in output px)
-and `direction` (transition: rendered around the outgoing segment, `exiting`, and the incoming one, `entering`, on
-top).
+(layout: the capture; interstitial: the last frame; transition: the wrapped segment), `rects` (layout: its evaluated
+geometry in output px — `screen`, `frame`, `caption`, `brandmark`, `chrome`, `radius`; absent outside a plan),
+`url` (browser chrome), `cues` + `area` (caption: cues in segment frames, the layout's caption rect), `anchor`
+(overlay: the target box in output px) and `direction` (transition: rendered around the outgoing segment, `exiting`,
+and the incoming one, `entering`, on top). `theme.style_bias` (`real` | `balanced` | `motion`) says how lively the
+motion should be: `biasMotion(bias)` gives the factors the built-ins use (`real` = the subtle reference motion).
 
 **Theme tokens** (`props.theme`, built by `themeTokens(template, urls)`): `colors` (accent, text, muted, paper +
-custom keys), `background` (solid / radial / linear), `fonts.display` / `fonts.body` (CSS family names the renderer
+custom keys — e.g. `dark`, the night tone of dark cards, else the darker of text / paper), `background` (solid /
+radial / linear), `fonts.display` / `fonts.body` (CSS family names the renderer
 registers from the template font files), `logo`, `wordmark` (image and/or the brand name as text), `brand` (name,
 url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styles), `brandmark`, `motion.zoom_ease`.
 
@@ -594,8 +626,10 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 | `easing(name \| bezier \| fn)`, `EASINGS`, `cubicBezier`, `themeEasing(theme)` | curves: `linear`, `ease`, `easeIn`, `easeOut`, `easeInOut`, `standard`, `entrance`, `exit`, `gentle`; the template's `zoom_ease` |
 | `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex` | frame-driven animation (frame + fps, seconds, design px × unit) |
 | `fitText`, `wrapText`, `balanceLines`, `measureText`, `<FitText>` | the largest font size ≤ max that fits a width (and height / line count), balanced lines, cut with "…" below the minimum: text never overflows. Measured with a canvas in the browser, a deterministic estimate in Node |
-| `<Background>`, `<Logo>`, `<Wordmark>`, `<SafeArea>` | theme background; logo image (monogram of the brand without one); wordmark image or brand name in the display font; title-safe box |
-| `backgroundCss`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `darkLight`, `contrastRatio`, `readableOn`, `safeAreaRect`, `scaleRect`, `roundTo` | CSS from tokens, colour helpers, rects |
+| `fontMetrics`, `capOffset`, `capTextLayout`, `<CapText>` | text placed by its **cap band** (reference positions are cap centres): the font's ascent / descent / cap height measured with a canvas in the browser (estimated in Node), `capTextLayout` fits the text (fitText) and says where its line box goes so the first cap top lands at the wanted y, whatever the font |
+| `<Background>`, `<Logo>`, `<Wordmark>`, `<SafeArea>` | theme background; logo image (monogram of the brand without one); wordmark at a VISUAL height: the image that tall, or the brand name in the display font at height × `WORDMARK_TEXT_SCALE` (1.3) with its baseline on the bottom edge; title-safe box |
+| `backgroundCss`, `backgroundSample`, `isDarkBackground`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `safeAreaRect`, `scaleRect`, `roundTo` | CSS from tokens, colour helpers (a representative background colour, mixes, the night tone `colors.dark` or the darker of text / paper), rects |
+| `biasMotion(style_bias)` | `{travel, settle, tracking, pace}`: how much livelier than the reference a component may move (`real` = 1, 0, 0, 1) |
 
 ### Creating and checking components
 
@@ -747,8 +781,9 @@ How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
   playwright-core's browser registry: `playwright-core install chromium-headless-shell`), else Remotion's own.
 - **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?})`
   → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `encoding`, `done`); `renderStill({plan,
-  frame, out})` → the PNG path; `listRenders(project)` → the records of `renders/`; `renderPlan({plan, out})` renders
-  any plan.
+  frame, out})` → the PNG path; `renderStills({plan, frames: [{frame, out}…]})` renders several frames in one
+  browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the records of `renders/`;
+  `renderPlan({plan, out})` renders any plan.
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
 (≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached.
@@ -833,7 +868,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`) and the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`) done; reference-look components, review and the rest of the library next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`) and the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`) and the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders) done; review and the rest of the library next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
