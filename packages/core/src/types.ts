@@ -1087,6 +1087,63 @@ export type RunProgress =
   | { type: 'run_end'; run: RunRecord };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Frame comments (data model; store + MCP tools in phase 3, UI in phase 4 — docs/DESIGN-phase2.md §4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Where a frame comment points in the edit, computed from the edit plan's provenance. */
+export interface FrameCommentAnchor {
+  /** Edit plan segment id ("intro", a scene id, "interstitial-1", "card-2"…). */
+  segment: string;
+  /** Segment kind (intro, outro, clip, card, interstitial…). */
+  kind: string;
+  /** Component id rendering the commented area, when known. */
+  component?: ComponentId;
+  scene?: string;
+  /** 0-based step index in the scene. */
+  step?: number;
+  step_id?: string;
+  /** Capture time (seconds) under the commented frame, for clips. */
+  src_time_s?: number;
+}
+
+export interface FrameCommentReply {
+  author: string;
+  text: string;
+  /** ISO 8601. */
+  created_at: string;
+}
+
+/** A comment on one frame of a render, stored in `<project>/comments/<scenario>.json`. */
+export interface FrameComment {
+  id: string;
+  scenario: string;
+  render_id: string;
+  /** Output frame of the render. */
+  frame: number;
+  time_s: number;
+  /** Commented area, normalised 0..1 of the output frame. */
+  region?: { x: number; y: number; w: number; h: number };
+  text: string;
+  author: string;
+  /** ISO 8601. */
+  created_at: string;
+  status: 'open' | 'resolved';
+  anchor: FrameCommentAnchor;
+  replies: FrameCommentReply[];
+  resolution?: { by: string; note: string; render_id?: string };
+}
+
+/** `<project>/comments/<scenario>.json`. */
+export interface FrameCommentsFile {
+  version: 1;
+  scenario: string;
+  comments: FrameComment[];
+}
+
+/** Folder of a project holding the frame comments (one JSON file per scenario). */
+export const COMMENTS_DIR = 'comments';
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Validation
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1108,6 +1165,8 @@ export interface WorkspaceConfig {
   root: string;
   projectsDir: string;
   templatesDir: string;
+  /** Workspace components (`<namespace>/<name>/component.yaml`), scanned before the built-in library. */
+  componentsDir: string;
   browser?: BrowserConfig;
   /** ffmpeg binary (default: "ffmpeg" on PATH). */
   ffmpeg?: string;

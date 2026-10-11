@@ -43,6 +43,7 @@ const KNOWN = new Set([
   'HookError',
   'HookSecurityError',
   'JournalError',
+  'ComponentError',
 ]);
 
 export function errorMessage(e: unknown): string {

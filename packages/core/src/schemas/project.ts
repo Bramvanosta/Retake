@@ -66,6 +66,9 @@ export const WorkspaceFileSchema = z
   .strictObject({
     projects_dir: nonEmpty().describe('Projects directory, relative to the workspace root (default "projects").').optional(),
     templates_dir: nonEmpty().describe('Templates directory, relative to the workspace root (default "templates").').optional(),
+    components_dir: nonEmpty()
+      .describe('Workspace components directory (<namespace>/<name>/component.yaml), relative to the workspace root (default "components").')
+      .optional(),
     browser: BrowserConfigSchema.optional(),
     ffmpeg: nonEmpty().describe('ffmpeg binary (default: "ffmpeg" on PATH).').optional(),
   })

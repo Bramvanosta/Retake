@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.1. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.2. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -40,15 +40,34 @@ automatically with themeable components, and let Claude operate everything throu
   intro, outro, effective frame, template, music; `timelineVideo()` in core). Starter templates declare brand +
   components; the quote fixture has a card and an overlay (run `20261011-172942-quote`: overlay bbox on the €720.00
   total). JSON Schemas regenerated. 345 tests pass (6 Postgres tests skipped).
-- **Requirements:** 529 tracked; 200 done; the open ones are assigned to lots L1.2 … L6.
-- **Groundwork for phase 2:** contracts in core (L2.1) + components types + EditPlan types. `packages/{editor,review,
-  mcp}` are otherwise empty; `studio render|review|export|record|mcp|ui` print "available in phase N".
+- **L2.2 done** (components package, `@demo-studio/components`): `component.yaml` strict zod schema + `parseManifest`
+  (positioned issues; id = folder; semver; slots + `default_from` sources; params = JSON-Schema subset with defaults,
+  objects closed; preview samples fill required slots; layout `geometry`/`geometry_vertical` inside 1920×1080 /
+  1080×1920) and `schema/component.schema.json` (`pnpm -F @demo-studio/components gen:schema`, test-guarded);
+  `loadComponentRegistry({root})` (studio.yaml `components_dir` → `packages/components/library/` — empty until L2.5;
+  override warning; invalid folders as `notices`; `list`/`has`/`get` (did you mean)/`resolve(ref, kind)` (defaults
+  merged, validated, kind checked)/`resolveTheme(template)`); `validateComponent(dir)` (esbuild in-memory compile:
+  only react, remotion, `@demo-studio/components/kit` and own files; react/remotion/kit named imports checked against
+  their real exports; Math.random/Date/fetch/timers scan); 8 per-kind scaffolds `packages/components/scaffolds/<kind>/`
+  (valid components `scaffolds/<kind>`, theme-driven, unit-sized, deterministic; stand-ins for the render pipeline)
+  + `createComponent`; `themeTokens(template, urls)` (font family names `ds-<template>-display|body` + `font_faces`);
+  `fillSlots` (default_from sources, for the planner); the kit (easing incl. theme zoom_ease, frame-driven
+  fade/rise/stagger, `fitText` with balanced lines + ellipsis, Background/Logo/Wordmark/SafeArea/FitText, colour
+  helpers); `ComponentProps` gained `area` (caption), `anchor` (overlay), `direction` (transition); CLI
+  `studio components list|validate|create` (+ `--json`); `FrameComment` type + `COMMENTS_DIR` in core; README section
+  "Components". 427 tests pass (6 Postgres tests skipped).
+- **Requirements:** 529 tracked; 224 done; the open ones are assigned to lots L1.2 … L6 (R-ARCH-03 moved to L5.3).
+- **Groundwork for phase 2:** contracts in core (L2.1) + components package (L2.2) + EditPlan types.
+  `packages/{editor,review,mcp}` are otherwise empty; `studio render|review|export|record|mcp|ui` print "available in
+  phase N".
 
 ## Next lot
-**L2.2 — components package foundation** (M): manifest schema + validation, registry (workspace → built-in, resolve
-with params defaults — use core's `resolveThemeComponents` for theme defaults and `COMPONENT_ID_RE` for ids),
-scaffolding, `themeTokens` (template `brand` is now available), kit helpers — unless the user picks otherwise (L1.2
-robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
+**L2.3 — edit planner** (M): `planEdit` pure + deterministic over a timeline (the fixture timelines copied as test
+fixtures), using the registry (`resolveTheme`, `resolve`), `fillSlots` and the manifests' `duration` / `geometry` —
+unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs
+`docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP. Notes for L2.4: the scaffolds render in Remotion (checked with a
+scratch bundle: alias `@demo-studio/components/kit` to `src/kit/index.ts` with `extensionAlias {'.js': ['.ts','.tsx',
+'.js']}`, register `theme.font_faces` with FontFace + delayRender, theme asset URLs via the asset server).
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

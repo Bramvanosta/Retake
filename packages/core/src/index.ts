@@ -13,7 +13,15 @@ export * from './template.js';
 export * from './components.js';
 export * from './video.js';
 export * from './destructive.js';
-export { didYouMean, editDistance } from './validation/suggest.js';
+export { didYouMean, editDistance, suggestion } from './validation/suggest.js';
+/** Building blocks for other packages' YAML formats (component.yaml…): positioned, friendly issues. */
+export { checkYamlDocument, brokenUnder } from './validation/document.js';
+export type { CheckedDocument } from './validation/document.js';
+export { finalizeIssues, issue as locatedIssue } from './validation/located.js';
+export type { LocatedIssue } from './validation/located.js';
+export { parseYaml, attachPositions, locateOffset } from './validation/yaml-source.js';
+export type { ParsedYaml, YamlSource } from './validation/yaml-source.js';
+export { zodIssues, describeValue } from './validation/zod-issues.js';
 export { HookFileSchema, parseHookFile } from './hookfile.js';
 export { SHELL_OPERATORS, shellWords, shellCommands, commandName, nestedShellScript } from './shell-words.js';
 export type { ShellCommand } from './shell-words.js';

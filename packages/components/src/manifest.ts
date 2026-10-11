@@ -1,0 +1,369 @@
+/**
+ * component.yaml: the manifest of a component (docs/DESIGN-phase2.md §1.1, SPEC §11).
+ *
+ * `ComponentManifestFileSchema` is strict (unknown keys are errors with a did-you-mean); `parseManifest` adds the
+ * semantic checks (layout geometry inside the design space, duration bounds, slot sources, theme tokens, the params
+ * JSON Schema and its defaults, preview samples) and returns positioned issues.
+ */
+import { z } from 'zod';
+import {
+  COMPONENT_KINDS,
+  brokenUnder,
+  checkYamlDocument,
+  componentIdSchema,
+  didYouMean,
+  hasErrors,
+  keyString,
+  locatedIssue,
+} from '@demo-studio/core';
+import type { ComponentKind, LocatedIssue } from '@demo-studio/core';
+import { applyParamDefaults, checkParamsSchema, isPlainObject, validateParamValue } from './json-schema.js';
+import type { JsonSchemaNode } from './json-schema.js';
+import type { ComponentIssue, ComponentManifest, LayoutGeometry } from './types.js';
+
+export const MANIFEST_FILE = 'component.yaml';
+export const DEFAULT_ENTRY = 'index.tsx';
+
+/** Design spaces of layout geometry (and of every size a component draws, before `unit`). */
+export const DESIGN_SPACE = {
+  landscape: { width: 1920, height: 1080 },
+  vertical: { width: 1080, height: 1920 },
+} as const;
+
+/** Semantic version (semver.org 2.0.0). */
+export const SEMVER_RE =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+/** Where the planner can take a slot value from when the scenario does not set it (`default_from`). */
+export const SLOT_SOURCES = [
+  'theme.logo',
+  'theme.wordmark',
+  'theme.brand.name',
+  'theme.brand.url',
+  'theme.outro.tagline',
+  'theme.outro.url',
+  'scenario.title.text',
+  'scenario.title.kicker',
+  'scenario.outro.tagline',
+  'scenario.outro.url',
+  'scene.caption.text',
+  'scene.caption.kicker',
+  'interstitial.text',
+  'interstitial.kicker',
+] as const;
+
+/** Theme tokens a component may declare in `tokens:` (`colors.<any key>` is accepted too). */
+export const THEME_TOKENS = [
+  'colors.accent',
+  'colors.text',
+  'colors.muted',
+  'colors.paper',
+  'background',
+  'fonts.display',
+  'fonts.body',
+  'logo',
+  'wordmark',
+  'brand.name',
+  'brand.url',
+  'cursor.ripple_color',
+  'style_bias',
+  'captions.kicker',
+  'captions.line',
+  'brandmark',
+  'motion.zoom_ease',
+] as const;
+
+/** Kinds whose duration comes from the clip they decorate (a manifest `duration` is ignored). */
+const CLIP_BOUND_KINDS: readonly ComponentKind[] = ['layout', 'caption'];
+
+const nonEmpty = () => z.string().min(1);
+
+export const SlotSpecSchema = z
+  .strictObject({
+    type: z
+      .enum(['text', 'image', 'url', 'color', 'screen'])
+      .describe('text, image (URL), url (shown as text), color (CSS) or screen (the capture, layouts only).'),
+    description: z.string().describe('What the slot shows (for the UI and Claude).').optional(),
+    required: z.boolean().describe('The component cannot render without it (default false).').optional(),
+    default_from: nonEmpty()
+      .describe(`Where the value comes from when the scenario does not set it: ${SLOT_SOURCES.join(', ')}.`)
+      .optional(),
+    max_chars: z.number().int().gt(0).describe('Soft length limit (text and url slots), used by validation and review.').optional(),
+  })
+  .meta({ id: 'SlotSpec', description: 'A value the component renders (title, kicker, logo, url…).' });
+
+export const RectSchema = z
+  .strictObject({
+    x: z.number().describe('Left, in design px.'),
+    y: z.number().describe('Top, in design px.'),
+    w: z.number().gt(0).describe('Width, in design px.'),
+    h: z.number().gt(0).describe('Height, in design px.'),
+  })
+  .meta({ id: 'Rect', description: 'Rectangle in the design space (1920×1080 landscape, 1080×1920 vertical).' });
+
+export const LayoutGeometrySchema = z
+  .strictObject({
+    screen: RectSchema.describe('Where the capture pixels go (the planner keeps the capture aspect ratio inside it).'),
+    frame: RectSchema.describe('Outer shape around the screen (card, device…); defaults to screen.').optional(),
+    chrome: RectSchema.describe('Browser chrome bar, when the layout draws one.').optional(),
+    caption: RectSchema.describe('Caption area used by the caption component.').optional(),
+    brandmark: RectSchema.describe('Brand mark area.').optional(),
+    radius: z.number().min(0).describe('Corner radius of the screen/frame, in design px.').optional(),
+  })
+  .meta({ id: 'LayoutGeometry', description: 'Layout geometry, so the planner and the review can reason without rendering.' });
+
+/** The params schema is checked by `checkParamsSchema` (supported JSON Schema subset); zod only wants a mapping. */
+export const ParamsJsonSchemaSchema = z
+  .record(z.string(), z.unknown())
+  .describe('JSON Schema (type: object) of the params, with a default for each optional param.');
+
+export const ComponentManifestFileSchema = z
+  .strictObject({
+    id: componentIdSchema().describe('"namespace/name" — must match the folder <namespace>/<name>/.'),
+    version: z
+      .string()
+      .regex(SEMVER_RE, { error: (iss) => `version must be a semantic version like "1.0.0", got ${JSON.stringify(iss.input)}` })
+      .describe('Semantic version (e.g. 1.0.0).'),
+    kind: z.enum(COMPONENT_KINDS as [ComponentKind, ...ComponentKind[]]).describe(`What it renders: ${COMPONENT_KINDS.join(', ')}.`),
+    name: nonEmpty().describe('Display name.'),
+    description: nonEmpty().describe('One or two sentences: what it looks like and when to use it.'),
+    publisher: nonEmpty().describe('Publisher (marketplace metadata).').optional(),
+    license: nonEmpty().describe('License (SPDX id, marketplace metadata).').optional(),
+    tags: z.array(nonEmpty()).describe('Search tags.').optional(),
+    entry: nonEmpty().describe(`Implementation file relative to the component folder (default ${DEFAULT_ENTRY}).`).optional(),
+    slots: z
+      .record(keyString('slot name'), SlotSpecSchema)
+      .describe('Values the component renders, by name (title, kicker, logo…).')
+      .optional(),
+    params: ParamsJsonSchemaSchema.optional(),
+    tokens: z.array(nonEmpty()).describe(`Theme tokens the component reads: ${THEME_TOKENS.join(', ')}, colors.<key>.`).optional(),
+    duration: z
+      .strictObject({
+        default: z.number().gt(0).describe('Seconds.'),
+        min: z.number().gt(0).describe('Seconds.').optional(),
+        max: z.number().gt(0).describe('Seconds.').optional(),
+      })
+      .describe('Seconds on screen (intros, outros, cards, interstitials, overlays, transitions).')
+      .optional(),
+    geometry: LayoutGeometrySchema.describe('Layouts: geometry in the 1920×1080 design space.').optional(),
+    geometry_vertical: LayoutGeometrySchema.describe('Layouts with the vertical variant: geometry in the 1080×1920 design space.').optional(),
+    variants: z
+      .array(z.enum(['landscape', 'vertical']))
+      .min(1)
+      .describe('Output orientations the component supports (default [landscape]).')
+      .optional(),
+    preview: z
+      .strictObject({
+        slots: z.record(z.string(), z.string()).describe('Sample slot values (every required slot not filled from the theme).').optional(),
+        params: z.record(z.string(), z.unknown()).describe('Params of the preview (over the defaults).').optional(),
+        at: z.array(z.number().min(0)).min(1).describe('Seconds at which preview stills are taken.').optional(),
+      })
+      .describe('Sample values used to render previews with any theme.')
+      .optional(),
+  })
+  .meta({ id: 'ComponentManifest', title: 'Demo Studio component', description: 'component.yaml' });
+
+export type ComponentManifestFile = z.infer<typeof ComponentManifestFileSchema>;
+
+function rectInside(r: { x: number; y: number; w: number; h: number }, space: { width: number; height: number }): boolean {
+  const eps = 1e-6;
+  return r.x >= -eps && r.y >= -eps && r.x + r.w <= space.width + eps && r.y + r.h <= space.height + eps;
+}
+
+function checkGeometry(g: LayoutGeometry, key: 'geometry' | 'geometry_vertical', out: LocatedIssue[]): void {
+  const space = key === 'geometry' ? DESIGN_SPACE.landscape : DESIGN_SPACE.vertical;
+  for (const name of ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const) {
+    const r = g[name];
+    if (r && !rectInside(r, space)) {
+      out.push(
+        locatedIssue(
+          'error',
+          [key, name],
+          `${name} rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}} leaves the ${space.width}×${space.height} design space`,
+        ),
+      );
+    }
+  }
+}
+
+/** Semantic checks of a structurally valid manifest. Exported for tests; use `parseManifest`. */
+export function checkManifest(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
+  const out: LocatedIssue[] = [];
+  if (!isPlainObject(value)) return out;
+  const m = value as Partial<ComponentManifestFile>;
+  const ok = (path: Array<string | number>) => !brokenUnder(structural, path);
+  const kind = ok(['kind']) ? m.kind : undefined;
+  const slots = ok(['slots']) && isPlainObject(m.slots) ? m.slots : {};
+
+  // Slots: sources and limits.
+  for (const [name, slot] of Object.entries(slots)) {
+    if (!ok(['slots', name]) || !isPlainObject(slot)) continue;
+    if (slot.default_from !== undefined && !(SLOT_SOURCES as readonly string[]).includes(slot.default_from)) {
+      const s = didYouMean(slot.default_from, SLOT_SOURCES);
+      out.push(
+        locatedIssue(
+          'warning',
+          ['slots', name, 'default_from'],
+          `unknown slot source "${slot.default_from}"${s ? ` (did you mean "${s}"?)` : ''}; known: ${SLOT_SOURCES.join(', ')}`,
+        ),
+      );
+    }
+    if (slot.max_chars !== undefined && slot.type !== 'text' && slot.type !== 'url') {
+      out.push(locatedIssue('warning', ['slots', name, 'max_chars'], `max_chars only applies to text and url slots ("${name}" is ${slot.type})`));
+    }
+    if (slot.type === 'screen' && kind !== undefined && kind !== 'layout' && kind !== 'interstitial' && kind !== 'transition') {
+      out.push(locatedIssue('warning', ['slots', name, 'type'], `screen slots are filled for layouts, interstitials and transitions only, not for ${kind} components`));
+    }
+  }
+
+  // Layout geometry.
+  if (kind === 'layout') {
+    if (m.geometry === undefined) {
+      out.push(
+        locatedIssue('error', [], 'a layout component must declare "geometry" (screen rect, + caption/brandmark… in the 1920×1080 design space)', {
+          path: ['kind'],
+        }),
+      );
+    }
+    const vertical = ok(['variants']) && Array.isArray(m.variants) && m.variants.includes('vertical');
+    if (vertical && m.geometry_vertical === undefined) {
+      out.push(
+        locatedIssue('error', [], 'a layout with the vertical variant must declare "geometry_vertical" (1080×1920 design space)', {
+          path: ['variants'],
+        }),
+      );
+    }
+  } else if (kind !== undefined) {
+    for (const key of ['geometry', 'geometry_vertical'] as const) {
+      if (m[key] !== undefined) out.push(locatedIssue('warning', [key], `${key} is only used by layout components (this one is ${kind})`, { path: [key], key: true }));
+    }
+  }
+  for (const key of ['geometry', 'geometry_vertical'] as const) {
+    if (m[key] !== undefined && ok([key])) checkGeometry(m[key] as LayoutGeometry, key, out);
+  }
+
+  // Duration.
+  if (m.duration !== undefined && ok(['duration'])) {
+    const d = m.duration;
+    if (d.min !== undefined && d.max !== undefined && d.min > d.max) {
+      out.push(locatedIssue('error', ['duration', 'min'], `min (${d.min} s) is greater than max (${d.max} s)`));
+    } else {
+      if (d.min !== undefined && d.default < d.min) out.push(locatedIssue('error', ['duration', 'default'], `default (${d.default} s) is below min (${d.min} s)`));
+      if (d.max !== undefined && d.default > d.max) out.push(locatedIssue('error', ['duration', 'default'], `default (${d.default} s) is above max (${d.max} s)`));
+    }
+    if (kind !== undefined && CLIP_BOUND_KINDS.includes(kind)) {
+      out.push(locatedIssue('warning', ['duration'], `duration is ignored for ${kind} components (they last as long as their clip)`, { path: ['duration'], key: true }));
+    }
+  }
+
+  // Variants.
+  if (Array.isArray(m.variants) && ok(['variants'])) {
+    m.variants.forEach((v, i) => {
+      if (m.variants!.indexOf(v) !== i) out.push(locatedIssue('error', ['variants', i], `"${v}" is listed twice`));
+    });
+  }
+
+  // Theme tokens.
+  if (Array.isArray(m.tokens) && ok(['tokens'])) {
+    m.tokens.forEach((t, i) => {
+      if ((THEME_TOKENS as readonly string[]).includes(t) || /^colors\.[A-Za-z0-9_-]+$/.test(t)) return;
+      const s = didYouMean(t, THEME_TOKENS);
+      out.push(locatedIssue('warning', ['tokens', i], `unknown theme token "${t}"${s ? ` (did you mean "${s}"?)` : ''}`));
+    });
+  }
+
+  // Entry file.
+  if (typeof m.entry === 'string' && ok(['entry'])) {
+    const e = m.entry.replace(/\\/g, '/');
+    if (e.startsWith('/') || /^[A-Za-z]:/.test(e) || e.split('/').includes('..')) {
+      out.push(locatedIssue('error', ['entry'], `entry must be a path inside the component folder, got "${m.entry}"`));
+    } else if (!/\.(tsx|ts|jsx|js)$/.test(e)) {
+      out.push(locatedIssue('error', ['entry'], `entry must be a .tsx, .ts, .jsx or .js file, got "${m.entry}"`));
+    }
+  }
+
+  // Params JSON Schema, then the preview samples.
+  let paramsSchema: JsonSchemaNode | undefined;
+  if (m.params !== undefined && ok(['params'])) {
+    const issues = checkParamsSchema(m.params, ['params']);
+    out.push(...issues);
+    if (!hasErrors(issues)) paramsSchema = m.params as JsonSchemaNode;
+  }
+  const preview = ok(['preview']) && isPlainObject(m.preview) ? m.preview : undefined;
+  const previewSlots = preview && isPlainObject(preview.slots) ? preview.slots : {};
+  for (const name of Object.keys(previewSlots)) {
+    if (slots[name] !== undefined || !ok(['slots'])) continue;
+    const s = didYouMean(name, Object.keys(slots).filter((k) => previewSlots[k] === undefined));
+    out.push(
+      locatedIssue('error', ['preview', 'slots'], `unknown slot "${name}"${s ? ` (did you mean "${s}"?)` : ''}: declare it under slots`, {
+        path: ['preview', 'slots', name],
+        key: true,
+      }),
+    );
+  }
+  if (ok(['slots'])) {
+    const missing = Object.entries(slots)
+      .filter(([name, slot]) => slot.required === true && slot.type !== 'screen' && !slot.default_from?.startsWith('theme.') && previewSlots[name] === undefined)
+      .map(([name]) => name);
+    if (missing.length > 0) {
+      out.push(
+        locatedIssue(
+          'error',
+          preview ? ['preview'] : [],
+          `preview.slots must give a sample for the required slot${missing.length > 1 ? 's' : ''} ${missing.map((n) => `"${n}"`).join(', ')} ` +
+            '(previews render with any theme but without a scenario)',
+          preview ? { path: ['preview'], key: true } : undefined,
+        ),
+      );
+    }
+  }
+  if (preview && preview.params !== undefined && (m.params === undefined || paramsSchema !== undefined)) {
+    const schema = paramsSchema ?? { type: 'object', properties: {} };
+    const merged = applyParamDefaults(schema, preview.params as Record<string, unknown>);
+    out.push(...validateParamValue(schema, merged, ['preview', 'params']));
+  }
+  return out;
+}
+
+/** The manifest with its defaults applied (entry, slots). */
+export function normalizeManifest(file: ComponentManifestFile): ComponentManifest {
+  const out = { ...structuredClone(file), entry: file.entry ?? DEFAULT_ENTRY, slots: structuredClone(file.slots ?? {}) } as ComponentManifest;
+  return out;
+}
+
+export interface ParseManifestOptions {
+  /** "<namespace>/<name>" of the folder holding the file: the manifest id must equal it. */
+  folderId?: string;
+}
+
+export interface ParsedManifest {
+  /** Set when there is no error-level issue. */
+  manifest?: ComponentManifest;
+  issues: ComponentIssue[];
+}
+
+/**
+ * Parse and validate component.yaml text. Issues carry line/col and `file` (the name given, default
+ * "component.yaml"); `manifest` is returned only when there is no error.
+ */
+export function parseManifest(text: string, file: string = MANIFEST_FILE, opts: ParseManifestOptions = {}): ParsedManifest {
+  const semantic = (value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] => {
+    const out = checkManifest(value, structural);
+    const id = isPlainObject(value) ? value.id : undefined;
+    if (opts.folderId !== undefined && typeof id === 'string' && !brokenUnder(structural, ['id']) && id !== opts.folderId) {
+      out.push(
+        locatedIssue(
+          'error',
+          ['id'],
+          `id "${id}" does not match the folder path "${opts.folderId}": a component lives in <components>/<namespace>/<name>/ — ` +
+            `rename the folder or set id: ${opts.folderId}`,
+        ),
+      );
+    }
+    return out;
+  };
+  const { value, issues } = checkYamlDocument(text, ComponentManifestFileSchema, semantic);
+  const withFile = issues.map((i) => ({ ...i, file }));
+  if (hasErrors(issues)) return { issues: withFile };
+  return { manifest: normalizeManifest(value as ComponentManifestFile), issues: withFile };
+}

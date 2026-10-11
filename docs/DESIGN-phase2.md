@@ -44,16 +44,33 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/overlay-lower-third | overlay | lower third (title + subtitle) |
 | studio/transition-crossfade, studio/transition-fade-black | transition | |
 
-### 1.3 Registry (`@demo-studio/components`)
+### 1.3 Registry (`@demo-studio/components`, implemented in L2.2)
 ```ts
-loadComponentRegistry(opts: { root: string /* workspace */ }): Promise<ComponentRegistry>
-//  scans <root>/components/**/component.yaml then the built-in library; workspace ids override built-ins (warning)
-ComponentRegistry = { list(kind?): ComponentInfo[]; get(id): ComponentInfo /* throws with suggestions */; resolve(ref, kind): ResolvedComponent-ish }
+loadComponentRegistry(opts: { root: string /* workspace */; componentsDir?; builtinDir? | null }): Promise<ComponentRegistry>
+//  scans <components_dir>/<ns>/<name>/component.yaml (studio.yaml components_dir, default <root>/components) then
+//  packages/components/library/<ns>/<name>/; workspace ids override built-ins (warning notice); invalid folders are
+//  kept out of list() and reported in `notices` (get/resolve throw with their positioned issues)
+ComponentRegistry = {
+  list(kind?): ComponentInfo[]; has(id); get(id): ComponentInfo /* ComponentError: not found + did you mean | invalid */;
+  resolve(ref, kind): ResolvedComponentRef  /* {id, version, kind, params (schema defaults under the given params,
+                                               validated), manifest, dir, entry, source}; kind mismatch → error */;
+  resolveTheme(template): Record<ComponentKind, ResolvedComponentRef | null>  /* via core resolveThemeComponents */;
+  notices: RegistryNotice[]; componentsDir; builtinDir?
+}
 ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'workspace' | 'builtin' }
-validateComponent(dir): Promise<ValidationIssue[]>   // manifest schema, entry exists, params schema valid, preview samples fill required slots, typecheck/esbuild compile
-createComponent(root, { id, kind, description }): Promise<ComponentInfo>   // scaffold from a kind template
-themeTokens(template: LoadedTemplate, urls: { logo?, wordmark? }): ThemeTokens
+parseManifest(text, file?, { folderId? }): { manifest?, issues: ComponentIssue[] }   // strict zod schema + semantic checks
+validateComponent(dir): Promise<ComponentIssue[]>   // manifest, id = folder, entry exists, params schema + defaults,
+//  preview samples fill required slots, layout geometry, esbuild compile (imports: react, remotion, the kit and own
+//  files only; misspelt named imports; Math.random/Date/fetch/timers) — every issue {file, line, col, path, message}
+createComponent(root, { id, kind, description, name? }): Promise<CreatedComponent>   // from scaffolds/<kind>/, validated
+themeTokens(template: LoadedTemplate, urls: { logo?, wordmark?, fonts? }): ThemeTokens
+fillSlots(manifest, given, ctx): { slots, from, missing, tooLong, unknown }   // default_from sources (planner, previews)
 ```
+`packages/components/scaffolds/<kind>/` are valid, theme-driven components (`scaffolds/<kind>` ids) used by
+`createComponent` and, as stand-ins, by the render pipeline until the library lands. Props added for kinds that need
+them: `area` (caption: the layout's caption rect), `anchor` (overlay: target box in output px), `direction`
+(transition: `exiting` around the outgoing segment, `entering` around the incoming one, drawn on top; `screen` = the
+wrapped segment). The kit (`@demo-studio/components/kit`) is documented in the README, section "Components".
 
 ### 1.4 Themes (templates) pick components
 Template gains (additive, core types + `TemplateSchema` / `TemplateFileSchema`):

@@ -17,12 +17,13 @@
     "src"
   ],
   "dependencies": {
+    "@demo-studio/components": "workspace:*",
     "@demo-studio/core": "workspace:*",
-    "@demo-studio/runner-web": "workspace:*",
-    "@demo-studio/hooks": "workspace:*",
     "@demo-studio/editor": "workspace:*",
-    "@demo-studio/review": "workspace:*",
+    "@demo-studio/hooks": "workspace:*",
     "@demo-studio/mcp": "workspace:*",
+    "@demo-studio/review": "workspace:*",
+    "@demo-studio/runner-web": "workspace:*",
     "commander": "^14.0.0",
     "picocolors": "^1.1.1"
   },

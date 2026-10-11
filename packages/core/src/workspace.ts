@@ -41,7 +41,7 @@ export function findWorkspaceRoot(start: string = process.cwd()): string {
   );
 }
 
-/** Read studio.yaml (optional) and resolve the projects / templates directories. */
+/** Read studio.yaml (optional) and resolve the projects / templates / components directories. */
 export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig> {
   const absRoot = resolve(root);
   const file = join(absRoot, WORKSPACE_FILE);
@@ -62,6 +62,7 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
     root: absRoot,
     projectsDir: dir(cfg.projects_dir, 'projects'),
     templatesDir: dir(cfg.templates_dir, 'templates'),
+    componentsDir: dir(cfg.components_dir, 'components'),
   };
   if (cfg.browser) out.browser = cfg.browser;
   if (cfg.ffmpeg) out.ffmpeg = expandHome(cfg.ffmpeg);

@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../schema/component.schema.json
+# Interstitial scaffold: a "time passes" card — text and kicker over the dimmed last frame (or the theme colours),
+# with a thin accent line that runs across the card while it is on screen.
+id: scaffolds/interstitial
+version: 0.1.0
+kind: interstitial
+name: Interstitial
+description: Waiting screen over the dimmed last frame (dark) or on the theme paper, with a kicker, a text and a running accent line.
+slots:
+  text: {type: text, required: true, default_from: interstitial.text, max_chars: 60, description: What happens meanwhile ("Two days later").}
+  kicker: {type: text, default_from: interstitial.kicker, max_chars: 40, description: Small uppercase line above the text.}
+  screen: {type: screen, description: "The last frame of the previous clip, drawn dimmed under the card."}
+params:
+  type: object
+  properties:
+    tone: {type: string, enum: [dark, paper], default: dark, description: "Dark veil over the last frame, or the theme paper."}
+    dim: {type: number, minimum: 0, maximum: 1, default: 0.78, description: Opacity of the dark veil.}
+tokens: [colors.accent, colors.text, colors.paper, colors.muted, background, fonts.display, fonts.body]
+duration: {default: 2.6, min: 1, max: 8}
+variants: [landscape, vertical]
+preview:
+  slots: {text: A few days later, kicker: Meanwhile}
+  at: [0.3, 1.4]

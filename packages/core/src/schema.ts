@@ -3,7 +3,7 @@
  * JSON Schemas. Objects are strict: unknown keys are errors (typo protection).
  * For precise, positioned messages use parseScenario / parseProjectYaml rather than `safeParse`.
  */
-export { SLUG_RE, KEY_RE, COMPONENT_ID_RE, FRAME_STYLES, componentIdSchema } from './schemas/primitives.js';
+export { SLUG_RE, KEY_RE, COMPONENT_ID_RE, FRAME_STYLES, componentIdSchema, keyString } from './schemas/primitives.js';
 export {
   PointSchema,
   BBoxSchema,
@@ -54,6 +54,7 @@ export {
   templateJsonSchema,
   timelineJsonSchema,
   writeJsonSchemas,
+  toJsonSchema,
   JSON_SCHEMAS,
 } from './schemas/json.js';
 export type { JsonSchema, JsonSchemaName } from './schemas/json.js';

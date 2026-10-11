@@ -24,8 +24,8 @@ requirements of a lot with their gaps.
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
-| L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | next |
-| L2.3 | Edit planner (pure, unit-tested) | M | todo |
+| L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
+| L2.3 | Edit planner (pure, unit-tested) | M | next |
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | todo |
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | todo |
 | L2.6 | Review package + `studio review` | M | todo |
@@ -124,6 +124,17 @@ requirements of a lot with their gaps.
   `createComponent` scaffolds per kind, `themeTokens`, `kit` helpers (fades/rises/stagger, easing presets, fitText,
   Logo, Wordmark, background) (R-CMP-02..11, R-REG-01..12, R-DEC-03, R-CMT-01 type).
 - **Acceptance:** unit tests; a scaffolded component validates and compiles.
+- **Done:** `component.yaml` strict zod schema + `parseManifest` (positioned issues, id = folder, semver, slot
+  sources, params JSON-Schema subset + defaults, preview samples, layout geometry in the design space) and
+  `schema/component.schema.json` (`gen:schema`); `loadComponentRegistry` (studio.yaml `components_dir` → built-in
+  `library/`, override warning, invalid folders as notices; `list`/`get` with did-you-mean/`resolve` with params
+  defaults + validation/`resolveTheme`); `validateComponent` (manifest, entry, esbuild in-memory compile with an
+  import allow-list, misspelt named imports of react/remotion/kit, Math.random/Date/network scan); 8 per-kind
+  scaffolds (`scaffolds/<kind>/`, theme-driven, unit-sized, deterministic — rendered with Remotion in the editorial
+  and motion themes and inspected) + `createComponent`; `themeTokens`; `fillSlots`; the kit
+  (`@demo-studio/components/kit`: easing, frame-driven motion, fitText with balanced lines and ellipsis, Background,
+  Logo, Wordmark, SafeArea, FitText, colour helpers); `studio components list|validate|create`; FrameComment type in
+  core. R-ARCH-03 (remaining packages) moved to L5.3, the last lot that adds one.
 
 ### L2.3 — Edit planner (M)
 - **Scope:** `planEdit` pure + deterministic: segment order and component precedence, scene source ranges, transitions

@@ -10,13 +10,36 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./kit": {
+      "source": "./src/kit/index.ts",
+      "types": "./dist/kit/index.d.ts",
+      "default": "./dist/kit/index.js"
+    },
+    "./schema/*.json": "./schema/*.json"
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "schema",
+    "scaffolds",
+    "library"
   ],
+  "scripts": {
+    "build": "tsc -b",
+    "gen:schema": "tsx scripts/gen-schema.ts"
+  },
   "dependencies": {
-    "@demo-studio/core": "workspace:*"
+    "@demo-studio/core": "workspace:*",
+    "esbuild": "0.28.1",
+    "react": "19.1.1",
+    "remotion": "4.0.534",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "react-dom": "19.1.1"
   }
 }

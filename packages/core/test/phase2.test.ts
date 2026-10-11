@@ -27,7 +27,8 @@ import {
   timelineJsonSchema,
   timelineVideo,
 } from '@demo-studio/core';
-import type { Scenario, Template, Timeline, ValidationIssue } from '@demo-studio/core';
+import { COMMENTS_DIR } from '@demo-studio/core';
+import type { FrameComment, FrameCommentsFile, Scenario, Template, Timeline, ValidationIssue } from '@demo-studio/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
 type Json = Record<string, any>;
@@ -472,5 +473,28 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
       'bbox',
       'point',
     ]);
+  });
+});
+
+describe('frame comments data model (R-CMT-01)', () => {
+  it('FrameComment carries the frame, an optional region, the anchor, replies and the resolution', () => {
+    const comment = {
+      id: 'c-1',
+      scenario: 'quote',
+      render_id: 'quote-v3',
+      frame: 412,
+      time_s: 13.733,
+      region: { x: 0.52, y: 0.61, w: 0.2, h: 0.08 },
+      text: 'The total should stay on screen a bit longer.',
+      author: 'reviewer',
+      created_at: '2026-10-11T18:00:00.000Z',
+      status: 'resolved',
+      anchor: { segment: 'proposal', kind: 'clip', component: 'studio/layout-card', scene: 'proposal', step: 2, step_id: 'total', src_time_s: 41.2 },
+      replies: [{ author: 'claude', text: 'Hold extended to 2.5 s.', created_at: '2026-10-11T18:05:00.000Z' }],
+      resolution: { by: 'claude', note: 'hold: 2.5 on the step', render_id: 'quote-v4' },
+    } satisfies FrameComment;
+    const file: FrameCommentsFile = { version: 1, scenario: 'quote', comments: [comment] };
+    expect(JSON.parse(JSON.stringify(file))).toEqual(file);
+    expect(COMMENTS_DIR).toBe('comments');
   });
 });

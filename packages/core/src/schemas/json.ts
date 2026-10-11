@@ -45,6 +45,14 @@ function inlineAliasDefs(schema: JsonSchema): void {
   for (const name of Object.keys(defs)) if (alias.has(`#/$defs/${name}`)) delete defs[name];
 }
 
+/**
+ * JSON Schema (draft 2020-12) of a zod schema, cleaned up for editors: no ±MAX_SAFE_INTEGER bounds, alias defs
+ * inlined, root object at the top level, `$id: <id>.schema.json`. Used for every generated *.schema.json.
+ */
+export function toJsonSchema(schema: z.ZodType, id: string): JsonSchema {
+  return generate(schema, id);
+}
+
 function generate(schema: z.ZodType, id: string): JsonSchema {
   const out = z.toJSONSchema(schema, {
     target: 'draft-2020-12',

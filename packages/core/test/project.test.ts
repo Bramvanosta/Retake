@@ -45,9 +45,14 @@ describe('workspace', () => {
       root: ws.dir,
       projectsDir: join(ws.dir, 'projects'),
       templatesDir: join(ws.dir, 'templates'),
+      componentsDir: join(ws.dir, 'components'),
     });
-    await writeFiles(ws.dir, { 'studio.yaml': 'projects_dir: work/projects\nffmpeg: /opt/ffmpeg\n' });
-    expect(await loadWorkspaceConfig(ws.dir)).toMatchObject({ projectsDir: join(ws.dir, 'work/projects'), ffmpeg: '/opt/ffmpeg' });
+    await writeFiles(ws.dir, { 'studio.yaml': 'projects_dir: work/projects\nffmpeg: /opt/ffmpeg\ncomponents_dir: ui/components\n' });
+    expect(await loadWorkspaceConfig(ws.dir)).toMatchObject({
+      projectsDir: join(ws.dir, 'work/projects'),
+      componentsDir: join(ws.dir, 'ui/components'),
+      ffmpeg: '/opt/ffmpeg',
+    });
     await writeFiles(ws.dir, { 'studio.yaml': 'project_dir: x\n' });
     await expect(loadWorkspaceConfig(ws.dir)).rejects.toThrow(
       /studio\.yaml:1:1 error: unknown key "project_dir" \(did you mean "projects_dir"\?\)/,

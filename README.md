@@ -87,12 +87,14 @@ Keep your material in a folder of your own, for example:
   studio.yaml          # marks the workspace (all keys optional)
   projects/<slug>/     # one folder per product
   templates/<name>/    # your themes (copy a starter from this repository's templates/ to begin)
+  components/<ns>/<name>/  # your own components (studio components create)
 ```
 
 ```yaml
 # studio.yaml
 projects_dir: projects     # default "projects"
 templates_dir: templates   # default "templates"
+components_dir: components # default "components": your own components (see Components)
 ffmpeg: /opt/homebrew/bin/ffmpeg
 browser: {locale: en-GB, timezone: Europe/Stockholm}   # defaults for every project (project.yaml wins)
 ```
@@ -120,6 +122,9 @@ studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env 
 studio hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--dry]
 studio hooks rollback <project> [run-id] [--env E] [--dry]
 studio env reset <project> [--env E] [--yes] [--dry]
+studio components list [--kind K] [--json]            # workspace components, then the built-in library
+studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
+studio components create <namespace/name> --kind K [--description D] [--name N] [--json]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
 studio login <project> [--env E] [--page KEY] [--url URL]
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
@@ -148,6 +153,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `--project <slug>` it also checks that project's browser profile(s) (present, not in use) and sends a `HEAD`
   request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
   failure, of another environment a warning. It exits with `1` when any check fails; `--json` prints the checks.
+- **components** lists, validates and scaffolds components — see [Components](#components).
 - **render**, **review**, **export** (phase 2), **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and
   say when they arrive.
 
@@ -467,6 +473,136 @@ An explicit `components` entry is taken as written (legacy params are not merged
 contradicts a legacy field written in the same file. `resolveThemeComponents(template)` (core) returns the resolved
 choice per kind with its source (`theme`, `legacy` or `default`). The starter templates declare both, consistently.
 
+## Components
+
+Every visual element of the edit — intro, outro, cards, waiting screens (interstitials), captions, screen layouts,
+overlays and transitions — is a **component**: a folder with a manifest and a React ([Remotion](https://www.remotion.dev))
+implementation. The editor only assembles components; themes give them their colours, fonts and logo.
+
+```
+components/<namespace>/<name>/     # in your workspace (studio.yaml components_dir); built-ins: packages/components/library/
+  component.yaml                   # the manifest
+  index.tsx                        # export default function (props: ComponentProps) { … }
+  README.md                        # optional notes
+  previews/<theme>.png             # generated (later lots), never hand-edited
+```
+
+**Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. Ids
+resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
+marketplace cache: a workspace component with a built-in id overrides it (`studio components list` warns). The built-in
+library arrives with lots L2.5 (reference look) and L2.7; until then `packages/components/scaffolds/<kind>/` holds one
+valid, theme-driven placeholder per kind.
+
+**How a theme picks components.** A template's `components:` map (or its legacy fields, see
+[Templates](#templates-themes)) names the default component and params of each kind; a scenario overrides it per use
+([Components in scenarios](#components-in-scenarios)). Params given by the theme or the scenario are merged over the
+component's defaults and validated against its params schema (`registry.resolve`); a typo or an out-of-range value is
+an error naming the param.
+
+### component.yaml
+
+```yaml
+# yaml-language-server: $schema=<path to packages/components/schema/component.schema.json>
+id: acme/intro-split              # = folder <namespace>/<name>
+version: 1.0.0                    # semver
+kind: intro                       # intro | outro | card | interstitial | caption | layout | overlay | transition
+name: Split intro
+description: Logo on the left, title on the right, sliding in.
+publisher: Acme                   # optional marketplace metadata: publisher, license, tags
+entry: index.tsx                  # default
+slots:                            # the values it renders
+  title: {type: text, required: true, default_from: scenario.title.text, max_chars: 60}
+  kicker: {type: text, default_from: scenario.title.kicker}
+  logo: {type: image, default_from: theme.logo}
+params:                           # JSON Schema (object) with defaults
+  type: object
+  properties:
+    align: {type: string, enum: [center, left], default: center}
+    stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.12}
+tokens: [colors.accent, colors.text, fonts.display, logo]   # theme tokens it reads
+duration: {default: 3.2, min: 1.5, max: 8}                  # seconds (not for layouts and captions)
+variants: [landscape, vertical]
+preview:                          # sample values: previews render with any theme, without a scenario
+  slots: {title: Quotes in two clicks, kicker: Product tour}
+  at: [0.4, 1.6]
+```
+
+| Key | Notes |
+|---|---|
+| `slots.<name>` | `type`: `text`, `image` (URL), `url` (shown as text), `color`, `screen` (the capture: layouts, interstitials, transitions); `required`; `default_from`: `theme.logo`, `theme.wordmark`, `theme.brand.name`, `theme.brand.url`, `theme.outro.tagline`, `theme.outro.url`, `scenario.title.text`, `scenario.title.kicker`, `scenario.outro.tagline`, `scenario.outro.url`, `scene.caption.text`, `scene.caption.kicker`, `interstitial.text`, `interstitial.kicker`; `max_chars` (text and url) |
+| `params` | JSON Schema subset: `type`, `properties`, `required`, `additionalProperties`, `default`, `enum`, `const`, `minimum`/`maximum` (+ exclusive), `multipleOf`, `minLength`/`maxLength`, `pattern`, `items`, `minItems`/`maxItems`, `uniqueItems`, `anyOf`, `oneOf` (+ annotations such as `description`). Objects are **closed** unless they set `additionalProperties`. Every `default` must match its schema |
+| `geometry`, `geometry_vertical` | layouts only, required: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920) design space, and `radius` — the planner and the review reason on them without rendering |
+| `preview` | `slots` must give a sample for every required slot that is not filled from the theme; `params` are validated; `at` = seconds of the preview stills |
+
+### Implementation
+
+```tsx
+import { useCurrentFrame } from 'remotion';
+import { Background, FitText, Logo, rise, stagger } from '@demo-studio/components/kit';
+import type { ComponentProps } from '@demo-studio/components/kit';
+
+type Params = { align: 'center' | 'left'; stagger: number };
+
+export default function SplitIntro({ theme, slots, params, unit, width, fps }: ComponentProps<Params>) {
+  const frame = useCurrentFrame();                       // relative to the component's segment
+  const enter = (i: number) => rise(frame, fps, { delay: stagger(i, { step: params.stagger }), unit });
+  return (
+    <Background theme={theme}>
+      <div style={enter(0)}><Logo theme={theme} size={64} unit={unit} /></div>
+      <div style={enter(1)}>
+        <FitText text={slots.title ?? ''} width={width * 0.6} maxFontSize={96 * unit} maxLines={2}
+                 fontFamily={theme.fonts.display} color={theme.colors.text} />
+      </div>
+    </Background>
+  );
+}
+```
+
+Rules, checked by `studio components validate`: read every colour, font and logo from `props.theme` (never a brand);
+size everything in 1920-wide design px times `props.unit` (2 for 4K, 0.5 for previews); animate from
+`useCurrentFrame()` only — no `Math.random()` (use `random(seed)` from remotion), `Date`, timers or network; import
+only `react`, `remotion`, `@demo-studio/components/kit` and the component's own files. Props: `theme`, `slots`,
+`params` (defaults applied), `unit`, `width`, `height`, `fps`, `durationInFrames`, `variant`, and per kind `screen`
+(layout: the capture; interstitial: the last frame; transition: the wrapped segment), `url` (browser chrome), `cues` +
+`area` (caption: cues in segment frames, the layout's caption rect), `anchor` (overlay: the target box in output px)
+and `direction` (transition: rendered around the outgoing segment, `exiting`, and the incoming one, `entering`, on
+top).
+
+**Theme tokens** (`props.theme`, built by `themeTokens(template, urls)`): `colors` (accent, text, muted, paper +
+custom keys), `background` (solid / radial / linear), `fonts.display` / `fonts.body` (CSS family names the renderer
+registers from the template font files), `logo`, `wordmark` (image and/or the brand name as text), `brand` (name,
+url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styles), `brandmark`, `motion.zoom_ease`.
+
+### The kit (`@demo-studio/components/kit`)
+
+| Helper | What it does |
+|---|---|
+| `easing(name \| bezier \| fn)`, `EASINGS`, `cubicBezier`, `themeEasing(theme)` | curves: `linear`, `ease`, `easeIn`, `easeOut`, `easeInOut`, `standard`, `entrance`, `exit`, `gentle`; the template's `zoom_ease` |
+| `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex` | frame-driven animation (frame + fps, seconds, design px × unit) |
+| `fitText`, `wrapText`, `balanceLines`, `measureText`, `<FitText>` | the largest font size ≤ max that fits a width (and height / line count), balanced lines, cut with "…" below the minimum: text never overflows. Measured with a canvas in the browser, a deterministic estimate in Node |
+| `<Background>`, `<Logo>`, `<Wordmark>`, `<SafeArea>` | theme background; logo image (monogram of the brand without one); wordmark image or brand name in the display font; title-safe box |
+| `backgroundCss`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `darkLight`, `contrastRatio`, `readableOn`, `safeAreaRect`, `scaleRect`, `roundTo` | CSS from tokens, colour helpers, rects |
+
+### Creating and checking components
+
+```
+$ studio components create acme/intro-split --kind intro --description "Logo left, title right."
+✓ created intro component acme/intro-split in components/acme/intro-split (validated)
+$ studio components validate acme/intro-split
+✓ component acme/intro-split components/acme/intro-split
+$ studio components list --kind intro
+```
+
+`create` copies the scaffold of the kind (a tasteful, theme-driven placeholder) with your id, name and description,
+then validates it. `validate` checks the manifest (strict keys with "did you mean", semver, slots and their sources,
+params schema and defaults, preview samples, layout geometry inside the design space, id = folder), the entry file,
+and compiles the entry with esbuild: syntax errors, imports other than react / remotion / the kit (named), misspelt
+named imports (`"remotion" has no export named "useCurrentFrme" (did you mean "useCurrentFrame"?)`), and
+non-deterministic or networked APIs — every message as `file:line:col`. Without an argument it validates every
+workspace component (exit 1 on any error). In code: `loadComponentRegistry({root})` (`list(kind?)`, `get(id)`,
+`resolve(ref, kind)`, `resolveTheme(template)`), `validateComponent(dir)`, `createComponent(root, {id, kind,
+description})`, `themeTokens(template, urls)` from `@demo-studio/components`.
+
 ## Signing in once: pre-authenticated profiles
 
 Scenarios never contain passwords. Give the project a persistent browser profile and sign in by hand once:
@@ -528,7 +664,7 @@ packages/core         scenario parser and validator, project/template model, tem
 packages/hooks        setup/teardown hooks (http, sql, shell, js), rollback journal, allow-list, secrets
 packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), actions, screencast, encoder, timeline
 packages/cli          the `studio` command
-packages/components   component contract (phase 2; kinds and references come from core)
+packages/components   components: manifest schema, registry, validation, scaffolds, theme tokens, kit (L2.2)
 packages/editor       edit plan contract (phase 2)
 packages/review, mcp  phase 2 and 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests
@@ -546,7 +682,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core done (L2.1: themes pick components, cards, overlays, frame ids); components, editor and review next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1) and the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`) done; edit planner, render pipeline, library and review next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

@@ -50,6 +50,6 @@ export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 2 | 3 | 4; sum
 ];
 
 export function laterCommand(ui: Ui, name: string, phase: number): ExitCode {
-  ui.error(`studio ${name} is available in phase ${phase}; phase 1 provides new, list, validate, run, hooks, env reset, schema, login and doctor`);
+  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, hooks, env reset, components, schema, login and doctor`);
   return EXIT.failure;
 }

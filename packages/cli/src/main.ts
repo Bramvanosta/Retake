@@ -1,5 +1,8 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
+import { COMPONENT_KINDS } from '@demo-studio/core';
 import type { JsonSchemaName } from '@demo-studio/core';
+import { componentsCreateCommand, componentsListCommand, componentsValidateCommand } from './commands/components.js';
+import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsValidateOptions } from './commands/components.js';
 import { doctorCommand } from './commands/doctor.js';
 import type { DoctorOptions } from './commands/doctor.js';
 import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
@@ -122,6 +125,29 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
+
+  const components = program.command('components').description('list, validate and scaffold components (intros, layouts, captions…)');
+  components
+    .command('list')
+    .description('components of the workspace (components/) and the built-in library')
+    .addOption(new Option('--kind <kind>', 'only this kind').choices([...COMPONENT_KINDS]))
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, o: ComponentsListOptions) => componentsListCommand(u, g, o)));
+  components
+    .command('validate')
+    .description('check a component: manifest, params schema, preview samples, entry compile and imports (every workspace component when omitted)')
+    .argument('[component]', 'component id (namespace/name) or folder')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, id: string | undefined, o: ComponentsValidateOptions) => componentsValidateCommand(u, g, id, o)));
+  components
+    .command('create')
+    .description('scaffold a workspace component (components/<namespace>/<name>/) from the template of its kind')
+    .argument('<id>', 'component id "namespace/name" (lower-case letters, digits and "-")')
+    .addOption(new Option('--kind <kind>', 'what it renders').choices([...COMPONENT_KINDS]).makeOptionMandatory())
+    .option('--description <text>', 'one or two sentences: what it looks like and when to use it')
+    .option('--name <name>', 'display name (default: from the id)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, id: string, o: ComponentsCreateOptions) => componentsCreateCommand(u, g, id, o)));
 
   program
     .command('doctor')

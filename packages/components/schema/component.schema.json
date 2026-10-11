@@ -1,0 +1,439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "component.schema.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+      "description": "\"namespace/name\" — must match the folder <namespace>/<name>/."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+      "description": "Semantic version (e.g. 1.0.0)."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "intro",
+        "outro",
+        "card",
+        "interstitial",
+        "caption",
+        "layout",
+        "overlay",
+        "transition"
+      ],
+      "description": "What it renders: intro, outro, card, interstitial, caption, layout, overlay, transition."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One or two sentences: what it looks like and when to use it."
+    },
+    "publisher": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Publisher (marketplace metadata)."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "License (SPDX id, marketplace metadata)."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Search tags."
+    },
+    "entry": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Implementation file relative to the component folder (default index.tsx)."
+    },
+    "slots": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SlotSpec"
+      },
+      "description": "Values the component renders, by name (title, kicker, logo…)."
+    },
+    "params": {
+      "$ref": "#/$defs/ParamSchema",
+      "description": "JSON Schema (type: object) of the params, with a default for each optional param."
+    },
+    "tokens": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Theme tokens the component reads: colors.accent, colors.text, colors.muted, colors.paper, background, fonts.display, fonts.body, logo, wordmark, brand.name, brand.url, cursor.ripple_color, style_bias, captions.kicker, captions.line, brandmark, motion.zoom_ease, colors.<key>."
+    },
+    "duration": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds."
+        },
+        "min": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds."
+        },
+        "max": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds."
+        }
+      },
+      "required": [
+        "default"
+      ],
+      "additionalProperties": false,
+      "description": "Seconds on screen (intros, outros, cards, interstitials, overlays, transitions)."
+    },
+    "geometry": {
+      "description": "Layouts: geometry in the 1920×1080 design space.",
+      "$ref": "#/$defs/LayoutGeometry"
+    },
+    "geometry_vertical": {
+      "description": "Layouts with the vertical variant: geometry in the 1080×1920 design space.",
+      "$ref": "#/$defs/LayoutGeometry"
+    },
+    "variants": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "landscape",
+          "vertical"
+        ]
+      },
+      "description": "Output orientations the component supports (default [landscape])."
+    },
+    "preview": {
+      "type": "object",
+      "properties": {
+        "slots": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Sample slot values (every required slot not filled from the theme)."
+        },
+        "params": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "Params of the preview (over the defaults)."
+        },
+        "at": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          },
+          "description": "Seconds at which preview stills are taken."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Sample values used to render previews with any theme."
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "kind",
+    "name",
+    "description"
+  ],
+  "additionalProperties": false,
+  "title": "Demo Studio component",
+  "description": "component.yaml",
+  "$defs": {
+    "SlotSpec": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "image",
+            "url",
+            "color",
+            "screen"
+          ],
+          "description": "text, image (URL), url (shown as text), color (CSS) or screen (the capture, layouts only)."
+        },
+        "description": {
+          "type": "string",
+          "description": "What the slot shows (for the UI and Claude)."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "The component cannot render without it (default false)."
+        },
+        "default_from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where the value comes from when the scenario does not set it: theme.logo, theme.wordmark, theme.brand.name, theme.brand.url, theme.outro.tagline, theme.outro.url, scenario.title.text, scenario.title.kicker, scenario.outro.tagline, scenario.outro.url, scene.caption.text, scene.caption.kicker, interstitial.text, interstitial.kicker."
+        },
+        "max_chars": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Soft length limit (text and url slots), used by validation and review."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "A value the component renders (title, kicker, logo, url…)."
+    },
+    "Rect": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "Left, in design px."
+        },
+        "y": {
+          "type": "number",
+          "description": "Top, in design px."
+        },
+        "w": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Width, in design px."
+        },
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Height, in design px."
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false,
+      "description": "Rectangle in the design space (1920×1080 landscape, 1080×1920 vertical)."
+    },
+    "LayoutGeometry": {
+      "type": "object",
+      "properties": {
+        "screen": {
+          "description": "Where the capture pixels go (the planner keeps the capture aspect ratio inside it).",
+          "$ref": "#/$defs/Rect"
+        },
+        "frame": {
+          "description": "Outer shape around the screen (card, device…); defaults to screen.",
+          "$ref": "#/$defs/Rect"
+        },
+        "chrome": {
+          "description": "Browser chrome bar, when the layout draws one.",
+          "$ref": "#/$defs/Rect"
+        },
+        "caption": {
+          "description": "Caption area used by the caption component.",
+          "$ref": "#/$defs/Rect"
+        },
+        "brandmark": {
+          "description": "Brand mark area.",
+          "$ref": "#/$defs/Rect"
+        },
+        "radius": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Corner radius of the screen/frame, in design px."
+        }
+      },
+      "required": [
+        "screen"
+      ],
+      "additionalProperties": false,
+      "description": "Layout geometry, so the planner and the review can reason without rendering."
+    },
+    "ParamSchema": {
+      "type": "object",
+      "description": "A JSON Schema (supported subset) of a param or of a nested value.",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "string",
+                "number",
+                "integer",
+                "boolean",
+                "object",
+                "array",
+                "null"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "object",
+                  "array",
+                  "null"
+                ]
+              },
+              "minItems": 1
+            }
+          ]
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ParamSchema"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/ParamSchema"
+            }
+          ],
+          "description": "Objects are closed unless this is set."
+        },
+        "default": {
+          "description": "Value used when the param is not given (must match this schema)."
+        },
+        "enum": {
+          "type": "array",
+          "minItems": 1
+        },
+        "const": {},
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "exclusiveMinimum": {
+          "type": "number"
+        },
+        "exclusiveMaximum": {
+          "type": "number"
+        },
+        "multipleOf": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pattern": {
+          "type": "string",
+          "format": "regex"
+        },
+        "items": {
+          "$ref": "#/$defs/ParamSchema"
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uniqueItems": {
+          "type": "boolean"
+        },
+        "anyOf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParamSchema"
+          },
+          "minItems": 1
+        },
+        "oneOf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParamSchema"
+          },
+          "minItems": 1
+        },
+        "$schema": {
+          "type": "string"
+        },
+        "$id": {
+          "type": "string"
+        },
+        "$comment": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "examples": {
+          "type": "array"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "readOnly": {
+          "type": "boolean"
+        },
+        "writeOnly": {
+          "type": "boolean"
+        },
+        "format": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
