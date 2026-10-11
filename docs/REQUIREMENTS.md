@@ -8,13 +8,13 @@ Lots are described in `docs/ROADMAP.md`.
 
 | Phase | Total | done | partial | todo | n/a-here |
 |---|---|---|---|---|---|
-| 1 | 245 | 188 | 45 | 5 | 7 |
-| 2 | 210 | 116 | 25 | 69 | 0 |
-| 3 | 53 | 0 | 0 | 53 | 0 |
-| 4 | 33 | 0 | 0 | 33 | 0 |
+| 1 | 253 | 188 | 45 | 13 | 7 |
+| 2 | 211 | 116 | 25 | 70 | 0 |
+| 3 | 54 | 0 | 0 | 54 | 0 |
+| 4 | 34 | 0 | 0 | 34 | 0 |
 | 5 | 10 | 0 | 0 | 2 | 8 |
 | V2 | 10 | 0 | 5 | 5 | 0 |
-| **all** | 561 | 304 | 75 | 167 | 15 |
+| **all** | 572 | 304 | 75 | 178 | 15 |
 
 ## Phase 1
 
@@ -265,6 +265,14 @@ Lots are described in `docs/ROADMAP.md`.
 | R-LOOK-25 | Popovers and menus are visible in the capture and the cursor stays above them. <br><sub>look.md Cursor & choreography</sub> | done | P1 | packages/runner-web/test/kit.test.ts 'is drawn above a modal dialog and above a [popover]' |
 | R-DEC-01 | The tool stays generic: no client name, brand, URL, account, asset or data in code, docs, templates or fixtures. <br><sub>decision; SPEC §0</sub> | done | P1 | grep -rniI (excluding node_modules/.git) finds no client names; fixture 'Northfield' and placeholder brands are fictional (templates/README.md, design-brief Constraints) |
 | R-DEC-02 | User projects and themes live in a separate workspace selected by DEMO_STUDIO_ROOT or studio.yaml (or --root). <br><sub>decision; SPEC §0</sub> | done | P1 | packages/core/src/workspace.ts:34; packages/core/test/project.test.ts 'findWorkspaceRoot: env override, studio.yaml, projects/ or templates/, else start' and 'loadWorkspaceConfig resolves dirs and validates studio.yaml' |
+| R-AUTH-01 | Personas: project `auth.personas: {<name>: {profile \| storage_state, check, login?}}` (global or per environment); pages/scenes declare which persona they use; one profile per environment × persona. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-02 | Profiles live outside the repo/workspace git (default ~/.demo-studio/profiles/<project>/<env>/<persona>); `studio doctor` warns when a profile sits inside a git-tracked folder. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-03 | Session preflight before every dry run and capture: each persona used by the scenario is checked (`check: {url, expect_text? \| expect_not_url?}`); an expired session stops the run before recording with the exact `studio login` command to run. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-04 | During a run, landing on the persona's login URL (auth.login_url pattern or a failed check) is an immediate, explicit error, never a recorded login page. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-05 | Optional automated login (off camera, never recorded) for ephemeral/CI environments: a small step list using secret refs ({{keychain:…}} / {{env:…}}), values redacted everywhere; manual `studio login` for SSO/2FA. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-06 | `studio login <project> [--env] [--persona]` signs in one persona (headed browser on its profile) and saves a storage-state snapshot; `studio auth status [--project]` lists personas with valid/expired/never and last check time. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-07 | Each run uses a copy of the session (storage state or profile snapshot) so concurrent runs never lock or corrupt the signed-in profile. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-AUTH-08 | Onboarding: `studio new` asks for environments and personas and offers to sign in each one; docs explain the flow. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
 
 ## Phase 2
 
@@ -480,6 +488,7 @@ Lots are described in `docs/ROADMAP.md`.
 | R-MPC-02 | studio/layout-split: two captures side by side, planned and rendered in sync. <br><sub>decision (user, 2026-10-11)</sub> | todo | L2.11 |  |
 | R-MPC-03 | studio/layout-pip: a phone capture over the desktop capture (picture in picture). <br><sub>decision (user, 2026-10-11)</sub> | todo | L2.11 |  |
 | R-MPC-04 | Scenario syntax for parallel pages (scene pages: [a, b] and step `on: <page>`), validated. <br><sub>decision (user, 2026-10-11)</sub> | todo | L2.11 |  |
+| R-CMP-14 | Every component folder contains a committed preview.png (960×540, editorial theme, manifest preview samples) and a README.md showing it; `studio components preview [id\|--all] [--theme]` regenerates them; a test fails when a built-in preview is missing or stale (source hash); `studio components create` generates the preview too. <br><sub>decision (user, 2026-10-11)</sub> | todo | L2.7 |  |
 
 ## Phase 3
 
@@ -538,6 +547,7 @@ Lots are described in `docs/ROADMAP.md`.
 | R-ACC3-04 | Claude creates a component through the skill. <br><sub>SPEC §14.3</sub> | todo | L3.8 | No skill. |
 | R-ACC3-05 | Claude dry-runs, captures, renders and reviews via MCP. <br><sub>SPEC §14.3</sub> | todo | L3.8 | No MCP. |
 | R-ACC3-06 | Claude reads frame comments and iterates without human steps except approval. <br><sub>SPEC §14.3</sub> | todo | L3.8 | No MCP/comments. |
+| R-AUTH-09 | MCP tools `auth_status` and `auth_login` (opens the headed browser and asks the human to sign in; Claude never types credentials). <br><sub>decision (user, 2026-10-11)</sub> | todo | L3.1 |  |
 
 ## Phase 4
 
@@ -576,6 +586,7 @@ Lots are described in `docs/ROADMAP.md`.
 | R-PRJ-02 | SQLite is used only for the render queue/history; everything else is plain files. <br><sub>SPEC §3 Persistence</sub> | todo | L4.1 | No render queue. |
 | R-DEC-07 | Studio web UI first; Tauri macOS shell later around the same UI. <br><sub>decision</sub> | todo | L4.1 | Neither exists; ordering reflected in README phase table. |
 | R-ACC4-01 | Studio app end-to-end: projects, scenario blocks, run, edit/verify timeline with component switching and live preview, frame comments. <br><sub>SPEC §14.4</sub> | todo | L4.9 | No UI. |
+| R-AUTH-10 | Studio app: a Sessions panel per project (status per persona, Sign in button) and the Run screen shows the preflight first; capturing with an invalid session needs an explicit confirmation. <br><sub>decision (user, 2026-10-11)</sub> | todo | L4.4 |  |
 
 ## Phase 5
 

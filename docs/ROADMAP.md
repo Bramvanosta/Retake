@@ -13,6 +13,7 @@ requirements of a lot with their gaps.
 - The user picks how many lots to chain. Current go (2026-10-11): autonomous through the end of phase 4, one clean
   commit per lot, a short report at the end of each phase.
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data.
+- Every lot that adds or changes a component regenerates its committed `preview.png` (`studio components preview`).
 
 ## Status
 
@@ -24,6 +25,7 @@ requirements of a lot with their gaps.
 | L1.3 | Capture smoothness under load (spike) | M | todo |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
+| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
@@ -108,6 +110,16 @@ requirements of a lot with their gaps.
   Keychain secrets, notifications, capture smoothness with a GPU (R-ISS-09, R-GOAL-08, R-ACC-04, R-CLI-09/10, R-ACT-28,
   R-SEC-02, R-PRIN-10).
 - **How:** `pnpm i && pnpm build`, `studio doctor`, then the steps of `docs/MACOS-CHECKLIST.md`; findings go to L5.1.
+
+### L1.6 — Sessions & personas (M) — scheduled after phase 2, before L3.1
+- **Goal:** never film a login page and support several accounts (two-sided demos, split screen).
+- **Scope:** `auth.personas` per environment (profile or storage state, `check`, optional `login` steps), pages/scenes
+  bound to a persona, profiles outside git (~/.demo-studio/profiles/…), session preflight before every dry run and
+  capture with the exact fix command, login-page detection during runs, optional automated off-camera login with
+  redacted secret refs, `studio login --persona`, `studio auth status`, per-run session copies (parallel-safe),
+  onboarding in `studio new` (R-AUTH-01..08).
+- **Acceptance:** fixture gets a sign-in (two personas: supplier, buyer); an expired session is caught by the preflight;
+  a run lands on login → explicit error; concurrent runs on one persona work.
 
 ### L2.1 — Phase-2 contracts in core (S)
 - **Scope:** template `brand` + `components` map with legacy mapping (R-THM-01..03); scenario additions — intro/outro/
@@ -215,7 +227,8 @@ requirements of a lot with their gaps.
   intro/outro-minimal; interstitial-plain; overlay-callout, lower-third; transition-fade-black — replacing the L2.4
   placeholders; their geometry as expressions over their params where it should follow them (the mechanism exists
   since L2.5: layout-card); previews generated per theme
-  (R-LIB-02/04/05/07/09..12/14..16/18/19, R-ED-10/12/13/14, R-CMP-12/13).
+  (R-LIB-02/04/05/07/09..12/14..16/18/19, R-ED-10/12/13/14, R-CMP-12/13/14); committed `preview.png` + README per
+  component (all 18 existing included), `studio components preview`, staleness test.
 
 ### L2.8 — Variants & export (M)
 - **Scope:** vertical 9:16 and square 1:1 with smoothed reframing on the cursor/targets, 4K from scale-2 captures,

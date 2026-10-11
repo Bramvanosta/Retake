@@ -5617,6 +5617,116 @@
    "gap": "",
    "phase": "V2",
    "lot": "L6"
+  },
+  {
+   "id": "R-AUTH-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Personas: project `auth.personas: {<name>: {profile | storage_state, check, login?}}` (global or per environment); pages/scenes declare which persona they use; one profile per environment × persona.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Profiles live outside the repo/workspace git (default ~/.demo-studio/profiles/<project>/<env>/<persona>); `studio doctor` warns when a profile sits inside a git-tracked folder.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Session preflight before every dry run and capture: each persona used by the scenario is checked (`check: {url, expect_text? | expect_not_url?}`); an expired session stops the run before recording with the exact `studio login` command to run.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-04",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "During a run, landing on the persona's login URL (auth.login_url pattern or a failed check) is an immediate, explicit error, never a recorded login page.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-05",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Optional automated login (off camera, never recorded) for ephemeral/CI environments: a small step list using secret refs ({{keychain:…}} / {{env:…}}), values redacted everywhere; manual `studio login` for SSO/2FA.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-06",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "`studio login <project> [--env] [--persona]` signs in one persona (headed browser on its profile) and saves a storage-state snapshot; `studio auth status [--project]` lists personas with valid/expired/never and last check time.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-07",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Each run uses a copy of the session (storage state or profile snapshot) so concurrent runs never lock or corrupt the signed-in profile.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-08",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Onboarding: `studio new` asks for environments and personas and offers to sign in each one; docs explain the flow.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.6"
+  },
+  {
+   "id": "R-AUTH-09",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "MCP tools `auth_status` and `auth_login` (opens the headed browser and asks the human to sign in; Claude never types credentials).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-AUTH-10",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Studio app: a Sessions panel per project (status per persona, Sign in button) and the Run screen shows the preflight first; capturing with an invalid session needs an explicit confirmation.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "4",
+   "lot": "L4.4"
+  },
+  {
+   "id": "R-CMP-14",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Every component folder contains a committed preview.png (960×540, editorial theme, manifest preview samples) and a README.md showing it; `studio components preview [id|--all] [--theme]` regenerates them; a test fails when a built-in preview is missing or stale (source hash); `studio components create` generates the preview too.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.7"
   }
  ]
 }
