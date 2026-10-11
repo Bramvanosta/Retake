@@ -35,11 +35,13 @@ export interface TemplateContext {
 
 const TOKEN = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
+const has = (o: object | undefined, k: string): boolean => o !== undefined && Object.hasOwn(o, k);
+
 function getPath(root: unknown, path: string[]): unknown {
   let cur: unknown = root;
   for (const p of path) {
     if (cur === null || cur === undefined) return undefined;
-    if (typeof cur !== 'object') return undefined;
+    if (typeof cur !== 'object' || !Object.hasOwn(cur, p)) return undefined;
     cur = (cur as Record<string, unknown>)[p];
   }
   return cur;
@@ -77,12 +79,12 @@ function lookup(expr: string, ctx: TemplateContext): unknown {
   }
   const path = expr.split('.').map((s) => s.trim());
   const head = path[0];
-  if (path.length === 1 && ctx.pages && head in ctx.pages) return ctx.pages[head];
+  if (path.length === 1 && has(ctx.pages, head)) return ctx.pages![head];
   if (head === 'vars') return getPath(ctx.vars, path.slice(1));
   if (head === 'hooks') return getPath(ctx.hooks, path.slice(1));
   if (head === 'run') return getPath(ctx.run, path.slice(1));
-  if (ctx.extra && head in ctx.extra) return getPath(ctx.extra[head], path.slice(1));
-  if (ctx.vars && head in ctx.vars) return getPath(ctx.vars, path);
+  if (has(ctx.extra, head)) return getPath(ctx.extra![head], path.slice(1));
+  if (has(ctx.vars, head)) return getPath(ctx.vars, path);
   return undefined;
 }
 
@@ -98,6 +100,11 @@ export function interpolate(text: string, ctx: TemplateContext): string {
     }
     return typeof v === 'object' ? JSON.stringify(v) : String(v);
   });
+}
+
+/** The trimmed expressions of every {{token}} in a string: "{{ console }}/x/{{vars.id}}" → ["console", "vars.id"]. */
+export function listTemplateTokens(text: string): string[] {
+  return [...text.matchAll(TOKEN)].map((m) => m[1].trim());
 }
 
 /** True when the string contains at least one {{token}}. */

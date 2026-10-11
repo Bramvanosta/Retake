@@ -13,7 +13,7 @@ export function resolveEnvironment(project: Pick<LoadedProject, 'config'>, env?:
   const names = Object.keys(envs);
   const name = env ?? project.config.default_env ?? names[0];
   if (!name) throw new EnvironmentError('project has no environments');
-  const pages = envs[name];
+  const pages = Object.hasOwn(envs, name) ? envs[name] : undefined;
   if (!pages) throw new EnvironmentError(`unknown environment "${name}" (available: ${names.join(', ') || 'none'})`);
   return { name, pages: { ...pages } };
 }

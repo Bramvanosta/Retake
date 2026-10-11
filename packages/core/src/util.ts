@@ -21,9 +21,14 @@ export async function readJson<T>(file: string): Promise<T> {
 
 /** Atomic JSON write (tmp file + rename). */
 export async function writeJson(file: string, value: unknown): Promise<void> {
+  await writeTextAtomic(file, JSON.stringify(value, null, 2) + '\n');
+}
+
+/** Atomic text write (tmp file + rename); creates the parent directory. */
+export async function writeTextAtomic(file: string, text: string): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const tmp = `${file}.${randomBytes(4).toString('hex')}.tmp`;
-  await writeFile(tmp, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  await writeFile(tmp, text, 'utf8');
   await rename(tmp, file);
 }
 

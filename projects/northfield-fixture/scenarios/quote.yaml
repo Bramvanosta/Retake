@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Buyer side: discover a coffee, request a quote, receive the roaster's proposal, open the PDF.
+#
+# "A few hours later": the setup arms an automatic proposal for the NEXT quote request
+# (POST /api/quotes/auto-proposal), stamped 4 h 18 min after the request. The shop loads
+# notifications on page load only, so nothing shows until the `proposal` scene reopens the
+# shop: the bell then rings with the new proposal — deterministic, no waiting, no polling.
+video: quote
+title: {kicker: For cafés, text: Request a quote in a minute}
+outro: {tagline: "From request to proposal, in one place."}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+  - name: prepare-proposal
+    http:
+      method: POST
+      url: "{{shop}}/api/quotes/auto-proposal"
+      json: {after_minutes: 258, note: "Roasted on Monday, delivered within your window."}
+      rollback: {method: DELETE, url: "{{shop}}/api/quotes/auto-proposal"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: discover
+    caption: {kicker: Discover, text: "Award-winning lots and fresh arrivals, roasted to order."}
+    page: shop
+    open: /
+    steps:
+      - hover: {text: "Finca El Paraíso — Geisha", ms: 700}
+      - scroll: {to: {text: Fresh arrivals}, offset: -100, duration: 1.6}
+      - click: Halo Beriti
+      - wait_for: {target: {role: button, name: Request a quote}}
+      - hold: 1.2
+
+  - id: request
+    caption: {kicker: Request a quote, text: "Choose the quantity, the grind, the labels and your delivery window."}
+    steps:
+      - click: {role: button, name: Request a quote}
+      - click: {aria: Increase, in: dialog}
+      - click: {aria: Increase, in: dialog}
+      - select: {field: Bag size, option: 5 kg}
+      - select: {field: Grind, option: Whole bean}
+      - click: {label: Delivery window}
+      - click: {aria: Next month}
+      - click: {aria: "10 January 2027"}
+      - click: {aria: "24 January 2027"}
+      - type: {into: {label: Message}, text: "Light roast for filter, please. Deliveries before 9 am.", cps: 18}
+      - click: {text: Send request, in: dialog}
+      - wait_for: {text: Quote request sent}
+      - hold: 2.5
+
+  - interstitial: {text: A few hours later, duration: 2.6}
+
+  - id: proposal
+    caption: {kicker: Proposal, text: "The roaster's proposal arrives as a notification, with a PDF ready to share."}
+    open: /
+    steps:
+      - wait: 0.8
+      - click: {aria: Notifications}
+      - click: {text: New proposal from Northfield Roasters}
+      - wait_for: {text: "€720.00"}
+        mark: proposal
+      - hover: {text: Accept proposal, ms: 600}
+        hold: 1.5
+      - new_tab: {target: {text: Download quote PDF}, as: pdf}
+      - hold: 3.5

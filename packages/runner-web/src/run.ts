@@ -1,0 +1,424 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import type { Page } from 'playwright-core';
+import {
+  isInterstitial,
+  listSteps,
+  newRunId,
+  resolveEnvironment,
+  resolveStepRef,
+  writeJson,
+} from '@demo-studio/core';
+import type {
+  BrowserConfig,
+  HookStep,
+  LoadedProject,
+  LoadedScenario,
+  LoadedTemplate,
+  RunError,
+  RunMode,
+  RunProgress,
+  RunRecord,
+  TemplateContext,
+} from '@demo-studio/core';
+import { evalInPage } from './actions/misc.js';
+import { mergeBrowser, mergeCapture, mergePacing, resolveAuth } from './config.js';
+import { encodeFrames } from './encode.js';
+import { CancelledError, RunnerError, errorMessage, isCancelled } from './errors.js';
+import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
+import type { HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
+import { kitConfigFor } from './kit/source.js';
+import { ScreencastRecorder } from './recorder.js';
+import type { FrameIndexEntry } from './recorder.js';
+import { RunFiles } from './runfiles.js';
+import { Runtime } from './runtime.js';
+import type { LogLevel } from './runtime.js';
+import { StepFailure, runScenes } from './scenes.js';
+import { BrowserSession } from './session.js';
+import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
+import { throwIfAborted, wallNow } from './util.js';
+
+export interface RunOptions {
+  project: LoadedProject;
+  scenario: LoadedScenario;
+  template?: LoadedTemplate;
+  mode: RunMode;
+  /** Environment name (default: scenario.env, project.default_env, first environment). */
+  env?: string;
+  /** Stop after this step (`scene.step`, `scene.<index>`, a step id or a scene id). */
+  until?: string;
+  /** Default: capture = run, dry = skip. */
+  hooks?: 'run' | 'skip';
+  headed?: boolean;
+  runId?: string;
+  /** Default <project>/runs. */
+  runsDir?: string;
+  onProgress?: (e: RunProgress) => void;
+  signal?: AbortSignal;
+  /** Overrides project.config.browser. */
+  browser?: BrowserConfig;
+  /** ffmpeg binary (default "ffmpeg" on PATH). */
+  ffmpeg?: string;
+}
+
+/** SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process. */
+function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void): () => void {
+  let count = 0;
+  const handler = (sig: NodeJS.Signals) => {
+    count++;
+    if (count === 1) {
+      onSignal(sig);
+      return;
+    }
+    remove();
+    process.kill(process.pid, sig);
+  };
+  const remove = () => {
+    process.off('SIGINT', handler);
+    process.off('SIGTERM', handler);
+  };
+  process.on('SIGINT', handler);
+  process.on('SIGTERM', handler);
+  return remove;
+}
+
+interface HooksState {
+  mod: HooksModule;
+  journal: JournalLike;
+  ctx: HookContextLike;
+}
+
+/**
+ * Run a scenario in a headless browser: setup hooks, scenes (page switching, open, still, steps), screencast
+ * capture, teardown hooks (always), encoding, timeline.json and run.json. Never throws for step failures:
+ * the returned RunRecord carries the status and error.
+ */
+export async function runScenario(opts: RunOptions): Promise<RunRecord> {
+  const { project, scenario: loaded, mode } = opts;
+  const sc = loaded.scenario;
+  const env = resolveEnvironment(project, opts.env ?? sc.env);
+  const pacing = mergePacing(project.config.pacing, sc.pacing);
+  const capture = mergeCapture(project.config.capture, sc.capture);
+  const hooksMode = opts.hooks ?? (mode === 'capture' ? 'run' : 'skip');
+  let until: { sceneIndex: number; stepIndex: number } | null = null;
+  if (opts.until !== undefined) {
+    until = resolveStepRef(sc, opts.until);
+    if (!until) {
+      throw new RunnerError(
+        `--until "${opts.until}" matches no step (use <scene>.<step id|index>, a unique step id, or a scene id)`,
+      );
+    }
+  }
+  const runId = opts.runId ?? newRunId(loaded.name);
+  const dir = resolve(opts.runsDir ?? join(project.dir, 'runs'), runId);
+  const screenshotsDir = join(dir, 'screenshots');
+  const framesDir = join(dir, 'frames');
+  await mkdir(screenshotsDir, { recursive: true });
+  await writeFile(join(dir, 'scenario.yaml'), loaded.text);
+
+  const listed = listSteps(sc);
+  const total = until
+    ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex)).length
+    : listed.length;
+  const record: RunRecord = {
+    id: runId,
+    project: project.slug,
+    scenario: loaded.name,
+    mode,
+    status: 'running',
+    started_at: new Date().toISOString(),
+    dir,
+    env: env.name,
+    options: { hooks: hooksMode, headed: opts.headed ?? false },
+    steps_total: total,
+    steps_done: 0,
+    screenshots: [],
+    hooks: { setup: 'none', teardown: 'none' },
+    warnings: [],
+  };
+  if (opts.until !== undefined) record.options.until = opts.until;
+  const files = new RunFiles(dir, record);
+  const emit = (e: RunProgress) => {
+    files.progress(e);
+    try {
+      opts.onProgress?.(e);
+    } catch {
+      /* a listener error must not break the run */
+    }
+  };
+  const log = (level: LogLevel, message: string) => emit({ type: 'log', level, message });
+  emit({ type: 'run_start', run: { ...record } });
+  await files.saveRecord();
+
+  const abort = new AbortController();
+  const signal = opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal;
+  const removeSignals = installSignalHandlers((sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)));
+  const clock = new CaptureClock();
+  const timeline = new TimelineBuilder({ run_id: runId, project: project.slug, scenario: loaded.name, mode, capture }, clock);
+  const template: TemplateContext = {
+    pages: env.pages,
+    vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) },
+    run: { id: runId, dir },
+    hooks: {},
+  };
+
+  let session: BrowserSession | null = null;
+  let recorder: ScreencastRecorder | null = null;
+  let hooks: HooksState | null = null;
+  let failure: unknown = null;
+  let frames: FrameIndexEntry[] = [];
+  let endT = 0;
+
+  try {
+    throwIfAborted(signal);
+    const auth = resolveAuth(project, env.name);
+    session = await BrowserSession.open({
+      width: capture.width,
+      height: capture.height,
+      scale: capture.scale,
+      kit: kitConfigFor(opts.template),
+      browser: mergeBrowser(project.config.browser, opts.browser),
+      profileDir: auth.profileDir,
+      storageState: auth.storageState,
+      headed: opts.headed,
+      log,
+    });
+    const rt = new Runtime({
+      session,
+      timeline,
+      pacing,
+      capture,
+      mode,
+      signal,
+      project,
+      env,
+      runDir: dir,
+      screenshotsDir,
+      template,
+      recorder: null,
+      log,
+    });
+
+    const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0;
+    if (hasHooks && hooksMode === 'skip') {
+      if (sc.setup?.length) record.hooks.setup = 'skipped';
+      if (sc.teardown?.length) record.hooks.teardown = 'skipped';
+    } else if (hasHooks) {
+      hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record });
+    }
+
+    const firstScene = sc.scenes.find((s) => !isInterstitial(s) && !s.skip);
+    const firstPage = (firstScene && !isInterstitial(firstScene) ? firstScene.page : undefined) ?? Object.keys(env.pages)[0];
+    if (!firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
+    // Capture time 0: right before the first page is shown and the screencast starts.
+    clock.t0Wall = wallNow();
+    await rt.activate(firstPage);
+    if (mode === 'capture') {
+      recorder = new ScreencastRecorder({
+        framesDir,
+        indexFile: join(dir, 'frames.jsonl'),
+        format: capture.format,
+        quality: capture.quality,
+        width: capture.width,
+        height: capture.height,
+        scale: capture.scale,
+        clock,
+        onError: (m) => timeline.warn(m),
+      });
+      await recorder.start(rt.page);
+      rt.recorder = recorder;
+    }
+    await runScenes(rt, {
+      scenario: sc,
+      scenarioName: loaded.name,
+      until,
+      record,
+      emit,
+      save: () => void files.saveRecord(),
+    });
+  } catch (e) {
+    failure = e;
+  } finally {
+    endT = clock.now();
+    if (recorder) {
+      try {
+        frames = await recorder.stop();
+        const st = recorder.stats();
+        if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
+        const minFps = Math.min(capture.fps, 30) * 0.6;
+        const motion = motionCapture(frames.map((f) => f.t), timeline.cursor, minFps);
+        if (motion.slow > 0 && motion.worst) {
+          const message =
+            `${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
+            `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s): the browser renders this page slowly ` +
+            `(software rendering without a GPU, or heavy effects such as backdrop-filter blur), so motion will look choppy`;
+          timeline.warn(message);
+          log('warn', message);
+        }
+      } catch (e) {
+        log('error', `stopping the recorder failed: ${errorMessage(e)}`);
+      }
+    }
+    if (hooks) {
+      try {
+        record.hooks.teardown = await teardownHooks(hooks, sc.teardown ?? [], emit, log);
+      } catch (e) {
+        record.hooks.teardown = 'failed';
+        log('error', `teardown failed: ${errorMessage(e)}`);
+      }
+    }
+    await session?.close().catch((e: unknown) => log('warn', `closing the browser failed: ${errorMessage(e)}`));
+    removeSignals();
+  }
+
+  const cancelled = failure !== null && isCancelled(failure);
+  if (mode === 'capture' && !cancelled && frames.length > 0) {
+    const out = join(dir, 'capture.mp4');
+    emit({ type: 'encode', status: 'start', message: `${frames.length} frames → ${out}` });
+    try {
+      await encodeFrames(framesDir, frames, out, {
+        fps: capture.fps,
+        crf: capture.crf,
+        endT,
+        width: capture.width * capture.scale,
+        height: capture.height * capture.scale,
+        jpeg: capture.format === 'jpeg',
+        ffmpeg: opts.ffmpeg,
+      });
+      record.capture = out;
+      emit({ type: 'encode', status: 'done', message: out });
+      if (!capture.keep_frames) await rm(framesDir, { recursive: true, force: true });
+    } catch (e) {
+      emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
+      failure ??= e;
+    }
+  }
+
+  const tl = timeline.build({
+    file: record.capture ? 'capture.mp4' : '',
+    duration: endT,
+    frames: frames.length,
+    frameTimes: frames.map((f) => f.t),
+  });
+  const timelineFile = join(dir, 'timeline.json');
+  try {
+    await writeJson(timelineFile, tl);
+    record.timeline = timelineFile;
+  } catch (e) {
+    failure ??= e;
+  }
+
+  record.warnings = [...timeline.warnings];
+  record.finished_at = new Date().toISOString();
+  delete record.current;
+  if (failure === null) {
+    record.status = 'succeeded';
+  } else {
+    record.status = isCancelled(failure) ? 'cancelled' : 'failed';
+    const err: RunError = { message: errorMessage(failure) };
+    if (failure instanceof StepFailure) {
+      err.scene = failure.scene;
+      err.step = failure.step;
+      err.action = failure.action;
+      if (failure.screenshot) err.screenshot = failure.screenshot;
+      if (failure.dom) err.dom = failure.dom;
+    }
+    record.error = err;
+  }
+  emit({ type: 'run_end', run: { ...record } });
+  await files.close().catch(() => undefined);
+  return record;
+}
+
+interface SetupDeps {
+  rt: Runtime;
+  session: BrowserSession;
+  project: LoadedProject;
+  env: { name: string; pages: Record<string, string> };
+  template: TemplateContext;
+  runId: string;
+  dir: string;
+  emit: (e: RunProgress) => void;
+  log: (level: LogLevel, message: string) => void;
+  record: RunRecord;
+}
+
+async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> {
+  const mod = await loadHooksModule();
+  const journal = await mod.Journal.open(join(d.dir, 'hooks-journal.json'));
+  const saved: Record<string, unknown> = {};
+  d.template.hooks = saved;
+  const ctx: HookContextLike = {
+    project: d.project,
+    env: d.env,
+    vars: Object.fromEntries(Object.entries(d.template.vars ?? {}).map(([k, v]) => [k, String(v)])),
+    runId: d.runId,
+    // Hooks only get here when they are enabled; in a dry run that takes an explicit `hooks: 'run'`, so they
+    // really execute: the dry run then sees the same prepared data as a capture.
+    dryRun: false,
+    log: (level, msg) => d.log(level, msg),
+    evalInPage: async (pageKey, code) => {
+      const key = pageKey ?? Object.keys(d.env.pages)[0];
+      if (!key) throw new RunnerError('js hook: the environment declares no pages');
+      const page: Page = await d.session.page(key);
+      if ((page.url() === 'about:blank' || page.url() === '') && d.env.pages[key]) {
+        await page.goto(d.env.pages[key], { waitUntil: 'load', timeout: 60_000 });
+      }
+      return evalInPage(page, code);
+    },
+    saved,
+  };
+  const state: HooksState = { mod, journal, ctx };
+  if (!setup.length) {
+    d.record.hooks.setup = 'none';
+    return state;
+  }
+  d.emit({ type: 'hook', phase: 'setup', name: 'setup', status: 'start', message: `${setup.length} hook(s)` });
+  const res = await mod.runHooks(setup, ctx, { phase: 'setup', journal });
+  res.results.forEach((r, i) =>
+    d.emit({ type: 'hook', phase: 'setup', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
+  );
+  d.record.hooks.setup = res.ok ? 'ok' : 'failed';
+  if (!res.ok) {
+    // An optional hook may have failed before the one that stopped the setup: report the blocking one.
+    const failed = res.results.find((r) => hookResultFailed(r) && r.optional !== true) ?? res.results.find(hookResultFailed);
+    throw new RunnerError(`setup hooks failed${failed ? ` (${hookResultName(failed, res.results.indexOf(failed))}: ${failed.error ?? failed.message ?? 'error'})` : ''}; completed setup hooks were rolled back`);
+  }
+  return state;
+}
+
+/**
+ * Teardown hooks always run, then the setup hooks still pending in the journal are rolled back (most recent first),
+ * like `finally` blocks unwinding: teardown cleans what the scenario did, rollbacks undo what setup did.
+ */
+async function teardownHooks(
+  h: HooksState,
+  teardown: HookStep[],
+  emit: (e: RunProgress) => void,
+  log: (level: LogLevel, message: string) => void,
+): Promise<RunRecord['hooks']['teardown']> {
+  let ok = true;
+  let ran = false;
+  if (teardown.length) {
+    ran = true;
+    emit({ type: 'hook', phase: 'teardown', name: 'teardown', status: 'start', message: `${teardown.length} hook(s)` });
+    const res = await h.mod.runHooks(teardown, h.ctx, { phase: 'teardown', journal: h.journal });
+    res.results.forEach((r, i) =>
+      emit({ type: 'hook', phase: 'teardown', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
+    );
+    ok = res.ok;
+  }
+  const pending = h.journal.pending().length;
+  if (pending) {
+    ran = true;
+    log('info', `rolling back ${pending} setup hook(s)`);
+    emit({ type: 'hook', phase: 'rollback', name: 'rollback', status: 'start', message: `${pending} setup hook(s)` });
+    const results = await h.journal.rollbackAll(h.ctx);
+    results.forEach((r, i) =>
+      emit({ type: 'hook', phase: 'rollback', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
+    );
+    if (results.some(hookResultFailed)) ok = false;
+  }
+  if (!ran) return 'none';
+  return ok ? 'ok' : 'failed';
+}

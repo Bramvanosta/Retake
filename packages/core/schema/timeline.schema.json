@@ -1,0 +1,768 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "timeline.schema.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ISO timestamp."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "capture",
+        "dry"
+      ]
+    },
+    "capture": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0
+        },
+        "t0_wall": {
+          "type": "number",
+          "description": "Wall-clock epoch ms of capture time 0."
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file",
+        "width",
+        "height",
+        "scale",
+        "fps",
+        "duration",
+        "t0_wall",
+        "frames"
+      ],
+      "additionalProperties": false
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "scene",
+              "interstitial"
+            ]
+          },
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_actions": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "page": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "caption": {
+            "type": "object",
+            "properties": {
+              "kicker": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "speed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "transition": {
+            "type": "string",
+            "enum": [
+              "crossfade",
+              "cut",
+              "fade-black"
+            ]
+          },
+          "frame": {
+            "type": "string",
+            "enum": [
+              "raw",
+              "card",
+              "browser",
+              "laptop",
+              "phone"
+            ],
+            "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+          },
+          "interstitial": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kicker": {
+                "type": "string"
+              },
+              "duration": {
+                "type": "number"
+              },
+              "style": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "failed",
+              "skipped",
+              "partial"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "index",
+          "kind",
+          "t_start",
+          "t_end",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scene_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "step": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "open",
+              "click",
+              "double_click",
+              "hover",
+              "type",
+              "press",
+              "select",
+              "pick",
+              "menu",
+              "scroll",
+              "drag",
+              "drop_file",
+              "wait",
+              "wait_for",
+              "hold",
+              "assert",
+              "screenshot",
+              "new_tab",
+              "switch_page",
+              "eval",
+              "notify",
+              "emit",
+              "cursor",
+              "scene_open",
+              "scene_still"
+            ]
+          },
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "hold": {
+            "type": "object",
+            "properties": {
+              "t_start": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              },
+              "t_end": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              }
+            },
+            "required": [
+              "t_start",
+              "t_end"
+            ],
+            "additionalProperties": false
+          },
+          "t_click": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "desc": {
+                "type": "string"
+              },
+              "bbox": {
+                "$ref": "#/$defs/BBox"
+              }
+            },
+            "required": [
+              "desc"
+            ],
+            "additionalProperties": false
+          },
+          "point": {
+            "$ref": "#/$defs/Point"
+          },
+          "mark": {
+            "type": "string"
+          },
+          "caption": {
+            "type": "object",
+            "properties": {
+              "kicker": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "speed": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "camera": {
+            "type": "object",
+            "properties": {
+              "zoom": {
+                "type": "number"
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cursor",
+                      "step"
+                    ]
+                  },
+                  {
+                    "$ref": "#/$defs/Point"
+                  },
+                  {
+                    "$ref": "#/$defs/TargetSpec"
+                  }
+                ]
+              },
+              "ease": {
+                "$ref": "#/$defs/Ease"
+              },
+              "duration": {
+                "type": "number"
+              },
+              "until": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "step_end",
+                      "scene_end"
+                    ]
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "bbox": {
+                "$ref": "#/$defs/BBox"
+              },
+              "point": {
+                "$ref": "#/$defs/Point"
+              }
+            },
+            "required": [
+              "zoom"
+            ],
+            "additionalProperties": false
+          },
+          "page": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "skipped",
+              "failed",
+              "dry"
+            ]
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "popup_opened": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "data": {}
+        },
+        "required": [
+          "scene",
+          "scene_index",
+          "step",
+          "action",
+          "t_start",
+          "t_end",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "markers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "t": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "scene": {
+            "type": "string",
+            "minLength": 1
+          },
+          "step": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "t",
+          "scene",
+          "step"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "t_start",
+          "t_end"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "cursor": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "down": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "t",
+          "x",
+          "y",
+          "visible"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "idle": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "run_id",
+    "project",
+    "scenario",
+    "created_at",
+    "mode",
+    "capture",
+    "scenes",
+    "events",
+    "markers",
+    "pages",
+    "cursor",
+    "idle",
+    "warnings"
+  ],
+  "additionalProperties": false,
+  "title": "Demo Studio timeline",
+  "description": "runs/<id>/timeline.json: scenes, step events, markers, pages and cursor track in capture time.",
+  "$defs": {
+    "BBox": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "minimum": 0
+        },
+        "h": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false,
+      "description": "Box in CSS px of the captured viewport."
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "Viewport x in CSS px."
+        },
+        "y": {
+          "type": "number",
+          "description": "Viewport y in CSS px."
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "Absolute viewport point in CSS px."
+    },
+    "TargetSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Visible text (\"Save\"), a CSS selector string (\"#id\", \".class\", \"[attr]\", \"a > b\") or a target object."
+    },
+    "TargetObject": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ],
+          "description": "Element whose text contains ALL these strings; the innermost such element wins."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accessible name, used together with `role`."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Form control whose label text matches."
+        },
+        "aria": {
+          "type": "string",
+          "minLength": 1,
+          "description": "aria-label value (exact first, then substring)."
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "placeholder attribute."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Raw CSS selector."
+        },
+        "testid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "data-testid value."
+        },
+        "in": {
+          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+          "$ref": "#/$defs/ScopeSpec"
+        },
+        "nth": {
+          "type": "integer",
+          "description": "0-based index among visible matches (negative = from the end)."
+        },
+        "last_visible": {
+          "type": "boolean",
+          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Disable the substring fallback of text/name/aria/label."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Element locator. Combine keys to narrow the match (e.g. {text: Save, in: dialog})."
+    },
+    "ScopeSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "dialog",
+            "menu",
+            "listbox",
+            "popover",
+            "page"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "row": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text contained in the row."
+            }
+          },
+          "required": [
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: \"text\"} or a target object."
+    },
+    "Ease": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "slow",
+            "normal",
+            "fast",
+            "linear"
+          ]
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      ],
+      "description": "Easing preset or cubic-bezier [x1, y1, x2, y2]."
+    }
+  }
+}

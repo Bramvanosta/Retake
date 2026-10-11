@@ -1,0 +1,97 @@
+import { z } from 'zod';
+import type { HookKind } from '../types.js';
+import { keyedUnion } from './keyed.js';
+import { keyString, nonEmpty, positiveSeconds } from './primitives.js';
+
+export const HOOK_KINDS: readonly HookKind[] = ['http', 'sql', 'shell', 'js'];
+
+export const hookCommonShape = {
+  name: nonEmpty().describe('Name shown in logs and journals.').optional(),
+  confirm: z.boolean().describe('Required (true) for destructive hooks.').optional(),
+  destructive: z.boolean().describe('Declare the hook destructive explicitly (also auto-detected).').optional(),
+  optional: z.boolean().describe('Continue even if this hook fails.').optional(),
+};
+
+export const HOOK_COMMON_KEYS = Object.keys(hookCommonShape);
+
+const statusSchema = z.number().int().min(100).max(599);
+
+const httpRequestShape = {
+  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']).describe('Default GET.').optional(),
+  url: nonEmpty().describe('Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…).'),
+  headers: z.record(z.string(), z.string()).optional(),
+  json: z.unknown().describe('JSON body.').optional(),
+  body: z.string().describe('Raw body.').optional(),
+  expect: z
+    .union([statusSchema, z.array(statusSchema).min(1)])
+    .describe('Expected status code(s). Default: any 2xx.')
+    .optional(),
+};
+
+const HttpHookSchema = z.strictObject({
+  ...httpRequestShape,
+  save_as: keyString('save_as')
+    .describe('Store the response as {{hooks.<save_as>.status|body|json.<path>}}.')
+    .optional(),
+  rollback: z
+    .strictObject(httpRequestShape)
+    .describe('Request that undoes this one (templated after the request: {{response.json.id}}).')
+    .optional(),
+});
+
+const SqlHookSchema = z.union([
+  nonEmpty().describe('A .sql file relative to the project dir, or an inline query.'),
+  z.strictObject({
+    file: nonEmpty().describe('SQL file relative to the project dir.').optional(),
+    query: nonEmpty().describe('Inline SQL.').optional(),
+    db: nonEmpty().describe('Database key from project.databases (default: the first one).').optional(),
+    rollback: z
+      .union([nonEmpty(), z.strictObject({ file: nonEmpty().optional(), query: nonEmpty().optional() })])
+      .describe('SQL that undoes this hook: a *.sql file or inline SQL.')
+      .optional(),
+  }),
+]);
+
+const ShellHookSchema = z.union([
+  nonEmpty().describe('Command run with sh -c in the project dir.'),
+  z.strictObject({
+    run: nonEmpty(),
+    cwd: nonEmpty().optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    rollback: nonEmpty().describe('Command that undoes this one.').optional(),
+    timeout: positiveSeconds().optional(),
+  }),
+]);
+
+const JsHookSchema = z.union([
+  nonEmpty().describe('Inline JS evaluated in a page (function body).'),
+  z.strictObject({
+    code: nonEmpty().describe('Inline JS (function body; may return / await).').optional(),
+    file: nonEmpty().describe('JS file relative to the project dir.').optional(),
+    page: keyString('page').describe('Environment page key whose page runs it (default: the first page).').optional(),
+    rollback: nonEmpty().optional(),
+  }),
+]);
+
+const hookBranch = <K extends HookKind, S extends z.ZodType>(kind: K, schema: S, description: string) =>
+  z
+    .strictObject({ [kind]: schema, ...hookCommonShape } as { [P in K]: S } & typeof hookCommonShape)
+    .meta({ title: kind, description });
+
+/** One setup / teardown / reset hook: exactly one of http, sql, shell, js. */
+export const HookStepSchema = keyedUnion(
+  [
+    hookBranch('http', HttpHookSchema, 'HTTP request (fetch); response saved for templating; optional rollback request.'),
+    hookBranch('sql', SqlHookSchema, 'SQL file or inline query run in a transaction (project.databases).'),
+    hookBranch('shell', ShellHookSchema, 'Shell command (sh -c) in the project dir.'),
+    hookBranch('js', JsHookSchema, 'JavaScript evaluated in a browser page (through the runner).'),
+  ],
+  {
+    noun: 'hook',
+    label: 'hook type',
+    keys: HOOK_KINDS,
+    common: HOOK_COMMON_KEYS,
+    example: 'e.g. "sql: hooks/reset.sql"',
+  },
+  { id: 'HookStep', description: 'Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional.' },
+);

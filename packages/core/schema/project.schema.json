@@ -1,0 +1,698 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project.schema.json",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name of the product / project."
+    },
+    "environments": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "description": "env name → page key → base URL, e.g. {staging: {console: https://…, shop: https://…}}."
+    },
+    "default_env": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Environment used when a scenario does not say (default: the first one)."
+    },
+    "auth": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AuthConfig"
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/AuthConfig"
+          }
+        }
+      ],
+      "description": "Global auth, or per environment name. Never passwords."
+    },
+    "capture": {
+      "$ref": "#/$defs/CaptureOverrides"
+    },
+    "frame": {
+      "type": "string",
+      "enum": [
+        "raw",
+        "card",
+        "browser",
+        "laptop",
+        "phone"
+      ],
+      "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+    },
+    "template": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Template name (templates/<name>) or a path relative to the project dir."
+    },
+    "locale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allow_hosts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Extra hosts hooks may target (environment hosts and localhost are always allowed)."
+    },
+    "databases": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Connection URL; use {{env:VAR}} / {{keychain:service/account}} for credentials."
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pacing": {
+      "$ref": "#/$defs/PacingOverrides"
+    },
+    "browser": {
+      "$ref": "#/$defs/BrowserConfig"
+    },
+    "reset": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HookStep"
+      },
+      "description": "Hooks run by env_reset."
+    },
+    "vars": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Variables shared by every scenario ({{vars.x}})."
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "additionalProperties": false,
+  "title": "Demo Studio project",
+  "description": "projects/<slug>/project.yaml",
+  "$defs": {
+    "AuthConfig": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Persistent, pre-authenticated Chromium profile directory (~ expanded)."
+        },
+        "storage_state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Playwright storageState JSON (alternative to profile)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Never a password: a pre-authenticated profile or storage state."
+    },
+    "CaptureOverrides": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 7680,
+          "description": "Viewport width in CSS px."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 4320,
+          "description": "Viewport height in CSS px."
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 4,
+          "description": "deviceScaleFactor: 1, or 2 for 4K from a 1920×1080 viewport."
+        },
+        "fps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Output frame rate of capture.mp4."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "jpeg",
+            "png"
+          ],
+          "description": "Screencast frame format."
+        },
+        "quality": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "JPEG quality (1-100)."
+        },
+        "keep_frames": {
+          "type": "boolean",
+          "description": "Keep runs/<id>/frames after encoding."
+        },
+        "crf": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 51,
+          "description": "libx264 CRF of capture.mp4."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 100, crf 16)."
+    },
+    "PacingOverrides": {
+      "type": "object",
+      "properties": {
+        "scene_start_still": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds still at scene start (1.5–2)."
+        },
+        "move_base_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "move_ms_per_px": {
+          "type": "number",
+          "minimum": 0
+        },
+        "move_min_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "move_max_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "hover_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hover pause before pressing (150–250)."
+        },
+        "press_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "mousedown → mouseup."
+        },
+        "after_click_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Pause after an ordinary click."
+        },
+        "after_popup_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Pause after a click that opened a popup (600–1000)."
+        },
+        "popup_timeout_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long to wait for an expected popup before the next click strategy."
+        },
+        "type_cps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Typing speed, characters per second (9–24)."
+        },
+        "scroll_duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Smooth scroll duration in seconds (1.5–2)."
+        },
+        "jitter": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "description": "Deterministic ±fraction jitter applied to durations (0 = none)."
+        },
+        "settle_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "After navigation: wait for network idle up to this many ms."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Deterministic pacing overrides (merged over the field-tested defaults)."
+    },
+    "BrowserConfig": {
+      "type": "object",
+      "properties": {
+        "executable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel": {
+          "type": "string",
+          "enum": [
+            "chromium",
+            "headless-shell",
+            "chrome"
+          ],
+          "description": "'chromium' = new headless (default)."
+        },
+        "headless": {
+          "type": "boolean"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color_scheme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "HookStep": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "http": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "HEAD"
+                  ],
+                  "description": "Default GET."
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…)."
+                },
+                "headers": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "json": {
+                  "description": "JSON body."
+                },
+                "body": {
+                  "type": "string",
+                  "description": "Raw body."
+                },
+                "expect": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599
+                    },
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 599
+                      }
+                    }
+                  ],
+                  "description": "Expected status code(s). Default: any 2xx."
+                },
+                "save_as": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                  "description": "Store the response as {{hooks.<save_as>.status|body|json.<path>}}."
+                },
+                "rollback": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "HEAD"
+                      ],
+                      "description": "Default GET."
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…)."
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "json": {
+                      "description": "JSON body."
+                    },
+                    "body": {
+                      "type": "string",
+                      "description": "Raw body."
+                    },
+                    "expect": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 599
+                          }
+                        }
+                      ],
+                      "description": "Expected status code(s). Default: any 2xx."
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Request that undoes this one (templated after the request: {{response.json.id}})."
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "additionalProperties": false
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "http"
+          ],
+          "additionalProperties": false,
+          "title": "http",
+          "description": "HTTP request (fetch); response saved for templating; optional rollback request."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A .sql file relative to the project dir, or an inline query."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "SQL file relative to the project dir."
+                    },
+                    "query": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Inline SQL."
+                    },
+                    "db": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Database key from project.databases (default: the first one)."
+                    },
+                    "rollback": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "file": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "query": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "SQL that undoes this hook: a *.sql file or inline SQL."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "additionalProperties": false,
+          "title": "sql",
+          "description": "SQL file or inline query run in a transaction (project.databases)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "shell": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Command run with sh -c in the project dir."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "cwd": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "env": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "rollback": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Command that undoes this one."
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "shell"
+          ],
+          "additionalProperties": false,
+          "title": "shell",
+          "description": "Shell command (sh -c) in the project dir."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "js": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Inline JS evaluated in a page (function body)."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Inline JS (function body; may return / await)."
+                    },
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "JS file relative to the project dir."
+                    },
+                    "page": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                      "description": "Environment page key whose page runs it (default: the first page)."
+                    },
+                    "rollback": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "js"
+          ],
+          "additionalProperties": false,
+          "title": "js",
+          "description": "JavaScript evaluated in a browser page (through the runner)."
+        }
+      ],
+      "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional."
+    }
+  }
+}

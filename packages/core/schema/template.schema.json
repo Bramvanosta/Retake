@@ -1,0 +1,395 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "template.schema.json",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "colors": {
+      "type": "object",
+      "properties": {
+        "accent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accent colour (CSS)."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Main text colour."
+        },
+        "muted": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Secondary text colour."
+        },
+        "paper": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Background / paper colour."
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Brand colours (extra keys allowed)."
+    },
+    "fonts": {
+      "type": "object",
+      "properties": {
+        "display": {
+          "type": "string",
+          "pattern": "\\.(ttf|otf|woff2?)$",
+          "description": "Display font file."
+        },
+        "body": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "\\.(ttf|otf|woff2?)$"
+          },
+          "description": "Body font files (regular, semibold, bold…)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Font files relative to the template dir."
+    },
+    "logo": {
+      "type": "string",
+      "pattern": "\\.(svg|png|jpe?g|webp)$",
+      "description": "Logo file relative to the template dir."
+    },
+    "wordmark": {
+      "type": "string",
+      "pattern": "\\.(svg|png|jpe?g|webp)$",
+      "description": "Wordmark image (outro)."
+    },
+    "background": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "radial",
+            "linear"
+          ]
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "frame": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "raw",
+            "card",
+            "browser",
+            "laptop",
+            "phone"
+          ],
+          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+        },
+        "width": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Frame width in px at 1920×1080."
+        },
+        "radius": {
+          "type": "number",
+          "minimum": 0
+        },
+        "shadow": {
+          "type": "string",
+          "enum": [
+            "none",
+            "soft",
+            "strong"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "captions": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "string",
+          "enum": [
+            "below",
+            "above",
+            "overlay",
+            "none"
+          ]
+        },
+        "kicker": {
+          "type": "object",
+          "properties": {
+            "font": {
+              "type": "string",
+              "enum": [
+                "display",
+                "body"
+              ]
+            },
+            "weight": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 1000
+            },
+            "size": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Font size in px at 1920×1080."
+            },
+            "uppercase": {
+              "type": "boolean"
+            },
+            "color": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Colour key (accent/text/muted/paper) or CSS colour."
+            },
+            "letter_spacing": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        },
+        "line": {
+          "type": "object",
+          "properties": {
+            "font": {
+              "type": "string",
+              "enum": [
+                "display",
+                "body"
+              ]
+            },
+            "weight": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 1000
+            },
+            "size": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Font size in px at 1920×1080."
+            },
+            "uppercase": {
+              "type": "boolean"
+            },
+            "color": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Colour key (accent/text/muted/paper) or CSS colour."
+            },
+            "letter_spacing": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "intro": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "logo-kicker-title",
+            "kicker-title",
+            "logo-only"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "outro": {
+      "type": "object",
+      "properties": {
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "logo-wordmark-tagline-url",
+            "logo-tagline",
+            "logo-only"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "tagline": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "interstitial": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "dark-clock",
+            "paper",
+            "dark"
+          ]
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "transitions": {
+      "type": "object",
+      "properties": {
+        "between_scenes": {
+          "type": "string",
+          "enum": [
+            "crossfade",
+            "cut",
+            "fade-black"
+          ]
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "cursor": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "arrow-dark",
+            "arrow-light",
+            "debug"
+          ]
+        },
+        "ripple_color": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "motion": {
+      "type": "object",
+      "properties": {
+        "default_zoom": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "none"
+            },
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 3
+            }
+          ]
+        },
+        "max_zoom": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "zoom_ease": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "cubic-bezier [x1, y1, x2, y2]."
+        }
+      },
+      "additionalProperties": false
+    },
+    "style_bias": {
+      "type": "string",
+      "enum": [
+        "real",
+        "balanced",
+        "motion"
+      ],
+      "description": "How much motion design is added: real | balanced | motion."
+    },
+    "brandmark": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "string",
+          "enum": [
+            "bottom-right",
+            "bottom-left",
+            "top-right",
+            "none"
+          ]
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "size": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "title": "Demo Studio template",
+  "description": "Brand & motion style (templates/<name>/template.yaml), merged over the default template."
+}

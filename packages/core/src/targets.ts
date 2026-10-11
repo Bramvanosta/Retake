@@ -1,10 +1,19 @@
 import type { ScopeSpec, TargetObject, TargetSpec, PointSpec } from './types.js';
 
-const CSS_HINT = /^[#.[]|^[a-z][a-z0-9-]*(\[|\.|#|:)|\s[>+~]\s|^(body|main|header|footer|nav|aside|section|table|tr|td|th|ul|ol|li|form|input|select|textarea|button|a|img|dialog)$/i;
+/** "#id", ".class", "[attr]" at the start. */
+const CSS_START = /^(#[A-Za-z_-]|\.[A-Za-z_-]|\[[A-Za-z_-])/;
+/** A lower-case tag directly followed by [attr], .class, #id or :pseudo, without spaces: "li.active", "button:hover". */
+const CSS_COMPOUND = /^[a-z][a-z0-9-]*(?:\[[^\]]*\]|\.[A-Za-z_-][\w-]*|#[A-Za-z_-][\w-]*|::?[a-z-]+(?:\([^)]*\))?)+$/;
+/** A combinator surrounded by spaces: "form > button", "h2 + p". */
+const CSS_COMBINATOR = /\S\s[>+~]\s\S/;
 
-/** True when a bare string looks like a CSS selector rather than visible text. */
+/**
+ * True when a bare string looks like a CSS selector rather than visible text.
+ * Plain words ("Table", "Save: draft", "Node.js") stay visible text; use {css: …} for bare tag names.
+ */
 export function looksLikeCss(s: string): boolean {
-  return CSS_HINT.test(s.trim());
+  const t = s.trim();
+  return CSS_START.test(t) || CSS_COMPOUND.test(t) || CSS_COMBINATOR.test(t);
 }
 
 /**

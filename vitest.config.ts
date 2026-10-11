@@ -9,6 +9,7 @@ export default defineConfig({
       '@demo-studio/core': pkg('core'),
       '@demo-studio/hooks': pkg('hooks'),
       '@demo-studio/runner-web': pkg('runner-web'),
+      '@demo-studio/components': pkg('components'),
       '@demo-studio/editor': pkg('editor'),
       '@demo-studio/review': pkg('review'),
       '@demo-studio/mcp': pkg('mcp'),

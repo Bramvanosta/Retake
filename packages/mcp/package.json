@@ -24,8 +24,5 @@
     "@demo-studio/review": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "zod": "^4.1.0"
-  },
-  "bin": {
-    "demo-studio-mcp": "./dist/bin.js"
   }
 }

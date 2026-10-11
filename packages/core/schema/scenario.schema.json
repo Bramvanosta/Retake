@@ -1,0 +1,3290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scenario.schema.json",
+  "type": "object",
+  "properties": {
+    "video": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "description": "Video name (usually the scenario file name)."
+    },
+    "title": {
+      "type": "object",
+      "properties": {
+        "kicker": {
+          "type": "string",
+          "description": "Small line above the title."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Video title shown by the intro card."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "intro": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "const": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "duration": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "description": "`false` disables the intro card."
+    },
+    "outro": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "const": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tagline": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "duration": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "description": "`false` disables the outro card."
+    },
+    "env": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Environment name (default: project default_env, else the first one)."
+    },
+    "vars": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Free variables usable as {{vars.x}} (and {{x}} when not shadowed)."
+    },
+    "setup": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HookStep"
+      },
+      "description": "Hooks run before capture (rolled back automatically)."
+    },
+    "teardown": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HookStep"
+      },
+      "description": "Hooks run after capture, even after a failure."
+    },
+    "capture": {
+      "$ref": "#/$defs/CaptureOverrides"
+    },
+    "frame": {
+      "type": "string",
+      "enum": [
+        "raw",
+        "card",
+        "browser",
+        "laptop",
+        "phone"
+      ],
+      "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+    },
+    "template": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Template name (default: the project template)."
+    },
+    "pacing": {
+      "$ref": "#/$defs/PacingOverrides"
+    },
+    "music": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Audio file relative to the project dir."
+        },
+        "volume": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "duck": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Volume factor under footage."
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "additionalProperties": false
+    },
+    "scenes": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SceneEntry"
+      },
+      "description": "Scenes and interstitials, in order."
+    }
+  },
+  "required": [
+    "video",
+    "scenes"
+  ],
+  "additionalProperties": false,
+  "title": "Demo Studio scenario",
+  "description": "A product video: hooks, scenes and steps.",
+  "$defs": {
+    "HookStep": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "http": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "HEAD"
+                  ],
+                  "description": "Default GET."
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…)."
+                },
+                "headers": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "json": {
+                  "description": "JSON body."
+                },
+                "body": {
+                  "type": "string",
+                  "description": "Raw body."
+                },
+                "expect": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599
+                    },
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 599
+                      }
+                    }
+                  ],
+                  "description": "Expected status code(s). Default: any 2xx."
+                },
+                "save_as": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                  "description": "Store the response as {{hooks.<save_as>.status|body|json.<path>}}."
+                },
+                "rollback": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "HEAD"
+                      ],
+                      "description": "Default GET."
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…)."
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "json": {
+                      "description": "JSON body."
+                    },
+                    "body": {
+                      "type": "string",
+                      "description": "Raw body."
+                    },
+                    "expect": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 599
+                          }
+                        }
+                      ],
+                      "description": "Expected status code(s). Default: any 2xx."
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Request that undoes this one (templated after the request: {{response.json.id}})."
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "additionalProperties": false
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "http"
+          ],
+          "additionalProperties": false,
+          "title": "http",
+          "description": "HTTP request (fetch); response saved for templating; optional rollback request."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A .sql file relative to the project dir, or an inline query."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "SQL file relative to the project dir."
+                    },
+                    "query": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Inline SQL."
+                    },
+                    "db": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Database key from project.databases (default: the first one)."
+                    },
+                    "rollback": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "file": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "query": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "SQL that undoes this hook: a *.sql file or inline SQL."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "additionalProperties": false,
+          "title": "sql",
+          "description": "SQL file or inline query run in a transaction (project.databases)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "shell": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Command run with sh -c in the project dir."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "cwd": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "env": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "rollback": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Command that undoes this one."
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "shell"
+          ],
+          "additionalProperties": false,
+          "title": "shell",
+          "description": "Shell command (sh -c) in the project dir."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "js": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Inline JS evaluated in a page (function body)."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Inline JS (function body; may return / await)."
+                    },
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "JS file relative to the project dir."
+                    },
+                    "page": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                      "description": "Environment page key whose page runs it (default: the first page)."
+                    },
+                    "rollback": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            }
+          },
+          "required": [
+            "js"
+          ],
+          "additionalProperties": false,
+          "title": "js",
+          "description": "JavaScript evaluated in a browser page (through the runner)."
+        }
+      ],
+      "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional."
+    },
+    "CaptureOverrides": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 7680,
+          "description": "Viewport width in CSS px."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 4320,
+          "description": "Viewport height in CSS px."
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 4,
+          "description": "deviceScaleFactor: 1, or 2 for 4K from a 1920×1080 viewport."
+        },
+        "fps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Output frame rate of capture.mp4."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "jpeg",
+            "png"
+          ],
+          "description": "Screencast frame format."
+        },
+        "quality": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "JPEG quality (1-100)."
+        },
+        "keep_frames": {
+          "type": "boolean",
+          "description": "Keep runs/<id>/frames after encoding."
+        },
+        "crf": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 51,
+          "description": "libx264 CRF of capture.mp4."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 100, crf 16)."
+    },
+    "PacingOverrides": {
+      "type": "object",
+      "properties": {
+        "scene_start_still": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds still at scene start (1.5–2)."
+        },
+        "move_base_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "move_ms_per_px": {
+          "type": "number",
+          "minimum": 0
+        },
+        "move_min_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "move_max_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "hover_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hover pause before pressing (150–250)."
+        },
+        "press_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "mousedown → mouseup."
+        },
+        "after_click_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Pause after an ordinary click."
+        },
+        "after_popup_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Pause after a click that opened a popup (600–1000)."
+        },
+        "popup_timeout_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long to wait for an expected popup before the next click strategy."
+        },
+        "type_cps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Typing speed, characters per second (9–24)."
+        },
+        "scroll_duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Smooth scroll duration in seconds (1.5–2)."
+        },
+        "jitter": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "description": "Deterministic ±fraction jitter applied to durations (0 = none)."
+        },
+        "settle_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "After navigation: wait for network idle up to this many ms."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Deterministic pacing overrides (merged over the field-tested defaults)."
+    },
+    "SceneEntry": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Scene"
+        },
+        {
+          "$ref": "#/$defs/Interstitial"
+        }
+      ],
+      "description": "A scene or an interstitial card."
+    },
+    "Scene": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "Unique, slug-like scene id."
+        },
+        "caption": {
+          "description": "Caption for the whole scene (a step caption replaces it).",
+          "$ref": "#/$defs/Caption"
+        },
+        "page": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "description": "Environment page key (e.g. console, shop). Default: the previous scene's page, else the first key."
+        },
+        "open": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path or URL opened at scene start. Omit to continue from the previous scene's state."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "description": "Actions, in order."
+        },
+        "speed": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 8,
+          "description": "Edit-time speed for the whole scene, in (0, 8]."
+        },
+        "still": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds of stillness at scene start (default pacing.scene_start_still)."
+        },
+        "transition": {
+          "type": "string",
+          "enum": [
+            "crossfade",
+            "cut",
+            "fade-black"
+          ],
+          "description": "Transition INTO this scene (default: template)."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "raw",
+            "card",
+            "browser",
+            "laptop",
+            "phone"
+          ],
+          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+        },
+        "irreversible": {
+          "type": "boolean",
+          "description": "Every step is irreversible (dry-run stops the scene at its first step)."
+        },
+        "skip": {
+          "type": "boolean",
+          "description": "Skip this scene entirely."
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "steps"
+      ],
+      "additionalProperties": false,
+      "title": "scene",
+      "description": "A captured scene: optional page + open, then steps."
+    },
+    "Caption": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kicker": {
+              "type": "string",
+              "description": "Small line above the caption."
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Caption line."
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "Caption text, or {kicker, text}."
+    },
+    "Step": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "open": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Path (resolved against the page base URL) or absolute URL."
+                    },
+                    "page": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                      "description": "Environment page key to open in (default: current page)."
+                    },
+                    "wait_until": {
+                      "type": "string",
+                      "enum": [
+                        "load",
+                        "domcontentloaded",
+                        "networkidle",
+                        "commit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Navigate the current page (or `page`) to a path or URL."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "open"
+          ],
+          "additionalProperties": false,
+          "title": "open",
+          "description": "Navigate the current page (or `page`) to a path or URL."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "click": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "$ref": "#/$defs/ClickArgs"
+                }
+              ],
+              "description": "Click an element: the cursor travels, hovers, presses; popup-aware fallback strategies."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "click"
+          ],
+          "additionalProperties": false,
+          "title": "click",
+          "description": "Click an element: the cursor travels, hovers, presses; popup-aware fallback strategies."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "double_click": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "$ref": "#/$defs/ClickArgs"
+                }
+              ],
+              "description": "Double-click an element."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "double_click"
+          ],
+          "additionalProperties": false,
+          "title": "double_click",
+          "description": "Double-click an element."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "hover": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+                    },
+                    "contains": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      ],
+                      "description": "Element whose text contains ALL these strings; the innermost such element wins."
+                    },
+                    "role": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Accessible name, used together with `role`."
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Form control whose label text matches."
+                    },
+                    "aria": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "aria-label value (exact first, then substring)."
+                    },
+                    "placeholder": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "placeholder attribute."
+                    },
+                    "css": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Raw CSS selector."
+                    },
+                    "testid": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "data-testid value."
+                    },
+                    "in": {
+                      "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+                      "$ref": "#/$defs/ScopeSpec"
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "description": "0-based index among visible matches (negative = from the end)."
+                    },
+                    "last_visible": {
+                      "type": "boolean",
+                      "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+                    },
+                    "exact": {
+                      "type": "boolean",
+                      "description": "Disable the substring fallback of text/name/aria/label."
+                    },
+                    "ms": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "How long to hover (ms)."
+                    },
+                    "move_ms": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Cursor travel duration (ms)."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Move the cursor onto an element and rest there."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "hover"
+          ],
+          "additionalProperties": false,
+          "title": "hover",
+          "description": "Move the cursor onto an element and rest there."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "object",
+              "properties": {
+                "into": {
+                  "description": "Field to click into first (omit to type into the focused element).",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Text to type, character by character."
+                },
+                "cps": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Characters per second (default pacing.type_cps)."
+                },
+                "clear": {
+                  "type": "boolean",
+                  "description": "Select-all + delete before typing."
+                },
+                "enter": {
+                  "type": "boolean",
+                  "description": "Press Enter afterwards."
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false,
+              "description": "Type text character by character, optionally into a field first."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false,
+          "title": "type",
+          "description": "Type text character by character, optionally into a field first."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "press": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Key in Playwright syntax: \"Enter\", \"Escape\", \"Meta+A\"."
+                    },
+                    "times": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Press a key (Playwright syntax), optionally several times."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "press"
+          ],
+          "additionalProperties": false,
+          "title": "press",
+          "description": "Press a key (Playwright syntax), optionally several times."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "select": {
+              "type": "object",
+              "properties": {
+                "combobox": {
+                  "description": "The select / combobox trigger.",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Alternative to combobox: the field label."
+                },
+                "option": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Option text to choose."
+                },
+                "search": {
+                  "type": "string",
+                  "description": "Text typed into the listbox search input before choosing."
+                }
+              },
+              "required": [
+                "option"
+              ],
+              "additionalProperties": false,
+              "description": "Choose an option in a native select or a combobox listbox."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "select"
+          ],
+          "additionalProperties": false,
+          "title": "select",
+          "description": "Choose an option in a native select or a combobox listbox."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pick": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "$ref": "#/$defs/TargetObject"
+                    }
+                  ],
+                  "description": "Field label, or an explicit trigger target."
+                },
+                "option": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  ],
+                  "description": "Option(s) to tick."
+                },
+                "search": {
+                  "type": "string",
+                  "description": "Text typed into the popover search input first."
+                },
+                "close": {
+                  "type": "string",
+                  "enum": [
+                    "outside",
+                    "escape",
+                    "none"
+                  ],
+                  "description": "How to close the popover afterwards (default 'outside')."
+                }
+              },
+              "required": [
+                "field",
+                "option"
+              ],
+              "additionalProperties": false,
+              "description": "Tick one or more options in a multi-select popover field, then close it."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "pick"
+          ],
+          "additionalProperties": false,
+          "title": "pick",
+          "description": "Tick one or more options in a multi-select popover field, then close it."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "menu": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "$ref": "#/$defs/TargetObject"
+                    }
+                  ],
+                  "description": "Row (text it contains) whose action menu to open."
+                },
+                "trigger": {
+                  "description": "Explicit menu trigger (overrides row-based discovery).",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "item": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Menu item text."
+                },
+                "confirm": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ],
+                  "description": "Confirm button text in the confirmation dialog (true = first non-cancel button)."
+                }
+              },
+              "required": [
+                "item"
+              ],
+              "additionalProperties": false,
+              "description": "Open a row's action menu, choose an item and optionally confirm."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "menu"
+          ],
+          "additionalProperties": false,
+          "title": "menu",
+          "description": "Open a row's action menu, choose an item and optionally confirm."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "scroll": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Absolute scrollTop in px."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "to": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "top",
+                            "bottom"
+                          ]
+                        },
+                        {
+                          "$ref": "#/$defs/TargetSpec"
+                        }
+                      ],
+                      "description": "Absolute scrollTop (px), a target, or 'top' / 'bottom'."
+                    },
+                    "by": {
+                      "type": "number",
+                      "description": "Relative scroll in px (alternative to `to`)."
+                    },
+                    "offset": {
+                      "type": "number",
+                      "description": "With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default -120."
+                    },
+                    "duration": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Seconds (default pacing.scroll_duration)."
+                    },
+                    "in": {
+                      "description": "Scroll container (default: nearest scrollable ancestor, else the main scroller).",
+                      "$ref": "#/$defs/TargetSpec"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Animated in-page scroll to a position, an element, or by an amount."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "scroll"
+          ],
+          "additionalProperties": false,
+          "title": "scroll",
+          "description": "Animated in-page scroll to a position, an element, or by an amount."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "drag": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "description": "Element to press on.",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Point"
+                    },
+                    {
+                      "$ref": "#/$defs/TargetSpec"
+                    }
+                  ],
+                  "description": "Drop target element or viewport point."
+                },
+                "duration": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "additionalProperties": false,
+              "description": "Press on an element, move with an eased path and release."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "drag"
+          ],
+          "additionalProperties": false,
+          "title": "drag",
+          "description": "Press on an element, move with an eased path and release."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "drop_file": {
+              "type": "object",
+              "properties": {
+                "zone": {
+                  "description": "Drop zone element.",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "File name shown and dropped (required with fake)."
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Real file, relative to the project dir."
+                },
+                "fake": {
+                  "type": "boolean",
+                  "description": "Generate a placeholder file named `name`."
+                },
+                "mime": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "size": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "description": "Size in bytes for fake files (default 48 KiB)."
+                },
+                "input": {
+                  "description": "Explicit <input type=file> to set instead of dispatching drop events.",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "from": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "right",
+                    "top",
+                    "bottom"
+                  ],
+                  "description": "Where the dragged file ghost enters from (default 'right')."
+                }
+              },
+              "required": [
+                "zone"
+              ],
+              "additionalProperties": false,
+              "description": "Drag a file ghost onto a drop zone and drop a real or placeholder file."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "drop_file"
+          ],
+          "additionalProperties": false,
+          "title": "drop_file",
+          "description": "Drag a file ghost onto a drop zone and drop a real or placeholder file."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Sleep N seconds (not protected from trimming)."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "wait"
+          ],
+          "additionalProperties": false,
+          "title": "wait",
+          "description": "Sleep N seconds (not protected from trimming)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait_for": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text present."
+                    },
+                    "not_text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text absent."
+                    },
+                    "target": {
+                      "description": "Element visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "gone": {
+                      "description": "Element no longer visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "URL substring or /regex/."
+                    },
+                    "network_idle": {
+                      "type": "boolean"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Seconds (default 15)."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Wait until a condition holds (text, element, URL, network idle)."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "wait_for"
+          ],
+          "additionalProperties": false,
+          "title": "wait_for",
+          "description": "Wait until a condition holds (text, element, URL, network idle)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Stay still N seconds; the editor never trims a hold."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "hold"
+          ],
+          "additionalProperties": false,
+          "title": "hold",
+          "description": "Stay still N seconds; the editor never trims a hold."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "assert": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text present."
+                    },
+                    "not_text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text absent."
+                    },
+                    "target": {
+                      "description": "Element visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "gone": {
+                      "description": "Element no longer visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "URL substring or /regex/."
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Document title contains."
+                    },
+                    "count": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "$ref": "#/$defs/TargetSpec"
+                        },
+                        "equals": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "target",
+                        "equals"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Number of visible matches of a target."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Fail the run (with a screenshot) unless a condition holds."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "assert"
+          ],
+          "additionalProperties": false,
+          "title": "assert",
+          "description": "Fail the run (with a screenshot) unless a condition holds."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "screenshot": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                      "description": "File name (runs/<id>/screenshots/<name>.png)."
+                    },
+                    "full_page": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Save a screenshot of the page in runs/<id>/screenshots/."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "screenshot"
+          ],
+          "additionalProperties": false,
+          "title": "screenshot",
+          "description": "Save a screenshot of the page in runs/<id>/screenshots/."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "new_tab": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "target": {
+                      "description": "Element to click (real click; falls back to following its href).",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "href": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "URL to open directly (relative URLs resolve against the current page)."
+                    },
+                    "as": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                      "description": "Page id for later switch_page (default \"tab<N>\")."
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "$ref": "#/$defs/TargetObject"
+                }
+              ],
+              "description": "Follow a link into a new tab (real click, or open its href) and keep recording."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "new_tab"
+          ],
+          "additionalProperties": false,
+          "title": "new_tab",
+          "description": "Follow a link into a new tab (real click, or open its href) and keep recording."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "switch_page": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "to": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Page id (\"main\", an environment page key, a new_tab `as` id) or \"previous\"."
+                    },
+                    "close_current": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "to"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Make another page the active (recorded) one."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "switch_page"
+          ],
+          "additionalProperties": false,
+          "title": "switch_page",
+          "description": "Make another page the active (recorded) one."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "eval": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "js": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Function body evaluated in the page (may return / await)."
+                    },
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "JS file relative to the project dir."
+                    },
+                    "arg": {
+                      "description": "Value passed as `arg`."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Escape hatch: evaluate JavaScript in the page."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "eval"
+          ],
+          "additionalProperties": false,
+          "title": "eval",
+          "description": "Escape hatch: evaluate JavaScript in the page."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "notify": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Desktop notification (macOS osascript, Linux notify-send)."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "notify"
+          ],
+          "additionalProperties": false,
+          "title": "notify",
+          "description": "Desktop notification (macOS osascript, Linux notify-send)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "emit": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "data": {}
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Custom event recorded in the timeline."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "emit"
+          ],
+          "additionalProperties": false,
+          "title": "emit",
+          "description": "Custom event recorded in the timeline."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "show",
+                    "hide"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "move": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/Point"
+                        },
+                        {
+                          "$ref": "#/$defs/TargetSpec"
+                        }
+                      ],
+                      "description": "Animate the cursor to a point or an element."
+                    },
+                    "set": {
+                      "description": "Teleport (no animation).",
+                      "$ref": "#/$defs/Point"
+                    },
+                    "duration": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "show": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Show, hide, move or teleport the in-page cursor."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "cursor"
+          ],
+          "additionalProperties": false,
+          "title": "cursor",
+          "description": "Show, hide, move or teleport the in-page cursor."
+        }
+      ],
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor) plus optional modifiers (id, caption, speed, hold, camera, mark, timeout, optional, irreversible, note)."
+    },
+    "CameraHint": {
+      "type": "object",
+      "properties": {
+        "zoom": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Zoom factor (1 = none). Clamped to the template max_zoom."
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "step"
+              ]
+            },
+            {
+              "$ref": "#/$defs/Point"
+            },
+            {
+              "$ref": "#/$defs/TargetSpec"
+            }
+          ],
+          "description": "What to centre on. Default: the step target, else the cursor."
+        },
+        "ease": {
+          "$ref": "#/$defs/Ease"
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0.8,
+          "description": "Duration of the zoom move in seconds (≥ 0.8)."
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "step_end",
+                "scene_end"
+              ]
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          ],
+          "description": "How long the zoom stays: step_end, scene_end (default) or N seconds."
+        }
+      },
+      "required": [
+        "zoom"
+      ],
+      "additionalProperties": false,
+      "description": "Edit-time camera move keyed to this step. The camera is static otherwise."
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "Viewport x in CSS px."
+        },
+        "y": {
+          "type": "number",
+          "description": "Viewport y in CSS px."
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "Absolute viewport point in CSS px."
+    },
+    "TargetSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Visible text (\"Save\"), a CSS selector string (\"#id\", \".class\", \"[attr]\", \"a > b\") or a target object."
+    },
+    "TargetObject": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ],
+          "description": "Element whose text contains ALL these strings; the innermost such element wins."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accessible name, used together with `role`."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Form control whose label text matches."
+        },
+        "aria": {
+          "type": "string",
+          "minLength": 1,
+          "description": "aria-label value (exact first, then substring)."
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "placeholder attribute."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Raw CSS selector."
+        },
+        "testid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "data-testid value."
+        },
+        "in": {
+          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+          "$ref": "#/$defs/ScopeSpec"
+        },
+        "nth": {
+          "type": "integer",
+          "description": "0-based index among visible matches (negative = from the end)."
+        },
+        "last_visible": {
+          "type": "boolean",
+          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Disable the substring fallback of text/name/aria/label."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Element locator. Combine keys to narrow the match (e.g. {text: Save, in: dialog})."
+    },
+    "ScopeSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "dialog",
+            "menu",
+            "listbox",
+            "popover",
+            "page"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "row": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text contained in the row."
+            }
+          },
+          "required": [
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: \"text\"} or a target object."
+    },
+    "Ease": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "slow",
+            "normal",
+            "fast",
+            "linear"
+          ]
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        }
+      ],
+      "description": "Easing preset or cubic-bezier [x1, y1, x2, y2]."
+    },
+    "ClickArgs": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ],
+          "description": "Element whose text contains ALL these strings; the innermost such element wins."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accessible name, used together with `role`."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Form control whose label text matches."
+        },
+        "aria": {
+          "type": "string",
+          "minLength": 1,
+          "description": "aria-label value (exact first, then substring)."
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "placeholder attribute."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Raw CSS selector."
+        },
+        "testid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "data-testid value."
+        },
+        "in": {
+          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+          "$ref": "#/$defs/ScopeSpec"
+        },
+        "nth": {
+          "type": "integer",
+          "description": "0-based index among visible matches (negative = from the end)."
+        },
+        "last_visible": {
+          "type": "boolean",
+          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Disable the substring fallback of text/name/aria/label."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "real",
+            "dom",
+            "pointer"
+          ],
+          "description": "auto = real input, then DOM click, then pointer-event sequence when an expected popup did not open."
+        },
+        "expect_popup": {
+          "type": "boolean",
+          "description": "Force popup detection on/off (default: inferred from aria attributes)."
+        },
+        "outside": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/TargetSpec"
+            }
+          ],
+          "description": "Click somewhere neutral to close the open popover: true = auto (dialog title / blank area), or a target."
+        },
+        "hover_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hover pause before pressing (ms)."
+        },
+        "after_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Pause after the click (ms)."
+        },
+        "move_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Cursor travel duration (ms). Default: computed from distance."
+        },
+        "button": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ]
+        },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Alt",
+              "Control",
+              "Meta",
+              "Shift"
+            ]
+          }
+        },
+        "offset": {
+          "description": "Offset from the element's top-left in CSS px (default: centre).",
+          "$ref": "#/$defs/Point"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Target + click options."
+    },
+    "Interstitial": {
+      "type": "object",
+      "properties": {
+        "interstitial": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Card text, e.g. \"A few hours later\"."
+            },
+            "kicker": {
+              "type": "string"
+            },
+            "duration": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds on screen."
+            },
+            "style": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Template interstitial style override."
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+        }
+      },
+      "required": [
+        "interstitial"
+      ],
+      "additionalProperties": false,
+      "title": "interstitial",
+      "description": "A title card between scenes (takes no capture time)."
+    }
+  }
+}

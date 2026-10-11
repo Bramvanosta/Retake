@@ -1,0 +1,158 @@
+# Demo Studio — phase 2 contracts: components, themes, editor, review
+
+Types: `packages/components/src/types.ts` (component contract), `packages/editor/src/plan-types.ts` (EditPlan),
+`packages/core/src/types.ts` (scenario, timeline, template). Reference look: `docs/reference/look.md`.
+Product rules: docs/SPEC.md §0, §9–§12.
+
+## 1. Components (`packages/components`)
+
+Every visual element is a component (SPEC §11). Nothing visual is hard-coded in the editor.
+
+### 1.1 Layout of a component
+```
+<namespace>/<name>/
+  component.yaml      # ComponentManifest (id, version, kind, name, description, slots, params JSON Schema,
+                      # tokens, duration, geometry for layouts, preview samples, publisher/license/tags)
+  index.tsx           # default export: React.FC<ComponentProps<P>> (Remotion; useCurrentFrame is segment-relative)
+  previews/           # generated: <theme>.png (+ .mp4) — never hand-edited
+  README.md           # optional
+```
+Rules for implementations: read every colour/font/logo from `props.theme`; size everything with `props.unit`;
+deterministic (no Math.random/Date); no network; may import only `react`, `remotion` and
+`@demo-studio/components/kit` (shared helpers: fades/rises/stagger, easing presets, fitText, Logo, Wordmark,
+background renderer, safe-area helpers). Text slots must never overflow: fitText shrinks within bounds.
+
+### 1.2 Built-in library (`packages/components/library/studio/*`), theme-agnostic
+| id | kind | notes |
+|---|---|---|
+| studio/intro-stack | intro | logo + wordmark row, kicker, display title, accent rule; staggered entrance (reference look) |
+| studio/intro-minimal | intro | title only, fade |
+| studio/outro-stack | outro | big logo, wordmark, rule, tagline, url; staggered (reference look) |
+| studio/outro-minimal | outro | logo + tagline |
+| studio/card-title | card | chapter/title card (kicker + title) |
+| studio/interstitial-clock | interstitial | dark overlay over the dimmed last frame, animated clock, text (reference look) |
+| studio/interstitial-plain | interstitial | paper/dark card with text |
+| studio/layout-card | layout | capture in a rounded card with soft shadow on the theme background, caption area below, brandmark (reference look: 1560 wide) |
+| studio/layout-browser | layout | card + macOS-style browser chrome with the real URL |
+| studio/layout-laptop | layout | MacBook-style mockup |
+| studio/layout-phone | layout | iPhone-style mockup for narrow captures |
+| studio/layout-raw | layout | capture fills the frame |
+| studio/caption-below | caption | accent rule + uppercase kicker + display line, crossfade/rise between cues (reference look) |
+| studio/caption-overlay | caption | translucent band over the capture (for raw/motion) |
+| studio/overlay-callout | overlay | pill/callout with an arrow pointing at a target bbox |
+| studio/overlay-lower-third | overlay | lower third (title + subtitle) |
+| studio/transition-crossfade, studio/transition-fade-black | transition | |
+
+### 1.3 Registry (`@demo-studio/components`)
+```ts
+loadComponentRegistry(opts: { root: string /* workspace */ }): Promise<ComponentRegistry>
+//  scans <root>/components/**/component.yaml then the built-in library; workspace ids override built-ins (warning)
+ComponentRegistry = { list(kind?): ComponentInfo[]; get(id): ComponentInfo /* throws with suggestions */; resolve(ref, kind): ResolvedComponent-ish }
+ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'workspace' | 'builtin' }
+validateComponent(dir): Promise<ValidationIssue[]>   // manifest schema, entry exists, params schema valid, preview samples fill required slots, typecheck/esbuild compile
+createComponent(root, { id, kind, description }): Promise<ComponentInfo>   // scaffold from a kind template
+themeTokens(template: LoadedTemplate, urls: { logo?, wordmark? }): ThemeTokens
+```
+
+### 1.4 Themes (templates) pick components
+Template gains (additive, core types):
+```yaml
+brand: { name: Atelier, url: example.com }          # used by wordmark-as-text, outro url
+components:                                          # defaults per kind (string id or {id, params})
+  intro: studio/intro-stack
+  outro: studio/outro-stack
+  interstitial: studio/interstitial-clock
+  card: studio/card-title
+  layout: { id: studio/layout-card, params: { width: 1560, radius: 18, shadow: soft } }
+  caption: studio/caption-below
+  transition: studio/transition-crossfade
+```
+The legacy fields (`frame`, `intro.layout`, `outro.layout`, `interstitial.style`, `captions.position`) map to these
+defaults when `components` is absent.
+
+### 1.5 Scenario additions (additive, core types + schema)
+- `intro: { component?, params?, duration? }`, `outro: { component?, params?, tagline?, url?, duration? }`
+- `interstitial: { text, kicker?, duration?, component?, params? }`
+- new scene entry `card: { component?, params?, slots: {title, kicker, …}, duration? }`
+- scene `frame:` accepts a layout component id as well as a FrameStyle (`card` ⇒ studio/layout-card …)
+- step modifier `overlay: { component, slots?, params?, duration?, target?: TargetSpec }` (the runner records the
+  target bbox on the event, like camera targets)
+
+## 2. Editor (`packages/editor`)
+
+```ts
+planEdit(input: { timeline; scenario; template: LoadedTemplate; project; registry: ComponentRegistry;
+                  captureFile: string; overrides?: EditOverrides }): EditPlan     // PURE + deterministic, unit-tested
+renderVideo(opts: { project; run /* id or dir */; scenario?; template?; overrides?; out?; onProgress?; signal?;
+                    concurrency? }): Promise<RenderRecord>
+//  renders/<scenario>-v<N>.mp4 (+ "-vertical") and renders/<scenario>-v<N>.json (RenderRecord incl. plan + overrides)
+renderStill(opts: { plan; frame; out }): Promise<string>
+previewComponent(opts: { component: string; template: LoadedTemplate; slots?; params?; out_dir; video?: boolean }): Promise<string[]>
+previewTemplate(opts: { template; out_dir }): Promise<string[]>   // intro, clip with caption over a placeholder screen, interstitial, outro
+exportRender(opts: { project; render; formats: ExportFormat[] }): Promise<ExportResult>
+//  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'gif_preview'
+listRenders(project): Promise<RenderRecord[]>
+```
+
+### 2.1 Planner rules (SPEC §9 + reference look)
+- Order: intro (unless disabled) → scenes / cards / interstitials in scenario order → outro. Every segment carries its
+  ResolvedComponent: override by segment id → override by kind → scenario → theme → built-in default.
+- Scene source range: from the end of the scene's page load (`scene_still`.t_start, else `scene_open`.t_end, else
+  scene.t_start) to scene.t_end (includes trailing holds). Page loads are never shown.
+- Transitions: scenes NOT contiguous in the capture (page load or any gap) use the theme transition (crossfade 0.35 s:
+  outgoing clip holds its last frame while the incoming one fades in). Scenes contiguous on the same page are joined
+  with NO transition (only the caption changes; camera continues). Intro→first scene and last scene→outro use the theme
+  transition. Interstitials: backdrop = dimmed last frame of the previous clip (`backdropSrcFrame`), fade in/out.
+- Speed: scene speed (overrides.speeds wins), step speed for its span; always 1×: the opening still, every hold
+  (action and modifier), ±0.6 s around a marked step through its hold end. Speed changes are ramped over ~0.3 s.
+- Idle trimming: timeline.idle intervals longer than `idle_threshold` (1.2 s) are shortened to 0.4 s unless they
+  overlap a protected span (still, hold, mark window). Nothing changes on screen during idle, so the trim is invisible.
+- Camera: static by default. Zooms only from step `camera` hints: zoom clamped to theme max_zoom, focus = event
+  camera bbox centre (else point, else cursor), eased with theme zoom_ease over max(0.8 s, duration) of OUTPUT time,
+  held until `until` (default scene end), same easing out; the view is clamped so the capture always fills the screen
+  rect; no reset at same-page joins.
+- Captions: scene caption from the scene's first visible frame to its end; a step caption replaces it from the step's
+  output start; cues never overlap. Rendered by the clip's caption component in the layout's caption rect.
+- Overlays: from step `overlay` modifiers, positioned with the event's target bbox mapped through layout + camera.
+- Provenance: every clip segment lists `steps` (output frame spans per scenario step) and the plan keeps markers and a
+  time map — used by review, the Studio timeline and frame comments.
+- Output: 1920×1080 × scale (capture scale 2 ⇒ 4K); vertical 1080×1920 uses `geometry_vertical` and a crop following a
+  smoothed cursor/target track.
+
+### 2.2 Composition & rendering
+`DemoVideo` / `DemoVertical` (Remotion) take `{ plan }` and render only the plan: background, one Sequence per segment
+with its fade envelope, the segment component, for clips the layout component with `screen` = `<Freeze
+frame={srcFrames[f]}><OffthreadVideo/></Freeze>` under the camera transform, the caption component and overlays,
+brandmark, optional music bed. Components are imported through a GENERATED registry module (built-in + workspace
+component entries) so user components are bundled too; the bundle is cached under `<root>/.demo-studio/cache/` keyed by
+a hash of editor + component sources. Assets (capture, fonts, logo, music) are served by a local static HTTP server
+during the render. Browser: `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell.
+
+## 3. Review (`packages/review`)
+
+```ts
+reviewRender(opts: { project; render: string; fps?: 1 | 2; previous?: string | false }): Promise<ReviewResult>
+```
+Writes `review/<render-id>/`: `sheet_<fps>fps.jpg` (+ pages), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png`
+(+ scene first/last), `timeline.json` (output-time: segments with components, captions, markers, step spans),
+`report.json`, `report.md`; returns ≤1280 px JPEG thumbnails (base64) for the MCP. Checks: durations; blank/near-uniform
+frames in the screen rect and at scene starts; caption/scene mismatch, overlaps, captions too long for their area;
+text slot overflow; cursor off-screen or outside the zoomed view at clicks; scenes > 30 s at ~1×; zoom count and resets
+at same-page joins; transitions overlapping a click; diff vs the previous render. Findings:
+`{ severity, code, message, at?: { frame, time, segment, scene, step } }`; `clean` = no error/warning.
+
+## 4. Frame comments (data model now, UI in phase 4, MCP tools in phase 3)
+
+`<project>/comments/<scenario>.json`:
+```ts
+interface FrameComment {
+  id: string; scenario: string; render_id: string; frame: number; time_s: number;
+  region?: { x: number; y: number; w: number; h: number };      // normalised 0..1 of the output frame
+  text: string; author: string; created_at: string;
+  status: 'open' | 'resolved';
+  anchor: { segment: string; kind: string; component?: string; scene?: string; step?: number; step_id?: string;
+            src_time_s?: number };                              // computed from the plan provenance
+  replies: Array<{ author: string; text: string; created_at: string }>;
+  resolution?: { by: string; note: string; render_id?: string };
+}
+```

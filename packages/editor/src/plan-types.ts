@@ -6,6 +6,9 @@
  * Layout rectangles are in output pixels.
  */
 import type { FrameStyle, TransitionKind, Template } from '@demo-studio/core';
+import type { CaptionCue, ComponentManifest, ThemeTokens } from '@demo-studio/components';
+
+export type { CaptionCue };
 
 export type PlanVariant = 'landscape' | 'vertical';
 
@@ -18,6 +21,8 @@ export interface Rect {
 
 /** Brand values resolved for rendering (font/logo URLs are filled in by the renderer's asset server). */
 export interface PlanBrand {
+  /** Tokens handed to every component. */
+  tokens: ThemeTokens;
   colors: Template['colors'];
   background: Template['background'];
   captions: Template['captions'];
@@ -52,6 +57,39 @@ export interface PlanLayout {
   brandmark?: Rect;
 }
 
+/** A component resolved for one use in the plan (what the composition renders, what the UI can switch). */
+export interface ResolvedComponent {
+  id: string;
+  version: string;
+  kind: ComponentManifest['kind'];
+  params: Record<string, unknown>;
+  /** Slot values after defaults (theme / scenario) were applied. */
+  slots: Record<string, string | undefined>;
+  /** Where the choice came from (for the UI: "theme default" vs "scenario override"). */
+  source: 'theme' | 'scenario' | 'override' | 'builtin-default';
+}
+
+/** Provenance of a span of output frames: which scenario step produced it (comments, timeline UI, review). */
+export interface StepSpan {
+  scene: string;
+  step: number;
+  step_id?: string;
+  action: string;
+  /** Output frames [from, to) relative to the segment. */
+  from: number;
+  to: number;
+}
+
+export interface OverlayUse {
+  component: ResolvedComponent;
+  /** Relative to the segment. */
+  from: number;
+  durationInFrames: number;
+  /** Step that requested it. */
+  scene: string;
+  step: number;
+}
+
 export interface SegmentBase {
   /** Stable id: "intro", "outro", scene id, "interstitial-<n>". */
   id: string;
@@ -65,27 +103,23 @@ export interface SegmentBase {
   fadeOut: { frames: number; color: 'none' | 'black' };
   /** The transition that led into this segment (informational, for review). */
   transitionIn: TransitionKind | 'none';
+  /** The component that renders this segment (layout component for clips). */
+  component: ResolvedComponent;
 }
 
 export interface IntroSegment extends SegmentBase {
   kind: 'intro';
-  layout: Template['intro']['layout'];
-  kicker?: string;
-  title: string;
 }
 
 export interface OutroSegment extends SegmentBase {
   kind: 'outro';
-  layout: Template['outro']['layout'];
-  tagline?: string;
-  url?: string;
 }
 
-export interface InterstitialSegment extends SegmentBase {
-  kind: 'interstitial';
-  style: Template['interstitial']['style'];
-  text: string;
-  kicker?: string;
+/** Full-screen card: scenario `card:` entries and `interstitial:` entries. */
+export interface CardSegment extends SegmentBase {
+  kind: 'card' | 'interstitial';
+  /** Interstitials are drawn over the dimmed last frame of the previous clip (source frame index), if any. */
+  backdropSrcFrame?: number;
 }
 
 /** Camera value for one output frame: zoom and the source point (CSS px) at the centre of the view. */
@@ -107,18 +141,14 @@ export interface ClipSegment extends SegmentBase {
   urls: Array<{ frame: number; url: string }>;
   /** Vertical variant only: per-output-frame crop centre in source CSS px (smoothed cursor/target track). */
   reframe?: Array<[cx: number, cy: number]>;
+  /** Caption component used for this clip (cues are in plan.captions). */
+  caption: ResolvedComponent | null;
+  overlays: OverlayUse[];
+  /** Which scenario steps produced which output frames. */
+  steps: StepSpan[];
 }
 
-export type PlanSegment = IntroSegment | OutroSegment | InterstitialSegment | ClipSegment;
-
-export interface CaptionCue {
-  /** Output frames [from, to). */
-  from: number;
-  to: number;
-  kicker?: string;
-  text: string;
-  scene: string;
-}
+export type PlanSegment = IntroSegment | OutroSegment | CardSegment | ClipSegment;
 
 /** Linear piece of the output→source time map (for review / key frames). */
 export interface TimeMapEntry {
@@ -202,5 +232,12 @@ export interface EditOverrides {
   transition_duration?: number;
   /** Disable all camera moves. */
   camera?: boolean;
+  /**
+   * Component switches without touching the scenario: by kind ("intro", "layout", "caption"…) for the whole video,
+   * or by segment id ("intro", "<scene id>", "interstitial-3") for one segment. Theme defaults apply otherwise.
+   */
+  components?: Record<string, import('@demo-studio/components').ComponentRef>;
+  /** Use another theme (template) for this render. */
+  theme?: string;
   music?: string | false;
 }

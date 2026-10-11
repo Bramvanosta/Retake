@@ -59,13 +59,16 @@ demo-studio/
     runner-web/  # Playwright/CDP runner: offscreen Chromium, cursor overlay, actions, screencast → frames → mp4, timeline.json
     runner-ios/  # iOS Simulator runner: xcrun simctl (boot, install, openurl, io recordVideo), idb/XCUITest for taps & typing, touch overlay
     hooks/       # setup/teardown: http, sql (pg), shell, js-in-page; rollback journal
-    editor/      # Remotion compositions: frames/mockups, captions, intro/outro, interstitials, zooms; renders from timeline + template
+    components/  # built-in component library (intros, outros, captions, layouts, cards, overlays) + registry/loader
+    editor/      # edit planner + Remotion composition that assembles components; renders from timeline + theme
     review/      # contact sheets, key frames, scene thumbnails, diff vs previous render, JSON report
     mcp/         # MCP server (stdio + HTTP) exposing the tools in §8
-    cli/         # `studio run|render|review|new` — everything the MCP does, for humans and CI
+    cli/         # `studio run|render|review|new|ui` — everything the MCP does, for humans and CI
+    ui/          # Studio web app (scenario blocks, timeline, comments) served by `studio ui`
   apps/
-    desktop/     # Phase 4: Tauri (Rust shell + web UI) — project browser, scenario editor, live preview, render queue
-  templates/     # generic starter templates (brand templates live in the user's workspace)
+    desktop/     # Tauri shell (Rust) around packages/ui — macOS
+  templates/     # generic starter themes (brand themes live in the user's workspace)
+  skills/        # Claude skills shipped with the tool (scenario, theme, component authoring)
   projects/      # user projects (see §4)
 ```
 
@@ -191,6 +194,8 @@ Target syntax: `text`, `contains`, `role` + `name`, `label`, `aria`, `css`, `in`
 
 - `project_list`, `project_create({name, readme, environments, template})`, `project_get`, `project_update_readme`
 - `template_list`, `template_create_from_brand({logo, colors, fonts})`, `template_preview`
+- `component_list({kind?})`, `component_create({id, kind, description})`, `component_preview({component, theme, slots?, params?})`, `component_validate`
+- `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
 - `scenario_validate({project, yaml})`, `scenario_save`, `scenario_from_script({project, script_markdown})` (helper that drafts YAML from a timecoded script table)
 - `page_inspect({project, url | page, selector?})` → screenshot + list of visible interactive elements with suggested targets (for authoring against any site); `scenario_record({project, url})` (headed browser: clicks/typing recorded into a draft scenario — CLI `studio record`)
 - `template_from_site({url})` → draft theme from a live site (colours, fonts, logo candidates)
@@ -216,22 +221,64 @@ All long tasks are async with status polling (agents' tool calls time out). Ever
 
 `review/<render>/`: `sheet_1fps.jpg` (labelled timecodes), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png`, `timeline.json`, `report.json` (scene durations, detected blank frames, caption overlaps, warnings). The MCP `review` tool returns these so an agent can verify before showing the user.
 
-## 11. Desktop app (phase 4, Tauri)
+## 11. Components (plugins) & themes
 
-Project list → README editor → scenario editor (YAML with schema autocompletion + live step list) → "Dry run" (live preview of the headless browser via screencast) → "Capture" → render queue with progress + notifications → review viewer (sheet, scrubber, markers) → export. The app is a client of the same core packages; the MCP keeps working without it.
+Every visual element of the edit is a **component**: intros, outros, title/chapter cards, waiting screens
+(interstitials), captions, screen layouts/frames (card, browser, laptop, phone…), overlays (lower thirds, callouts,
+badges) and transitions. Nothing visual is hard-coded in the editor: it assembles components.
 
-## 12. Security
+- A component is a folder: `component.yaml` (id `namespace/name`, version, kind, description, **slots** it renders —
+  logo, wordmark, screen, title, kicker, text, url… — a JSON Schema of **params**, the theme tokens it uses, duration
+  bounds, sample slot values for previews, and for layouts the screen/caption geometry) + a React (Remotion)
+  implementation + generated previews.
+- **Themes** (templates) provide the tokens (colours, fonts, logo, wordmark, brand name, url, background, cursor) and
+  pick a default component (+ params) per kind. A component adapts to any theme; a theme can be applied to any
+  component — previews are always rendered with the user's theme.
+- Scenarios can override per use: `intro: {component, params}`, `interstitial: {component, text}`, generic full-screen
+  `card: {component, slots, duration}` entries, scene `frame: <component>`, step `overlay: {component, slots, duration}`.
+- Sources, in resolution order: the workspace (`components/`, created by the user or by Claude through a skill), the
+  tool's built-in library, and — V2 — a cloud marketplace (manifests already carry publisher/version for it).
+- Authoring: a Claude skill (`demo-studio-component`) + MCP tools (`component_list`, `component_create`,
+  `component_preview`, `component_validate`) scaffold, preview with a theme and validate new components.
+
+## 12. Studio app (web UI, then the Tauri desktop shell)
+
+A client of the same packages (the MCP keeps working without it). Served locally by `studio ui`; the Tauri app
+(phase 5, macOS) wraps the same UI.
+- **Projects**: list, README editor, themes & component gallery (previews rendered with the project theme).
+- **Scenario as blocks** (WYSIWYG-like, two-way with the YAML — comments and formatting preserved): scenes are cards
+  (page, URL, caption, speed); steps are rows with an action icon and **badges** (click, type, navigation, scroll, zoom,
+  hold, mark, caption, speed, irreversible); inline editing, drag & drop reordering; each step shows the real frame from
+  the last dry-run/capture.
+- **Run**: dry-run with live preview of the headless browser (screencast), capture with progress.
+- **Edit/verify timeline**: segments (intro, scenes, cards, outro) with their **components switchable in one click**,
+  caption / camera (zoom) / speed / marker tracks, a scrubber with a live preview (Remotion Player — no render needed),
+  render queue, review report and contact sheets.
+- **Frame comments**: click a frame (optionally draw a region) and write a comment. Comments are anchored to the
+  render frame AND to the scenario (scene, step, segment, component) through the edit plan, stored in the workspace,
+  and exposed to Claude (`comments_list`, `comment_reply`, `comment_resolve`) so it can adapt the scenario and
+  re-render; resolved comments stay attached to the render version they were made on.
+
+## 13. Security
 
 - No passwords in scenarios; use pre-authenticated profiles or the macOS keychain via references.
 - Hooks are explicit files, logged, with rollback; destructive hooks require `confirm: true` in the scenario.
 - Staging/localhost allow-list per project; refuse to run setup hooks against hosts not listed.
 
-## 13. Phases & acceptance
+## 14. Phases & acceptance
 
 1. **Core + web runner + CLI**: run a "catalogue" scenario (against the bundled fixture product) headless at 1920×1080, produce capture.mp4 + timeline.json with an in-page cursor. Accept: cursor and clicks in sync, no hesitations, runs while the user uses the Mac.
-2. **Editor + review**: render two videos (supplier "catalogue" and buyer "quote request") from scenarios with a template, in the reference look (card frame, captions, intro/outro, interstitial). Accept: review report clean; output reviewed by Claude through contact sheets.
-3. **MCP + authoring**: a Claude session creates a project from a README, drafts a scenario from a timecoded script (or inspects/records the site), creates a theme from a brand or a site, dry-runs, captures, renders, reviews and iterates without human steps except approval.
-4. **iOS runner + Tauri app**.
-5. **V2 — licensing / packaging** (out of scope now; the architecture must not prevent it).
+2. **Components + editor + review**: component system (built-in library reproducing the reference look: intro,
+   outro, caption, card/browser/laptop/phone layouts, dark-clock interstitial, title card, overlays), themes picking
+   components, render two videos (supplier "catalogue" and buyer "quote request") from scenarios. Accept: review report
+   clean; output reviewed by Claude through contact sheets; switching a component or theme re-renders without touching
+   the scenario.
+3. **MCP + authoring + skills**: a Claude session creates a project from a README, drafts a scenario from a timecoded
+   script (or inspects/records the site), creates a theme from a brand or a site, creates a component through the skill,
+   dry-runs, captures, renders, reviews, reads frame comments and iterates without human steps except approval.
+4. **Studio app (web)**: projects, scenario blocks, run, edit/verify timeline with component switching and live
+   preview, frame comments.
+5. **macOS: Tauri desktop shell + iOS runner**.
+6. **V2 — cloud marketplace, licensing / packaging** (out of scope now; the architecture must not prevent it).
 
 Start with phase 1. The cursor overlay, click strategies, pacing defaults and the default edit (card frame, captions, intro/outro, interstitial) encode a method that was validated by hand on real product videos before this tool existed.

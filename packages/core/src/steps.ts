@@ -37,9 +37,13 @@ const COMMON_KEYS: ReadonlyArray<keyof StepCommon> = [
 
 const ACTION_SET = new Set<string>(ACTION_NAMES);
 
-/** The action keys present on a raw step object. */
+/**
+ * The action keys present on a raw step object. `hold` is also a modifier ("seconds of stillness
+ * after the step"): next to another action it is the modifier, alone it is the action.
+ */
 export function stepActionKeys(step: Record<string, unknown>): ActionName[] {
-  return Object.keys(step).filter((k) => ACTION_SET.has(k)) as ActionName[];
+  const keys = Object.keys(step).filter((k) => ACTION_SET.has(k)) as ActionName[];
+  return keys.length > 1 ? keys.filter((k) => k !== 'hold') : keys;
 }
 
 /** String targets are expanded; object targets are copied (explicit keys win). */
@@ -134,6 +138,7 @@ export function normalizeStep(step: Step, index: number): NormalizedStep {
     raw: step,
   };
   for (const k of COMMON_KEYS) {
+    if (k === action) continue; // a `hold` action is not also a hold modifier
     const v = (step as Record<string, unknown>)[k];
     if (v !== undefined) (out as unknown as Record<string, unknown>)[k] = v;
   }

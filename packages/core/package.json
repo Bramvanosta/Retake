@@ -6,8 +6,24 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./schema/*.json": "./schema/*.json"
   },
-  "files": ["dist", "src"],
-  "dependencies": { "yaml": "^2.8.1", "zod": "^4.1.0" }
+  "files": [
+    "dist",
+    "src",
+    "schema"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "gen:schema": "tsx scripts/gen-schema.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1",
+    "zod": "^4.1.0"
+  }
 }

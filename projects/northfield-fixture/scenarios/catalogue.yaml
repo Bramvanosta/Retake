@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Supplier side: import a price list, manage availability by market, add a coffee from the registry.
+video: catalogue
+title: {kicker: For suppliers, text: Manage your catalogue}
+outro: {tagline: "Your catalogue, under control."}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+  # Finca La Esperanza 2026 is already linked to an archived product, so the registry would refuse
+  # it as a duplicate. Free its registry ref for the shot (restored by the rollback / teardown).
+  - name: free-registry-ref
+    http:
+      method: DELETE
+      url: "{{console}}/api/products/finca-la-esperanza/refs"
+      rollback: {method: POST, url: "{{console}}/api/products/finca-la-esperanza/refs"}
+    confirm: true
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+scenes:
+  - id: import
+    caption: {kicker: Catalogue import, text: "Import your entire price list in seconds, with availability by region."}
+    page: console
+    open: /imports
+    steps:
+      - click: {text: New import}
+      - select: {combobox: "#import-organization", option: Northfield Roasters}
+      - drop_file: {zone: {text: "Click to choose a file"}, name: "Northfield - Price list 2027.xlsx", fake: true}
+      - click: {text: Start import, in: dialog}
+      - wait_for: {text: "921 offers created", timeout: 10}
+        mark: import-done
+      - hold: 2.2
+
+  - id: availability
+    caption: {kicker: Availability by market, text: "Pause a market, or fine-tune bag sizes, grinds and label languages in a few clicks."}
+    open: /availability/products/finca-el-paraiso-geisha
+    speed: 1.6
+    steps:
+      - scroll: {to: 560, duration: 1.5}
+      - menu: {row: Iceland, item: Pause, confirm: Pause}
+      - menu: {row: Sweden, item: Edit}
+      - pick: {field: Bag sizes, option: 1 kg}
+      - pick: {field: Grind options, option: Espresso}
+      - pick: {field: Label languages, search: Swe, option: Swedish}
+      - click: {text: Save, in: dialog}
+      - hold: 2
+
+  - id: add-product
+    caption: {kicker: Add a coffee, text: "Pick a lot from the registry: tasting notes, producer and awards fill in by themselves."}
+    open: /products
+    steps:
+      - click: {text: Add a coffee}
+      - type: {into: {in: dialog, role: textbox}, text: Finca La Esperanza, cps: 10}
+      - click: {in: dialog, contains: [Finca La Esperanza, "2026"]}
+      # Fails fast when the product page did not open (e.g. the registry refused a duplicate lot).
+      - wait_for: {text: Enrichment in progress, timeout: 5}
+      - wait_for: {not_text: Enrichment in progress, timeout: 30}
+        mark: reveal
+        hold: 1.4
+      - scroll: {to: {text: Awards}, offset: -140, duration: 2.2}
+        camera: {zoom: 1.3, target: {text: Awards}, ease: slow}
+      - hold: 3.5

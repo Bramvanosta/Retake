@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../packages/core/schema/project.schema.json
+# Demo Studio project filming the bundled fixture product (fixtures/wholesale).
+# Start it first:  pnpm fixture   (or: node fixtures/wholesale/server.mjs)
+name: Northfield (fixture)
+environments:
+  local:
+    console: http://localhost:4401
+    shop: http://localhost:4402
+default_env: local
+capture: {width: 1920, height: 1080, scale: 1, fps: 30}
+frame: card
+template: editorial
+locale: en
+reset:
+  - name: reset-fixture
+    http: {method: POST, url: "{{console}}/api/reset"}

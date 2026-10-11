@@ -1,0 +1,109 @@
+import { isAbsolute, parse, relative } from 'node:path';
+import pc from 'picocolors';
+import { formatPath } from '@demo-studio/core';
+import type { ValidationIssue } from '@demo-studio/core';
+import type { Colors, Io } from './io.js';
+
+/** Output helpers shared by every command: colours, paths, durations, issue lists, a live status line. */
+export class Ui {
+  readonly c: Colors;
+  private status = '';
+
+  constructor(
+    readonly io: Io,
+    readonly verbose = false,
+  ) {
+    this.c = pc.createColors(io.color);
+  }
+
+  /** Print a line on stderr (above the live status line, which is redrawn). */
+  line(text = ''): void {
+    this.clearStatus();
+    this.io.err(`${text}\n`);
+    this.drawStatus();
+  }
+
+  /** Print a line on stdout (results meant to be piped). */
+  result(text = ''): void {
+    this.io.out(`${text}\n`);
+  }
+
+  /** A transient line redrawn in place on interactive terminals (ignored otherwise). */
+  setStatus(text: string): void {
+    if (!this.io.interactive) return;
+    this.clearStatus();
+    this.status = text;
+    this.drawStatus();
+  }
+
+  clearStatus(): void {
+    if (!this.io.interactive || !this.status) return;
+    this.io.err('\r\x1b[2K');
+    this.status = '';
+  }
+
+  private drawStatus(): void {
+    if (this.io.interactive && this.status) this.io.err(this.status);
+  }
+
+  ok(text: string): void {
+    this.line(`${this.c.green('✓')} ${text}`);
+  }
+
+  warn(text: string): void {
+    this.line(`${this.c.yellow('!')} ${this.c.yellow(text)}`);
+  }
+
+  error(text: string): void {
+    this.line(`${this.c.red('✗')} ${this.c.red(text)}`);
+  }
+
+  info(text: string): void {
+    this.line(text);
+  }
+
+  debug(text: string): void {
+    if (this.verbose) this.line(this.c.dim(text));
+  }
+
+  /** Path relative to the working directory when inside it, else absolute. */
+  path(p: string): string {
+    return displayPath(p);
+  }
+
+  /** "file:12:5 error scenes[1].steps[3].click: message", severity coloured. */
+  issue(i: ValidationIssue, file?: string): string {
+    let loc = file ? this.path(file) : '';
+    if (i.line !== undefined) loc += `${loc ? ':' : ''}${i.line}:${i.col ?? 1}`;
+    const sev = i.severity === 'error' ? this.c.red('error') : this.c.yellow('warning');
+    const where = formatPath(i.path);
+    return `${loc ? `${this.c.dim(loc)} ` : ''}${sev} ${where ? `${this.c.bold(where)}: ` : ''}${i.message}`;
+  }
+}
+
+export function displayPath(p: string): string {
+  const cwd = process.cwd();
+  // From the filesystem root a relative path would read like an absolute one without its leading slash.
+  if (!isAbsolute(p) || cwd === parse(cwd).root) return p;
+  const rel = relative(cwd, p);
+  return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : p;
+}
+
+/** 850 → "850 ms", 4210 → "4.2 s", 75000 → "1 m 15 s". */
+export function formatMs(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return `${m} m ${String(s).padStart(2, '0')} s`;
+}
+
+/** Cut to `max` characters with an ellipsis. */
+export function truncate(s: string, max: number): string {
+  const flat = s.replace(/\s+/g, ' ');
+  return flat.length <= max ? flat : `${flat.slice(0, Math.max(0, max - 1))}…`;
+}
+
+export function plural(n: number, word: string, many = `${word}s`): string {
+  return `${n} ${n === 1 ? word : many}`;
+}

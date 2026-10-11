@@ -898,6 +898,8 @@ export interface LoadedProject {
   scenarios: string[];
   /** Absolute path of project.yaml. */
   file: string;
+  /** Non-blocking issues (warnings) of project.yaml, set by loadProject. */
+  issues?: ValidationIssue[];
 }
 
 export interface LoadedScenario {

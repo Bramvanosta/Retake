@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=../../packages/core/schema/template.schema.json
+# Demo Studio starter template "motion": a bolder variant for teasers and launch clips.
+# Dark gradient, hot coral accent, Space Grotesk display, browser frame with overlaid captions,
+# cuts through black and richer motion design.
+# Placeholder brand: "Demo Studio" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
+name: motion
+
+colors:
+  accent: "#ff5c38"   # hot coral: kicker, rules, cursor ripple
+  text: "#f5f6fa"     # near-white: titles and caption lines on the dark background
+  muted: "#9ea3b5"    # taglines, url
+  # Dark surface: in this dark template the paper is the night tone, which is why interstitials
+  # use the `paper` style (paper-coloured card, text-coloured type).
+  paper: "#11131c"
+
+fonts:
+  display: fonts/SpaceGrotesk-Bold.ttf
+  body: [fonts/Inter-Regular.ttf, fonts/Inter-SemiBold.ttf, fonts/Inter-Bold.ttf]
+
+logo: logo.svg
+wordmark: wordmark.svg
+
+background: {type: linear, from: "#0a0b11", to: "#1c2030"}
+
+frame: {style: browser, width: 1600, radius: 14, shadow: strong}
+
+captions:
+  position: overlay
+  kicker: {font: body, weight: 700, size: 15, uppercase: true, color: accent, letter_spacing: 0.16}
+  line: {font: display, size: 44, color: text, letter_spacing: -0.015}
+
+intro: {duration: 2.6, layout: kicker-title}
+outro: {duration: 2.8, layout: logo-wordmark-tagline-url, url: example.com}
+interstitial: {style: paper, duration: 2.2}
+transitions: {between_scenes: fade-black, duration: 0.4}
+
+cursor: {style: arrow-dark, ripple_color: "rgba(255, 92, 56, 0.5)", size: 28}
+
+motion: {default_zoom: none, max_zoom: 1.6, zoom_ease: [0.7, 0, 0.2, 1]}
+style_bias: motion
+
+brandmark: {position: none}

@@ -12,3 +12,9 @@ fixtures/*/public/build/
 .demo-studio/
 *.log
 .env
+# test / capture artefacts
+*.mp4
+*.mov
+*.webm
+**/test-output/
+**/.tmp/
