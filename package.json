@@ -1,0 +1,24 @@
+{
+  "name": "demo-studio",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -b",
+    "watch": "tsc -b --watch",
+    "typecheck": "tsc -b --noEmit false",
+    "test": "vitest run",
+    "studio": "node packages/cli/dist/bin.js",
+    "fixture": "node fixtures/wholesale/server.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp", "@remotion/compositor-linux-x64-gnu"]
+  }
+}

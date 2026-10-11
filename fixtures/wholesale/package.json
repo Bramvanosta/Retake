@@ -1,0 +1,21 @@
+{
+  "name": "@demo-studio/fixture-wholesale",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@base-ui/react": "^1.9.0",
+    "esbuild": "^0.25.10"
+  }
+}

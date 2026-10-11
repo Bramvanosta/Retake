@@ -1,0 +1,32 @@
+{
+  "name": "@demo-studio/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@demo-studio/core": "workspace:*",
+    "@demo-studio/runner-web": "workspace:*",
+    "@demo-studio/hooks": "workspace:*",
+    "@demo-studio/editor": "workspace:*",
+    "@demo-studio/review": "workspace:*",
+    "@demo-studio/mcp": "workspace:*",
+    "commander": "^14.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "bin": {
+    "studio": "./dist/bin.js"
+  }
+}

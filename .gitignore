@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+# generated per project
+projects/*/runs/
+projects/*/renders/
+projects/*/review/
+projects/*/exports/
+frames/
+fixtures/*/public/build/
+.demo-studio/
+*.log
+.env
