@@ -10,15 +10,31 @@ export function distance(a: PointSpec, b: PointSpec): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-/** Below this distance a move is a "nudge": short duration and short hover (repeated clicks on one spot). */
+/** Default nudge threshold (pacing.nudge_px): below it a move is a "nudge" (repeated clicks on one spot). */
 export const NUDGE_PX = 60;
+/** Default nudge travel time (pacing.nudge_ms) and hover (pacing.nudge_hover_ms). */
 export const NUDGE_MS = 250;
 export const NUDGE_HOVER_MS = 120;
+/** Shortest nudge, as a fraction of nudge_ms: 0.6 × 250 ms = 150 ms. */
+const NUDGE_MIN_FRACTION = 0.6;
 
-/** Cursor travel duration: clamp(base + d·per_px, min, max); nudges are short, zero-length moves take no time. */
-export function moveDuration(dist: number, pacing: Pacing): number {
+type MotionPacing = Pick<Pacing, 'move_base_ms' | 'move_ms_per_px' | 'move_min_ms' | 'move_max_ms'> &
+  Partial<Pick<Pacing, 'nudge_px' | 'nudge_ms'>>;
+
+/** Whether a move of `dist` px is a nudge. */
+export function isNudge(dist: number, pacing: Partial<Pick<Pacing, 'nudge_px'>>): boolean {
+  return dist < (pacing.nudge_px ?? NUDGE_PX);
+}
+
+/**
+ * Cursor travel duration. Ordinary moves: clamp(move_base_ms + d·move_ms_per_px, move_min_ms, move_max_ms) — the
+ * field-tested clamp(0.9·d, 450, 1100) with the defaults. Nudges (d < nudge_px, e.g. repeated clicks on almost the
+ * same spot) take 60–100 % of nudge_ms (≈150–250 ms); a zero-length move takes 0 ms (never a 450 ms move to nowhere).
+ */
+export function moveDuration(dist: number, pacing: MotionPacing): number {
   if (dist < 1) return 0;
-  if (dist < NUDGE_PX) return Math.round(NUDGE_MS * Math.max(0.5, dist / NUDGE_PX));
+  const nudgePx = pacing.nudge_px ?? NUDGE_PX;
+  if (dist < nudgePx) return Math.round((pacing.nudge_ms ?? NUDGE_MS) * Math.max(NUDGE_MIN_FRACTION, dist / nudgePx));
   return Math.round(clamp(pacing.move_base_ms + dist * pacing.move_ms_per_px, pacing.move_min_ms, pacing.move_max_ms));
 }
 

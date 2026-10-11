@@ -14,10 +14,12 @@ export { kitSource, kitConfigFor, DEFAULT_CURSOR_SIZE, DEFAULT_RIPPLE_COLOR, CUR
 export type * from './kit/types.js';
 export { openLoginBrowser } from './login.js';
 export type { LoginOptions } from './login.js';
-export { mergePacing, mergeCapture, mergeBrowser, resolveAuth } from './config.js';
+export { mergePacing, mergeCapture, mergeBrowser, projectBrowser, resolveAuth } from './config.js';
 export { CaptureClock, TimelineBuilder, computeIdle, motionCapture } from './timeline.js';
 export type { MotionCapture } from './timeline.js';
-export { moveDuration, arcPath, easeInOutCubic } from './motion.js';
+export { moveDuration, arcPath, easeInOutCubic, isNudge } from './motion.js';
 export { evalInPage } from './actions/misc.js';
 export { RunnerError, StepError, CancelledError, EncodeError } from './errors.js';
-export { StepFailure, describeStep, DEFAULT_STEP_TIMEOUT_S } from './scenes.js';
+export { StepFailure, describeStep, DEFAULT_STEP_TIMEOUT_S, ERROR_DOM_MAX } from './scenes.js';
+export { probeChromium, chromiumExecutable } from './probe.js';
+export type { ChromiumProbe } from './probe.js';

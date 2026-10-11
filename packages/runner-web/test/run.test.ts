@@ -145,6 +145,22 @@ describe('drop_file', () => {
     expect(ev[0].data).toMatchObject({ delivered: 'drop' });
     expect(ev[2].data).toMatchObject({ delivered: 'input' });
     expect(ev[4].data).toMatchObject({ delivered: 'input' });
+    // The cursor travels to the screen edge to fetch the file (eased), it never jumps there.
+    for (const i of [0, 2]) {
+      const inStep = tl.cursor.filter((c) => c.t >= ev[i].t_start - 0.001 && c.t <= ev[i].t_end);
+      const steps = inStep.slice(1).map((c, k) => Math.hypot(c.x - inStep[k].x, c.y - inStep[k].y));
+      expect(Math.max(...steps), `drop_file ${i}`).toBeLessThan(200);
+      expect(inStep.some((c) => c.x <= 4 || c.x >= 796)).toBe(true); // it did reach the edge
+    }
+    // R-ISS-05: the drop is recorded like a click (role trigger) and described by the top-level fields.
+    for (const [i, strategy] of [[0, 'drop'], [2, 'input'], [4, 'input']] as const) {
+      const e = ev[i];
+      const clicks = (e.data as { clicks: Array<Record<string, unknown>> }).clicks;
+      expect(clicks).toHaveLength(1);
+      expect(clicks[0]).toMatchObject({ role: 'trigger', strategy, popup_opened: false, t_click: e.t_click, point: e.point });
+      expect(clicks[0].bbox).toEqual(e.target?.bbox);
+      expect(e).toMatchObject({ strategy, popup_opened: false });
+    }
   });
 });
 
@@ -175,7 +191,8 @@ describe('scroll', () => {
     expect((ev[0].data as { container: string }).container).not.toBe('document');
     const docTop = (ev[5].data as { value: number }).value;
     expect(docTop).toBeGreaterThan(1500);
-    expect(ev[4].target?.bbox?.y).toBeCloseTo(120, -1);
+    // Default pacing.scroll_offset −140: the target ends ~140 px below the top (field notes, R-CHO-17).
+    expect(ev[4].target?.bbox?.y).toBeCloseTo(140, -1);
   });
 });
 

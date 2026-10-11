@@ -35,7 +35,7 @@ const round2 = (n) => Math.round(n * 100) / 100;
 const toMs = (local) => Date.parse(`${local}Z`);
 const toLocal = (ms) => new Date(ms).toISOString().slice(0, 19);
 
-/** Lower-case, accents stripped: "Paraíso" → "paraiso". */
+/** Lower-case, accents stripped: "Café Ñandú" → "cafe nandu". */
 export function fold(s) {
   return String(s ?? '')
     .normalize('NFD')

@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { writeJson } from '@demo-studio/core';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { executeRollback } from './kinds/index.js';
@@ -8,6 +9,36 @@ import type { HookContext, HookResult, JournalEntry, JournalFile, NewJournalEntr
 import { isRecord, nowIso } from './util.js';
 
 export const JOURNAL_FILE = 'hooks-journal.json';
+/**
+ * Journals of hooks run outside a capture (`studio hooks run`, `studio env reset`), relative to the project dir:
+ * `<project>/.demo-studio/journals/<id>.json` — kept out of runs/ so they never look like runs (git-ignored).
+ */
+export const JOURNALS_DIR = '.demo-studio/journals';
+
+export interface JournalLocations {
+  /** Default `<projectDir>/runs`: run journals are `<runsDir>/<run-id>/hooks-journal.json`. */
+  runsDir?: string;
+  /** Default `<projectDir>/.demo-studio/journals`: standalone journals are `<journalsDir>/<id>.json`. */
+  journalsDir?: string;
+}
+
+/** Journal file of a standalone hooks run (`studio hooks run`, `studio env reset`). */
+export function standaloneJournalFile(projectDir: string, id: string, opts: JournalLocations = {}): string {
+  return join(opts.journalsDir ?? join(projectDir, JOURNALS_DIR), `${id}.json`);
+}
+
+/** The journal of `id`: a run's `runs/<id>/hooks-journal.json`, else `.demo-studio/journals/<id>.json`; null when neither exists. */
+export function findJournal(projectDir: string, id: string, opts: JournalLocations = {}): string | null {
+  const run = join(opts.runsDir ?? join(projectDir, 'runs'), id, JOURNAL_FILE);
+  if (existsSync(run)) return run;
+  const standalone = standaloneJournalFile(projectDir, id, opts);
+  return existsSync(standalone) ? standalone : null;
+}
+
+/** Id of a journal file: the run id (`runs/<id>/hooks-journal.json`) or the file name (`journals/<id>.json`). */
+export function journalId(file: string): string {
+  return basename(file) === JOURNAL_FILE ? basename(dirname(file)) : basename(file).replace(/\.json$/i, '');
+}
 
 const KINDS = new Set(['http', 'sql', 'shell', 'js']);
 const PHASES = new Set(['setup', 'teardown', 'reset']);
@@ -44,7 +75,8 @@ function validate(value: unknown, file: string): JournalFile {
 
 /**
  * Rollback journal of executed hooks, persisted atomically as JSON after every change
- * (runs/<id>/hooks-journal.json). Not safe for concurrent use by several processes.
+ * (runs/<id>/hooks-journal.json for captures, .demo-studio/journals/<id>.json for standalone hook runs).
+ * Not safe for concurrent use by several processes.
  */
 export class Journal {
   private writing: Promise<void> = Promise.resolve();
@@ -187,23 +219,42 @@ export class Journal {
   }
 }
 
-/**
- * Journals with pending rollbacks: `<projectDir>/runs/<run-id>/hooks-journal.json` (or under `runsDir`),
- * most recent run first (run ids start with a timestamp). Journals that cannot be read are
- * included so the caller surfaces their error when opening them.
- */
-export async function findPendingJournals(projectDir: string, opts: { runsDir?: string } = {}): Promise<string[]> {
-  const runsDir = opts.runsDir ?? join(projectDir, 'runs');
-  let dirs: string[];
+async function listDirs(dir: string): Promise<string[]> {
   try {
-    dirs = (await readdir(runsDir, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
+    return (await readdir(dir, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
   }
-  const out: string[] = [];
-  for (const name of dirs.sort().reverse()) {
+}
+
+async function listJsonFiles(dir: string): Promise<string[]> {
+  try {
+    return (await readdir(dir, { withFileTypes: true })).filter((d) => d.isFile() && /\.json$/i.test(d.name)).map((d) => d.name);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw e;
+  }
+}
+
+/**
+ * Journals with pending rollbacks, from both locations: `<projectDir>/runs/<run-id>/hooks-journal.json` (captures)
+ * and `<projectDir>/.demo-studio/journals/<id>.json` (`studio hooks run`, `studio env reset`), most recent first
+ * (ids start with a timestamp). Journals that cannot be read are included so the caller surfaces their error when
+ * opening them.
+ */
+export async function findPendingJournals(projectDir: string, opts: JournalLocations = {}): Promise<string[]> {
+  const runsDir = opts.runsDir ?? join(projectDir, 'runs');
+  const journalsDir = opts.journalsDir ?? join(projectDir, JOURNALS_DIR);
+  const candidates: Array<{ id: string; file: string }> = [];
+  for (const name of await listDirs(runsDir)) {
     const file = join(runsDir, name, JOURNAL_FILE);
+    if (existsSync(file)) candidates.push({ id: name, file });
+  }
+  for (const name of await listJsonFiles(journalsDir)) candidates.push({ id: name.replace(/\.json$/i, ''), file: join(journalsDir, name) });
+  candidates.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  const out: string[] = [];
+  for (const { file } of candidates) {
     let journal: Journal;
     try {
       journal = await Journal.open(file);
@@ -227,7 +278,7 @@ export interface JournalRollback {
 export async function rollbackPendingJournals(
   projectDir: string,
   ctx: HookContext,
-  opts: { runsDir?: string } = {},
+  opts: JournalLocations = {},
 ): Promise<JournalRollback[]> {
   const out: JournalRollback[] = [];
   for (const file of await findPendingJournals(projectDir, opts)) {

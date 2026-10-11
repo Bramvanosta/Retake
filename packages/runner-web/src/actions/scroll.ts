@@ -6,8 +6,8 @@ import type { StepContext } from '../runtime.js';
 import { clamp } from '../util.js';
 import type { ActionResult } from './types.js';
 
-/** Default distance between a scroll target and the top of its container (it ends 120 px below the top). */
-export const DEFAULT_SCROLL_OFFSET = -120;
+/** Default distance between a scroll target and the top of its container (pacing.scroll_offset: 140 px below the top). */
+export const DEFAULT_SCROLL_OFFSET = -140;
 
 /** Animated in-page scroll of a container (rAF raced with setTimeout, easeInOutCubic). */
 export async function scroll(ctx: StepContext, args: ScrollArgs): Promise<ActionResult> {
@@ -25,7 +25,7 @@ export async function scroll(ctx: StepContext, args: ScrollArgs): Promise<Action
     target = await resolveTarget(ctx, to, { scroll: false, promote: false });
     container ??= await kit.scrollContainerFor(target.ref, true);
     info = await kit.scrollInfo(container, target.ref);
-    top = (info.target_top ?? 0) + (args.offset ?? DEFAULT_SCROLL_OFFSET);
+    top = (info.target_top ?? 0) + (args.offset ?? pacing.scroll_offset ?? DEFAULT_SCROLL_OFFSET);
   } else {
     container ??= await kit.scrollContainerFor(null);
     info = await kit.scrollInfo(container);

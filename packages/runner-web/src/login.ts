@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import { resolveEnvironment } from '@demo-studio/core';
 import type { BrowserConfig, LoadedProject } from '@demo-studio/core';
-import { mergeBrowser, resolveAuth } from './config.js';
+import { projectBrowser, resolveAuth } from './config.js';
 import { RunnerError } from './errors.js';
 import { DEFAULT_BROWSER_ARGS } from './session.js';
 
@@ -32,7 +32,7 @@ export async function openLoginBrowser(opts: LoginOptions): Promise<{ profileDir
   const url = opts.url ?? (key ? env.pages[key] : undefined);
   if (!url) throw new RunnerError(`environment "${env.name}" has no page "${opts.page ?? ''}"`);
   await mkdir(profileDir, { recursive: true });
-  const b = mergeBrowser(opts.project.config.browser, opts.browser);
+  const b = projectBrowser(opts.project, opts.browser);
   const executablePath = b.executable ?? process.env.DEMO_STUDIO_CHROMIUM ?? undefined;
   const context = await chromium.launchPersistentContext(profileDir, {
     headless: false,

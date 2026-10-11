@@ -985,6 +985,49 @@ export function demoKit(config: KitConfig): void {
     return { x: Math.round(W * 0.8), y: Math.round(H * 0.5) };
   }
 
+  /** Box covered by the drawn cursor when its hotspot is at (x, y): the arrow extends right and down. */
+  function cursorBox(x: number, y: number): { l: number; t: number; r: number; b: number } {
+    const size = Math.max(12, config.cursor.size || 26);
+    return { l: x - 6, t: y - 6, r: x + size * 0.8 + 4, b: y + size + 6 };
+  }
+  function restNear(box: BBox): { x: number; y: number; side: string } {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const EDGE = 28;
+    const CLEAR = 14;
+    const R = box.x + box.w;
+    const B = box.y + box.h;
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    // Natural resting spots a hand would leave the pointer at: below-right first, then around the target.
+    const cands: Array<[string, number, number]> = [
+      ['below-right', R + 56, B + 44],
+      ['right', R + 84, cy + 18],
+      ['below', cx + 36, B + 64],
+      ['below-left', box.x - 64, B + 44],
+      ['above-right', R + 56, box.y - 72],
+      ['above', cx + 36, box.y - 92],
+      ['left', box.x - 96, cy + 18],
+      ['above-left', box.x - 72, box.y - 72],
+    ];
+    const inside = (x: number, y: number) => x >= EDGE && y >= EDGE && x <= W - EDGE - 20 && y <= H - EDGE - 28;
+    const covers = (x: number, y: number) => {
+      const c = cursorBox(x, y);
+      return c.r > box.x - CLEAR && c.l < R + CLEAR && c.b > box.y - CLEAR && c.t < B + CLEAR;
+    };
+    const neutral = (x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y);
+      if (!hit) return true;
+      if (isInteractive(hit) || hit.closest('a[href],button,input,select,textarea,[role=button],[role=link]')) return false;
+      const cur = getComputedStyle(hit).cursor;
+      return cur !== 'pointer' && cur !== 'text';
+    };
+    const ok = cands.filter(([, x, y]) => inside(x, y) && !covers(x, y)).map(([side, x, y]) => ({ side, x: Math.round(x), y: Math.round(y) }));
+    const best = ok.find((p) => neutral(p.x, p.y)) ?? ok[0];
+    if (best) return best;
+    return { ...restPoint(), side: 'fallback' };
+  }
+
   // ───────────────────────────── widgets ─────────────────────────────
   const TRIGGER_NAME = /\b(actions?|more|menu|options|manage|settings|row actions)\b|…|⋯|⋮|•••|\.\.\./i;
   function menuTrigger(rowId: string): string | null {
@@ -1238,8 +1281,9 @@ export function demoKit(config: KitConfig): void {
     .dbg{position:absolute;left:-3px;top:-3px;width:6px;height:6px;background:#FF00FF}
     .rp{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
         background:${config.cursor.ripple_color};pointer-events:none;
-        animation:dsr-t 450ms cubic-bezier(.2,.7,.2,1) forwards,dsr-o 500ms ease-out forwards}
-    @keyframes dsr-t{from{transform:var(--p) scale(.4)}to{transform:var(--p) scale(3.8)}}
+        box-shadow:0 0 0 1.1px rgba(255,255,255,.95),0 0 0 2px rgba(17,17,17,.3);
+        animation:dsr-t 500ms cubic-bezier(.2,.7,.2,1) forwards,dsr-o 550ms ease-out forwards}
+    @keyframes dsr-t{from{transform:var(--p) scale(.4)}to{transform:var(--p) scale(5.5)}}
     @keyframes dsr-o{from{opacity:1}to{opacity:0}}
     .g{position:absolute;left:0;top:0;display:flex;align-items:center;gap:12px;padding:10px 16px 10px 10px;
        background:#fff;border:1px solid rgba(31,20,19,.12);border-radius:12px;
@@ -1642,12 +1686,17 @@ export function demoKit(config: KitConfig): void {
     },
     dragGhost: ghost,
     restPoint,
+    restNear,
     hasText: textVisible,
     snapshot: (id, max) => {
       const el = id ? deref(id) : document.body;
       let html = el ? el.outerHTML : document.documentElement.outerHTML;
       html = html.replace(/<demo-studio-cursor[\s\S]*?<\/demo-studio-cursor>/g, '');
-      return html.length > max ? html.slice(0, max) + `\n<!-- … trimmed (${html.length} chars) -->` : html;
+      if (html.length <= max) return html;
+      // Cut after the last complete tag within the cap (a cut inside a tag would be unreadable).
+      let cut = html.lastIndexOf('>', max - 1) + 1;
+      if (cut < max * 0.75) cut = max;
+      return html.slice(0, cut) + `\n<!-- … trimmed to ${cut} of ${html.length} chars -->`;
     },
     domClick,
     pointerSequence,

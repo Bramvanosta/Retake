@@ -17,10 +17,11 @@ import type {
   PointInfo,
   PopupEntry,
   ResolveResult,
+  RestPlan,
   ScrollInfo,
   ScrollOp,
 } from './kit/types.js';
-import type { PointSpec, TargetObject } from '@demo-studio/core';
+import type { BBox, PointSpec, TargetObject } from '@demo-studio/core';
 
 export interface SessionOptions {
   width: number;
@@ -141,6 +142,9 @@ export class KitClient {
   }
   restPoint(): Promise<PointSpec> {
     return this.call('restPoint');
+  }
+  restNear(box: BBox): Promise<RestPlan> {
+    return this.call('restNear', box);
   }
   hasText(text: string): Promise<boolean> {
     return this.call('hasText', text);

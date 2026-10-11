@@ -140,7 +140,7 @@ export function AddCoffeeDialog({ open, onOpenChange }) {
           ) : null}
         </div>
         {query.trim().length < 2 ? (
-          <div className="registry-hint">Try a farm like “Finca El Paraíso”, a region like “Huila” or a reference like GCR-26-0412.</div>
+          <div className="registry-hint">Try a farm like “Finca Lirandel”, a region like “Huila” or a reference like GCR-26-0412.</div>
         ) : searched && results.length === 0 && !loading ? (
           <div className="registry-hint">No registry lots match “{searched}”.</div>
         ) : (

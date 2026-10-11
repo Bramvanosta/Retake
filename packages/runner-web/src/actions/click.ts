@@ -2,11 +2,11 @@ import type { Page, Request } from 'playwright-core';
 import { hasLocator, pickTarget } from '@demo-studio/core';
 import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec } from '@demo-studio/core';
 import { StepError } from '../errors.js';
-import { NUDGE_HOVER_MS, NUDGE_PX, distance } from '../motion.js';
+import { distance, isNudge } from '../motion.js';
 import type { PopupEntry } from '../kit/types.js';
 import { poll, resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
-import type { StepContext } from '../runtime.js';
+import type { ClickRole, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
 import type { ActionResult } from './types.js';
 
@@ -20,12 +20,27 @@ export interface ClickRun {
   /** A popup was expected (aria-haspopup, aria-expanded=false, combobox, expect_popup). */
   expected: boolean;
   popup_opened: boolean;
+  /** ms from the first press to the evidence that the popup opened (aria-expanded / new popup). */
+  popup_ms?: number;
   /** The click started a document navigation (waited for load). */
   navigated: boolean;
+  /** The click changed the page: a document navigation, or a new URL (SPA route, ignoring the hash). */
+  page_changed: boolean;
 }
 
 export interface ClickRunOptions extends ClickOptions {
   count?: 1 | 2;
+  /** Role of the click inside a composite step (recorded in data.clicks). Default 'trigger'. */
+  click_role?: ClickRole;
+}
+
+/** URL without its hash: a hash change is an in-page jump, not a new page. */
+function pageUrl(page: Page): string {
+  try {
+    return page.url().replace(/#.*$/, '');
+  } catch {
+    return '';
+  }
 }
 
 /** Watches a page for a main-frame document navigation started by an action. */
@@ -59,6 +74,7 @@ export function watchNavigation(page: Page) {
   };
 }
 
+/** Poll (every 40 ms, up to `ms`) for evidence that a popup opened: aria-expanded="true" on the trigger or a new visible popup. */
 async function popupOpened(ctx: StepContext, ref: string, before: Set<number>, expandedBefore: string | null, ms: number): Promise<boolean> {
   const { kit } = ctx.rt;
   const hit = await poll(
@@ -96,26 +112,32 @@ export async function approach(ctx: StepContext, r: Resolved, opts: { move_ms?: 
 }
 
 /**
- * The click engine. Real CDP input first; when a popup was expected and nothing new showed up within
- * popup_timeout_ms, fall back to el.click(), then to a synthetic pointer/mouse sequence.
+ * The click engine. Real CDP input first; when a popup was expected and no evidence of it (aria-expanded="true" or a
+ * new visible popup, polled every 40 ms) showed up within popup_fallback_ms, fall back to el.click(), then to a
+ * synthetic pointer/mouse sequence (which waits up to popup_timeout_ms). A click that changed the page (navigation or
+ * new URL) is followed by at least after_navigation_ms of stillness so the new page can be seen.
  */
 export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRunOptions = {}): Promise<ClickRun> {
   const { rt } = ctx;
   const { pacing, pointer, kit } = rt;
   const dist = await approach(ctx, r, opts);
-  const hoverMs = opts.hover_ms ?? (dist < NUDGE_PX ? NUDGE_HOVER_MS : pacing.hover_ms);
+  const hoverMs = opts.hover_ms ?? (isNudge(dist, pacing) ? pacing.nudge_hover_ms : pacing.hover_ms);
   await rt.sleep(ctx.jitter.ms(hoverMs));
 
   const expected = opts.expect_popup ?? r.popupExpected;
   const before = new Set((await kit.popupState()).map((p) => p.id));
   const expandedBefore = expected ? await kit.expanded(r.ref) : null;
   const page = rt.page;
+  const urlBefore = pageUrl(page);
   const nav = watchNavigation(page);
   const requested = opts.strategy ?? 'auto';
   let strategy: UsedStrategy;
   let t_click: number;
   let opened = false;
+  let popupMs: number | undefined;
+  let clickWall = 0;
   try {
+    clickWall = wallNow();
     if (requested === 'dom' || requested === 'pointer') {
       t_click = rt.now();
       if (requested === 'dom') await kit.domClick(r.ref, r.point.x, r.point.y);
@@ -127,18 +149,27 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
     }
     const afterStart = wallNow();
     if (expected && !nav.started()) {
-      opened = await popupOpened(ctx, r.ref, before, expandedBefore, pacing.popup_timeout_ms);
-      if (!opened && requested === 'auto') {
-        for (const fallback of ['dom', 'pointer'] as const) {
+      const auto = requested === 'auto';
+      // With fallbacks left, a click gets popup_fallback_ms to show evidence; the last strategy gets popup_timeout_ms.
+      opened = await popupOpened(ctx, r.ref, before, expandedBefore, auto ? pacing.popup_fallback_ms : pacing.popup_timeout_ms);
+      if (!opened && auto) {
+        const fallbacks = ['dom', 'pointer'] as const;
+        for (let i = 0; i < fallbacks.length; i++) {
+          const fallback = fallbacks[i];
           if (nav.started() || !(await kit.visible(r.ref))) break;
-          if ((await kit.expanded(r.ref)) === 'true') break;
+          if ((await kit.expanded(r.ref)) === 'true' || (await kit.popupState()).some((p) => !before.has(p.id))) {
+            opened = true; // late evidence: the previous strategy worked after all
+            break;
+          }
           if (fallback === 'dom') await kit.domClick(r.ref, r.point.x, r.point.y);
           else await kit.pointerSequence(r.ref, r.point.x, r.point.y);
           strategy = fallback;
-          opened = await popupOpened(ctx, r.ref, before, expandedBefore, pacing.popup_timeout_ms);
+          const last = i === fallbacks.length - 1;
+          opened = await popupOpened(ctx, r.ref, before, expandedBefore, last ? pacing.popup_timeout_ms : pacing.popup_fallback_ms);
           if (opened) break;
         }
       }
+      if (opened) popupMs = Math.round(wallNow() - clickWall);
       if (!opened) rt.warn(`${ctx.scene.id}.${ctx.step.index}: clicking ${r.spec} was expected to open a popup but none appeared`);
       await rt.sleep(ctx.jitter.ms(opts.after_ms ?? (opened ? pacing.after_popup_ms : pacing.after_click_ms)));
     } else {
@@ -146,6 +177,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       const afterMs = ctx.jitter.ms(opts.after_ms ?? pacing.after_click_ms);
       opened =
         (await poll(ctx, async () => !nav.started() && (await kit.popupState()).some((p) => !before.has(p.id)), afterMs, 50)) === true;
+      if (opened) popupMs = Math.round(wallNow() - clickWall);
       const total = opened && opts.after_ms === undefined ? ctx.jitter.ms(pacing.after_popup_ms) : afterMs;
       await rt.sleep(afterStart + total - wallNow());
     }
@@ -153,8 +185,33 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
   } finally {
     nav.stop();
   }
-  const run: ClickRun = { resolved: r, t_click, point: { ...pointer.pos() }, strategy, expected, popup_opened: opened, navigated: nav.started() };
-  ctx.clicks.push({ t: t_click, point: run.point, desc: r.desc, bbox: r.bbox, strategy, popup_opened: opened });
+  const pageChanged = nav.started() || (urlBefore !== '' && pageUrl(page) !== urlBefore);
+  if (pageChanged && opts.after_ms === undefined) {
+    // Field notes: hold 1.5–2.8 s after an action that changes the page, so the viewer sees the new page.
+    const left = clickWall + pacing.after_navigation_ms - wallNow();
+    if (left > 0) await rt.sleep(left);
+  }
+  const run: ClickRun = {
+    resolved: r,
+    t_click,
+    point: { ...pointer.pos() },
+    strategy,
+    expected,
+    popup_opened: opened,
+    navigated: nav.started(),
+    page_changed: pageChanged,
+  };
+  if (popupMs !== undefined) run.popup_ms = popupMs;
+  ctx.clicks.push({
+    role: opts.click_role ?? 'trigger',
+    t: t_click,
+    point: run.point,
+    desc: r.desc,
+    bbox: r.bbox,
+    strategy,
+    popup_opened: opened,
+    ...(popupMs !== undefined ? { popup_ms: popupMs } : {}),
+  });
   return run;
 }
 
@@ -191,17 +248,34 @@ export async function clickOutside(ctx: StepContext, open?: PopupEntry[]): Promi
   const target = { x: plan.x, y: plan.y };
   const dist = distance(pointer.pos(), target);
   await pointer.moveTo(target, { jitter: ctx.jitter });
-  await rt.sleep(ctx.jitter.ms(dist < NUDGE_PX ? NUDGE_HOVER_MS : pacing.hover_ms * 0.7));
+  await rt.sleep(ctx.jitter.ms(isNudge(dist, pacing) ? pacing.nudge_hover_ms : pacing.hover_ms * 0.7));
   const t_click = await pointer.click();
   const closed = await waitPopupsGone(ctx, closing, Math.max(1500, pacing.popup_timeout_ms * 3));
   if (!closed) rt.warn(`${ctx.scene.id}.${ctx.step.index}: the popover did not close after clicking outside`);
   await rt.sleep(ctx.jitter.ms(pacing.after_click_ms));
   const desc = plan.kind === 'dialog-title' ? 'dialog title (click outside)' : 'blank area (click outside)';
-  ctx.clicks.push({ t: t_click, point: target, desc, strategy: 'real' });
+  ctx.clicks.push({ role: 'outside', t: t_click, point: target, desc, strategy: 'real', popup_opened: false });
   return { t_click, point: target, desc, closed };
 }
 
-function clickResult(run: ClickRun): ActionResult {
+/** Every pointer interaction of a composite step, as recorded in the timeline (`data.clicks`). */
+export function clickData(ctx: StepContext): Array<Record<string, unknown>> {
+  return ctx.clicks.map((c) => {
+    const out: Record<string, unknown> = {
+      role: c.role,
+      strategy: c.strategy ?? 'real',
+      popup_opened: c.popup_opened ?? false,
+      point: { x: c.point.x, y: c.point.y },
+      t_click: c.t,
+      desc: c.desc,
+    };
+    if (c.bbox) out.bbox = { ...c.bbox };
+    if (c.popup_ms !== undefined) out.popup_ms = c.popup_ms;
+    return out;
+  });
+}
+
+function clickResult(run: ClickRun, ctx: StepContext): ActionResult {
   const out: ActionResult = {
     target: { desc: run.resolved.desc, bbox: run.resolved.bbox },
     point: run.point,
@@ -209,6 +283,7 @@ function clickResult(run: ClickRun): ActionResult {
     strategy: run.strategy,
   };
   if (run.expected || run.popup_opened) out.popup_opened = run.popup_opened;
+  if (run.page_changed) out.data = { navigation: { kind: run.navigated ? 'document' : 'url', url: ctx.rt.page.url() } };
   return out;
 }
 
@@ -229,12 +304,12 @@ export async function click(ctx: StepContext, args: TargetObject & ClickOptions)
       run.point.x >= b.x && run.point.x <= b.x + b.w && run.point.y >= b.y && run.point.y <= b.y + b.h;
     const closed = await waitPopupsGone(ctx, before.filter((p) => !inside(p.bbox)).map((p) => p.id));
     if (!closed) ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: the popover did not close after clicking ${run.resolved.desc}`);
-    return { ...clickResult(run), data: { closed } };
+    return { ...clickResult(run, ctx), data: { closed } };
   }
   if (!hasLocator(target)) throw new StepError('click: no target given (use text, role, label, css… or outside: true)');
   const run = await clickTarget(ctx, target, args);
-  if (run.navigated) ctx.rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: click navigated to ${ctx.rt.page.url()}`);
-  return clickResult(run);
+  if (run.page_changed) ctx.rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: click changed the page to ${ctx.rt.page.url()}`);
+  return clickResult(run, ctx);
 }
 
 export async function doubleClick(ctx: StepContext, args: TargetObject & ClickOptions): Promise<ActionResult> {
@@ -242,7 +317,7 @@ export async function doubleClick(ctx: StepContext, args: TargetObject & ClickOp
     ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: double_click always uses real input (strategy ${args.strategy} ignored)`);
   }
   const run = await clickTarget(ctx, pickTarget(args), { ...args, strategy: 'real', count: 2 });
-  return clickResult(run);
+  return clickResult(run, ctx);
 }
 
 export async function hover(ctx: StepContext, args: TargetObject & { ms?: number; move_ms?: number }): Promise<ActionResult> {

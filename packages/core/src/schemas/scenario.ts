@@ -4,6 +4,8 @@ import { HookStepSchema } from './hooks.js';
 import {
   CaptionSpecSchema,
   FrameStyleSchema,
+  PointSchema,
+  TargetSpecSchema,
   TransitionSchema,
   keyString,
   nonEmpty,
@@ -13,6 +15,15 @@ import {
 } from './primitives.js';
 import { CapturePartialSchema, PacingPartialSchema } from './settings.js';
 import { StepSchema, speedSchema } from './steps.js';
+
+export const SceneCursorSchema = z
+  .union([z.enum(['auto', 'keep']), PointSchema, TargetSpecSchema])
+  .meta({
+    id: 'SceneCursor',
+    description:
+      "Where the cursor rests at the scene start: 'auto' (default: a neutral point near the first pointer target, never on it), " +
+      "'keep' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is \"auto\".",
+  });
 
 export const SceneSchema = z
   .strictObject({
@@ -25,6 +36,7 @@ export const SceneSchema = z
     steps: z.array(StepSchema).describe('Actions, in order.'),
     speed: speedSchema().describe('Edit-time speed for the whole scene, in (0, 8].').optional(),
     still: seconds().describe('Seconds of stillness at scene start (default pacing.scene_start_still).').optional(),
+    cursor: SceneCursorSchema.optional(),
     transition: TransitionSchema.describe('Transition INTO this scene (default: template).').optional(),
     frame: FrameStyleSchema.optional(),
     irreversible: z.boolean().describe('Every step is irreversible (dry-run stops the scene at its first step).').optional(),

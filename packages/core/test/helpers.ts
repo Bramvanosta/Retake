@@ -1,5 +1,5 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,22 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 /** The example scenario of docs/SPEC.md §6 (copied verbatim). */
 export const SPEC_EXAMPLE = readFileSync(join(here, 'fixtures', 'catalogue.yaml'), 'utf8');
+
+/** The hook files the SPEC example references (missing hook files are errors when a project is known). */
+export const SPEC_HOOK_FILES: Record<string, string> = {
+  'hooks/remove-registry-refs.sql': "DELETE FROM registry_refs WHERE product_slug = 'finca-quenaro';\n",
+  'hooks/restore-registry-refs.sql': "INSERT INTO registry_refs (product_slug, ref) VALUES ('finca-quenaro', 'GCR-26-0412');\n",
+};
+
+/** A project directory (created once, synchronously) holding the SPEC example's hook files. */
+export function specProjectDir(): string {
+  const dir = join(mkdtempSync(join(tmpdir(), 'demo-studio-spec-')), 'projects', 'northfield');
+  for (const [rel, content] of Object.entries(SPEC_HOOK_FILES)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), content);
+  }
+  return dir;
+}
 
 export const STAGING = {
   staging: {

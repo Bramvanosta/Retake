@@ -14,6 +14,8 @@ import {
   mergeCapture,
   mergePacing,
   moveDuration,
+  isNudge,
+  projectBrowser,
   resolveAuth,
 } from '../src/index.js';
 import { imageSize } from '../src/recorder.js';
@@ -36,6 +38,40 @@ describe('motion', () => {
     expect(short).toBeGreaterThanOrEqual(450);
     expect(long).toBeGreaterThan(short);
     expect(moveDuration(5000, DEFAULT_PACING)).toBe(1100);
+  });
+
+  it('follows the field notes: clamp(0.9·d, 450, 1100) ms; nudges 150–250 ms; zero-length moves 0 ms (R-CHO-03)', () => {
+    const p = DEFAULT_PACING;
+    expect([p.move_base_ms, p.move_ms_per_px, p.move_min_ms, p.move_max_ms]).toEqual([0, 0.9, 450, 1100]);
+    expect(moveDuration(300, p)).toBe(450); // 270 → 450
+    expect(moveDuration(600, p)).toBe(540);
+    expect(moveDuration(1000, p)).toBe(900);
+    expect(moveDuration(1300, p)).toBe(1100);
+    // Repeated clicks on (almost) the same spot: short moves, never a 450 ms move to nowhere.
+    expect(moveDuration(0.4, p)).toBe(0);
+    expect(moveDuration(2, p)).toBe(150);
+    expect(moveDuration(30, p)).toBe(150);
+    expect(moveDuration(45, p)).toBe(188);
+    expect(moveDuration(59, p)).toBe(246);
+    expect(moveDuration(60, p)).toBe(450);
+    for (let d = 1; d < p.nudge_px; d += 3) {
+      expect(moveDuration(d, p)).toBeGreaterThanOrEqual(150);
+      expect(moveDuration(d, p)).toBeLessThanOrEqual(250);
+    }
+    expect(isNudge(59, p)).toBe(true);
+    expect(isNudge(60, p)).toBe(false);
+    // The nudge fields are pacing settings.
+    expect(moveDuration(40, { ...p, nudge_px: 30 })).toBe(450);
+    expect(moveDuration(30, { ...p, nudge_ms: 200 })).toBe(120);
+  });
+
+  it('pacing defaults: navigation hold, popup fallback, scroll offset (R-CHO-07/09/17)', () => {
+    expect(DEFAULT_PACING.after_navigation_ms).toBe(1500);
+    expect(DEFAULT_PACING.popup_fallback_ms).toBeGreaterThanOrEqual(250);
+    expect(DEFAULT_PACING.popup_fallback_ms).toBeLessThanOrEqual(350);
+    expect(DEFAULT_PACING.popup_fallback_ms).toBeLessThan(DEFAULT_PACING.popup_timeout_ms);
+    expect(DEFAULT_PACING.scroll_offset).toBe(-140);
+    expect(mergePacing({ after_navigation_ms: 2000 }, { scroll_offset: -100 })).toMatchObject({ after_navigation_ms: 2000, scroll_offset: -100, popup_fallback_ms: 300 });
   });
 
   it('arcs slightly and lands exactly on the target', () => {
@@ -158,6 +194,16 @@ describe('configuration', () => {
     const perEnv: LoadedProject = { ...base, config: { ...base.config, auth: { test: { storage_state: '/abs/state.json' } } } };
     expect(resolveAuth(perEnv, 'test')).toEqual({ profileDir: undefined, storageState: '/abs/state.json' });
     expect(resolveAuth(perEnv, 'staging')).toEqual({});
+  });
+
+  it('the project locale is the browser locale unless browser.locale is set (R-PROJ-08)', () => {
+    const base = makeProject('/work/projects/northfield', { app: 'http://localhost' });
+    expect(projectBrowser(base).locale).toBeUndefined();
+    const withLocale: LoadedProject = { ...base, config: { ...base.config, locale: 'sv-SE', browser: { timezone: 'Europe/Stockholm' } } };
+    expect(projectBrowser(withLocale)).toEqual({ timezone: 'Europe/Stockholm', locale: 'sv-SE' });
+    const explicit: LoadedProject = { ...withLocale, config: { ...withLocale.config, browser: { locale: 'en-GB' } } };
+    expect(projectBrowser(explicit).locale).toBe('en-GB');
+    expect(projectBrowser(withLocale, { locale: 'fr-FR' }).locale).toBe('fr-FR');
   });
 
   it('the kit source is a self-contained script', () => {

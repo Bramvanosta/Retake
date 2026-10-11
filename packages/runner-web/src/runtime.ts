@@ -174,14 +174,25 @@ export class Runtime {
   }
 }
 
+/**
+ * Role of a pointer interaction inside a step: the click that opens the widget (trigger; also the only click of a
+ * plain click, the drop of a drop_file, the press of a drag), an option of a listbox/popover, a menu item, the
+ * confirmation button, a click outside that closes a popover, or a click into a popover's search field.
+ */
+export type ClickRole = 'trigger' | 'option' | 'item' | 'confirm' | 'outside' | 'search';
+
 /** One recorded pointer interaction inside a step. */
 export interface ClickRecord {
+  role: ClickRole;
+  /** Capture time of the press. */
   t: number;
   point: PointSpec;
   desc: string;
   bbox?: BBox;
   strategy?: string;
   popup_opened?: boolean;
+  /** ms from the press to the evidence that a popup opened. */
+  popup_ms?: number;
 }
 
 /** Per-step context passed to every action. */

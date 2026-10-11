@@ -26,6 +26,16 @@ export function mergeBrowser(...layers: Array<BrowserConfig | undefined>): Brows
   return out;
 }
 
+/**
+ * Browser settings of a project run: project.config.browser ← override; the project's `locale` drives the browser
+ * locale (navigator.language, Accept-Language, Intl formatting) unless `browser.locale` is set.
+ */
+export function projectBrowser(project: LoadedProject, override?: BrowserConfig): BrowserConfig {
+  const b = mergeBrowser(project.config.browser, override);
+  if (b.locale === undefined && project.config.locale) b.locale = project.config.locale;
+  return b;
+}
+
 function isAuthConfig(v: unknown): v is AuthConfig {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;

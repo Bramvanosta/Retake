@@ -20,7 +20,7 @@ scenes:
       - hover: {text: Start import}
       - hold: 1.8
   - id: availability
-    open: /availability/products/finca-el-paraiso-geisha
+    open: /availability/products/finca-lirandel-geisha
     steps:
       - scroll: {to: 560, duration: 1.5}
       - menu: {row: Iceland, item: Pause, confirm: Pause}
@@ -34,8 +34,8 @@ scenes:
   - id: add-product
     steps:
       - click: {text: Add a coffee}
-      - type: {into: {in: dialog, role: textbox}, text: Finca La Esperanza, cps: 10}
-      - click: {in: dialog, contains: [Finca La Esperanza, "2026"]}
+      - type: {into: {in: dialog, role: textbox}, text: Finca Quenaro, cps: 10}
+      - click: {in: dialog, contains: [Finca Quenaro, "2026"]}
       - wait_for: {not_text: Enrichment in progress, timeout: 30}
         mark: reveal     # named marker usable by the editor (speed 1, optional zoom)
       - scroll: {to: {text: Awards}, offset: -140, duration: 2.2}

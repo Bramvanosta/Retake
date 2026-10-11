@@ -22,7 +22,7 @@ import type {
   TemplateContext,
 } from '@demo-studio/core';
 import { evalInPage } from './actions/misc.js';
-import { mergeBrowser, mergeCapture, mergePacing, resolveAuth } from './config.js';
+import { mergeCapture, mergePacing, projectBrowser, resolveAuth } from './config.js';
 import { encodeFrames } from './encode.js';
 import { CancelledError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
@@ -177,7 +177,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       height: capture.height,
       scale: capture.scale,
       kit: kitConfigFor(opts.template),
-      browser: mergeBrowser(project.config.browser, opts.browser),
+      browser: projectBrowser(project, opts.browser),
       profileDir: auth.profileDir,
       storageState: auth.storageState,
       headed: opts.headed,

@@ -28,14 +28,14 @@ export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, op
           ctx.error(kp, 'sql needs exactly one of `file` or `query`');
         }
         const { file } = sqlSource(spec);
-        if (file) ctx.file(file, typeof spec === 'string' ? kp : [...kp, 'file'], 'SQL file', 'warning');
+        if (file) ctx.file(file, typeof spec === 'string' ? kp : [...kp, 'file'], 'SQL file', 'error');
         if (typeof spec === 'object' && spec.rollback !== undefined) {
           const rb = spec.rollback;
           if (typeof rb === 'object' && !rb.file === !rb.query) {
             ctx.error([...kp, 'rollback'], 'rollback needs exactly one of `file` or `query`');
           }
           const rbFile = typeof rb === 'string' ? sqlSource(rb).file : rb.file;
-          if (rbFile) ctx.file(rbFile, [...kp, 'rollback'], 'rollback SQL file', 'warning');
+          if (rbFile) ctx.file(rbFile, [...kp, 'rollback'], 'rollback SQL file', 'error');
         }
         break;
       }
@@ -43,7 +43,7 @@ export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, op
         const spec = (hook as { js: string | JsHookSpec }).js;
         if (typeof spec === 'object') {
           if (!spec.code === !spec.file) ctx.error(kp, 'js needs exactly one of `code` or `file`');
-          if (spec.file) ctx.file(spec.file, [...kp, 'file'], 'JS file', 'warning');
+          if (spec.file) ctx.file(spec.file, [...kp, 'file'], 'JS file', 'error');
           if (spec.page && opts.pages && !opts.pages.includes(spec.page)) {
             ctx.error(
               [...kp, 'page'],

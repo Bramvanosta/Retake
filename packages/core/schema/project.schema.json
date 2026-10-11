@@ -211,19 +211,38 @@
         },
         "move_base_ms": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Cursor travel: ms = clamp(move_base_ms + distance·move_ms_per_px, move_min_ms, move_max_ms)."
         },
         "move_ms_per_px": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "See move_base_ms (field notes: 0.9 ms per px)."
         },
         "move_min_ms": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Shortest ordinary move (450)."
         },
         "move_max_ms": {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Longest move (1100)."
+        },
+        "nudge_px": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Moves shorter than this (px) are nudges: repeated clicks on almost the same spot."
+        },
+        "nudge_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Travel time of a nudge of nudge_px (shorter nudges: down to 60 % of it; zero-length moves: 0)."
+        },
+        "nudge_hover_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Hover pause before pressing after a nudge."
         },
         "hover_ms": {
           "type": "number",
@@ -245,10 +264,20 @@
           "minimum": 0,
           "description": "Pause after a click that opened a popup (600–1000)."
         },
+        "after_navigation_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Minimum time after a click that navigated or changed the URL before the next step (1.5–2.8 s)."
+        },
+        "popup_fallback_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long a click gets to show that an expected popup opened (aria-expanded / new popup, polled) before the next click strategy."
+        },
         "popup_timeout_ms": {
           "type": "number",
           "minimum": 0,
-          "description": "How long to wait for an expected popup before the next click strategy."
+          "description": "How long the last click strategy waits for an expected popup before reporting it missing."
         },
         "type_cps": {
           "type": "number",
@@ -259,6 +288,10 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Smooth scroll duration in seconds (1.5–2)."
+        },
+        "scroll_offset": {
+          "type": "number",
+          "description": "Default scroll offset with a target (−140 ⇒ the target ends 140 px below the top)."
         },
         "jitter": {
           "type": "number",

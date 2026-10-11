@@ -1,5 +1,7 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
 import type { JsonSchemaName } from '@demo-studio/core';
+import { doctorCommand } from './commands/doctor.js';
+import type { DoctorOptions } from './commands/doctor.js';
 import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
 import type { HookCommandOptions } from './commands/hooks.js';
 import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, loginCommand, schemaCommand } from './commands/misc.js';
@@ -106,7 +108,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .command('rollback')
     .description('replay the pending rollbacks of a run (or of every run)')
     .argument('<project>', 'project slug or directory')
-    .argument('[run-id]', 'run id (folder under runs/)')
+    .argument('[id]', 'run id (folder under runs/) or hooks journal id (.demo-studio/journals/<id>.json)')
     .option('--env <name>', 'environment')
     .option('--dry', 'describe the rollbacks without executing them')
     .action(action((u, g, p: string, r: string | undefined, o: HookCommandOptions) => hooksRollbackCommand(u, g, p, r, o)));
@@ -120,6 +122,13 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
+
+  program
+    .command('doctor')
+    .description('check this machine for Demo Studio: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, template fonts')
+    .option('--project <slug>', "also check a project: its browser profile and its environments' hosts (HEAD, 5 s timeout)")
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, o: DoctorOptions) => doctorCommand(u, g, o)));
 
   program
     .command('schema')

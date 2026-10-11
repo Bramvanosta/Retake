@@ -251,6 +251,11 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     const runId = /studio hooks rollback api (\S+)\)/.exec(run.err)?.[1];
     expect(runId, run.err).toBeTruthy();
 
+    // R-ISS-06: the journal lives in .demo-studio/journals/, never in a run-looking folder of runs/.
+    const journals = join(root, 'projects', 'api', '.demo-studio', 'journals');
+    expect(await readdir(journals)).toEqual([`${runId}.json`]);
+    expect(existsSync(join(root, 'projects', 'api', 'runs'))).toBe(false);
+
     const rb = await cli('hooks', 'rollback', 'api', runId!);
     expect(rb.code, rb.err).toBe(EXIT.ok);
     expect(await armed()).toBe(false);
@@ -269,5 +274,10 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     expect(reset.err).toContain('environment reset');
     expect(await armed()).toBe(false);
     expect((await cli('hooks', 'rollback', 'api')).err).toContain('no pending rollbacks');
+    // R-ISS-06: hooks run + env reset journals are all under .demo-studio/journals/; runs/ stays empty.
+    const journals = await readdir(join(root, 'projects', 'api', '.demo-studio', 'journals'));
+    expect(journals.some((f) => /-env-reset\.json$/.test(f))).toBe(true);
+    expect(journals.every((f) => f.endsWith('.json'))).toBe(true);
+    expect(existsSync(join(root, 'projects', 'api', 'runs'))).toBe(false);
   });
 });

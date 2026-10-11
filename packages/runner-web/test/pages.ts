@@ -23,8 +23,8 @@ export const RESOLVER_PAGE = page(
   <span id="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Screen reader only</span>
   <div style="width:200px;height:30px;overflow:hidden;position:relative"><button id="b-clipped" style="position:absolute;top:60px">Clipped away</button></div>
   <a id="l-span" href="#x"><span>Wrapped <b>link</b></span></a>
-  <div id="card"><h3>Finca La Esperanza</h3><p>Harvest 2026</p></div>
-  <div><a id="card-a" href="#c"><div><h4>Finca El Paraiso</h4><span>Harvest 2025</span></div></a></div>
+  <div id="card"><h3>Finca Quenaro</h3><p>Harvest 2026</p></div>
+  <div><a id="card-a" href="#c"><div><h4>Finca Lirandel</h4><span>Harvest 2025</span></div></a></div>
   <label for="i-email">Email address</label> <input id="i-email">
   <label>Company <input id="i-company"></label>
   <span id="lbl-region">Region</span> <div role="combobox" id="cb-region" aria-labelledby="lbl-region" tabindex="0">Choose a region</div>
@@ -306,3 +306,39 @@ export const SHOP_PAGE = page('Shop', `<main><h1>Buyer shop</h1><p id="who"></p>
   document.getElementById('who').textContent = 'Welcome ' + (new URLSearchParams(location.search).get('buyer') || 'guest');
   document.getElementById('quote').addEventListener('click', () => (document.getElementById('who').textContent += ' — quote requested'));
 `);
+
+/** Ripple contrast: a primary button of the same colour as the editorial template ripple (burgundy). */
+export const RIPPLE_PAGE = page(
+  'Ripple',
+  `<main><button id="primary" style="position:absolute;left:200px;top:200px;width:360px;height:120px;border:0;border-radius:10px;
+    background:rgb(138,35,50);color:#fff;font-weight:600" aria-label="Send proposal"></button>
+    <button id="light" style="position:absolute;left:640px;top:200px;width:300px;height:120px">Cancel</button></main>`,
+);
+
+/** Scene-start cursor: a small target near the top-left, another one far right, a big block at the bottom. */
+export const CURSOR_PAGE = page(
+  'Cursor',
+  `<main>
+    <button id="start" style="position:absolute;left:40px;top:90px">Start</button>
+    <button id="far" style="position:absolute;left:640px;top:300px">Far away</button>
+    <div id="status" style="position:absolute;left:40px;top:520px">idle</div>
+  </main>`,
+  `for (const b of document.querySelectorAll('button')) b.addEventListener('click', () => { document.getElementById('status').textContent = b.id + ' clicked'; });`,
+);
+
+/** Navigation hold: a SPA route change (pushState), a full navigation and a plain button. */
+export const NAV_PAGE = page(
+  'Navigation',
+  `<main><h1 id="view">View one</h1>
+    <button id="plain" style="margin:8px">Plain</button>
+    <a id="spa" href="/nav.html?view=2" style="margin:8px">Open view two</a>
+    <a id="full" href="/nav2.html" style="margin:8px">Go to page two</a></main>`,
+  `document.getElementById('spa').addEventListener('click', (e) => { e.preventDefault(); history.pushState({}, '', '/nav.html?view=2'); document.getElementById('view').textContent = 'View two'; });
+   document.getElementById('plain').addEventListener('click', () => { document.getElementById('view').textContent = 'Plain clicked'; });`,
+);
+export const NAV2_PAGE = page('Page two', `<main><h1>Page two</h1></main>`);
+
+/** Locale: shows navigator.language and the Accept-Language header the server received (filled in by the server). */
+export function localePage(acceptLanguage: string): string {
+  return page('Locale', `<main><p id="nav"></p><p id="accept">accept=${acceptLanguage.replace(/[<>&]/g, '')}</p></main>`, `document.getElementById('nav').textContent = 'nav=' + navigator.language;`);
+}

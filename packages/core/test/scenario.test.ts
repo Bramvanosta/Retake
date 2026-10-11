@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { formatIssues, parseScenario, validateScenario } from '@demo-studio/core';
 import type { ValidationIssue } from '@demo-studio/core';
-import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, tempDir, warnings, writeFiles } from './helpers.js';
+import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
-const project = fakeProject();
+/** A staging project whose directory holds the hook files of the SPEC example. */
+const project = fakeProject(specProjectDir());
 
 function only(issues: ValidationIssue[], severity: 'error' | 'warning' = 'error'): ValidationIssue {
   const list = issues.filter((i) => i.severity === severity);
@@ -17,17 +18,62 @@ function scenario(steps: string, head = ''): string {
 }
 
 describe('docs/SPEC.md §6 example', () => {
-  it('parses with zero errors against a staging project (missing hook files are warnings)', () => {
+  it('parses with zero errors and zero warnings against a staging project holding its hook files', () => {
     const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { file: 'catalogue.yaml', project });
-    expect(errors(issues), formatIssues(issues)).toEqual([]);
+    expect(issues, formatIssues(issues)).toEqual([]);
     expect(s?.video).toBe('catalogue');
     expect(s?.scenes).toHaveLength(4);
-    const ws = warnings(issues);
-    expect(ws.map((w) => w.message)).toEqual([
-      'SQL file "hooks/remove-registry-refs.sql" not found in the project (it will fail when it runs)',
-      'SQL file "hooks/restore-registry-refs.sql" not found in the project (it will fail when it runs)',
+  });
+
+  it('missing hook SQL files of the example are errors, positioned on the hook (R-VAL-06)', () => {
+    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { file: 'catalogue.yaml', project: fakeProject() });
+    expect(s).toBeUndefined();
+    const es = errors(issues);
+    expect(es.map((w) => w.message)).toEqual([
+      'SQL file "hooks/remove-registry-refs.sql" not found in the project',
+      'SQL file "hooks/restore-registry-refs.sql" not found in the project',
     ]);
-    expect(ws[0].line).toBe(lineOf(SPEC_EXAMPLE, 'sql: hooks/remove-registry-refs.sql'));
+    expect(es[0].line).toBe(lineOf(SPEC_EXAMPLE, 'sql: hooks/remove-registry-refs.sql'));
+  });
+
+  it('missing hook SQL/JS files are errors when a project is known, and pass once the files exist (R-VAL-06)', async () => {
+    const { dir, cleanup } = await tempDir();
+    try {
+      const text = [
+        'video: demo',
+        'setup:',
+        '  - sql: hooks/seed.sql',
+        '  - sql: {file: hooks/other.sql, rollback: hooks/undo.sql}',
+        '  - js: {file: hooks/prepare.js}',
+        'scenes:',
+        '  - id: main',
+        '    page: console',
+        '    open: /',
+        '    steps:',
+        '      - wait: 1',
+        '',
+      ].join('\n');
+      const before = errors(parseScenario(text, { project: fakeProject(dir) }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
+      expect(before).toEqual([
+        'setup.0.sql: SQL file "hooks/seed.sql" not found in the project',
+        'setup.1.sql.file: SQL file "hooks/other.sql" not found in the project',
+        'setup.1.sql.rollback: rollback SQL file "hooks/undo.sql" not found in the project',
+        'setup.2.js.file: JS file "hooks/prepare.js" not found in the project',
+      ]);
+      await writeFiles(dir, {
+        'hooks/seed.sql': 'select 1;',
+        'hooks/other.sql': 'select 2;',
+        'hooks/undo.sql': 'select 3;',
+        'hooks/prepare.js': 'return 1;',
+      });
+      expect(errors(parseScenario(text, { project: fakeProject(dir) }).issues)).toEqual([]);
+      // Without a project nothing can be checked: warnings only.
+      const loose = parseScenario(text).issues;
+      expect(errors(loose)).toEqual([]);
+      expect(warnings(loose).length).toBe(4);
+    } finally {
+      await cleanup();
+    }
   });
 
   it('parses without a project (files cannot be checked → warnings)', () => {
@@ -342,5 +388,53 @@ describe('semantic checks', () => {
     expect(errors(parseScenario(text, { until: 'save' }).issues)).toEqual([]);
     const e = only(parseScenario(text, { until: 'main.nope' }).issues);
     expect(e.message).toMatch(/^--until "main.nope" does not match any step/);
+  });
+
+  it('scene cursor: auto | keep | point | target, validated (R-ISS-04)', () => {
+    const text = [
+      'video: demo',
+      'scenes:',
+      '  - id: a',
+      '    page: console',
+      '    open: /',
+      '    cursor: keep',
+      '    steps: [{click: Save}]',
+      '  - id: b',
+      '    cursor: {x: 1500, y: 540}',
+      '    steps: [{click: Save}]',
+      '  - id: c',
+      '    cursor: {text: New import, in: dialog}',
+      '    steps: [{click: Save}]',
+      '  - id: d',
+      '    cursor: auto',
+      '    steps: [{click: Save}]',
+      '  - id: e',
+      '    cursor: {x: 2400, y: 40}',
+      '    steps: [{click: Save}]',
+      '  - id: f',
+      '    cursor: {in: dialog}',
+      '    steps: [{click: Save}]',
+      '',
+    ].join('\n');
+    const { issues } = parseScenario(text, { project });
+    expect(errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
+      'scenes.5.cursor: target needs at least one of text, contains, role, label, aria, placeholder, css or testid',
+    ]);
+    expect(warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
+      'scenes.0.cursor: `cursor: keep` on the first scene: there is no previous position, it behaves like `auto`',
+      'scenes.4.cursor: point (2400, 40) is outside the 1920×1080 viewport: it is clamped inside',
+    ]);
+    expect(warnings(issues)[0].line).toBe(6);
+    const ok = parseScenario(text.replace('    cursor: {in: dialog}\n', ''), { project });
+    expect(ok.scenario?.scenes.map((sc) => ('cursor' in sc ? sc.cursor : undefined))).toEqual([
+      'keep',
+      { x: 1500, y: 540 },
+      { text: 'New import', in: 'dialog' },
+      'auto',
+      { x: 2400, y: 40 },
+      undefined,
+    ]);
+    const bad = only(parseScenario(text.replace('    cursor: {in: dialog}\n', '').replace('cursor: auto', 'cursor: [1, 2]'), { project }).issues);
+    expect(bad.path).toEqual(['scenes', 3, 'cursor']);
   });
 });

@@ -29,7 +29,7 @@ export function navigate(to, { replace = false, scroll = true } = {}) {
   if (scroll) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 }
 
-/** "/products/:slug" vs "/products/halo-beriti" → { slug: "halo-beriti" } | null */
+/** "/products/:slug" vs "/products/selowa-ridge" → { slug: "selowa-ridge" } | null */
 export function matchPath(pattern, pathname) {
   const p = pattern.split('/').filter(Boolean);
   const s = pathname.split('/').filter(Boolean);

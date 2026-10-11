@@ -57,7 +57,7 @@ async function hookContext(
           height: capture.height,
           scale: capture.scale,
           kit: rw.kitConfigFor(undefined),
-          browser: project.config.browser,
+          browser: rw.projectBrowser(project),
           profileDir: auth.profileDir,
           storageState: auth.storageState,
           log: (level, msg) => ctx.log(level, msg),
@@ -120,8 +120,9 @@ async function selectHooks(project: LoadedProject, spec: string, envOpt?: string
 }
 
 /**
- * `studio hooks run <project> <source>`: run setup/teardown/reset hooks outside a capture. Setup-like
- * runs (scenario setup, hooks files) keep a rollback journal under runs/ for `studio hooks rollback`.
+ * `studio hooks run <project> <source>`: run setup/teardown/reset hooks outside a capture. The journal (with the
+ * rollbacks of setup-like runs) is kept in <project>/.demo-studio/journals/<id>.json for `studio hooks rollback`,
+ * never in runs/ (which only holds captures).
  */
 export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg: string, spec: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
@@ -139,7 +140,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   }
   const hooks = await import('@demo-studio/hooks');
   const runId = newRunId(`hooks-${sel.label}`);
-  const journalFile = join(project.dir, 'runs', runId, hooks.JOURNAL_FILE);
+  const journalFile = hooks.standaloneJournalFile(project.dir, runId);
   const { ctx, close } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId });
   const c = ui.c;
   ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
@@ -159,7 +160,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   }
 }
 
-/** `studio hooks rollback <project> [run-id]`: replay pending rollbacks (one run, or every run). */
+/** `studio hooks rollback <project> [id]`: replay pending rollbacks (one run or hooks journal, or every pending one). */
 export async function hooksRollbackCommand(
   ui: Ui,
   global: GlobalOptions,
@@ -179,8 +180,12 @@ export async function hooksRollbackCommand(
 
 async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, runId: string): Promise<boolean> {
   const hooks = await import('@demo-studio/hooks');
-  const file = join(project.dir, 'runs', runId, hooks.JOURNAL_FILE);
-  if (!existsSync(file)) throw new CliError(`run "${runId}" has no hooks journal (${file})`);
+  const file = hooks.findJournal(project.dir, runId);
+  if (!file) {
+    throw new CliError(
+      `"${runId}" has no hooks journal (looked for ${join(project.dir, 'runs', runId, hooks.JOURNAL_FILE)} and ${hooks.standaloneJournalFile(project.dir, runId)})`,
+    );
+  }
   const journal = await hooks.Journal.open(file);
   const pending = journal.pending().length;
   if (!pending) {
@@ -214,7 +219,10 @@ async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookConte
   return ok;
 }
 
-/** `studio env reset <project>`: replay pending rollback journals, then the project's `reset` hooks. */
+/**
+ * `studio env reset <project>`: replay pending rollback journals (runs/ and .demo-studio/journals/), then the
+ * project's `reset` hooks (journaled in .demo-studio/journals/).
+ */
 export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
@@ -228,7 +236,7 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
     const reset = project.config.reset ?? [];
     if (reset.length) {
       ui.line(`${c.bold('reset')} ${c.dim(plural(reset.length, 'hook'))}`);
-      const journal = await hooks.Journal.open(join(project.dir, 'runs', runId, hooks.JOURNAL_FILE));
+      const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, runId));
       const res = await hooks.runHooks(reset, ctx, { phase: 'reset', journal });
       printResults(ui, res.results);
       ok &&= res.ok;

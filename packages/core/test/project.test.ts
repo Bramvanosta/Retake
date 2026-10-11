@@ -16,7 +16,7 @@ import {
   saveScenario,
   updateReadme,
 } from '@demo-studio/core';
-import { SPEC_EXAMPLE, STAGING, errors, tempDir, writeFiles } from './helpers.js';
+import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, errors, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
 const savedRoot = process.env.DEMO_STUDIO_ROOT;
@@ -70,7 +70,7 @@ describe('projects', () => {
       expect(existsSync(join(dir, f)), f).toBe(true);
     }
     expect((await readFile(join(dir, '.gitignore'), 'utf8')).split('\n')).toEqual(
-      expect.arrayContaining(['runs/', 'renders/', 'review/', 'exports/']),
+      expect.arrayContaining(['runs/', 'renders/', 'review/', 'exports/', '.demo-studio/']),
     );
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
     for (const h of ['# Northfield Wholesale', '## Product', '## Audience', '## Goals', '## Tone', '## Environments & links', '## Accounts (by reference — never passwords)', "## Do / Don't"]) {
@@ -151,6 +151,7 @@ describe('projects', () => {
     expect(existsSync(join(p.dir, 'scenarios', 'catalogue.yaml'))).toBe(false);
     await expect(saveScenario(p, '../escape', SPEC_EXAMPLE)).rejects.toThrow(/invalid scenario name/);
 
+    await writeFiles(p.dir, SPEC_HOOK_FILES);
     const saved = await saveScenario(p, 'catalogue', SPEC_EXAMPLE);
     expect(saved.file).toBe(join(p.dir, 'scenarios', 'catalogue.yaml'));
     expect(errors(saved.issues)).toEqual([]);

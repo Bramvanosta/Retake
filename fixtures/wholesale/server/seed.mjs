@@ -108,8 +108,8 @@ function lot(ref, name, o) {
 }
 
 const LOTS = [
-  lot('GCR-26-0107', 'Finca El Paraíso — Geisha', {
-    producer: 'Lucía & Tomás Arango',
+  lot('GCR-26-0107', 'Finca Lirandel — Geisha', {
+    producer: 'Lucía & Tomás Arvandi',
     origin: 'Colombia',
     region: 'Cauca',
     variety: 'Geisha',
@@ -129,8 +129,8 @@ const LOTS = [
     facts: { size: '18 ha', harvest: 'May – July', drying: 'Raised beds, 21 days', shade: 'Guamo & banana' },
     palette: 'apricot',
   }),
-  lot('GCR-26-0233', 'Kiamabara AA', {
-    farm: 'Kiamabara washing station',
+  lot('GCR-26-0233', 'Mountfern AA', {
+    farm: 'Mountfern washing station',
     producer: '920 smallholder members',
     origin: 'Kenya',
     region: 'Nyeri',
@@ -147,9 +147,9 @@ const LOTS = [
     facts: { size: '920 smallholdings', harvest: 'Oct – Dec', drying: 'Raised tables, 14 days', shade: 'Grevillea' },
     palette: 'berry',
   }),
-  lot('GCR-26-0318', 'Halo Beriti', {
-    farm: 'Halo Beriti washing station',
-    producer: 'Outgrowers of the Halo Beriti kebele',
+  lot('GCR-26-0318', 'Selowa Ridge', {
+    farm: 'Selowa Ridge washing station',
+    producer: 'Outgrowers of the Selowa hills',
     origin: 'Ethiopia',
     region: 'Gedeo, Yirgacheffe',
     variety: 'Heirloom 74110 · 74112',
@@ -168,8 +168,8 @@ const LOTS = [
     facts: { size: '650 garden plots', harvest: 'Nov – Jan', drying: 'Raised beds, 12 days', shade: 'Native forest' },
     palette: 'lemon',
   }),
-  lot('GCR-26-0412', 'Finca La Esperanza', {
-    producer: 'Andrés & Camila Molina',
+  lot('GCR-26-0412', 'Finca Quenaro', {
+    producer: 'Andrés & Camila Torvane',
     origin: 'Colombia',
     region: 'Huila',
     variety: 'Pink Bourbon',
@@ -181,7 +181,7 @@ const LOTS = [
     profile: { acidity: 4.4, sweetness: 4.6, body: 3.8, finish: 4.4 },
     awards: [
       { title: 'Cup of Origin · Colombia 2026', detail: '1st place · Lot #1', score: '92.0 points', kind: 'gold' },
-      { title: 'Huila Regional Showcase 2026', detail: 'Best Pink Bourbon', score: '90.6 points', kind: 'silver' },
+      { title: 'Southern Highlands Showcase 2026', detail: 'Best Pink Bourbon', score: '90.6 points', kind: 'silver' },
       { title: 'Registry cupping 2026', detail: 'Specialty grade, 3 cuppers', score: '92.0 points', kind: 'score' },
     ],
     story:
@@ -189,8 +189,8 @@ const LOTS = [
     facts: { size: '9 ha', harvest: 'Apr – Jun', drying: 'Shaded parabolic dryers, 25 days', shade: 'Inga & citrus' },
     palette: 'rose',
   }),
-  lot('GCR-26-0151', 'Fazenda Boa Vista — Yellow Bourbon', {
-    producer: 'Helena Duarte',
+  lot('GCR-26-0151', 'Fazenda Corvelha — Yellow Bourbon', {
+    producer: 'Helena Ravasco',
     origin: 'Brazil',
     region: 'Sul de Minas',
     variety: 'Yellow Bourbon',
@@ -206,8 +206,8 @@ const LOTS = [
     facts: { size: '64 ha', harvest: 'Jun – Aug', drying: 'Suspended beds, 20 days', shade: 'Partial, macadamia rows' },
     palette: 'caramel',
   }),
-  lot('GCR-26-0274', 'La Laguna — Caturra', {
-    producer: 'Esteban & Rosa Recinos',
+  lot('GCR-26-0274', 'Finca Tzunavel — Caturra', {
+    producer: 'Esteban & Rosa Quiraz',
     origin: 'Guatemala',
     region: 'Huehuetenango',
     variety: 'Caturra · Bourbon',
@@ -218,13 +218,13 @@ const LOTS = [
     notes: ['Red grape', 'Brown sugar', 'Orange zest'],
     profile: { acidity: 4.0, sweetness: 4.2, body: 3.7, finish: 3.9 },
     awards: [{ title: 'Registry cupping 2026', detail: 'Strictly hard bean', score: '87.5 points', kind: 'score' }],
-    story: 'High in the Cuchumatanes, dry winds from the Mexican plateau protect the farm from frost and let the cherries ripen slowly.',
+    story: 'High in the mountains, dry winds from the northern plateau protect the farm from frost and let the cherries ripen slowly.',
     facts: { size: '12 ha', harvest: 'Jan – Apr', drying: 'Patio, 10 days', shade: 'Gravilea & avocado' },
     palette: 'plum',
   }),
-  lot('GCR-26-0301', 'Bombe — Natural', {
-    farm: 'Bombe village',
-    producer: 'Smallholders of Bombe',
+  lot('GCR-26-0301', 'Wendaro — Natural', {
+    farm: 'Wendaro village',
+    producer: 'Smallholders of Wendaro',
     origin: 'Ethiopia',
     region: 'Sidama',
     variety: 'Heirloom',
@@ -234,13 +234,13 @@ const LOTS = [
     score: 89.5,
     notes: ['Strawberry', 'Blueberry', 'Dark chocolate', 'Rose'],
     profile: { acidity: 4.2, sweetness: 4.8, body: 3.9, finish: 4.2 },
-    awards: [{ title: 'Sidama Selection 2026', detail: 'Top 10 natural', score: '89.5 points', kind: 'silver' }],
+    awards: [{ title: 'Highland Naturals Selection 2026', detail: 'Top 10 natural', score: '89.5 points', kind: 'silver' }],
     story: 'Whole cherries are turned by hand every hour on African beds for close to a month, building a jammy, berry-laden sweetness.',
     facts: { size: '310 smallholdings', harvest: 'Nov – Jan', drying: 'African beds, 26 days', shade: 'Enset & native trees' },
     palette: 'violet',
   }),
-  lot('GCR-26-0189', 'Finca Santa Lucía — Gesha Natural', {
-    producer: 'Mariela Castillo',
+  lot('GCR-26-0189', 'Finca Neblivar — Gesha Natural', {
+    producer: 'Mariela Sorvanes',
     origin: 'Panama',
     region: 'Boquete, Chiriquí',
     variety: 'Gesha',
@@ -250,14 +250,14 @@ const LOTS = [
     score: 91.0,
     notes: ['Mango', 'Jasmine', 'Passion fruit'],
     profile: { acidity: 4.5, sweetness: 4.7, body: 3.4, finish: 4.6 },
-    awards: [{ title: 'Best of Panama Selection 2026', detail: 'Natural category, 3rd place', score: '91.0 points', kind: 'silver' }],
+    awards: [{ title: 'Isthmus Reserve Selection 2026', detail: 'Natural category, 3rd place', score: '91.0 points', kind: 'silver' }],
     story: 'Misty afternoons and the bajareque rain slow down ripening on this small Gesha plot, giving dense, perfumed beans.',
     facts: { size: '6 ha', harvest: 'Feb – Apr', drying: 'Raised beds in greenhouses, 30 days', shade: 'Cloud forest' },
     palette: 'mango',
   }),
-  lot('GCR-26-0355', 'Nyamasheke Lot 7', {
-    farm: 'Nyamasheke washing station',
-    producer: 'Lake Kivu growers’ group',
+  lot('GCR-26-0355', 'Orvane Lot 7', {
+    farm: 'Orvane washing station',
+    producer: 'Orvane lakeside growers’ group',
     origin: 'Rwanda',
     region: 'Western Province',
     variety: 'Red Bourbon',
@@ -268,12 +268,12 @@ const LOTS = [
     notes: ['Red currant', 'Black tea', 'Molasses'],
     profile: { acidity: 4.3, sweetness: 4.0, body: 3.5, finish: 3.9 },
     awards: [{ title: 'Registry cupping 2026', detail: 'Lot 7 of 12', score: '88.0 points', kind: 'score' }],
-    story: 'Growers on the hills above Lake Kivu deliver to the station by bicycle; every lot is floated, hand-sorted and dried under shade nets.',
+    story: 'Growers on the hills above the lake deliver to the station by bicycle; every lot is floated, hand-sorted and dried under shade nets.',
     facts: { size: '1,400 smallholdings', harvest: 'Mar – Jun', drying: 'Raised beds, 18 days', shade: 'Banana' },
     palette: 'cherry',
   }),
-  lot('GCR-26-0262', 'Hacienda Santa Rosa — Pacamara', {
-    producer: 'The Aguilar family',
+  lot('GCR-26-0262', 'Hacienda Velmora — Pacamara', {
+    producer: 'The Esquivar family',
     origin: 'El Salvador',
     region: 'Chalatenango',
     variety: 'Pacamara',
@@ -288,11 +288,11 @@ const LOTS = [
     facts: { size: '22 ha', harvest: 'Dec – Feb', drying: 'Patio & raised beds, 15 days', shade: 'Pepeto & citrus' },
     palette: 'cocoa',
   }),
-  lot('GCR-26-0246', 'Kirinyaga Peaberry', {
-    farm: 'Kirinyaga cooperative stations',
-    producer: 'Smallholders of Kirinyaga county',
+  lot('GCR-26-0246', 'Tembralo Peaberry', {
+    farm: 'Tembralo cooperative stations',
+    producer: 'Smallholders of the Tembralo cooperative',
     origin: 'Kenya',
-    region: 'Kirinyaga',
+    region: 'Central Highlands',
     variety: 'SL28 · Ruiru 11',
     process: 'Washed',
     altitude: '1,700 m',
@@ -305,9 +305,9 @@ const LOTS = [
     facts: { size: '2,100 smallholdings', harvest: 'Oct – Dec', drying: 'Raised tables, 15 days', shade: 'Macadamia' },
     palette: 'berry',
   }),
-  lot('GCR-26-0128', 'Cerrado Lot 21', {
-    farm: 'Fazenda Três Pontes',
-    producer: 'Rafael Nogueira',
+  lot('GCR-26-0128', 'Highplain Lot 21', {
+    farm: 'Fazenda Areval',
+    producer: 'Rafael Montebaro',
     origin: 'Brazil',
     region: 'Cerrado Mineiro',
     variety: 'Red Catuaí',
@@ -322,9 +322,9 @@ const LOTS = [
     facts: { size: '140 ha', harvest: 'May – Aug', drying: 'Patio then low-heat dryers', shade: 'Full sun' },
     palette: 'caramel',
   }),
-  lot('GCR-26-0390', 'Kayanza Hills — Natural', {
-    farm: 'Kayanza Hills station',
-    producer: 'Kayanza growers’ association',
+  lot('GCR-26-0390', 'Rumavelo Hills — Natural', {
+    farm: 'Rumavelo Hills station',
+    producer: 'Rumavelo growers’ association',
     origin: 'Burundi',
     region: 'Kayanza',
     variety: 'Red Bourbon',
@@ -339,9 +339,9 @@ const LOTS = [
     facts: { size: '1,050 smallholdings', harvest: 'Mar – Jun', drying: 'Raised beds, 28 days', shade: 'Banana & eucalyptus' },
     palette: 'cherry',
   }),
-  lot('GCR-26-0433', 'Aceh Gayo — Wet hulled', {
-    farm: 'Gayo highland cooperatives',
-    producer: 'Gayo highland growers',
+  lot('GCR-26-0433', 'Pelantar Highlands — Wet hulled', {
+    farm: 'Pelantar highland cooperatives',
+    producer: 'Pelantar highland growers',
     origin: 'Indonesia',
     region: 'Aceh',
     variety: 'Ateng · Tim Tim',
@@ -352,13 +352,13 @@ const LOTS = [
     notes: ['Cedar', 'Dark cocoa', 'Black pepper'],
     profile: { acidity: 2.8, sweetness: 3.8, body: 4.7, finish: 3.9 },
     awards: [{ title: 'Registry cupping 2026', detail: 'Grade 1', score: '85.0 points', kind: 'score' }],
-    story: 'Parchment is hulled while still moist, the traditional giling basah process that gives Sumatran coffees their heavy body.',
+    story: 'Parchment is hulled while still moist, a traditional process that gives these coffees their heavy body.',
     facts: { size: '3,000 smallholdings', harvest: 'Oct – Jun', drying: 'Patio, 3–5 days after hulling', shade: 'Lamtoro' },
     palette: 'forest',
   }),
   // Registry-only lots (not in the catalogue): found by "Add a coffee".
-  lot('GCR-25-0388', 'Finca La Esperanza', {
-    producer: 'Andrés & Camila Molina',
+  lot('GCR-25-0388', 'Finca Quenaro', {
+    producer: 'Andrés & Camila Torvane',
     origin: 'Colombia',
     region: 'Huila',
     variety: 'Pink Bourbon',
@@ -368,12 +368,12 @@ const LOTS = [
     score: 87.75,
     notes: ['Red apple', 'Panela', 'Cacao nib'],
     profile: { acidity: 4.2, sweetness: 4.3, body: 3.7, finish: 4.0 },
-    story: 'Previous harvest of the Molina family farm.',
+    story: 'Previous harvest of the Torvane family farm.',
     facts: { size: '9 ha', harvest: 'Apr – Jun', drying: 'Shaded parabolic dryers', shade: 'Inga & citrus' },
     palette: 'rose',
   }),
-  lot('GCR-24-0291', 'Finca La Esperanza', {
-    producer: 'Andrés & Camila Molina',
+  lot('GCR-24-0291', 'Finca Quenaro', {
+    producer: 'Andrés & Camila Torvane',
     origin: 'Colombia',
     region: 'Huila',
     variety: 'Caturra',
@@ -387,7 +387,7 @@ const LOTS = [
     facts: { size: '9 ha', harvest: 'Apr – Jun', drying: 'Patio', shade: 'Inga' },
     palette: 'rose',
   }),
-  lot('GCR-25-1170', 'Cooperativa La Esperanza', {
+  lot('GCR-25-1170', 'Cooperativa Quenaro', {
     producer: '86 member families',
     origin: 'Peru',
     region: 'Cajamarca',
@@ -398,12 +398,12 @@ const LOTS = [
     score: 86.0,
     notes: ['Caramel', 'Mandarin', 'Almond'],
     profile: { acidity: 3.8, sweetness: 4.1, body: 3.6, finish: 3.7 },
-    story: 'A cooperative lot blended from member farms around Jaén.',
+    story: 'A cooperative lot blended from member farms along the valley.',
     facts: { size: '86 farms', harvest: 'May – Aug', drying: 'Solar dryers', shade: 'Native trees' },
     palette: 'caramel',
   }),
-  lot('GCR-26-0450', 'Finca El Mirador — Sudan Rume', {
-    producer: 'Julián Paredes',
+  lot('GCR-26-0450', 'Finca Altavira — Sudan Rume', {
+    producer: 'Julián Orvieda',
     origin: 'Colombia',
     region: 'Nariño',
     variety: 'Sudan Rume',
@@ -413,12 +413,12 @@ const LOTS = [
     score: 90.25,
     notes: ['Lychee', 'Rose', 'Cane sugar'],
     profile: { acidity: 4.4, sweetness: 4.5, body: 3.3, finish: 4.3 },
-    story: 'A rare Sudan Rume plot on a ridge above the Juanambú canyon.',
+    story: 'A rare Sudan Rume plot on a ridge above a deep river canyon.',
     facts: { size: '4 ha', harvest: 'May – Jul', drying: 'Raised beds', shade: 'Native forest' },
     palette: 'rose',
   }),
-  lot('GCR-26-0471', 'Finca Las Nubes — Geisha', {
-    producer: 'Sofía Benítez',
+  lot('GCR-26-0471', 'Finca Nubelira — Geisha', {
+    producer: 'Sofía Varanda',
     origin: 'Ecuador',
     region: 'Pichincha',
     variety: 'Geisha',
@@ -432,8 +432,8 @@ const LOTS = [
     facts: { size: '7 ha', harvest: 'Jun – Sep', drying: 'Raised beds', shade: 'Cloud forest' },
     palette: 'apricot',
   }),
-  lot('GCR-26-0502', 'Guji Uraga — Natural', {
-    producer: 'Uraga smallholders',
+  lot('GCR-26-0502', 'Bensaro Forest — Natural', {
+    producer: 'Bensaro smallholders',
     origin: 'Ethiopia',
     region: 'Guji',
     variety: 'Heirloom',
@@ -447,8 +447,8 @@ const LOTS = [
     facts: { size: '540 smallholdings', harvest: 'Nov – Jan', drying: 'African beds', shade: 'Native forest' },
     palette: 'violet',
   }),
-  lot('GCR-26-0519', 'Finca San Isidro — Castillo', {
-    producer: 'Marta Quintero',
+  lot('GCR-26-0519', 'Finca Calvaro — Castillo', {
+    producer: 'Marta Velquinto',
     origin: 'Colombia',
     region: 'Tolima',
     variety: 'Castillo',
@@ -468,21 +468,21 @@ const LOTS = [
 
 /** Price per kg for 5 kg bags; the other sizes are derived (see pricesFor). */
 const CATALOGUE = [
-  { ref: 'GCR-26-0107', slug: 'finca-el-paraiso-geisha', price5: 79.5, lot: 'NF-26-014', badge: 'Cup of Origin · Lot #1', shelves: ['awards'], added: '2026-09-18' },
-  { ref: 'GCR-26-0233', slug: 'kiamabara-aa', price5: 34.2, lot: 'NF-26-031', badge: 'New harvest', shelves: ['arrivals'], added: '2026-10-22' },
-  { ref: 'GCR-26-0318', slug: 'halo-beriti', price5: 36.4, lot: 'NF-26-029', badge: 'Top 10 · Ethiopia 2026', shelves: ['arrivals'], added: '2026-10-20' },
-  { ref: 'GCR-26-0189', slug: 'finca-santa-lucia-gesha-natural', price5: 72.0, lot: 'NF-26-008', badge: 'Best of Panama · 91 pts', shelves: ['awards'], added: '2026-08-30' },
-  { ref: 'GCR-26-0301', slug: 'bombe-natural', price5: 33.8, lot: 'NF-26-027', badge: 'Sidama Selection · Top 10', shelves: ['awards'], added: '2026-10-15' },
-  { ref: 'GCR-26-0151', slug: 'fazenda-boa-vista-yellow-bourbon', price5: 24.6, lot: 'NF-26-011', badge: 'Espresso favourite', shelves: ['espresso'], added: '2026-07-12' },
-  { ref: 'GCR-26-0274', slug: 'la-laguna-caturra', price5: 27.9, lot: 'NF-26-019', badge: null, shelves: ['espresso'], added: '2026-08-04' },
-  { ref: 'GCR-26-0355', slug: 'nyamasheke-lot-7', price5: 29.4, lot: 'NF-26-024', badge: 'New harvest', shelves: ['arrivals'], added: '2026-10-08' },
-  { ref: 'GCR-26-0262', slug: 'hacienda-santa-rosa-pacamara', price5: 31.5, lot: 'NF-26-016', badge: null, shelves: ['espresso'], added: '2026-08-21' },
-  { ref: 'GCR-26-0246', slug: 'kirinyaga-peaberry', price5: 30.6, lot: 'NF-26-033', badge: 'New harvest', shelves: ['arrivals'], added: '2026-10-27' },
-  { ref: 'GCR-26-0128', slug: 'cerrado-lot-21', price5: 21.9, lot: 'NF-26-005', badge: 'House espresso', shelves: ['espresso'], added: '2026-06-02' },
-  { ref: 'GCR-26-0390', slug: 'kayanza-hills-natural', price5: 30.2, lot: 'NF-26-022', badge: 'Producer reserve', shelves: ['awards'], added: '2026-09-02' },
-  { ref: 'GCR-26-0433', slug: 'aceh-gayo-wet-hulled', price5: 26.4, lot: 'NF-26-013', badge: null, shelves: [], added: '2026-07-28' },
+  { ref: 'GCR-26-0107', slug: 'finca-lirandel-geisha', price5: 79.5, lot: 'NF-26-014', badge: 'Cup of Origin · Lot #1', shelves: ['awards'], added: '2026-09-18' },
+  { ref: 'GCR-26-0233', slug: 'mountfern-aa', price5: 34.2, lot: 'NF-26-031', badge: 'New harvest', shelves: ['arrivals'], added: '2026-10-22' },
+  { ref: 'GCR-26-0318', slug: 'selowa-ridge', price5: 36.4, lot: 'NF-26-029', badge: 'Top 10 · Ethiopia 2026', shelves: ['arrivals'], added: '2026-10-20' },
+  { ref: 'GCR-26-0189', slug: 'finca-neblivar-gesha-natural', price5: 72.0, lot: 'NF-26-008', badge: 'Isthmus Reserve · 91 pts', shelves: ['awards'], added: '2026-08-30' },
+  { ref: 'GCR-26-0301', slug: 'wendaro-natural', price5: 33.8, lot: 'NF-26-027', badge: 'Highland Naturals · Top 10', shelves: ['awards'], added: '2026-10-15' },
+  { ref: 'GCR-26-0151', slug: 'fazenda-corvelha-yellow-bourbon', price5: 24.6, lot: 'NF-26-011', badge: 'Espresso favourite', shelves: ['espresso'], added: '2026-07-12' },
+  { ref: 'GCR-26-0274', slug: 'finca-tzunavel-caturra', price5: 27.9, lot: 'NF-26-019', badge: null, shelves: ['espresso'], added: '2026-08-04' },
+  { ref: 'GCR-26-0355', slug: 'orvane-lot-7', price5: 29.4, lot: 'NF-26-024', badge: 'New harvest', shelves: ['arrivals'], added: '2026-10-08' },
+  { ref: 'GCR-26-0262', slug: 'hacienda-velmora-pacamara', price5: 31.5, lot: 'NF-26-016', badge: null, shelves: ['espresso'], added: '2026-08-21' },
+  { ref: 'GCR-26-0246', slug: 'tembralo-peaberry', price5: 30.6, lot: 'NF-26-033', badge: 'New harvest', shelves: ['arrivals'], added: '2026-10-27' },
+  { ref: 'GCR-26-0128', slug: 'highplain-lot-21', price5: 21.9, lot: 'NF-26-005', badge: 'House espresso', shelves: ['espresso'], added: '2026-06-02' },
+  { ref: 'GCR-26-0390', slug: 'rumavelo-hills-natural', price5: 30.2, lot: 'NF-26-022', badge: 'Producer reserve', shelves: ['awards'], added: '2026-09-02' },
+  { ref: 'GCR-26-0433', slug: 'pelantar-highlands-wet-hulled', price5: 26.4, lot: 'NF-26-013', badge: null, shelves: [], added: '2026-07-28' },
   // Archived: still holds its registry ref, so adding the 2026 harvest again is refused as a duplicate.
-  { ref: 'GCR-26-0412', slug: 'finca-la-esperanza', price5: 41.0, lot: 'NF-26-002', badge: null, shelves: [], added: '2026-05-14', status: 'archived' },
+  { ref: 'GCR-26-0412', slug: 'finca-quenaro', price5: 41.0, lot: 'NF-26-002', badge: null, shelves: [], added: '2026-05-14', status: 'archived' },
 ];
 
 const round10 = (n) => Math.round(n * 10) / 10;
@@ -517,7 +517,7 @@ const W2 = ['2027-01-19', '2027-05-14'];
 const W3 = ['2027-02-01', '2027-05-31'];
 
 /** The hero product of the availability screen: every region, long enough to scroll. */
-const PARAISO_AVAILABILITY = [
+const HERO_AVAILABILITY = [
   row('IS', W1, ['250 g', '1 kg'], ['Whole bean'], ['Icelandic', 'English'], 'active', { reserved: 42 }),
   row('SE', W1, ['250 g', '5 kg'], ['Whole bean', 'Filter'], ['English'], 'active', { reserved: 61 }),
   row('NO', W1, ['250 g', '1 kg', '5 kg'], ['Whole bean', 'Espresso'], ['Norwegian'], 'active', { reserved: 37 }),
@@ -577,7 +577,7 @@ const QUOTES = [
     buyer_id: 'demo-cafe',
     buyer_name: 'Demo Café',
     buyer_country: 'Sweden',
-    product_slug: 'la-laguna-caturra',
+    product_slug: 'finca-tzunavel-caturra',
     bags: 2,
     bag_size: '5 kg',
     grind: 'Whole bean',
@@ -594,7 +594,7 @@ const QUOTES = [
     buyer_id: 'demo-cafe',
     buyer_name: 'Demo Café',
     buyer_country: 'Sweden',
-    product_slug: 'kiamabara-aa',
+    product_slug: 'mountfern-aa',
     bags: 2,
     bag_size: '5 kg',
     grind: 'Whole bean',
@@ -611,7 +611,7 @@ const QUOTES = [
     buyer_id: 'demo-cafe',
     buyer_name: 'Demo Café',
     buyer_country: 'Sweden',
-    product_slug: 'fazenda-boa-vista-yellow-bourbon',
+    product_slug: 'fazenda-corvelha-yellow-bourbon',
     bags: 4,
     bag_size: '20 kg',
     grind: 'Whole bean',
@@ -625,10 +625,10 @@ const QUOTES = [
   },
   {
     id: '1041',
-    buyer_id: 'cafe-lindgarden',
-    buyer_name: 'Café Lindgården',
+    buyer_id: 'cafe-tallmora',
+    buyer_name: 'Café Tallmora',
     buyer_country: 'Finland',
-    product_slug: 'finca-el-paraiso-geisha',
+    product_slug: 'finca-lirandel-geisha',
     bags: 4,
     bag_size: '1 kg',
     grind: 'Filter',
@@ -642,10 +642,10 @@ const QUOTES = [
   },
   {
     id: '1040',
-    buyer_id: 'morgon-espresso',
-    buyer_name: 'Morgon Espressobar',
+    buyer_id: 'espressobar-kvistra',
+    buyer_name: 'Espressobar Kvistra',
     buyer_country: 'Norway',
-    product_slug: 'cerrado-lot-21',
+    product_slug: 'highplain-lot-21',
     bags: 6,
     bag_size: '20 kg',
     grind: 'Espresso',
@@ -660,9 +660,9 @@ const QUOTES = [
 ];
 
 const NOTIFICATIONS = [
-  { id: 'n-0031', buyer_id: 'demo-cafe', kind: 'order', title: 'Order NF-2291 has shipped', body: 'Kiamabara AA · 2 × 5 kg — arriving Thursday', href: '/quotes/1039', created_at: '2026-10-13T07:45:00', read: true },
-  { id: 'n-0030', buyer_id: 'demo-cafe', kind: 'arrival', title: 'New arrivals from Ethiopia', body: 'Halo Beriti and Bombe are now available in Sweden', href: '/products/halo-beriti', created_at: '2026-10-20T08:00:00', read: true },
-  { id: 'n-0029', buyer_id: 'demo-cafe', kind: 'proposal', title: 'Proposal accepted', body: 'Kiamabara AA · 2 × 5 kg — €465.00 incl. VAT', href: '/quotes/1039', created_at: '2026-10-05T13:20:00', read: true },
+  { id: 'n-0031', buyer_id: 'demo-cafe', kind: 'order', title: 'Order NF-2291 has shipped', body: 'Mountfern AA · 2 × 5 kg — arriving Thursday', href: '/quotes/1039', created_at: '2026-10-13T07:45:00', read: true },
+  { id: 'n-0030', buyer_id: 'demo-cafe', kind: 'arrival', title: 'New arrivals from Ethiopia', body: 'Selowa Ridge and Wendaro are now available in Sweden', href: '/products/selowa-ridge', created_at: '2026-10-20T08:00:00', read: true },
+  { id: 'n-0029', buyer_id: 'demo-cafe', kind: 'proposal', title: 'Proposal accepted', body: 'Mountfern AA · 2 × 5 kg — €465.00 incl. VAT', href: '/quotes/1039', created_at: '2026-10-05T13:20:00', read: true },
 ];
 
 // ── Assembly ─────────────────────────────────────────────────────────────────
@@ -702,7 +702,7 @@ export function buildSeed() {
       status: c.status ?? 'published',
       created_at: `${c.added}T09:00:00`,
       enrichment: null,
-      availability: c.slug === 'finca-el-paraiso-geisha' ? structuredClone(PARAISO_AVAILABILITY) : generatedAvailability(index, c.slug),
+      availability: c.slug === 'finca-lirandel-geisha' ? structuredClone(HERO_AVAILABILITY) : generatedAvailability(index, c.slug),
     };
   });
   return {

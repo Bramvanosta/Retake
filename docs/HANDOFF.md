@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of phase 1 + project management. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L1.1. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -24,13 +24,19 @@ automatically with themeable components, and let Claude operate everything throu
   hooks (http/sql/shell/js + rollback journal + allow-list), CLI (`studio …`), fixture product
   `fixtures/wholesale` ("Northfield", fictional, real Radix + Base UI), project `projects/northfield-fixture`,
   starter templates `default`, `editorial`, `motion`. 275 tests pass (6 Postgres tests need `DEMO_STUDIO_TEST_PG`).
-- **Requirements:** 529 tracked; 173 done; the open ones are assigned to lots L1.1 … L6.
+- **L1.1 done** (phase-1 polish + `studio doctor`): invented fixture names (test-guarded), ripple ring visible on
+  same-colour buttons, field-notes ripple/motion curves, scene `cursor` key (auto rest point next to the first
+  target, no visible jump), every widget click in `data.clicks`, standalone hook journals in
+  `<project>/.demo-studio/journals/`, pacing `nudge_*`, `after_navigation_ms`, `popup_fallback_ms`, `scroll_offset`,
+  64 KB DOM snippets, project `locale` → browser locale, missing hook files are errors, `studio doctor`,
+  `docs/MACOS-CHECKLIST.md` (the steps of L1.5). 301 tests pass (6 Postgres tests skipped).
+- **Requirements:** 529 tracked; 187 done; the open ones are assigned to lots L1.2 … L6.
 - **Groundwork for phase 2:** contracts only (components types, EditPlan types). `packages/{editor,review,mcp}` are
   otherwise empty; `studio render|review|export|record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L1.1 — Phase 1 polish + `studio doctor`** (S), then **L2.1 — phase-2 contracts in core** (S) unless the user picks
-otherwise. See ROADMAP for scope and acceptance.
+**L2.1 — phase-2 contracts in core** (S) unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness
+under load, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP for scope and acceptance.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

@@ -96,7 +96,9 @@ class ScenarioError extends Error { issues: ValidationIssue[] }
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids
 unique within a scenario; `page:` keys exist in the selected environment; files referenced by
-hooks / `drop_file.path` / `eval.file` / `music.file` exist (warning if no project given);
+hooks (SQL / JS files) / `drop_file.path` / `eval.file` / `music.file` exist (an error when the project is known, a
+warning that they cannot be checked if no project is given); a scene `cursor` target must locate something, a
+`cursor` point should lie inside the viewport (warning) and `cursor: keep` on the first scene is a warning;
 `speed` in (0, 8]; `camera.zoom` in [1, 3] (warning above template max_zoom); `camera.duration ≥ 0.8`;
 destructive hooks (`destructive: true`, SQL matching DELETE/DROP/TRUNCATE/ALTER/UPDATE, HTTP DELETE,
 shell with `rm `/`dropdb`) require `confirm: true`; `--until` refs must resolve; interstitial has text;
@@ -109,13 +111,16 @@ runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown
   Promise<{ ok: boolean; results: HookResult[] }>
 //   setup: on the first failure (non-optional), rolls back the completed hooks of this call in reverse and returns ok=false
 //   teardown: runs every hook even if some fail (collects errors)
-class Journal {                      // rollback journal persisted as JSON (runs/<id>/hooks-journal.json)
+class Journal {                      // rollback journal persisted as JSON: runs/<id>/hooks-journal.json (captures),
+                                     // <project>/.demo-studio/journals/<id>.json (studio hooks run / env reset)
   static open(file: string): Promise<Journal>
   record(entry: JournalEntry): Promise<void>         // executed hook + its rollback action (if any)
   pending(): JournalEntry[]                          // executed with rollback not yet done
   rollbackAll(ctx: HookContext): Promise<HookResult[]>   // reverse order, marks entries rolled back
 }
-findPendingJournals(projectDir: string): Promise<string[]>  // runs/*/hooks-journal.json with pending entries (env_reset)
+findPendingJournals(projectDir: string): Promise<string[]>  // both locations, pending entries only, newest id first (env_reset)
+findJournal(projectDir: string, id: string): string | null  // runs/<id>/hooks-journal.json, else .demo-studio/journals/<id>.json
+standaloneJournalFile(projectDir: string, id: string): string
 checkHostAllowed(url: string, project: LoadedProject): void  // throws HookSecurityError
 isDestructive(hook: HookStep): boolean
 describeHook(hook: HookStep): string
@@ -159,6 +164,8 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
 ### 3.1 Browser
 - `chromium.launchPersistentContext(profileDir, { headless: true, channel: 'chromium' /* new headless */,
   viewport: { width, height }, deviceScaleFactor: scale, locale, timezoneId, colorScheme })`.
+  `locale` (navigator.language, Accept-Language, Intl) = `browser.locale`, else the project `locale`, else the
+  studio.yaml `browser.locale` default (`projectBrowser(project)`).
   Profile = `project.auth.profile` (per env if keyed by env name), else a fresh temp profile;
   `storage_state` is loaded into the context when given. Executable: config → `$DEMO_STUDIO_CHROMIUM` → Playwright default.
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
@@ -189,19 +196,33 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
 - Helpers: `popupState()` (visible popups: menus, listboxes, dialogs, radix/base-ui poppers, open popovers +
   `aria-expanded` of the last trigger) for popup detection; `scrollAnimate(container, top, ms, ease)`
   (rAF + setTimeout race, returns when done); `scrollContainerFor(el)`; `blankPointNear(...)` for
-  click-outside; `snapshot(el)` (outerHTML trimmed to 4 KB) for errors; `dragGhost.show(name)/move/hide`
+  click-outside; `snapshot(el, max)` (outerHTML of the failing element, else the body, trimmed at a tag boundary to
+  64 KB = `ERROR_DOM_MAX`, the cursor overlay removed) for errors; `dragGhost.show(name)/move/hide`
   for drop_file.
 
 ### 3.3 Actions (deterministic pacing; all durations from `Pacing`, ±jitter seeded by scene/step index)
 - Movement: eased (easeInOutCubic) path from the current cursor point with a slight arc, dispatched as
-  `page.mouse.move` at ~60 Hz; duration = clamp(base + dist·per_px). Every dispatched position is pushed to
-  the cursor track (timeline.cursor) with capture time.
+  `page.mouse.move` at ~60 Hz; duration = clamp(move_base_ms + dist·move_ms_per_px, move_min_ms, move_max_ms) =
+  clamp(0.9·d, 450, 1100) ms by default; nudges (d < nudge_px = 60) take 60–100 % of nudge_ms (150–250 ms) with a
+  nudge_hover_ms hover; a zero-length move takes 0 ms. Every dispatched position is pushed to the cursor track
+  (timeline.cursor) with capture time.
+- Scene start (scene key `cursor`: `auto` | `keep` | point | target): `auto` rests next to the scene's first pointer
+  target (its box after leading document scrolls is predicted) where the drawn cursor never covers it, inside the
+  viewport (`kit.restNear(box)`), else at the right-centre point; a continuing scene keeps a position already clear
+  of that target. Placement is a teleport while a page opens (cut by the editor), otherwise an eased glide during
+  the still — never a jump; recorded as `scene_still.data.cursor`.
+- Ripple: 12 px disc, scale .4 → 5.5 (transform .5 s cubic-bezier(.2,.7,.2,1)), opacity 1 → 0 (.55 s ease-out),
+  template colour, with a light ring + soft dark edge so it stays visible on a button of the same colour.
 - `click`: resolve → if not fully in the viewport, animated scroll of its container → re-resolve bbox →
   move → hover_ms → strategy chain. `auto`: (1) real CDP mouse down/up; if a popup was expected
-  (aria-haspopup, aria-expanded=false, role=combobox, `expect_popup`) and `popupState()` shows nothing new
-  within popup_timeout_ms → (2) `el.click()` + ripple → (3) full pointer/mouse event sequence
-  (pointerdown, mousedown, pointerup, mouseup, click with coordinates) + ripple. Records `strategy` and
-  `popup_opened`; waits after_popup_ms when a popup opened, else after_click_ms.
+  (aria-haspopup, aria-expanded=false, role=combobox, `expect_popup`) and neither `aria-expanded="true"` nor a new
+  popup shows up within popup_fallback_ms (polled every 40 ms) → (2) `el.click()` + ripple → (3) full pointer/mouse
+  event sequence (pointerdown, mousedown, pointerup, mouseup, click with coordinates) + ripple, which waits up to
+  popup_timeout_ms. Records `strategy` and `popup_opened`; waits after_popup_ms when a popup opened, else
+  after_click_ms; a click that navigated or changed the URL holds at least after_navigation_ms after the press
+  (`data.navigation`). Composite steps record every click in `data.clicks`
+  (`{role: trigger|option|item|confirm|outside|search, strategy, popup_opened, point, bbox, t_click, desc}`); the
+  event's top-level fields describe the trigger click.
   `outside: true` → click the topmost dialog's title/heading if a dialog is open, else a blank point
   (no interactive element under it) near the top of the page; then wait until the popover is gone.
 - `double_click`, `hover` (ms), `drag` (down, eased move, up).
@@ -218,8 +239,9 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
   button in the row) → click → `[role=menuitem]` with text `item` in the last visible menu → confirm in
   the last visible `[role=alertdialog]`/dialog → wait until no menu/alertdialog is visible; if a menu
   reappears (Base UI reopen quirk) close it with click-outside, once.
-- `scroll`: animated in-page scroll of the container (`to`, `by`, `offset`, `duration`).
-- `drop_file`: cursor travels from the viewport edge (`from`) to the zone with a file "ghost" chip
+- `scroll`: animated in-page scroll of the container (`to`, `by`, `offset` — default pacing.scroll_offset −140 —,
+  `duration`).
+- `drop_file`: the cursor moves (eased) to the viewport edge (`from`), then travels to the zone with a file "ghost" chip
   (name + icon) following it; dispatch dragenter/dragover/drop with a real `DataTransfer` containing a
   `File` (fake bytes or the real file); if the zone has/contains an `<input type=file>` (or `input`
   given) and no drop handler reacted, fall back to `setInputFiles`.
@@ -263,10 +285,12 @@ studio list                                   # projects
 studio validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
 studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--json]
 studio hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes]
-studio hooks rollback <project> [run-id]      # replay pending rollback journals
+studio hooks rollback <project> [id]          # replay pending rollback journals (run id or journal id)
 studio env reset <project>                    # project.reset hooks + pending journals
 studio schema [scenario|project|template|timeline]  # print JSON Schema
 studio login <project> [--env E] [--page KEY]  # headed browser on the persistent profile to sign in once
+studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Chromium launch, ffmpeg/ffprobe, display,
+                                              # keychain, notifications, workspace, template fonts; project profile + hosts)
 studio render / review / export / mcp         # phases 2–3
 ```
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).

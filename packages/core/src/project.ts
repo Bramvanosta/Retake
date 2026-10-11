@@ -22,7 +22,8 @@ export const PROJECT_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const DEFAULT_FRAME: FrameStyle = 'card';
 export const DEFAULT_TEMPLATE_NAME = 'default';
 /** Generated artefacts kept out of git. */
-export const PROJECT_GITIGNORE = ['runs/', 'renders/', 'review/', 'exports/', 'frames/'];
+/** Generated folders of a project; `.demo-studio/` holds tool state such as hook journals (`.demo-studio/journals/`). */
+export const PROJECT_GITIGNORE = ['runs/', 'renders/', 'review/', 'exports/', 'frames/', '.demo-studio/'];
 
 /** project.yaml as written (before defaults). */
 export type ProjectFile = z.infer<typeof ProjectFileSchema>;

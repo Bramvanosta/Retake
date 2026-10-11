@@ -26,10 +26,19 @@ function mergeBrowserConfig(ws?: BrowserConfig, project?: BrowserConfig): Browse
   return out;
 }
 
-/** Load a project of the workspace (slug or directory) with the workspace browser settings folded in. */
+/**
+ * Load a project of the workspace (slug or directory) with the workspace browser settings folded in. A project
+ * `locale` is more specific than the workspace `browser.locale` default: the runner uses it as the browser locale
+ * unless the project's own `browser.locale` is set.
+ */
 export async function openProject(ws: WorkspaceConfig, slugOrDir: string): Promise<LoadedProject> {
   const project = await loadProject(slugOrDir, ws.root);
-  const browser = mergeBrowserConfig(ws.browser, project.config.browser);
+  let wsBrowser = ws.browser;
+  if (wsBrowser?.locale !== undefined && project.config.locale !== undefined) {
+    wsBrowser = { ...wsBrowser };
+    delete wsBrowser.locale;
+  }
+  const browser = mergeBrowserConfig(wsBrowser, project.config.browser);
   if (browser) project.config = { ...project.config, browser };
   return project;
 }

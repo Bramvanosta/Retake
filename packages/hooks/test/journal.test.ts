@@ -1,7 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JOURNAL_FILE, Journal, JournalError, findPendingJournals, rollbackPendingJournals, runHooks } from '@demo-studio/hooks';
+import {
+  JOURNAL_FILE,
+  JOURNALS_DIR,
+  Journal,
+  JournalError,
+  findJournal,
+  findPendingJournals,
+  journalId,
+  rollbackPendingJournals,
+  runHooks,
+  standaloneJournalFile,
+} from '@demo-studio/hooks';
 import type { HookStep } from '@demo-studio/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 
@@ -126,5 +137,35 @@ describe('findPendingJournals', () => {
       [broken, [], `hooks journal ${broken} is not valid JSON`],
     ]);
     expect(await findPendingJournals(tmp.dir)).toEqual([runFile('20261008-090000-broken')]);
+  });
+
+  it('reads standalone journals from .demo-studio/journals as well, merged by id (R-ISS-06)', async () => {
+    const { ctx } = makeContext(makeProject(tmp.dir));
+    const standalone = standaloneJournalFile(tmp.dir, '20261010-120000-hooks-catalogue-setup');
+    expect(standalone).toBe(join(tmp.dir, JOURNALS_DIR, '20261010-120000-hooks-catalogue-setup.json'));
+    expect(standalone).toBe(join(tmp.dir, '.demo-studio', 'journals', '20261010-120000-hooks-catalogue-setup.json'));
+    await runHooks([hook('standalone')], ctx, { phase: 'setup', journal: await Journal.open(standalone) });
+    for (const run of ['20261009-090000-catalogue', '20261011-090000-quote']) {
+      await runHooks([hook(run.slice(0, 8))], ctx, { phase: 'setup', journal: await Journal.open(runFile(run)) });
+    }
+    // A reset journal without rollbacks is never pending.
+    const reset = standaloneJournalFile(tmp.dir, '20261011-100000-env-reset');
+    await runHooks([{ name: 'r', shell: 'echo reset >> order.log' }], ctx, { phase: 'reset', journal: await Journal.open(reset) });
+
+    expect(await findPendingJournals(tmp.dir)).toEqual([runFile('20261011-090000-quote'), standalone, runFile('20261009-090000-catalogue')]);
+    expect(journalId(standalone)).toBe('20261010-120000-hooks-catalogue-setup');
+    expect(journalId(runFile('20261011-090000-quote'))).toBe('20261011-090000-quote');
+    expect(findJournal(tmp.dir, '20261010-120000-hooks-catalogue-setup')).toBe(standalone);
+    expect(findJournal(tmp.dir, '20261011-090000-quote')).toBe(runFile('20261011-090000-quote'));
+    expect(findJournal(tmp.dir, 'nope')).toBeNull();
+
+    const rolled = await rollbackPendingJournals(tmp.dir, ctx);
+    expect(rolled.map((r) => [journalId(r.file), r.results.map((x) => x.status)])).toEqual([
+      ['20261011-090000-quote', ['ok']],
+      ['20261010-120000-hooks-catalogue-setup', ['ok']],
+      ['20261009-090000-catalogue', ['ok']],
+    ]);
+    expect(await findPendingJournals(tmp.dir)).toEqual([]);
+    expect(await lines()).toEqual(['standalone', '20261009', '20261011', 'reset', 'undo-20261011', 'undo-standalone', 'undo-20261009']);
   });
 });

@@ -13,7 +13,7 @@ import { fakeProject } from './helpers.js';
 
 const ctx: TemplateContext = {
   pages: { console: 'https://console.staging.example.com', shop: 'https://shop.staging.example.com' },
-  vars: { product: 'finca-el-paraiso-geisha', nested: { id: 42 } },
+  vars: { product: 'finca-lirandel-geisha', nested: { id: 42 } },
   hooks: { quote: { status: 201, json: { id: 'q-7' } } },
   run: { id: '20261011-142233-catalogue' },
 };
@@ -25,9 +25,9 @@ describe('interpolate', () => {
 
   it('pages, vars (prefixed and bare), hooks and run', () => {
     expect(interpolate('{{console}}/api/products/{{vars.product}}', ctx)).toBe(
-      'https://console.staging.example.com/api/products/finca-el-paraiso-geisha',
+      'https://console.staging.example.com/api/products/finca-lirandel-geisha',
     );
-    expect(interpolate('{{ product }}', ctx)).toBe('finca-el-paraiso-geisha');
+    expect(interpolate('{{ product }}', ctx)).toBe('finca-lirandel-geisha');
     expect(interpolate('{{vars.nested.id}}', ctx)).toBe('42');
     expect(interpolate('{{hooks.quote.json.id}} {{run.id}}', ctx)).toBe('q-7 20261011-142233-catalogue');
     expect(interpolate('{{vars.nested}}', ctx)).toBe('{"id":42}');
@@ -54,7 +54,7 @@ describe('interpolate', () => {
   it('interpolateDeep walks objects and arrays', () => {
     expect(interpolateDeep({ url: '{{shop}}/q', headers: ['{{vars.product}}'], n: 3 }, ctx)).toEqual({
       url: 'https://shop.staging.example.com/q',
-      headers: ['finca-el-paraiso-geisha'],
+      headers: ['finca-lirandel-geisha'],
       n: 3,
     });
   });

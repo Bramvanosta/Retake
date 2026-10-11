@@ -51,11 +51,11 @@ café account *Demo Café* (Stockholm, Sweden). Real projects reference a pre-au
 
 ## Data the videos rely on
 
-- Product `finca-el-paraiso-geisha` — availability in 16 markets (Iceland and Sweden first).
-- Registry lot *Finca La Esperanza 2026* (GCR-26-0412) — linked to an archived product, so the
-  `catalogue` setup frees its registry ref (`DELETE /api/products/finca-la-esperanza/refs`, rolled
-  back automatically); the new product gets the slug `finca-la-esperanza-2`.
-- Product `halo-beriti` — 3 × 5 kg bags at €36.40/kg + €30 delivery + 25 % VAT = **€720.00**.
+- Product `finca-lirandel-geisha` — availability in 16 markets (Iceland and Sweden first).
+- Registry lot *Finca Quenaro 2026* (GCR-26-0412) — linked to an archived product, so the
+  `catalogue` setup frees its registry ref (`DELETE /api/products/finca-quenaro/refs`, rolled
+  back automatically); the new product gets the slug `finca-quenaro-2`.
+- Product `selowa-ridge` — 3 × 5 kg bags at €36.40/kg + €30 delivery + 25 % VAT = **€720.00**.
 - The `quote` setup arms an automatic proposal for the next quote request
   (`POST /api/quotes/auto-proposal`), stamped 4 h 18 min after the request, which the shop shows on
   its next page load ("A few hours later").
@@ -72,5 +72,5 @@ café account *Demo Café* (Stockholm, Sweden). Real projects reference a pre-au
 
 - Don't show the duplicate-lot warning in the catalogue video — it belongs to a separate how-to.
 - Don't zoom on tables; zoom only on the Awards reveal.
-- Don't name real companies, brands or people in captions — Northfield and everything in it is
-  fictional.
+- Don't name real companies, brands, people, farms or producers in captions — Northfield and everything in it
+  (lots, farms, washing stations, producers, cafés) is fictional.

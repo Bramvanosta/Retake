@@ -20,5 +20,7 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     pool: 'forks',
+    // Browser + ffmpeg tests are timing-sensitive: cap parallel files so a 4-CPU machine is not saturated.
+    poolOptions: { forks: { maxForks: 2 } },
   },
 });

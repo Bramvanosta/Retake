@@ -168,7 +168,7 @@ export interface ScrollArgs {
   to?: number | TargetSpec | 'top' | 'bottom';
   /** Relative scroll in px (alternative to `to`). */
   by?: number;
-  /** With a target: final scrollTop = targetTop + offset (offset -140 ⇒ target ends 140 px below the top). Default -120. */
+  /** With a target: final scrollTop = targetTop + offset (offset -140 ⇒ target ends 140 px below the top). Default pacing.scroll_offset (-140). */
   offset?: number;
   /** Seconds (default pacing.scroll_duration). */
   duration?: number;
@@ -398,6 +398,19 @@ export interface NormalizedArgsMap {
 export type NormalizedArgs = NormalizedArgsMap;
 
 export type FrameStyle = 'raw' | 'card' | 'browser' | 'laptop' | 'phone';
+
+/**
+ * Where the cursor rests at a scene's start (scene key `cursor`):
+ *  - 'auto' (default): a neutral point near the scene's first pointer target, never covering it, inside the viewport
+ *    (the previous position is kept on a scene that continues from the current state when it is already clear of the
+ *    first target);
+ *  - 'keep': stay where the previous scene left it;
+ *  - a viewport point `{x, y}` (CSS px);
+ *  - a target: rest on that element (as a hover would).
+ * A scene that opens a page places the cursor while the page loads (cut by the editor); a scene that continues from
+ * the current state glides there during its still, so the capture never shows a jump.
+ */
+export type SceneCursor = 'auto' | 'keep' | PointSpec | TargetSpec;
 export type TransitionKind = 'crossfade' | 'cut' | 'fade-black';
 
 export interface Scene {
@@ -412,6 +425,8 @@ export interface Scene {
   speed?: number;
   /** Seconds of stillness at scene start (default pacing.scene_start_still). */
   still?: number;
+  /** Where the cursor rests at the scene start (default 'auto'). */
+  cursor?: SceneCursor;
   /** Transition INTO this scene (default template.transitions.between_scenes). */
   transition?: TransitionKind;
   frame?: FrameStyle;
@@ -562,11 +577,17 @@ export const DEFAULT_CAPTURE: CaptureSettings = {
 export interface Pacing {
   /** Seconds still at scene start (1.5–2). */
   scene_start_still: number;
-  /** Cursor travel: ms = clamp(move_base_ms + distance_px * move_ms_per_px, move_min_ms, move_max_ms). */
+  /** Cursor travel: ms = clamp(move_base_ms + distance_px * move_ms_per_px, move_min_ms, move_max_ms) (field notes: clamp(0.9·d, 450, 1100)). */
   move_base_ms: number;
   move_ms_per_px: number;
   move_min_ms: number;
   move_max_ms: number;
+  /** Moves shorter than this (px) are "nudges" (repeated clicks on almost the same spot): short travel and hover. */
+  nudge_px: number;
+  /** Travel time of a nudge of nudge_px; shorter nudges scale down to 60 % of it (≈150–250 ms). A zero-length move takes 0 ms. */
+  nudge_ms: number;
+  /** Hover pause before pressing after a nudge (≈120). */
+  nudge_hover_ms: number;
   /** Hover pause before pressing (150–250). */
   hover_ms: number;
   /** mousedown → mouseup. */
@@ -575,12 +596,21 @@ export interface Pacing {
   after_click_ms: number;
   /** Pause after a click that opened a menu/popover/dialog (600–1000). */
   after_popup_ms: number;
-  /** How long to wait for evidence that an expected popup opened before trying the next click strategy. */
+  /** Minimum time between a click and the next step when the click navigated or changed the URL (1.5–2.8 s in the field notes). */
+  after_navigation_ms: number;
+  /**
+   * How long a click gets to show that an expected popup opened (aria-expanded="true" or a new visible popup, polled
+   * every 40 ms) before the next click strategy is tried.
+   */
+  popup_fallback_ms: number;
+  /** How long the last click strategy waits for an expected popup before the step reports it missing. */
   popup_timeout_ms: number;
   /** Typing speed, characters per second (9–24). */
   type_cps: number;
   /** Smooth scroll duration in seconds (1.5–2). */
   scroll_duration: number;
+  /** Default `scroll.offset` with a target: final scrollTop = target top + offset (−140 ⇒ the target ends 140 px below the top). */
+  scroll_offset: number;
   /** Deterministic ±fraction jitter applied to durations (0 = none). */
   jitter: number;
   /** After navigation: wait for network idle up to this many ms. */
@@ -589,17 +619,23 @@ export interface Pacing {
 
 export const DEFAULT_PACING: Pacing = {
   scene_start_still: 1.6,
-  move_base_ms: 380,
-  move_ms_per_px: 0.55,
+  move_base_ms: 0,
+  move_ms_per_px: 0.9,
   move_min_ms: 450,
   move_max_ms: 1100,
+  nudge_px: 60,
+  nudge_ms: 250,
+  nudge_hover_ms: 120,
   hover_ms: 200,
   press_ms: 90,
   after_click_ms: 350,
   after_popup_ms: 800,
+  after_navigation_ms: 1500,
+  popup_fallback_ms: 300,
   popup_timeout_ms: 700,
   type_cps: 14,
   scroll_duration: 1.6,
+  scroll_offset: -140,
   jitter: 0.08,
   settle_ms: 3000,
 };

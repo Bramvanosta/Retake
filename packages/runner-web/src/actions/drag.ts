@@ -9,7 +9,7 @@ import { resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
 import { clamp, formatBytes, mimeFor } from '../util.js';
-import { approach } from './click.js';
+import { approach, clickData } from './click.js';
 import type { ActionResult } from './types.js';
 
 /** Default size of a fake dropped file. */
@@ -48,7 +48,7 @@ export async function drag(ctx: StepContext, args: DragArgs): Promise<ActionResu
   await rt.sleep(150);
   await pointer.release();
   await rt.sleep(ctx.jitter.ms(pacing.after_click_ms));
-  ctx.clicks.push({ t: t_click, point: start, desc: from.desc, bbox: from.bbox, strategy: 'real' });
+  ctx.clicks.push({ role: 'trigger', t: t_click, point: start, desc: from.desc, bbox: from.bbox, strategy: 'real', popup_opened: false });
   return { target: { desc: `${from.desc} → ${toDesc}`, bbox: from.bbox }, point: pointer.pos(), t_click, data: { from: start, to } };
 }
 
@@ -115,7 +115,10 @@ export async function dropFile(ctx: StepContext, args: DropFileArgs): Promise<Ac
   if (args.input !== undefined) input = await resolveTarget(ctx, args.input, { includeHidden: true, scroll: false });
 
   const start = entryPoint(args.from ?? 'right', zone.point, rt.capture.width, rt.capture.height);
-  await pointer.teleport(start);
+  // The hand fetches the file at the edge of the screen: an eased move out (never a visible jump), then back in
+  // carrying the file chip.
+  if (pointer.known && pointer.visible) await pointer.moveTo(start, { jitter: ctx.jitter });
+  else await pointer.teleport(start);
   if (!input) {
     await kit.fileDragBegin({
       name: payload.name,
@@ -157,11 +160,15 @@ export async function dropFile(ctx: StepContext, args: DropFileArgs): Promise<Ac
     delivered = 'input';
   }
   await rt.sleep(ctx.jitter.ms(pacing.after_click_ms));
-  ctx.clicks.push({ t: t_click, point: zone.point, desc: zone.desc, bbox: zone.bbox });
+  // The drop is the step's only "click": its strategy says how the file was delivered (drop events or the file input).
+  const strategy = delivered === 'drop' ? 'drop' : 'input';
+  ctx.clicks.push({ role: 'trigger', t: t_click, point: zone.point, desc: zone.desc, bbox: zone.bbox, strategy, popup_opened: false });
   return {
     target: { desc: zone.desc, bbox: zone.bbox },
     point: pointer.pos(),
     t_click,
-    data: { file: payload.name, size: payload.size, delivered },
+    strategy,
+    popup_opened: false,
+    data: { file: payload.name, size: payload.size, delivered, clicks: clickData(ctx) },
   };
 }

@@ -66,6 +66,11 @@ export interface ElementInfo {
   popup_expected: boolean;
 }
 
+export interface RestPlan extends PointSpec {
+  /** Which candidate was used: a side of the box, or 'fallback' (restPoint). */
+  side: string;
+}
+
 export interface PointInfo extends PointSpec {
   bbox: BBox;
   /** elementFromPoint at (x, y) is the element or inside it. */
@@ -177,7 +182,13 @@ export interface KitApi {
   blankPoint(near: PointSpec): PointSpec | null;
   /** Alias of `ghost` (DESIGN §3.2 name). */
   dragGhost: KitGhostApi;
+  /** Neutral scene-start point at the right-centre of the viewport (not on an interactive element). */
   restPoint(): PointSpec;
+  /**
+   * Neutral scene-start point near `box` (the scene's first pointer target) whose drawn cursor never covers it,
+   * inside the viewport, preferably over a non-interactive spot; `restPoint()` when no candidate fits.
+   */
+  restNear(box: BBox): RestPlan;
   hasText(text: string): boolean;
   snapshot(ref: string | null, max: number): string;
   domClick(ref: string, x: number, y: number): void;

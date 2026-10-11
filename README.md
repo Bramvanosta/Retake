@@ -46,6 +46,8 @@ Because the browser is headless and offscreen, a capture does not take over your
   (or point `$DEMO_STUDIO_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary)
 - Optional: PostgreSQL client access for `sql` hooks
 
+`studio doctor` checks all of this in one go (see [Command line](#command-line)).
+
 Smooth 30 fps captures need GPU-accelerated rendering, which desktop machines provide. In containers without a GPU
 the browser renders in software: pages with heavy effects (for example `backdrop-filter` blur behind dialogs) are
 then captured at a lower frame rate, and the run reports it as a warning.
@@ -59,6 +61,7 @@ project that films it (`projects/northfield-fixture`).
 ```sh
 pnpm install
 pnpm build
+pnpm studio doctor                                               # is this machine ready?
 
 # terminal 1 — the fixture product (supplier console on :4401, buyer shop on :4402)
 pnpm fixture
@@ -119,6 +122,7 @@ studio hooks rollback <project> [run-id] [--env E] [--dry]
 studio env reset <project> [--env E] [--yes] [--dry]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
 studio login <project> [--env E] [--page KEY] [--url URL]
+studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
 ```
 
 Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug messages), `--no-color`.
@@ -131,14 +135,48 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   same prepared data). `--until scene.step` stops after that step. `--json` streams progress events (one JSON object
   per line) on stdout for tools and agents. Ctrl-C cancels cleanly: teardown still runs.
 - **hooks run** runs a scenario's setup or teardown, the project's `reset` hooks, or a YAML file listing hooks (same
-  entries as `setup:`). Setup-like runs keep a rollback journal under `runs/`; **hooks rollback** replays pending
-  rollbacks of one run or of every run; **env reset** replays every pending journal, then runs the `reset` hooks.
-  `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are asked on a terminal, or they are
-  refused).
+  entries as `setup:`). Its journal (executed hooks and their rollbacks) is kept in
+  `<project>/.demo-studio/journals/<id>.json` — never in `runs/`, which only holds captures; **hooks rollback**
+  replays the pending rollbacks of one journal (a run id or a journal id) or of every journal; **env reset** replays
+  every pending journal (captures' and standalone ones), then runs the `reset` hooks (journaled in
+  `.demo-studio/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
+  asked on a terminal, or they are refused).
+- **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
+  version and a real new-headless launch), ffmpeg and ffprobe, a display (only needed by `--headed` and `login`),
+  the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
+  (`osascript`, `notify-send`), the workspace root and its projects, and the fonts of every template. With
+  `--project <slug>` it also checks that project's browser profile(s) (present, not in use) and sends a `HEAD`
+  request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
+  failure, of another environment a warning. It exits with `1` when any check fails; `--json` prints the checks.
 - **render**, **review**, **export** (phase 2), **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and
   say when they arrive.
 
-Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook, `2` invalid command line.
+Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
+invalid command line.
+
+```
+$ studio doctor --project northfield-fixture        # Linux container without a desktop, fixture running
+studio doctor
+  OK    Node.js                     22.22.0
+  OK    Chromium                    141.0.7390.37 · /opt/pw-browsers/chromium-1194/chrome-linux/chrome · new headless launch 293 ms
+  OK    ffmpeg                      6.1.1-3ubuntu5 · /usr/bin/ffmpeg
+  OK    ffprobe                     6.1.1-3ubuntu5 · /usr/bin/ffprobe
+  WARN  Display                     none: DISPLAY / WAYLAND_DISPLAY are not set
+                                    → headless captures work; --headed and studio login need a desktop session (or xvfb-run)
+  WARN  Secrets                     secret-tool not found: {{keychain:service/account}} refs cannot be resolved
+                                    → install libsecret-tools (secret-tool), or use {{env:VAR}} refs
+  WARN  Notifications               notify-send not found: notify steps are only logged
+                                    → install libnotify-bin (notify-send) for desktop notifications
+  OK    Workspace                   /home/user/Video (studio.yaml) · 1 project: northfield-fixture
+  OK    Template default            fonts present (4 files)
+  OK    Template editorial          fonts present (4 files)
+  OK    Template motion             fonts present (4 files)
+  OK    Project northfield-fixture  /home/user/Video/projects/northfield-fixture
+  OK    Profile                     none configured (a fresh temporary profile per run)
+  OK    Host local·console          http://localhost:4401 → HTTP 200 (56 ms)
+  OK    Host local·shop             http://localhost:4402 → HTTP 200 (7 ms)
+✓ 0 failures, 3 warnings
+```
 
 ## Project layout
 
@@ -150,6 +188,7 @@ projects/<slug>/
   hooks/               # sql / http / js / sh files used by hooks
   assets/              # files used by scenarios (drop_file, eval, music…)
   runs/<run-id>/       # generated: capture.mp4, timeline.json, run.json, frames/, screenshots/, journal
+  .demo-studio/        # generated tool state: journals/<id>.json of `studio hooks run` / `studio env reset`
 ```
 
 ```yaml
@@ -165,21 +204,42 @@ auth:                          # never passwords; global, or keyed by environmen
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → 4K frames from a 1080p viewport
 frame: card
 template: default              # a name in the workspace templates, or a path like ./theme
-locale: en
+locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
 allow_hosts: [api.staging.example.com]                    # extra hosts hooks may call
 databases:
   main: {url: "postgres://demo@db.staging.example.com/app?password={{keychain:acme/db}}"}
 vars: {customer: Northfield Roasters}
 pacing: {type_cps: 12}                                    # override field-tested pacing defaults
-browser: {locale: en-GB, timezone: Europe/London, color_scheme: light}
+browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`
 reset:                         # run by `studio env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
 ```
 
-`capture` also accepts `format` (`jpeg`/`png`), `quality`, `crf` and `keep_frames`. Pacing keys:
-`scene_start_still`, `move_base_ms`, `move_ms_per_px`, `move_min_ms`, `move_max_ms`, `hover_ms`, `press_ms`,
-`after_click_ms`, `after_popup_ms`, `popup_timeout_ms`, `type_cps`, `scroll_duration`, `jitter`, `settle_ms`.
+`capture` also accepts `format` (`jpeg`/`png`), `quality`, `crf` and `keep_frames`. The browser locale is
+`browser.locale` when set, else the project `locale`, else the `studio.yaml` `browser.locale` default.
 Run `studio schema project` for the full schema (also in `packages/core/schema/` for editor autocompletion).
+
+**Pacing** (`pacing:` in project.yaml or a scenario; every key optional, the defaults follow the field notes of
+`docs/reference/choreography.md`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `scene_start_still` | 1.6 | Seconds still at a scene start |
+| `move_base_ms`, `move_ms_per_px`, `move_min_ms`, `move_max_ms` | 0, 0.9, 450, 1100 | Cursor travel: clamp(base + d·per_px, min, max) ms — clamp(0.9·d, 450, 1100) |
+| `nudge_px`, `nudge_ms`, `nudge_hover_ms` | 60, 250, 120 | Moves shorter than `nudge_px` (repeated clicks on almost the same spot) take 60–100 % of `nudge_ms` (150–250 ms) and hover `nudge_hover_ms`; a zero-length move takes 0 ms |
+| `hover_ms`, `press_ms` | 200, 90 | Hover before pressing; mousedown → mouseup |
+| `after_click_ms`, `after_popup_ms` | 350, 800 | Pause after a click; after a click that opened a menu/popover/dialog |
+| `after_navigation_ms` | 1500 | Minimum time between a click that changed the page (document navigation or new URL) and the next step |
+| `popup_fallback_ms` | 300 | How long a click gets to show that an expected popup opened (`aria-expanded="true"` or a new popup, polled every 40 ms) before the next strategy (DOM click, then pointer sequence) is tried |
+| `popup_timeout_ms` | 700 | How long the last strategy waits for the popup before the step reports it missing |
+| `type_cps` | 14 | Typing speed (search fields are capped at 10) |
+| `scroll_duration`, `scroll_offset` | 1.6, −140 | Scroll animation seconds; default `scroll.offset` with a target (it ends 140 px below the top) |
+| `jitter`, `settle_ms` | 0.08, 3000 | Deterministic ±jitter on durations; network-idle wait after a navigation |
+
+`popup_fallback_ms` is 300 ms because the Radix and Base UI widgets of the bundled fixture show their popup (or
+`aria-expanded="true"`) 110–135 ms after the press of a real click, press time included, even under software
+rendering: 300 ms never misfires on them, while a trigger that ignores real input is retried after a short stall
+instead of 700 ms.
 
 ## Scenario language
 
@@ -213,10 +273,23 @@ scenes:
 `music` (`{file, volume, duck}`), `scenes`.
 
 **Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `steps`, `speed` (edit-time),
-`still` (seconds still at the start, default 1.6), `transition` (`crossfade`, `cut`, `fade-black`), `frame`,
-`irreversible`, `skip`, `note`. A scene without `page` continues on the previous scene's page; a scene without
-`open` continues from the current state. An `interstitial: {text, kicker, duration, style}` entry is a "time
-passes" card that takes no capture time.
+`still` (seconds still at the start, default 1.6), `cursor` (where the cursor rests at the start, see below),
+`transition` (`crossfade`, `cut`, `fade-black`), `frame`, `irreversible`, `skip`, `note`. A scene without `page`
+continues on the previous scene's page; a scene without `open` continues from the current state. An
+`interstitial: {text, kicker, duration, style}` entry is a "time passes" card that takes no capture time.
+
+**Scene-start cursor** (`cursor:` on a scene):
+
+| Value | Where the cursor rests during the still |
+|---|---|
+| `auto` (default) | A neutral spot next to the scene's first pointer target (the element the first click, hover, select… travels to; its position after leading `scroll` steps is predicted), never covering it, inside the viewport, preferably over a non-interactive area. Without such a target: the right-centre of the screen. A scene that continues from the current state keeps the cursor where it is when it is already clear of that target |
+| `keep` | Where the previous scene left it |
+| `{x: 1500, y: 540}` | That viewport point (CSS px) |
+| a target, e.g. `{text: New import}` | On that element, as a hover would (`{text: auto}` for an element whose text is "auto") |
+
+The capture never shows the cursor jump: a scene that opens a page places it while the page loads (the editor cuts
+that part); a scene that continues from the current state glides there, eased, during its still. The choice is
+recorded as `data.cursor` of the scene's `scene_still` event.
 
 ### Actions
 
@@ -234,9 +307,9 @@ Every step has exactly one action; shorthand forms are shown first.
 | `select` | `select: {field: Country, option: Sweden, search: Swe}` · `{combobox: "#country", option: …}` | Native select or combobox listbox |
 | `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg, close: outside}` | Multi-select popover, closed without Escape |
 | `menu` | `menu: {row: Iceland, item: Pause, confirm: Pause}` · `{trigger: …, item: …}` | Row action menu, optional confirmation |
-| `scroll` | `scroll: 560` · `{to: {text: Awards}, offset: -140, duration: 2.2, in: …}` · `{by: 400}` | Animated scroll of the page or a container |
+| `scroll` | `scroll: 560` · `{to: {text: Awards}, offset: -140, duration: 2.2, in: …}` · `{by: 400}` | Animated scroll of the page or a container (a target ends 140 px below the top by default) |
 | `drag` | `drag: {from: {text: Card A}, to: {text: Done}, duration: 1.2}` | Press, eased move, release |
-| `drop_file` | `drop_file: {zone: {text: Drop files}, path: assets/list.xlsx, from: right}` | File "ghost" dragged in, then a real drop (or the hidden file input) |
+| `drop_file` | `drop_file: {zone: {text: Drop files}, path: assets/list.xlsx, from: right}` | The cursor fetches the file at the screen edge, a file "ghost" travels to the zone, then a real drop (or the hidden file input) |
 | `wait` | `wait: 0.8` | Sleep (may be trimmed by the editor) |
 | `wait_for` | `wait_for: Saved` · `{not_text, target, gone, url, network_idle, timeout}` | Wait until a condition holds |
 | `hold` | `hold: 2` | Stay still; never trimmed by the editor |
@@ -255,7 +328,8 @@ Every step has exactly one action; shorthand forms are shown first.
 15), `optional` (a failure does not abort), `irreversible` (never executed in dry runs), `note`.
 
 **Click options:** `strategy` (`auto` · `real` · `dom` · `pointer`), `expect_popup`, `outside`, `hover_ms`,
-`after_ms`, `move_ms`, `button`, `modifiers` (`[Shift]`), `offset` (`{x, y}` from the element's top-left).
+`after_ms` (also replaces the `after_navigation_ms` minimum), `move_ms`, `button`, `modifiers` (`[Shift]`), `offset`
+(`{x, y}` from the element's top-left).
 
 ### Targets
 
@@ -265,7 +339,7 @@ A plain string is visible text — or a CSS selector when it looks like one (`#i
 | Key | Example | Matches |
 |---|---|---|
 | `text` | `{text: Save}` | Visible text: exact first, then case-insensitive substring |
-| `contains` | `{contains: [Finca La Esperanza, "2026"]}` | Innermost element containing every string |
+| `contains` | `{contains: [Finca Quenaro, "2026"]}` | Innermost element containing every string |
 | `role` + `name` | `{role: button, name: Request a quote}` | ARIA role (explicit or implicit) and accessible name |
 | `label` | `{label: Delivery window}` | Form control by its label (`for`, wrapping label, `aria-labelledby`) |
 | `aria` | `{aria: Notifications}` | `aria-label` |
@@ -308,7 +382,7 @@ teardown:
 
 Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `save_as`, `rollback`), `sql` (`file` or
 `query`, `db`, `rollback`), `shell` (`run`, `cwd`, `env`, `timeout`, `rollback`), `js` (`code` or `file`, `page`,
-`rollback`). Common keys: `name`, `confirm`, `destructive`, `optional`. Setup stops at the first failure and rolls
+`rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`. Setup stops at the first failure and rolls
 back what it did; teardown hooks always run (even after a failure or Ctrl-C), then the pending setup rollbacks are
 replayed, most recent first.
 
@@ -339,8 +413,9 @@ A profile can be used by one browser at a time: close the login window before ru
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
   validation and refused at run time without it (`studio hooks run --yes` approves explicitly).
-- **Everything is journaled.** Each executed hook and its rollback is recorded in `runs/<id>/hooks-journal.json`;
-  `studio env reset` replays whatever is still pending.
+- **Everything is journaled.** Each executed hook and its rollback is recorded in `runs/<id>/hooks-journal.json`
+  (captures) or `.demo-studio/journals/<id>.json` (`studio hooks run`, `studio env reset`); `studio env reset`
+  replays whatever is still pending in both.
 - **Dry runs** never execute steps marked `irreversible`.
 
 ## Outputs of a run
@@ -358,7 +433,12 @@ A profile can be used by one browser at a time: close the login window before ru
 | `hooks-journal.json` | executed hooks and their rollbacks |
 | `scenario.yaml` | snapshot of the scenario that ran |
 
-`studio schema timeline` prints the timeline schema.
+Composite steps (`select`, `pick`, `menu`, `drop_file`) keep every click in `data.clicks`:
+`{role, strategy, popup_opened, point, bbox, t_click, desc, popup_ms?}` with `role` one of `trigger`, `option`,
+`item`, `confirm`, `outside` (a click that closes a popover) or `search` (a click into a popover's search field); the
+event's own `t_click`, `point`, `target`, `strategy` and `popup_opened` describe the trigger click. A click that
+changed the page records `data.navigation` (`{kind: document|url, url}`). DOM snippets saved next to error
+screenshots are capped at 64 KB. `studio schema timeline` prints the timeline schema.
 
 ## Repository layout
 

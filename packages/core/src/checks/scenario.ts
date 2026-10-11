@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { normalizeStep, resolveStepRef } from '../steps.js';
+import { isPoint } from '../targets.js';
 import { DEFAULT_TEMPLATE } from '../template-defaults.js';
 import type { LoadedProject, NormalizedStep, Scenario, Template } from '../types.js';
 import type { LocatedIssue } from '../validation/located.js';
@@ -126,6 +127,7 @@ class ScenarioChecker {
         const where = page ? ` on page "${page}"` : '';
         this.ctx.warning(p, `scene "${String(entry.id)}" is the first scene${where} but has no \`open\`: it starts on whatever is loaded`);
       }
+      this.sceneCursor(entry, p, capturable === 1 && entry.skip !== true);
       if (entry.open !== undefined) visited.add(pageKey);
       current = page;
       if (Array.isArray(entry.steps) && steps.length === 0) this.ctx.warning([...p, 'steps'], 'scene has no steps');
@@ -145,6 +147,35 @@ class ScenarioChecker {
     for (const [id, path] of this.stepIds) {
       if (sceneIds.has(id)) this.ctx.warning([...path, 'id'], `step id "${id}" is also a scene id: --until "${id}" refers to the step`);
     }
+  }
+
+  /** Capture viewport (scenario capture over project capture) when known. */
+  private viewport(): { width: number; height: number } | undefined {
+    const cap = isObj(this.s.capture) ? this.s.capture : {};
+    const proj = this.opts.project?.config.capture;
+    const width = typeof cap.width === 'number' ? cap.width : proj?.width;
+    const height = typeof cap.height === 'number' ? cap.height : proj?.height;
+    return width !== undefined && height !== undefined ? { width, height } : undefined;
+  }
+
+  /** Scene `cursor`: a target must locate something, a point must lie inside the viewport, `keep` needs a previous scene. */
+  private sceneCursor(entry: Record<string, unknown>, p: IssuePath, firstCaptured: boolean): void {
+    const c = entry.cursor;
+    if (c === undefined || this.ctx.broken([...p, 'cursor'])) return;
+    const cp: IssuePath = [...p, 'cursor'];
+    if (c === 'keep') {
+      if (firstCaptured) this.ctx.warning(cp, '`cursor: keep` on the first scene: there is no previous position, it behaves like `auto`');
+      return;
+    }
+    if (c === 'auto') return;
+    if (isPoint(c)) {
+      const vp = this.viewport();
+      if (vp && (c.x < 0 || c.y < 0 || c.x > vp.width || c.y > vp.height)) {
+        this.ctx.warning(cp, `point (${c.x}, ${c.y}) is outside the ${vp.width}×${vp.height} viewport: it is clamped inside`);
+      }
+      return;
+    }
+    checkTarget(c, cp, this.ctx);
   }
 
   private step(step: NormalizedStep, sp: IssuePath): void {

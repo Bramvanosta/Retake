@@ -29,9 +29,9 @@ scenes:
     page: shop
     open: /
     steps:
-      - hover: {text: "Finca El Paraíso — Geisha", ms: 700}
+      - hover: {text: "Finca Lirandel — Geisha", ms: 700}
       - scroll: {to: {text: Fresh arrivals}, offset: -100, duration: 1.6}
-      - click: Halo Beriti
+      - click: Selowa Ridge
       - wait_for: {target: {role: button, name: Request a quote}}
       - hold: 1.2
 

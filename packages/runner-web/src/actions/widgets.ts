@@ -2,12 +2,11 @@ import { describeTarget } from '@demo-studio/core';
 import type { MenuArgs, PickArgs, SelectArgs, TargetObject, TargetSpec } from '@demo-studio/core';
 import { StepError, formatNear } from '../errors.js';
 import type { ResolveMissing } from '../kit/types.js';
-import { NUDGE_HOVER_MS } from '../motion.js';
 import { poll, resolveRef, resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
-import { approach, clickOutside, clickResolved, waitPopupsGone } from './click.js';
+import { approach, clickData, clickOutside, clickResolved, waitPopupsGone } from './click.js';
 import type { ClickRun } from './click.js';
 import { typeText } from './keyboard.js';
 import type { ActionResult } from './types.js';
@@ -75,7 +74,7 @@ async function typeSearch(ctx: StepContext, text: string): Promise<void> {
       { timeoutMs: 2000 },
     ).catch(() => null);
     if (!input) throw new StepError(`${ctx.step.action}: no search field in the open popover to type "${text}"`);
-    await clickResolved(ctx, input, { expect_popup: false, after_ms: 200 });
+    await clickResolved(ctx, input, { expect_popup: false, after_ms: 200, click_role: 'search' });
   }
   await typeText(ctx, text, Math.min(ctx.rt.pacing.type_cps, SEARCH_MAX_CPS));
   await rt.sleep(ctx.jitter.ms(300));
@@ -85,16 +84,16 @@ async function popupIds(ctx: StepContext): Promise<Set<number>> {
   return new Set((await ctx.rt.kit.popupState()).map((p) => p.id));
 }
 
-function composite(first: ClickRun, ctx: StepContext, data: Record<string, unknown>): ActionResult {
-  const out: ActionResult = {
-    target: { desc: first.resolved.desc, bbox: first.resolved.bbox },
-    point: first.point,
-    t_click: first.t_click,
-    strategy: first.strategy,
-    popup_opened: first.popup_opened,
-    data: { ...data, clicks: ctx.clicks.map((c) => ({ t: c.t, point: c.point, desc: c.desc })) },
+/** Composite result: the top-level fields describe the trigger click; `data.clicks` keeps every click. */
+function composite(trigger: ClickRun, ctx: StepContext, data: Record<string, unknown>): ActionResult {
+  return {
+    target: { desc: trigger.resolved.desc, bbox: trigger.resolved.bbox },
+    point: trigger.point,
+    t_click: trigger.t_click,
+    strategy: trigger.strategy,
+    popup_opened: trigger.popup_opened,
+    data: { ...data, clicks: clickData(ctx) },
   };
-  return out;
 }
 
 /** Open a trigger, find an option/item (re-clicking the trigger once if it never shows up). */
@@ -105,12 +104,13 @@ async function openAndFind(
   search: string | undefined,
 ): Promise<{ open: ClickRun; found: Resolved | null }> {
   const deadline = wallNow() + ctx.timeoutMs;
-  const open = await clickResolved(ctx, trigger, { expect_popup: true });
+  let open = await clickResolved(ctx, trigger, { expect_popup: true, click_role: 'trigger' });
   if (search) await typeSearch(ctx, search);
   let found = await findFirst(ctx, targets, Math.min(RETRY_TRIGGER_AFTER_MS, ctx.timeoutMs));
   if (!found && (await ctx.rt.kit.popupState()).length === 0 && (await ctx.rt.kit.visible(trigger.ref))) {
     ctx.rt.log('info', `${ctx.scene.id}.${ctx.step.index}: nothing opened, clicking ${trigger.desc} once more`);
-    await clickResolved(ctx, trigger, { expect_popup: true });
+    // The re-click is the trigger click that counts (both stay in data.clicks).
+    open = await clickResolved(ctx, trigger, { expect_popup: true, click_role: 'trigger' });
     if (search) await typeSearch(ctx, search);
     found = await findFirst(ctx, targets, Math.max(500, deadline - wallNow()));
   } else if (!found) {
@@ -138,15 +138,22 @@ export async function select(ctx: StepContext, args: SelectArgs): Promise<Action
       );
     }
     await rt.sleep(ctx.jitter.ms(rt.pacing.after_click_ms));
-    ctx.clicks.push({ t: t_click, point: trigger.point, desc: trigger.desc, bbox: trigger.bbox, strategy: 'native' });
-    return { target: { desc: trigger.desc, bbox: trigger.bbox }, point: trigger.point, t_click, strategy: 'native', data: { option: res.label } };
+    ctx.clicks.push({ role: 'trigger', t: t_click, point: trigger.point, desc: trigger.desc, bbox: trigger.bbox, strategy: 'native', popup_opened: false });
+    return {
+      target: { desc: trigger.desc, bbox: trigger.bbox },
+      point: trigger.point,
+      t_click,
+      strategy: 'native',
+      popup_opened: false,
+      data: { option: res.label, clicks: clickData(ctx) },
+    };
   }
 
   const initial = await popupIds(ctx);
   const { open, found } = await openAndFind(ctx, trigger, optionTargets(args.option), args.search);
   if (!found) throw await missing(ctx, args.option, 'popover', ctx.timeoutMs);
   const opened = [...(await popupIds(ctx))].filter((id) => !initial.has(id));
-  await clickResolved(ctx, found, { expect_popup: false, hover_ms: NUDGE_HOVER_MS + 60 });
+  await clickResolved(ctx, found, { expect_popup: false, hover_ms: rt.pacing.nudge_hover_ms + 60, click_role: 'option' });
   if (!(await waitPopupsGone(ctx, opened, 1500))) {
     rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: the listbox stayed open after choosing "${args.option}"`);
   }
@@ -162,11 +169,11 @@ export async function pick(ctx: StepContext, args: PickArgs): Promise<ActionResu
   const trigger = await resolveTarget(ctx, spec);
   const { open, found: first } = await openAndFind(ctx, trigger, optionTargets(options[0]), args.search);
   if (!first) throw await missing(ctx, options[0], 'popover', ctx.timeoutMs);
-  await clickResolved(ctx, first, { expect_popup: false });
+  await clickResolved(ctx, first, { expect_popup: false, click_role: 'option' });
   for (const opt of options.slice(1)) {
     const r = await findFirst(ctx, optionTargets(opt), ctx.timeoutMs);
     if (!r) throw await missing(ctx, opt, 'popover', ctx.timeoutMs);
-    await clickResolved(ctx, r, { expect_popup: false });
+    await clickResolved(ctx, r, { expect_popup: false, click_role: 'option' });
   }
   const opened = (await rt.kit.popupState()).filter((p) => !initial.has(p.id));
   const close = args.close ?? 'outside';
@@ -230,7 +237,7 @@ export async function menu(ctx: StepContext, args: MenuArgs): Promise<ActionResu
   const { trigger, rowDesc } = await menuTriggerFor(ctx, args);
   const { open, found } = await openAndFind(ctx, trigger, menuItemTargets(args.item), undefined);
   if (!found) throw await missing(ctx, args.item, 'menu', ctx.timeoutMs);
-  await clickResolved(ctx, found, { expect_popup: false });
+  await clickResolved(ctx, found, { expect_popup: false, click_role: 'item' });
 
   if (args.confirm !== undefined && args.confirm !== false) {
     const text = typeof args.confirm === 'string' ? args.confirm : null;
@@ -241,7 +248,7 @@ export async function menu(ctx: StepContext, args: MenuArgs): Promise<ActionResu
       );
     }
     const btn = await resolveRef(ctx, ref, text ? `confirm button "${text}"` : 'confirm button');
-    await clickResolved(ctx, btn, { expect_popup: false });
+    await clickResolved(ctx, btn, { expect_popup: false, click_role: 'confirm' });
   }
   await settleMenus(ctx);
   return composite(open, ctx, { row: rowDesc, item: args.item, confirm: args.confirm ?? null });

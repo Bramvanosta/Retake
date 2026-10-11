@@ -77,6 +77,40 @@ describe('composite widgets and the other actions', () => {
     expect(ev[2].popup_opened).toBe(true);
     expect((ev[5].data as { clicks: unknown[] }).clicks.length).toBeGreaterThanOrEqual(4); // trigger, item, confirm, outside
     expect(ev[8].popup_opened).toBe(true);
+
+    // R-ISS-05: every click of a composite step keeps role, strategy, popup_opened, point, bbox and t_click;
+    // the event's top-level fields describe the trigger click.
+    type Click = { role: string; strategy: string; popup_opened: boolean; point: { x: number; y: number }; bbox?: { x: number; y: number; w: number; h: number }; t_click: number; desc: string };
+    const clicksOf = (e: TimelineEvent) => (e.data as { clicks: Click[] }).clicks;
+    const inBox = (c: Click) => !!c.bbox && c.point.x >= c.bbox.x - 1 && c.point.x <= c.bbox.x + c.bbox.w + 1 && c.point.y >= c.bbox.y - 1 && c.point.y <= c.bbox.y + c.bbox.h + 1;
+    for (const i of [0, 2, 5, 8]) {
+      const e = ev[i];
+      const cs = clicksOf(e);
+      expect(cs.length, e.action).toBeGreaterThan(0);
+      for (const c of cs) {
+        expect(Object.keys(c).sort(), `${e.action} ${c.role}`).toEqual(expect.arrayContaining(['role', 'strategy', 'popup_opened', 'point', 't_click', 'desc']));
+        expect(['trigger', 'option', 'item', 'confirm', 'outside', 'search']).toContain(c.role);
+        expect(c.t_click).toBeGreaterThanOrEqual(e.t_start);
+        expect(c.t_click).toBeLessThanOrEqual(e.t_end);
+        if (c.role !== 'outside') expect(inBox(c), `${e.action} ${c.role} ${JSON.stringify(c)}`).toBe(true);
+      }
+      const trigger = cs.find((c) => c.role === 'trigger')!;
+      expect(e.t_click).toBe(trigger.t_click);
+      expect(e.point).toEqual(trigger.point);
+      expect(e.strategy).toBe(trigger.strategy);
+      expect(e.popup_opened).toBe(trigger.popup_opened);
+      expect(e.target?.bbox).toEqual(trigger.bbox);
+      // Clicks are in chronological order.
+      for (let k = 1; k < cs.length; k++) expect(cs[k].t_click).toBeGreaterThanOrEqual(cs[k - 1].t_click);
+    }
+    expect(clicksOf(ev[0]).map((c) => c.role)).toEqual(['trigger']); // native select
+    expect(clicksOf(ev[2]).map((c) => c.role)).toEqual(['trigger', 'option']);
+    expect(clicksOf(ev[2])[0]).toMatchObject({ strategy: 'real', popup_opened: true });
+    expect(clicksOf(ev[2])[1]).toMatchObject({ popup_opened: false });
+    const menuRoles = clicksOf(ev[5]).map((c) => c.role);
+    expect(menuRoles.slice(0, 3)).toEqual(['trigger', 'item', 'confirm']);
+    expect(menuRoles.slice(3).every((r) => r === 'outside')).toBe(true);
+    expect(clicksOf(ev[8]).map((c) => c.role)).toEqual(['trigger', 'search', 'option', 'option', 'outside']); // search: click into the popover's search field
     expect(ev[17].data).toEqual({ name: 'checkpoint', data: { n: 1 } });
     expect(ev[18].data).toEqual({ value: 42 });
     expect(ev[22].point).toEqual({ x: 100, y: 120 });

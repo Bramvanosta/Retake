@@ -18,7 +18,7 @@ export {
 } from './schemas/primitives.js';
 export { StepSchema, ACTION_ARG_SCHEMAS, ACTION_DESCRIPTIONS, STEP_COMMON_KEYS } from './schemas/steps.js';
 export { HookStepSchema, HOOK_KINDS, HOOK_COMMON_KEYS } from './schemas/hooks.js';
-export { SceneSchema, InterstitialSchema, SceneEntrySchema, ScenarioSchema } from './schemas/scenario.js';
+export { SceneSchema, SceneCursorSchema, InterstitialSchema, SceneEntrySchema, ScenarioSchema } from './schemas/scenario.js';
 export {
   CaptureSettingsSchema,
   CapturePartialSchema,

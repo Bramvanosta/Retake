@@ -2,7 +2,9 @@
 
 A local stand-in for a real SaaS product so Demo Studio can be tested end to end without any
 staging access. *Northfield* is a fictional B2B specialty-coffee wholesale platform: roasters sell
-coffee lots to cafés. Everything in it (companies, people, cafés, competitions, registry) is fictional.
+coffee lots to cafés. Everything in it is fictional: companies, people, cafés, competitions, the lot registry and
+every farm, washing station and producer name (invented on purpose — never borrow a real lot or producer).
+Countries and growing regions are real geography only.
 
 One Node process (`node:http`, no framework) serves two React 19 SPAs bundled with esbuild and one
 shared in-memory store:

@@ -151,7 +151,7 @@ async function consoleFlow(page, C) {
   await shot(page, 'imports-after');
 
   // 2. Availability: scroll, Base UI row menu → Pause → Radix AlertDialog → Paused badge.
-  await page.goto(`${C}/availability/products/finca-el-paraiso-geisha`);
+  await page.goto(`${C}/availability/products/finca-lirandel-geisha`);
   await visibleText(page, 'Iceland');
   await shot(page, 'availability');
   await page.evaluate(() => window.scrollTo({ top: 560, behavior: 'smooth' }));
@@ -238,7 +238,7 @@ async function consoleFlow(page, C) {
 
   // 4. Catalogue → Add a coffee → registry search → duplicate → (refs removed) → enrichment.
   await page.goto(`${C}/products`);
-  await visibleText(page, 'Kiamabara AA');
+  await visibleText(page, 'Mountfern AA');
   await shot(page, 'catalogue');
   await click(page, page.getByRole('button', { name: 'Product actions' }).first());
   await page.getByRole('menu').waitFor();
@@ -251,8 +251,8 @@ async function consoleFlow(page, C) {
   await settle(page);
   await shot(page, 'add-coffee-dialog');
   await click(page, add.getByRole('textbox'));
-  await page.keyboard.type('Finca La Esperanza', { delay: 100 });
-  const result2026 = add.getByRole('option').filter({ hasText: 'Finca La Esperanza' }).filter({ hasText: '2026' });
+  await page.keyboard.type('Finca Quenaro', { delay: 100 });
+  const result2026 = add.getByRole('option').filter({ hasText: 'Finca Quenaro' }).filter({ hasText: '2026' });
   await result2026.waitFor();
   await page.waitForTimeout(400);
   await shot(page, 'registry-results');
@@ -260,10 +260,10 @@ async function consoleFlow(page, C) {
   await click(page, result2026);
   await visibleText(page, 'This coffee is already in your catalogue');
   await shot(page, 'registry-duplicate');
-  const removed = await api(C, 'DELETE', '/api/products/finca-la-esperanza/refs');
+  const removed = await api(C, 'DELETE', '/api/products/finca-quenaro/refs');
   check(removed.removed.includes('GCR-26-0412'), 'DELETE /refs frees the registry ref');
   await click(page, result2026);
-  await page.waitForURL('**/products/finca-la-esperanza-2');
+  await page.waitForURL('**/products/finca-quenaro-2');
   await visibleText(page, 'Enrichment in progress');
   await page.waitForTimeout(1500);
   await shot(page, 'enrichment-in-progress');
@@ -276,7 +276,7 @@ async function consoleFlow(page, C) {
 
   // 5. Supplier quote requests.
   await page.goto(`${C}/quotes`);
-  await visibleText(page, 'Café Lindgården');
+  await visibleText(page, 'Café Tallmora');
   await shot(page, 'console-quote-requests');
 }
 
@@ -289,8 +289,8 @@ async function shopFlow(context, page, S) {
   await page.getByRole('heading', { name: 'Fresh arrivals' }).evaluate((el) => window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 100, behavior: 'instant' }));
   await page.waitForTimeout(300);
   await shot(page, 'shop-home-arrivals');
-  await click(page, page.getByText('Halo Beriti', { exact: true }).first());
-  await page.waitForURL('**/products/halo-beriti');
+  await click(page, page.getByText('Selowa Ridge', { exact: true }).first());
+  await page.waitForURL('**/products/selowa-ridge');
   await page.getByRole('button', { name: 'Request a quote' }).waitFor();
   await page.waitForTimeout(300);
   await shot(page, 'shop-product');

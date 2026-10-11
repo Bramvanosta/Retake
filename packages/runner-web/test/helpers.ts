@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import type { IncomingHttpHeaders } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -15,11 +16,12 @@ export interface TestServer {
   close(): Promise<void>;
 }
 
-/** Serves fixed HTML pages (path → html) on 127.0.0.1 with a random port. */
-export async function startServer(pages: Record<string, string>): Promise<TestServer> {
+/** Serves fixed HTML pages (path → html, or a function of the request headers) on 127.0.0.1 with a random port. */
+export async function startServer(pages: Record<string, string | ((headers: IncomingHttpHeaders) => string)>): Promise<TestServer> {
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0];
-    const body = pages[path];
+    const entry = pages[path];
+    const body = typeof entry === 'function' ? entry(req.headers) : entry;
     if (body === undefined) {
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('not found');
@@ -47,10 +49,14 @@ export const FAST: Partial<Pacing> = {
   move_ms_per_px: 0.05,
   move_min_ms: 60,
   move_max_ms: 160,
+  nudge_ms: 60,
+  nudge_hover_ms: 30,
   hover_ms: 40,
   press_ms: 30,
   after_click_ms: 80,
   after_popup_ms: 120,
+  after_navigation_ms: 150,
+  popup_fallback_ms: 300,
   popup_timeout_ms: 400,
   type_cps: 60,
   scroll_duration: 0.3,

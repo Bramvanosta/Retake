@@ -23,11 +23,18 @@ import { StepError, errorMessage, isCancelled } from './errors.js';
 import { Jitter } from './motion.js';
 import { resolveTarget } from './resolve.js';
 import type { Runtime, StepContext } from './runtime.js';
-import { fileSlug, pad, throwIfAborted } from './util.js';
+import { placeSceneCursor } from './scene-cursor.js';
+import { fileSlug, pad, throwIfAborted, wallNow } from './util.js';
 
 export const DEFAULT_STEP_TIMEOUT_S = 15;
-/** DOM snippets written next to error screenshots are trimmed to this size. */
-const ERROR_DOM_MAX = 256 * 1024;
+/** After a scene-start teleport, before the still: hover transitions of the element the pointer left settle. */
+const TELEPORT_SETTLE_MS = 300;
+/**
+ * DOM snippets written next to error screenshots (`error-<scene>-<step>.html`) are trimmed to this many characters
+ * (docs/DESIGN.md §3.2): the failing element's outerHTML when known, else the body — enough to see the structure
+ * around a missing target, small enough to read or hand to an agent.
+ */
+export const ERROR_DOM_MAX = 64 * 1024;
 
 /** A non-optional step failed: the run aborts (teardown still runs). */
 export class StepFailure extends Error {
@@ -288,6 +295,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       throw new StepError(`scene ${id}: unknown page "${pageKey}" (environment ${rt.env.name}: ${envKeys.join(', ')})`);
     }
     const fresh = !rt.session.has(pageKey);
+    const switched = rt.activeId !== pageKey;
     await rt.activate(pageKey);
     const ts: TimelineScene = { id, index: si, kind: 'scene', t_start: rt.now(), t_end: rt.now(), page: pageKey, status: 'ok' };
     const cap = caption(scene.caption);
@@ -309,16 +317,28 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       } else if (fresh) {
         rt.warn(`scene ${id} starts on a blank "${pageKey}" page (add \`open\`)`);
       }
-      if (scene.open !== undefined || !rt.pointer.known) {
-        await rt.pointer.teleport(await rt.kit.restPoint());
+      // Scene-start cursor (scene key `cursor`): placed while the page loads, or glided during the still — never a jump.
+      const stillS = scene.still ?? rt.pacing.scene_start_still;
+      const placed = await placeSceneCursor(rt, scene, {
+        loading: scene.open !== undefined || switched,
+        stillMs: stillS * 1000,
+        jitter: new Jitter(`${opts.scenarioName}:${scene.id}:cursor`, rt.pacing.jitter),
+      });
+      if (placed.record.how === 'teleport') {
+        // Still part of the loading (cut by the editor): let hover-out transitions of the element the pointer left end.
+        await rt.sleep(TELEPORT_SETTLE_MS);
         await rt.painted();
       }
       ts.url = rt.page.url();
-      const stillS = scene.still ?? rt.pacing.scene_start_still;
       const still: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_still', t_start: rt.now(), t_end: rt.now(), status: 'ok' };
       rt.timeline.addEvent(still);
-      await rt.sleep(stillS * 1000);
+      const stillStart = wallNow();
+      if (placed.glide) await placed.glide();
+      const left = stillStart + stillS * 1000 - wallNow();
+      if (left > 0) await rt.sleep(left);
       still.t_end = rt.now();
+      still.point = rt.pointer.pos();
+      still.data = { cursor: placed.record };
       ts.t_actions = still.t_end;
 
       const steps = scene.steps ?? [];

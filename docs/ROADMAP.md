@@ -18,12 +18,12 @@ requirements of a lot with their gaps.
 | Lot | Title | Size | Status |
 |---|---|---|---|
 | P1 | Phase 1 — core, runner-web, hooks, CLI, fixture, starter templates | — | **done** (commit `0df4a29`) |
-| L1.1 | Phase 1 polish + `studio doctor` | S | next |
+| L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
 | L1.2 | Runner robustness for any site | M | todo |
 | L1.3 | Capture smoothness under load (spike) | M | todo |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
-| L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | todo |
+| L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | next |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | todo |
 | L2.3 | Edit planner (pure, unit-tested) | M | todo |
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | todo |

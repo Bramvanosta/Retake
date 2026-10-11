@@ -2,8 +2,18 @@ export * from './types.js';
 export { HookError, HookSecurityError, JournalError } from './errors.js';
 export { runHooks } from './run.js';
 export type { RunHooksOptions, RunHooksResult } from './run.js';
-export { Journal, JOURNAL_FILE, findPendingJournals, isPending, rollbackPendingJournals } from './journal.js';
-export type { JournalRollback } from './journal.js';
+export {
+  Journal,
+  JOURNAL_FILE,
+  JOURNALS_DIR,
+  findJournal,
+  findPendingJournals,
+  isPending,
+  journalId,
+  rollbackPendingJournals,
+  standaloneJournalFile,
+} from './journal.js';
+export type { JournalLocations, JournalRollback } from './journal.js';
 export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
 export { describeHook, hookKindOf } from './describe.js';

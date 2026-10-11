@@ -7,13 +7,13 @@ outro: {tagline: "Your catalogue, under control."}
 setup:
   - name: reset
     http: {method: POST, url: "{{console}}/api/reset"}
-  # Finca La Esperanza 2026 is already linked to an archived product, so the registry would refuse
+  # Finca Quenaro 2026 is already linked to an archived product, so the registry would refuse
   # it as a duplicate. Free its registry ref for the shot (restored by the rollback / teardown).
   - name: free-registry-ref
     http:
       method: DELETE
-      url: "{{console}}/api/products/finca-la-esperanza/refs"
-      rollback: {method: POST, url: "{{console}}/api/products/finca-la-esperanza/refs"}
+      url: "{{console}}/api/products/finca-quenaro/refs"
+      rollback: {method: POST, url: "{{console}}/api/products/finca-quenaro/refs"}
     confirm: true
 
 teardown:
@@ -36,7 +36,7 @@ scenes:
 
   - id: availability
     caption: {kicker: Availability by market, text: "Pause a market, or fine-tune bag sizes, grinds and label languages in a few clicks."}
-    open: /availability/products/finca-el-paraiso-geisha
+    open: /availability/products/finca-lirandel-geisha
     speed: 1.6
     steps:
       - scroll: {to: 560, duration: 1.5}
@@ -53,8 +53,8 @@ scenes:
     open: /products
     steps:
       - click: {text: Add a coffee}
-      - type: {into: {in: dialog, role: textbox}, text: Finca La Esperanza, cps: 10}
-      - click: {in: dialog, contains: [Finca La Esperanza, "2026"]}
+      - type: {into: {in: dialog, role: textbox}, text: Finca Quenaro, cps: 10}
+      - click: {in: dialog, contains: [Finca Quenaro, "2026"]}
       # Fails fast when the product page did not open (e.g. the registry refused a duplicate lot).
       - wait_for: {text: Enrichment in progress, timeout: 5}
       - wait_for: {not_text: Enrichment in progress, timeout: 30}

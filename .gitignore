@@ -7,6 +7,7 @@ projects/*/runs/
 projects/*/renders/
 projects/*/review/
 projects/*/exports/
+projects/*/.demo-studio/
 frames/
 fixtures/*/public/build/
 .demo-studio/
