@@ -9,5 +9,10 @@
     ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" }
   },
   "files": ["dist", "src"],
-  "dependencies": { "@demo-studio/core": "workspace:*", "sharp": "^0.34.4" }
+  "dependencies": {
+    "@demo-studio/components": "workspace:*",
+    "@demo-studio/core": "workspace:*",
+    "@demo-studio/editor": "workspace:*",
+    "sharp": "^0.34.4"
+  }
 }

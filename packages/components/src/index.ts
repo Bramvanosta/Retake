@@ -64,3 +64,6 @@ export type { FilledSlots, SlotContext } from './slots.js';
 /** The kit's pure easing curves (no React), for Node-side consumers such as the edit planner. */
 export { CAMERA_EASINGS, DEFAULT_ZOOM_EASE, cubicBezier } from './kit/easing.js';
 export type { Bezier, EasingFn } from './kit/easing.js';
+/** The kit's text fitting (pure, no React), for Node-side consumers such as the review. */
+export { estimateTextWidth, fitText, wrapText } from './kit/fit-text.js';
+export type { FitTextOptions, FitTextResult, TextFont, TextMeasurer } from './kit/fit-text.js';

@@ -200,9 +200,15 @@ importers:
 
   packages/review:
     dependencies:
+      '@demo-studio/components':
+        specifier: workspace:*
+        version: link:../components
       '@demo-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@demo-studio/editor':
+        specifier: workspace:*
+        version: link:../editor
       sharp:
         specifier: ^0.34.4
         version: 0.34.5
