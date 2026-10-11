@@ -1,0 +1,5302 @@
+{
+ "version": 1,
+ "generated_from": "spec coverage audit 2026-10-11 (workflow wf_03690339-39d)",
+ "statuses": [
+  "done",
+  "partial",
+  "todo",
+  "n/a-here"
+ ],
+ "items": [
+  {
+   "id": "R-PRIN-01",
+   "source": "SPEC §0 (No client inside the tool); design-brief Constraints",
+   "requirement": "No real customer name, brand, URL, account, asset or data in code, docs, templates or fixtures.",
+   "status": "partial",
+   "evidence": "grep finds no client brands; templates use placeholder brand 'Atelier' (templates/editorial/template.yaml:4); fixtures/wholesale/server/seed.mjs:111,150,171",
+   "gap": "Fixture lots use real farm/station names ('Finca El Paraíso — Geisha', 'Halo Beriti', 'Finca La Esperanza'), while fixtures/wholesale/README.md says everything is fictional. See R-ISS-10.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-PRIN-02",
+   "source": "SPEC §0; DESIGN §0 Workspace root",
+   "requirement": "Customer material lives in a workspace selected with --root, $DEMO_STUDIO_ROOT, studio.yaml or projects/templates lookup, so the tool installation stays clean.",
+   "status": "done",
+   "evidence": "packages/core/src/workspace.ts:51-59; packages/cli/src/workspace.ts:158-161; test 'workspace > findWorkspaceRoot: env override, studio.yaml, projects/ or templates/, else start'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-03",
+   "source": "SPEC §0 (Everything is authored)",
+   "requirement": "Scenarios, themes, framing, captions and motion are data; the tool ships generic starter templates only.",
+   "status": "done",
+   "evidence": "templates/default, editorial, motion; test 'bundled templates > every template loads with all its assets and is complete on its own'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-04",
+   "source": "SPEC §0 (Authoring for any site)",
+   "requirement": "Draft scenarios from a timecoded script, inspect a live page for robust targets, record a scenario by clicking, and derive a theme from a brand or site URL.",
+   "status": "todo",
+   "evidence": "only a 'record' stub exists (packages/cli/src/commands/misc.ts:137)",
+   "gap": "Not implemented (planned for phase 3).",
+   "phase": "3",
+   "lot": "L3.3"
+  },
+  {
+   "id": "R-PRIN-05",
+   "source": "SPEC §0 (Robust: SPA and full-page navigations)",
+   "requirement": "Handle SPA route changes and full-page navigations: re-inject the kit, settle the navigation, restore the cursor, and split timeline page segments.",
+   "status": "done",
+   "evidence": "click.ts:32-60 watchNavigation; pages.ts:15-28; session.ts:80-110 kit re-install; test 'cursor overlay > follows real input, survives a full navigation'; widgets test page segments",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-06",
+   "source": "SPEC §0 (inner scroll containers)",
+   "requirement": "Targets inside inner scroll containers are scrolled into view and can be scrolled explicitly.",
+   "status": "done",
+   "evidence": "resolve.ts:329-341 ensureInView; kit.ts:733 scrollPlan; test 'scroll > scrolls an inner container to a target, auto-scrolls to click, and scrolls the document'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-07",
+   "source": "SPEC §0 (portals/popovers of any UI library)",
+   "requirement": "Detect and act on portals, poppers and popovers of any UI library (Radix, Base UI, native [popover], dialogs).",
+   "status": "done",
+   "evidence": "kit.ts:347 FLOATING_SEL, kit.ts:872 POPUP_SEL; fixture runs catalogue and quote succeeded (Radix and Base UI); widgets.test.ts",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-08",
+   "source": "SPEC §0 (new tabs)",
+   "requirement": "Follow links into new tabs and keep recording there.",
+   "status": "done",
+   "evidence": "pages.ts:44-94; test 'new_tab > follows a real target=_blank link and a prevented link (href fallback); recording continues'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-09",
+   "source": "SPEC §0 (cookie banners via hooks)",
+   "requirement": "Page preparation such as dismissing cookie banners can be done with js hooks that run in a page of the environment.",
+   "status": "done",
+   "evidence": "run.ts:360-368 evalInPage; packages/cli/src/commands/hooks.ts:50-73; e2e 'runs js hooks in a headless page of the environment'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-10",
+   "source": "SPEC §0 (authenticated sessions); SPEC §4 auth; DESIGN §3.1",
+   "requirement": "Authenticated sessions use a persistent pre-authenticated profile (global or per environment) or a storage_state file.",
+   "status": "partial",
+   "evidence": "session.ts:239-260 launchPersistentContext(profileDir); session.ts:376-392 applyStorageState; config.ts:238-247; unit test 'resolves auth globally or per environment'",
+   "gap": "No test or run launches with a real profile or storage_state; every test uses a temporary profile. Signing in with studio login cannot be verified here (R-ISS-09).",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-PRIN-11",
+   "source": "SPEC §0 (clean package boundaries)",
+   "requirement": "Phase-1 packages (core, hooks, runner-web, cli) have clean boundaries; heavy dependencies load lazily.",
+   "status": "done",
+   "evidence": "packages/*/package.json; packages/cli/src/commands/run.ts:235 dynamic import of runner-web; runner-web/src/hooks-bridge.ts loadHooksModule",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-12",
+   "source": "SPEC §0 (config over code, no absolute paths)",
+   "requirement": "Config over code; no absolute paths; paths resolve relative to the project or workspace, with ~ expanded.",
+   "status": "done",
+   "evidence": "grep finds no /home or /Users paths in packages/*/src or templates; runner-web/src/config.ts:232-235; core/src/util.ts expandHome",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PRIN-13",
+   "source": "SPEC §0 (versioned file formats)",
+   "requirement": "Persisted file formats carry a `version` field.",
+   "status": "partial",
+   "evidence": "timeline version:1 (runner-web/src/timeline.ts:167, schemas/timeline.ts:78); hooks journal version 1 (hooks/src/journal.ts:24,38)",
+   "gap": "scenario.yaml, project.yaml, template.yaml, studio.yaml and run.json have no version field.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-GOAL-01",
+   "source": "SPEC §1.1",
+   "requirement": "Drive a real web app headless and offscreen at any virtual resolution (1920×1080, 2560×1440, 4K via scale 2, mobile).",
+   "status": "partial",
+   "evidence": "acceptance.test.ts (1920×1080), e2e.test.ts (1280×720), functional tests (800×600); unit 'merges pacing and capture layers' (scale 2 merge only)",
+   "gap": "No capture at scale 2, 2560×1440 or a mobile viewport is exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-GOAL-02",
+   "source": "SPEC §1.1, §3 runner-ios",
+   "requirement": "Drive an iOS app in the Simulator.",
+   "status": "todo",
+   "evidence": "no packages/runner-ios",
+   "gap": "Not started (phase 5).",
+   "phase": "5",
+   "lot": "L5.3"
+  },
+  {
+   "id": "R-GOAL-03",
+   "source": "SPEC §1.2",
+   "requirement": "Record a clean capture with the cursor drawn inside the page.",
+   "status": "done",
+   "evidence": "kit.ts:1186-1600 overlay; acceptance test 'the drawn hotspot is within 3 px of every click point and inside the target'; runs/20261011-150847-catalogue/capture.mp4",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-GOAL-04",
+   "source": "SPEC §1.3",
+   "requirement": "Emit a timeline of events with each step's start and end in capture time.",
+   "status": "done",
+   "evidence": "runner-web/src/timeline.ts; TimelineSchema.parse in acceptance.test.ts and e2e.test.ts",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-GOAL-05",
+   "source": "SPEC §1.4",
+   "requirement": "Automatic edit: framing, captions, intro/outro, interstitials, speed ramps, cuts, optional slow zooms from the timeline and template.",
+   "status": "todo",
+   "evidence": "packages/editor/src/plan-types.ts contract only",
+   "gap": "Phase 2.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-GOAL-06",
+   "source": "SPEC §1.5",
+   "requirement": "Export MP4 plus review artefacts (contact sheets, key frames, JSON) for Claude.",
+   "status": "todo",
+   "evidence": "packages/review is empty; 'studio review/export' stubs (misc.ts:135-136)",
+   "gap": "Phase 2.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-GOAL-07",
+   "source": "SPEC §1.6",
+   "requirement": "Fully drivable by an MCP server.",
+   "status": "todo",
+   "evidence": "packages/mcp is empty; 'studio mcp' stub",
+   "gap": "Phase 3.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-GOAL-08",
+   "source": "SPEC §1.1; SPEC §14 phase 1 accept",
+   "requirement": "Capture runs headless and offscreen while the user keeps working on the Mac.",
+   "status": "n/a-here",
+   "evidence": "headless:true (session.ts:246); every Linux run here was headless",
+   "gap": "Not verifiable without a macOS desktop.",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-LES-01",
+   "source": "SPEC §2 lesson 1",
+   "requirement": "The cursor overlay lives in the page during capture; it is never added in post from guessed timestamps.",
+   "status": "done",
+   "evidence": "kit.ts overlay driven by real input (kit.ts:1488-1511); acceptance hotspot test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-02",
+   "source": "SPEC §2 lesson 1",
+   "requirement": "Camera moves are keyed to timeline events emitted by the runner (camera hint plus target bbox or point on the step event).",
+   "status": "done",
+   "evidence": "scenes.ts:103-120 cameraFor, scenes.ts:223; widgets test asserts ev[25].camera.bbox.w > 0; catalogue run add-product.5 camera",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-03",
+   "source": "SPEC §2 lesson 2",
+   "requirement": "Capture uses the CDP screencast (or a virtual display), never screen grabs of the physical monitor.",
+   "status": "done",
+   "evidence": "recorder.ts:125-131 Page.startScreencast",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-04",
+   "source": "SPEC §2 lesson 3",
+   "requirement": "The scenario runs inside a single runner with deterministic pacing, with no tool round trip per action.",
+   "status": "done",
+   "evidence": "scenes.ts runScenes in-process; acceptance 'has no hesitations between steps (< 80 ms)'; fixture timelines: step gaps ≤ 4 ms",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-05",
+   "source": "SPEC §2 lesson 4",
+   "requirement": "click has strategies (native, DOM, pointer sequence) with a fallback when an expected popup did not open.",
+   "status": "done",
+   "evidence": "click.ts:102-159; test 'click strategies > falls back from real input to el.click() to a pointer sequence'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-06",
+   "source": "SPEC §2 lesson 4",
+   "requirement": "Provide a 'click outside' that closes popovers.",
+   "status": "done",
+   "evidence": "click.ts:184-202; strategies test asserts data.closed === true",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-07",
+   "source": "SPEC §2 lesson 4",
+   "requirement": "Select the 'last visible' element when several popovers are mounted.",
+   "status": "done",
+   "evidence": "kit.ts:663-698 find(); test 'nth, negative nth and last_visible (several mounted popovers)'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-08",
+   "source": "SPEC §2 lesson 5",
+   "requirement": "Synthetic clicks cannot open new tabs, so the runner follows the href in a new page and keeps recording.",
+   "status": "done",
+   "evidence": "pages.ts:44-94 (how: 'href'); new_tab test ev[4].data.how === 'href'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-LES-09",
+   "source": "SPEC §2 lesson 6",
+   "requirement": "First-class setup/teardown hooks (HTTP, SQL, shell, JS) with automatic rollback.",
+   "status": "partial",
+   "evidence": "hooks/src/run.ts; hooks tests http/shell/js/journal; e2e asserts the rollback ran",
+   "gap": "SQL against a real Postgres is never exercised: 6 tests are skipped without DEMO_STUDIO_TEST_PG.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-LES-10",
+   "source": "SPEC §2 lesson 7",
+   "requirement": "Edit avoids zooms at every cut, fades on wrong frames and 30 s of slow action, and delivers real capture with light motion, mockups, intro/outro with logo and captions.",
+   "status": "todo",
+   "evidence": "editor not implemented",
+   "gap": "Phase 2 editor rules.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ARCH-01",
+   "source": "SPEC §3",
+   "requirement": "TypeScript on Node 22, pnpm workspace.",
+   "status": "done",
+   "evidence": "package.json engines node>=22; pnpm-workspace.yaml; tsconfig.base.json",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ARCH-02",
+   "source": "SPEC §3 layout",
+   "requirement": "Phase-1 packages exist: core, runner-web, hooks, cli.",
+   "status": "done",
+   "evidence": "packages/core, runner-web, hooks, cli",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ARCH-03",
+   "source": "SPEC §3 layout",
+   "requirement": "Remaining packages exist: components, editor, review, mcp, runner-ios, ui, apps/desktop, skills.",
+   "status": "todo",
+   "evidence": "components/editor hold contracts only; review/mcp have no src; runner-ios, ui, apps/, skills/ are absent",
+   "gap": "Planned for phases 2–5.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-ARCH-04",
+   "source": "SPEC §3 web automation",
+   "requirement": "Playwright for orchestration plus CDP Page.startScreencast at quality 100.",
+   "status": "done",
+   "evidence": "types.ts:556 DEFAULT_CAPTURE quality 100; recorder.ts:125-131",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ARCH-05",
+   "source": "SPEC §3 web automation",
+   "requirement": "Use HeadlessExperimental.beginFrame for deterministic frames when available.",
+   "status": "todo",
+   "evidence": "no beginFrame usage anywhere in packages/",
+   "gap": "Not implemented; it would also be a mitigation for R-ISS-01.",
+   "phase": "1",
+   "lot": "L1.3"
+  },
+  {
+   "id": "R-ARCH-06",
+   "source": "SPEC §3 web automation",
+   "requirement": "deviceScaleFactor 1 or 2 for crisp 4K frames.",
+   "status": "partial",
+   "evidence": "session.ts:251; recorder maxWidth = w·scale (recorder.ts:128-129); encode size w·scale (run.ts:283-284)",
+   "gap": "A scale 2 capture is never run or tested.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ARCH-07",
+   "source": "SPEC §3",
+   "requirement": "New headless mode: any viewport, independent of the physical screen.",
+   "status": "done",
+   "evidence": "session.ts:242-250 channel 'chromium', headless true, viewport and screen set; test 'every captured frame has the full viewport size'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ARCH-08",
+   "source": "SPEC §3 video",
+   "requirement": "ffmpeg turns frames into an mp4, VFR to CFR at 30/60 fps.",
+   "status": "done",
+   "evidence": "encode.ts:31-44 cfrSchedule, encode.ts:91-114; unit 'encodeFrames > turns VFR frames into a CFR mp4 of exactly the capture duration'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ARCH-09",
+   "source": "SPEC §3 video",
+   "requirement": "Remotion for composition.",
+   "status": "todo",
+   "evidence": "none",
+   "gap": "Phase 2.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-ARCH-10",
+   "source": "SPEC §3 persistence",
+   "requirement": "Plain files (YAML/JSON/MP4) in project folders; SQLite only for the render queue.",
+   "status": "done",
+   "evidence": "runs/<id>/ files (runfiles.ts, run.ts); no database used in phase 1",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ARCH-11",
+   "source": "SPEC §3 desktop shell",
+   "requirement": "Tauri desktop shell around the UI (macOS).",
+   "status": "todo",
+   "evidence": "no apps/desktop",
+   "gap": "Phase 5.",
+   "phase": "5",
+   "lot": "L5.2"
+  },
+  {
+   "id": "R-PROJ-01",
+   "source": "SPEC §4 layout; DESIGN §0",
+   "requirement": "projects/<slug>/ contains README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore for runs/, renders/, review/, frames/.",
+   "status": "done",
+   "evidence": "core/src/project.ts:210-235; test 'createProject → loadProject round trip'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-02",
+   "source": "SPEC §4 layout (template/ or reference)",
+   "requirement": "A project template is a project-local folder or a reference to templates/<name>.",
+   "status": "done",
+   "evidence": "core/src/template.ts:138-140 loadProjectTemplate; test 'listTemplates and loadProjectTemplate (name or project-relative path)'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-03",
+   "source": "SPEC §4 README; README 'studio new'",
+   "requirement": "The README skeleton covers product, audience, goals, tone, links (staging URLs), accounts by reference (never passwords) and do/don't.",
+   "status": "done",
+   "evidence": "core/src/project.ts:151-189; round-trip test checks every heading",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-04",
+   "source": "SPEC §4 project.yaml",
+   "requirement": "`name` and `environments` (env → page key → absolute http(s) base URL; page keys are identifiers, not reserved).",
+   "status": "done",
+   "evidence": "schemas/project.ts:121-126; checks/project.ts:35-52; test 'parseProjectYaml semantic checks'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-05",
+   "source": "SPEC §4 project.yaml",
+   "requirement": "`capture {width,height,scale,fps}` plus format, quality, crf and keep_frames, merged over defaults by project then scenario.",
+   "status": "done",
+   "evidence": "schemas/settings.ts:181-197; runner-web/src/config.ts:215-217; unit 'merges pacing and capture layers'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-06",
+   "source": "SPEC §4 project.yaml",
+   "requirement": "`frame` (raw | browser | laptop | phone | card) defaults to card.",
+   "status": "partial",
+   "evidence": "schemas/primitives.ts FrameStyleSchema; project.ts:22 DEFAULT_FRAME",
+   "gap": "Only validated and stored. It is used by the editor (phase 2); the timeline carries only scene-level frame.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-PROJ-07",
+   "source": "SPEC §4 project.yaml",
+   "requirement": "`template` selects the theme; validate checks its assets; run takes the cursor colours from it.",
+   "status": "done",
+   "evidence": "cli/src/commands/validate.ts:60-73; run.ts (cli):265; kit/source.ts:251-262",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-08",
+   "source": "SPEC §4 project.yaml",
+   "requirement": "`locale` project default.",
+   "status": "partial",
+   "evidence": "schemas/project.ts:135 accepted",
+   "gap": "Unused at runtime: the browser locale comes only from browser.locale (session.ts:252), so `locale: en` has no effect.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-PROJ-09",
+   "source": "SPEC §4 layout",
+   "requirement": "runs/<timestamp>/ holds capture.mp4, frames/, timeline.json, logs and error screenshots.",
+   "status": "done",
+   "evidence": "projects/northfield-fixture/runs/20261011-150847-catalogue/ (capture.mp4, frames/, frames.jsonl, timeline.json, run.json, log.jsonl, hooks-journal.json, scenario.yaml)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-PROJ-10",
+   "source": "SPEC §4 layout",
+   "requirement": "renders/<name>-vN.mp4 and review/<name>-vN/ per render.",
+   "status": "todo",
+   "evidence": "git-ignored only (PROJECT_GITIGNORE project.ts:25)",
+   "gap": "Phase 2.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-TPL-01",
+   "source": "SPEC §5",
+   "requirement": "template.yaml keys are validated, merged over defaults, and every asset file is checked: colors, fonts.display/body, logo, background, frame, captions.kicker/line, intro, outro.url, interstitial.style, transitions, cursor, motion, style_bias.",
+   "status": "done",
+   "evidence": "schemas/template.ts; core/src/template.ts:44-123; template.test.ts (5 tests); bundled.test.ts",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TPL-02",
+   "source": "SPEC §5 cursor",
+   "requirement": "Template cursor.style and cursor.ripple_color drive the in-page cursor.",
+   "status": "done",
+   "evidence": "kit/source.ts:251-262; kit.ts:1189-1191,1240; unit 'the kit source is a self-contained script'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TPL-03",
+   "source": "SPEC §5 motion; DESIGN §1",
+   "requirement": "motion.max_zoom is used to warn on camera zooms above it.",
+   "status": "done",
+   "evidence": "checks/scenario.ts:162-168; test 'warnings: zoom above max_zoom…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TPL-04",
+   "source": "SPEC §5",
+   "requirement": "Render template fonts, captions, background, frame, intro/outro, interstitial, transitions and style_bias.",
+   "status": "todo",
+   "evidence": "editor not implemented",
+   "gap": "Phase 2.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-SCN-01",
+   "source": "SPEC §6",
+   "requirement": "Scenario YAML is validated by JSON Schema with a strict, small vocabulary, and the schemas are published.",
+   "status": "done",
+   "evidence": "schemas/scenario.ts, steps.ts; schema.test 'scenario: draft 2020-12, strict root, one branch per action' and 'packages/core/schema/*.json are up to date'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SCN-02",
+   "source": "SPEC §6 example",
+   "requirement": "The SPEC §6 example scenario parses with zero errors.",
+   "status": "done",
+   "evidence": "scenario.test 'docs/SPEC.md §6 example > parses with zero errors against a staging project'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SCN-03",
+   "source": "SPEC §6; README Scenario keys",
+   "requirement": "Scenario keys: video, title, intro, outro, env, vars, setup, teardown, capture, frame, template, pacing, music, scenes.",
+   "status": "partial",
+   "evidence": "schemas/scenario.ts:67-106; runtime uses env/vars/setup/teardown/capture/pacing (run.ts:99-163) and template (cli run.ts:265)",
+   "gap": "title, intro, outro, frame and music are only validated (edit-time, phase 2); they are not carried into timeline.json, so the editor must read the scenario.yaml snapshot.",
+   "phase": "1",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN-04",
+   "source": "README Scene keys; SPEC §6",
+   "requirement": "Scene keys id, caption, page, open, steps, speed, still, transition, frame, irreversible, skip and note are honoured.",
+   "status": "partial",
+   "evidence": "scenes.ts:285-322; widgets test 'switches pages per scene … skipped scenes' covers page/open/caption/speed/skip",
+   "gap": "still, transition, frame and scene-level irreversible are implemented (scenes.ts:197,296-297,317) but no test exercises them.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-SCN-05",
+   "source": "README Scene keys",
+   "requirement": "A scene without page continues on the previous page; a scene without open continues from the current state.",
+   "status": "done",
+   "evidence": "scenes.ts:285-311; widgets test scene 'back' on page app with no open",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SCN-06",
+   "source": "SPEC §6; README",
+   "requirement": "An interstitial {text, kicker, duration, style} takes no capture time (t_start = t_end).",
+   "status": "done",
+   "evidence": "scenes.ts:273-277; widgets test asserts inter.t_start === inter.t_end",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-01",
+   "source": "SPEC §6 actions; README `open`",
+   "requirement": "`open` step navigates the current or given page (url, page, wait_until), then settles network idle ≤ settle_ms.",
+   "status": "partial",
+   "evidence": "actions/pages.ts:15-36",
+   "gap": "Only scene-level `open` is exercised; no test uses the `open` step, its `page` or `wait_until`.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-02",
+   "source": "SPEC §6; README `click`",
+   "requirement": "`click`: the cursor travels, hovers and presses, with popup-aware fallbacks.",
+   "status": "done",
+   "evidence": "actions/click.ts:215-238; strategies test; acceptance test; fixture runs",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-03",
+   "source": "README `click (outside)`",
+   "requirement": "`click: {outside: true}` closes the open popover by clicking the dialog title or a blank area, then waits until it is gone.",
+   "status": "done",
+   "evidence": "click.ts:184-202,215-233; strategies test (data.closed true ×3)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-04",
+   "source": "ClickOptions.outside (types.ts:104)",
+   "requirement": "`outside: <target>` closes the popover by clicking that element.",
+   "status": "partial",
+   "evidence": "click.ts:218-232",
+   "gap": "Never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-05",
+   "source": "SPEC §6; README",
+   "requirement": "`double_click` on a target.",
+   "status": "done",
+   "evidence": "click.ts:240-246; widgets test asserts 'double clicked'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-06",
+   "source": "SPEC §6; README; choreography (attention)",
+   "requirement": "`hover {ms, move_ms}` moves onto an element and rests (default ~0.9 s).",
+   "status": "done",
+   "evidence": "click.ts:248-256 HOVER_ATTENTION_MS 900; widgets hover ms 100; quote run discover.0",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-07",
+   "source": "SPEC §6; DESIGN §3.3 type",
+   "requirement": "`type`: click into `into`, then type character by character at cps with deterministic jitter.",
+   "status": "done",
+   "evidence": "actions/keyboard.ts:14-53,74-84; acceptance type into label cps 22; catalogue/quote runs",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-08",
+   "source": "DESIGN §3.3 type; README",
+   "requirement": "`type.clear` (select-all + Backspace) and `type.enter`.",
+   "status": "partial",
+   "evidence": "keyboard.ts:23-28,33-43",
+   "gap": "Never exercised by a test or run.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-09",
+   "source": "SPEC §6; DESIGN §3.3 press",
+   "requirement": "`press` presses a key (Playwright names) × times, without ripple.",
+   "status": "done",
+   "evidence": "keyboard.ts:55-71; widgets {press: {key: Tab, times: 2}}",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-10",
+   "source": "SPEC §6; DESIGN §3.3 select",
+   "requirement": "`select`: native <select> (hover + set value) or a combobox listbox (last visible) with optional search, by `field` or `combobox`.",
+   "status": "done",
+   "evidence": "widgets.ts:122-154; widgets test (native strategy 'native', searchable listbox popup_opened); fixture runs",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-11",
+   "source": "SPEC §6; DESIGN §3.3 pick",
+   "requirement": "`pick`: field label → trigger → popover → optional search → tick each option → close outside (never Escape) → wait until gone.",
+   "status": "done",
+   "evidence": "widgets.ts:156-181; widgets pick ['1 kg','5 kg'] with search inside a dialog, asserting no Escape; catalogue run",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-12",
+   "source": "README `pick close`",
+   "requirement": "`pick.close` accepts escape or none.",
+   "status": "partial",
+   "evidence": "widgets.ts:172-179",
+   "gap": "Never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-13",
+   "source": "SPEC §6; DESIGN §3.3 menu",
+   "requirement": "`menu`: find the row → discover its trigger → click → item in the last visible menu → confirm in the alertdialog → wait until no menu or alertdialog.",
+   "status": "done",
+   "evidence": "widgets.ts:200-248; widgets test menu Iceland Pause confirm; catalogue run availability.1-2",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-14",
+   "source": "README `menu`",
+   "requirement": "`menu.trigger` (explicit trigger) and `confirm: true` (first non-cancel button).",
+   "status": "partial",
+   "evidence": "widgets.ts:202, kit.ts:1033-1043",
+   "gap": "Never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-15",
+   "source": "SPEC §6; DESIGN §3.3 scroll",
+   "requirement": "`scroll` to px or a target with offset and duration, animated in-page in the target's container.",
+   "status": "done",
+   "evidence": "actions/scroll.ts:13-49; scroll test (inner container, offset -40, document); catalogue `scroll: {to: 560}`",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-16",
+   "source": "README `scroll`",
+   "requirement": "`scroll` by px, to top or bottom, and in an explicit container.",
+   "status": "partial",
+   "evidence": "scroll.ts:100-120",
+   "gap": "`by`, `top`/`bottom` and explicit `in` are never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-17",
+   "source": "SPEC §6; DESIGN §3.3 drag",
+   "requirement": "`drag`: press, short activation nudge, eased move, release; to a target or a point.",
+   "status": "done",
+   "evidence": "actions/drag.ts:23-53; widgets drag #drag-src → #drag-dst",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-18",
+   "source": "SPEC §6; DESIGN §3.3 drop_file",
+   "requirement": "`drop_file` drags a file ghost from the viewport edge, then delivers a real DataTransfer drop, falling back to the hidden or explicit <input type=file>; supports fake, name, size and from.",
+   "status": "done",
+   "evidence": "drag.ts:109-167; test 'drop_file > drops on a drop zone, falls back to the hidden input, and sets an explicit input'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-19",
+   "source": "README `drop_file path`",
+   "requirement": "`drop_file.path` drops a real project file (mime inferred or given).",
+   "status": "partial",
+   "evidence": "drag.ts:62-76",
+   "gap": "The real-file branch (base64 transfer, 64 MB cap) is never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-20",
+   "source": "SPEC §6; README",
+   "requirement": "`wait` sleeps (trimmable by the editor).",
+   "status": "done",
+   "evidence": "waits.ts:40-43; cancel test {wait: 20}; quote run proposal.0",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-21",
+   "source": "SPEC §6; DESIGN §3.3 wait_for",
+   "requirement": "`wait_for` polls every 100 ms for text, not_text, target, gone, url and network_idle, within timeout.",
+   "status": "partial",
+   "evidence": "waits.ts:50-69; text/not_text/target/timeout exercised (widgets, catalogue, quote runs)",
+   "gap": "gone, url (substring or /regex/) and network_idle are never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-22",
+   "source": "SPEC §6; README",
+   "requirement": "`hold` stays still, is marked as hold in the timeline, and is never trimmed.",
+   "status": "done",
+   "evidence": "waits.ts:45-48; scenes.ts:222; acceptance hesitation test uses hold",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-23",
+   "source": "SPEC §6; DESIGN §3.3 assert",
+   "requirement": "`assert` checks text, not_text, target, gone, url, title and count, and fails with a screenshot.",
+   "status": "partial",
+   "evidence": "waits.ts:71-84; widgets asserts text/not_text/target/gone",
+   "gap": "url, title and count are never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-24",
+   "source": "SPEC §6; README",
+   "requirement": "`screenshot {name, full_page}` writes runs/<id>/screenshots/<name>.png.",
+   "status": "done",
+   "evidence": "misc.ts:29-35; widgets asserts screenshots/final.png exists",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-25",
+   "source": "SPEC §6; DESIGN §3.3 new_tab",
+   "requirement": "`new_tab`: real click on the target, wait ≤ 1.5 s for a page, else open the href; becomes active as tab<N> or `as`; recording continues.",
+   "status": "done",
+   "evidence": "pages.ts:12,44-94; new_tab test (popup and href); quote run proposal.5 how 'popup'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-26",
+   "source": "SPEC §6; README switch_page",
+   "requirement": "`switch_page` to previous, main, a page key or an `as` id, optionally closing the current page.",
+   "status": "partial",
+   "evidence": "pages.ts:96-110; new_tab test uses 'previous'; scene page switches tested",
+   "gap": "'main' and close_current are never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACT-27",
+   "source": "SPEC §6; README eval",
+   "requirement": "`eval` evaluates a JS function body in the page with `arg`, or from a `file`.",
+   "status": "done",
+   "evidence": "misc.ts:37-57; widgets eval arg {a: 41} → 42",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-28",
+   "source": "SPEC §6 notify; DESIGN §3.3",
+   "requirement": "`notify` shows a desktop notification (macOS osascript, Linux notify-send, else log).",
+   "status": "n/a-here",
+   "evidence": "misc.ts:60-87; widgets test runs notify but neither osascript nor notify-send exists here, so only the log fallback runs",
+   "gap": "Real notification unverified (R-ISS-09).",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-ACT-29",
+   "source": "SPEC §6; README emit",
+   "requirement": "`emit {name, data}` adds a custom timeline event.",
+   "status": "done",
+   "evidence": "misc.ts:89-91; widgets ev[17].data",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACT-30",
+   "source": "SPEC §6; README cursor",
+   "requirement": "`cursor` show, hide, move (point or target, duration) and set (teleport).",
+   "status": "done",
+   "evidence": "misc.ts:93-116; widgets cursor move/hide/show/set, hidden samples present",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-01",
+   "source": "README Targets; DESIGN §1 normalizeTarget",
+   "requirement": "A plain string target is visible text, or CSS when it looks like a selector (#id, .class, [attr], li.active, a > b).",
+   "status": "done",
+   "evidence": "core/src/targets.ts:1-28; steps.test 'string targets: visible text unless it looks like CSS'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-02",
+   "source": "SPEC §6; README text",
+   "requirement": "`text`: whitespace-normalised visible text (NBSP → space); exact first, then case-insensitive, then substring.",
+   "status": "done",
+   "evidence": "kit.ts:81-115,441-466; kit test 'prefers exact text, then case-insensitive, then substring'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-03",
+   "source": "SPEC §6; README contains",
+   "requirement": "`contains`: the innermost element containing every string.",
+   "status": "done",
+   "evidence": "kit.ts:467-488; kit test 'contains → innermost element holding every string'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-04",
+   "source": "SPEC §6; README role+name",
+   "requirement": "`role` (explicit or implicit) plus accessible `name`.",
+   "status": "done",
+   "evidence": "kit.ts:232-329; kit test 'role + name, label, aria, placeholder, testid, css'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-05",
+   "source": "SPEC §6; README label",
+   "requirement": "`label` finds a control by label[for], a wrapping label, aria-labelledby, or a field-container fallback.",
+   "status": "done",
+   "evidence": "kit.ts:489-505,1004-1031; kit test label 'Email address', 'Company', 'Region'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-06",
+   "source": "SPEC §6; README aria/placeholder/testid/css",
+   "requirement": "`aria` (aria-label), `placeholder`, `testid` (data-testid) and raw `css` locators.",
+   "status": "done",
+   "evidence": "kit.ts:541-614; kit test 'role + name, label, aria, placeholder, testid, css'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-07",
+   "source": "SPEC §6; README in",
+   "requirement": "`in` scope: dialog, menu, listbox, popover or page (topmost visible), {row: text}, or a target object.",
+   "status": "partial",
+   "evidence": "kit.ts:422-434; kit test 'scopes: dialog, menu, row'; listbox/popover exercised through select/pick",
+   "gap": "Target-object scopes (e.g. in: {css: aside}) are never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-TGT-08",
+   "source": "SPEC §6; README nth",
+   "requirement": "`nth` is a 0-based index among visible matches; negative counts from the end; out of range reports.",
+   "status": "done",
+   "evidence": "kit.ts:672-685; kit test nth 0 / -1 / 5",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-09",
+   "source": "SPEC §6; README last_visible; choreography Calendars",
+   "requirement": "`last_visible: true` picks the most recently mounted visible match.",
+   "status": "done",
+   "evidence": "kit.ts:675; kit test last_visible ('Next month' → next2)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-10",
+   "source": "README exact",
+   "requirement": "`exact: true` disables the substring fallback.",
+   "status": "done",
+   "evidence": "kit.ts:98-104; kit test {text: 'chang', exact: true} → 0",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-11",
+   "source": "README Targets; DESIGN §3.2 resolver",
+   "requirement": "Only visible elements count (not hidden, transparent, clipped or off-page); a match is promoted to its nearest interactive ancestor.",
+   "status": "done",
+   "evidence": "kit.ts:134-165,332-340; kit tests 'ignores hidden elements and reports them', 'promotes to the nearest interactive ancestor'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-TGT-12",
+   "source": "README Targets; DESIGN §3.3 Errors",
+   "requirement": "When a target is not found, the error lists nearby visible texts and saves a screenshot plus a DOM snippet.",
+   "status": "done",
+   "evidence": "resolve.ts:312-326; scenes.ts:122-147; test 'a failing step writes an error screenshot + DOM snippet…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-01",
+   "source": "SPEC §6; README modifiers id",
+   "requirement": "Step `id` is used for --until and references (unique, slug-like).",
+   "status": "done",
+   "evidence": "steps.ts:179-217; steps.test 'resolveStepRef forms'; e2e step id 'close'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-02",
+   "source": "SPEC §6; README modifiers caption",
+   "requirement": "Step `caption` is recorded on the step event.",
+   "status": "partial",
+   "evidence": "scenes.ts:188-189",
+   "gap": "Never exercised (only scene captions are asserted).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-MOD-03",
+   "source": "SPEC §6; README modifiers speed",
+   "requirement": "Step `speed` (edit-time) is copied to the event.",
+   "status": "partial",
+   "evidence": "scenes.ts:190",
+   "gap": "Never exercised (only scene speed is asserted).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-MOD-04",
+   "source": "SPEC §6; README modifiers hold",
+   "requirement": "The `hold` modifier keeps seconds of stillness after the step and records it as event.hold.",
+   "status": "done",
+   "evidence": "scenes.ts:224-227; acceptance {click: 'Save changes', hold: 0.6} with the hesitation test using hold.t_end; catalogue wait_for hold 1.4",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-05",
+   "source": "SPEC §6; README modifiers mark",
+   "requirement": "`mark` adds a named timeline marker at t_start.",
+   "status": "done",
+   "evidence": "scenes.ts:184-187; acceptance markers ['pause']; widgets markers",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-06",
+   "source": "SPEC §6; README modifiers camera",
+   "requirement": "`camera {zoom, target, ease, duration, until}` hint is recorded with the resolved bbox or point.",
+   "status": "done",
+   "evidence": "scenes.ts:103-120,223; widgets ev[25].camera bbox; catalogue add-product.5",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-07",
+   "source": "README modifiers timeout",
+   "requirement": "`timeout` in seconds (default 15) bounds resolution retries.",
+   "status": "done",
+   "evidence": "scenes.ts:28,166; failing test timeout 0.6 → 'after 0.6 s'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-08",
+   "source": "README modifiers optional",
+   "requirement": "With `optional`, a failure is logged as a warning and the run continues.",
+   "status": "done",
+   "evidence": "scenes.ts:237-240; test 'an optional failing step is logged and the run continues'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-09",
+   "source": "README modifiers irreversible; SPEC §7, §13",
+   "requirement": "An `irreversible` step is never executed in dry runs: it is hovered and screenshotted, then the scene stops.",
+   "status": "done",
+   "evidence": "scenes.ts:197-212,329-339; test 'dry-run stops a scene at an irreversible step (hovered, not clicked)…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-MOD-10",
+   "source": "README modifiers note",
+   "requirement": "`note` is accepted and ignored, including by token checks.",
+   "status": "done",
+   "evidence": "schemas/steps.ts:33; checks/tokens.ts skips note",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLK-01",
+   "source": "README Click options strategy",
+   "requirement": "Explicit `strategy: real | dom | pointer` forces one click method.",
+   "status": "partial",
+   "evidence": "click.ts:118-127",
+   "gap": "Only the auto chain is exercised; explicit values are never set by a test.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-CLK-02",
+   "source": "README Click options expect_popup",
+   "requirement": "`expect_popup` overrides popup detection.",
+   "status": "partial",
+   "evidence": "click.ts:109",
+   "gap": "Never set by a test (only used internally).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-CLK-03",
+   "source": "README Click options hover_ms/after_ms/move_ms",
+   "requirement": "Per-click hover, after-pause and travel durations.",
+   "status": "partial",
+   "evidence": "click.ts:85,106,143-150",
+   "gap": "Never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-CLK-04",
+   "source": "README Click options button/modifiers",
+   "requirement": "`button` (left/right/middle) and keyboard `modifiers` held during the click.",
+   "status": "partial",
+   "evidence": "pointer.ts:124-142",
+   "gap": "Never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-CLK-05",
+   "source": "README Click options offset",
+   "requirement": "`offset {x, y}` from the element's top-left.",
+   "status": "partial",
+   "evidence": "kit.ts:707-716; resolve.ts:346",
+   "gap": "Never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-RUN-01",
+   "source": "SPEC §7; DESIGN §3.1",
+   "requirement": "Launch Chromium headless (new) with viewport, scale, locale, timezone and colorScheme; executable from config, then $DEMO_STUDIO_CHROMIUM, then the Playwright default.",
+   "status": "done",
+   "evidence": "session.ts:237-275; every capture test; frames sized 1920×1080 (acceptance)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-02",
+   "source": "SPEC §7; DESIGN §3.1",
+   "requirement": "Inject the kit with addInitScript (every navigation and new tab) and re-evaluate it on already-open pages at start; re-install when a document lost it.",
+   "status": "done",
+   "evidence": "session.ts:270-273, session.ts:80-110; kit test 'survives a full navigation and is re-attached when removed'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-03",
+   "source": "SPEC §7; DESIGN §3.3",
+   "requirement": "Deterministic pacing from Pacing with ±jitter seeded by scenario, scene and step; cursor speed scales with distance; hover before click; post-open delays.",
+   "status": "done",
+   "evidence": "motion.ts:162-205; scenes.ts:167; types.ts:590-605 DEFAULT_PACING; unit motion tests",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-04",
+   "source": "DESIGN §3.3 Movement",
+   "requirement": "Eased (easeInOutCubic), slightly arced path dispatched as real page.mouse.move at ~60 Hz; every position pushed to timeline.cursor with capture time.",
+   "status": "done",
+   "evidence": "pointer.ts:21,69-106; acceptance cursor.length > 100; unit 'arcs slightly and lands exactly on the target'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-05",
+   "source": "DESIGN §3.3 click",
+   "requirement": "Click pipeline: resolve → animated scroll if not fully in view → re-resolve → move → hover_ms → real input → el.click() + ripple → pointer sequence + ripple when an expected popup did not appear within popup_timeout_ms; records strategy and popup_opened; after_popup_ms vs after_click_ms.",
+   "status": "done",
+   "evidence": "click.ts:82-159; resolve.ts:343-391; strategies test (real/dom/pointer)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-06",
+   "source": "DESIGN §3.3 click",
+   "requirement": "A popup is expected when aria-haspopup, aria-expanded=false or role=combobox is present, or expect_popup is set.",
+   "status": "done",
+   "evidence": "kit.ts:656-661; acceptance 'popup-expecting clicks record popup_opened'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-07",
+   "source": "SPEC §7; DESIGN §3.3 Errors",
+   "requirement": "Retry resolution until the step timeout, then fail with a clear message (target, candidates, nearby texts) and write screenshots/error-<scene>-<step>.png|.html.",
+   "status": "done",
+   "evidence": "resolve.ts:374-391; scenes.ts:122-147; failing-step test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-08",
+   "source": "DESIGN §3.3 Errors; README Ctrl-C",
+   "requirement": "Non-optional failures abort; teardown always runs (try/finally, SIGINT/SIGTERM, AbortSignal).",
+   "status": "partial",
+   "evidence": "run.ts:65-83,172-272; tests 'a failing step … still tears down' and 'an AbortSignal cancels the run and teardown still happens'",
+   "gap": "A real SIGINT/SIGTERM and cancellation with teardown hooks are never exercised.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-RUN-09",
+   "source": "SPEC §7; DESIGN §3.4 Dry-run",
+   "requirement": "Dry run: no recording or encoding; one screenshot per step (<scene>-<NN>-<action>.png); irreversible steps stop that scene (stopped_at); later scenes continue.",
+   "status": "done",
+   "evidence": "scenes.ts:149-157,197-212,329-339; dry-run test (4 screenshots, statuses dry/skipped)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-10",
+   "source": "SPEC §7; DESIGN §3.4",
+   "requirement": "`--until <ref>` stops after that step in both modes; invalid refs are rejected.",
+   "status": "done",
+   "evidence": "run.ts:104-111; scenes.ts:340-349; test '--until stops after the given step'; e2e '--dry --until import.1'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-11",
+   "source": "README run; DESIGN §3 RunOptions",
+   "requirement": "Hooks run by default for captures and are skipped for dry runs; `--hooks run` executes them in a dry run.",
+   "status": "done",
+   "evidence": "run.ts:102,202-208; fixture dry run 20261011-150736-catalogue hooks {setup: ok, teardown: ok}",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-12",
+   "source": "DESIGN §3.1",
+   "requirement": "One tab per environment page key, created lazily; new_tab adds tab<N> or `as`; the active page is the one recorded and acted on.",
+   "status": "done",
+   "evidence": "session.ts:309-334; runtime.ts:126-137; widgets 'switches pages per scene' (app/shop/app)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-13",
+   "source": "SPEC §7; DESIGN §3.5; README Outputs",
+   "requirement": "timeline.json in capture time: scenes; per-step events (t_start, t_end, t_click, target bbox, point, strategy, popup_opened, mark, hold); markers; page/URL segments; cursor track; idle intervals; warnings.",
+   "status": "done",
+   "evidence": "timeline.ts:101-191; TimelineSchema.parse in acceptance and e2e",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-14",
+   "source": "DESIGN §3.5",
+   "requirement": "Outputs: run.json updated live, log.jsonl of every progress event, scenario.yaml snapshot, screenshots/, hooks-journal.json.",
+   "status": "done",
+   "evidence": "runfiles.ts; run.ts:117,140-151; failing test checks run.json and log.jsonl; fixture run folders",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-15",
+   "source": "README run --json; DESIGN §4",
+   "requirement": "`--json` streams RunProgress events as JSON lines.",
+   "status": "done",
+   "evidence": "cli/src/commands/run.ts:208,249; e2e parses run_start…run_end",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-RUN-16",
+   "source": "README Templating ('Strings in scenarios … accept {{…}}')",
+   "requirement": "Every scenario string is templated ({{page}}, {{vars.x}}, {{x}}, {{env:VAR}}, {{run.id}}): type text, targets, wait_for/assert text, captions, notify, emit.",
+   "status": "partial",
+   "evidence": "runner interpolates only scene.open (scenes.ts:303), open.url (pages.ts:33), new_tab.href (pages.ts:70,78) and eval (misc.ts:49-50); checks/tokens.ts validates tokens in every scene string",
+   "gap": "type.text, targets, wait_for/assert text, captions, notify and emit are used literally (e.g. typing '{{vars.customer}}'), although validation accepts tokens there.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-RUN-17",
+   "source": "SPEC §13; README Security (redaction)",
+   "requirement": "Secret refs in scenario steps ({{env:…}}, {{keychain:…}}) resolve, and their values are redacted from run logs, run.json and timeline.",
+   "status": "partial",
+   "evidence": "run.ts:158-163 TemplateContext without a `secrets` resolver; templating.ts:61-76 env-only default",
+   "gap": "{{keychain:…}} in a step throws TemplateError; {{env:…}} values in open URLs are written unredacted to timeline (ev.target.desc), log.jsonl and run.json. Hooks are fine (R-SEC-07).",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-KIT-01",
+   "source": "DESIGN §3.2 Cursor overlay",
+   "requirement": "<demo-studio-cursor> host with a shadow DOM and pointer-events:none on documentElement, re-attached by a MutationObserver when removed.",
+   "status": "done",
+   "evidence": "kit.ts:1229,1265-1286,1541-1556; kit test 're-attached when removed'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-02",
+   "source": "DESIGN §3.2; look.md (cursor stays above popovers)",
+   "requirement": "popover=manual overlay re-raises itself when another top-layer element opens (toggle, showModal, showPopover), so it draws above modals; max z-index fallback.",
+   "status": "done",
+   "evidence": "kit.ts:1278,1288-1318,1519-1540; kit test 'is drawn above a modal dialog and above a [popover]'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-03",
+   "source": "DESIGN §3.2",
+   "requirement": "The overlay follows REAL (trusted) pointermove/mousemove events, so hover and click reactions sync by construction.",
+   "status": "done",
+   "evidence": "kit.ts:1488-1511; kit test 'follows real input'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-04",
+   "source": "DESIGN §3.2",
+   "requirement": "mousedown → pressed state + ripple; mouseup → release; cursor.ripple(x,y) for the DOM and pointer fallbacks.",
+   "status": "done",
+   "evidence": "kit.ts:1406-1422,1498-1511; domClick/pointerSequence call ripple (kit.ts:1094-1125); exercised in the strategies test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-05",
+   "source": "DESIGN §3.2",
+   "requirement": "Cursor icon switches between arrow, pointing hand and I-beam from getComputedStyle(el).cursor under the pointer.",
+   "status": "done",
+   "evidence": "kit.ts:1364-1396; verified in the catalogue capture (frame 000043.jpg shows the hand over 'New import')",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-06",
+   "source": "DESIGN §3.2 Styles",
+   "requirement": "Cursor styles arrow-dark, arrow-light and debug (a 6×6 #FF00FF square centred on the hotspot).",
+   "status": "partial",
+   "evidence": "kit.ts:1189-1199,1238; arrow-dark in fixture captures; debug in acceptance",
+   "gap": "arrow-light is never rendered (only a kitSource string check in unit.test.ts).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-KIT-07",
+   "source": "DESIGN §3.2",
+   "requirement": "Cursor position persists in sessionStorage across full navigations; hidden until the first position is known.",
+   "status": "done",
+   "evidence": "kit.ts:1328-1362; kit test (position restored after goto)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-08",
+   "source": "DESIGN §3.2 Resolver",
+   "requirement": "find(target) returns {count, index, desc, bbox, ref}; refs live in a WeakRef map so the runner can get handles.",
+   "status": "done",
+   "evidence": "kit.ts:60-79,663-698; kit tests; drag.ts:95-103 elementHandle from ref",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-09",
+   "source": "DESIGN §3.2 Helpers",
+   "requirement": "Helpers: popupState, scrollAnimate (rAF raced with setTimeout), scrollContainerFor, blankPointNear/outsidePlan, dragGhost.",
+   "status": "done",
+   "evidence": "kit.ts:783-869,876-968,1451-1483; exercised by the scroll, strategies and drop tests",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-KIT-10",
+   "source": "DESIGN §3.2 Helpers (snapshot 4 KB)",
+   "requirement": "snapshot(el) returns outerHTML trimmed to 4 KB for errors.",
+   "status": "partial",
+   "evidence": "kit.ts snapshot api; scenes.ts:30 ERROR_DOM_MAX = 256 KB",
+   "gap": "The cap is 256 KB instead of 4 KB (it deviates from the contract; arguably more useful).",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-KIT-11",
+   "source": "DESIGN §3.2 (kit in every frame); SPEC §0 iframes",
+   "requirement": "Sub-frames forward real pointer input to the top-level overlay.",
+   "status": "partial",
+   "evidence": "kit.ts:1557-1600 postMessage forwarding",
+   "gap": "Never exercised by a test.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-REC-01",
+   "source": "DESIGN §3.4",
+   "requirement": "Page.startScreencast({format, quality, maxWidth w·scale, maxHeight h·scale, everyNthFrame 1}) on the active page; stop and restart on page switch.",
+   "status": "done",
+   "evidence": "recorder.ts:74-148; new_tab test: frames continue after the switch",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-REC-02",
+   "source": "DESIGN §3.4",
+   "requirement": "Each frame is acked immediately and written to frames/NNNNNN.jpg, with {file, t} appended to frames.jsonl; t = metadata.timestamp − t0 on the shared wall clock.",
+   "status": "done",
+   "evidence": "recorder.ts:79,108-120; timeline.ts:14-24",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-REC-03",
+   "source": "DESIGN §3.4",
+   "requirement": "t0 is when recording starts, before the first scene; the first frame is extended back to t=0 and the last holds until the stop time.",
+   "status": "done",
+   "evidence": "run.ts:214; encode.ts:31-44; unit 'CFR schedule … first extended back, last held'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-REC-04",
+   "source": "DESIGN §3.4; README Outputs",
+   "requirement": "capture.mp4 is H.264, constant frame rate, yuv420p, +faststart, exactly the capture duration.",
+   "status": "done",
+   "evidence": "encode.ts:91-114; e2e ffprobe avg_frame_rate 30/1 and |duration − timeline| ≤ 1 frame; acceptance ±0.2 s",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-REC-05",
+   "source": "DESIGN §3.4",
+   "requirement": "idle = gaps of at least 0.5 s between consecutive frames.",
+   "status": "done",
+   "evidence": "timeline.ts:27-36; unit 'idle = gaps of at least 0.5 s…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-REC-06",
+   "source": "README Outputs (frames/, keep_frames)",
+   "requirement": "capture.keep_frames=false removes frames/ after encoding.",
+   "status": "partial",
+   "evidence": "run.ts:290",
+   "gap": "Never exercised (the default keeps frames).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-SEC-01",
+   "source": "SPEC §13; SPEC §4 auth",
+   "requirement": "No passwords in scenarios or project files; validation flags database URLs with a clear-text password.",
+   "status": "done",
+   "evidence": "checks/project.ts:14-18,76-85; project.test 'environments, default_env, auth, databases and reset hooks'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SEC-02",
+   "source": "SPEC §13; DESIGN §1 resolveSecretRef",
+   "requirement": "{{keychain:service/account}} resolves through the macOS Keychain (`security`) or Linux `secret-tool`.",
+   "status": "n/a-here",
+   "evidence": "core/src/templating.ts:151-179; secrets.test only describes keychain refs in a dry run",
+   "gap": "Neither `security` nor `secret-tool` exists in this container, so it was never executed (R-ISS-09).",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-SEC-03",
+   "source": "SPEC §13",
+   "requirement": "Hooks are explicit, logged with a description, and journaled with their rollback.",
+   "status": "done",
+   "evidence": "hooks/src/run.ts:99-175; http test 'journals every execution with phase, timestamps and status'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SEC-04",
+   "source": "SPEC §13; DESIGN §2 Security",
+   "requirement": "Destructive hooks (SQL DELETE/DROP/TRUNCATE/ALTER/UPDATE including files and psql, HTTP DELETE, shell rm/dropdb, destructive: true) require confirm: true; validation flags them and runtime refuses unless --yes or a prompt approves.",
+   "status": "done",
+   "evidence": "core/src/destructive.ts; checks/hooks.ts:68-70; hooks/src/run.ts:68-78; security.test 'are refused at run time without confirm: true…'; e2e bad.yaml refused",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SEC-05",
+   "source": "SPEC §13; README Security allow-list",
+   "requirement": "http and sql hooks reach only environment hosts, allow_hosts and localhost; redirects are checked hop by hop and credentials dropped when the origin changes.",
+   "status": "done",
+   "evidence": "hooks/src/allow-list.ts; kinds/http.ts:202-231; security.test allow-list cases; http test 'follows redirects inside the allow-list and refuses one that leaves it'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SEC-06",
+   "source": "SPEC §13 ('refuse to run setup hooks against hosts not listed')",
+   "requirement": "Setup hooks never target unlisted hosts, whatever their kind.",
+   "status": "partial",
+   "evidence": "checkHostAllowed is called only from kinds/http.ts and kinds/sql.ts",
+   "gap": "shell and js hooks are not host-restricted. This is documented in the README but is narrower than SPEC §13.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-SEC-07",
+   "source": "README Security; DESIGN §2",
+   "requirement": "Resolved secret values are redacted from hook logs, results and journals.",
+   "status": "done",
+   "evidence": "hooks/src/secrets.ts; secrets.test 'are used in requests and rollbacks but never appear in logs, results or journals'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-SEC-08",
+   "source": "SPEC §13; README",
+   "requirement": "Dry runs never execute irreversible steps.",
+   "status": "done",
+   "evidence": "scenes.ts:197-212; dry-run test (Delete everything is hovered, not clicked)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACC-01",
+   "source": "SPEC §14 phase 1",
+   "requirement": "Run the 'catalogue' scenario against the bundled fixture headless at 1920×1080, producing capture.mp4 and timeline.json with an in-page cursor.",
+   "status": "done",
+   "evidence": "projects/northfield-fixture/runs/20261011-150847-catalogue: run.json succeeded 21/21, capture 1920×1080 @30 fps, 66.5 s, 915 frames (also the quote run 20261011-151034, 25/25)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACC-02",
+   "source": "SPEC §14 accept ('cursor and clicks in sync'); DESIGN §6",
+   "requirement": "The drawn cursor and the clicks are in sync.",
+   "status": "partial",
+   "evidence": "acceptance 'the drawn hotspot is within 3 px of every click point and inside the target' (synthetic ACCEPT_PAGE); fixture timelines have every click point inside its bbox",
+   "gap": "Sync is only proven at click instants on a synthetic page; during motion the drawn cursor trails the recorded track (R-ISS-02); it is never measured on the fixture catalogue capture.",
+   "phase": "1",
+   "lot": "L1.3"
+  },
+  {
+   "id": "R-ACC-03",
+   "source": "SPEC §14 accept ('no hesitations'); DESIGN §6",
+   "requirement": "No hesitations: the gap between a step's end (or hold end) and the next step's start is under 80 ms.",
+   "status": "done",
+   "evidence": "acceptance 'has no hesitations between steps (< 80 ms)'; e2e; catalogue and quote timelines: gaps 0–4 ms",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ACC-04",
+   "source": "SPEC §14 accept ('runs while the user uses the Mac')",
+   "requirement": "Capture does not take over the user's screen on macOS.",
+   "status": "n/a-here",
+   "evidence": "headless offscreen (session.ts:246)",
+   "gap": "Needs a macOS desktop to verify.",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-ACC-05",
+   "source": "DESIGN §6 Integration",
+   "requirement": "Automated integration test: fixture server + catalogue scenario headless at 1920×1080, asserting duration, debug-cursor sync ≤ 3 px inside bbox, no hesitations and popup_opened.",
+   "status": "partial",
+   "evidence": "acceptance.test.ts (synthetic page, 1920×1080, debug cursor); e2e.test.ts (fixture, a 4-step scenario at 1280×720, no debug-cursor check)",
+   "gap": "No automated test runs the catalogue scenario on the fixture; the catalogue capture was only checked by a manual run.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-ACC-06",
+   "source": "DESIGN §6 Unit",
+   "requirement": "Unit tests for core (parsing, positioned errors, normalisation, templating, schema) and hooks (journal, rollback order, allow-list, destructive; SQL against Postgres when $DEMO_STUDIO_TEST_PG).",
+   "status": "partial",
+   "evidence": "vitest: 275 passed, 6 skipped (23 files)",
+   "gap": "The 6 Postgres SQL tests are skipped here (no DEMO_STUDIO_TEST_PG).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-CORE-01",
+   "source": "DESIGN §1 workspace",
+   "requirement": "findWorkspaceRoot and loadWorkspaceConfig (projects_dir, templates_dir, browser, ffmpeg); studio.yaml validated with positions.",
+   "status": "done",
+   "evidence": "core/src/workspace.ts; project.test 'loadWorkspaceConfig resolves dirs and validates studio.yaml'; cli/src/workspace.ts:164-180 browser merge; ffmpeg passed in cli run.ts:248",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-02",
+   "source": "DESIGN §1 projects",
+   "requirement": "listProjects, loadProject (slug or dir, defaults, warnings), createProject, updateReadme, parseProjectYaml.",
+   "status": "done",
+   "evidence": "core/src/project.ts; project.test 'projects' suite (7 tests)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-03",
+   "source": "DESIGN §1 scenarios",
+   "requirement": "parseScenario (YAML → schema → semantic, line/col), validateScenario, loadScenario (throws ScenarioError), saveScenario (refuses on errors).",
+   "status": "done",
+   "evidence": "core/src/scenario.ts; project.test 'saveScenario refuses invalid scenarios…', 'loadScenario throws ScenarioError carrying the issues'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-04",
+   "source": "DESIGN §1 steps",
+   "requirement": "normalizeStep (throws on 0 or >1 actions), normalizeTarget, describeTarget, listSteps (refs), resolveStepRef ('scene.id', 'scene.3', unique 'id', 'scene').",
+   "status": "done",
+   "evidence": "core/src/steps.ts, targets.ts; steps.test (shorthands, refs)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-05",
+   "source": "DESIGN §1 env & templating",
+   "requirement": "resolveEnvironment (explicit → default_env → first), interpolate (unknown keys list available ones), interpolateDeep, resolvePageUrl (keeps the base path).",
+   "status": "done",
+   "evidence": "core/src/templating.ts, env.ts; templating.test (7 tests)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-06",
+   "source": "DESIGN §1 templates",
+   "requirement": "listTemplates, loadTemplate (defaults applied, assets resolved and checked) and DEFAULT_TEMPLATE.",
+   "status": "done",
+   "evidence": "core/src/template.ts; template.test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-07",
+   "source": "DESIGN §1 schemas",
+   "requirement": "Draft 2020-12 JSON Schemas for scenario, project, template and timeline, also written to packages/core/schema/ by gen:schema.",
+   "status": "done",
+   "evidence": "core/src/schema.ts; schema.test (4 tests incl. 'are up to date')",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CORE-08",
+   "source": "DESIGN §1 misc",
+   "requirement": "newRunId('YYYYMMDD-HHMMSS-name'), atomic readJson/writeJson, formatIssues ('file:line:col severity path: message'), ScenarioError.",
+   "status": "done",
+   "evidence": "core/src/util.ts:111-134, issues.ts:190-200; scenario.test formatIssues assertions; run ids in projects/northfield-fixture/runs",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-01",
+   "source": "DESIGN §1 rules",
+   "requirement": "Exactly one action key per step; a `hold` next to another action is the modifier.",
+   "status": "done",
+   "evidence": "steps.ts:44-47; scenario.test 'two actions in one step', 'hold next to another action is the hold modifier'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-02",
+   "source": "DESIGN §1 rules",
+   "requirement": "Unknown keys are errors with a 'did you mean' suggestion.",
+   "status": "done",
+   "evidence": "validation/zod-issues.ts, suggest.ts; scenario.test 'unknown key with did-you-mean, located on the key', 'misspelt action'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-03",
+   "source": "DESIGN §1 rules",
+   "requirement": "Scene ids are unique and slug-like.",
+   "status": "done",
+   "evidence": "checks/scenario.ts:112; scenario.test 'duplicate scene and step ids', 'slug-like ids'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-04",
+   "source": "DESIGN §1 rules",
+   "requirement": "Step ids are unique within a scenario.",
+   "status": "done",
+   "evidence": "checks/scenario.ts:150-155; scenario.test 'duplicate scene and step ids'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-05",
+   "source": "DESIGN §1 rules",
+   "requirement": "`page:` keys (scene page, open.page, js hook page) exist in the selected environment; an unknown env is reported.",
+   "status": "done",
+   "evidence": "checks/scenario.ts:69-98,175-178; checks/hooks.ts; scenario.test 'unknown page key…', 'unknown environment', 'page keys of open steps and js hooks'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-06",
+   "source": "DESIGN §1 rules",
+   "requirement": "Files referenced by hooks, drop_file.path, eval.file and music.file exist (a warning only when no project is given).",
+   "status": "partial",
+   "evidence": "checks/actions.ts:86,108; checks/scenario.ts:208 (errors); scenario.test 'referenced files: drop_file.path, eval.file, music.file'",
+   "gap": "Missing hook SQL/JS files are only warnings even with a project (checks/hooks.ts:31,38,46); they fail at run time.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-VAL-07",
+   "source": "DESIGN §1 rules",
+   "requirement": "`speed` is in (0, 8].",
+   "status": "done",
+   "evidence": "schemas/steps.ts:21; scenario.test 'ranges: speed (0, 8], camera zoom [1, 3] and duration ≥ 0.8'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-08",
+   "source": "DESIGN §1 rules",
+   "requirement": "camera.zoom is in [1, 3] with a warning above the template max_zoom; camera.duration ≥ 0.8.",
+   "status": "done",
+   "evidence": "schemas/primitives.ts CameraHintSchema; checks/scenario.ts:162-168; scenario.test ranges and warnings",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-09",
+   "source": "DESIGN §1 rules",
+   "requirement": "Destructive hooks without confirm: true are validation errors, including SQL files inspected from the project dir.",
+   "status": "done",
+   "evidence": "checks/hooks.ts:68-70; scenario.test 'destructive hooks need confirm: true', 'SQL files are inspected when the project dir exists'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-10",
+   "source": "DESIGN §1 rules",
+   "requirement": "`--until` refs must resolve.",
+   "status": "done",
+   "evidence": "checks/scenario.ts:210-217; scenario.test '--until references must resolve'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-11",
+   "source": "DESIGN §1 rules",
+   "requirement": "An interstitial has text.",
+   "status": "done",
+   "evidence": "schemas/scenario.ts:39; scenario.test 'unknown scene keys, interstitial without text, scene kind dispatch'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-12",
+   "source": "DESIGN §1 rules",
+   "requirement": "The first scene of a page without `open` is a warning ('starts on whatever is loaded').",
+   "status": "done",
+   "evidence": "checks/scenario.ts:123-128; scenario.test 'warnings: … first scene without open…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-VAL-13",
+   "source": "README Templating; DESIGN §1 interpolate",
+   "requirement": "Unknown {{template keys}} are errors with suggestions; {{response.*}} is allowed only in http rollbacks.",
+   "status": "done",
+   "evidence": "checks/tokens.ts; scenario.test 'template tokens must exist'; hookfile.test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-01",
+   "source": "DESIGN §2 runHooks",
+   "requirement": "Setup stops at the first non-optional failure and rolls back this call's completed hooks in reverse; teardown and reset run every hook and collect errors; refusals are never tolerated as optional.",
+   "status": "done",
+   "evidence": "hooks/src/run.ts:185-221; run.test 'runHooks: setup' and 'teardown and reset' suites; security.test 'optional does not tolerate refusals'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-02",
+   "source": "DESIGN §2 Journal",
+   "requirement": "Journal open/record/pending/rollbackAll, persisted atomically at runs/<id>/hooks-journal.json; most recent first; idempotent; failed rollbacks stay pending.",
+   "status": "done",
+   "evidence": "hooks/src/journal.ts; journal.test (4 tests)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-03",
+   "source": "DESIGN §2",
+   "requirement": "findPendingJournals(projectDir) lists runs with pending rollbacks, most recent first.",
+   "status": "done",
+   "evidence": "journal.ts findPendingJournals; journal.test 'finds runs with pending rollbacks, most recent first…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-04",
+   "source": "DESIGN §2 API",
+   "requirement": "checkHostAllowed, isDestructive and describeHook are exported.",
+   "status": "done",
+   "evidence": "hooks/src/index.ts:7-9; describe.test; security.test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-05",
+   "source": "DESIGN §2 HookContext",
+   "requirement": "HookContext carries project, env, vars, runId, dryRun, log, evalInPage (provided by the runner) and saved (save_as → {{hooks.<name>…}}).",
+   "status": "done",
+   "evidence": "hooks/src/types.ts; run.ts:351-370; http test 'save_as feeds the templating of later hooks…'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-06",
+   "source": "DESIGN §2 http",
+   "requirement": "http: fetch with templated url/headers/body, `expect` check (2xx default), response saved (status, headers, body, json), rollback templated with {{response.json.*}}.",
+   "status": "done",
+   "evidence": "hooks/src/kinds/http.ts; http.test (7 tests)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-07",
+   "source": "DESIGN §2 sql",
+   "requirement": "sql: pg client, URL from project.databases (templated, secrets resolved), file or inline run as one multi-statement query in BEGIN…COMMIT, rollback file or inline.",
+   "status": "partial",
+   "evidence": "hooks/src/kinds/sql.ts; sql.test 'sql hooks without a server' (3 tests)",
+   "gap": "Execution against Postgres is untested here (6 tests skipped without DEMO_STUDIO_TEST_PG).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-HOOK-08",
+   "source": "DESIGN §2 shell",
+   "requirement": "shell: sh -c in the project dir, env merged, timeout kills the process group, output logged.",
+   "status": "done",
+   "evidence": "hooks/src/kinds/shell.ts; run.test 'shell hooks' suite (4 tests)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-09",
+   "source": "DESIGN §2 js",
+   "requirement": "js hooks require ctx.evalInPage, else a clear error; the runner provides it.",
+   "status": "done",
+   "evidence": "hooks/src/kinds/js.ts:11; run.test 'refuses to start when a js hook has no page to run in'; e2e js hook",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-HOOK-10",
+   "source": "SPEC §7; README Templating and hooks",
+   "requirement": "In a run, teardown hooks always run after the scenario, then pending setup rollbacks are replayed, most recent first.",
+   "status": "done",
+   "evidence": "run.ts:262-269,394-424; e2e asserts a rollback hook event and no pending journal entries",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-01",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio new <slug> [--name] [--template] [--env name=key:url,...]`.",
+   "status": "done",
+   "evidence": "cli/src/commands/project.ts:18-57; cli.test 'creates a project with environments and lists it'; 'parseEnvOptions'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-02",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio list [--json]` shows projects (with scenarios) and templates.",
+   "status": "done",
+   "evidence": "project.ts:59-90; cli.test list --json",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-03",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio validate <project> [scenario|file] [--env] [--until] [--json]` checks the project, template and scenario(s), prints file:line:col, and exits 1 on errors.",
+   "status": "done",
+   "evidence": "cli/src/commands/validate.ts; cli.test 'validates scenarios with file:line:col messages and exit codes'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-04",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio run <project> <scenario> [--dry] [--until] [--hooks] [--env] [--json]` prints per-step lines and a summary with output paths.",
+   "status": "done",
+   "evidence": "cli/src/commands/run.ts; e2e run --json and --dry --until; progress.ts",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-05",
+   "source": "DESIGN §4; README hooks run",
+   "requirement": "`studio hooks run <project> <scenario>:setup | <scenario>:teardown | reset | <file.yaml> [--env] [--yes] [--dry]`.",
+   "status": "partial",
+   "evidence": "cli/src/commands/hooks.ts:96-160; e2e hooks file + destructive refusal; cli.test reset with none declared",
+   "gap": "scenario:setup/teardown sources, a successful reset source, --yes and --dry are never exercised through the CLI.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-CLI-06",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio hooks rollback <project> [run-id] [--dry]`.",
+   "status": "done",
+   "evidence": "hooks.ts:163-215; e2e rollback by run id and 'nothing to roll back'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-07",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio env reset <project>` replays pending journals, then runs the project reset hooks.",
+   "status": "done",
+   "evidence": "hooks.ts:218-244; e2e 'env reset replays pending journals, then runs the reset hooks'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-08",
+   "source": "DESIGN §4; README",
+   "requirement": "`studio schema [scenario|project|template|timeline]` prints the JSON Schema.",
+   "status": "done",
+   "evidence": "misc.ts:99-105; cli.test 'prints JSON Schemas and the version'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-09",
+   "source": "DESIGN §4; README Signing in",
+   "requirement": "`studio login <project> [--env] [--page] [--url]` opens a headed browser on the persistent profile to sign in once.",
+   "status": "n/a-here",
+   "evidence": "misc.ts:114-130; runner-web/src/login.ts",
+   "gap": "No display in the container: never run (R-ISS-09).",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-CLI-10",
+   "source": "DESIGN §4; README run --headed",
+   "requirement": "`studio run --headed` shows the browser window.",
+   "status": "n/a-here",
+   "evidence": "session.ts:246; cli run.ts:270-272 refuses when there is no display",
+   "gap": "No display: never exercised (R-ISS-09).",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-CLI-11",
+   "source": "DESIGN §4; README",
+   "requirement": "render, review, export, record, mcp and ui are listed and say which phase they arrive in.",
+   "status": "done",
+   "evidence": "misc.ts:133-145; cli.test 'says when later-phase commands arrive'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CLI-12",
+   "source": "README Command line",
+   "requirement": "Global -C/--root, -v, --no-color; exit codes 0 success, 1 failure, 2 invalid command line.",
+   "status": "done",
+   "evidence": "cli/src/main.ts:42-55,156-177; cli.test 'exits 2 on usage errors'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-FIX-01",
+   "source": "DESIGN §5",
+   "requirement": "Fixture 'Northfield': real Radix UI and Base UI components, esbuild bundle, one Node server (console :4401, shop :4402, configurable via env), in-memory store and JSON API with POST /api/reset plus hook endpoints.",
+   "status": "done",
+   "evidence": "fixtures/wholesale/package.json:14-19; server.mjs; e2e startFixture on free ports; auto-proposal hook endpoint",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-FIX-02",
+   "source": "DESIGN §5",
+   "requirement": "Imports flow: New import dialog → organisation combobox → file drop zone → Start import → '921 offers created'.",
+   "status": "done",
+   "evidence": "catalogue run, scene import (6/6 ok)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-FIX-03",
+   "source": "DESIGN §5",
+   "requirement": "Availability by region: row action menus with Pause + confirm, and an Edit dialog with multi-select pickers including search.",
+   "status": "done",
+   "evidence": "catalogue run, scene availability (8/8 ok)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-FIX-04",
+   "source": "DESIGN §5",
+   "requirement": "Catalogue + Add a coffee: registry search → result → product page with enrichment in progress → tasting notes, awards, farm.",
+   "status": "done",
+   "evidence": "catalogue run, scene add-product (7/7 ok, mark 'reveal')",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-FIX-05",
+   "source": "DESIGN §5",
+   "requirement": "Buyer shop: highlights → product → Request a quote dialog with a date-range calendar → notifications → proposal → 'Download quote PDF' target=_blank.",
+   "status": "done",
+   "evidence": "quote run 20261011-151034 (25/25; new_tab how 'popup' to /quotes/1043/pdf)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-01",
+   "source": "choreography Cursor; look.md",
+   "requirement": "Arrow path 'M4 2 L4 19 …', fill #111, white stroke 1.4 with round joins, drop-shadow(0 2px 3px rgba(0,0,0,.35)), ~26 px, hotspot (4,2).",
+   "status": "done",
+   "evidence": "kit.ts:1195-1199,1235; kit/source.ts:246 DEFAULT_CURSOR_SIZE 26; visible in the catalogue frames",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-02",
+   "source": "choreography Cursor motion",
+   "requirement": "easeInOutCubic with a slight arc: perpendicular offset min(60, 0.08·d)·sin(π·e).",
+   "status": "done",
+   "evidence": "motion.ts:148-150,172-182; unit 'arcs slightly and lands exactly on the target'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-03",
+   "source": "choreography Cursor motion",
+   "requirement": "Move duration = clamp(0.9·d, 450, 1100) ms.",
+   "status": "partial",
+   "evidence": "motion.ts:162-166 with DEFAULT_PACING move_base_ms 380, move_ms_per_px 0.55 (types.ts:592-595)",
+   "gap": "Implemented as clamp(380 + 0.55·d, 450, 1100): 300 px → 545 ms instead of 450 ms. The curve differs from the field-tested one (tunable through pacing).",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-CHO-04",
+   "source": "choreography Cursor motion",
+   "requirement": "Repeated clicks on (almost) the same spot use a short move (~250 ms) and a short hover (~120 ms), never a 450 ms move of zero length.",
+   "status": "done",
+   "evidence": "motion.ts:157-166 NUDGE_*; click.ts:106; unit 'durations grow with distance…' (30 px ≤ 250 ms, 0 → 0)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-05",
+   "source": "choreography Ripple",
+   "requirement": "Ripple: 12 px disc, scale .4 → 5.5, opacity 1 → 0; transform .5 s cubic-bezier(.2,.7,.2,1), opacity .55 s ease-out; template colour (alpha ≈ .45).",
+   "status": "partial",
+   "evidence": "kit.ts:1239-1243",
+   "gap": "Scale ends at 3.8 (not 5.5); durations are 450 ms / 500 ms (not 500 / 550). Disc size, curve and colour source match. See R-ISS-03 for visibility.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-CHO-06",
+   "source": "choreography Clicks",
+   "requirement": "Click sequence: move → hover events → ~200 ms → ripple → activate → after 300 ms (600–1000 ms after opening a menu or popover).",
+   "status": "done",
+   "evidence": "DEFAULT_PACING hover_ms 200, after_click_ms 350, after_popup_ms 800 (types.ts:596-599); click.ts:106-151",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-07",
+   "source": "choreography Clicks",
+   "requirement": "Pause 1.5–2.8 s after an action that changes the page.",
+   "status": "partial",
+   "evidence": "click.ts:45-54 nav.settle → runtime.ts:169-174 (load + network idle ≤ settle_ms)",
+   "gap": "There is no minimum post-change hold: a fast page continues after after_click_ms (350 ms) unless the scenario adds hold.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-CHO-08",
+   "source": "choreography Clicks",
+   "requirement": "Hit-test with elementFromPoint at the click point and act on the inner hit element when it is inside the target.",
+   "status": "done",
+   "evidence": "kit.ts:700-730 pointFor/hitInside (grid search when the centre is covered), kit.ts:1086-1089 innerTarget; acceptance: click points inside bbox",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-09",
+   "source": "choreography Clicks (popups)",
+   "requirement": "If aria-expanded is still not 'true' ~160 ms after clicking an aria-haspopup trigger, replay a pointer/mouse sequence (Radix-style selects).",
+   "status": "partial",
+   "evidence": "click.ts:129-141 waits popup_timeout_ms (700 ms default, types.ts:600), then el.click(), then the pointer sequence",
+   "gap": "The fallback starts after 700 ms (plus another 700 ms for the DOM click) instead of ~160 ms, a visible stall when a trigger ignores the real click.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-CHO-10",
+   "source": "choreography Clicks (popups)",
+   "requirement": "If the expected menu item or option is still absent after ~3 s, click the trigger once more.",
+   "status": "partial",
+   "evidence": "widgets.ts:16,101-120",
+   "gap": "No test exercises the re-click path (it only triggers when no popup is open at all).",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-11",
+   "source": "choreography Clicks",
+   "requirement": "Close a popover inside a dialog by clicking the dialog heading, never with Escape (which would close the dialog).",
+   "status": "done",
+   "evidence": "kit.ts:908-968 outsidePlan 'dialog-title'; widgets pick test asserts not_text 'dialog closed by Escape'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-12",
+   "source": "choreography Clicks; DESIGN §3.3 menu",
+   "requirement": "After a confirmation, wait until no alertdialog is visible; if a menu re-appears (Base UI quirk), close it once (click outside, then Escape on the menu).",
+   "status": "done",
+   "evidence": "widgets.ts:184-197 settleMenus; widgets test menu data.clicks ≥ 4 (trigger, item, confirm, outside)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-13",
+   "source": "choreography Clicks (row actions)",
+   "requirement": "The row-action trigger is usually the button in the row's last cell; a position (e.g. a header corner) is the last resort.",
+   "status": "partial",
+   "evidence": "kit.ts:990-1003 (aria-haspopup, then named, then last button); kit test 'reports the menu trigger of a row…'",
+   "gap": "No positional last-resort trigger.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-14",
+   "source": "choreography Typing",
+   "requirement": "Typing rates 8–11 chars/s in search fields, ~14 by default, up to 24 for long free text, with ±30% per-character jitter.",
+   "status": "partial",
+   "evidence": "keyboard.ts:11 TYPE_JITTER 0.3; DEFAULT_PACING type_cps 14; widgets.ts:18 search capped at 10 cps in select/pick",
+   "gap": "A `type` step does not adapt its rate to search fields or long text: authors must set cps.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-15",
+   "source": "choreography Typing",
+   "requirement": "Clear a field before typing (select-all + delete, or native value setter + input event on React inputs).",
+   "status": "partial",
+   "evidence": "keyboard.ts:23-28 (ControlOrMeta+A, Backspace)",
+   "gap": "Untested; there is no native-setter fallback for inputs that ignore select-all.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-16",
+   "source": "choreography Scrolling",
+   "requirement": "Eased scrolls of 1.5–2.2 s.",
+   "status": "done",
+   "evidence": "DEFAULT_PACING scroll_duration 1.6; kit.ts:831-869 easeInOutCubic; catalogue scroll 1.5 s, 2.2 s",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-17",
+   "source": "choreography Scrolling",
+   "requirement": "Scroll so the target sits ~140 px below the top.",
+   "status": "partial",
+   "evidence": "scroll.ts:10 DEFAULT_SCROLL_OFFSET = -120",
+   "gap": "The default is 120 px; 140 needs an explicit offset.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-CHO-18",
+   "source": "choreography Scrolling",
+   "requirement": "After a scroll, park the cursor next to the target (not on the text) and hold 3–3.5 s.",
+   "status": "todo",
+   "evidence": "scroll.ts never moves the cursor",
+   "gap": "No automatic parking; it must be scripted with cursor move + hold.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-19",
+   "source": "choreography Scrolling & attention (scene start)",
+   "requirement": "At scene start, put the cursor at a neutral spot (right-centre) and keep still 1.5–2 s.",
+   "status": "done",
+   "evidence": "scenes.ts:312-322; kit.ts:970-987 restPoint (0.8W, 0.5H) avoiding interactive or text spots; scene_start_still 1.6; catalogue first cursor sample (1536,540)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-20",
+   "source": "choreography Scrolling & attention",
+   "requirement": "Draw attention without clicking: move onto the element and pause ~0.9 s.",
+   "status": "done",
+   "evidence": "click.ts:248-256 HOVER_ATTENTION_MS 900; quote run discover.0 hover",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-21",
+   "source": "choreography Scrolling & attention",
+   "requirement": "After an action, park the cursor away from the area that changes, then hold 1.5–2.6 s on the result.",
+   "status": "todo",
+   "evidence": "no automatic parking anywhere in runner-web/src/actions",
+   "gap": "Not implemented; scenarios must script it.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-22",
+   "source": "choreography Files; look.md dragged file",
+   "requirement": "File chip: white, 1 px border, radius 12, shadow 0 16px 36px rgba(31,20,19,.22); 36×44 badge coloured by extension (xlsx green, pdf red, csv grey, docx blue) with a 10 px bold extension; name 15 px/600; detail line 12 px muted; offset (−30,−22), rotated −3°, fades in .25 s, travels ~1.3 s, waits 250 ms, fades out.",
+   "status": "done",
+   "evidence": "kit.ts:1245-1260,1335,1444-1483; drag.ts:20-21,130-134; catalogue frame 000088.jpg shows the tilted xlsx chip",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-23",
+   "source": "choreography Files",
+   "requirement": "After the chip, the File is delivered through drop events or the hidden <input type=file> + change.",
+   "status": "done",
+   "evidence": "kit.ts:1143-1184; drag.ts:136-158; drop test delivered 'drop' and 'input'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-24",
+   "source": "choreography Calendars",
+   "requirement": "Calendars: always use the LAST VISIBLE navigation buttons; pick days by aria-label; wait for a date popover to close before opening the next; quick month runs (~110 ms apart, ripple each) sped up ×3 in the edit.",
+   "status": "partial",
+   "evidence": "last_visible and aria targets exist (kit test 'Next month' last_visible); quote run clicks {aria: Next month} and day aria-labels",
+   "gap": "Nothing automatic: by default the first match is used, there is no 'wait previous date popover gone' and no quick-run mode; the ×3 speed-up is phase 2.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-CHO-25",
+   "source": "choreography Tabs",
+   "requirement": "Links that open a new tab: hover + ripple on the link, then open its href in a new page with the same viewport and keep filming there.",
+   "status": "done",
+   "evidence": "pages.ts:52-76 (real click ripple, href fallback in the same context viewport); new_tab test",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CHO-26",
+   "source": "choreography Notifications",
+   "requirement": "A notification item is the smallest element containing the text inside the open popover; act on its closest interactive ancestor.",
+   "status": "done",
+   "evidence": "kit.ts:441-466 innermost textSearch + kit.ts:332-340 promote; quote run proposal.2 click ok",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-ISS-01",
+   "source": "Known open issue; README Requirements (GPU note)",
+   "requirement": "Captures stay smooth (~30 fps) during cursor motion, including over dialogs with backdrop-filter blur.",
+   "status": "partial",
+   "evidence": "Detection and warning: run.ts:248-257, timeline.ts:60-90 motionCapture (unit test). runs/20261011-150847-catalogue/run.json: '17 of 23 cursor moves were captured below 18 fps (lowest 6 fps)'; quote run: 11 of 18 below. The fixture uses backdrop-filter (fixtures/wholesale/src/shared/styles.css:815,1296; shop.css:8)",
+   "gap": "Choppy at 6–10 fps under software rendering with no mitigation (no beginFrame, no option to disable heavy effects). Smoothness on a GPU or Mac cannot be verified here.",
+   "phase": "1",
+   "lot": "L1.3"
+  },
+  {
+   "id": "R-ISS-02",
+   "source": "Known open issue; SPEC §14 accept",
+   "requirement": "The recorded cursor track (timeline.cursor) matches the cursor drawn in the frames.",
+   "status": "partial",
+   "evidence": "pointer.ts:95-98 samples the position right after mouse.move resolves; timeline.ts:123-130 applies no render-latency offset",
+   "gap": "The drawn cursor trails the recorded track by 1–3 frames during moves (only click instants are verified). Phase-2 overlays or zooms keyed on timeline.cursor will lead the visible cursor.",
+   "phase": "1",
+   "lot": "L1.3"
+  },
+  {
+   "id": "R-ISS-03",
+   "source": "Known open issue; choreography Ripple",
+   "requirement": "The click ripple is visible on the clicked element.",
+   "status": "partial",
+   "evidence": "editorial ripple rgba(138,35,50,.45) (templates/editorial/template.yaml:34) on fixture buttons --accent #6e1f2b (fixtures/wholesale/src/shared/styles.css:20); catalogue frame 000043 shows no visible ripple on 'New import'",
+   "gap": "The ripple has the same hue as primary buttons, so it is invisible. There is no contrast handling (e.g. light ripple or outline on dark targets).",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-ISS-04",
+   "source": "Known open issue; choreography scene start",
+   "requirement": "The scene-start cursor position is neutral but appropriate to the scene, and configurable.",
+   "status": "partial",
+   "evidence": "kit.ts:970-987 fixed candidate list starting at (0.8W, 0.5H); scenes.ts:312-315 teleport only when the scene opens a page or the cursor is unknown",
+   "gap": "The rest point is always right-centre whatever the scene's first target, and there is no scene-level option to set it; it teleports (a visible jump inside the capture).",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-ISS-05",
+   "source": "Known open issue; README Outputs (strategy, popup opened per step event)",
+   "requirement": "Composite widget steps (select, pick, menu) record every click's strategy, popup_opened and target box for the editor.",
+   "status": "partial",
+   "evidence": "widgets.ts:88-98 composite(): event-level strategy, t_click and target come from the opening click only; data.clicks keeps only {t, point, desc} (catalogue timeline availability.1: keys t|point|desc)",
+   "gap": "The strategy, popup_opened and bbox of option, item, confirm and outside clicks are dropped, although ctx.clicks has them.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-ISS-06",
+   "source": "Known open issue; README Outputs (runs/<run-id>/)",
+   "requirement": "`studio hooks run` and `studio env reset` do not leave journal-only folders in runs/ that look like runs.",
+   "status": "todo",
+   "evidence": "cli/src/commands/hooks.ts:141-148 and 222-232 create runs/hooks-<label>/ and runs/<ts>-env-reset/ holding only hooks-journal.json (no run.json)",
+   "gap": "Still creates journal-only run folders (reset journals have no rollback, so they serve no purpose). Future run listings (run_status, studio app) must tolerate or avoid them.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-ISS-07",
+   "source": "Known open issue; SPEC §0 (open shadow DOM, same-origin iframes)",
+   "requirement": "The resolver finds targets inside open shadow roots and same-origin iframes.",
+   "status": "todo",
+   "evidence": "kit.ts:441-614 uses querySelectorAll and textContent on the document only; no shadowRoot or contentDocument traversal",
+   "gap": "Targets inside web components or iframes cannot be found (only pointer forwarding from frames exists, R-KIT-11).",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-ISS-08",
+   "source": "Known open issue; SPEC §0 (full-page navigations); SPEC §8 review flags loading frames",
+   "requirement": "Full-page navigations (mid-scene or at scene open) do not show blank or loading frames in the capture.",
+   "status": "todo",
+   "evidence": "runs/20261011-150847-catalogue/frames/000521.jpg (t = 46.82 s, YAVG 244): fully blank page at the /products scene open, held 0.24 s; recorder.ts writes every frame with no navigation hold",
+   "gap": "No hold-last-frame during navigation and no marking of loading intervals in the timeline.",
+   "phase": "1",
+   "lot": "L1.2"
+  },
+  {
+   "id": "R-ISS-09",
+   "source": "Known open issue",
+   "requirement": "studio login, --headed, Keychain secret resolution and desktop notifications are verified.",
+   "status": "n/a-here",
+   "evidence": "No DISPLAY, no osascript, notify-send, security or secret-tool in the container; see R-CLI-09, R-CLI-10, R-SEC-02, R-ACT-28",
+   "gap": "Needs a macOS (or desktop Linux) verification pass.",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-ISS-10",
+   "source": "Known open issue; SPEC §0; design-brief Constraints",
+   "requirement": "Fixture product, farm and producer names are invented.",
+   "status": "partial",
+   "evidence": "fixtures/wholesale/server/seed.mjs:111 'Finca El Paraíso — Geisha', :150-152 'Halo Beriti washing station', :171 'Finca La Esperanza'; used in scenarios/catalogue.yaml and quote.yaml",
+   "gap": "Rename them to invented names in the seed, scenarios, tests and README.",
+   "phase": "1",
+   "lot": "L1.1"
+  },
+  {
+   "id": "R-MCP-01",
+   "source": "SPEC §3, §8; DESIGN §0",
+   "requirement": "An MCP server package (packages/mcp) exposes the §8 tools over stdio and is started by `studio mcp`.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "packages/mcp/src is empty (only package.json with @modelcontextprotocol/sdk 1.32.1 + tsconfig); `studio mcp` is a stub that prints 'available in phase 3' (packages/cli/src/commands/misc.ts:48, tested packages/cli/test/cli.test.ts:88).",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-02",
+   "source": "SPEC §3 (mcp: stdio + HTTP)",
+   "requirement": "The MCP server also serves the same tools over an HTTP transport.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No server at all.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-03",
+   "source": "SPEC §8 (last paragraph)",
+   "requirement": "Every long task (capture, dry run, render, review, export, record) is asynchronous: the tool returns a job/run id immediately and progress is obtained by status polling so no tool call exceeds an agent timeout.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No job runner. Groundwork: run.json is updated live (RunRecord, core types.ts) and `studio run --json` streams RunProgress events (e2e.test.ts 'captures capture.mp4 + timeline.json that agree with each other').",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-04",
+   "source": "SPEC §8 (last paragraph)",
+   "requirement": "Every MCP tool returns the relevant file paths plus a short text summary readable by Claude.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No tools exist.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-05",
+   "source": "SPEC §8",
+   "requirement": "`project_list` returns the workspace projects (slug, name, dir, scenarios).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing API listProjects exists (packages/core/src/project.ts:87) and `studio list --json`.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-06",
+   "source": "SPEC §8",
+   "requirement": "`project_create({name, readme, environments, template})` creates README.md, project.yaml, scenarios/, hooks/, assets/ and .gitignore in the workspace.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing createProject (packages/core/src/project.ts:210) tested in packages/core/test/project.test.ts 'createProject → loadProject round trip'.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-07",
+   "source": "SPEC §8",
+   "requirement": "`project_get` returns a project's config (defaults applied), README and scenario names.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing loadProject (packages/core/src/project.ts:121).",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-08",
+   "source": "SPEC §8",
+   "requirement": "`project_update_readme` replaces a project's README.md.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing updateReadme (packages/core/src/project.ts:238) tested project.test.ts 'updateReadme'.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-09",
+   "source": "SPEC §8",
+   "requirement": "`template_list` lists workspace + starter templates (themes).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing listTemplates (packages/core/src/template.ts:65).",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-10",
+   "source": "SPEC §8, §0, decision",
+   "requirement": "`template_create_from_brand({logo, colors, fonts})` writes a new workspace theme folder (template.yaml valid against the template schema + copied logo/fonts) and returns its path.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent. Template schema/loader exist (packages/core/src/schemas/template.ts) to validate the result.",
+   "phase": "3",
+   "lot": "L3.5"
+  },
+  {
+   "id": "R-MCP-11",
+   "source": "SPEC §8; DESIGN-phase2 §2 previewTemplate",
+   "requirement": "`template_preview` renders stills of a theme (intro, clip with caption over a placeholder screen, interstitial, outro) and returns their paths.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No editor/previewTemplate.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-12",
+   "source": "SPEC §8, §0, decision",
+   "requirement": "`template_from_site({url})` opens a live site and returns a draft theme: colour palette, font families, logo candidates (paths) and a draft template.yaml.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent. openSession (packages/runner-web/src/session.ts) could host the extraction.",
+   "phase": "3",
+   "lot": "L3.5"
+  },
+  {
+   "id": "R-MCP-13",
+   "source": "SPEC §8, §11",
+   "requirement": "`component_list({kind?})` lists available components (workspace, built-in) with id, kind, version, source and preview paths.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No registry.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-14",
+   "source": "SPEC §8, §11",
+   "requirement": "`component_create({id, kind, description})` scaffolds a component folder in the workspace components/ from a kind template.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No createComponent.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-15",
+   "source": "SPEC §8, §11",
+   "requirement": "`component_preview({component, theme, slots?, params?})` renders preview image(s) (optionally mp4) of a component with the given theme and returns their paths.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No previewComponent.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-16",
+   "source": "SPEC §8, §11",
+   "requirement": "`component_validate` returns the validation issues of a component folder (see R-REG-06..10).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No validateComponent.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-17",
+   "source": "SPEC §8, §12; decision",
+   "requirement": "`comments_list({project, scenario?, render?, status?})` returns frame comments, each with the path of its frame still, its region and its scenario anchor (scene, step, segment, component).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No comment store or type.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-MCP-18",
+   "source": "SPEC §8",
+   "requirement": "`comment_reply` appends a reply (author, text, created_at) to a frame comment.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-MCP-19",
+   "source": "SPEC §8; DESIGN-phase2 §4",
+   "requirement": "`comment_resolve` marks a comment resolved with {by, note, render_id?}.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-MCP-20",
+   "source": "SPEC §8",
+   "requirement": "`scenario_validate({project, yaml})` validates YAML text without saving and returns issues with line/col.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing parseScenario (packages/core/src/scenario.ts:35) heavily tested (packages/core/test/scenario.test.ts).",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-21",
+   "source": "SPEC §8",
+   "requirement": "`scenario_save` writes scenarios/<name>.yaml and refuses error-level issues.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing saveScenario (packages/core/src/scenario.ts:85) tested project.test.ts 'saveScenario refuses invalid scenarios, then loadScenario round-trips'.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-22",
+   "source": "SPEC §8, §0, §14.3",
+   "requirement": "`scenario_from_script({project, script_markdown})` drafts scenario YAML from a timecoded script table (scenes, captions, durations) and the draft validates.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.3"
+  },
+  {
+   "id": "R-MCP-23",
+   "source": "SPEC §8, §0",
+   "requirement": "`page_inspect({project, url | page, selector?})` returns a screenshot plus the list of visible interactive elements with suggested robust targets (role+name, label, text, testid…).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent. Groundwork: in-page resolver/describeEl (packages/runner-web/src/kit/kit.ts:330 INTERACTIVE, :650 describeEl) and openSession.",
+   "phase": "3",
+   "lot": "L3.3"
+  },
+  {
+   "id": "R-MCP-24",
+   "source": "SPEC §8, §0",
+   "requirement": "`scenario_record({project, url})` opens a headed browser and records clicks/typing into a draft scenario (also CLI `studio record`).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; `studio record` stub (misc.ts:47). Headed browser groundwork: openLoginBrowser (packages/runner-web/src/login.ts:23).",
+   "phase": "3",
+   "lot": "L3.4"
+  },
+  {
+   "id": "R-MCP-25",
+   "source": "SPEC §8",
+   "requirement": "`run_dry({project, scenario, until?})` returns logs and one screenshot per step.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing runScenario mode 'dry' tested (packages/cli/test/e2e.test.ts 'dry-runs up to a step with a screenshot per step').",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-26",
+   "source": "SPEC §8",
+   "requirement": "`run_capture({project, scenario})` starts a capture and returns a run id immediately.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing runScenario capture tested (e2e.test.ts).",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-27",
+   "source": "SPEC §8",
+   "requirement": "`run_status(run_id)` returns status, steps done/total, current step, warnings, error and output paths.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; run.json (RunRecord) updated live is the data source.",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-28",
+   "source": "SPEC §8",
+   "requirement": "`run_cancel` cancels a running capture; teardown and pending rollbacks still run.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; runner cancellation tested (packages/runner-web/test/run.test.ts 'an AbortSignal cancels the run and teardown still happens').",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-29",
+   "source": "SPEC §8",
+   "requirement": "`render({project, scenario, run_id, overrides?})` starts a render (EditOverrides) and returns a render id.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No editor.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-30",
+   "source": "SPEC §8",
+   "requirement": "`render_status` returns the progress/state and output paths of a render.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-31",
+   "source": "SPEC §8, §10",
+   "requirement": "`review({render_id, fps: 1|2})` returns paths and base64 thumbnails of contact sheets, key frames at markers, the timeline and the automatic report.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No review package (packages/review/src empty).",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-32",
+   "source": "SPEC §8",
+   "requirement": "`export({render_id, formats})` produces the requested export formats (R-EXP-*) and returns their paths.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.2"
+  },
+  {
+   "id": "R-MCP-33",
+   "source": "SPEC §8",
+   "requirement": "`hooks_run({project, hook})` runs setup/teardown/reset/hook-file hooks with a rollback journal.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing tested via CLI (e2e.test.ts 'runs a hooks file with a journal, rolls it back by run id, and refuses unconfirmed destructive hooks').",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-34",
+   "source": "SPEC §8",
+   "requirement": "`env_reset({project})` replays pending journals then runs the project's reset hooks.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "MCP tool absent; backing tested (e2e.test.ts 'env reset replays pending journals, then runs the reset hooks').",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-MCP-35",
+   "source": "SPEC §13, §14.3 ('except approval')",
+   "requirement": "Destructive or irreversible operations requested through the MCP require an explicit human approval (no implicit --yes).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No MCP; hooks already refuse unconfirmed destructive hooks (hooks security tests).",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-CLI2-01",
+   "source": "SPEC §3 (cli: everything the MCP does); README",
+   "requirement": "`studio render <project> <scenario> [run] [overrides]` renders a capture into renders/<scenario>-v<N>.mp4.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Stub only (misc.ts:44).",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-CLI2-02",
+   "source": "SPEC §3; README",
+   "requirement": "`studio review <project> <render>` writes review artefacts and prints the report summary.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Stub only (misc.ts:45).",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-CLI2-03",
+   "source": "SPEC §3; README",
+   "requirement": "`studio export <project> <render> --formats …` exports a render.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Stub only (misc.ts:46).",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-CLI2-04",
+   "source": "SPEC §3, §12",
+   "requirement": "`studio ui` serves the Studio web app locally.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Stub only (misc.ts:49).",
+   "phase": "4",
+   "lot": "L4.1"
+  },
+  {
+   "id": "R-ED-01",
+   "source": "SPEC §9; DESIGN-phase2 §2",
+   "requirement": "renderVideo takes capture.mp4 + timeline.json + template + scenario edit hints and writes renders/<scenario>-v<N>.mp4 (N auto-incremented) and renders/<scenario>-v<N>.json (RenderRecord incl. plan + overrides).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "packages/editor/src has only plan-types.ts (no index.ts; package main dist/index.js does not exist). Remotion 4.0.534 deps installed.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-ED-02",
+   "source": "SPEC §9; look.md Global",
+   "requirement": "Default edit cuts between scenes with a 0.35 s crossfade (theme transition).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-03",
+   "source": "SPEC §9",
+   "requirement": "Scenes are kept continuous (no internal cuts other than idle trims).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-04",
+   "source": "SPEC §9",
+   "requirement": "Per-scene and per-step `speed` are applied at edit time.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; speeds already copied into timeline scenes/events by the runner.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-05",
+   "source": "SPEC §9",
+   "requirement": "Idle gaps longer than 1.2 s (cursor static + no screen change) are trimmed automatically.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; timeline.idle computed by runner (packages/runner-web/test/unit.test.ts 'idle = gaps of at least 0.5 s…'); local catalogue run has 5 idle gaps > 1.2 s.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-06",
+   "source": "SPEC §9",
+   "requirement": "Playback is 1× around `mark` steps.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; markers are in timeline (verified in runs/20261011-150847-catalogue: import-done, reveal).",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-07",
+   "source": "SPEC §2, §9",
+   "requirement": "Camera is static by default; zooms come only from explicit step `camera` hints keyed to runner timeline events (never guessed timestamps).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; runner records camera bbox on the event (packages/runner-web/src/scenes.ts:103; verified bbox in local catalogue timeline).",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-08",
+   "source": "SPEC §9",
+   "requirement": "Zooms are eased over at least 0.8 s.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; validation already enforces camera.duration ≥ 0.8 (scenario.test.ts 'ranges: speed (0, 8], camera zoom [1, 3] and duration ≥ 0.8').",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-09",
+   "source": "SPEC §9, §2",
+   "requirement": "A zoom is never reset at a cut inside the same page.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-10",
+   "source": "SPEC §9",
+   "requirement": "Frame style `raw`: the capture fills the output.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No layout component.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-ED-11",
+   "source": "SPEC §9",
+   "requirement": "Frame style `card`: capture in a rounded card with a soft shadow on the theme background.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No layout component.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-ED-12",
+   "source": "SPEC §9",
+   "requirement": "Frame style `browser`: card with browser chrome whose address bar shows the real URL (optional).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No layout; real URLs already recorded per page segment (e2e.test.ts asserts tl.pages urls).",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-ED-13",
+   "source": "SPEC §9",
+   "requirement": "Frame style `laptop`: MacBook-style mockup.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-ED-14",
+   "source": "SPEC §9",
+   "requirement": "Frame style `phone`: iPhone-style mockup for narrow captures.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-ED-15",
+   "source": "SPEC §9",
+   "requirement": "Captions come from the scenario (scene caption, step caption).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-16",
+   "source": "SPEC §9",
+   "requirement": "Intro, outro and interstitials take their look and duration from the theme (template).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-ED-17",
+   "source": "SPEC §9; README music",
+   "requirement": "Optional music bed from scenario `music: {file, volume, duck}` with ducking under footage and fades.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; scenario schema accepts music (packages/core/src/schemas/scenario.ts:97); PlanMusic type exists (plan-types.ts:164).",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-ED-18",
+   "source": "look.md Global",
+   "requirement": "Without music the output has a silent audio track (no voice-over).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-ED-19",
+   "source": "SPEC §9",
+   "requirement": "Output is 1920×1080 by default.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-ED-20",
+   "source": "SPEC §9",
+   "requirement": "Output is 4K (3840×2160) when capture scale is 2.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent.",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-ED-21",
+   "source": "SPEC §9",
+   "requirement": "Vertical 9:16 variant is produced by re-framing on the cursor/target bbox.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Editor absent; cursor track recorded (e2e.test.ts asserts tl.cursor.length > 10).",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-ED-22",
+   "source": "SPEC §5 (style_bias)",
+   "requirement": "Template `style_bias` (real | balanced | motion) and `motion.default_zoom` tune how much motion design the edit adds.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Field parsed by template schema; no consumer.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-ED-23",
+   "source": "DESIGN-phase2 §2",
+   "requirement": "renderStill({plan, frame, out}) renders one output frame to a PNG.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-ED-24",
+   "source": "DESIGN-phase2 §2",
+   "requirement": "listRenders(project) returns the RenderRecords of a project.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-ED-25",
+   "source": "DESIGN-phase2 §2",
+   "requirement": "renderVideo supports onProgress, AbortSignal cancellation and a concurrency option.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-EXP-01",
+   "source": "SPEC §8 export; DESIGN-phase2 §2 exportRender",
+   "requirement": "Export format mp4_1080p.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "exportRender absent.",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-EXP-02",
+   "source": "SPEC §8",
+   "requirement": "Export format mp4_4k.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-EXP-03",
+   "source": "SPEC §8",
+   "requirement": "Export format webm.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-EXP-04",
+   "source": "SPEC §8",
+   "requirement": "Export format vertical_9x16 (uses the DemoVertical composition).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-EXP-05",
+   "source": "SPEC §8",
+   "requirement": "Export format gif_preview.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-PLN-01",
+   "source": "DESIGN-phase2 §2",
+   "requirement": "planEdit({timeline, scenario, template, project, registry, captureFile, overrides?}) is pure and deterministic and unit-tested.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-02",
+   "source": "DESIGN-phase2 §2.1 / §2.1 bullet 1",
+   "requirement": "Segment order: intro (unless disabled) → scenes/cards/interstitials in scenario order → outro.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-03",
+   "source": "DESIGN-phase2 §2.1 bullet 1",
+   "requirement": "Each segment's component is resolved by precedence: override by segment id → override by kind → scenario → theme → built-in default, and records its source.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "ResolvedComponent.source type exists (plan-types.ts:61); no resolver.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-04",
+   "source": "DESIGN-phase2 §2.1 bullet 2",
+   "requirement": "A scene's source range starts at the end of its page load (scene_still.t_start, else scene_open.t_end, else scene.t_start) and ends at scene.t_end incl. trailing holds; page loads are never shown.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; scene_open/scene_still events exist in timelines (verified in local catalogue run).",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-05",
+   "source": "DESIGN-phase2 §2.1 bullet 3",
+   "requirement": "Scenes not contiguous in the capture use the theme transition (crossfade 0.35 s: outgoing clip holds its last frame while the incoming fades in).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-06",
+   "source": "DESIGN-phase2 §2.1 bullet 3",
+   "requirement": "Scenes contiguous on the same page are joined with no transition (only the caption changes; the camera continues).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-07",
+   "source": "DESIGN-phase2 §2.1 bullet 3",
+   "requirement": "Intro→first scene and last scene→outro use the theme transition.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-08",
+   "source": "DESIGN-phase2 §2.1 bullet 3",
+   "requirement": "Interstitials are drawn over the dimmed last frame of the previous clip (backdropSrcFrame) with fade in/out.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Field typed (plan-types.ts:122); no planner.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-09",
+   "source": "DESIGN-phase2 §2.1 bullet 4",
+   "requirement": "Speed: scene speed (overrides.speeds wins) for the scene, step speed for its span.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-10",
+   "source": "DESIGN-phase2 §2.1 bullet 4",
+   "requirement": "Always 1×: the opening still, every hold (action and modifier), and ±0.6 s around a marked step through its hold end.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-11",
+   "source": "DESIGN-phase2 §2.1 bullet 4",
+   "requirement": "Speed changes are ramped over ~0.3 s.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-12",
+   "source": "DESIGN-phase2 §2.1 bullet 5",
+   "requirement": "timeline.idle intervals longer than idle_threshold (1.2 s) are shortened to 0.4 s unless they overlap a protected span; overrides.trim_idle=false disables it.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-13",
+   "source": "DESIGN-phase2 §2.1 bullet 6",
+   "requirement": "Camera zoom is clamped to the theme max_zoom (with a planner note).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; validation warns above max_zoom.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-14",
+   "source": "DESIGN-phase2 §2.1 bullet 6",
+   "requirement": "Zoom focus = event camera bbox centre, else camera point, else cursor position.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-15",
+   "source": "DESIGN-phase2 §2.1 bullet 6",
+   "requirement": "Zoom eases in with theme zoom_ease over max(0.8 s, duration) of output time, holds until `until` (default scene end), and eases out the same way.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-16",
+   "source": "DESIGN-phase2 §2.1 bullet 6",
+   "requirement": "The zoomed view is clamped so the capture always fills the screen rect.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-17",
+   "source": "DESIGN-phase2 §2.1 bullet 7",
+   "requirement": "Captions: scene caption from the scene's first visible frame to its end; a step caption replaces it from the step's output start; cues never overlap; rendered by the clip's caption component in the layout caption rect.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "CaptionCue type exists (components types.ts:13).",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-18",
+   "source": "DESIGN-phase2 §2.1 bullet 8",
+   "requirement": "Overlays from step `overlay` modifiers are positioned with the event's target bbox mapped through layout + camera.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-19",
+   "source": "DESIGN-phase2 §2.1 bullet 9",
+   "requirement": "Provenance: every clip segment lists StepSpans (output frame spans per scenario step) and the plan keeps markers and a time map.",
+   "status": "partial",
+   "evidence": "packages/editor/src/plan-types.ts:73 (StepSpan), :154 (TimeMapEntry), :205 (markers)",
+   "gap": "Types only; no planner computing them.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-20",
+   "source": "DESIGN-phase2 §2.1 bullet 10",
+   "requirement": "Output size = 1920×1080 × scale; vertical 1080×1920 uses geometry_vertical and a crop following a smoothed cursor/target track.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "ClipSegment.reframe typed (plan-types.ts:143); no planner.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-21",
+   "source": "DESIGN-phase2 §2; plan-types EditOverrides",
+   "requirement": "All EditOverrides are honoured: frame, variant, fps, scale, intro, outro, captions, trim_idle, idle_threshold, speeds, transition, transition_duration, camera, components (by kind or segment id), theme, music.",
+   "status": "partial",
+   "evidence": "packages/editor/src/plan-types.ts:214",
+   "gap": "Type only.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-22",
+   "source": "DESIGN-phase2 §2; plan-types",
+   "requirement": "EditPlan contract (version 1; segments intro/outro/card/interstitial/clip with srcFrames, camera, urls, caption, overlays; brand; layout; source; captions; markers; timemap; music; notes; warnings) is the single input of compositions and review.",
+   "status": "partial",
+   "evidence": "packages/editor/src/plan-types.ts:176 (compiled to packages/editor/dist/plan-types.d.ts)",
+   "gap": "Contract drafted, not exercised by any test or code.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-PLN-23",
+   "source": "plan-types EditPlan.notes/warnings",
+   "requirement": "Planner decisions (trimmed idle gaps, clamped zooms…) are surfaced in plan.notes / plan.warnings.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-RND-01",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Remotion compositions DemoVideo and DemoVertical take {plan} and render only the plan.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-02",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Composition draws the background and one Sequence per segment with its fade envelope and segment component.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-03",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Clips render the layout component with screen = <Freeze frame={srcFrames[f]}><OffthreadVideo/></Freeze> under the camera transform.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-04",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Clips also render the caption component, overlays, the brandmark, and the optional music bed.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-05",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Components are imported through a generated registry module (built-in + workspace entries) so user components are bundled too.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-06",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "The Remotion bundle is cached under <root>/.demo-studio/cache/ keyed by a hash of editor + component sources.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Only .demo-studio/ is git-ignored (.gitignore).",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-07",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Capture, fonts, logo and music are served by a local static HTTP server during the render.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-RND-08",
+   "source": "DESIGN-phase2 §2.2",
+   "requirement": "Render browser: $DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL, else Playwright's chromium headless shell.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; @remotion/compositor-linux-x64-gnu 4.0.534 installed.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-CMP-01",
+   "source": "SPEC §11; DESIGN-phase2 §1",
+   "requirement": "Every visual element of the edit (intros, outros, cards, interstitials, captions, layouts, overlays, transitions) is a component; nothing visual is hard-coded in the editor.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No editor or components.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-CMP-02",
+   "source": "SPEC §11; components types",
+   "requirement": "Component kinds: intro, outro, card, interstitial, caption, layout, overlay, transition.",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:21-46 (ComponentKind, COMPONENT_KINDS)",
+   "gap": "Types only, untested.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-03",
+   "source": "DESIGN-phase2 §1.1",
+   "requirement": "A component is a folder <namespace>/<name>/ with component.yaml, index.tsx (default export React.FC<ComponentProps>, useCurrentFrame segment-relative), generated previews/<theme>.png (+ .mp4) and optional README.md.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No loader, no component folders.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-04",
+   "source": "SPEC §11; DESIGN-phase2 §1.1",
+   "requirement": "component.yaml manifest: id 'namespace/name', semver version, kind, name, description, slots, params JSON Schema with defaults, tokens used, duration bounds, layout geometry (+ vertical), variants, preview samples, publisher/license/tags, entry.",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:86 (ComponentManifest)",
+   "gap": "Interface only: no zod/JSON Schema for component.yaml, no parser, no tests.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-05",
+   "source": "DESIGN-phase2 §1.1",
+   "requirement": "Implementations read every colour/font/logo from props.theme and size everything with props.unit.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No implementations.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-06",
+   "source": "DESIGN-phase2 §1.1",
+   "requirement": "Implementations are deterministic (no Math.random/Date), use no network, and import only react, remotion and @demo-studio/components/kit (checked by validation).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-07",
+   "source": "DESIGN-phase2 §1.1",
+   "requirement": "@demo-studio/components/kit exports shared helpers: fades/rises/stagger, easing presets, fitText, Logo, Wordmark, background renderer, safe-area helpers.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No kit; packages/components/package.json exports only '.' and has no react/remotion dependency.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-08",
+   "source": "DESIGN-phase2 §1.1",
+   "requirement": "Text slots never overflow: fitText shrinks text within its bounds.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-09",
+   "source": "components types ComponentProps",
+   "requirement": "Every component receives ComponentProps: theme, slots, params, unit, width, height, fps, durationInFrames, variant, screen (layout), url (chrome), cues (caption).",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:132",
+   "gap": "Type only.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-10",
+   "source": "components types SlotSpec",
+   "requirement": "Slots declare type (text/image/url/color/screen), required, default_from (theme.logo, theme.brand.name, scenario.title.text, scene.caption.text…) and max_chars, and the planner fills them from those sources.",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:50",
+   "gap": "Type only; no slot resolution.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-11",
+   "source": "components types LayoutGeometry; DESIGN-phase2 §1.1",
+   "requirement": "Layout components declare geometry (screen, frame, chrome, caption, brandmark rects in 1920×1080 space, radius) and geometry_vertical so planner and review reason without rendering.",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:73",
+   "gap": "Type only.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMP-12",
+   "source": "SPEC §11; DESIGN-phase2 §1.1",
+   "requirement": "Previews are generated (never hand-edited) and always rendered with the user's theme.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-CMP-13",
+   "source": "SPEC §11; design-brief §B, Constraints",
+   "requirement": "A component adapts to any theme: the same component looks native in a warm editorial theme and in a dark 'Night' theme.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No components; no 'Night' theme (closest dark starter: templates/motion).",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-00",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "Built-in library lives in packages/components/library/studio/* and is theme-agnostic.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Directory absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-01",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/intro-stack (intro): logo + wordmark row, kicker, display title, accent rule; staggered entrance (reference look).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-02",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/intro-minimal (intro): title only, fade.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-03",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/outro-stack (outro): big logo, wordmark, rule, tagline, url; staggered (reference look).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-04",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/outro-minimal (outro): logo + tagline.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-05",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/card-title (card): chapter/title card (kicker + title).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-06",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/interstitial-clock (interstitial): dark overlay over the dimmed last frame, animated clock, text (reference look).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-07",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/interstitial-plain (interstitial): paper or dark card with text.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-08",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/layout-card (layout): capture in a rounded card (1560 wide) with soft shadow on the theme background, caption area below, brandmark (reference look).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-09",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/layout-browser (layout): card + macOS-style browser chrome with the real URL.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-10",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/layout-laptop (layout): MacBook-style mockup.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-11",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/layout-phone (layout): iPhone-style mockup for narrow captures.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-12",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/layout-raw (layout): capture fills the frame.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-13",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/caption-below (caption): accent rule + uppercase kicker + display line, crossfade/rise between cues (reference look).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-14",
+   "source": "DESIGN-phase2 §1.2; design-brief §B",
+   "requirement": "studio/caption-overlay (caption): translucent band over the capture (for raw/motion and the browser layout).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-15",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/overlay-callout (overlay): pill/callout with an arrow pointing at a target bbox.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-16",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/overlay-lower-third (overlay): lower third (title + subtitle).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-LIB-17",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/transition-crossfade (transition).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LIB-18",
+   "source": "DESIGN-phase2 §1.2",
+   "requirement": "studio/transition-fade-black (transition).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-REG-01",
+   "source": "DESIGN-phase2 §1.3; SPEC §11",
+   "requirement": "loadComponentRegistry({root}) scans <root>/components/**/component.yaml then the built-in library; a workspace id overriding a built-in wins with a warning.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-02",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "registry.list(kind?) returns ComponentInfo {manifest, dir, entry (absolute), source: workspace|builtin}.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-03",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "registry.get(id) throws a not-found error with 'did you mean' suggestions.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; core has didYouMean helper (packages/core/src/index.ts:14).",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-04",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "registry.resolve(ref, kind) turns a ComponentRef (string or {id, params}) into a resolved component with params defaults applied and kind checked.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "ComponentRef type exists (types.ts:116).",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-05",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "validateComponent(dir) reports manifest schema errors.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-06",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "validateComponent reports a missing entry file.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-07",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "validateComponent reports an invalid params JSON Schema.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-08",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "validateComponent reports preview samples that do not fill the required slots.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-09",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "validateComponent typechecks / esbuild-compiles the entry.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-10",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "createComponent(root, {id, kind, description}) scaffolds a valid component from a kind template in the workspace.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-11",
+   "source": "DESIGN-phase2 §1.3",
+   "requirement": "themeTokens(template, {logo?, wordmark?}) maps a LoadedTemplate to ThemeTokens (colors, background, fonts, logo, wordmark url/text, brand, cursor ripple, style_bias).",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:119 (ThemeTokens)",
+   "gap": "Type only; core Template has no `brand` field to source brand.name/url.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-REG-12",
+   "source": "SPEC §11; components types header",
+   "requirement": "Component id resolution order: workspace components/ → built-in library → (V2) cloud marketplace cache.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Documented in types.ts header only.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-THM-01",
+   "source": "DESIGN-phase2 §1.4; SPEC §11",
+   "requirement": "Template gains `brand: {name, url}` (used by wordmark-as-text and outro url).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Template type (core types.ts) and strict TemplateFileSchema (packages/core/src/schemas/template.ts) have no `brand`; a template.yaml with brand is rejected.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-THM-02",
+   "source": "DESIGN-phase2 §1.4; SPEC §11",
+   "requirement": "Template gains `components:` default per kind (string id or {id, params}) for intro, outro, interstitial, card, layout, caption, transition (+ overlay).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent from schema and types.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-THM-03",
+   "source": "DESIGN-phase2 §1.4",
+   "requirement": "When `components` is absent, legacy fields map to defaults: frame.style→layout, intro.layout→intro, outro.layout→outro, interstitial.style→interstitial, captions.position→caption.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-THM-04",
+   "source": "SPEC §11",
+   "requirement": "Themes provide tokens: colours, fonts, logo, wordmark, brand name, url, background, cursor.",
+   "status": "partial",
+   "evidence": "packages/core/src/schemas/template.ts (colors, fonts, logo, wordmark, background, cursor); packages/core/test/template.test.ts",
+   "gap": "brand name/url missing (R-THM-01).",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-THM-05",
+   "source": "SPEC §11, §14.2",
+   "requirement": "Switching theme (EditOverrides.theme or project template) re-renders without touching the scenario.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No renderer.",
+   "phase": "2",
+   "lot": "L2.3"
+  },
+  {
+   "id": "R-THM-06",
+   "source": "SPEC §0, §3 templates/",
+   "requirement": "The tool ships generic starter themes only (default, editorial, motion) that load with all assets and validate.",
+   "status": "done",
+   "evidence": "packages/core/test/bundled.test.ts 'every template loads with all its assets and is complete on its own'; templates/README.md (fictional placeholder brands)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-THM-07",
+   "source": "look.md; SPEC §5",
+   "requirement": "The `editorial` starter reproduces the reference look values.",
+   "status": "partial",
+   "evidence": "templates/editorial/template.yaml (radial #f8f4ef→#ebe4dc, card 1560/18/soft, kicker body 600 15 uppercase 0.14 accent, crossfade 0.35)",
+   "gap": "captions.line.size is 35 while look.md measures ≈38 px; intro/outro/interstitial geometry depends on components not yet built.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-SCN2-01",
+   "source": "DESIGN-phase2 §1.5; SPEC §11",
+   "requirement": "Scenario `intro: {component?, params?, duration?}` (or false).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "packages/core/src/schemas/scenario.ts:71 accepts only {duration} (strict object → `component` is an error).",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN2-02",
+   "source": "DESIGN-phase2 §1.5",
+   "requirement": "Scenario `outro: {component?, params?, tagline?, url?, duration?}` (or false).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "schemas/scenario.ts:75 lacks component/params.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN2-03",
+   "source": "DESIGN-phase2 §1.5; SPEC §11",
+   "requirement": "`interstitial: {text, kicker?, duration?, component?, params?}`.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "schemas/scenario.ts:38 has text/kicker/duration/style only.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN2-04",
+   "source": "DESIGN-phase2 §1.5; SPEC §11",
+   "requirement": "New scene entry `card: {component?, params?, slots: {title, kicker, …}, duration?}` for generic full-screen cards (takes no capture time).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "SceneEntry union has only scene and interstitial (schemas/scenario.ts SceneEntrySchema).",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN2-05",
+   "source": "DESIGN-phase2 §1.5; SPEC §11",
+   "requirement": "Scene (and scenario/project) `frame:` accepts a layout component id as well as a FrameStyle (card ⇒ studio/layout-card…).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "schemas/scenario.ts:29/:94 use FrameStyleSchema enum only.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN2-06",
+   "source": "DESIGN-phase2 §1.5; SPEC §11",
+   "requirement": "Step modifier `overlay: {component, slots?, params?, duration?, target?}`.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Not in step common keys (packages/core/src/schemas/steps.ts).",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN-07",
+   "source": "DESIGN-phase2 §1.5",
+   "requirement": "The runner resolves an overlay target and records its bbox on the timeline event (like camera targets).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Pattern exists for camera (packages/runner-web/src/scenes.ts:103 cameraFor).",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-SCN-08",
+   "source": "DESIGN.md §1 (schemas written to packages/core/schema)",
+   "requirement": "Generated JSON Schemas (scenario, template) include the phase-2 additions for editor autocompletion.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "packages/core/schema/*.json reflect phase 1 only.",
+   "phase": "2",
+   "lot": "L2.1"
+  },
+  {
+   "id": "R-REV-01",
+   "source": "DESIGN-phase2 §3; SPEC §10",
+   "requirement": "reviewRender({project, render, fps?: 1|2, previous?}) writes review/<render-id>/ and returns a ReviewResult.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "packages/review/src empty; package depends only on core + sharp (needs editor plan types).",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-02",
+   "source": "SPEC §10; DESIGN-phase2 §3",
+   "requirement": "Contact sheet sheet_<fps>fps.jpg (e.g. sheet_1fps.jpg) with labelled timecodes, paginated when long.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-03",
+   "source": "SPEC §10",
+   "requirement": "Per-scene contact sheets sheet_scene_<id>.jpg.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-04",
+   "source": "SPEC §10; DESIGN-phase2 §3",
+   "requirement": "Key frames keyframes/<marker>.png plus each scene's first and last frame.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-05",
+   "source": "SPEC §10; DESIGN-phase2 §3",
+   "requirement": "Output-time timeline.json: segments with components, captions, markers, step spans.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-06",
+   "source": "SPEC §10; DESIGN-phase2 §3",
+   "requirement": "report.json and report.md (scene durations, findings, warnings).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-07",
+   "source": "DESIGN-phase2 §3; SPEC §8 review",
+   "requirement": "Returns ≤1280 px JPEG thumbnails as base64 for the MCP.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent (sharp installed).",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-08",
+   "source": "DESIGN-phase2 §3; SPEC §8",
+   "requirement": "Check: duration per scene / segment reported.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-09",
+   "source": "DESIGN-phase2 §3; SPEC §8, §10",
+   "requirement": "Check: blank, near-uniform or loading frames inside the screen rect and at scene starts.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-10",
+   "source": "DESIGN-phase2 §3; SPEC §8",
+   "requirement": "Check: caption vs scene mismatch.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-11",
+   "source": "DESIGN-phase2 §3; SPEC §10",
+   "requirement": "Check: caption overlaps.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-12",
+   "source": "DESIGN-phase2 §3",
+   "requirement": "Check: captions too long for their area.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent. Fixture catalogue captions are 83 and 87 chars (> ~75 one-line limit of look.md) and would be flagged.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-13",
+   "source": "DESIGN-phase2 §3",
+   "requirement": "Check: text slot overflow.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-14",
+   "source": "DESIGN-phase2 §3; SPEC §8",
+   "requirement": "Check: cursor off-screen or outside the zoomed view at clicks.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-15",
+   "source": "DESIGN-phase2 §3; SPEC §2",
+   "requirement": "Check: scenes longer than 30 s at ~1×.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-16",
+   "source": "DESIGN-phase2 §3; SPEC §2",
+   "requirement": "Check: zoom count and zoom resets at same-page joins.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-17",
+   "source": "DESIGN-phase2 §3; SPEC §2 (fades on wrong frames)",
+   "requirement": "Check: transitions overlapping a click.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-18",
+   "source": "DESIGN-phase2 §3; SPEC §3 review",
+   "requirement": "Diff vs the previous render (auto-detected, or `previous`, or disabled with false).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-REV-19",
+   "source": "DESIGN-phase2 §3",
+   "requirement": "Findings are {severity, code, message, at?: {frame, time, segment, scene, step}}; `clean` = no error or warning.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.6"
+  },
+  {
+   "id": "R-LOOK-01",
+   "source": "look.md header",
+   "requirement": "All look values are at 1920×1080 and scale by `unit`; brand elements (logo, wordmark, colours, fonts) always come from the theme.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No components.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-02",
+   "source": "look.md Global",
+   "requirement": "Background: soft radial 'paper' gradient, lighter at the top.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Gradient colours in editorial template; renderer absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-03",
+   "source": "look.md Global",
+   "requirement": "Target video length 1–2 min, scenes 4–25 s (review should flag outliers).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-04",
+   "source": "look.md Global",
+   "requirement": "0.35 s crossfade between scenes; captions crossfade with their clip.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-05",
+   "source": "look.md Global",
+   "requirement": "Camera static; at most one very slow zoom per video (e.g. 1.0 → ~1.12 over ~6 s).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-06",
+   "source": "look.md Clip layout",
+   "requirement": "Card at x 180, y 40, 1560 × 878 (16:9 capture fills it), corner radius 18.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-07",
+   "source": "look.md Clip layout",
+   "requirement": "Card soft shadow ≈ 0 24px 60px rgba(31,20,19,.16), 0 2px 8px rgba(31,20,19,.08) (tint derived from theme text colour).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-08",
+   "source": "look.md Clip layout",
+   "requirement": "Caption block left-aligned at x ≈ 186; kicker row centred at y ≈ 957: accent rule 36×2 px, 12 px gap, kicker body SemiBold 15 px uppercase, letter-spacing ≈ 0.14 em, accent colour.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-09",
+   "source": "look.md Clip layout",
+   "requirement": "Caption line centred at y ≈ 996: display font ≈ 38 px, text colour, one line (≈ 75 characters max).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; editorial template sets 35 px; fixture captions exceed 75 chars.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-10",
+   "source": "look.md Clip layout",
+   "requirement": "Brandmark right-aligned with the card's right edge, vertically centred on the caption block (y ≈ 985): logo mark 30 px + wordmark (display 24 px, text colour), gap 10 px.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-11",
+   "source": "look.md Clip layout",
+   "requirement": "Caption change inside a clip: old line fades out ~0.25 s, new one fades in ~0.35 s with a 6–8 px rise.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-12",
+   "source": "look.md Intro",
+   "requirement": "Intro 3.2 s, layout logo-kicker-title: logo mark 64 px + wordmark (display 44 px) on one row centred at y ≈ 417.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-13",
+   "source": "look.md Intro",
+   "requirement": "Intro kicker: body SemiBold 18 px, uppercase, letter-spacing ≈ 0.18 em, accent, at y ≈ 529.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-14",
+   "source": "look.md Intro",
+   "requirement": "Intro title: display ≈ 96 px, text colour, tight tracking, at y ≈ 612; accent rule 120×2 px at y ≈ 694.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-15",
+   "source": "look.md Intro",
+   "requirement": "Intro motion: logo row fades in 0–0.5 s; kicker + title fade in with a short rise 0.6–1.1 s; rule draws from the centre (scaleX 0→1, ~0.5 s); hold; crossfade into the first clip.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-16",
+   "source": "look.md Interstitial",
+   "requirement": "Interstitial dark-clock ≈ 2.6 s: from the current frame everything dims while a dark warm overlay (#1e1615 in the reference) fades in ~0.5 s; clock and text fade in centred; full dark card; crossfade into the next clip.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-17",
+   "source": "look.md Interstitial",
+   "requirement": "Clock: 100 px circle, 3 px stroke in a muted warm brown (#5a4744), round-capped hands: minute hand paper-white ≈ 34 px, hour hand accent ≈ 22 px; minute hand sweeps about one turn (eased).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-18",
+   "source": "look.md Interstitial",
+   "requirement": "Interstitial text: display ≈ 72 px, paper colour, centred at y ≈ 612 (clock centre y ≈ 480).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-19",
+   "source": "look.md Outro",
+   "requirement": "Outro 3.0 s, layout logo-wordmark-tagline-url: logo mark 150 px (radius 22) at y 333–483; wordmark display ≈ 88 px at y ≈ 575.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-20",
+   "source": "look.md Outro",
+   "requirement": "Outro accent rule 120×2 px at y ≈ 647; tagline body Regular 30 px muted at y ≈ 690; url body SemiBold 18 px uppercase, letter-spacing ≈ 0.14 em, muted at 70 % opacity, at y ≈ 737.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-21",
+   "source": "look.md Outro",
+   "requirement": "Outro motion: logo fades + scales in (0.92→1), wordmark ~0.2 s later, then rule / tagline / url staggered by ~0.15 s.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-22",
+   "source": "look.md Outro",
+   "requirement": "The wordmark is the brand name set in the display font when the theme has no wordmark image.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Needs template brand.name (R-THM-01).",
+   "phase": "2",
+   "lot": "L2.5"
+  },
+  {
+   "id": "R-LOOK-23",
+   "source": "look.md Cursor & choreography",
+   "requirement": "Cursor: macOS-style dark arrow with white outline and soft shadow, ~26 px; ripple in the accent colour (alpha ≈ .45).",
+   "status": "partial",
+   "evidence": "packages/runner-web/src/kit/kit.ts:1187 (size default 26), packages/runner-web/src/kit/source.ts:5; templates set ripple_color alpha .45",
+   "gap": "Look not asserted by a test (acceptance uses the debug cursor).",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-LOOK-24",
+   "source": "look.md Cursor & choreography",
+   "requirement": "Dragged file: white file chip (type badge + name + detail) tilted −3° following the cursor into the drop zone.",
+   "status": "partial",
+   "evidence": "packages/runner-web/src/kit/kit.ts:1335 (rotate(-3deg), offset −30/−22); run.test.ts 'drops on a drop zone…' exercises drop_file",
+   "gap": "Chip appearance not asserted.",
+   "phase": "1",
+   "lot": "L1.4"
+  },
+  {
+   "id": "R-LOOK-25",
+   "source": "look.md Cursor & choreography",
+   "requirement": "Popovers and menus are visible in the capture and the cursor stays above them.",
+   "status": "done",
+   "evidence": "packages/runner-web/test/kit.test.ts 'is drawn above a modal dialog and above a [popover]'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-CMT-01",
+   "source": "DESIGN-phase2 §4",
+   "requirement": "FrameComment type: id, scenario, render_id, frame, time_s, region?, text, author, created_at, status open|resolved, anchor, replies[], resolution?.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No FrameComment type anywhere in packages/*/src.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-CMT-02",
+   "source": "DESIGN-phase2 §4; SPEC §12; decision",
+   "requirement": "Comments are stored in the workspace at <project>/comments/<scenario>.json.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; comments/ not in PROJECT_GITIGNORE nor project layout.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-CMT-03",
+   "source": "DESIGN-phase2 §4",
+   "requirement": "Optional region {x, y, w, h} normalised 0..1 of the output frame.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-CMT-04",
+   "source": "DESIGN-phase2 §4; SPEC §12",
+   "requirement": "Anchor {segment, kind, component?, scene?, step?, step_id?, src_time_s?} is computed from the EditPlan provenance for the commented frame.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Needs planner StepSpans/timemap.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-CMT-05",
+   "source": "SPEC §12",
+   "requirement": "Resolved comments stay attached to the render version they were made on.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-UI-01",
+   "source": "SPEC §3, §12",
+   "requirement": "Studio web app (packages/ui) is a client of the same packages; the MCP keeps working without it.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "packages/ui absent.",
+   "phase": "4",
+   "lot": "L4.1"
+  },
+  {
+   "id": "R-UI-02",
+   "source": "design-brief Constraints",
+   "requirement": "UI identity: desktop-class 1280–1440 wide, calm/precise/light, one blue accent, Geist / Geist Mono, distinct from video themes.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; mock-ups 'Demo Studio — maquettes' (11 artboards) are external to the repo.",
+   "phase": "4",
+   "lot": "L4.9"
+  },
+  {
+   "id": "R-UI-03",
+   "source": "design-brief Constraints",
+   "requirement": "Accessibility: real buttons/inputs/labels, 4.5:1 text contrast, colour never the only cue (badges carry labels).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.9"
+  },
+  {
+   "id": "R-UI-04",
+   "source": "SPEC §12 Projects",
+   "requirement": "Projects screen: project list.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.1"
+  },
+  {
+   "id": "R-UI-05",
+   "source": "SPEC §12 Projects",
+   "requirement": "Projects screen: README editor.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.1"
+  },
+  {
+   "id": "R-UI-06",
+   "source": "SPEC §12; design-brief A.4",
+   "requirement": "Component library: grid by kind with previews rendered in the selected/project theme (theme switcher), source badge (built-in / workspace 'made with Claude' / marketplace V2), slots, actions preview / set as theme default / create with Claude.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.7"
+  },
+  {
+   "id": "R-UI-07",
+   "source": "design-brief A.5; decision",
+   "requirement": "Theme editor: brand (logo, name, URL), colours, type pair, motion bias, max zoom, cursor, component per kind, live previews (intro, clip with caption, outro), 'extract from a website'.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.7"
+  },
+  {
+   "id": "R-UI-08",
+   "source": "SPEC §12; design-brief A.1",
+   "requirement": "Scenario blocks: scenes as cards showing page, URL, caption, speed (+ layout, duration).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.2"
+  },
+  {
+   "id": "R-UI-09",
+   "source": "SPEC §12; design-brief A.1",
+   "requirement": "Steps as rows with an action icon/badge (click, select, pick, menu, type, scroll, drop file, wait, hold, navigation) and the target in plain words.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; describeTarget (packages/core/src/targets.ts:51) gives plain-words targets.",
+   "phase": "4",
+   "lot": "L4.2"
+  },
+  {
+   "id": "R-UI-10",
+   "source": "SPEC §12; design-brief A.1",
+   "requirement": "Modifier badges/chips: zoom, hold, mark, caption, speed, irreversible.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.2"
+  },
+  {
+   "id": "R-UI-11",
+   "source": "SPEC §12; decision",
+   "requirement": "Blocks are two-way with the YAML: edits in blocks rewrite the YAML preserving comments and formatting; a Blocks ↔ YAML toggle.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; core keeps a yaml Document with LineCounter for validation (packages/core/src/validation/yaml-source.ts:22) but has no comment-preserving edit API.",
+   "phase": "4",
+   "lot": "L4.3"
+  },
+  {
+   "id": "R-UI-12",
+   "source": "SPEC §12",
+   "requirement": "Inline editing of steps and drag & drop reordering (drag handles).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.3"
+  },
+  {
+   "id": "R-UI-13",
+   "source": "SPEC §12; design-brief A.1",
+   "requirement": "Each step shows the real frame thumbnail from the last dry-run or capture.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; dry-run writes one screenshot per step, capture events carry t_start.",
+   "phase": "4",
+   "lot": "L4.2"
+  },
+  {
+   "id": "R-UI-14",
+   "source": "design-brief A.1",
+   "requirement": "Setup/teardown hooks strip and an inspector for the selected step (args + edit hints).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.2"
+  },
+  {
+   "id": "R-UI-15",
+   "source": "design-brief A.1",
+   "requirement": "Scenario screen actions: Dry run, Capture, Open timeline.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.2"
+  },
+  {
+   "id": "R-UI-16",
+   "source": "SPEC §12 Run; decision",
+   "requirement": "Run screen: dry run with a live preview of the headless browser (screencast stream).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; ScreencastRecorder exists (packages/runner-web/src/recorder.ts:39).",
+   "phase": "4",
+   "lot": "L4.4"
+  },
+  {
+   "id": "R-UI-17",
+   "source": "SPEC §12 Run",
+   "requirement": "Run screen: capture with progress.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; RunProgress events available.",
+   "phase": "4",
+   "lot": "L4.4"
+  },
+  {
+   "id": "R-UI-18",
+   "source": "decision (Run screen)",
+   "requirement": "Run screen: step list with live status and a log panel.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.4"
+  },
+  {
+   "id": "R-UI-19",
+   "source": "decision (Run screen)",
+   "requirement": "Run screen: pause and stop; stop always runs teardown and rollbacks.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent; stop backed by AbortSignal (run.test.ts 'an AbortSignal cancels the run and teardown still happens'); no pause support in runner.",
+   "phase": "4",
+   "lot": "L4.4"
+  },
+  {
+   "id": "R-UI-20",
+   "source": "decision (Record screen); SPEC §0",
+   "requirement": "Record screen: record a scenario by clicking through the site; actions become draft steps.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.8"
+  },
+  {
+   "id": "R-UI-21",
+   "source": "decision (Record screen)",
+   "requirement": "Record screen: robust target suggestions for each recorded action, user-selectable.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.8"
+  },
+  {
+   "id": "R-UI-22",
+   "source": "decision (Record screen)",
+   "requirement": "Record screen: quick inserts (hold, wait_for, caption, mark, camera zoom…) while recording.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.8"
+  },
+  {
+   "id": "R-UI-23",
+   "source": "SPEC §12; design-brief A.2",
+   "requirement": "Timeline: segment track (intro, scenes, cards, waiting screens, outro) with each segment's component switchable in one click (layout card/browser/laptop/full screen, caption component, speed, transition) via a segment inspector.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.5"
+  },
+  {
+   "id": "R-UI-24",
+   "source": "SPEC §12; design-brief A.2",
+   "requirement": "Timeline tracks: caption, steps, camera (zoom), speed, marker, comment pins, playhead.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.5"
+  },
+  {
+   "id": "R-UI-25",
+   "source": "SPEC §12",
+   "requirement": "Scrubber with live preview via Remotion Player (no render needed).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.5"
+  },
+  {
+   "id": "R-UI-26",
+   "source": "SPEC §12; design-brief A.2",
+   "requirement": "Render queue, Render action, review status (clean / warnings), review report and contact sheets in the UI.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.5"
+  },
+  {
+   "id": "R-UI-27",
+   "source": "SPEC §12; design-brief A.3",
+   "requirement": "Frame comments: click a frame, optionally draw a region, write a comment; anchor chips (frame, segment, step, component).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.6"
+  },
+  {
+   "id": "R-UI-28",
+   "source": "design-brief A.3; decision",
+   "requirement": "Comment thread shows Claude's reply proposing a scenario diff with Apply and re-render / Preview change.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.6"
+  },
+  {
+   "id": "R-UI-29",
+   "source": "design-brief A.3",
+   "requirement": "Open / resolved comment list.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "4",
+   "lot": "L4.6"
+  },
+  {
+   "id": "R-PRJ-01",
+   "source": "SPEC §4",
+   "requirement": "Renders go to projects/<slug>/renders/<name>-vN.mp4 and review to review/<name>-vN/ (git-ignored).",
+   "status": "partial",
+   "evidence": "packages/core/src/project.ts:25 (PROJECT_GITIGNORE includes renders/, review/, exports/); .gitignore",
+   "gap": "Only ignore rules exist; nothing writes them.",
+   "phase": "2",
+   "lot": "L2.4"
+  },
+  {
+   "id": "R-PRJ-02",
+   "source": "SPEC §3 Persistence",
+   "requirement": "SQLite is used only for the render queue/history; everything else is plain files.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No render queue.",
+   "phase": "4",
+   "lot": "L4.1"
+  },
+  {
+   "id": "R-SKL-01",
+   "source": "SPEC §3 skills/",
+   "requirement": "Skills shipped in skills/: scenario authoring skill.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "skills/ absent.",
+   "phase": "3",
+   "lot": "L3.7"
+  },
+  {
+   "id": "R-SKL-02",
+   "source": "SPEC §3 skills/",
+   "requirement": "Theme authoring skill.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.7"
+  },
+  {
+   "id": "R-SKL-03",
+   "source": "SPEC §11; decision",
+   "requirement": "Component authoring skill `demo-studio-component` scaffolds, previews with a theme and validates new components through the MCP tools.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "3",
+   "lot": "L3.7"
+  },
+  {
+   "id": "R-DSK-01",
+   "source": "SPEC §3, §12, §14.5; decision",
+   "requirement": "macOS desktop app: Tauri shell (apps/desktop) wrapping packages/ui, built after the web UI.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "apps/desktop absent; macOS-only target.",
+   "phase": "5",
+   "lot": "L5.2"
+  },
+  {
+   "id": "R-DSK-02",
+   "source": "SPEC §3",
+   "requirement": "Rust only for OS glue: menus, notifications, file dialogs, keychain.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "5",
+   "lot": "L5.2"
+  },
+  {
+   "id": "R-IOS-01",
+   "source": "SPEC §3 runner-ios, §1.1",
+   "requirement": "packages/runner-ios drives the iOS Simulator with xcrun simctl (boot, install, openurl).",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "Package absent; macOS-only.",
+   "phase": "5",
+   "lot": "L5.3"
+  },
+  {
+   "id": "R-IOS-02",
+   "source": "SPEC §3",
+   "requirement": "iOS capture via `xcrun simctl io <device> recordVideo --codec h264`.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "5",
+   "lot": "L5.3"
+  },
+  {
+   "id": "R-IOS-03",
+   "source": "SPEC §3",
+   "requirement": "iOS input (taps, typing) via idb or an XCUITest driver.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "5",
+   "lot": "L5.3"
+  },
+  {
+   "id": "R-IOS-04",
+   "source": "SPEC §3",
+   "requirement": "iOS touch overlay (equivalent of the in-page cursor) synchronised with taps.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "5",
+   "lot": "L5.3"
+  },
+  {
+   "id": "R-IOS-05",
+   "source": "SPEC §1, §3 (core timeline types)",
+   "requirement": "The iOS runner emits the same timeline.json + capture.mp4 contract so the editor works unchanged, with device-frame mockups.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "5",
+   "lot": "L5.3"
+  },
+  {
+   "id": "R-V2-01",
+   "source": "SPEC §0, §14.6; decision",
+   "requirement": "Licensing (sold as a licence) can be added without re-architecture.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Out of scope now; no licence hook points defined.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-V2-02",
+   "source": "SPEC §0, §14.6",
+   "requirement": "Packaging/distribution and a hosted offer can be added without re-architecture.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "All packages private:true; no distribution.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-V2-03",
+   "source": "SPEC §11, §14.6; decision",
+   "requirement": "Cloud component marketplace: browse/install into a local marketplace cache resolved after workspace and built-ins, with previews rendered in the user's theme.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Absent.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-V2-04",
+   "source": "SPEC §11",
+   "requirement": "Component manifests already carry publisher/version/license/tags for the marketplace.",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:90-97",
+   "gap": "Type only; no manifest parser.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-V2-05",
+   "source": "SPEC §0 Ready for packaging",
+   "requirement": "File formats are versioned (`version` fields).",
+   "status": "partial",
+   "evidence": "packages/core/src/schemas/timeline.ts:78 (timeline version 1); packages/editor/src/plan-types.ts:177 (EditPlan version 1)",
+   "gap": "scenario, project.yaml, template.yaml, studio.yaml, run.json carry no version field.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-V2-06",
+   "source": "SPEC §0 Ready for packaging",
+   "requirement": "Clean package boundaries (core / runners / editor / review / MCP / CLI / UI / desktop), config over code, no absolute paths.",
+   "status": "partial",
+   "evidence": "tsconfig.json project references (core, hooks, runner-web, review, components, editor, mcp, cli); README Repository layout",
+   "gap": "ui, runner-ios, apps/desktop, skills absent; editor/review/mcp unimplemented.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-DEC-01",
+   "source": "decision; SPEC §0",
+   "requirement": "The tool stays generic: no client name, brand, URL, account, asset or data in code, docs, templates or fixtures.",
+   "status": "done",
+   "evidence": "grep -rniI (excluding node_modules/.git) finds no client names; fixture 'Northfield' and placeholder brands are fictional (templates/README.md, design-brief Constraints)",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-DEC-02",
+   "source": "decision; SPEC §0",
+   "requirement": "User projects and themes live in a separate workspace selected by DEMO_STUDIO_ROOT or studio.yaml (or --root).",
+   "status": "done",
+   "evidence": "packages/core/src/workspace.ts:34; packages/core/test/project.test.ts 'findWorkspaceRoot: env override, studio.yaml, projects/ or templates/, else start' and 'loadWorkspaceConfig resolves dirs and validates studio.yaml'",
+   "gap": "",
+   "phase": "1",
+   "lot": "P1"
+  },
+  {
+   "id": "R-DEC-03",
+   "source": "decision; SPEC §11",
+   "requirement": "User components (and comments) also live in the workspace (<root>/components/, <project>/comments/).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "WorkspaceFileSchema (packages/core/src/schemas/project.ts:63) has no components dir; nothing scans it.",
+   "phase": "2",
+   "lot": "L2.2"
+  },
+  {
+   "id": "R-DEC-04",
+   "source": "decision",
+   "requirement": "Themes are creatable from brand inputs (logo, colours, fonts) or from a website URL, via MCP and the theme editor.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "See R-MCP-10, R-MCP-12, R-UI-07.",
+   "phase": "3",
+   "lot": "L3.5"
+  },
+  {
+   "id": "R-DEC-05",
+   "source": "decision",
+   "requirement": "Components are creatable through a Claude skill now and from a cloud marketplace later, always previewed in the user's theme.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "See R-SKL-03, R-V2-03.",
+   "phase": "3",
+   "lot": "L3.7"
+  },
+  {
+   "id": "R-DEC-06",
+   "source": "decision",
+   "requirement": "Frame comments are readable by Claude via MCP with enough anchor context (scene/step/segment/component + frame still) to adapt the scenario and re-render.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "See R-MCP-17..19, R-CMT-*.",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-DEC-07",
+   "source": "decision",
+   "requirement": "Studio web UI first; Tauri macOS shell later around the same UI.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "Neither exists; ordering reflected in README phase table.",
+   "phase": "4",
+   "lot": "L4.1"
+  },
+  {
+   "id": "R-DEC-08",
+   "source": "decision",
+   "requirement": "Work proceeds in small lots, each committed and pushed, with consumption reported.",
+   "status": "partial",
+   "evidence": "git branch -vv: claude/new-session-pq6jtq in sync with origin (0df4a29)",
+   "gap": "Phase 1 landed as one large commit (2 commits total); consumption reporting not verifiable from the repo.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-ACC2-01",
+   "source": "SPEC §14.2",
+   "requirement": "Built-in library reproduces the reference look: intro, outro, caption, card/browser/laptop/phone layouts, dark-clock interstitial, title card, overlays.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No components.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ACC2-02",
+   "source": "SPEC §14.2",
+   "requirement": "Themes pick components.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "R-THM-02.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ACC2-03",
+   "source": "SPEC §14.2",
+   "requirement": "Two videos rendered from scenarios: supplier 'catalogue' and buyer 'quote request'.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No renderer. Inputs exist locally (git-ignored): projects/northfield-fixture/runs/20261011-150847-catalogue (66.5 s) and 20261011-151034-quote (47.4 s) with capture.mp4 + timeline.json.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ACC2-04",
+   "source": "SPEC §14.2",
+   "requirement": "Review report is clean (no error/warning) for both videos.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No review; caption length (83/87 chars) and low-fps capture warnings are likely to trip checks.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ACC2-05",
+   "source": "SPEC §14.2",
+   "requirement": "Output is reviewed by Claude through contact sheets.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No review.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ACC2-06",
+   "source": "SPEC §14.2",
+   "requirement": "Switching a component or theme re-renders without touching the scenario.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No renderer.",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-ACC3-01",
+   "source": "SPEC §14.3",
+   "requirement": "A Claude session creates a project from a README through the MCP.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No MCP.",
+   "phase": "3",
+   "lot": "L3.8"
+  },
+  {
+   "id": "R-ACC3-02",
+   "source": "SPEC §14.3",
+   "requirement": "Claude drafts a scenario from a timecoded script, or by inspecting/recording the site.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No MCP.",
+   "phase": "3",
+   "lot": "L3.8"
+  },
+  {
+   "id": "R-ACC3-03",
+   "source": "SPEC §14.3",
+   "requirement": "Claude creates a theme from a brand or a site.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No MCP.",
+   "phase": "3",
+   "lot": "L3.8"
+  },
+  {
+   "id": "R-ACC3-04",
+   "source": "SPEC §14.3",
+   "requirement": "Claude creates a component through the skill.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No skill.",
+   "phase": "3",
+   "lot": "L3.8"
+  },
+  {
+   "id": "R-ACC3-05",
+   "source": "SPEC §14.3",
+   "requirement": "Claude dry-runs, captures, renders and reviews via MCP.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No MCP.",
+   "phase": "3",
+   "lot": "L3.8"
+  },
+  {
+   "id": "R-ACC3-06",
+   "source": "SPEC §14.3",
+   "requirement": "Claude reads frame comments and iterates without human steps except approval.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No MCP/comments.",
+   "phase": "3",
+   "lot": "L3.8"
+  },
+  {
+   "id": "R-ACC4-01",
+   "source": "SPEC §14.4",
+   "requirement": "Studio app end-to-end: projects, scenario blocks, run, edit/verify timeline with component switching and live preview, frame comments.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "No UI.",
+   "phase": "4",
+   "lot": "L4.9"
+  },
+  {
+   "id": "R-ACC5-01",
+   "source": "SPEC §14.5",
+   "requirement": "macOS Tauri desktop shell + iOS runner delivered.",
+   "status": "n/a-here",
+   "evidence": "",
+   "gap": "macOS-only.",
+   "phase": "5",
+   "lot": "L5.4"
+  },
+  {
+   "id": "R-ACC6-01",
+   "source": "SPEC §14.6",
+   "requirement": "Architecture does not prevent cloud marketplace, licensing and packaging.",
+   "status": "partial",
+   "evidence": "packages/components/src/types.ts:9 (marketplace resolution documented), :95-97 (publisher/license/tags)",
+   "gap": "Unverifiable until those layers exist.",
+   "phase": "V2",
+   "lot": "L6"
+  }
+ ]
+}
