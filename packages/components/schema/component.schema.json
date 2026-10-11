@@ -156,7 +156,16 @@
             "type": "number",
             "minimum": 0
           },
-          "description": "Seconds at which preview stills are taken."
+          "description": "Seconds at which preview stills are taken (the committed preview.png shows the last one)."
+        },
+        "screen": {
+          "type": "string",
+          "enum": [
+            "desktop",
+            "tablet",
+            "phone"
+          ],
+          "description": "Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop)."
         }
       },
       "additionalProperties": false,

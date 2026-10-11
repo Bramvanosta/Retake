@@ -1,0 +1,38 @@
+{
+  "desktop": {
+    "file": "screen-desktop.jpg",
+    "width": 1280,
+    "height": 720,
+    "url": "https://shop.northfield.example/products/selowa-ridge",
+    "anchor": {
+      "x": 664,
+      "y": 603,
+      "w": 151,
+      "h": 37
+    }
+  },
+  "tablet": {
+    "file": "screen-tablet.jpg",
+    "width": 820,
+    "height": 1180,
+    "url": "https://shop.northfield.example/",
+    "anchor": {
+      "x": 76,
+      "y": 446,
+      "w": 157,
+      "h": 46
+    }
+  },
+  "phone": {
+    "file": "screen-phone.jpg",
+    "width": 390,
+    "height": 844,
+    "url": "https://shop.northfield.example/",
+    "anchor": {
+      "x": 38,
+      "y": 388,
+      "w": 142,
+      "h": 42
+    }
+  }
+}

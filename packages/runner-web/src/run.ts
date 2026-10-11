@@ -25,7 +25,7 @@ import type {
 import { evalInPage } from './actions/misc.js';
 import { mergeCapture, mergePacing, projectBrowser, resolveAuth } from './config.js';
 import { encodeFrames } from './encode.js';
-import { CancelledError, RunnerError, errorMessage, isCancelled } from './errors.js';
+import { CancelledError, EncodeError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
 import type { HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
 import { kitConfigFor } from './kit/source.js';
@@ -274,6 +274,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   }
 
   const cancelled = failure !== null && isCancelled(failure);
+  if (mode === 'capture' && !cancelled && failure === null && frames.length === 0) {
+    // A capture without a single frame is a failed capture, never a "succeeded" run without capture.mp4.
+    const why = timeline.warnings.find((w) => w.startsWith('screencast frames stay'));
+    failure = new EncodeError(`the capture recorded no frame${why ? ` (${why}: every frame was dropped)` : ''}`);
+  }
   if (mode === 'capture' && !cancelled && frames.length > 0) {
     const out = join(dir, 'capture.mp4');
     emit({ type: 'encode', status: 'start', message: `${frames.length} frames → ${out}` });

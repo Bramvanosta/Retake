@@ -240,12 +240,14 @@ describe('render versions and records', () => {
   it('findRun: an id, a directory, or the latest capture of a scenario', async () => {
     const project = { slug: 'p', dir: join(tmp, 'runs-project') } as Parameters<typeof findRun>[0];
     const runs = join(project.dir, 'runs');
-    for (const [id, mode] of [['20260101-100000-quote', 'capture'], ['20260101-110000-quote', 'dry'], ['20260101-090000-catalogue', 'capture']]) {
+    for (const [id, mode] of [['20260101-100000-quote', 'capture'], ['20260101-110000-quote', 'dry'], ['20260101-090000-catalogue', 'capture'], ['20260101-120000-mobile-quote', 'capture']]) {
       await mkdir(join(runs, id), { recursive: true });
       await writeFile(join(runs, id, 'timeline.json'), JSON.stringify({ mode }));
     }
+    // A run of "mobile-quote" is not a run of "quote" (the scenario part of the id must match exactly).
     expect(findRun(project, 'latest', 'quote').id).toBe('20260101-100000-quote');
-    expect(findRun(project, 'latest').id).toBe('20260101-100000-quote');
+    expect(findRun(project, 'latest', 'mobile-quote').id).toBe('20260101-120000-mobile-quote');
+    expect(findRun(project, 'latest').id).toBe('20260101-120000-mobile-quote');
     expect(findRun(project, '20260101-090000-catalogue').dir).toBe(join(runs, '20260101-090000-catalogue'));
     expect(findRun(project, join(runs, '20260101-090000-catalogue')).id).toBe('20260101-090000-catalogue');
     expect(() => findRun(project, 'latest', 'ghost')).toThrow(/no capture run of scenario "ghost"/);

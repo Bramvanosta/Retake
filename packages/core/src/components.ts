@@ -94,7 +94,7 @@ function legacy(template: Template, kind: LegacyKind): Mapped {
  * The default component of every kind for a (complete) template — pure.
  *
  * Precedence per kind: the template's `components` entry (an id, {id, params}, or `null` = none) → the legacy field
- * mapping (frame.style card → studio/layout-card {width, radius, shadow}; browser/laptop/phone/raw →
+ * mapping (frame.style card → studio/layout-card {width, radius, shadow}; browser/laptop/phone/tablet/raw →
  * studio/layout-<style>; intro.layout, outro.layout, interstitial.style, captions.position (none → null),
  * transitions.between_scenes (cut → null)) → the built-in default (card → studio/card-title, overlay →
  * studio/overlay-callout). An explicit entry is taken as written: legacy params are not merged into it.

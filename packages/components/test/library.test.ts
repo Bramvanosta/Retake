@@ -1,9 +1,11 @@
 /**
  * The built-in library (packages/components/library/studio/*): a component for every id the starter templates and the
- * legacy template fields refer to — the six reference-look components (L2.5: intro-stack, outro-stack, layout-card,
- * caption-below, interstitial-clock, transition-crossfade) and placeholders for the rest (tag `placeholder`, until
- * L2.7). Each one validates (manifest + compile), accepts the params the themes pass, renders with any theme
- * (react-dom/server, remotion's frame hook mocked) and — for layouts — draws its screen where its geometry says.
+ * legacy template fields refer to, plus studio/layout-tablet — the six reference-look components (L2.5: intro-stack,
+ * outro-stack, layout-card, caption-below, interstitial-clock, transition-crossfade) and the thirteen of L2.7 in the
+ * same family (layouts browser / laptop / phone / tablet / raw, caption-overlay, card-title, intro- / outro-minimal,
+ * interstitial-plain, overlay-callout / -lower-third, transition-fade-black). Each one validates (manifest + compile),
+ * accepts the params the themes pass, renders with any theme (react-dom/server, remotion's frame hook mocked) and —
+ * for layouts — draws where its geometry (expressions over params and the capture aspect) says.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,7 +15,7 @@ import { renderToString } from 'react-dom/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadTemplate, resolveThemeComponents } from '@demo-studio/core';
 import type { Template } from '@demo-studio/core';
-import { LIBRARY_DIR, applyParamDefaults, evalLayoutGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@demo-studio/components';
+import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@demo-studio/components';
 import type { ComponentManifest, ComponentProps, ComponentRegistry, LayoutRects, ThemeTokens } from '@demo-studio/components';
 import { DARK, LIGHT, tempDir } from './helpers.js';
 
@@ -41,6 +43,7 @@ const IDS = [
   'studio/layout-laptop',
   'studio/layout-phone',
   'studio/layout-raw',
+  'studio/layout-tablet',
   'studio/caption-below',
   'studio/caption-overlay',
   'studio/overlay-callout',
@@ -98,10 +101,11 @@ function render(id: string, opts: { theme?: ThemeTokens; at?: number; unit?: num
   return renderToString(createElement(impls[id], props));
 }
 
-const rectCss = (r: { x: number; y: number; w: number; h: number }) => `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+const px = (v: number) => (v === 0 ? '0' : `${v}px`);
+const rectCss = (r: { x: number; y: number; w: number; h: number }) => `left:${px(r.x)};top:${px(r.y)};width:${px(r.w)};height:${px(r.h)}`;
 
 describe('built-in library: a component for every referenced id', () => {
-  it('has exactly the referenced ids, each valid (manifest + compile); the reference look is final, the rest placeholders', async () => {
+  it('has exactly the referenced ids, each valid (manifest + compile) and final: no placeholder left (R-LIB-00)', async () => {
     const found = readdirSync(join(LIBRARY_DIR, 'studio')).map((n) => `studio/${n}`).sort();
     expect(found).toEqual([...IDS].sort());
     for (const id of IDS) {
@@ -109,16 +113,12 @@ describe('built-in library: a component for every referenced id', () => {
       expect(v.issues, id).toEqual([]);
       expect(v.ok, id).toBe(true);
       expect(registry.get(id).source, id).toBe('builtin');
-      if (REFERENCE_LOOK.includes(id)) {
-        expect(manifests[id].tags, id).toContain('reference-look');
-        expect(manifests[id].tags, id).not.toContain('placeholder');
-        expect(manifests[id].version, id).toBe('1.0.0');
-        // style_bias is read (R-TPL-04) — except by the card layout, static at every bias by design (a frame never
-        // moves on its own; camera and transitions do).
-        if (id !== 'studio/layout-card') expect(manifests[id].tokens, id).toContain('style_bias');
-      } else {
-        expect(manifests[id].tags, id).toContain('placeholder');
-      }
+      expect(manifests[id].tags ?? [], id).not.toContain('placeholder');
+      expect(manifests[id].version, id).toBe('1.0.0');
+      if (REFERENCE_LOOK.includes(id)) expect(manifests[id].tags, id).toContain('reference-look');
+      // style_bias is read (R-TPL-04) — except by layouts, static at every bias by design (a frame never moves on its
+      // own; camera and transitions do).
+      if (manifests[id].kind !== 'layout') expect(manifests[id].tokens, id).toContain('style_bias');
     }
   });
 
@@ -179,32 +179,137 @@ describe('built-in library renders with any theme', () => {
     }
   });
 
-  it('layouts draw the screen where their geometry says (landscape and vertical) and leave the brand mark to the composition', () => {
+  it('layouts: their fallback rects are the manifest geometry, they draw where it says and leave the brand mark to the composition', () => {
     const marker = createElement('i', { id: 'capture' });
+    type Fallback = (...a: unknown[]) => LayoutRects;
+    const aspects = [16 / 9, 16 / 10, 4 / 3, 390 / 844, 820 / 1180, 1180 / 820, 1];
     for (const id of IDS.filter((x) => manifests[x].kind === 'layout')) {
       const m = manifests[id];
       const defaults = paramDefaults(m.params as never);
+      const fallback = modules[id].defaultRects as Fallback;
       for (const vertical of [false, true]) {
-        const g = evalLayoutGeometry(vertical ? m.geometry_vertical! : m.geometry!, defaults);
+        for (const aspect of aspects) {
+          const g = evalLayoutGeometry(vertical ? m.geometry_vertical! : m.geometry!, defaults, { aspect });
+          const variant = vertical ? 'vertical' : 'landscape';
+          const r = id === 'studio/layout-raw' ? fallback(variant, 1) : id === 'studio/layout-card' ? fallback(defaults, variant, 1) : fallback(defaults, variant, 1, aspect);
+          if (id === 'studio/layout-raw' || (id === 'studio/layout-card' && aspect !== 16 / 9)) continue; // aspect-free fallbacks
+          const where = `${id} ${variant} ${aspect.toFixed(3)}`;
+          expect(r.frame, where).toEqual(g.frame ?? g.screen);
+          expect(r.screen, where).toEqual(g.screen);
+          expect(r.caption, where).toEqual(g.caption);
+          expect(r.brandmark, where).toEqual(g.brandmark);
+          expect(r.radius, where).toBe(g.radius);
+          if (g.chrome) expect(r.chrome, where).toEqual(g.chrome);
+        }
+        // Without rects (no plan) a layout draws its fallback rects: a phone / tablet capture for the devices.
+        const fallbackAspect = id === 'studio/layout-phone' ? 390 / 844 : id === 'studio/layout-tablet' ? 820 / 1180 : 16 / 9;
+        const g = evalLayoutGeometry(vertical ? m.geometry_vertical! : m.geometry!, defaults, { aspect: fallbackAspect });
         const html = render(id, { vertical, extra: { screen: marker } });
         expect(html, id).toContain('<i id="capture"></i>');
+        expect(html, id).not.toContain('>A</div>'); // no brand mark monogram
+        const s = g.screen;
         if (id === 'studio/layout-browser') {
-          // Window = frame; the screen is the frame below the chrome bar.
+          // The window = frame; the page area (the capture) right under the chrome bar.
           expect(html, id).toContain(rectCss(g.frame!));
           expect(g.chrome!.h + g.screen.h, id).toBe(g.frame!.h);
           expect(g.screen.y, id).toBe(g.chrome!.y + g.chrome!.h);
-          expect(html, id).toContain(`top:${g.chrome!.h}px`);
-        } else if (id === 'studio/layout-raw') {
-          expect(g.screen, id).toEqual(vertical ? { x: 0, y: 0, w: 1080, h: 1920 } : { x: 0, y: 0, w: 1920, h: 1080 });
+          expect(html, id).toContain(`left:0;top:${g.chrome!.h}px;width:${s.w}px;height:${s.h}px`);
         } else if (id === 'studio/layout-card') {
-          // The card (frame) at its rect, the capture at the screen rect inside it.
           expect(html, `${id} ${vertical}`).toContain(rectCss(g.frame!));
+        } else if (id === 'studio/layout-phone') {
+          // The display glass = the capture area with the status bar above it.
+          const bar = s.y - g.frame!.y - (s.x - g.frame!.x);
+          expect(bar, id).toBeGreaterThan(40);
+          expect(html, `${id} ${vertical}`).toContain(rectCss({ x: s.x, y: s.y - bar, w: s.w, h: s.h + bar }));
         } else {
-          expect(html, `${id} ${vertical}`).toContain(rectCss(g.screen));
+          expect(html, `${id} ${vertical}`).toContain(rectCss(s));
         }
-        expect(html, id).not.toContain('>A</div>'); // no brand mark monogram
+        // Everything inside the design space.
+        const space = vertical ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 };
+        for (const rect of [g.frame, g.screen, g.caption, g.brandmark]) {
+          if (!rect) continue;
+          expect(rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= space.w && rect.y + rect.h <= space.h, `${id} ${vertical} ${JSON.stringify(rect)}`).toBe(true);
+        }
       }
     }
+  });
+
+  it('device and window layouts: the screen keeps the capture aspect (letterboxed beyond the device range); captions fit below or beside', () => {
+    const at = (id: string, aspect: number, params: Record<string, unknown> = {}) =>
+      evalLayoutGeometry(manifests[id].geometry!, applyParamDefaults(manifests[id].params as never, params), { aspect });
+    const ratio = (r: { w: number; h: number }) => r.w / r.h;
+    // Browser: the page area keeps the capture aspect; window + caption block centred; tabs make the chrome taller.
+    const b = at('studio/layout-browser', 16 / 9);
+    expect(b.frame).toEqual({ x: 226, y: 40, w: 1468, h: 878 });
+    expect(b.chrome!.h).toBe(52);
+    expect(b.caption).toEqual({ x: 226, y: 930, w: 1128, h: 110 });
+    expect(b.brandmark!.x + b.brandmark!.w).toBe(1694);
+    expect(at('studio/layout-browser', 16 / 9, { tabs: true }).chrome!.h).toBe(86);
+    for (const a of [16 / 9, 16 / 10, 4 / 3]) expect(Math.abs(ratio(at('studio/layout-browser', a).screen) - a)).toBeLessThan(0.01);
+    const narrow = at('studio/layout-browser', 390 / 844);
+    expect(narrow.caption!.w).toBe(640); // a narrow (mobile) window keeps a readable caption column
+    // Laptop: display = capture aspect, the whole device + caption block inside 1080 with 40 px margins.
+    for (const a of [16 / 9, 16 / 10, 4 / 3]) {
+      const l = at('studio/layout-laptop', a);
+      expect(Math.abs(ratio(l.screen) - a), String(a)).toBeLessThan(0.01);
+      expect(l.frame!.y, String(a)).toBeGreaterThanOrEqual(40);
+      expect(l.caption!.y + l.caption!.h, String(a)).toBeLessThanOrEqual(1040);
+      expect(l.frame!.w, String(a)).toBeGreaterThan(l.screen.w * 1.15); // the base overhangs the lid
+    }
+    // Phone: the capture area keeps a phone aspect (0.42–0.62) under the status bar; the caption beside the phone.
+    const p = at('studio/layout-phone', 390 / 844);
+    expect(Math.abs(ratio(p.screen) - 390 / 844)).toBeLessThan(0.01);
+    expect(p.caption!.x).toBeGreaterThan(p.frame!.x + p.frame!.w);
+    expect(p.caption!.y + p.caption!.h / 2).toBeCloseTo(540, -1);
+    expect(ratio(at('studio/layout-phone', 16 / 9).screen)).toBeCloseTo(0.62, 2); // a desktop capture: letterboxed in a phone-shaped screen
+    expect(at('studio/layout-phone', 390 / 844, { status_bar: false }).screen.y).toBe(p.frame!.y + (p.screen.x - p.frame!.x));
+    // Tablet: portrait capture → upright with the caption beside; landscape capture → lying with the caption below.
+    const tp = at('studio/layout-tablet', 820 / 1180);
+    expect(tp.frame).toEqual({ x: 244, y: 58, w: 696, h: 964 });
+    expect(tp.caption).toEqual({ x: 1036, y: 485, w: 640, h: 110 });
+    expect(Math.abs(ratio(tp.screen) - 820 / 1180)).toBeLessThan(0.01);
+    const tl = at('studio/layout-tablet', 1180 / 820);
+    expect(tl.frame).toEqual({ x: 347, y: 40, w: 1227, h: 878 });
+    expect(tl.caption).toEqual({ x: 347, y: 930, w: 887, h: 110 });
+    expect(Math.abs(ratio(tl.screen) - 1180 / 820)).toBeLessThan(0.01);
+    expect(ratio(at('studio/layout-tablet', 390 / 844).screen)).toBeCloseTo(0.62, 2);
+    // Raw: full frame, the caption area over the bottom of the capture.
+    const raw = at('studio/layout-raw', 16 / 9);
+    expect(raw.screen).toEqual({ x: 0, y: 0, w: 1920, h: 1080 });
+    expect(raw.caption!.y + raw.caption!.h).toBeLessThanOrEqual(1080);
+    expect(raw.brandmark).toBeUndefined();
+  });
+
+  it('layouts paint the theme background around a letterboxed capture (rects.display)', () => {
+    const display = { x: 368, y: 163, w: 389, h: 807 };
+    const screenRect = { x: 368, y: 456.6, w: 389, h: 219 };
+    const rects: LayoutRects = { frame: { x: 348, y: 90, w: 429, h: 900 }, screen: screenRect, display, radius: 50, caption: { x: 873, y: 485, w: 700, h: 110 } };
+    const html = render('studio/layout-phone', { extra: { rects, screen: createElement('i', { id: 'capture' }) } });
+    // The display (and its status bar) where the planner declared it, the theme background in it, the capture inside.
+    expect(html).toMatch(/left:368px;top:1\d\dpx;width:389px;height:8\d\dpx;border-radius:50px;background:radial-gradient/);
+    expect(html).toContain('left:0;top:346.6px;width:389px;height:219px');
+    const tablet = render('studio/layout-tablet', { extra: { rects: { ...rects, display: { x: 300, y: 100, w: 600, h: 860 }, screen: { x: 300, y: 361, w: 600, h: 338 } } } });
+    expect(tablet).toMatch(/left:300px;top:100px;width:600px;height:860px;border-radius:50px;background:radial-gradient/);
+  });
+
+  it('layout-browser: the address bar shows the real URL (host emphasised, path quieter), following navigation', () => {
+    const at = (url?: string, params: Record<string, unknown> = {}) => render('studio/layout-browser', { params, extra: { url } });
+    const a = at('https://shop.example.com/products/selowa-ridge?ref=1#top');
+    expect(a).toContain('>shop.example.com</span>');
+    expect(a).toContain('/products/selowa-ridge?ref=1</span>');
+    expect(a).not.toContain('#top');
+    expect(a).toContain('M7 11V8a5 5 0 0 1 10 0v3'); // https: a lock
+    const b = at('http://localhost:4402/quotes/q-1');
+    expect(b).toContain('>localhost:4402</span>');
+    expect(b).toContain('/quotes/q-1</span>');
+    expect(b).not.toContain('M7 11V8a5 5 0 0 1 10 0v3');
+    expect(at('https://shop.example.com/', { show_url: false })).not.toContain('shop.example.com');
+    expect(at('https://shop.example.com/', { tabs: true })).toMatch(/text-overflow:ellipsis">shop\.example\.com<\/span>/);
+    // Window controls: the system colours, or quiet theme-tinted dots.
+    expect(at('https://x.test/')).toContain('background:#ff5f57');
+    expect(at('https://x.test/', { controls: 'theme' })).not.toContain('#ff5f57');
+    // A dark theme background gets a dark toolbar.
+    expect(render('studio/layout-browser', { theme: DARK, extra: { url: 'https://x.test/' } })).not.toBe(at('https://x.test/'));
   });
 
   it('layout-card: the geometry follows width (16:9 capture: card, caption and brand mark move together); the reference rects at the default', () => {
@@ -366,12 +471,94 @@ describe('built-in library renders with any theme', () => {
     expect(opacity(xf(5, 'entering'))).toBeGreaterThan(0.3);
     expect(opacity(xf(10, 'entering'))).toBeGreaterThan(0.9);
     expect(opacity(xf(5, 'exiting'))).toBe(1);
-    const veil = (html: string) => Number(/background:#000000;opacity:([\d.]+)/.exec(html)?.[1]);
+    const veil = (html: string) => Number(/background:black;opacity:([\d.]+)/.exec(html)?.[1]);
     const dip = (at: number, direction: 'entering' | 'exiting') => render('studio/transition-fade-black', { at, extra: { screen, direction, durationInFrames: 12 } });
     expect(veil(dip(0, 'exiting'))).toBeLessThan(0.2);
     expect(veil(dip(5, 'exiting'))).toBe(1);
-    expect(veil(dip(6, 'entering'))).toBeGreaterThan(0.8);
+    expect(veil(dip(6, 'entering'))).toBeGreaterThan(0.75);
     expect(veil(dip(11, 'entering'))).toBeLessThan(0.2);
+  });
+
+  it('caption-overlay: a band over the bottom of a wide capture, the caption area for a narrow one (phones) or with position: area', () => {
+    const cues = [{ from: 0, to: 120, text: 'A caption over the capture', kicker: 'Band', scene: 'a' }];
+    const band = (html: string) => {
+      const m = /left:([\d.]+)px;top:([\d.]+)px;width:([\d.]+)px;height:([\d.]+)px;border-radius:16px/.exec(html);
+      return m ? { x: Number(m[1]), y: Number(m[2]), w: Number(m[3]), h: Number(m[4]) } : undefined;
+    };
+    const wide: LayoutRects = { screen: { x: 180, y: 40, w: 1560, h: 878 }, frame: { x: 180, y: 40, w: 1560, h: 878 }, caption: { x: 180, y: 930, w: 1220, h: 110 }, radius: 18 };
+    const over = band(render('studio/caption-overlay', { at: 40, extra: { cues, rects: wide, area: wide.caption } }))!;
+    expect(over.y + over.h).toBeCloseTo(40 + 878 - 40, 0); // 40 px above the capture's bottom
+    expect(over.x + over.w / 2).toBeCloseTo(180 + 1560 / 2, 0); // centred on the capture
+    const asArea = band(render('studio/caption-overlay', { at: 40, params: { position: 'area' }, extra: { cues, rects: wide, area: wide.caption } }))!;
+    expect(asArea.y).toBeGreaterThanOrEqual(930);
+    const phone: LayoutRects = { screen: { x: 368, y: 163, w: 389, h: 807 }, frame: { x: 348, y: 90, w: 429, h: 900 }, caption: { x: 873, y: 485, w: 700, h: 110 }, radius: 50 };
+    const side = band(render('studio/caption-overlay', { at: 40, extra: { cues, rects: phone, area: phone.caption } }))!;
+    expect(side.x).toBeGreaterThanOrEqual(873);
+    // Light type on the theme's night tone, the kicker in the accent when it reads there.
+    const html = render('studio/caption-overlay', { at: 40, extra: { cues, rects: wide } });
+    expect(html).toContain('rgba(31, 20, 19, 0.84)');
+    expect(html).toContain('A caption over the capture');
+    expect(html).toContain('BAND');
+    // The kit's band box is what the review measures.
+    expect(captionBandBox({ rects: wide, area: wide.caption, width: 1920, height: 1080, unit: 1, position: 'over', maxWidth: 1400 })).toEqual({ box: { x: 260, y: 728, w: 1400, h: 150 }, over: true });
+  });
+
+  it('overlay-callout: placed above (below when there is no room), never off-screen, pointer toward the target', () => {
+    const place = modules['studio/overlay-callout'].placeCallout as (o: Record<string, unknown>) => { x: number; y: number; below: boolean; pointer?: number };
+    const bounds = { x: 58, y: 32, w: 1804, h: 1016 };
+    for (const ax of [-200, 0, 30, 400, 960, 1800, 1900, 2400]) {
+      for (const ay of [-100, 0, 20, 300, 540, 1000, 1070, 1300]) {
+        const anchor = { x: ax, y: ay, w: 160, h: 40 };
+        const p = place({ anchor, w: 420, h: 52, bounds, gap: 16, arrow: 9, placement: 'auto' });
+        const where = `${ax},${ay}`;
+        expect(p.x, where).toBeGreaterThanOrEqual(bounds.x);
+        expect(p.y, where).toBeGreaterThanOrEqual(bounds.y);
+        expect(p.x + 420, where).toBeLessThanOrEqual(bounds.x + bounds.w + 1e-6);
+        expect(p.y + 52, where).toBeLessThanOrEqual(bounds.y + bounds.h + 1e-6);
+        expect(p.pointer!, where).toBeGreaterThanOrEqual(26);
+        expect(p.pointer!, where).toBeLessThanOrEqual(420 - 26);
+      }
+    }
+    const top = place({ anchor: { x: 900, y: 40, w: 160, h: 40 }, w: 420, h: 52, bounds, gap: 16, arrow: 9, placement: 'auto' });
+    expect(top.below).toBe(true);
+    const mid = place({ anchor: { x: 900, y: 600, w: 160, h: 40 }, w: 420, h: 52, bounds, gap: 16, arrow: 9, placement: 'auto' });
+    expect(mid.below).toBe(false);
+    expect(mid.y + 52 + 9 + 16).toBe(600);
+    expect(mid.x + mid.pointer!).toBe(980); // the pointer at the target's centre
+    // Rendered: a ring around the target, the pill inside the capture.
+    const anchor = { x: 1398, y: 530, w: 209, h: 57 };
+    const html = render('studio/overlay-callout', { at: 30, extra: { anchor, rects: { screen: { x: 180, y: 40, w: 1560, h: 878 }, frame: { x: 180, y: 40, w: 1560, h: 878 }, radius: 18 } } });
+    expect(html).toContain('Totals update as you type');
+    expect(html).toContain('LIVE');
+    expect(html).toContain('left:1392px;top:524px;width:221px;height:69px'); // ring: the target + 6 px
+    expect(render('studio/overlay-callout', { at: 30, params: { highlight: false }, extra: { anchor } })).not.toContain('left:1392px;top:524px');
+  });
+
+  it('cards, intros, outros, interstitials: tones, logo-only variants', () => {
+    // card-title: the theme background, or the night tone with light type.
+    const card = render('studio/card-title', { at: 60 });
+    expect(card).toContain('From quote to order');
+    expect(card).toContain('CHAPTER TWO');
+    expect(render('studio/card-title', { at: 60, params: { tone: 'dark' } })).toContain('background:#1f1413');
+    // intro-minimal: kicker + title, or logo + wordmark only.
+    expect(render('studio/intro-minimal', { at: 60 })).toContain('Quotes in two clicks');
+    const logoOnly = render('studio/intro-minimal', { at: 60, params: { logo_only: true } });
+    expect(logoOnly).not.toContain('Quotes in two clicks');
+    expect(logoOnly).toMatch(/>Atelier<\/span>/);
+    expect(render('studio/outro-minimal', { at: 60 })).toContain('Ready when you are.');
+    expect(render('studio/outro-minimal', { at: 60, params: { logo_only: true } })).toMatch(/>Atelier<\/span>/);
+    // interstitial-plain: the night tone (dark) or the theme paper (paper) over the last frame; a filling accent line.
+    const screen = createElement('i', { id: 'last-frame' });
+    const dark = render('studio/interstitial-plain', { at: 40, extra: { screen } });
+    expect(dark).toContain('<i id="last-frame"></i>');
+    expect(dark).toContain('background:#1f1413;opacity:1');
+    expect(render('studio/interstitial-plain', { at: 40, params: { tone: 'paper' }, extra: { screen } })).toContain('background:#f3eee8;opacity:1');
+    expect(render('studio/interstitial-plain', { at: 40, theme: DARK, params: { tone: 'paper' } })).toContain(`background:${DARK.colors.paper}`);
+    // lower third: inside the capture, clear of the caption area below it.
+    const lower = render('studio/overlay-lower-third', { at: 40, extra: { rects: { screen: { x: 180, y: 40, w: 1560, h: 878 }, frame: { x: 180, y: 40, w: 1560, h: 878 }, radius: 18 } } });
+    const box = /left:([\d.]+)px;top:([\d.]+)px;width:([\d.]+)px;height:([\d.]+)px;opacity/.exec(lower)!;
+    expect(Number(box[1])).toBe(216);
+    expect(Number(box[2]) + Number(box[4])).toBeCloseTo(40 + 878 - 36, 1);
   });
 
   it('overlays: the callout points at its anchor; the lower third ignores it', () => {

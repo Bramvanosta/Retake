@@ -1,32 +1,64 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# A phone mock-up for narrow (mobile) captures: rounded dark body, the capture on its screen (a wide capture is
-# letterboxed). The geometry below is what the planner and the review use: keep index.tsx in sync.
+# An iPhone-style phone for narrow (mobile) captures, drawn in CSS (no bitmap), in the family of the reference card
+# (docs/reference/look.md): a rounded metal band, a thin glass bezel, a rounded display with a status bar (time,
+# signal, battery) around the Dynamic Island above the capture — so the island never hides the page — side buttons,
+# the reference soft shadow. Landscape output: the phone left of centre and the caption area beside it
+# (kicker + line, vertically centred), the brand mark (drawn by the composition) at the bottom right of that column;
+# vertical output: the phone large, the caption area below.
+# The capture area (display minus the status bar) takes the capture's aspect, clamped to phone proportions
+# (0.42–0.62): a capture outside that range is letterboxed in it with the theme background. Default (height 860,
+# 390 × 844 capture): phone {348, 90, 429 × 900}, capture {368, 163, 389 × 807}, caption {873, 485, 700 × 110}.
 id: studio/layout-phone
-version: 0.1.0
+version: 1.0.0
 kind: layout
 name: Phone
-description: The capture on the screen of a phone mock-up (rounded dark body), for narrow mobile captures, caption area below.
-tags: [placeholder, device, phone, mobile]
+description: The capture on an iPhone-style phone (metal band, glass bezel, rounded display with a status bar and the Dynamic Island, side buttons) for narrow mobile captures; the caption beside it (landscape) or below it (vertical).
+tags: [device, phone, mobile, iphone]
 slots:
   screen: {type: screen, required: true, description: The capture (video + camera moves).}
 params:
   type: object
   properties:
-    body: {type: string, enum: [dark, light], default: dark, description: Colour of the phone body.}
-tokens: [colors.text, colors.paper, background]
+    height: {type: number, minimum: 600, maximum: 900, default: 860, description: "Display height in design px (landscape output); the width follows the capture's aspect."}
+    finish: {type: string, enum: [dark, light], default: dark, description: "Metal band: dark (graphite) or light (silver), both tinted by the theme."}
+    island: {type: boolean, default: true, description: Draw the Dynamic Island at the top of the display.}
+    status_bar: {type: boolean, default: true, description: "A status bar (time, signal, battery) above the capture, around the island; without it the capture fills the display and the island floats over its top."}
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under the phone (tinted with the theme's dark tone)."}
+tokens: [colors.text, colors.paper, colors.dark, background]
 geometry:
-  frame: {x: 744, y: 40, w: 432, h: 894}
-  screen: {x: 762, y: 58, w: 396, h: 858}
-  caption: {x: 180, y: 950, w: 1560, h: 100}
-  brandmark: {x: 1540, y: 980, w: 200, h: 40}
-  radius: 48
+  vars:
+    a: min(max(aspect, 0.42), 0.62)             # phone proportions; other captures are letterboxed in the display
+    sh: height                                  # display
+    sb: round(sh * 0.062) * status_bar          # status bar strip at the top of the display
+    sw: round((sh - sb) * a)
+    e: round(sh * 0.017) + round(sh * 0.006)    # glass bezel + metal band
+    bw: sw + 2 * e
+    bh: sh + 2 * e
+    cw: 700                                     # caption column beside the phone
+    x: round((1920 - bw - 96 - cw) / 2)
+    y: round((1080 - bh) / 2)
+  frame: {x: x, y: y, w: bw, h: bh}
+  screen: {x: x + e, y: y + e + sb, w: sw, h: sh - sb}
+  caption: {x: x + bw + 96, y: 485, w: cw, h: 110}
+  brandmark: {x: x + bw + 96 + cw - 320, y: 965, w: 320, h: 40}
+  radius: round(sw * 0.13)
 geometry_vertical:
-  frame: {x: 246, y: 206, w: 588, h: 1218}
-  screen: {x: 270, y: 230, w: 540, h: 1170}
-  caption: {x: 40, y: 1460, w: 1000, h: 220}
-  brandmark: {x: 880, y: 1840, w: 160, h: 40}
-  radius: 56
+  vars:
+    a: min(max(aspect, 0.42), 0.62)
+    sh: 1300
+    sb: round(sh * 0.062) * status_bar
+    sw: round((sh - sb) * a)
+    e: round(sh * 0.017) + round(sh * 0.006)
+    bw: sw + 2 * e
+    bh: sh + 2 * e
+    x: round((1080 - bw) / 2)
+    y: round((1688 - bh) / 2)
+  frame: {x: x, y: y, w: bw, h: bh}
+  screen: {x: x + e, y: y + e + sb, w: sw, h: sh - sb}
+  caption: {x: 40, y: y + bh + 24, w: 1000, h: 220}
+  brandmark: {x: 700, y: 1840, w: 340, h: 40}
+  radius: round(sw * 0.13)
 variants: [landscape, vertical]
 preview:
   at: [1]
+  screen: phone

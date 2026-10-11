@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/caption-overlay",
+  "version": "1.0.0",
+  "kind": "caption",
+  "theme": "editorial",
+  "at": 0.8,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "58fcddfdfbb7b81b",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

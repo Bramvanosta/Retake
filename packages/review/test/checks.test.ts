@@ -17,6 +17,7 @@ import type { ClipSegment, EditPlan, RenderRecord } from '@demo-studio/editor';
 import {
   DEFAULT_RULES,
   buildOutputTimeline,
+  captionRegion,
   checkCamera,
   checkCaptions,
   checkCursor,
@@ -165,6 +166,31 @@ describe('plan checks on the fixture plans', () => {
     const shrunk = fitCaption(ctx, clip, `${clip.cues[0].text} Twelve more.`)!;
     expect(shrunk.scale).toBeLessThan(1);
     expect(shrunk.scale).toBeGreaterThan(0.85);
+  });
+
+  it('a caption band over the capture (studio/caption-overlay, position over) is measured in its band, clear of the brand mark', async () => {
+    const project = await loadProject('northfield-fixture', REPO);
+    const editorial = await loadTemplate('editorial', REPO);
+    const timeline = realTimeline('catalogue');
+    const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4', overrides: { components: { caption: 'studio/caption-overlay' } } });
+    const clip = plan.segments.find((x): x is ClipSegment => x.id === 'add-product')!;
+    expect(clip.caption!.params.position).toBe('over');
+    const region = captionRegion(plan, clip)!;
+    expect(region.over).toBe(true);
+    // The band: 1400 wide, centred on the capture, 40 px above its bottom.
+    expect(region.rect.w).toBe(1400);
+    expect(region.rect.x + region.rect.w / 2).toBeCloseTo(clip.layout.capture.x + clip.layout.capture.w / 2, 1);
+    expect(region.rect.y + region.rect.h).toBeCloseTo(clip.layout.capture.y + clip.layout.capture.h - 40, 1);
+    const ctx = { ...ctxOf('catalogue'), plan, record: { ...plans.catalogue.record, plan } };
+    // Two lines allowed in the band: the 87-character caption fits at full size.
+    const fit = fitCaption(ctx, clip, clip.cues[0].text)!;
+    expect(fit.scale).toBe(1);
+    expect(fit.lines).toBeLessThanOrEqual(2);
+    expect(checkCaptions(ctx).filter((f) => f.code === 'caption-overlaps-brandmark')).toEqual([]);
+    // In the caption area (position area) the band is the layout's caption rect.
+    const asArea = structuredClone(clip);
+    asArea.caption!.params.position = 'area';
+    expect(captionRegion(plan, asArea)!.rect).toEqual(clip.layout.caption);
   });
 
   it('flags a caption overlapping another in time, and on the wrong scene', () => {

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,30 +24,31 @@ afterAll(async () => {
 });
 
 describe('studio components', () => {
-  it('list: an empty workspace lists the built-in library (reference look since L2.5, placeholders until L2.7)', async () => {
+  it('list: an empty workspace lists the built-in library (19 final components since L2.7, each with its preview)', async () => {
     const r = await studio('components', 'list');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.out).not.toContain('none yet');
     expect(r.out).toMatch(/studio\/layout-card\s+layout\s+built-in\s+1\.0\.0/);
-    expect(r.out).toMatch(/studio\/layout-browser\s+layout\s+built-in\s+0\.1\.0/);
+    expect(r.out).toMatch(/studio\/layout-browser\s+layout\s+built-in\s+1\.0\.0/);
+    expect(r.out).toMatch(/studio\/layout-tablet\s+layout\s+built-in\s+1\.0\.0/);
     const json = JSON.parse((await studio('components', 'list', '--json')).out) as {
-      components: Array<{ id: string; source: string; tags?: string[] }>;
+      components: Array<{ id: string; source: string; tags?: string[]; preview?: string; dir: string }>;
       components_dir: string;
     };
     expect(json.components.filter((c) => c.source === 'workspace')).toEqual([]);
-    expect(json.components).toHaveLength(18);
+    expect(json.components).toHaveLength(19);
     const reference = ['studio/caption-below', 'studio/interstitial-clock', 'studio/intro-stack', 'studio/layout-card', 'studio/outro-stack', 'studio/transition-crossfade'];
     for (const c of json.components) {
-      if (reference.includes(c.id)) expect(c.tags, c.id).not.toContain('placeholder');
-      else expect(c.tags, c.id).toContain('placeholder');
+      expect(c.tags ?? [], c.id).not.toContain('placeholder');
+      expect(c.preview, c.id).toBe(join(c.dir, 'preview.png'));
     }
-    expect(json.components.filter((c) => c.tags?.includes('reference-look') && !c.tags.includes('placeholder')).map((c) => c.id).sort()).toEqual(reference);
+    expect(json.components.filter((c) => c.tags?.includes('reference-look')).map((c) => c.id).sort()).toEqual(reference);
     expect(json.components_dir).toBe(join(ws, 'components'));
   });
 
   it('create: one component of each kind, each validated; list and validate them', async () => {
     for (const kind of COMPONENT_KINDS) {
-      const r = await studio('components', 'create', `acme/my-${kind}`, '--kind', kind, '--description', `Our ${kind}.`);
+      const r = await studio('components', 'create', `acme/my-${kind}`, '--kind', kind, '--description', `Our ${kind}.`, '--no-preview');
       expect(r.code, r.err).toBe(EXIT.ok);
       expect(r.err).toContain(`created ${kind} component acme/my-${kind}`);
       expect(r.err).toContain(`studio components validate acme/my-${kind}`);
@@ -63,6 +65,7 @@ describe('studio components', () => {
       'studio/layout-laptop',
       'studio/layout-phone',
       'studio/layout-raw',
+      'studio/layout-tablet',
     ]);
     expect(layouts.components.filter((c) => c.source === 'workspace')).toEqual([
       expect.objectContaining({ id: 'acme/my-layout', kind: 'layout', source: 'workspace', params: { radius: 18, shadow: 'soft' }, slots: ['screen'] }),
@@ -113,10 +116,31 @@ describe('studio components', () => {
     expect(kind.code).toBe(EXIT.usage);
     expect(kind.err).toMatch(/argument 'cardd' is invalid/);
     expect((await studio('components', 'create', 'acme/x')).code).toBe(EXIT.usage);
-    const again = await studio('components', 'create', 'acme/my-card', '--kind', 'card');
+    const again = await studio('components', 'create', 'acme/my-card', '--kind', 'card', '--no-preview');
     expect(again.code).toBe(EXIT.failure);
     expect(again.err).toContain('already exists');
-    const json = await studio('components', 'create', 'acme/badge', '--kind', 'overlay', '--json');
+    const json = await studio('components', 'create', 'acme/badge', '--kind', 'overlay', '--json', '--no-preview');
     expect(JSON.parse(json.out)).toMatchObject({ id: 'acme/badge', kind: 'overlay', dir: join(ws, 'components', 'acme', 'badge'), issues: [] });
   });
+
+  it('create renders the preview (README block, sidecar); preview re-renders it, --stale skips fresh ones, --out writes images only', async () => {
+    const r = await studio('components', 'create', 'acme/chapter', '--kind', 'card', '--description', 'A chapter card.');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    const dir = join(ws, 'components', 'acme', 'chapter');
+    expect(r.err).toContain('preview.png     generated preview (editorial theme');
+    expect(existsSync(join(dir, 'preview.png'))).toBe(true);
+    expect(JSON.parse(await readFile(join(dir, 'preview.json'), 'utf8'))).toMatchObject({ component: 'acme/chapter', theme: 'editorial', kind: 'card' });
+    expect(await readFile(join(dir, 'README.md'), 'utf8')).toContain('](preview.png)');
+    // Fresh: --stale has nothing to do; after an edit it re-renders.
+    const fresh = await studio('components', 'preview', '--all', '--workspace', '--stale', '--json');
+    expect(JSON.parse(fresh.out).previews.map((p: { id: string }) => p.id)).not.toContain('acme/chapter');
+    const out = join(ws, 'previews-out');
+    const one = await studio('components', 'preview', 'acme/chapter', '--out', out, '--theme', 'motion', '--json');
+    expect(one.code, one.err).toBe(EXIT.ok);
+    expect(JSON.parse(one.out)).toMatchObject({ theme: 'motion', previews: [{ id: 'acme/chapter', file: join(out, 'acme', 'chapter.png') }] });
+    expect(existsSync(join(out, 'acme', 'chapter.png'))).toBe(true);
+    // --out left the component's own preview (editorial) alone.
+    expect(JSON.parse(await readFile(join(dir, 'preview.json'), 'utf8')).theme).toBe('editorial');
+    expect((await studio('components', 'preview')).code).toBe(EXIT.failure);
+  }, 300_000);
 });

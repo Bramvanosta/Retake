@@ -9,5 +9,6 @@ export * from './motion.js';
 export * from './fit-text.js';
 export * from './metrics.js';
 export * from './style.js';
+export * from './devices.js';
 export * from './elements.js';
 export type { ComponentProps, ThemeTokens, ThemeTextStyle, CaptionCue, LayoutRects } from '../types.js';

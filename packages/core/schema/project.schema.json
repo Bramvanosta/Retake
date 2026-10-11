@@ -51,7 +51,7 @@
       "$ref": "#/$defs/CaptureOverrides"
     },
     "frame": {
-      "description": "Default frame of every scenario (default card): raw, card, browser, laptop, phone or a layout component id \"namespace/name\".",
+      "description": "Default frame of every scenario (default card): raw, card, browser, laptop, phone, tablet or a layout component id \"namespace/name\".",
       "$ref": "#/$defs/Frame"
     },
     "template": {
@@ -203,9 +203,10 @@
             "card",
             "browser",
             "laptop",
-            "phone"
+            "phone",
+            "tablet"
           ],
-          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+          "description": "How the capture is framed: raw, card, browser chrome, laptop, phone or tablet mockup."
         },
         {
           "type": "string",
@@ -213,7 +214,7 @@
           "description": "A layout component id \"namespace/name\", e.g. studio/layout-card or a workspace layout."
         }
       ],
-      "description": "How the capture is framed: raw, card, browser, laptop or phone (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
     },
     "PacingOverrides": {
       "type": "object",

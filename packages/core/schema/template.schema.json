@@ -103,9 +103,10 @@
             "card",
             "browser",
             "laptop",
-            "phone"
+            "phone",
+            "tablet"
           ],
-          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+          "description": "How the capture is framed: raw, card, browser chrome, laptop, phone or tablet mockup."
         },
         "width": {
           "type": "integer",

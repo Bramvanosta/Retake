@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
-import { checkCamera, checkCaptions, checkCursor, checkDurations, checkLongScenes, checkRender, checkTextSlots, checkTransitionsOnClicks, planFontFiles, segmentDurations } from './checks.js';
+import { captionRegion, checkCamera, checkCaptions, checkCursor, checkDurations, checkLongScenes, checkRender, checkTextSlots, checkTransitionsOnClicks, planFontFiles, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
@@ -159,8 +159,8 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
         const screen = inset(cap, span.segment.layout.radius + 2 * plan.unit);
         a.screen = regionStats(img, screen);
         a.screenSig = signature(img, screen, 64, 36);
-        const area = span.segment.layout.caption;
-        if (area) a.captionSd = regionStats(img, area, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
+        const region = captionRegion(plan, span.segment);
+        if (region) a.captionSd = regionStats(img, region.rect, { step: Math.max(1, Math.round(plan.unit * 2)) }).sd;
       }
       if (previous && mainSet.has(f)) a.sig = signature(img, { x: 0, y: 0, w: img.width, h: img.height });
       analyses.set(f, a);

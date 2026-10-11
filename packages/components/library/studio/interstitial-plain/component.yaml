@@ -1,23 +1,24 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# "Time passes" card: a dark veil over the dimmed last frame (tone dark) or the theme paper (tone paper), with a
-# kicker, a text and a running accent line.
+# "Time passes", in the family of the reference interstitial (docs/reference/look.md "Interstitial") without its
+# clock: from the last frame of the previous clip, a veil fades in (0.5 s, gently at first) — the theme's night tone
+# (tone dark) or its paper (tone paper) — then the kicker and the text (display 68, cap-centred) rise in over it, with
+# a thin line that fills with the accent while the card is shown.
 id: studio/interstitial-plain
-version: 0.1.0
+version: 1.0.0
 kind: interstitial
 name: Interstitial
-description: Waiting screen over the dimmed last frame (dark) or on the theme paper, with a kicker, a text and a running accent line.
-tags: [placeholder, interstitial]
+description: Waiting screen — the last frame dims under the theme's night tone (dark) or its paper (paper), then a kicker, the text and a slowly filling accent line rise in, centred.
+tags: [interstitial]
 slots:
   text: {type: text, required: true, default_from: interstitial.text, max_chars: 60, description: What happens meanwhile ("Two days later").}
   kicker: {type: text, default_from: interstitial.kicker, max_chars: 40, description: Small uppercase line above the text.}
-  screen: {type: screen, description: "The last frame of the previous clip, drawn dimmed under the card."}
+  screen: {type: screen, description: "The last frame of the previous clip, drawn under the veil."}
 params:
   type: object
   properties:
-    tone: {type: string, enum: [dark, paper], default: dark, description: "Dark veil over the last frame, or the theme paper."}
-    dim: {type: number, minimum: 0, maximum: 1, default: 0.82, description: Opacity of the dark veil.}
-tokens: [colors.accent, colors.text, colors.paper, colors.muted, background, fonts.display, fonts.body]
+    tone: {type: string, enum: [dark, paper], default: dark, description: "dark: the theme's night tone with light type; paper: the theme's paper with its text colour."}
+    dim: {type: number, minimum: 0, maximum: 1, default: 1, description: "Final opacity of the veil over the last frame (1 = a full card)."}
+tokens: [colors.accent, colors.text, colors.paper, colors.muted, colors.dark, background, fonts.display, fonts.body, style_bias]
 duration: {default: 2.6, min: 1, max: 8}
 variants: [landscape, vertical]
 preview:

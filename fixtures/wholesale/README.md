@@ -57,6 +57,12 @@ Shop: `/` (highlight rows), `/coffees`, `/products/<slug>` ("Request a quote"), 
 `/quotes/<id>` (proposal, "Download quote PDF" → `/quotes/<id>/pdf`, an HTML page styled as a PDF
 viewer, `target=_blank`).
 
+The shop is responsive (same labels and roles at every size, so scenarios target the same elements): at tablet width
+(820 × 1180, ≤ 1100 / ≤ 900 px) the search field and the account name collapse, product grids go to 2–3 columns and
+the product page stacks; at phone width (390 × 844, ≤ 600 px) the main navigation becomes a row of tabs under the brand,
+grids use 2 columns, dialogs become bottom sheets, the delivery-window calendar shows one month at a time and toasts
+span the width. `projects/northfield-fixture/scenarios/mobile-quote.yaml` captures it at phone size.
+
 ## API (shared by both ports; `GET /api` lists every route)
 
 - `POST /api/reset` — restore the seed data and restart the demo clock (2 Nov 2026, 10:24).

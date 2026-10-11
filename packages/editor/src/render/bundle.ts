@@ -9,7 +9,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMPONENT_KINDS } from '@demo-studio/core';
 import type { ComponentKind } from '@demo-studio/core';
@@ -94,6 +94,8 @@ function kitFiles(): { entry: string; files: string[] } {
 
 const SKIP_DIRS = new Set(['node_modules', 'previews', '.git', 'dist']);
 const CODE_FILE = /\.(tsx?|jsx?|mjs|cjs|json|css|ya?ml|svg|png|jpe?g|webp|woff2?|ttf|otf)$/i;
+/** Generated files of a component folder that never change what it renders (regenerating them keeps the bundle). */
+const PREVIEW_ARTIFACTS = new Set(['preview.png', 'preview.json']);
 
 /** Every file under `dir` (sorted, absolute), skipping node_modules, previews and dotfiles. */
 function listFiles(dir: string): string[] {
@@ -139,7 +141,7 @@ export async function bundleHash(components: readonly BundleComponent[]): Promis
   for (const c of [...components].sort((a, b) => a.id.localeCompare(b.id))) {
     add(`component:${c.id}:entry`, relative(c.dir, c.entry).split(sep).join('/'));
     add(`component:${c.id}:defaults`, JSON.stringify(c.defaults));
-    for (const f of listFiles(c.dir).filter((x) => CODE_FILE.test(x))) add(`component:${c.id}:${relative(c.dir, f).split(sep).join('/')}`, await readFile(f));
+    for (const f of listFiles(c.dir).filter((x) => CODE_FILE.test(x) && !PREVIEW_ARTIFACTS.has(basename(x)))) add(`component:${c.id}:${relative(c.dir, f).split(sep).join('/')}`, await readFile(f));
   }
   return h.digest('hex').slice(0, 16);
 }
@@ -192,7 +194,8 @@ export function planComponentIds(plan: EditPlan): string[] {
   return [...ids].sort();
 }
 
-async function scaffoldComponents(): Promise<BundleComponent[]> {
+/** The per-kind scaffolds (stand-ins of `missing` uses), as bundle components. */
+export async function scaffoldComponents(): Promise<BundleComponent[]> {
   const out: BundleComponent[] = [];
   for (const kind of COMPONENT_KINDS) {
     const dir = scaffoldDir(kind);

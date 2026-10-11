@@ -173,8 +173,8 @@ describe('scenario additions (R-SCN2-01..06)', () => {
     expect(parseScenario(ok).issues).toEqual([]);
     const bad = doc('frame: cards', 'scenes:', ...SCENE, '    frame: Acme/Frame');
     expect(errs(parseScenario(bad).issues)).toEqual([
-      '2:8 frame: expected a frame style (raw, card, browser, laptop, phone) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "cards" (did you mean "card"?)',
-      `8:12 scenes.0.frame: expected a frame style (raw, card, browser, laptop, phone) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "Acme/Frame"`,
+      '2:8 frame: expected a frame style (raw, card, browser, laptop, phone, tablet) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "cards" (did you mean "card"?)',
+      `8:12 scenes.0.frame: expected a frame style (raw, card, browser, laptop, phone, tablet) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "Acme/Frame"`,
     ]);
   });
 
@@ -235,11 +235,12 @@ describe('project frame (R-PROJ-06)', () => {
   it('defaults to card and accepts a FrameStyle or a layout component id', () => {
     expect(parseProjectYaml('name: Demo\n').config?.frame).toBe('card');
     expect(parseProjectYaml('name: Demo\nframe: phone\n').config?.frame).toBe('phone');
+    expect(parseProjectYaml('name: Demo\nframe: tablet\n').config?.frame).toBe('tablet');
     expect(parseProjectYaml('name: Demo\nframe: acme/tablet\n').config?.frame).toBe('acme/tablet');
     const { config, issues } = parseProjectYaml('name: Demo\nframe: laptops\n');
     expect(config).toBeUndefined();
     expect(errs(issues)).toEqual([
-      '2:8 frame: expected a frame style (raw, card, browser, laptop, phone) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "laptops" (did you mean "laptop"?)',
+      '2:8 frame: expected a frame style (raw, card, browser, laptop, phone, tablet) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "laptops" (did you mean "laptop"?)',
     ]);
   });
 });
@@ -439,7 +440,7 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     expect(d.Overlay.properties.duration).toMatchObject({ exclusiveMinimum: 0, maximum: 30 });
     expect(d.Overlay.properties.component.pattern).toBe(COMPONENT_ID_RE.source);
     for (const branch of d.Step.anyOf as Json[]) expect(branch.properties.overlay, branch.title).toEqual({ $ref: '#/$defs/Overlay' });
-    expect(d.Frame.anyOf[0].enum).toEqual(['raw', 'card', 'browser', 'laptop', 'phone']);
+    expect(d.Frame.anyOf[0].enum).toEqual(['raw', 'card', 'browser', 'laptop', 'phone', 'tablet']);
     expect(d.Frame.anyOf[1].pattern).toBe(COMPONENT_ID_RE.source);
     expect(d.Scene.properties.frame).toMatchObject({ $ref: '#/$defs/Frame', description: expect.any(String) });
     expect(s.properties.frame).toMatchObject({ $ref: '#/$defs/Frame', description: expect.any(String) });

@@ -88,7 +88,9 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   };
   await write(MANIFEST_FILE, manifestText);
   for (const entry of (await readdir(source, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isFile() || entry.name === MANIFEST_FILE || entry.name === 'README.md') continue;
+    // The scaffold's own generated preview (preview.png / preview.json) is not copied: `studio components create`
+    // renders the new component's preview.
+    if (!entry.isFile() || [MANIFEST_FILE, 'README.md', 'preview.png', 'preview.json'].includes(entry.name)) continue;
     await write(entry.name, await readFile(join(source, entry.name), 'utf8'));
   }
   await write('README.md', readme(id, kind, opts.description));

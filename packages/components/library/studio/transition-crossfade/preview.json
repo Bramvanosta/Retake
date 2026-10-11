@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/transition-crossfade",
+  "version": "1.0.0",
+  "kind": "transition",
+  "theme": "editorial",
+  "at": 0.17,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "e89b8492a9e72aa9",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

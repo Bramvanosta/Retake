@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/caption-below",
+  "version": "1.0.0",
+  "kind": "caption",
+  "theme": "editorial",
+  "at": 0.6,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "e3ffbed729dcacbc",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

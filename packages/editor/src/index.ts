@@ -35,6 +35,7 @@ export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-serv
 export type { AssetServer } from './render/asset-server.js';
 export {
   BUNDLE_CACHE_KEEP,
+  scaffoldComponents,
   BUNDLE_FORMAT,
   COMPOSITION_DEPS,
   EDITOR_DIR,
@@ -51,5 +52,9 @@ export {
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
-export { brandmarkRect, envelopeAt, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './remotion/frames.js';
+export { brandmarkRect, envelopeAt, layoutRects, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './remotion/frames.js';
 export type { TransitionWindow } from './remotion/frames.js';
+export { buildComponentPreview, loadPreviewSamples } from './preview.js';
+export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';
+export { PREVIEW_COMPOSITION, STARTER_TEMPLATES_DIR, loadPreviewTheme, renderComponentPreviews } from './render/preview.js';
+export type { PreviewComponentTarget, RenderPreviewsOptions, RenderedPreview } from './render/preview.js';

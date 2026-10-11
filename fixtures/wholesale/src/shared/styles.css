@@ -1417,3 +1417,72 @@ button {
   border-radius: 50%;
   display: block;
 }
+
+/* ── Phones: dialogs become bottom sheets, toasts span the width ─────────── */
+@media (max-width: 600px) {
+  .overlay {
+    align-items: flex-end;
+    padding: 48px 0 0;
+  }
+  .dialog,
+  .dialog-lg,
+  .dialog-sm {
+    max-width: none;
+    border-radius: 20px 20px 0 0;
+  }
+  .dialog-header {
+    padding: 20px 18px 0;
+  }
+  .dialog-title {
+    font-size: 18px;
+    padding-right: 36px;
+  }
+  .dialog-description {
+    font-size: 13.5px;
+  }
+  .dialog-body {
+    padding: 16px 18px 18px;
+    gap: 14px;
+  }
+  .dialog-footer {
+    flex-wrap: wrap;
+    padding: 12px 18px 18px;
+    border-radius: 0;
+  }
+  .dialog-x {
+    top: 12px;
+    right: 10px;
+  }
+  .art-badge {
+    top: 8px;
+    left: 8px;
+    height: 22px;
+    max-width: calc(100% - 16px);
+    padding: 0 8px;
+    gap: 4px;
+    font-size: 10.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .art-badge svg {
+    flex: none;
+  }
+  .toast-viewport {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+}
+
+@media (max-width: 1100px) {
+  .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .segmented button {
+    white-space: nowrap;
+  }
+}

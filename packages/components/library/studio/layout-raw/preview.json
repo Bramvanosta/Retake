@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/layout-raw",
+  "version": "1.0.0",
+  "kind": "layout",
+  "theme": "editorial",
+  "at": 1,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "76b34c7e221f4fd9",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

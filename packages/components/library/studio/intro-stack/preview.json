@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/intro-stack",
+  "version": "1.0.0",
+  "kind": "intro",
+  "theme": "editorial",
+  "at": 2.8,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "20e3f12a889bff24",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

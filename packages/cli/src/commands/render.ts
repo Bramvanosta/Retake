@@ -34,6 +34,8 @@ export interface StillCommandOptions {
   run?: string;
   /** Output frame number (required). */
   frame?: string;
+  /** Frame (layout) of every scene: a FrameStyle or a layout component id (`studio render --frame`). */
+  layout?: string;
   theme?: string;
   vertical?: boolean;
   out?: string;
@@ -186,6 +188,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
 export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenario: string, opts: StillCommandOptions): Promise<ExitCode> {
   if (opts.frame === undefined || !/^\d+$/.test(opts.frame)) throw new UsageError('--frame <n>: the output frame number (0-based) is required');
   const frame = Number(opts.frame);
+  checkFrameSpec(opts.layout);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   let run;
@@ -202,6 +205,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   const overrides: EditOverrides = {};
   if (opts.theme) overrides.theme = template.name;
   if (opts.vertical) overrides.variant = 'vertical';
+  if (opts.layout) overrides.frame = opts.layout;
   const plan = planEdit({
     timeline,
     template,

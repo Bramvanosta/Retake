@@ -1,12 +1,14 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# Full-screen chapter card: kicker, display title and an optional line of text, rising in on the theme background.
+# A full-screen chapter card in the family of the reference intro (docs/reference/look.md "Intro"): an uppercase
+# kicker in the accent, a display title, an accent rule drawn from the centre and an optional line of text in the
+# muted colour, placed by their cap bands and centred as a stack; on the theme background (tone paper) or on the
+# theme's night tone (tone dark). Motion: kicker and title rise in (0.15 / 0.3 s), the rule draws, the text follows.
 id: studio/card-title
-version: 0.1.0
+version: 1.0.0
 kind: card
 name: Title card
-description: Full-screen chapter card with an uppercase kicker, a display title and an optional line of text, rising in on the theme background.
-tags: [placeholder, card, chapter]
+description: Full-screen chapter card — uppercase kicker, display title, an accent rule drawn from the centre and an optional line of text — staggered in on the theme background or the theme's night tone.
+tags: [card, chapter, title]
 slots:
   title: {type: text, required: true, max_chars: 60, description: The card title.}
   kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
@@ -15,7 +17,9 @@ params:
   type: object
   properties:
     align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
-tokens: [colors.accent, colors.text, colors.muted, background, fonts.display, fonts.body]
+    rule: {type: boolean, default: true, description: Draw the accent rule under the title.}
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone with light type."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
 duration: {default: 2.5, min: 1, max: 10}
 variants: [landscape, vertical]
 preview:

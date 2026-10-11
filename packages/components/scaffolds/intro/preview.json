@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "scaffolds/intro",
+  "version": "0.1.0",
+  "kind": "intro",
+  "theme": "editorial",
+  "at": 2.8,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "6557d97982e8c2bc",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

@@ -17,7 +17,8 @@ Northfield connects coffee roasters with the cafés they supply.
 ## Audience
 
 - Roasters and green-coffee traders evaluating the supplier console (video: `catalogue`).
-- Café owners and head baristas who order coffee (video: `quote`).
+- Café owners and head baristas who order coffee (video: `quote`; on a phone: `mobile-quote`, the shop at 390 × 844
+  framed with the phone layout).
 
 ## Goals
 

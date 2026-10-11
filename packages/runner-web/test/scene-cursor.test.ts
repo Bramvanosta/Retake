@@ -103,17 +103,24 @@ describe('scene-start cursor (R-ISS-04)', () => {
     expect(rec_.f).toMatchObject({ mode: 'auto', how: 'keep' });
     expect(rec_.g).toMatchObject({ mode: 'auto', how: 'teleport', side: 'fallback' });
 
-    // No visible jump. Teleports and kept positions: no motion at all inside the still (the teleport happened before
-    // it, while the page loaded). Glides: many small eased steps — a jump would cover the whole distance in one step
-    // (the 60 Hz loop is wall-clock driven, so a loaded machine may merge a few ticks: compare with the distance).
+    // No visible jump, measured on the recorded samples (positions, not wall-clock timings). Teleports and kept
+    // positions: no motion at all inside the still (the teleport happened before it, while the page loaded). Glides:
+    // many small eased steps that only move forward along the way — a teleport covers the whole distance in one step.
+    // The glide runs on a motion clock that a loaded machine can pause but never make skip ahead (Pointer.moveTo,
+    // MAX_TICK_ADVANCE_MS), so these bounds hold whatever the load: ≥ duration / 2 ticks samples, each step ≤ the
+    // eased path over two ticks (≈ 0.22 d for a 450 ms glide; the fake-clock stall tests are in unit.test.ts).
     for (const e of st) {
       const c = cursorOf(e);
       const step = maxStep(tl.cursor, e.t_start, e.t_end);
       if (c.how === 'glide') {
         const d = dist(c.from!, c.to);
-        const samples = tl.cursor.filter((x) => x.t >= e.t_start && x.t <= e.t_end).length;
-        expect(samples, `glide of ${e.scene}`).toBeGreaterThanOrEqual(8);
-        expect(step, `glide of ${e.scene} (${d.toFixed(0)} px)`).toBeLessThan(0.4 * d);
+        const inside = tl.cursor.filter((x) => x.t >= e.t_start && x.t <= e.t_end);
+        expect(inside.length, `glide of ${e.scene}`).toBeGreaterThanOrEqual(8);
+        expect(step, `glide of ${e.scene} (${d.toFixed(0)} px)`).toBeLessThan(0.3 * d);
+        // Forward only: the remaining distance to the rest point never grows by more than the arc's bulge.
+        const left = inside.map((x) => dist(x, c.to));
+        for (let i = 1; i < left.length; i++) expect(left[i], `glide of ${e.scene}, sample ${i}`).toBeLessThanOrEqual(left[i - 1] + 2);
+        expect(left.at(-1), `glide of ${e.scene} ends on its rest point`).toBeLessThan(1);
       } else {
         expect(step, `still of ${e.scene}`).toBe(0);
       }

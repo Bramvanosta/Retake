@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# An iPad-style tablet for tablet-sized captures, drawn in CSS (no bitmap), in the family of the reference card
+# (docs/reference/look.md): uniform glass bezels with a camera, rounded display and body, a thin metal edge, the
+# reference soft shadow. Portrait or landscape follows the capture: a portrait capture (aspect < 1) stands the tablet
+# up with the caption area beside it (like the phone); a landscape one lays it down with the caption area below (like
+# the card). The display takes the capture's aspect clamped to 0.62–1.6 (other captures are letterboxed in it with
+# the theme background). Defaults: portrait (height 880, 820 × 1180 capture) tablet {244, 58, 696 × 964}, caption
+# {1036, 485, 640 × 110}; landscape (width 1240, 1180 × 820) tablet {347, 40, 1227 × 878}, caption {347, 930, 887 × 110}.
+id: studio/layout-tablet
+version: 1.0.0
+kind: layout
+name: Tablet
+description: The capture on an iPad-style tablet (uniform glass bezels with a camera, rounded display, thin metal edge), portrait with the caption beside it or landscape with the caption below, following the capture.
+tags: [device, tablet, ipad]
+slots:
+  screen: {type: screen, required: true, description: The capture (video + camera moves).}
+params:
+  type: object
+  properties:
+    height: {type: number, minimum: 600, maximum: 900, default: 880, description: "Portrait captures: display height in design px (landscape output)."}
+    width: {type: number, minimum: 700, maximum: 1500, default: 1240, description: "Landscape captures: display width in design px (landscape output); at most what lets the tablet and the caption block fit."}
+    finish: {type: string, enum: [dark, light], default: dark, description: "Edge and bezel: dark (space grey) or light (silver edge), both tinted by the theme."}
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under the tablet (tinted with the theme's dark tone)."}
+tokens: [colors.text, colors.paper, colors.dark, background]
+geometry:
+  vars:
+    a: min(max(aspect, 0.62), 1.6)
+    land: min(1, max(0, ceil((a - 1) * 1000)))  # 1 = landscape capture, 0 = portrait
+    pe: round(height * 0.048)                   # portrait: bezel + edge
+    psh: height
+    psw: round(psh * a)
+    pbw: psw + 2 * pe
+    pbh: psh + 2 * pe
+    px: round((1920 - pbw - 96 - 640) / 2)
+    py: round((1080 - pbh) / 2)
+    le: round(width * 0.034)                    # landscape: bezel + edge
+    lroom: 878 - 2 * le
+    lsh: min(round(width / a), lroom)
+    lsw: min(width, round(lroom * a))
+    lbw: lsw + 2 * le
+    lbh: lsh + 2 * le
+    lx: round((1920 - lbw) / 2)
+    ly: round((958 - lbh) / 2)
+    e: land * le + (1 - land) * pe
+    x: land * lx + (1 - land) * px
+    y: land * ly + (1 - land) * py
+    bw: land * lbw + (1 - land) * pbw
+    bh: land * lbh + (1 - land) * pbh
+  frame: {x: x, y: y, w: bw, h: bh}
+  screen: {x: x + e, y: y + e, w: bw - 2 * e, h: bh - 2 * e}
+  caption: {x: land * lx + (1 - land) * (px + pbw + 96), y: land * (ly + lbh + 12) + (1 - land) * 485, w: land * (lbw - 340) + (1 - land) * 640, h: 110}
+  brandmark: {x: land * (lx + lbw - 320) + (1 - land) * (px + pbw + 96 + 320), y: land * (ly + lbh + 47) + (1 - land) * 965, w: 320, h: 40}
+  radius: round(min(bw - 2 * e, bh - 2 * e) * 0.03)
+geometry_vertical:
+  vars:
+    a: min(max(aspect, 0.62), 1.6)
+    land: min(1, max(0, ceil((a - 1) * 1000)))
+    pe: 50
+    psh: 1240
+    psw: min(round(psh * a), 960)
+    le: 36
+    lsw: 940
+    lsh: round(lsw / a)
+    e: land * le + (1 - land) * pe
+    sw: land * lsw + (1 - land) * psw
+    sh: land * lsh + (1 - land) * round(psw / a)
+    bw: sw + 2 * e
+    bh: sh + 2 * e
+    x: round((1080 - bw) / 2)
+    y: round((1688 - bh) / 2)
+  frame: {x: x, y: y, w: bw, h: bh}
+  screen: {x: x + e, y: y + e, w: sw, h: sh}
+  caption: {x: 40, y: y + bh + 24, w: 1000, h: 220}
+  brandmark: {x: 700, y: 1840, w: 340, h: 40}
+  radius: round(min(sw, sh) * 0.03)
+variants: [landscape, vertical]
+preview:
+  at: [1]
+  screen: tablet

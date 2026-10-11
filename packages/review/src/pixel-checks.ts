@@ -5,7 +5,7 @@
  */
 import type { ClipSegment } from '@demo-studio/editor';
 import type { CheckContext } from './checks.js';
-import { locate } from './checks.js';
+import { captionRegion, locate } from './checks.js';
 import type { RegionStats } from './pixels.js';
 import { compareSignatures, uniformity } from './pixels.js';
 import type { SegmentSpan } from './spans.js';
@@ -234,9 +234,9 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
           at: locate(ctx, from),
         });
       }
-      // Captions drawn in the caption area: some ink there while a cue is on.
-      const area = seg.layout.caption;
-      if (seg.caption && area && seg.caption.params.position !== 'above') {
+      // Captions drawn in the caption area (or in their band over the capture): some ink there while a cue is on.
+      const region = captionRegion(ctx.plan, seg);
+      if (seg.caption && region && seg.caption.params.position !== 'above') {
         const margin = Math.round(0.6 * fps);
         for (const cue of seg.cues) {
           const lo = seg.from + cue.from + margin;

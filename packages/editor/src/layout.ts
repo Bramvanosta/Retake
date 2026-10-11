@@ -73,6 +73,9 @@ export function planLayout(
   if (opts.variant === 'landscape') {
     out.capture = fitRect(screen, aspect);
     out.card = geometry.frame ? scale(geometry.frame, opts.unit) : out.capture;
+    // Letterboxed / pillarboxed (the capture aspect is outside what the layout's screen can take): keep the screen
+    // rect so the layout paints the bars with the theme background.
+    if (Math.abs(out.capture.w - screen.w) > 1 || Math.abs(out.capture.h - screen.h) > 1) out.display = { ...screen };
   } else {
     out.capture = screen;
     out.card = geometry.frame ? scale(geometry.frame, opts.unit) : screen;

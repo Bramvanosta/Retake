@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "scaffolds/outro",
+  "version": "0.1.0",
+  "kind": "outro",
+  "theme": "editorial",
+  "at": 2.6,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "845eccc77cc05e0a",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

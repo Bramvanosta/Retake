@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.6. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.7. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -140,65 +140,100 @@ automatically with themeable components, and let Claude operate everything throu
   width with the real font = 1079 px vs 1072 px of ink on the render), cli/test/review.test.ts, render.test.ts
   `--review`. 572 tests: 566 pass, 6 Postgres tests skipped (one timing flake in runner-web scene-cursor passed on
   rerun). A 1-min 1080p review takes ≈ 10 s.
-- **Requirements:** 572 tracked; 329 done, 72 partial, 156 todo, 15 n/a-here; the open ones are assigned to lots
+- **L2.7 done** (layouts & previews): the whole built-in library is final (19 components, all 1.0.0, no placeholder
+  left): layout-browser (macOS window: traffic lights, optional tab strip, address bar showing the REAL url of the
+  capture at the frame's time from the timeline's urls track, chrome auto/light/dark), layout-laptop, layout-phone
+  (dynamic island, status bar strip above the capture so the island hides nothing), NEW layout-tablet (portrait/
+  landscape chosen by the capture aspect; frame style `tablet` in core), layout-raw (full frame, caption area for
+  caption-overlay), caption-overlay (translucent night band, kicker lifted to contrast in the accent's hue), card-title,
+  intro-/outro-minimal (`logo_only`), interstitial-plain (`tone` dark|paper), overlay-callout (pill + pointer toward
+  the anchor bbox, clamped inside the screen or the safe area — exported `placeCallout`), overlay-lower-third,
+  transition-fade-black (`through` black|night, `color`). Device geometry is written as expressions over params and the
+  capture `aspect` (0/1 switches with `min/max/ceil`, no comparisons); a capture whose aspect is outside the device's
+  proportions is letterboxed/pillarboxed on the theme background (`PlanLayout.display` / `LayoutRects.display`).
+  Kit: `devices.ts` (deviceTones, SYSTEM_COLORS, addressParts, cardShadow), `liftToContrast`, `captionBandBox` (shared
+  with review: `captionRegion(plan, clip)` → caption band over the capture for `position: over`). caption-below paints a
+  paper band when its area overlaps the capture (raw layout). **Previews** (R-CMP-12/13/14): composition
+  `ComponentPreview` (packages/editor/src/remotion/Preview.tsx; spec built by `buildComponentPreview` in
+  src/preview.ts: layouts with sample screens of the fixture shipped in `packages/components/preview/` — desktop
+  1280×720, tablet 820×1180, phone 390×844, generated once by `scripts/preview-samples.mjs`; captions/overlays/
+  transitions inside the theme's own layout; transitions mid-way into a card-title), `renderComponentPreviews`
+  (render/preview.ts: one bundle + browser, still at half scale = 960×540, ffmpeg palette quantisation when > 200 KB),
+  `studio components preview [id|--all [--workspace]] [--stale] [--theme <name>] [--out <dir>] [--json]` → `<dir>/preview.png` +
+  `preview.json` (format, component, version, theme, moment, source hash of manifest + entry + local imports) + the
+  generated block of README.md (markers; author text kept); `studio components create` renders the preview
+  (`--theme`, `--no-preview`; a warning, not a failure, without a browser); `components list --json` reports preview
+  state. Committed previews for the 19 library components and the 8 scaffolds (editorial; 17–195 KB);
+  packages/components/test/previews.test.ts fails on a missing/stale/oversized preview. `studio still --layout <id>`.
+  **Flake fix** (runner-web scene-cursor): the cursor glide advanced on wall-clock time, so a stalled tick (GC, CDP
+  backlog) made the cursor jump most of the way at once; it now advances on a motion clock capped at 2 ticks
+  (`MAX_TICK_ADVANCE_MS`; `PointerHost.clock` injectable) and the test asserts the glide on the recorded samples
+  (≥ 8 samples, no step > 0.3 × distance, monotonic approach, lands < 1 px); unit tests with a fake slow host. A capture
+  that records no frame now fails (`EncodeError`) instead of producing an empty "successful" run. **Fixture shop**
+  responsive at 390×844 and 820×1180 (tabs row, single-column hero/PDP, bottom-sheet dialogs, one-month date picker,
+  full-width toasts); scenario `mobile-quote` (capture 390×844 scale 1, frame phone; run 20261011-222856-mobile-quote).
+  `runIdMatchesScenario` (core): `latest` for `quote` no longer picks a `mobile-quote` run. 600 tests: 594 pass,
+  6 Postgres tests skipped (full suite run twice, green both times).
+- **Requirements:** 572 tracked; 350 done, 55 partial, 152 todo, 15 n/a-here; the open ones are assigned to lots
   L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer —
-  decided: L2.8). L2.4: all 16 done. L2.5: all done; R-LIB-00 (whole library final) moved to L2.7; the other R-LIB-*/
-  R-ED-10/12..14 items stay partial (placeholders, L2.7). L2.6: all 25 done (incl. R-LOOK-03/05).
+  decided: L2.8). L2.4: all 16 done. L2.5: all done. L2.6: all 25 done (incl. R-LOOK-03/05). L2.7: all 21 done
+  (R-LIB-00…, R-ED-10/12/13/14, R-CMP-12/13/14).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
-  (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6). `packages/mcp` is empty;
-  `studio export|record|mcp|ui` print "available in phase N".
+  (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
+  and previews (L2.7). `packages/mcp` is empty; `studio export|record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.7 — layouts & previews** (M): layout-browser (real URL from the timeline), laptop, phone, tablet, raw;
-caption-overlay; card-title; intro/outro-minimal; interstitial-plain; overlay-callout, lower-third; transition-fade-black
-— replacing the L2.4 placeholders, geometry as expressions where it follows params; committed `preview.png` + README per
-component (all 18), `studio components preview`, staleness test (R-LIB-*, R-ED-10/12/13/14, R-CMP-12/13/14) — unless
-the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a
-Mac). See ROADMAP.
+**L2.8 — Variants & export** (M): vertical 9:16 and square 1:1 with smoothed reframing on the cursor/targets, 4K from
+scale-2 captures, music bed with ducking, export formats mp4_1080p / mp4_4k / webm / vertical_9x16 / square /
+gif_preview, `studio export`; theme `default_zoom` for balanced/motion styles (R-ED-17/20/21/22, R-EXP-*, R-CLI2-03) —
+unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs
+`docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
 
-Render and review commands (fixture captures exist: runs 20261011-182524-catalogue and 20261011-182706-quote):
+Render, review and preview commands (fixture captures exist: runs 20261011-182524-catalogue, 20261011-182706-quote,
+20261011-222856-mobile-quote):
 ```
 node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
 node packages/cli/dist/bin.js render northfield-fixture quote --theme motion --review
-node packages/cli/dist/bin.js still northfield-fixture quote --frame 1409  # one frame as PNG (renders/stills/)
+node packages/cli/dist/bin.js render northfield-fixture quote --frame browser   # laptop | phone | tablet | raw | card
+node packages/cli/dist/bin.js render northfield-fixture mobile-quote             # frame: phone (scenario)
+node packages/cli/dist/bin.js still northfield-fixture quote --frame 1409 --layout studio/layout-laptop
 node packages/cli/dist/bin.js review northfield-fixture catalogue-v3     # → review/catalogue-v3/ (≈ 10 s)
+node packages/cli/dist/bin.js components preview --all --stale          # regenerate stale committed previews
+node packages/cli/dist/bin.js components preview --all --theme motion --out /tmp/previews   # look in another theme
 ```
-Render times here (4 CPUs, no GPU, concurrency 3, 1080p; L2.5 components): catalogue 59.0 s → 3 m 37 s total (render 3 m
-26 s + bundle 10 s), quote 56.3 s → 2 m 58 s (cached bundle) — as in L2.4 (≈ 8–9 output fps; card frames are no cheaper
-than clip frames: Chrome software raster + JPEG capture dominate; concurrency 4, x264 `veryfast`, multi-process Chrome
-or PNG frames did not help more than ±10 %); a new bundle ≈ 10 s; a still ≈ 1–2 s with a cached bundle (≈ 12 s when the
-bundle must be built); `renderStills` ≈ 0.3–0.6 s per extra frame in the same session.
+Render times here (4 CPUs, no GPU, concurrency 3, 1080p): quote 56.3 s → 3 m 10–30 s with the L2.7 layouts (browser
+3 m 11 s, laptop 3 m 30 s, raw 3 m 09 s; a new bundle ≈ 10 s each), mobile-quote 33.3 s → ≈ 1 m 20 s (phone 1 m 23 s,
+tablet 1 m 19 s); catalogue 59.0 s → 3 m 37 s (L2.5). ≈ 8–9 output fps (Chrome software raster + JPEG capture
+dominate); a still ≈ 1–2 s with a cached bundle; `renderStills` ≈ 0.3–0.6 s per extra frame; all 27 previews ≈ 1 min.
 
-Review of the L2.5 fixture renders (L2.6): **quote-v3 clean** (info: 56.3 s, a little under 1–2 min; 1 of 56 frames
-changed since quote-v2); **catalogue-v3: 1 warning** — `long-wait`: the screen barely changes for 3.8 s while
-add-product waits for its registry data (00:45.1–00:48.9: skeleton placeholders after the click on the registry lot,
-mostly inside the 1× window of the marked `reveal` step) — plus info: 59.0 s, zoom 1.3× in 2.2 s is not "very
-slow". Fixes for L2.12's clean review: shorten the fixture's registry delay, or speed the wait (the mark protects
-it: mark a later step). Sheets looked at: labels, outlines, pages, the diff sheet (v1 placeholders vs v3) all read well.
+Renders of L2.7, looked at frame by frame (frames extracted with ffmpeg) and reviewed with `studio review`:
+**quote-v4** (`--frame browser`: the address bar follows the capture — localhost:4402 → /products/selowa-ridge in
+the shop, / → /quotes/1043 → /quotes/1043/pdf in the console; callout on the €720.00 total), **quote-v5** (laptop),
+**quote-v6** (raw + caption-overlay) — all three clean (info: 56.3 s); **mobile-quote-v1** (phone) and
+**mobile-quote-v2** (`--frame tablet`: the phone capture pillarboxed in a portrait tablet) — one warning each,
+`video-length` 33.3 s (the scenario is short on purpose). Earlier reviews: quote-v3 clean; catalogue-v3 one
+`long-wait` warning (registry delay of the fixture, 00:45.1–00:48.9) — to fix for L2.12.
 
-Notes for L2.7:
-- Review the new components with `studio review` (or `reviewRender` on renders forcing them through
-  `overrides.components`): `caption-not-visible` assumes a caption component draws inside the layout's caption rect
-  unless its params say `position: above` — caption-overlay over a layout with a caption rect is fine (it uses `area`);
-  a caption drawn elsewhere needs that rule revisited. `caption-too-long` measures with the layout's caption rect
-  (minus a 6-unit inset), the theme caption line style and the caption params `max_lines` (vertical ≥ 2), floor 62 %.
-- Rendering many frames: `renderStills({plan, frames: [{frame, out}…]})` keeps one bundle + asset server + browser for
-  all frames (≈ 0.3–0.6 s per frame) — the base for component previews.
-- Layout rects: `plan.layout` / `clip.layout` are the EVALUATED geometry (capture, card, caption, brandmark, radius in
-  output px) — never re-read the manifest geometry (it may contain expressions).
-- Side-by-side with the reference (L2.5, frames of catalogue-v3 / quote-v3): positions match within ≤ 3 px (card,
-  caption kicker/line, brand mark, intro row/kicker/title/rule, clock, interstitial text, outro stack); the intro
-  build-up at 0.4 / 1.0 / 2.6 s, the interstitial start / middle / end and the outro at 0.4 / 2.5 s match the
-  reference's timing; the background now matches its samples within 1–2 levels. Remaining differences are
-  brand-related: the editorial display face (Instrument Serif) is narrower and lighter than the reference's serif, so
-  titles, captions and the interstitial text look lighter; the placeholder brand's wordmark is shorter. The reference
-  shows the clip's caption fading during the interstitial dim; ours has already left (it leaves before the clip end).
-- Still placeholders (L2.7): intro-minimal, outro-minimal, card-title, interstitial-plain, layout-browser/-laptop/
-  -phone/-raw, caption-overlay, overlay-callout/-lower-third, transition-fade-black — the motion and default themes
-  use several of them; with the six reference-look components forced (overrides.components) both themes render
-  natively (checked by eye). Their geometry can use expressions too (layout-browser width…).
-- Vertical: layout-card's `geometry_vertical` follows the capture aspect too (card 1000 wide, centred block); real 9:16
-  reframing is L2.8.
+Notes for L2.8:
+- Scale-2 capture is impossible with the current capture path: new-headless Chromium's CDP screencast ignores
+  `deviceScaleFactor: 2` and sends frames at CSS size (tried for mobile-quote: every frame was dropped as the wrong
+  size, and the run "succeeded" with no frame — it now fails with an EncodeError). 4K output (R-ED-20) needs another
+  capture path (old headless, `Page.captureScreenshot` per frame, or a `--headed` capture on the Mac) — L1.4/L2.8.
+- Vertical (DemoVertical): the device layouts have `geometry_vertical` (phone/tablet/laptop/browser/raw) evaluated
+  with the capture aspect; real 9:16 reframing on the cursor/targets is still to do.
+- Device layouts letterbox a capture outside their proportions: phone screen aspect clamped to 0.42–0.62, tablet
+  portrait/landscape picked by a 0/1 switch on the aspect; `plan.layout.display` is then the device screen rect (the
+  layout paints the bars there) and `capture` stays the fitted image rect — overlays and camera keep mapping into
+  `capture`.
+- Captions: `captionRegion(plan, clip)` (review) and `captionBandBox` (components) share the band of caption-overlay
+  (`position: over`); caption-below over a layout without a caption area paints a paper band. A new caption component
+  drawn elsewhere needs `captionRegion` extended.
+- Previews: `preview.json.source_hash` covers the manifest, the entry and its relative imports — not the kit. A kit
+  change that alters a look needs `components preview --all` (not `--stale`). Sample screens are regenerated with
+  `node scripts/preview-samples.mjs` (fixture server running) and are not part of the hash either.
+- Remaining look differences vs the reference are brand-related (editorial display face lighter than the reference's
+  serif; the placeholder brand's wordmark is shorter); the reference fades the clip caption during the interstitial
+  dim, ours has already left.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

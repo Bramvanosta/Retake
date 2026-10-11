@@ -1,12 +1,14 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# Kicker and title only (or, with logo_only, the logo and wordmark only), fading in on the theme background.
+# The quiet intro, in the family of the reference intro (docs/reference/look.md "Intro") without its brand row and
+# rule: the uppercase kicker in the accent and the display title (96 px, tight), placed by their cap bands and centred
+# as a stack, fading in (kicker 0.15 s, title 0.35 s) — or, with `logo_only`, the logo and the wordmark alone.
+# style_bias balanced / motion: a rise, a tracking settle on the title and a scale settle on the logo row.
 id: studio/intro-minimal
-version: 0.1.0
+version: 1.0.0
 kind: intro
 name: Intro minimal
-description: Kicker and title fading in on the theme background — or only the logo and wordmark (logo_only).
-tags: [placeholder, intro, minimal]
+description: Kicker and display title fading in on the theme background — or only the logo and wordmark (logo_only).
+tags: [intro, minimal]
 slots:
   title: {type: text, default_from: scenario.title.text, max_chars: 60, description: The video title.}
   kicker: {type: text, default_from: scenario.title.kicker, max_chars: 40, description: Small uppercase line above the title.}
@@ -16,9 +18,9 @@ params:
   properties:
     logo_only: {type: boolean, default: false, description: Show only the logo and the wordmark.}
     align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
-tokens: [colors.accent, colors.text, background, fonts.display, fonts.body, logo, wordmark]
+tokens: [colors.accent, colors.text, background, fonts.display, fonts.body, logo, wordmark, style_bias]
 duration: {default: 2.6, min: 1.2, max: 8}
 variants: [landscape, vertical]
 preview:
   slots: {title: Quotes in two clicks, kicker: Product tour}
-  at: [0.4, 1.6]
+  at: [0.4, 2]

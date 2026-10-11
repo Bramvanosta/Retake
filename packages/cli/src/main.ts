@@ -1,8 +1,8 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
 import { COMPONENT_KINDS } from '@demo-studio/core';
 import type { JsonSchemaName } from '@demo-studio/core';
-import { componentsCreateCommand, componentsListCommand, componentsValidateCommand } from './commands/components.js';
-import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsValidateOptions } from './commands/components.js';
+import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from './commands/components.js';
+import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsPreviewOptions, ComponentsValidateOptions } from './commands/components.js';
 import { doctorCommand } from './commands/doctor.js';
 import type { DoctorOptions } from './commands/doctor.js';
 import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
@@ -110,7 +110,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<run>', 'run id (folder under runs/), run directory, or "latest"')
     .option('--scenario <name>', 'with "latest": the latest run of this scenario')
     .option('--theme <name>', 'plan with another theme (template name or ./path) instead of the one the run used')
-    .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, raw or a layout component id')
+    .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, tablet, raw or a layout component id')
     .option('--vertical', 'the vertical 9:16 variant (1080×1920)')
     .option('--json', 'print the plan as JSON')
     .option('--out <file>', 'write the plan JSON to a file')
@@ -123,7 +123,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<scenario>', 'scenario name')
     .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
     .option('--theme <name>', 'render with another theme (template name or ./path) instead of the one the run used')
-    .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, raw or a layout component id')
+    .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, tablet, raw or a layout component id')
     .option('--vertical', 'the vertical 9:16 variant (1080×1920), written as <scenario>-v<N>-vertical.mp4')
     .option('--scale <n>', 'output size multiplier of 1920×1080 (default: the capture scale)')
     .option('--no-intro', 'leave the intro out')
@@ -154,6 +154,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<scenario>', 'scenario name')
     .requiredOption('--frame <n>', 'output frame number (0-based)')
     .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
+    .option('--layout <frame>', 'frame of every scene (as `studio render --frame`): card, browser, laptop, phone, tablet, raw or a layout id')
     .option('--theme <name>', 'plan with another theme (template name or ./path)')
     .option('--vertical', 'a frame of the vertical 9:16 variant')
     .option('--out <file>', 'PNG file to write')
@@ -189,7 +190,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
 
-  const components = program.command('components').description('list, validate and scaffold components (intros, layouts, captions…)');
+  const components = program.command('components').description('list, validate, scaffold and preview components (intros, layouts, captions…)');
   components
     .command('list')
     .description('components of the workspace (components/) and the built-in library')
@@ -209,8 +210,21 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .addOption(new Option('--kind <kind>', 'what it renders').choices([...COMPONENT_KINDS]).makeOptionMandatory())
     .option('--description <text>', 'one or two sentences: what it looks like and when to use it')
     .option('--name <name>', 'display name (default: from the id)')
+    .option('--theme <name>', 'theme of the generated preview (default editorial)')
+    .option('--no-preview', 'do not render preview.png')
     .option('--json', 'machine-readable output')
     .action(action((u, g, id: string, o: ComponentsCreateOptions) => componentsCreateCommand(u, g, id, o)));
+  components
+    .command('preview')
+    .description('render preview.png (960×540) + preview.json + the README block of a component, or of every component with --all')
+    .argument('[component]', 'component id (namespace/name) or folder')
+    .option('--all', 'every component: workspace, built-in library and the per-kind scaffolds')
+    .option('--workspace', 'with --all: only the workspace components')
+    .option('--stale', 'only previews that are missing or out of date')
+    .option('--theme <name>', 'theme of the previews (template name or path; default editorial)')
+    .option('--out <dir>', 'write only the images to <dir>/<namespace>/<name>.png (component folders untouched)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, id: string | undefined, o: ComponentsPreviewOptions) => componentsPreviewCommand(u, g, id, o)));
 
   program
     .command('doctor')

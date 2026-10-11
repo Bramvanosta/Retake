@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { parseScenario } from '@demo-studio/core';
+import { parseScenario, runIdMatchesScenario } from '@demo-studio/core';
 import type { LoadedProject, Scenario } from '@demo-studio/core';
 import type { RenderRecord } from './types.js';
 import { RenderError } from './types.js';
@@ -39,7 +39,7 @@ export function findRun(project: LoadedProject, arg: string, scenario?: string):
       ids = [];
     }
     const candidates = ids
-      .filter((id) => (scenario ? id.endsWith(`-${scenario}`) : true))
+      .filter((id) => (scenario ? runIdMatchesScenario(id, scenario) : true))
       .filter((id) => hasCaptureTimeline(join(runsDir, id)))
       .sort()
       .reverse();

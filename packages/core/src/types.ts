@@ -86,7 +86,7 @@ export type ComponentKind =
   | 'interstitial'
   /** Renders the caption cues of a clip in the caption area of the layout. */
   | 'caption'
-  /** Screen layout / frame: places the capture (card, browser chrome, laptop, phone, raw…). */
+  /** Screen layout / frame: places the capture (card, browser chrome, laptop, phone, tablet, raw…). */
   | 'layout'
   /** Overlay shown over a clip for a while (lower third, callout, badge, highlight…). */
   | 'overlay'
@@ -456,7 +456,7 @@ export interface NormalizedArgsMap {
 }
 export type NormalizedArgs = NormalizedArgsMap;
 
-export type FrameStyle = 'raw' | 'card' | 'browser' | 'laptop' | 'phone';
+export type FrameStyle = 'raw' | 'card' | 'browser' | 'laptop' | 'phone' | 'tablet';
 
 /**
  * How a capture is framed: a FrameStyle (`card` ⇒ studio/layout-card, `browser` ⇒ studio/layout-browser…) or the id of
@@ -470,6 +470,7 @@ export const FRAME_STYLE_LAYOUTS: Readonly<Record<FrameStyle, ComponentId>> = {
   browser: 'studio/layout-browser',
   laptop: 'studio/layout-laptop',
   phone: 'studio/layout-phone',
+  tablet: 'studio/layout-tablet',
   raw: 'studio/layout-raw',
 };
 

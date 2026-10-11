@@ -134,7 +134,7 @@ function OverlayView({ plan, clip, use }: { plan: EditPlan; clip: ClipSegment; u
   const f = use.from + local;
   const a = use.anchor?.bbox ?? use.anchor?.point;
   const anchor = a ? mapSourceRect(plan, clip, f, a) : undefined;
-  return <Use rc={use.component} plan={plan} durationInFrames={use.durationInFrames} extra={anchor ? { anchor } : {}} />;
+  return <Use rc={use.component} plan={plan} durationInFrames={use.durationInFrames} extra={{ rects: layoutRects(clip.layout), ...(anchor ? { anchor } : {}) }} />;
 }
 
 /**
@@ -155,7 +155,12 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
       />
       <Brandmark plan={plan} clip={clip} />
       {!still && clip.caption && clip.cues.length > 0 ? (
-        <Use rc={clip.caption} plan={plan} durationInFrames={clip.durationInFrames} extra={{ cues: clip.cues, ...(clip.layout.caption ? { area: clip.layout.caption } : {}) }} />
+        <Use
+          rc={clip.caption}
+          plan={plan}
+          durationInFrames={clip.durationInFrames}
+          extra={{ cues: clip.cues, rects: layoutRects(clip.layout), ...(clip.layout.caption ? { area: clip.layout.caption } : {}) }}
+        />
       ) : null}
       {!still
         ? clip.overlays.map((o, i) => (

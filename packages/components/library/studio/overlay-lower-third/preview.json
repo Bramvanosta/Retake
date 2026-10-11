@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/overlay-lower-third",
+  "version": "1.0.0",
+  "kind": "overlay",
+  "theme": "editorial",
+  "at": 1,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "2f690e8190b81a4f",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

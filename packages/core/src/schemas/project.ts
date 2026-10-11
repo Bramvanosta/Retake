@@ -25,7 +25,7 @@ const projectShape = {
     .optional(),
   capture: CapturePartialSchema.optional(),
   frame: FrameSpecSchema.describe(
-    'Default frame of every scenario (default card): raw, card, browser, laptop, phone or a layout component id "namespace/name".',
+    'Default frame of every scenario (default card): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
   ).optional(),
   template: nonEmpty().describe('Template name (templates/<name>) or a path relative to the project dir.').optional(),
   locale: nonEmpty().optional(),

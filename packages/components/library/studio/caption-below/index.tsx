@@ -57,7 +57,7 @@ function kickerRun(list: CaptionCue[], i: number): [number, number] {
  * the card. At a cue change the old line fades out (0.25 s) and the new one fades in (0.35 s) with a 7 px rise; a kicker
  * shared by consecutive cues stays put. style_bias balanced / motion: a little more rise, the rule draws in from the left.
  */
-export default function CaptionBelow({ theme, slots, params, unit, width, height, fps, durationInFrames, cues, area, variant }: ComponentProps<Params>) {
+export default function CaptionBelow({ theme, slots, params, unit, width, height, fps, durationInFrames, cues, area, variant, rects }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
   const list: CaptionCue[] =
     cues && cues.length > 0 ? cues : slots.text ? [{ from: 0, to: FOREVER, text: slots.text, kicker: slots.kicker, scene: '' }] : [];
@@ -68,7 +68,10 @@ export default function CaptionBelow({ theme, slots, params, unit, width, height
   const { kicker: ks, line: ls } = styles(theme);
   const below = area ?? { x: 180 * unit, y: height - 150 * unit, w: width - 360 * unit, h: 110 * unit };
   const above = params.position === 'above';
-  const pad = above ? 24 * unit : 0;
+  // A caption area lying over the capture (a full-frame layout): draw on a paper band so the text reads over any UI.
+  const sc = rects?.screen;
+  const overCapture = !above && !!sc && below.x < sc.x + sc.w && below.x + below.w > sc.x && below.y < sc.y + sc.h && below.y + below.h > sc.y;
+  const pad = above || overCapture ? 24 * unit : 0;
   const box = above ? { x: below.x, y: 36 * unit, w: below.w, h: below.h } : below;
   const center = params.align === 'center';
   const left = box.x + pad + INSET * unit;
@@ -101,6 +104,7 @@ export default function CaptionBelow({ theme, slots, params, unit, width, height
 
   // Kicker: shared by a run of contiguous cues; fades in with the run's first cue and out with its last.
   let kicker = null;
+  let kickerRowW = 0;
   if (cue.kicker) {
     const [a, b] = kickerRun(list, index);
     const runFrom = list[a].from;
@@ -125,6 +129,7 @@ export default function CaptionBelow({ theme, slots, params, unit, width, height
     });
     const centreY = box.y + KICKER_CENTRE * unit;
     const rowW = rule + gap + kt.width;
+    kickerRowW = rowW;
     const rowX = center ? anchorX - rowW / 2 : left;
     kicker = (
       <div style={{ position: 'absolute', inset: 0, opacity: roundTo(kIn.opacity * kOut, 4), transform: kIn.transform }}>
@@ -159,6 +164,22 @@ export default function CaptionBelow({ theme, slots, params, unit, width, height
             height: box.h,
             borderRadius: 14 * unit,
             background: withAlpha(darkLight(theme).light, 0.92),
+            opacity: roundTo(Math.max(enter.opacity, 0) * exit, 4),
+          }}
+        />
+      ) : null}
+      {overCapture ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: roundTo(center ? anchorX - Math.max(line.width, kickerRowW) / 2 - pad : box.x, 2),
+            top: box.y,
+            width: roundTo(Math.max(line.width, kickerRowW) + 2 * pad + (center ? 0 : 2 * INSET * unit), 2),
+            height: roundTo(LINE_CENTRE * unit + (line.lines.length - 1) * line.lineHeightPx + line.capHeight / 2 + 24 * unit, 2),
+            borderRadius: 14 * unit,
+            // The theme background (the caption colours were chosen to read on it), a touch translucent.
+            background: withAlpha(backgroundSample(theme), 0.96),
+            boxShadow: `0 ${8 * unit}px ${24 * unit}px ${withAlpha(darkLight(theme).dark, 0.12)}`,
             opacity: roundTo(Math.max(enter.opacity, 0) * exit, 4),
           }}
         />

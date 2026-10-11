@@ -1,24 +1,27 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# A callout pill with a pointer above or below the step target (props.anchor, output px); without an anchor it sits
-# bottom-left like a lower third. Pops in, fades out at the end.
+# A callout on the step's target (the anchor box the runner measured, mapped through layout + camera): a ring in the
+# accent draws around the target, then a pill in the theme's night tone — an optional uppercase kicker in the accent
+# and the text in light type — pops in above it (below when there is no room) with a pointer toward the target's
+# centre. The pill stays inside the capture when it fits there, else inside the frame's safe area: never off-screen.
+# Without an anchor it sits at the bottom left of the capture. Fades out over its last 0.3 s.
 id: studio/overlay-callout
-version: 0.1.0
+version: 1.0.0
 kind: overlay
 name: Callout
-description: Dark callout pill with a pointer above or below the step target (a lower third without a target); pops in and fades out.
-tags: [placeholder, overlay, callout]
+description: A ring around the target and a pill (kicker + text) with a pointer toward it, above or below, never off-screen; pops in and fades out.
+tags: [overlay, callout, pointer]
 slots:
   text: {type: text, required: true, max_chars: 60, description: The callout text.}
   kicker: {type: text, max_chars: 30, description: Small uppercase line before the text.}
 params:
   type: object
   properties:
-    placement: {type: string, enum: [auto, above, below], default: auto, description: Side of the target (auto = above when there is room).}
-    max_width: {type: number, minimum: 200, maximum: 1200, default: 560, description: Widest pill in design px.}
-tokens: [colors.accent, colors.text, colors.paper, fonts.body]
+    placement: {type: string, enum: [auto, above, below], default: auto, description: "Side of the target (auto = above when there is room, else below)."}
+    max_width: {type: number, minimum: 200, maximum: 1200, default: 620, description: Widest pill in design px.}
+    highlight: {type: boolean, default: true, description: Draw a ring around the target.}
+tokens: [colors.accent, colors.text, colors.paper, colors.dark, fonts.body, style_bias]
 duration: {default: 2.5, min: 0.8, max: 30}
 variants: [landscape, vertical]
 preview:
   slots: {text: Totals update as you type, kicker: Live}
-  at: [0.8]
+  at: [0.9]

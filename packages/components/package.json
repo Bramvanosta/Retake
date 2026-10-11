@@ -23,7 +23,8 @@
     "src",
     "schema",
     "scaffolds",
-    "library"
+    "library",
+    "preview"
   ],
   "scripts": {
     "build": "tsc -b",

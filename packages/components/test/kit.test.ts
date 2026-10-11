@@ -43,6 +43,7 @@ import {
   wrapText,
 } from '@demo-studio/components/kit';
 import type { TextMeasurer } from '@demo-studio/components/kit';
+import { addressParts, captionBandBox, cardShadow, contrastRatio as contrast, deviceTones, liftToContrast } from '@demo-studio/components/kit';
 import { DARK, LIGHT } from './helpers.js';
 
 // remotion's <Img> needs a composition context; outside one, render a plain <img>.
@@ -238,6 +239,31 @@ describe('kit style helpers', () => {
     expect(safeAreaRect(1920, 1080)).toEqual({ x: 96, y: 54, w: 1728, h: 972 });
     expect(safeAreaRect(1000, 1000, 0.1)).toEqual({ x: 100, y: 100, w: 800, h: 800 });
     expect(scaleRect({ x: 1, y: 2, w: 3, h: 4 }, 2)).toEqual({ x: 2, y: 4, w: 6, h: 8 });
+  });
+});
+
+describe('kit frame helpers (L2.7)', () => {
+  it('liftToContrast keeps a theme hue readable on a dark surface', () => {
+    const wine = '#8a2332';
+    const night = '#1f1413';
+    const lifted = liftToContrast(night, wine, '#f3eee8', 3.5);
+    expect(lifted).not.toBe(wine);
+    expect(contrast(night, lifted)!).toBeGreaterThanOrEqual(3.5);
+    expect(liftToContrast('#f3eee8', wine, '#ffffff', 3)).toBe(wine); // already readable
+  });
+
+  it('device tones, shadows, addresses and the caption band box come from the theme / the inputs', () => {
+    const t = deviceTones(LIGHT, 'dark');
+    expect(t.body).toMatch(/^#[0-9a-f]{6}$/);
+    expect(deviceTones(LIGHT, 'light').body).not.toBe(t.body);
+    expect(cardShadow(LIGHT, 'none', 1)).toBe('none');
+    expect(cardShadow(LIGHT, 'soft', 1)).toContain('rgba(31, 20, 19, 0.16)');
+    expect(addressParts('https://a.example/x?y=1#z')).toEqual({ secure: true, host: 'a.example', path: '/x?y=1' });
+    expect(addressParts('http://localhost:4402/')).toEqual({ secure: false, host: 'localhost:4402', path: '' });
+    expect(addressParts(undefined)).toBeUndefined();
+    const area = { x: 873, y: 485, w: 700, h: 110 };
+    expect(captionBandBox({ rects: { screen: { x: 368, y: 163, w: 389, h: 807 } }, area, width: 1920, height: 1080, unit: 1, position: 'over', maxWidth: 1400 })).toEqual({ box: { ...area }, over: false });
+    expect(captionBandBox({ width: 1920, height: 1080, unit: 1, position: 'over', maxWidth: 1400 }).box).toEqual({ x: 260, y: 866, w: 1400, h: 150 });
   });
 });
 

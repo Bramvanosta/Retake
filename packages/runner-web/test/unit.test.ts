@@ -19,6 +19,8 @@ import {
   resolveAuth,
 } from '../src/index.js';
 import { imageSize } from '../src/recorder.js';
+import { MAX_TICK_ADVANCE_MS, Pointer, TICK_MS } from '../src/pointer.js';
+import type { PointerHost } from '../src/pointer.js';
 import { execFileP, ffprobeDuration, frameAt, makeProject, tempDir } from './helpers.js';
 
 let dir: string;
@@ -81,6 +83,84 @@ describe('motion', () => {
     expect(Math.abs(p(0.5).y)).toBeCloseTo(60, 5); // min(60, 0.08·d)
     const q = arcPath({ x: 0, y: 0 }, { x: 100, y: 0 }, -1);
     expect(Math.abs(q(0.5).y)).toBeCloseTo(8, 5);
+  });
+});
+
+/**
+ * A Pointer on a fake page and a fake clock: `stall(tick)` = extra ms the runner loses at that tick (a late timer or a
+ * slow CDP round trip on a loaded machine). Returns the dispatched positions with their (fake) times.
+ */
+async function glide(opts: { from: { x: number; y: number }; to: { x: number; y: number }; ms: number; stall?: (tick: number) => number; cdpMs?: number }) {
+  let now = 0;
+  let tick = 0;
+  const moves: Array<{ t: number; x: number; y: number }> = [];
+  const host = {
+    page: () => ({ mouse: { move: async (x: number, y: number) => { now += opts.cdpMs ?? 1; moves.push({ t: now, x, y }); } } }),
+    kit: () => ({ cursorSet: async () => undefined }),
+    timeline: { sampleCursor: () => undefined },
+    pacing: DEFAULT_PACING,
+    signal: new AbortController().signal,
+    scale: 1,
+    clock: {
+      now: () => now,
+      sleep: async (ms: number) => {
+        now += ms + (opts.stall?.(tick++) ?? 0);
+      },
+    },
+  } as unknown as PointerHost;
+  const p = new Pointer(host);
+  await p.teleport(opts.from);
+  moves.length = 0;
+  const used = await p.moveTo(opts.to, { ms: opts.ms, arc: false });
+  return { moves, used, end: now };
+}
+
+describe('cursor glide under load (motion clock)', () => {
+  const from = { x: 100, y: 100 };
+  const to = { x: 700, y: 400 };
+  const d = Math.hypot(600, 300);
+  const maxStep = (moves: Array<{ x: number; y: number }>) => {
+    let prev = from;
+    let m = 0;
+    for (const q of moves) {
+      m = Math.max(m, Math.hypot(q.x - prev.x, q.y - prev.y));
+      prev = q;
+    }
+    return m;
+  };
+  /** Largest step the eased path can make in one tick: max slope of easeInOutCubic (3) × the motion advance cap. */
+  const bound = (ms: number) => 3 * (MAX_TICK_ADVANCE_MS / ms) * d + 1;
+
+  it('on time: ~60 Hz small eased steps, the planned duration, lands exactly', async () => {
+    const r = await glide({ from, to, ms: 600 });
+    expect(r.moves.at(-1)).toMatchObject(to);
+    // (a tick whose eased position rounds to the same pixel dispatches nothing: the very start and end of the ease)
+    expect(r.moves.length).toBeGreaterThanOrEqual(Math.floor((0.8 * 600) / TICK_MS));
+    expect(r.end).toBeGreaterThanOrEqual(600);
+    expect(r.end).toBeLessThan(600 + 3 * TICK_MS);
+    expect(maxStep(r.moves)).toBeLessThan(3 * (TICK_MS / 600) * d + 1);
+  });
+
+  it('a stalled runner pauses the glide and resumes it: never a jump, whatever the stall (R-ISS-04)', async () => {
+    // A 400 ms stall in the middle of a 450 ms glide: the old wall-clock loop jumped ≈ 0.9 d in one step.
+    for (const stall of [(t: number) => (t === 10 ? 400 : 0), (t: number) => (t % 3 === 0 ? 120 : 0), () => 45]) {
+      const r = await glide({ from, to, ms: 450, stall });
+      expect(r.moves.at(-1)).toMatchObject(to);
+      expect(maxStep(r.moves)).toBeLessThan(bound(450));
+      expect(maxStep(r.moves)).toBeLessThan(0.25 * d);
+      // Monotonic along the straight path: progress never goes back.
+      const prog = r.moves.map((q) => ((q.x - from.x) * 600 + (q.y - from.y) * 300) / (d * d));
+      for (let i = 1; i < prog.length; i++) expect(prog[i]).toBeGreaterThanOrEqual(prog[i - 1] - 1e-9);
+      // Enough intermediate positions to read as a glide: at least ms / (2 ticks).
+      expect(r.moves.length).toBeGreaterThanOrEqual(Math.floor(450 / MAX_TICK_ADVANCE_MS));
+    }
+  });
+
+  it('slow CDP round trips (every move takes 40 ms) slow the glide down instead of skipping', async () => {
+    const r = await glide({ from, to, ms: 450, cdpMs: 40 });
+    expect(r.moves.at(-1)).toMatchObject(to);
+    expect(maxStep(r.moves)).toBeLessThan(bound(450));
+    expect(r.end).toBeGreaterThan(450);
   });
 });
 

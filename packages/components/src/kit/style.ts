@@ -168,3 +168,17 @@ export function backgroundSample(theme: Pick<ThemeTokens, 'background' | 'colors
   const from = b.from ?? b.color ?? theme.colors.paper;
   return mixColors(from, b.to ?? from, 0.5);
 }
+
+/**
+ * `color` mixed towards `toward` (in steps of 15 %) until it reads on `background` (contrast ≥ `min`, default 3): a
+ * theme colour that keeps its hue on a surface where it would not read as is (e.g. a dark accent on the night tone →
+ * a lighter tint of the accent). Falls back to `toward` itself; unknown notations keep `color`.
+ */
+export function liftToContrast(background: string, color: string, toward: string, min = 3): string {
+  if (contrastRatio(background, color) === undefined) return color;
+  for (let t = 0; t <= 0.9 + 1e-9; t += 0.15) {
+    const c = t === 0 ? color : mixColors(color, toward, t);
+    if ((contrastRatio(background, c) ?? 0) >= min) return c;
+  }
+  return toward;
+}

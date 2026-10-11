@@ -119,7 +119,11 @@ export interface ComponentManifest {
   geometry_vertical?: LayoutGeometrySpec;
   variants?: Array<'landscape' | 'vertical'>;
   /** Sample values used to render previews with any theme. */
-  preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[] };
+  /**
+   * Sample values used to render previews with any theme: slots, params, the seconds at which stills are taken (the
+   * committed preview.png shows the last one) and the sample screen layouts show (default desktop).
+   */
+  preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[]; screen?: 'desktop' | 'tablet' | 'phone' };
 }
 
 /** A font file the host composition registers (`@font-face`) under a theme font family. */
@@ -171,8 +175,16 @@ export interface ThemeTokens {
 
 /** A layout's evaluated rects in output px (`ComponentProps.rects`). */
 export interface LayoutRects {
+  /** Where the capture pixels go (the capture fitted to its aspect ratio). */
   screen: { x: number; y: number; w: number; h: number };
+  /** The card / window / device outline. */
   frame: { x: number; y: number; w: number; h: number };
+  /**
+   * The layout's declared screen rect (device display, browser page area) when the capture does not fill it: the
+   * capture (`screen`) is letterboxed / pillarboxed inside it and the layout paints the bars with the theme
+   * background. Absent when the capture fills it.
+   */
+  display?: { x: number; y: number; w: number; h: number };
   chrome?: { x: number; y: number; w: number; h: number };
   caption?: { x: number; y: number; w: number; h: number };
   brandmark?: { x: number; y: number; w: number; h: number };
@@ -203,8 +215,11 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   /**
    * layout: where to draw, in output px — the manifest geometry evaluated by the planner with this use's params and
    * the capture aspect (`screen` = where the capture pixels go, `frame` = the card / device outline around them,
-   * `radius` in output px). The planner places captions, overlays and the brand mark from the same rects, so a layout
-   * draws exactly there. Absent outside a plan (unit previews): the layout falls back to its default geometry.
+   * `display` = the declared screen rect when the capture is letterboxed in it, `radius` in output px). The planner
+   * places captions, overlays and the brand mark from the same rects, so a layout draws exactly there. Absent outside
+   * a plan (unit tests): the layout falls back to its default geometry.
+   * caption and overlay: the rects of the clip's layout, so they can place themselves over the capture (a caption
+   * band, a lower third inside the screen). Absent outside a clip.
    */
   rects?: LayoutRects;
   /** caption: cues in frames relative to the segment. */

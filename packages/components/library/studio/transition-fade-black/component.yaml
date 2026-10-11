@@ -1,24 +1,25 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): stand-in until the full version lands in L2.7.
-# Dip to black: the composition renders it around the end of the outgoing segment (direction: exiting, the first half
-# of the transition: fade to black) and around the start of the incoming one (direction: entering, the second half:
-# fade from black); progress = frame / durationInFrames over the whole transition. The planner reads its length from
-# `duration` and its kind (fade-black) from the id.
+# A dip between two segments: the outgoing one eases into the dip colour, the incoming one eases out of it (the
+# composition renders the component around the end of the outgoing segment — direction exiting, frames [0, ⌊n/2⌋) —
+# and around the start of the incoming one — entering, [⌊n/2⌋, n)); fully covered at the cut. `through` picks black or
+# the theme's night tone; `color` (any CSS colour) overrides both. style_bias balanced / motion add a 1–2 % scale
+# breath (out: shrinking a touch, in: settling from slightly larger).
 id: studio/transition-fade-black
-version: 0.1.0
+version: 1.0.0
 kind: transition
 name: Fade through black
-description: The outgoing segment fades to black, then the incoming one fades in from black.
-tags: [placeholder, transition, fade, black]
+description: The outgoing segment eases into black (or the theme's night tone), then the incoming one eases out of it; a slight scale breath with livelier themes.
+tags: [transition, fade, black, dip]
 slots:
   screen: {type: screen, required: true, description: The segment this render wraps.}
 params:
   type: object
   properties:
     duration: {type: number, minimum: 0, maximum: 3, default: 0.4, description: Length of the whole dip (out + in) in seconds.}
-    color: {type: string, default: "#000000", description: Colour of the dip (CSS).}
-tokens: []
+    through: {type: string, enum: [black, night], default: black, description: "The dip colour: black, or the theme's night tone."}
+    color: {type: string, description: "Any CSS colour for the dip (overrides `through`)."}
+tokens: [colors.dark, colors.text, colors.paper, style_bias]
 duration: {default: 0.4, min: 0.1, max: 3}
 variants: [landscape, vertical]
 preview:
-  at: [0.1, 0.3]
+  at: [0.07]

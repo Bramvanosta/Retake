@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/layout-browser",
+  "version": "1.0.0",
+  "kind": "layout",
+  "theme": "editorial",
+  "at": 1,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "c15ee1e4650c4fec",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

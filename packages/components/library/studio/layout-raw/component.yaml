@@ -1,12 +1,14 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): stand-in until the full version lands in L2.7.
-# The capture fills the frame (no card, no caption area: a caption component places itself over the capture).
+# The capture fills the frame, edge to edge (no card, no device): a capture of another aspect is letterboxed /
+# pillarboxed with the theme background. Its caption area is a band over the bottom of the capture, where
+# studio/caption-overlay draws its translucent band (and where any caption component draws: prefer the overlay
+# caption with this layout). No brand mark (it would sit on the product's UI).
 id: studio/layout-raw
-version: 0.1.0
+version: 1.0.0
 kind: layout
 name: Raw
-description: The capture fills the whole frame, edge to edge; captions are drawn over it.
-tags: [placeholder, raw, full-frame]
+description: The capture fills the whole frame, edge to edge (letterboxed with the theme background when its aspect differs); captions are drawn over its bottom.
+tags: [raw, full-frame]
 slots:
   screen: {type: screen, required: true, description: The capture (video + camera moves).}
 params:
@@ -15,9 +17,11 @@ params:
 tokens: [background]
 geometry:
   screen: {x: 0, y: 0, w: 1920, h: 1080}
+  caption: {x: 260, y: 890, w: 1400, h: 150}
   radius: 0
 geometry_vertical:
   screen: {x: 0, y: 0, w: 1080, h: 1920}
+  caption: {x: 60, y: 1560, w: 960, h: 220}
   radius: 0
 variants: [landscape, vertical]
 preview:

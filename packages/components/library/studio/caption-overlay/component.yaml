@@ -1,23 +1,29 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# The active cue on a translucent dark band: over the capture near the bottom of the frame (layouts without a caption
-# area, e.g. raw), or in the layout's caption area when it has one.
+# A translucent band over the capture, in the family of studio/caption-below (docs/reference/look.md captions): the
+# theme's caption kicker (uppercase, accent, with a short accent rule) over the caption line in the theme's caption
+# line style, light on the theme's night tone. `position: over` (default) puts the band over the bottom of the capture
+# (40 px in, centred; the planner's layout rects), falling back to the layout's caption area when the capture is
+# narrower than 900 px (phones); `area` always uses the caption area. Each cue rises in (0.35 s) and fades out
+# (0.25 s); a cue starting / ending with the clip waits / leaves 0.15 s inside it (no double exposure in crossfades).
 id: studio/caption-overlay
-version: 0.1.0
+version: 1.0.0
 kind: caption
 name: Caption band
-description: The active cue (kicker and line) on a translucent dark band near the bottom of the frame, over the capture; for raw and motion-style edits.
-tags: [placeholder, caption, overlay, band]
+description: The active cue on a translucent band over the bottom of the capture — the theme-coloured kicker with an accent rule over the caption line, light on the theme's night tone; for raw, browser and motion-style edits.
+tags: [caption, overlay, band]
 slots:
   text: {type: text, default_from: scene.caption.text, max_chars: 90, description: Caption line (when no cues are given).}
-  kicker: {type: text, default_from: scene.caption.kicker, max_chars: 40, description: Small line above the caption.}
+  kicker: {type: text, default_from: scene.caption.kicker, max_chars: 40, description: Small uppercase line above the caption.}
 params:
   type: object
   properties:
-    opacity: {type: number, minimum: 0.3, maximum: 1, default: 0.82, description: Opacity of the band.}
+    position: {type: string, enum: [over, area], default: over, description: "over: a band over the bottom of the capture (the caption area when the capture is narrower than 900 px); area: in the layout's caption area."}
+    align: {type: string, enum: [center, left], default: center, description: Alignment of the text in the band.}
+    opacity: {type: number, minimum: 0.3, maximum: 1, default: 0.84, description: Opacity of the band.}
     max_width: {type: number, minimum: 400, maximum: 1800, default: 1400, description: Widest band in design px.}
-tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body, captions.kicker, captions.line]
+    max_lines: {type: integer, minimum: 1, maximum: 3, default: 2, description: "Lines of the caption line (it shrinks to fit first, down to 62 % of the theme size)."}
+tokens: [colors.accent, colors.text, colors.paper, colors.dark, fonts.display, fonts.body, captions.kicker, captions.line, style_bias]
 variants: [landscape, vertical]
 preview:
   slots: {text: Pick a customer and the price list follows., kicker: Quotes}
-  at: [0.6]
+  at: [0.8]

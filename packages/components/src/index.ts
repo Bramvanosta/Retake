@@ -66,4 +66,28 @@ export { CAMERA_EASINGS, DEFAULT_ZOOM_EASE, cubicBezier } from './kit/easing.js'
 export type { Bezier, EasingFn } from './kit/easing.js';
 /** The kit's text fitting (pure, no React), for Node-side consumers such as the review. */
 export { estimateTextWidth, fitText, wrapText } from './kit/fit-text.js';
+/** Caption band placement (pure), shared by studio/caption-overlay and the review. */
+export { CAPTION_BAND_INSET, CAPTION_BAND_MIN_SCREEN, CAPTION_BAND_PAD_X, captionBandBox } from './kit/devices.js';
+export type { CaptionBandInput } from './kit/devices.js';
 export type { FitTextOptions, FitTextResult, TextFont, TextMeasurer } from './kit/fit-text.js';
+export {
+  PREVIEW_FILE,
+  PREVIEW_FORMAT,
+  PREVIEW_MAX_BYTES,
+  PREVIEW_META_FILE,
+  PREVIEW_SAMPLES_DIR,
+  PREVIEW_SIZE,
+  PREVIEW_THEME,
+  README_BEGIN,
+  README_END,
+  componentSourceFiles,
+  componentSourceHash,
+  mergePreviewReadme,
+  pngSize,
+  previewMoment,
+  previewReadmeBlock,
+  previewStatus,
+  readPreviewMeta,
+  writePreviewReadme,
+} from './preview.js';
+export type { PreviewMeta, PreviewStatus } from './preview.js';

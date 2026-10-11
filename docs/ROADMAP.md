@@ -32,8 +32,8 @@ requirements of a lot with their gaps.
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | **done** |
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | **done** |
 | L2.6 | Review package + `studio review` | M | **done** |
-| L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | next |
-| L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | todo |
+| L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | **done** |
+| L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | next |
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | todo |
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | todo |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
@@ -248,6 +248,29 @@ requirements of a lot with their gaps.
   since L2.5: layout-card); previews generated per theme
   (R-LIB-02/04/05/07/09..12/14..16/18/19, R-ED-10/12/13/14, R-CMP-12/13/14); committed `preview.png` + README per
   component (all 18 existing included), `studio components preview`, staleness test.
+- **Done:** the thirteen components rewritten in the reference family (1.0.0, no placeholder left; R-LIB-00): layouts
+  browser (macOS window, real URL per frame from the clip's URL track, optional tabs, light/dark chrome), laptop
+  (MacBook-style, CSS only), phone (iPhone-style: status bar + Dynamic Island above the capture, side buttons, caption
+  beside), **tablet** (new: iPad-style, portrait with the caption beside / landscape with the caption below, from the
+  capture aspect; frame style `tablet`), raw (edge to edge, caption over the bottom); caption-overlay (night-tone band
+  over the capture, kicker + line, kit `captionBandBox` shared with the review), card-title, intro-/outro-minimal
+  (`logo_only`), interstitial-plain (`tone`), overlay-callout (ring + pill + pointer, never off-screen: `placeCallout`
+  property-tested), overlay-lower-third (inside the capture), transition-fade-black (black or night tone). Geometry
+  expressions over params and `aspect` for every layout (device proportions clamped; a capture outside them is
+  letterboxed with the theme background: `PlanLayout.display` / `LayoutRects.display`); captions and overlays receive
+  the clip layout's `rects`; kit `cardShadow`, `deviceTones`, `SYSTEM_COLORS`, `addressParts`. Previews:
+  `ComponentPreview` composition + `buildComponentPreview` (pure) + `renderComponentPreviews` (one bundle and browser,
+  half-scale stills, ffmpeg palette when > 200 KB), neutral sample screens generated once from the fixture
+  (`packages/components/preview/`, `scripts/preview-samples.mjs`), `studio components preview [id|--all] [--stale]
+  [--workspace] [--theme] [--out]`, `create` renders the preview (`--no-preview`), committed preview.png +
+  preview.json + README block for the 19 library components and 8 scaffolds, staleness test (source hash of manifest +
+  entry + local imports). Also: the scene-cursor flake fixed at the root (the glide runs on a motion clock capped per
+  tick: a loaded machine pauses the cursor, never makes it jump; fake-clock stall tests), the fixture shop made
+  responsive (tablet 820 × 1180, phone 390 × 844: tabs nav, bottom-sheet dialogs, one-month calendar) with a
+  `mobile-quote` scenario captured at phone size, `studio still --layout`, run lookup by exact scenario
+  (`mobile-quote` is not a run of `quote`), a capture with zero frames now fails. Renders checked frame by frame:
+  quote with browser / laptop / raw, mobile-quote with phone / tablet. 600 tests (594 pass, 6 Postgres tests skipped;
+  the full suite green twice in a row).
 
 ### L2.8 — Variants & export (M)
 - **Scope:** vertical 9:16 and square 1:1 with smoothed reframing on the cursor/targets, 4K from scale-2 captures,

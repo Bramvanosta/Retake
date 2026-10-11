@@ -42,7 +42,7 @@ export const SceneSchema = z
     cursor: SceneCursorSchema.optional(),
     transition: TransitionSchema.describe('Transition INTO this scene (default: template).').optional(),
     frame: FrameSpecSchema.describe(
-      'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone or a layout component id "namespace/name".',
+      'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
     ).optional(),
     irreversible: z.boolean().describe('Every step is irreversible (dry-run stops the scene at its first step).').optional(),
     skip: z.boolean().describe('Skip this scene entirely.').optional(),
@@ -155,7 +155,7 @@ export const ScenarioSchema = z
     teardown: z.array(HookStepSchema).describe('Hooks run after capture, even after a failure.').optional(),
     capture: CapturePartialSchema.optional(),
     frame: FrameSpecSchema.describe(
-      'Frame of every scene (default: the project frame): raw, card, browser, laptop, phone or a layout component id "namespace/name".',
+      'Frame of every scene (default: the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
     ).optional(),
     template: nonEmpty().describe('Template name (default: the project template).').optional(),
     pacing: PacingPartialSchema.optional(),

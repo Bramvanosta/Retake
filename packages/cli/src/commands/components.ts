@@ -1,9 +1,20 @@
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, errorsOf, warningsOf } from '@demo-studio/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, warningsOf } from '@demo-studio/core';
 import type { ComponentKind } from '@demo-studio/core';
-import { createComponent, loadComponentRegistry, paramDefaults, validateComponentDir } from '@demo-studio/components';
+import {
+  PREVIEW_FILE,
+  PREVIEW_THEME,
+  createComponent,
+  loadComponentRegistry,
+  paramDefaults,
+  previewStatus,
+  scaffoldDir,
+  validateComponentDir,
+} from '@demo-studio/components';
 import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@demo-studio/components';
+import { loadPreviewTheme, renderComponentPreviews } from '@demo-studio/editor';
+import type { PreviewComponentTarget, RenderedPreview } from '@demo-studio/editor';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -32,6 +43,7 @@ function info(c: ComponentInfo) {
     ...(m.duration ? { duration: m.duration } : {}),
     ...(m.variants ? { variants: m.variants } : {}),
     ...(m.tags ? { tags: m.tags } : {}),
+    ...(existsSync(join(c.dir, PREVIEW_FILE)) ? { preview: join(c.dir, PREVIEW_FILE) } : {}),
   };
 }
 
@@ -168,12 +180,31 @@ export interface ComponentsCreateOptions {
   description?: string;
   name?: string;
   json?: boolean;
+  /** Theme of the generated preview (default editorial). */
+  theme?: string;
+  /** commander: `--no-preview` sets it to false. */
+  preview?: boolean;
 }
 
 /** `studio components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name });
+  // The preview (preview.png + preview.json + the README block) — skipped with a warning when no browser can render.
+  let preview: RenderedPreview | undefined;
+  let previewError: string | undefined;
+  if (opts.preview !== false) {
+    try {
+      const template = await loadPreviewTheme(opts.theme ?? PREVIEW_THEME, ws.root);
+      [preview] = await renderComponentPreviews({
+        root: ws.root,
+        template,
+        targets: [{ id: created.manifest.id, dir: created.dir, entry: created.entry, manifest: created.manifest }],
+      });
+    } catch (e) {
+      previewError = (e as Error).message.split('\n')[0];
+    }
+  }
   if (opts.json) {
     ui.result(
       JSON.stringify(
@@ -185,6 +216,8 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
           files: created.files,
           issues: created.issues,
           ...(created.overrides ? { overrides: created.overrides } : {}),
+          ...(preview ? { preview: preview.file } : {}),
+          ...(previewError ? { preview_error: previewError } : {}),
         },
         null,
         2,
@@ -196,12 +229,97 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
   ui.ok(`created ${opts.kind} component ${c.bold(created.manifest.id)} in ${ui.path(created.dir)} (validated)`);
   ui.line(c.dim('  component.yaml  manifest: slots, params (JSON Schema + defaults), duration, preview samples'));
   ui.line(c.dim('  index.tsx       implementation: theme tokens + unit, frame-driven, imports react / remotion / the kit'));
-  ui.line(c.dim('  README.md       notes for whoever edits it'));
+  ui.line(c.dim('  README.md       notes for whoever edits it (+ the generated preview block)'));
+  if (preview) ui.line(c.dim(`  preview.png     generated preview (${preview.meta?.theme ?? PREVIEW_THEME} theme, at ${preview.at} s): ${ui.path(preview.file)}`));
+  if (previewError) ui.warn(`no preview rendered (${previewError}): run \`studio components preview ${created.manifest.id}\` when a browser is available`);
   if (created.overrides) ui.warn(`${created.manifest.id} overrides the built-in component of the same id`);
   for (const i of created.issues) ui.line(`  ${ui.issue(i, join(created.dir, i.file))}`);
   ui.line(
-    `next: edit index.tsx, then ${c.bold(`studio components validate ${created.manifest.id}`)}; ` +
+    `next: edit index.tsx, then ${c.bold(`studio components validate ${created.manifest.id}`)} and ${c.bold(`studio components preview ${created.manifest.id}`)}; ` +
       `use it from a template (components: {${opts.kind}: ${created.manifest.id}}) or a scenario`,
   );
+  return EXIT.ok;
+}
+
+export interface ComponentsPreviewOptions {
+  all?: boolean;
+  /** Only previews that are missing or stale. */
+  stale?: boolean;
+  /** Only workspace components (with --all). */
+  workspace?: boolean;
+  theme?: string;
+  out?: string;
+  json?: boolean;
+}
+
+/** Every component a preview can be rendered for: the registry (workspace + built-in) and the per-kind scaffolds. */
+function allPreviewTargets(reg: ComponentRegistry, workspaceOnly: boolean): PreviewComponentTarget[] {
+  const out: PreviewComponentTarget[] = reg
+    .list()
+    .filter((i) => !workspaceOnly || i.source === 'workspace')
+    .map((i) => ({ id: i.manifest.id, dir: i.dir, entry: i.entry, manifest: i.manifest }));
+  return out;
+}
+
+async function scaffoldTargets(): Promise<PreviewComponentTarget[]> {
+  const out: PreviewComponentTarget[] = [];
+  for (const kind of COMPONENT_KINDS) {
+    const v = await validateComponentDir(scaffoldDir(kind));
+    if (v.manifest) out.push({ id: v.manifest.id, dir: v.dir, entry: join(v.dir, v.manifest.entry ?? 'index.tsx'), manifest: v.manifest });
+  }
+  return out;
+}
+
+/**
+ * `studio components preview [<id|dir>] [--all] [--stale] [--theme T] [--out DIR] [--json]`: render each component
+ * with its manifest preview samples into <component dir>/preview.png (960×540) + preview.json + the README block —
+ * or only the images into --out. --all: every component (workspace, built-in library and the per-kind scaffolds).
+ */
+export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, arg: string | undefined, opts: ComponentsPreviewOptions): Promise<ExitCode> {
+  const ws = await openWorkspace(global);
+  const reg = await loadComponentRegistry({ root: ws.root });
+  let targets: PreviewComponentTarget[];
+  if (arg !== undefined) {
+    const scaffold = /^scaffolds\/([a-z]+)$/.exec(arg);
+    const t = scaffold && (COMPONENT_KINDS as readonly string[]).includes(scaffold[1]) ? { id: arg, dir: scaffoldDir(scaffold[1] as ComponentKind) } : targetOf(reg, arg);
+    const v = await validateComponentDir(t.dir);
+    if (!v.ok || !v.manifest) {
+      for (const i of v.issues) ui.line(`  ${ui.issue(i, join(v.dir, i.file))}`);
+      throw new CliError(`component ${t.id} does not validate: fix it before rendering its preview`);
+    }
+    targets = [{ id: v.manifest.id, dir: v.dir, entry: join(v.dir, v.manifest.entry ?? 'index.tsx'), manifest: v.manifest }];
+  } else if (opts.all) {
+    targets = allPreviewTargets(reg, opts.workspace === true);
+    if (!opts.workspace) targets.push(...(await scaffoldTargets()));
+  } else {
+    throw new CliError('name a component (id or folder) or pass --all');
+  }
+  const themeName = opts.theme ?? PREVIEW_THEME;
+  if (opts.stale) targets = targets.filter((t) => previewStatus(t.dir, { theme: themeName }).state !== 'fresh');
+  const c = ui.c;
+  if (targets.length === 0) {
+    if (opts.json) ui.result(JSON.stringify({ theme: themeName, previews: [] }, null, 2));
+    else ui.ok('every preview is up to date');
+    return EXIT.ok;
+  }
+  const template = await loadPreviewTheme(themeName, ws.root);
+  if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
+  const t0 = performance.now();
+  const done = await renderComponentPreviews({
+    root: ws.root,
+    registry: reg,
+    template,
+    targets,
+    ...(opts.out ? { outDir: resolve(opts.out) } : {}),
+    onProgress: (n, total, id) => {
+      if (!opts.json) ui.line(c.dim(`  ${n}/${total} ${id}`));
+    },
+  });
+  if (opts.json) {
+    ui.result(JSON.stringify({ theme: template.name, previews: done.map((p) => ({ id: p.id, file: p.file, bytes: p.bytes, at: p.at, screen: p.screen, quantized: p.quantized, readme: p.readme })) }, null, 2));
+    return EXIT.ok;
+  }
+  for (const p of done) ui.ok(`${c.bold(p.id)} ${ui.path(p.file)} ${c.dim(`${Math.round(p.bytes / 1024)} KB · at ${p.at} s${p.screen ? ` · ${p.screen} screen` : ''}${p.quantized ? ' · 256 colours' : ''}`)}`);
+  ui.line(c.dim(`${plural(done.length, 'preview')} in ${((performance.now() - t0) / 1000).toFixed(1)} s`));
   return EXIT.ok;
 }

@@ -12,13 +12,22 @@ export interface PointerHost {
   pacing: Pacing;
   signal: AbortSignal;
   scale: number;
+  /** Clock of the motion loop (tests inject a fake one to simulate a loaded machine): default wall clock + sleep. */
+  clock?: { now(): number; sleep(ms: number, signal?: AbortSignal): Promise<void> };
 }
 
 export type MouseButton = 'left' | 'right' | 'middle';
 export type Modifier = 'Alt' | 'Control' | 'Meta' | 'Shift';
 
 /** ~60 Hz: one dispatched mouse move per frame. */
-const TICK_MS = 1000 / 60;
+export const TICK_MS = 1000 / 60;
+/**
+ * Most motion time one tick may advance (ms): two frames. The glide runs on its own motion clock, advanced by the
+ * wall time between ticks but never by more than this, so a stalled runner (a loaded machine: a late timer, a slow
+ * CDP round trip) PAUSES the cursor and then continues the eased path — it never skips ahead, which would show as a
+ * jump in the capture. On time, every tick advances exactly the wall time (the motion keeps its planned duration).
+ */
+export const MAX_TICK_ADVANCE_MS = 2 * TICK_MS;
 
 /**
  * Node-side cursor: moves the REAL CDP mouse in small eased steps. The in-page overlay follows the resulting
@@ -82,11 +91,14 @@ export class Pointer {
         ? (e: number) => ({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e })
         : arcPath(from, to, opts.jitter?.side() ?? 1);
     const mouse = this.host.page().mouse;
-    const start = wallNow();
-    let tick = 0;
+    const clock = this.host.clock ?? { now: wallNow, sleep };
+    // Motion time (ms along the planned glide), advanced per tick by the elapsed wall time capped at
+    // MAX_TICK_ADVANCE_MS: a late tick resumes the path where it was instead of jumping ahead.
+    let motion = 0;
+    let last = clock.now();
     for (;;) {
       throwIfAborted(this.host.signal);
-      const u = ms <= 0 ? 1 : Math.min(1, (wallNow() - start) / ms);
+      const u = ms <= 0 ? 1 : Math.min(1, motion / ms);
       const e = easeInOutCubic(u);
       const p = path(e);
       const x = u >= 1 ? to.x : snap(p.x, this.host.scale);
@@ -98,9 +110,11 @@ export class Pointer {
         this.sample();
       }
       if (u >= 1) break;
-      tick++;
-      const wait = start + tick * TICK_MS - wallNow();
-      if (wait > 1) await sleep(wait, this.host.signal);
+      const wait = last + TICK_MS - clock.now();
+      if (wait > 1) await clock.sleep(wait, this.host.signal);
+      const now = clock.now();
+      motion += Math.min(Math.max(0, now - last), MAX_TICK_ADVANCE_MS);
+      last = now;
     }
     return ms;
   }

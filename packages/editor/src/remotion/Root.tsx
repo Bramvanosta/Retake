@@ -10,9 +10,17 @@ import { DemoVideo } from './DemoVideo.js';
 import type { DemoVideoProps } from './DemoVideo.js';
 import { ModulesContext } from './modules.js';
 import type { ComponentModules } from './modules.js';
+import { ComponentPreview } from './Preview.js';
+import type { ComponentPreviewProps } from './Preview.js';
 
 /** Composition ids. */
-export const COMPOSITIONS = { landscape: 'DemoVideo', vertical: 'DemoVertical' } as const;
+export const COMPOSITIONS = { landscape: 'DemoVideo', vertical: 'DemoVertical', preview: 'ComponentPreview' } as const;
+
+const previewMetadata: CalculateMetadataFunction<ComponentPreviewProps> = ({ props }) => {
+  const p = props.preview;
+  if (!p) return {};
+  return { durationInFrames: Math.max(1, p.durationInFrames), fps: p.fps, width: p.width, height: p.height };
+};
 
 function metadata(variant: 'landscape' | 'vertical'): CalculateMetadataFunction<DemoVideoProps> {
   return ({ props }) => {
@@ -32,6 +40,12 @@ export function createRoot(modules: ComponentModules): ComponentType {
     </ModulesContext.Provider>
   );
   const defaultProps: DemoVideoProps = { plan: null };
+  const Preview = (props: ComponentPreviewProps) => (
+    <ModulesContext.Provider value={modules}>
+      <ComponentPreview {...props} />
+    </ModulesContext.Provider>
+  );
+  const previewDefaults: ComponentPreviewProps = { preview: null };
   return function DemoStudioRoot() {
     return (
       <>
@@ -54,6 +68,16 @@ export function createRoot(modules: ComponentModules): ComponentType {
           height={1920}
           defaultProps={defaultProps}
           calculateMetadata={metadata('vertical')}
+        />
+        <Composition
+          id={COMPOSITIONS.preview}
+          component={Preview}
+          durationInFrames={1}
+          fps={30}
+          width={1920}
+          height={1080}
+          defaultProps={previewDefaults}
+          calculateMetadata={previewMetadata}
         />
       </>
     );

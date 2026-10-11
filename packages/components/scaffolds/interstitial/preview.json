@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "scaffolds/interstitial",
+  "version": "0.1.0",
+  "kind": "interstitial",
+  "theme": "editorial",
+  "at": 1.4,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "04fa0913c197b246",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

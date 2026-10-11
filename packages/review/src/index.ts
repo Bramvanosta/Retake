@@ -7,6 +7,7 @@ export * from './types.js';
 export { reviewRender, keyframePlan, sampleFrames, safeName } from './review.js';
 export { ReviewError, findPrevious, findRender, renderTimeline, reviewsDir } from './load.js';
 export {
+  captionRegion,
   checkCamera,
   checkCaptions,
   checkCursor,

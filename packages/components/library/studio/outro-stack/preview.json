@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/outro-stack",
+  "version": "1.0.0",
+  "kind": "outro",
+  "theme": "editorial",
+  "at": 2.6,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "173d0b0d1350ac90",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

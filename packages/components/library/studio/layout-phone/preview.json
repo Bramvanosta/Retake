@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/layout-phone",
+  "version": "1.0.0",
+  "kind": "layout",
+  "theme": "editorial",
+  "at": 1,
+  "screen": "phone",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "cab3447621300d2a",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

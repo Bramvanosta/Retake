@@ -85,6 +85,7 @@ export function envelopeAt(seg: Pick<PlanSegment, 'fadeIn' | 'fadeOut' | 'durati
  */
 export function layoutRects(layout: PlanLayout): LayoutRects {
   const out: LayoutRects = { screen: { ...layout.capture }, frame: { ...layout.card }, radius: layout.radius };
+  if (layout.display) out.display = { ...layout.display };
   if (layout.chrome) out.chrome = { ...layout.chrome };
   if (layout.caption) out.caption = { ...layout.caption };
   if (layout.brandmark) out.brandmark = { ...layout.brandmark };

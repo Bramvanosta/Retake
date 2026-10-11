@@ -4,7 +4,7 @@
  * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
  */
 import type { Timeline } from '@demo-studio/core';
-import { fitText } from '@demo-studio/components';
+import { CAPTION_BAND_PAD_X, captionBandBox, fitText } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
 import { brandmarkRect, viewOf } from '@demo-studio/editor';
 import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
@@ -164,17 +164,34 @@ interface CaptionFit {
   lines: number;
 }
 
+/**
+ * Where a clip's caption is drawn: the layout's caption rect — or, for a caption whose params say `position: over`
+ * (studio/caption-overlay), the band box over the capture (kit `captionBandBox`, the box the component draws in).
+ * `inset` = the horizontal padding of the text inside it. Undefined when there is no place.
+ */
+export function captionRegion(plan: Pick<EditPlan, 'width' | 'height' | 'unit'>, clip: ClipSegment): { rect: { x: number; y: number; w: number; h: number }; over: boolean; inset: number } | undefined {
+  const params = clip.caption?.params ?? {};
+  if (params.position === 'over') {
+    const maxWidth = typeof params.max_width === 'number' ? params.max_width : 1400;
+    const band = captionBandBox({ rects: { screen: clip.layout.capture }, area: clip.layout.caption, width: plan.width, height: plan.height, unit: plan.unit, position: 'over', maxWidth });
+    return { rect: band.box, over: band.over, inset: CAPTION_BAND_PAD_X * plan.unit };
+  }
+  const area = clip.layout.caption;
+  return area ? { rect: area, over: false, inset: 6 * plan.unit } : undefined;
+}
+
 /** How a caption line fits the clip's caption area with the theme's caption style (kit fitText, real font widths). */
 export function fitCaption(ctx: Pick<CheckContext, 'plan' | 'rules' | 'measure'>, clip: ClipSegment, text: string): CaptionFit | undefined {
-  const area = clip.layout.caption;
+  const region = captionRegion(ctx.plan, clip);
   const style = ctx.plan.brand.tokens.captions?.line;
-  if (!area || !style) return undefined;
+  if (!region || !style) return undefined;
+  const area = region.rect;
   const unit = ctx.plan.unit;
   const params = clip.caption?.params ?? {};
   const maxLinesParam = typeof params.max_lines === 'number' ? params.max_lines : 1;
   const maxLines = ctx.plan.variant === 'vertical' ? Math.max(2, maxLinesParam) : maxLinesParam;
   const size = style.size * unit;
-  const inset = 6 * unit;
+  const inset = region.inset;
   const r = fitText({
     text,
     width: area.w - 2 * inset,
@@ -284,7 +301,8 @@ export function checkCaptions(ctx: CheckContext): Finding[] {
   // 4. Captions too long for their area (fitText with the theme caption style), and clear of the brand mark.
   const seen = new Set<string>();
   for (const clip of clips) {
-    if (!clip.caption || !clip.layout.caption) continue;
+    const region = captionRegion(plan, clip);
+    if (!clip.caption || !region) continue;
     for (const cue of clip.cues) {
       const key = `${clip.id}|${cue.text}`;
       if (seen.has(key)) continue;
@@ -301,9 +319,9 @@ export function checkCaptions(ctx: CheckContext): Finding[] {
         out.push(finding('info', 'caption-shrunk', `the caption "${cue.text}" is drawn at ${pct} % of the theme size to fit its area`, at));
       }
       const mark = brandmarkRect(plan, clip.layout.brandmark, plan.brand.brandmark?.position);
-      const area = clip.layout.caption;
-      if (mark && clip.caption.params.position !== 'above') {
-        const left = clip.caption.params.align === 'center' ? area.x + (area.w - fit.width) / 2 : area.x + 6 * plan.unit;
+      const area = region.rect;
+      if (mark && clip.caption.params.position !== 'above' && !region.over) {
+        const left = clip.caption.params.align === 'center' ? area.x + (area.w - fit.width) / 2 : area.x + region.inset;
         const right = left + fit.width;
         const vOverlap = mark.rect.y < area.y + area.h && mark.rect.y + mark.rect.h > area.y;
         const hOverlap = right > mark.rect.x && left < mark.rect.x + mark.rect.w;

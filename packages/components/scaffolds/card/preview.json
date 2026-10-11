@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "scaffolds/card",
+  "version": "0.1.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 1.5,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "2aab80fd6ac48495",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

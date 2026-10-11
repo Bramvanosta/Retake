@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "scaffolds/caption",
+  "version": "0.1.0",
+  "kind": "caption",
+  "theme": "editorial",
+  "at": 0.6,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "b9377810f386a73f",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

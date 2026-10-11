@@ -180,7 +180,15 @@ export const ComponentManifestFileSchema = z
       .strictObject({
         slots: z.record(z.string(), z.string()).describe('Sample slot values (every required slot not filled from the theme).').optional(),
         params: z.record(z.string(), z.unknown()).describe('Params of the preview (over the defaults).').optional(),
-        at: z.array(z.number().min(0)).min(1).describe('Seconds at which preview stills are taken.').optional(),
+        at: z
+          .array(z.number().min(0))
+          .min(1)
+          .describe('Seconds at which preview stills are taken (the committed preview.png shows the last one).')
+          .optional(),
+        screen: z
+          .enum(['desktop', 'tablet', 'phone'])
+          .describe('Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop).')
+          .optional(),
       })
       .describe('Sample values used to render previews with any theme.')
       .optional(),

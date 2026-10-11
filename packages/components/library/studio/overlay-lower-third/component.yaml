@@ -1,22 +1,24 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# A lower third: an accent bar, the kicker and the text on a paper panel at the bottom-left of the frame (the anchor
-# is not used). Slides in, fades out at the end. Same slots as studio/overlay-callout, so the two are interchangeable.
+# A lower third in the family of the reference captions (docs/reference/look.md): a panel in the theme's paper with an
+# accent bar, the uppercase kicker in the accent over the text in the display font, at the bottom left (or right) of
+# the capture — inside the layout's screen rect, clear of the caption area — or of the frame's safe area outside a
+# clip. Slides in (0.45 s), fades out over its last 0.3 s. Same slots as studio/overlay-callout (interchangeable); the
+# anchor is not used.
 id: studio/overlay-lower-third
-version: 0.1.0
+version: 1.0.0
 kind: overlay
 name: Lower third
-description: Paper panel with an accent bar, a small kicker and the text at the bottom-left of the frame; slides in and fades out.
-tags: [placeholder, overlay, lower-third]
+description: A paper panel with an accent bar, a small kicker and the text at the bottom left (or right) of the capture; slides in and fades out.
+tags: [overlay, lower-third]
 slots:
   text: {type: text, required: true, max_chars: 60, description: Main line.}
   kicker: {type: text, max_chars: 40, description: Small uppercase line above the text.}
 params:
   type: object
   properties:
-    side: {type: string, enum: [left, right], default: left, description: Corner of the frame.}
+    side: {type: string, enum: [left, right], default: left, description: Corner of the capture.}
     max_width: {type: number, minimum: 300, maximum: 1400, default: 760, description: Widest panel in design px.}
-tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body]
+tokens: [colors.accent, colors.text, colors.paper, fonts.display, fonts.body, style_bias]
 duration: {default: 3, min: 1, max: 30}
 variants: [landscape, vertical]
 preview:

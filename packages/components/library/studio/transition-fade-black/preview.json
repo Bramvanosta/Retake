@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/transition-fade-black",
+  "version": "1.0.0",
+  "kind": "transition",
+  "theme": "editorial",
+  "at": 0.07,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "cf672eab5ef06b78",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

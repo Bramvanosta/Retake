@@ -55,6 +55,12 @@ export interface PlanLayout {
   capture: Rect;
   /** The card / device outline that contains the capture (equals capture for 'raw'). */
   card: Rect;
+  /**
+   * The layout's declared screen rect (a device display, a browser page area) when the capture, fitted to its own
+   * aspect ratio, does not fill it (`capture` is then letterboxed / pillarboxed inside it): the layout paints the
+   * difference with the theme background. Absent when the capture fills the screen rect.
+   */
+  display?: Rect;
   /** Browser chrome bar above the capture (frame 'browser' only). */
   chrome?: Rect;
   /** Caption block area. */

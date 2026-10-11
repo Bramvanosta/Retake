@@ -128,3 +128,65 @@ describe('caption cues land in the layout caption area', () => {
     }
   });
 });
+
+describe('device and window layouts through the planner (L2.7)', () => {
+  const sized = (w: number, h: number): Timeline => {
+    const t = realTimeline('quote');
+    t.capture = { ...t.capture, width: w, height: h };
+    return t;
+  };
+
+  it('browser: the window around the capture with its chrome bar; every clip keeps the URLs it showed', () => {
+    const p = plan(realTimeline('quote'), { frame: 'browser' });
+    expect(p.warnings).toEqual([]);
+    const c = clip(p, 'proposal');
+    expect(c.component.id).toBe('studio/layout-browser');
+    expect(c.layout.card).toEqual({ x: 226, y: 40, w: 1468, h: 878 });
+    expect(c.layout.chrome).toEqual({ x: 226, y: 40, w: 1468, h: 52 });
+    expect(c.layout.capture).toEqual({ x: 226, y: 92.125, w: 1468, h: 825.75 }); // 1468 / (16 / 9), centred in the 826 px page area
+    expect(c.layout.display).toBeUndefined();
+    expect(c.urls.length).toBeGreaterThan(0);
+    expect(c.urls.every((u) => /^http:\/\/localhost:4402\//.test(u.url))).toBe(true);
+  });
+
+  it('phone: a phone capture fills the screen under the status bar; a desktop one is letterboxed in it (display rect)', () => {
+    const mobile = plan(sized(390, 844), { frame: 'phone' });
+    expect(mobile.warnings).toEqual([]);
+    const m = clip(mobile, 'proposal').layout;
+    expect(m.display).toBeUndefined();
+    expect(m.capture.w / m.capture.h).toBeCloseTo(390 / 844, 2);
+    expect(m.caption!.x).toBeGreaterThan(m.card.x + m.card.w); // the caption beside the phone
+    const desktop = plan(realTimeline('quote'), { frame: 'phone' });
+    const d = clip(desktop, 'proposal');
+    expect(d.layout.display).toBeDefined();
+    expect(d.layout.capture.w).toBeCloseTo(d.layout.display!.w, 1);
+    expect(d.layout.capture.h).toBeLessThan(d.layout.display!.h / 2);
+    expect(d.layout.capture.y).toBeGreaterThan(d.layout.display!.y);
+    // The overlay anchor still lands inside the (letterboxed) capture.
+    const o = d.overlays[0];
+    const a = mapSourceRect(desktop, d, o.from, o.anchor!.bbox!);
+    expect(a.x).toBeGreaterThanOrEqual(d.layout.capture.x);
+    expect(a.y + a.h).toBeLessThanOrEqual(d.layout.capture.y + d.layout.capture.h + 0.5);
+  });
+
+  it('tablet: upright with the caption beside for a portrait capture, lying with the caption below for a landscape one', () => {
+    const portrait = clip(plan(sized(820, 1180), { frame: 'tablet' }), 'proposal').layout;
+    expect(portrait.card).toEqual({ x: 244, y: 58, w: 696, h: 964 });
+    expect(portrait.caption).toEqual({ x: 1036, y: 485, w: 640, h: 110 });
+    const landscape = clip(plan(sized(1180, 820), { frame: 'tablet' }), 'proposal').layout;
+    expect(landscape.card).toEqual({ x: 347, y: 40, w: 1227, h: 878 });
+    expect(landscape.caption!.y).toBe(930);
+    expect(landscape.display).toBeUndefined();
+  });
+
+  it('laptop and raw: the capture keeps its aspect; raw letterboxes a phone capture with the theme background', () => {
+    const l = clip(plan(realTimeline('quote'), { frame: 'laptop' }), 'proposal').layout;
+    expect(l.capture.w / l.capture.h).toBeCloseTo(16 / 9, 2);
+    expect(l.card.w).toBeGreaterThan(l.capture.w * 1.15);
+    const raw = clip(plan(sized(390, 844), { frame: 'raw' }), 'proposal').layout;
+    expect(raw.capture.h).toBe(1080);
+    expect(raw.capture.w).toBeCloseTo((1080 * 390) / 844, 0);
+    expect(raw.display).toEqual({ x: 0, y: 0, w: 1920, h: 1080 });
+    expect(raw.caption).toEqual({ x: 260, y: 890, w: 1400, h: 150 });
+  });
+});

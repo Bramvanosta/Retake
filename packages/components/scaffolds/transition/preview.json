@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "scaffolds/transition",
+  "version": "0.1.0",
+  "kind": "transition",
+  "theme": "editorial",
+  "at": 0.2,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "73d10a4ce3971111",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

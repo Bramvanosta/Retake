@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "scaffolds/overlay",
+  "version": "0.1.0",
+  "kind": "overlay",
+  "theme": "editorial",
+  "at": 0.8,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "78c1cc7d3e218fc2",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

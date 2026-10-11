@@ -130,11 +130,11 @@ export const CameraHintSchema: z.ZodType<CameraHint> = z
   })
   .meta({ id: 'CameraHint', description: 'Edit-time camera move keyed to this step. The camera is static otherwise.' });
 
-export const FRAME_STYLES: readonly FrameStyle[] = ['raw', 'card', 'browser', 'laptop', 'phone'];
+export const FRAME_STYLES: readonly FrameStyle[] = ['raw', 'card', 'browser', 'laptop', 'phone', 'tablet'];
 
 export const FrameStyleSchema = z
-  .enum(['raw', 'card', 'browser', 'laptop', 'phone'])
-  .describe('How the capture is framed: raw, card, browser chrome, laptop or phone mockup.');
+  .enum(['raw', 'card', 'browser', 'laptop', 'phone', 'tablet'])
+  .describe('How the capture is framed: raw, card, browser chrome, laptop, phone or tablet mockup.');
 
 /** Component ids: "namespace/name", lower-case letters, digits and "-" on each side. */
 export const COMPONENT_ID_RE = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
@@ -186,7 +186,7 @@ export const FrameSpecSchema: z.ZodType<FrameSpec> = z
   .meta({
     id: 'Frame',
     description:
-      'How the capture is framed: raw, card, browser, laptop or phone (built-in layouts studio/layout-<style>), ' +
+      'How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), ' +
       'or a layout component id "namespace/name".',
   });
 

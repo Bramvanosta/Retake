@@ -1,12 +1,13 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# The logo and one closing line (or, with logo_only, the logo and wordmark only), fading in on the theme background.
+# The quiet outro, in the family of the reference outro (docs/reference/look.md "Outro"): the logo (110 px) and one
+# closing line in the display font, centred by their bands; the logo fades in while scaling 0.94 → 1, the line follows
+# 0.35 s later with a short rise — or, with `logo_only`, the logo and the wordmark on one row.
 id: studio/outro-minimal
-version: 0.1.0
+version: 1.0.0
 kind: outro
 name: Outro minimal
 description: Logo and one closing line fading in on the theme background — or only the logo and wordmark (logo_only).
-tags: [placeholder, outro, minimal]
+tags: [outro, minimal]
 slots:
   tagline: {type: text, default_from: scenario.outro.tagline, max_chars: 70, description: One closing line.}
   logo: {type: image, default_from: theme.logo, description: Logo image (the theme logo by default).}
@@ -14,7 +15,7 @@ params:
   type: object
   properties:
     logo_only: {type: boolean, default: false, description: Show only the logo and the wordmark.}
-tokens: [colors.text, colors.muted, background, fonts.display, logo, wordmark]
+tokens: [colors.text, colors.muted, background, fonts.display, logo, wordmark, style_bias]
 duration: {default: 3, min: 1.2, max: 8}
 variants: [landscape, vertical]
 preview:

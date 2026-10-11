@@ -1,32 +1,67 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
-# PLACEHOLDER (L2.4): theme-driven stand-in until the full version lands in L2.7.
-# A laptop mock-up (dark bezel around the screen, a thin base below) on the theme background. The geometry below is
-# what the planner and the review use: keep index.tsx in sync.
+# A MacBook-style laptop seen from the front, drawn in CSS (no bitmap), in the family of the reference card
+# (docs/reference/look.md): the capture on the display (thin glass bezel with a camera, a chin, the hinge, the
+# aluminium base with its thumb notch), the reference soft shadow, the caption area below aligned with the lid and the
+# brand mark (drawn by the composition) right-aligned with it. Every tone comes from the theme (silver = the theme's
+# light tone mixed towards its dark one; space grey the reverse).
+# Geometry follows the params and the capture: `width` = display width, the display keeps the capture's aspect (at
+# most what lets the whole device + caption block fit), device + 12 px + caption block centred vertically. Default
+# (width 1300, 16:9): device {179, 58, 1562 × 843}, display {310, 87, 1300 × 731}, caption {281, 913, 1018 × 110}.
 id: studio/layout-laptop
-version: 0.1.0
+version: 1.0.0
 kind: layout
 name: Laptop
-description: The capture on the screen of a laptop mock-up (dark bezel, thin base) on the theme background, caption area below.
-tags: [placeholder, device, laptop]
+description: The capture on the display of a MacBook-style laptop (glass bezel with a camera, hinge, aluminium base with a thumb notch) on the theme background, caption area below, brand mark right-aligned with the lid.
+tags: [device, laptop, macbook]
 slots:
   screen: {type: screen, required: true, description: The capture (video + camera moves).}
 params:
   type: object
   properties:
-    bezel: {type: string, enum: [dark, light], default: dark, description: Colour of the bezel and base.}
-tokens: [colors.text, colors.paper, background]
+    width: {type: number, minimum: 700, maximum: 1500, default: 1300, description: "Display width in design px (landscape). The display keeps the capture's aspect; on tall captures the device shrinks so it and the caption block fit."}
+    finish: {type: string, enum: [light, dark], default: light, description: "Aluminium finish: light (silver) or dark (space grey), both tinted by the theme."}
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under the device (tinted with the theme's dark tone)."}
+tokens: [colors.text, colors.paper, colors.dark, background]
 geometry:
-  frame: {x: 220, y: 40, w: 1480, h: 800}
-  screen: {x: 312, y: 66, w: 1296, h: 729}
-  caption: {x: 220, y: 880, w: 1480, h: 110}
-  brandmark: {x: 1500, y: 915, w: 200, h: 40}
-  radius: 4
+  vars:
+    bz: round(width * 0.022)                    # side / top bezel
+    chin: round(width * 0.03)                   # bottom bezel
+    hinge: round(width * 0.008)
+    deck: round(width * 0.026)                  # front edge of the base
+    room: 878 - bz - chin - hinge - deck        # device ≤ 878 tall: the caption block fits below
+    h: min(round(width / aspect), room)
+    w: min(width, round(room * aspect))
+    lw: w + 2 * bz                              # lid
+    ov: round(lw * 0.075)                       # base overhang on each side
+    bw: lw + 2 * ov
+    dh: bz + h + chin + hinge + deck            # device height
+    x: round((1920 - bw) / 2)
+    y: round((958 - dh) / 2)
+  frame: {x: x, y: y, w: bw, h: dh}
+  screen: {x: x + ov + bz, y: y + bz, w: w, h: h}
+  caption: {x: x + ov, y: y + dh + 12, w: lw - 340, h: 110}
+  brandmark: {x: x + ov + lw - 320, y: y + dh + 47, w: 320, h: 40}
+  radius: round(width * 0.008)
 geometry_vertical:
-  frame: {x: 40, y: 600, w: 1000, h: 543}
-  screen: {x: 102, y: 618, w: 876, h: 493}
-  caption: {x: 40, y: 1180, w: 1000, h: 220}
-  brandmark: {x: 880, y: 1840, w: 160, h: 40}
-  radius: 4
+  vars:
+    sw: 880
+    bz: round(sw * 0.022)
+    chin: round(sw * 0.03)
+    hinge: round(sw * 0.008)
+    deck: round(sw * 0.026)
+    h: min(round(sw / aspect), 1000)
+    w: min(sw, round(1000 * aspect))
+    lw: w + 2 * bz
+    ov: round(lw * 0.075)
+    bw: lw + 2 * ov
+    dh: bz + h + chin + hinge + deck
+    x: round((1080 - bw) / 2)
+    y: round((1688 - dh) / 2)
+  frame: {x: x, y: y, w: bw, h: dh}
+  screen: {x: x + ov + bz, y: y + bz, w: w, h: h}
+  caption: {x: 40, y: y + dh + 24, w: 1000, h: 220}
+  brandmark: {x: 700, y: 1840, w: 340, h: 40}
+  radius: round(sw * 0.008)
 variants: [landscape, vertical]
 preview:
   at: [1]
