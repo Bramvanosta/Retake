@@ -16,6 +16,7 @@ profiles live in **your own workspace folder**, never in this repository.
 - [Command line](#command-line)
 - [Project layout](#project-layout)
 - [Scenario language](#scenario-language)
+- [Editing: the edit plan](#editing-the-edit-plan)
 - [Signing in once: pre-authenticated profiles](#signing-in-once-pre-authenticated-profiles)
 - [Security](#security)
 - [Outputs of a run](#outputs-of-a-run)
@@ -125,6 +126,7 @@ studio env reset <project> [--env E] [--yes] [--dry]
 studio components list [--kind K] [--json]            # workspace components, then the built-in library
 studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
 studio components create <namespace/name> --kind K [--description D] [--name N] [--json]
+studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical] [--json] [--out FILE]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
 studio login <project> [--env E] [--page KEY] [--url URL]
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
@@ -154,6 +156,8 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
   failure, of another environment a warning. It exits with `1` when any check fails; `--json` prints the checks.
 - **components** lists, validates and scaffolds components — see [Components](#components).
+- **plan** shows how a capture will be edited (segments, components, speeds, trims, zooms, captions, warnings)
+  without rendering — see [Editing](#editing-the-edit-plan).
 - **render**, **review**, **export** (phase 2), **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and
   say when they arrive.
 
@@ -603,6 +607,82 @@ workspace component (exit 1 on any error). In code: `loadComponentRegistry({root
 `resolve(ref, kind)`, `resolveTheme(template)`), `validateComponent(dir)`, `createComponent(root, {id, kind,
 description})`, `themeTokens(template, urls)` from `@demo-studio/components`.
 
+## Editing: the edit plan
+
+The editor turns a run (`capture.mp4` + `timeline.json`) into a video in two steps: `planEdit` (package
+`@demo-studio/editor`) computes an **EditPlan** — a pure, deterministic description of every output frame — and the
+render pipeline (L2.4) only draws that plan with Remotion. The plan is also what the review, the Studio timeline and
+frame comments read. It never re-reads the scenario: the timeline carries the edit info (`video`, scene captions,
+speeds, step `camera` / `overlay` / `mark` / `hold`).
+
+What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
+
+- **Segments**: intro (unless the scenario says `intro: false`) → scenes, cards and interstitials in scenario order →
+  outro. Every segment carries its component, chosen by precedence: `overrides.components[<segment id>]` →
+  `overrides.components[<kind>]` → the scenario → the theme → the built-in default, with its slots filled (scenario
+  title and outro, theme brand and logo, scene captions, interstitial text, card slots). A component that does not
+  resolve is reported and the next candidate is used; when none resolves the use is marked `missing` and the
+  renderer draws a stand-in.
+- **Clips** show a scene from the end of its page load (`scene_still` start, else `scene_open` end) to its end,
+  trailing holds included: page loads are never shown. `srcFrames` gives the exact capture frame of every output
+  frame.
+- **Transitions**: scenes that are not contiguous in the capture (a page load or any gap), cards, interstitials, the
+  intro and the outro are joined with the theme transition (crossfade: the outgoing clip holds its last frame while
+  the incoming one fades in; fade-black: fade out then in; cut). A scene that continues the previous one on the same
+  page is joined with **no** transition: only the caption changes and the camera continues. Interstitials are drawn
+  over the last frame of the previous clip.
+- **Speed**: the scene `speed` (`overrides.speeds` wins), a step `speed` for its own span; always 1× during the
+  opening still, every hold (`hold` steps and the `hold` modifier) and ±0.6 s around a `mark` step through its hold.
+  Speed changes are ramped over 0.3 s of output, inside the unprotected side.
+- **Idle trims**: the part of a `timeline.idle` gap outside those protected spans, when longer than 1.2 s
+  (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on screen).
+- **Camera**: static unless a step has a `camera` hint. The zoom is clamped to the theme `max_zoom` (noted), focused on
+  the target box measured at the end of the step (else the hint's point, else the cursor), eased with the hint's
+  `ease` (else the theme `zoom_ease`) over `max(0.8 s, duration)` of output time — `duration` defaults to the step's
+  own length, so a zoom lands when its step ends — held until `step_end`, `scene_end` (default) or N seconds, then
+  eased out the same way. The view is clamped so the capture always fills its rect; at a same-page join the zoom
+  carries on into the next scene instead of resetting.
+- **Captions**: the scene caption from the clip's first visible frame; a step caption replaces it from that step's
+  output start; cues never overlap. **Overlays** (step `overlay`) start when their step ends, last their `duration`
+  (else the component's), and keep their anchor in capture pixels; `mapSourceRect` maps it through the layout and the
+  camera of any frame.
+- **Layout and size**: the layout component's `geometry` (scaled by `unit`, the capture fitted to its aspect ratio);
+  1920×1080 × scale (a scale-2 capture gives 4K); the vertical variant is 1080×1920 with `geometry_vertical` and a crop
+  that follows the cursor (or the zoom focus) smoothly. Music comes from the scenario `music` (volume, ducking).
+- **Provenance**: each clip lists which step produced which output frames, its speeds, trims and zooms; the plan keeps
+  the markers and an output → capture time map. Every decision worth knowing (cut page loads, joins, trims, clamped
+  zooms, missing components…) is in `notes` / `warnings`.
+
+`EditOverrides` change the edit without touching the scenario: `frame`, `variant`, `fps`, `scale`, `intro`, `outro`,
+`captions`, `trim_idle`, `idle_threshold`, `speeds`, `transition`, `transition_duration`, `camera`, `components` (by
+kind or segment id), `theme` (the caller loads that template) and `music`.
+
+`studio plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
+JSON with `--out` (or prints it with `--json`); `--theme`, `--frame` and `--vertical` try another theme, frame or the
+9:16 variant. In a workspace whose `components/studio/*` exist (here: created from the scaffolds):
+
+```
+$ studio plan northfield-fixture latest --scenario catalogue
+catalogue (run 20261011-182524-catalogue) — landscape 1920×1080 @ 30 fps — 59.00 s (1770 frames) — theme editorial — frame card
+
+Segments
+      from    length  segment       kind          transition in     component
+    0.00 s    3.20 s  intro         intro         —                 studio/intro-stack (theme)
+                      title: "Manage your catalogue", kicker: "For suppliers"
+    2.83 s   15.17 s  import        clip          crossfade 0.37 s  studio/layout-card (theme)
+                      source 1.03–15.83 s of the capture → 14.80 s + 0.37 s held
+                      speed 1× 14.80 s (1× kept 6.41 s: still, holds, marks)
+   17.63 s   20.33 s  availability  clip          crossfade 0.37 s  studio/layout-card (theme)
+                      source 16.80–46.37 s of the capture → 19.97 s + 0.37 s held
+                      speed 1× 3.60 s, 1.6× 15.74 s (1× kept 3.60 s: still, holds, marks), 2 ramps
+   37.60 s   18.77 s  add-product   clip          crossfade 0.37 s  studio/layout-card (theme)
+                      zoom 1.3× step 5: from 12.70 s over 2.23 s on (409, 635) → view (738, 635), held to the end of the clip
+   …
+```
+
+(Until the built-in library lands in L2.5, components resolve only from your workspace `components/` folder: the
+summary marks the others `MISSING` and the warnings list their uses.)
+
 ## Signing in once: pre-authenticated profiles
 
 Scenarios never contain passwords. Give the project a persistent browser profile and sign in by hand once:
@@ -665,7 +745,7 @@ packages/hooks        setup/teardown hooks (http, sql, shell, js), rollback jour
 packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), actions, screencast, encoder, timeline
 packages/cli          the `studio` command
 packages/components   components: manifest schema, registry, validation, scaffolds, theme tokens, kit (L2.2)
-packages/editor       edit plan contract (phase 2)
+packages/editor       edit planner (planEdit → EditPlan) and the plan contract; rendering arrives in L2.4
 packages/review, mcp  phase 2 and 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests
 projects/             the fixture project (your projects live in your workspace)
@@ -682,7 +762,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1) and the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`) done; edit planner, render pipeline, library and review next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`) and the edit planner (L2.3: `planEdit`, `studio plan`) done; render pipeline, library and review next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

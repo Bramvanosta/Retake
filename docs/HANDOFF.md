@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.2. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.3. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -56,18 +56,44 @@ automatically with themeable components, and let Claude operate everything throu
   helpers); `ComponentProps` gained `area` (caption), `anchor` (overlay), `direction` (transition); CLI
   `studio components list|validate|create` (+ `--json`); `FrameComment` type + `COMMENTS_DIR` in core; README section
   "Components". 427 tests pass (6 Postgres tests skipped).
-- **Requirements:** 529 tracked; 224 done; the open ones are assigned to lots L1.2 … L6 (R-ARCH-03 moved to L5.3).
-- **Groundwork for phase 2:** contracts in core (L2.1) + components package (L2.2) + EditPlan types.
-  `packages/{editor,review,mcp}` are otherwise empty; `studio render|review|export|record|mcp|ui` print "available in
+- **L2.3 done** (edit planner, `@demo-studio/editor`): `planEdit({timeline, template, project, registry, captureFile,
+  scenario?, overrides?})` pure + deterministic (src/plan.ts; time maps in src/timing.ts, camera/reframe in
+  src/camera.ts, geometry + `mapSourceRect` in src/layout.ts, component precedence in src/resolve.ts, `summarizePlan`
+  + `resolvePlanAssets` in src/summary.ts). Contiguous same-page clips are planned as one *run* (one continuous time
+  map: speeds, ramps, trims and camera continue across the join, then split back into clips). `srcFrames` are exact
+  CFR frame indices (frame n = capture time n/fps; `timeline.capture.frames` is the screencast frame count, the CFR
+  count is round(duration·fps)). Plan types extended additively (PlanTransition on segments; clip cues/layout/src/
+  speeds/trims/zooms/heldFrames; OverlayUse.anchor in source px; PlanLayout.crop/fallback; ResolvedComponent.missing;
+  `plan.assets` maps `ds-asset:<name>` URLs → files and `plan.meta`). `studio plan <project> <run|latest>` (summary,
+  `--json`, `--out`, `--theme`, `--frame`, `--vertical`, `--scenario`); README "Editing". Tests: real timelines
+  `packages/editor/test/fixtures/{catalogue,quote}.timeline.json` (runs 20261011-182524-catalogue /
+  20261011-182706-quote) + synthetic timelines; a temp workspace scaffolds `components/studio/*` with
+  `createComponent` (helpers add the params the starter themes pass: layout-card `width`, transitions `duration`,
+  caption-below `position`, *-minimal `logo_only`). Plans: catalogue 59.0 s, quote 56.3 s (no page loads, crossfades
+  at every non-contiguous join, card + interstitial + €720.00 callout in the quote). 476 tests pass (6 Postgres tests
+  skipped).
+- **Requirements:** 529 tracked; 257 done, 60 partial; the open ones are assigned to lots L1.2 … L6 (R-ARCH-03 moved
+  to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer — zooms only come from explicit
+  hints; needs a product decision).
+- **Groundwork for phase 2:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3).
+  `packages/{review,mcp}` are otherwise empty; `studio render|review|export|record|mcp|ui` print "available in
   phase N".
 
 ## Next lot
-**L2.3 — edit planner** (M): `planEdit` pure + deterministic over a timeline (the fixture timelines copied as test
-fixtures), using the registry (`resolveTheme`, `resolve`), `fillSlots` and the manifests' `duration` / `geometry` —
-unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs
+**L2.4 — render pipeline** (M): `DemoVideo`/`DemoVertical` render a plan (segments with their fade envelopes and
+`transition` components, clips = layout component with `screen` = `<Freeze frame={srcFrames[f]}><OffthreadVideo/>`
+under the camera transform, caption component with `cues` + `layout.caption` as `area`, overlays with
+`mapSourceRect(anchor)`, brandmark, music), generated component registry module, bundle cache, local asset server
+(serve `plan.assets`, then `resolvePlanAssets(plan, urlFor)`), `renderVideo`/`renderStill`/`listRenders`,
+`studio render` — unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs
 `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP. Notes for L2.4: the scaffolds render in Remotion (checked with a
 scratch bundle: alias `@demo-studio/components/kit` to `src/kit/index.ts` with `extensionAlias {'.js': ['.ts','.tsx',
-'.js']}`, register `theme.font_faces` with FontFace + delayRender, theme asset URLs via the asset server).
+'.js']}`, register `theme.font_faces` with FontFace + delayRender, theme asset URLs via the asset server). Uses marked
+`missing: true` in a plan have no registered component: draw the scaffold of their kind (`scaffoldDir(kind)`) as the
+stand-in until the L2.5 library lands. Notes for L2.5: the planner takes layout geometry from the manifest as is — a
+layout param that moves the screen (e.g. layout-card `width`) must be reflected in its declared geometry; the
+transition kind comes from the id (`…fade-black`) or `params.through` (a dip) / `params.kind`, its length from
+`params.duration`, else the template's `transitions.duration`.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

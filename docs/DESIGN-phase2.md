@@ -129,8 +129,12 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
 ## 2. Editor (`packages/editor`)
 
 ```ts
-planEdit(input: { timeline; scenario; template: LoadedTemplate; project; registry: ComponentRegistry;
-                  captureFile: string; overrides?: EditOverrides }): EditPlan     // PURE + deterministic, unit-tested
+planEdit(input: { timeline; template: LoadedTemplate; project; registry: ComponentRegistry; captureFile: string;
+                  scenario?; overrides?: EditOverrides }): EditPlan   // PURE + deterministic, unit-tested (L2.3)
+//  scenario = optional context (edit info of timelines without a `video` block); overrides.theme: the caller loads
+//  that template and passes it as `template`. Plan types grew additively (see plan-types.ts): PlanTransition per
+//  segment, clip cues/layout/src/speeds/trims/zooms/heldFrames, OverlayUse.anchor (source px), PlanLayout.crop,
+//  ResolvedComponent.missing, plan.assets (`ds-asset:` URL → file, swapped by resolvePlanAssets) and plan.meta.
 renderVideo(opts: { project; run /* id or dir */; scenario?; template?; overrides?; out?; onProgress?; signal?;
                     concurrency? }): Promise<RenderRecord>
 //  renders/<scenario>-v<N>.mp4 (+ "-vertical") and renders/<scenario>-v<N>.json (RenderRecord incl. plan + overrides)
@@ -153,10 +157,12 @@ listRenders(project): Promise<RenderRecord[]>
   transition. Interstitials: backdrop = dimmed last frame of the previous clip (`backdropSrcFrame`), fade in/out.
 - Speed: scene speed (overrides.speeds wins), step speed for its span; always 1×: the opening still, every hold
   (action and modifier), ±0.6 s around a marked step through its hold end. Speed changes are ramped over ~0.3 s.
-- Idle trimming: timeline.idle intervals longer than `idle_threshold` (1.2 s) are shortened to 0.4 s unless they
-  overlap a protected span (still, hold, mark window). Nothing changes on screen during idle, so the trim is invisible.
+- Idle trimming: the part of a timeline.idle interval outside the protected spans (still, hold, mark window), when
+  longer than `idle_threshold` (1.2 s), is shortened to 0.4 s (0.2 s kept on each side of the cut). Nothing changes on
+  screen during idle, so the trim is invisible.
 - Camera: static by default. Zooms only from step `camera` hints: zoom clamped to theme max_zoom, focus = event
-  camera bbox centre (else point, else cursor), eased with theme zoom_ease over max(0.8 s, duration) of OUTPUT time,
+  camera bbox centre (else point, else cursor), eased with the hint's `ease` (else the theme zoom_ease) from the
+  step's output start over max(0.8 s, duration) of OUTPUT time (duration defaults to the step's output length),
   held until `until` (default scene end), same easing out; the view is clamped so the capture always fills the screen
   rect; no reset at same-page joins.
 - Captions: scene caption from the scene's first visible frame to its end; a step caption replaces it from the step's

@@ -47,3 +47,6 @@ export type { ThemeUrls } from './theme.js';
 export { COMPONENT_SCHEMA_FILE, KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, SCAFFOLDS_DIR, kitEntry, scaffoldDir } from './paths.js';
 export { fillSlots, slotSource } from './slots.js';
 export type { FilledSlots, SlotContext } from './slots.js';
+/** The kit's pure easing curves (no React), for Node-side consumers such as the edit planner. */
+export { CAMERA_EASINGS, DEFAULT_ZOOM_EASE, cubicBezier } from './kit/easing.js';
+export type { Bezier, EasingFn } from './kit/easing.js';

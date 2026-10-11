@@ -1,0 +1,2920 @@
+{
+  "version": 1,
+  "run_id": "20261011-182524-catalogue",
+  "project": "northfield-fixture",
+  "scenario": "catalogue",
+  "created_at": "2026-10-11T18:25:24.424Z",
+  "mode": "capture",
+  "capture": {
+    "file": "capture.mp4",
+    "width": 1920,
+    "height": 1080,
+    "scale": 1,
+    "fps": 30,
+    "duration": 65.713,
+    "t0_wall": 1791743124788,
+    "frames": 941
+  },
+  "video": {
+    "title": {
+      "kicker": "For suppliers",
+      "text": "Manage your catalogue"
+    },
+    "outro": {
+      "tagline": "Your catalogue, under control."
+    },
+    "frame": "card",
+    "template": "editorial"
+  },
+  "scenes": [
+    {
+      "id": "import",
+      "index": 0,
+      "kind": "scene",
+      "t_start": 0.015,
+      "t_end": 15.825,
+      "page": "console",
+      "status": "ok",
+      "caption": {
+        "kicker": "Catalogue import",
+        "text": "Import your entire price list in seconds, with availability by region."
+      },
+      "url": "http://localhost:4401/imports",
+      "t_actions": 2.618
+    },
+    {
+      "id": "availability",
+      "index": 1,
+      "kind": "scene",
+      "t_start": 15.826,
+      "t_end": 46.347,
+      "page": "console",
+      "status": "ok",
+      "caption": {
+        "kicker": "Availability by market",
+        "text": "Pause a market, or fine-tune bag sizes, grinds and label languages in a few clicks."
+      },
+      "speed": 1.6,
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha",
+      "t_actions": 18.384
+    },
+    {
+      "id": "add-product",
+      "index": 2,
+      "kind": "scene",
+      "t_start": 46.347,
+      "t_end": 65.713,
+      "page": "console",
+      "status": "ok",
+      "caption": {
+        "kicker": "Add a coffee",
+        "text": "Pick a lot from the registry: tasting notes, producer and awards fill in by themselves."
+      },
+      "url": "http://localhost:4401/products",
+      "t_actions": 48.866
+    }
+  ],
+  "events": [
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.015,
+      "t_end": 0.679,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4401/imports"
+      },
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 1.019,
+      "t_end": 2.618,
+      "status": "ok",
+      "point": {
+        "x": 1800,
+        "y": 156
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1800,
+            "y": 156
+          },
+          "anchor": "button \"New import\"",
+          "side": "below"
+        }
+      }
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": 0,
+      "action": "click",
+      "t_start": 2.619,
+      "t_end": 4.141,
+      "status": "ok",
+      "target": {
+        "desc": "button \"New import\"",
+        "bbox": {
+          "x": 1695.58,
+          "y": 54.09,
+          "w": 136.42,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1764,
+        "y": 73
+      },
+      "t_click": 3.25,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": 1,
+      "action": "select",
+      "t_start": 4.142,
+      "t_end": 7.156,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Select an organisation\"",
+        "bbox": {
+          "x": 709,
+          "y": 245.3,
+          "w": 502,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 265
+      },
+      "t_click": 5.187,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "Northfield Roasters",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 960,
+              "y": 265
+            },
+            "t_click": 5.187,
+            "desc": "combobox \"Select an organisation\"",
+            "bbox": {
+              "x": 709,
+              "y": 245.3,
+              "w": 502,
+              "h": 40
+            },
+            "popup_ms": 140
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 960,
+              "y": 316
+            },
+            "t_click": 6.691,
+            "desc": "option \"Northfield Roasters\"",
+            "bbox": {
+              "x": 716,
+              "y": 298,
+              "w": 488,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": 2,
+      "action": "drop_file",
+      "t_start": 7.156,
+      "t_end": 10.354,
+      "status": "ok",
+      "target": {
+        "desc": "label \"Drop your price list hereClick to choose a fileEx…\"",
+        "bbox": {
+          "x": 709,
+          "y": 329.8,
+          "w": 502,
+          "h": 186.25
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 423
+      },
+      "t_click": 10.011,
+      "strategy": "drop",
+      "popup_opened": false,
+      "data": {
+        "file": "Northfield - Price list 2027.xlsx",
+        "size": 49152,
+        "delivered": "drop",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "drop",
+            "popup_opened": false,
+            "point": {
+              "x": 960,
+              "y": 423
+            },
+            "t_click": 10.011,
+            "desc": "label \"Drop your price list hereClick to choose a fileEx…\"",
+            "bbox": {
+              "x": 709,
+              "y": 329.8,
+              "w": 502,
+              "h": 186.25
+            }
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": 3,
+      "action": "click",
+      "t_start": 10.355,
+      "t_end": 11.611,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Start import\"",
+        "bbox": {
+          "x": 1073.03,
+          "y": 547.3,
+          "w": 137.97,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1142,
+        "y": 566
+      },
+      "t_click": 11.155,
+      "strategy": "real",
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": 4,
+      "action": "wait_for",
+      "t_start": 11.611,
+      "t_end": 13.621,
+      "status": "ok",
+      "mark": "import-done",
+      "data": {
+        "waited_ms": 2010
+      },
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "import",
+      "scene_index": 0,
+      "step": 5,
+      "action": "hold",
+      "t_start": 13.622,
+      "t_end": 15.825,
+      "status": "ok",
+      "hold": {
+        "t_start": 13.622,
+        "t_end": 15.825
+      },
+      "page": "console",
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 15.826,
+      "t_end": 16.45,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 16.785,
+      "t_end": 18.384,
+      "status": "ok",
+      "point": {
+        "x": 1838,
+        "y": 296
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1838,
+            "y": 296
+          },
+          "from": {
+            "x": 1142,
+            "y": 566
+          },
+          "anchor": "menu trigger of row \"Iceland\"",
+          "side": "below"
+        }
+      }
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 0,
+      "action": "scroll",
+      "t_start": 18.385,
+      "t_end": 19.903,
+      "status": "ok",
+      "target": {
+        "desc": "scrollTop 560"
+      },
+      "data": {
+        "container": "document",
+        "from": 0,
+        "to": 560
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 1,
+      "action": "menu",
+      "t_start": 19.903,
+      "t_end": 25.166,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Row actions\"",
+        "bbox": {
+          "x": 1785,
+          "y": 197.59,
+          "w": 34,
+          "h": 34
+        }
+      },
+      "point": {
+        "x": 1802,
+        "y": 215
+      },
+      "t_click": 20.582,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "row": "row \"Iceland\"",
+        "item": "Pause",
+        "confirm": "Pause",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 1802,
+              "y": 215
+            },
+            "t_click": 20.582,
+            "desc": "button \"Row actions\"",
+            "bbox": {
+              "x": 1785,
+              "y": 197.59,
+              "w": 34,
+              "h": 34
+            },
+            "popup_ms": 110
+          },
+          {
+            "role": "item",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 1719,
+              "y": 299
+            },
+            "t_click": 22.159,
+            "desc": "menuitem \"Pause\"",
+            "bbox": {
+              "x": 1626,
+              "y": 281,
+              "w": 186,
+              "h": 36
+            },
+            "popup_ms": 199
+          },
+          {
+            "role": "confirm",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 1113,
+              "y": 297
+            },
+            "t_click": 23.946,
+            "desc": "button \"Pause\"",
+            "bbox": {
+              "x": 1075.27,
+              "y": 277.8,
+              "w": 75.73,
+              "h": 38
+            },
+            "popup_ms": 292
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 2,
+      "action": "menu",
+      "t_start": 25.167,
+      "t_end": 28.938,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Row actions\"",
+        "bbox": {
+          "x": 1785,
+          "y": 266.59,
+          "w": 34,
+          "h": 34
+        }
+      },
+      "point": {
+        "x": 1802,
+        "y": 284
+      },
+      "t_click": 26.091,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "row": "row \"Sweden\"",
+        "item": "Edit",
+        "confirm": null,
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 1802,
+              "y": 284
+            },
+            "t_click": 26.091,
+            "desc": "button \"Row actions\"",
+            "bbox": {
+              "x": 1785,
+              "y": 266.59,
+              "w": 34,
+              "h": 34
+            },
+            "popup_ms": 116
+          },
+          {
+            "role": "item",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 1719,
+              "y": 332
+            },
+            "t_click": 27.671,
+            "desc": "menuitem \"Edit\"",
+            "bbox": {
+              "x": 1626,
+              "y": 314,
+              "w": 186,
+              "h": 36
+            },
+            "popup_ms": 244
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 3,
+      "action": "pick",
+      "t_start": 28.94,
+      "t_end": 33.438,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Bag sizes\"",
+        "bbox": {
+          "x": 709,
+          "y": 328.3,
+          "w": 502,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 348
+      },
+      "t_click": 29.955,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "options": [
+          "1 kg"
+        ],
+        "close": "outside",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 960,
+              "y": 348
+            },
+            "t_click": 29.955,
+            "desc": "button \"Bag sizes\"",
+            "bbox": {
+              "x": 709,
+              "y": 328.3,
+              "w": 502,
+              "h": 40
+            },
+            "popup_ms": 114
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 960,
+              "y": 436
+            },
+            "t_click": 31.644,
+            "desc": "option \"1 kg\"",
+            "bbox": {
+              "x": 716,
+              "y": 417.8,
+              "w": 488,
+              "h": 36
+            }
+          },
+          {
+            "role": "outside",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 781,
+              "y": 159
+            },
+            "t_click": 32.809,
+            "desc": "dialog title (click outside)"
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 4,
+      "action": "pick",
+      "t_start": 33.438,
+      "t_end": 37.602,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Grind options\"",
+        "bbox": {
+          "x": 709,
+          "y": 412.8,
+          "w": 502,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 433
+      },
+      "t_click": 34.258,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "options": [
+          "Espresso"
+        ],
+        "close": "outside",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 960,
+              "y": 433
+            },
+            "t_click": 34.258,
+            "desc": "button \"Grind options\"",
+            "bbox": {
+              "x": 709,
+              "y": 412.8,
+              "w": 502,
+              "h": 40
+            },
+            "popup_ms": 109
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 960,
+              "y": 520
+            },
+            "t_click": 35.96,
+            "desc": "option \"Espresso\"",
+            "bbox": {
+              "x": 716,
+              "y": 502,
+              "w": 488,
+              "h": 36
+            }
+          },
+          {
+            "role": "outside",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 781,
+              "y": 159
+            },
+            "t_click": 37.141,
+            "desc": "dialog title (click outside)"
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 5,
+      "action": "pick",
+      "t_start": 37.602,
+      "t_end": 42.559,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Label languages\"",
+        "bbox": {
+          "x": 709,
+          "y": 497.3,
+          "w": 502,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 517
+      },
+      "t_click": 38.417,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "options": [
+          "Swedish"
+        ],
+        "close": "outside",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 960,
+              "y": 517
+            },
+            "t_click": 38.417,
+            "desc": "button \"Label languages\"",
+            "bbox": {
+              "x": 709,
+              "y": 497.3,
+              "w": 502,
+              "h": 40
+            },
+            "popup_ms": 136
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 960,
+              "y": 620
+            },
+            "t_click": 40.727,
+            "desc": "option \"Swedish\"",
+            "bbox": {
+              "x": 716,
+              "y": 601.8,
+              "w": 488,
+              "h": 36
+            }
+          },
+          {
+            "role": "outside",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 781,
+              "y": 159
+            },
+            "t_click": 41.903,
+            "desc": "dialog title (click outside)"
+          }
+        ]
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 6,
+      "action": "click",
+      "t_start": 42.56,
+      "t_end": 44.345,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Save\"",
+        "bbox": {
+          "x": 1143.3,
+          "y": 604.05,
+          "w": 67.7,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1177,
+        "y": 623
+      },
+      "t_click": 43.484,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "availability",
+      "scene_index": 1,
+      "step": 7,
+      "action": "hold",
+      "t_start": 44.346,
+      "t_end": 46.346,
+      "status": "ok",
+      "hold": {
+        "t_start": 44.346,
+        "t_end": 46.346
+      },
+      "page": "console",
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 46.347,
+      "t_end": 46.944,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4401/products"
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 47.267,
+      "t_end": 48.866,
+      "status": "ok",
+      "point": {
+        "x": 1796,
+        "y": 156
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1796,
+            "y": 156
+          },
+          "from": {
+            "x": 1177,
+            "y": 623
+          },
+          "anchor": "button \"Add a coffee\"",
+          "side": "below"
+        }
+      }
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 0,
+      "action": "click",
+      "t_start": 48.867,
+      "t_end": 50.46,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Add a coffee\"",
+        "bbox": {
+          "x": 1687.08,
+          "y": 54.09,
+          "w": 144.92,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1760,
+        "y": 73
+      },
+      "t_click": 49.538,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "console",
+      "url": "http://localhost:4401/products"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 1,
+      "action": "type",
+      "t_start": 50.461,
+      "t_end": 53.269,
+      "status": "ok",
+      "target": {
+        "desc": "textbox \"Search the registry\"",
+        "bbox": {
+          "x": 649,
+          "y": 239.8,
+          "w": 622,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 263
+      },
+      "t_click": 51.549,
+      "data": {
+        "chars": 13,
+        "cps": 10
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 2,
+      "action": "click",
+      "t_start": 53.27,
+      "t_end": 55.679,
+      "status": "ok",
+      "target": {
+        "desc": "option \"Finca QuenaroColombia · Huila · Pink Bourbon · Wa…\"",
+        "bbox": {
+          "x": 649,
+          "y": 326.55,
+          "w": 622,
+          "h": 68
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 359
+      },
+      "t_click": 54.179,
+      "strategy": "real",
+      "data": {
+        "navigation": {
+          "kind": "url",
+          "url": "http://localhost:4401/products/finca-quenaro-2"
+        }
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products/finca-quenaro-2"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 3,
+      "action": "wait_for",
+      "t_start": 55.68,
+      "t_end": 55.694,
+      "status": "ok",
+      "data": {
+        "waited_ms": 15
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products/finca-quenaro-2"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 4,
+      "action": "wait_for",
+      "t_start": 55.702,
+      "t_end": 58.571,
+      "status": "ok",
+      "mark": "reveal",
+      "data": {
+        "waited_ms": 2869
+      },
+      "hold": {
+        "t_start": 58.571,
+        "t_end": 59.972
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products/finca-quenaro-2"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 5,
+      "action": "scroll",
+      "t_start": 59.973,
+      "t_end": 62.206,
+      "status": "ok",
+      "target": {
+        "desc": "heading \"Awards\"",
+        "bbox": {
+          "x": 377,
+          "y": 621.84,
+          "w": 64.78,
+          "h": 27
+        }
+      },
+      "data": {
+        "container": "document",
+        "from": 0,
+        "to": 865
+      },
+      "camera": {
+        "zoom": 1.3,
+        "target": {
+          "text": "Awards"
+        },
+        "ease": "slow",
+        "bbox": {
+          "x": 377,
+          "y": 621.84,
+          "w": 64.78,
+          "h": 27
+        }
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products/finca-quenaro-2"
+    },
+    {
+      "scene": "add-product",
+      "scene_index": 2,
+      "step": 6,
+      "action": "hold",
+      "t_start": 62.212,
+      "t_end": 65.713,
+      "status": "ok",
+      "hold": {
+        "t_start": 62.212,
+        "t_end": 65.713
+      },
+      "page": "console",
+      "url": "http://localhost:4401/products/finca-quenaro-2"
+    }
+  ],
+  "markers": [
+    {
+      "name": "import-done",
+      "t": 11.611,
+      "scene": "import",
+      "step": 4
+    },
+    {
+      "name": "reveal",
+      "t": 55.702,
+      "scene": "add-product",
+      "step": 4
+    }
+  ],
+  "pages": [
+    {
+      "id": "console",
+      "t_start": 0.002,
+      "t_end": 15.863,
+      "url": "http://localhost:4401/imports"
+    },
+    {
+      "id": "console",
+      "t_start": 15.863,
+      "t_end": 46.361,
+      "url": "http://localhost:4401/availability/products/finca-lirandel-geisha"
+    },
+    {
+      "id": "console",
+      "t_start": 46.361,
+      "t_end": 54.301,
+      "url": "http://localhost:4401/products"
+    },
+    {
+      "id": "console",
+      "t_start": 54.301,
+      "t_end": 65.713,
+      "url": "http://localhost:4401/products/finca-quenaro-2"
+    }
+  ],
+  "cursor": [
+    {
+      "t": 0.706,
+      "x": 1800,
+      "y": 156,
+      "visible": true
+    },
+    {
+      "t": 2.682,
+      "x": 1800,
+      "y": 155,
+      "visible": true
+    },
+    {
+      "t": 2.707,
+      "x": 1799,
+      "y": 155,
+      "visible": true
+    },
+    {
+      "t": 2.725,
+      "x": 1798,
+      "y": 154,
+      "visible": true
+    },
+    {
+      "t": 2.748,
+      "x": 1797,
+      "y": 152,
+      "visible": true
+    },
+    {
+      "t": 2.766,
+      "x": 1795,
+      "y": 149,
+      "visible": true
+    },
+    {
+      "t": 2.786,
+      "x": 1792,
+      "y": 145,
+      "visible": true
+    },
+    {
+      "t": 2.805,
+      "x": 1788,
+      "y": 140,
+      "visible": true
+    },
+    {
+      "t": 2.824,
+      "x": 1783,
+      "y": 133,
+      "visible": true
+    },
+    {
+      "t": 2.843,
+      "x": 1778,
+      "y": 124,
+      "visible": true
+    },
+    {
+      "t": 2.858,
+      "x": 1774,
+      "y": 113,
+      "visible": true
+    },
+    {
+      "t": 2.877,
+      "x": 1771,
+      "y": 105,
+      "visible": true
+    },
+    {
+      "t": 2.895,
+      "x": 1768,
+      "y": 96,
+      "visible": true
+    },
+    {
+      "t": 2.91,
+      "x": 1767,
+      "y": 90,
+      "visible": true
+    },
+    {
+      "t": 2.93,
+      "x": 1766,
+      "y": 85,
+      "visible": true
+    },
+    {
+      "t": 2.94,
+      "x": 1765,
+      "y": 80,
+      "visible": true
+    },
+    {
+      "t": 2.955,
+      "x": 1765,
+      "y": 79,
+      "visible": true
+    },
+    {
+      "t": 2.976,
+      "x": 1765,
+      "y": 77,
+      "visible": true
+    },
+    {
+      "t": 2.991,
+      "x": 1764,
+      "y": 75,
+      "visible": true
+    },
+    {
+      "t": 3.004,
+      "x": 1764,
+      "y": 74,
+      "visible": true
+    },
+    {
+      "t": 3.038,
+      "x": 1764,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 3.256,
+      "x": 1764,
+      "y": 73,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 3.39,
+      "x": 1764,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 4.204,
+      "x": 1763,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 4.302,
+      "x": 1762,
+      "y": 74,
+      "visible": true
+    },
+    {
+      "t": 4.392,
+      "x": 1739,
+      "y": 85,
+      "visible": true
+    },
+    {
+      "t": 4.485,
+      "x": 1661,
+      "y": 123,
+      "visible": true
+    },
+    {
+      "t": 4.569,
+      "x": 1490,
+      "y": 194,
+      "visible": true
+    },
+    {
+      "t": 4.66,
+      "x": 1248,
+      "y": 251,
+      "visible": true
+    },
+    {
+      "t": 4.806,
+      "x": 1071,
+      "y": 263,
+      "visible": true
+    },
+    {
+      "t": 4.89,
+      "x": 967,
+      "y": 265,
+      "visible": true
+    },
+    {
+      "t": 4.993,
+      "x": 960,
+      "y": 265,
+      "visible": true
+    },
+    {
+      "t": 5.218,
+      "x": 960,
+      "y": 265,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 5.323,
+      "x": 960,
+      "y": 265,
+      "visible": true
+    },
+    {
+      "t": 6.206,
+      "x": 960,
+      "y": 266,
+      "visible": true
+    },
+    {
+      "t": 6.313,
+      "x": 959,
+      "y": 267,
+      "visible": true
+    },
+    {
+      "t": 6.414,
+      "x": 958,
+      "y": 307,
+      "visible": true
+    },
+    {
+      "t": 6.506,
+      "x": 960,
+      "y": 316,
+      "visible": true
+    },
+    {
+      "t": 6.695,
+      "x": 960,
+      "y": 316,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 6.799,
+      "x": 960,
+      "y": 316,
+      "visible": true
+    },
+    {
+      "t": 7.287,
+      "x": 961,
+      "y": 316,
+      "visible": true
+    },
+    {
+      "t": 7.374,
+      "x": 970,
+      "y": 316,
+      "visible": true
+    },
+    {
+      "t": 7.462,
+      "x": 1010,
+      "y": 315,
+      "visible": true
+    },
+    {
+      "t": 7.554,
+      "x": 1101,
+      "y": 314,
+      "visible": true
+    },
+    {
+      "t": 7.647,
+      "x": 1272,
+      "y": 319,
+      "visible": true
+    },
+    {
+      "t": 7.739,
+      "x": 1535,
+      "y": 358,
+      "visible": true
+    },
+    {
+      "t": 7.827,
+      "x": 1734,
+      "y": 415,
+      "visible": true
+    },
+    {
+      "t": 7.924,
+      "x": 1845,
+      "y": 455,
+      "visible": true
+    },
+    {
+      "t": 8.006,
+      "x": 1902,
+      "y": 477,
+      "visible": true
+    },
+    {
+      "t": 8.092,
+      "x": 1916,
+      "y": 482,
+      "visible": true
+    },
+    {
+      "t": 8.177,
+      "x": 1918,
+      "y": 483,
+      "visible": true
+    },
+    {
+      "t": 8.544,
+      "x": 1917,
+      "y": 483,
+      "visible": true
+    },
+    {
+      "t": 8.641,
+      "x": 1916,
+      "y": 483,
+      "visible": true
+    },
+    {
+      "t": 8.735,
+      "x": 1901,
+      "y": 485,
+      "visible": true
+    },
+    {
+      "t": 8.833,
+      "x": 1864,
+      "y": 490,
+      "visible": true
+    },
+    {
+      "t": 8.929,
+      "x": 1791,
+      "y": 499,
+      "visible": true
+    },
+    {
+      "t": 9.024,
+      "x": 1675,
+      "y": 510,
+      "visible": true
+    },
+    {
+      "t": 9.129,
+      "x": 1504,
+      "y": 516,
+      "visible": true
+    },
+    {
+      "t": 9.243,
+      "x": 1284,
+      "y": 496,
+      "visible": true
+    },
+    {
+      "t": 9.337,
+      "x": 1119,
+      "y": 463,
+      "visible": true
+    },
+    {
+      "t": 9.45,
+      "x": 1036,
+      "y": 443,
+      "visible": true
+    },
+    {
+      "t": 9.547,
+      "x": 982,
+      "y": 429,
+      "visible": true
+    },
+    {
+      "t": 9.664,
+      "x": 964,
+      "y": 424,
+      "visible": true
+    },
+    {
+      "t": 9.757,
+      "x": 960,
+      "y": 423,
+      "visible": true
+    },
+    {
+      "t": 10.488,
+      "x": 961,
+      "y": 424,
+      "visible": true
+    },
+    {
+      "t": 10.579,
+      "x": 978,
+      "y": 431,
+      "visible": true
+    },
+    {
+      "t": 10.678,
+      "x": 1048,
+      "y": 469,
+      "visible": true
+    },
+    {
+      "t": 10.766,
+      "x": 1124,
+      "y": 543,
+      "visible": true
+    },
+    {
+      "t": 10.857,
+      "x": 1141,
+      "y": 565,
+      "visible": true
+    },
+    {
+      "t": 10.948,
+      "x": 1142,
+      "y": 566,
+      "visible": true
+    },
+    {
+      "t": 11.16,
+      "x": 1142,
+      "y": 566,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 11.264,
+      "x": 1142,
+      "y": 566,
+      "visible": true
+    },
+    {
+      "t": 16.469,
+      "x": 1838,
+      "y": 296,
+      "visible": true
+    },
+    {
+      "t": 19.971,
+      "x": 1838,
+      "y": 295,
+      "visible": true
+    },
+    {
+      "t": 20.025,
+      "x": 1838,
+      "y": 293,
+      "visible": true
+    },
+    {
+      "t": 20.035,
+      "x": 1837,
+      "y": 290,
+      "visible": true
+    },
+    {
+      "t": 20.052,
+      "x": 1837,
+      "y": 289,
+      "visible": true
+    },
+    {
+      "t": 20.068,
+      "x": 1836,
+      "y": 285,
+      "visible": true
+    },
+    {
+      "t": 20.085,
+      "x": 1835,
+      "y": 281,
+      "visible": true
+    },
+    {
+      "t": 20.102,
+      "x": 1834,
+      "y": 275,
+      "visible": true
+    },
+    {
+      "t": 20.118,
+      "x": 1832,
+      "y": 268,
+      "visible": true
+    },
+    {
+      "t": 20.136,
+      "x": 1830,
+      "y": 261,
+      "visible": true
+    },
+    {
+      "t": 20.152,
+      "x": 1826,
+      "y": 251,
+      "visible": true
+    },
+    {
+      "t": 20.168,
+      "x": 1822,
+      "y": 243,
+      "visible": true
+    },
+    {
+      "t": 20.186,
+      "x": 1818,
+      "y": 237,
+      "visible": true
+    },
+    {
+      "t": 20.202,
+      "x": 1814,
+      "y": 231,
+      "visible": true
+    },
+    {
+      "t": 20.219,
+      "x": 1811,
+      "y": 226,
+      "visible": true
+    },
+    {
+      "t": 20.237,
+      "x": 1808,
+      "y": 223,
+      "visible": true
+    },
+    {
+      "t": 20.273,
+      "x": 1806,
+      "y": 220,
+      "visible": true
+    },
+    {
+      "t": 20.292,
+      "x": 1803,
+      "y": 217,
+      "visible": true
+    },
+    {
+      "t": 20.319,
+      "x": 1803,
+      "y": 216,
+      "visible": true
+    },
+    {
+      "t": 20.351,
+      "x": 1802,
+      "y": 215,
+      "visible": true
+    },
+    {
+      "t": 20.588,
+      "x": 1802,
+      "y": 215,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 20.689,
+      "x": 1802,
+      "y": 215,
+      "visible": true
+    },
+    {
+      "t": 21.54,
+      "x": 1802,
+      "y": 216,
+      "visible": true
+    },
+    {
+      "t": 21.565,
+      "x": 1801,
+      "y": 216,
+      "visible": true
+    },
+    {
+      "t": 21.59,
+      "x": 1800,
+      "y": 218,
+      "visible": true
+    },
+    {
+      "t": 21.606,
+      "x": 1799,
+      "y": 221,
+      "visible": true
+    },
+    {
+      "t": 21.625,
+      "x": 1797,
+      "y": 223,
+      "visible": true
+    },
+    {
+      "t": 21.642,
+      "x": 1794,
+      "y": 228,
+      "visible": true
+    },
+    {
+      "t": 21.666,
+      "x": 1791,
+      "y": 233,
+      "visible": true
+    },
+    {
+      "t": 21.69,
+      "x": 1785,
+      "y": 243,
+      "visible": true
+    },
+    {
+      "t": 21.715,
+      "x": 1776,
+      "y": 254,
+      "visible": true
+    },
+    {
+      "t": 21.764,
+      "x": 1763,
+      "y": 268,
+      "visible": true
+    },
+    {
+      "t": 21.778,
+      "x": 1740,
+      "y": 286,
+      "visible": true
+    },
+    {
+      "t": 21.797,
+      "x": 1735,
+      "y": 289,
+      "visible": true
+    },
+    {
+      "t": 21.814,
+      "x": 1730,
+      "y": 292,
+      "visible": true
+    },
+    {
+      "t": 21.828,
+      "x": 1726,
+      "y": 295,
+      "visible": true
+    },
+    {
+      "t": 21.85,
+      "x": 1724,
+      "y": 296,
+      "visible": true
+    },
+    {
+      "t": 21.87,
+      "x": 1721,
+      "y": 298,
+      "visible": true
+    },
+    {
+      "t": 21.883,
+      "x": 1720,
+      "y": 298,
+      "visible": true
+    },
+    {
+      "t": 21.908,
+      "x": 1719,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 22.163,
+      "x": 1719,
+      "y": 299,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 22.299,
+      "x": 1719,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 23.104,
+      "x": 1718,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 23.24,
+      "x": 1717,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 23.337,
+      "x": 1639,
+      "y": 318,
+      "visible": true
+    },
+    {
+      "t": 23.34,
+      "x": 1416,
+      "y": 346,
+      "visible": true
+    },
+    {
+      "t": 23.434,
+      "x": 1406,
+      "y": 346,
+      "visible": true
+    },
+    {
+      "t": 23.531,
+      "x": 1194,
+      "y": 317,
+      "visible": true
+    },
+    {
+      "t": 23.638,
+      "x": 1120,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 23.746,
+      "x": 1113,
+      "y": 297,
+      "visible": true
+    },
+    {
+      "t": 23.951,
+      "x": 1113,
+      "y": 297,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 24.057,
+      "x": 1113,
+      "y": 297,
+      "visible": true
+    },
+    {
+      "t": 25.236,
+      "x": 1114,
+      "y": 297,
+      "visible": true
+    },
+    {
+      "t": 25.263,
+      "x": 1116,
+      "y": 298,
+      "visible": true
+    },
+    {
+      "t": 25.283,
+      "x": 1118,
+      "y": 298,
+      "visible": true
+    },
+    {
+      "t": 25.31,
+      "x": 1122,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 25.331,
+      "x": 1132,
+      "y": 301,
+      "visible": true
+    },
+    {
+      "t": 25.354,
+      "x": 1144,
+      "y": 304,
+      "visible": true
+    },
+    {
+      "t": 25.373,
+      "x": 1160,
+      "y": 308,
+      "visible": true
+    },
+    {
+      "t": 25.391,
+      "x": 1178,
+      "y": 312,
+      "visible": true
+    },
+    {
+      "t": 25.414,
+      "x": 1198,
+      "y": 316,
+      "visible": true
+    },
+    {
+      "t": 25.433,
+      "x": 1230,
+      "y": 323,
+      "visible": true
+    },
+    {
+      "t": 25.458,
+      "x": 1261,
+      "y": 328,
+      "visible": true
+    },
+    {
+      "t": 25.478,
+      "x": 1310,
+      "y": 336,
+      "visible": true
+    },
+    {
+      "t": 25.502,
+      "x": 1357,
+      "y": 342,
+      "visible": true
+    },
+    {
+      "t": 25.519,
+      "x": 1420,
+      "y": 345,
+      "visible": true
+    },
+    {
+      "t": 25.539,
+      "x": 1470,
+      "y": 345,
+      "visible": true
+    },
+    {
+      "t": 25.555,
+      "x": 1528,
+      "y": 342,
+      "visible": true
+    },
+    {
+      "t": 25.597,
+      "x": 1569,
+      "y": 337,
+      "visible": true
+    },
+    {
+      "t": 25.614,
+      "x": 1656,
+      "y": 321,
+      "visible": true
+    },
+    {
+      "t": 25.638,
+      "x": 1683,
+      "y": 315,
+      "visible": true
+    },
+    {
+      "t": 25.655,
+      "x": 1717,
+      "y": 307,
+      "visible": true
+    },
+    {
+      "t": 25.684,
+      "x": 1736,
+      "y": 302,
+      "visible": true
+    },
+    {
+      "t": 25.694,
+      "x": 1761,
+      "y": 295,
+      "visible": true
+    },
+    {
+      "t": 25.71,
+      "x": 1768,
+      "y": 293,
+      "visible": true
+    },
+    {
+      "t": 25.728,
+      "x": 1778,
+      "y": 291,
+      "visible": true
+    },
+    {
+      "t": 25.749,
+      "x": 1786,
+      "y": 288,
+      "visible": true
+    },
+    {
+      "t": 25.762,
+      "x": 1793,
+      "y": 286,
+      "visible": true
+    },
+    {
+      "t": 25.778,
+      "x": 1796,
+      "y": 286,
+      "visible": true
+    },
+    {
+      "t": 25.795,
+      "x": 1799,
+      "y": 285,
+      "visible": true
+    },
+    {
+      "t": 25.809,
+      "x": 1801,
+      "y": 284,
+      "visible": true
+    },
+    {
+      "t": 25.862,
+      "x": 1802,
+      "y": 284,
+      "visible": true
+    },
+    {
+      "t": 26.098,
+      "x": 1802,
+      "y": 284,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 26.193,
+      "x": 1802,
+      "y": 284,
+      "visible": true
+    },
+    {
+      "t": 27.084,
+      "x": 1801,
+      "y": 284,
+      "visible": true
+    },
+    {
+      "t": 27.109,
+      "x": 1800,
+      "y": 284,
+      "visible": true
+    },
+    {
+      "t": 27.128,
+      "x": 1799,
+      "y": 285,
+      "visible": true
+    },
+    {
+      "t": 27.149,
+      "x": 1797,
+      "y": 285,
+      "visible": true
+    },
+    {
+      "t": 27.17,
+      "x": 1793,
+      "y": 287,
+      "visible": true
+    },
+    {
+      "t": 27.177,
+      "x": 1788,
+      "y": 288,
+      "visible": true
+    },
+    {
+      "t": 27.192,
+      "x": 1784,
+      "y": 289,
+      "visible": true
+    },
+    {
+      "t": 27.21,
+      "x": 1778,
+      "y": 292,
+      "visible": true
+    },
+    {
+      "t": 27.224,
+      "x": 1771,
+      "y": 294,
+      "visible": true
+    },
+    {
+      "t": 27.246,
+      "x": 1762,
+      "y": 299,
+      "visible": true
+    },
+    {
+      "t": 27.276,
+      "x": 1752,
+      "y": 304,
+      "visible": true
+    },
+    {
+      "t": 27.302,
+      "x": 1739,
+      "y": 314,
+      "visible": true
+    },
+    {
+      "t": 27.325,
+      "x": 1731,
+      "y": 321,
+      "visible": true
+    },
+    {
+      "t": 27.346,
+      "x": 1726,
+      "y": 325,
+      "visible": true
+    },
+    {
+      "t": 27.357,
+      "x": 1723,
+      "y": 328,
+      "visible": true
+    },
+    {
+      "t": 27.374,
+      "x": 1722,
+      "y": 329,
+      "visible": true
+    },
+    {
+      "t": 27.39,
+      "x": 1721,
+      "y": 331,
+      "visible": true
+    },
+    {
+      "t": 27.404,
+      "x": 1720,
+      "y": 331,
+      "visible": true
+    },
+    {
+      "t": 27.42,
+      "x": 1719,
+      "y": 332,
+      "visible": true
+    },
+    {
+      "t": 27.675,
+      "x": 1719,
+      "y": 332,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 27.847,
+      "x": 1719,
+      "y": 332,
+      "visible": true
+    },
+    {
+      "t": 29.068,
+      "x": 1717,
+      "y": 332,
+      "visible": true
+    },
+    {
+      "t": 29.164,
+      "x": 1699,
+      "y": 327,
+      "visible": true
+    },
+    {
+      "t": 29.264,
+      "x": 1600,
+      "y": 306,
+      "visible": true
+    },
+    {
+      "t": 29.355,
+      "x": 1345,
+      "y": 280,
+      "visible": true
+    },
+    {
+      "t": 29.445,
+      "x": 1101,
+      "y": 312,
+      "visible": true
+    },
+    {
+      "t": 29.542,
+      "x": 991,
+      "y": 340,
+      "visible": true
+    },
+    {
+      "t": 29.666,
+      "x": 961,
+      "y": 348,
+      "visible": true
+    },
+    {
+      "t": 29.759,
+      "x": 960,
+      "y": 348,
+      "visible": true
+    },
+    {
+      "t": 29.96,
+      "x": 960,
+      "y": 348,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 30.065,
+      "x": 960,
+      "y": 348,
+      "visible": true
+    },
+    {
+      "t": 30.906,
+      "x": 960,
+      "y": 349,
+      "visible": true
+    },
+    {
+      "t": 31.007,
+      "x": 959,
+      "y": 351,
+      "visible": true
+    },
+    {
+      "t": 31.11,
+      "x": 956,
+      "y": 365,
+      "visible": true
+    },
+    {
+      "t": 31.225,
+      "x": 955,
+      "y": 414,
+      "visible": true
+    },
+    {
+      "t": 31.331,
+      "x": 960,
+      "y": 435,
+      "visible": true
+    },
+    {
+      "t": 31.441,
+      "x": 960,
+      "y": 436,
+      "visible": true
+    },
+    {
+      "t": 31.648,
+      "x": 960,
+      "y": 436,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 31.746,
+      "x": 960,
+      "y": 436,
+      "visible": true
+    },
+    {
+      "t": 32.227,
+      "x": 959,
+      "y": 434,
+      "visible": true
+    },
+    {
+      "t": 32.313,
+      "x": 952,
+      "y": 412,
+      "visible": true
+    },
+    {
+      "t": 32.399,
+      "x": 915,
+      "y": 323,
+      "visible": true
+    },
+    {
+      "t": 32.486,
+      "x": 830,
+      "y": 206,
+      "visible": true
+    },
+    {
+      "t": 32.572,
+      "x": 787,
+      "y": 165,
+      "visible": true
+    },
+    {
+      "t": 32.663,
+      "x": 781,
+      "y": 159,
+      "visible": true
+    },
+    {
+      "t": 32.814,
+      "x": 781,
+      "y": 159,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 32.913,
+      "x": 781,
+      "y": 159,
+      "visible": true
+    },
+    {
+      "t": 33.526,
+      "x": 782,
+      "y": 160,
+      "visible": true
+    },
+    {
+      "t": 33.535,
+      "x": 785,
+      "y": 163,
+      "visible": true
+    },
+    {
+      "t": 33.634,
+      "x": 787,
+      "y": 164,
+      "visible": true
+    },
+    {
+      "t": 33.726,
+      "x": 839,
+      "y": 215,
+      "visible": true
+    },
+    {
+      "t": 33.845,
+      "x": 927,
+      "y": 345,
+      "visible": true
+    },
+    {
+      "t": 33.966,
+      "x": 958,
+      "y": 428,
+      "visible": true
+    },
+    {
+      "t": 34.056,
+      "x": 960,
+      "y": 433,
+      "visible": true
+    },
+    {
+      "t": 34.263,
+      "x": 960,
+      "y": 433,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 34.365,
+      "x": 960,
+      "y": 433,
+      "visible": true
+    },
+    {
+      "t": 35.291,
+      "x": 960,
+      "y": 434,
+      "visible": true
+    },
+    {
+      "t": 35.383,
+      "x": 959,
+      "y": 435,
+      "visible": true
+    },
+    {
+      "t": 35.475,
+      "x": 957,
+      "y": 447,
+      "visible": true
+    },
+    {
+      "t": 35.571,
+      "x": 954,
+      "y": 489,
+      "visible": true
+    },
+    {
+      "t": 35.67,
+      "x": 959,
+      "y": 516,
+      "visible": true
+    },
+    {
+      "t": 35.764,
+      "x": 960,
+      "y": 520,
+      "visible": true
+    },
+    {
+      "t": 35.964,
+      "x": 960,
+      "y": 520,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 36.062,
+      "x": 960,
+      "y": 520,
+      "visible": true
+    },
+    {
+      "t": 36.555,
+      "x": 960,
+      "y": 519,
+      "visible": true
+    },
+    {
+      "t": 36.68,
+      "x": 951,
+      "y": 481,
+      "visible": true
+    },
+    {
+      "t": 36.798,
+      "x": 856,
+      "y": 253,
+      "visible": true
+    },
+    {
+      "t": 36.892,
+      "x": 784,
+      "y": 163,
+      "visible": true
+    },
+    {
+      "t": 36.992,
+      "x": 781,
+      "y": 159,
+      "visible": true
+    },
+    {
+      "t": 37.146,
+      "x": 781,
+      "y": 159,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 37.251,
+      "x": 781,
+      "y": 159,
+      "visible": true
+    },
+    {
+      "t": 37.669,
+      "x": 782,
+      "y": 160,
+      "visible": true
+    },
+    {
+      "t": 37.768,
+      "x": 784,
+      "y": 162,
+      "visible": true
+    },
+    {
+      "t": 37.869,
+      "x": 817,
+      "y": 201,
+      "visible": true
+    },
+    {
+      "t": 37.997,
+      "x": 914,
+      "y": 355,
+      "visible": true
+    },
+    {
+      "t": 38.11,
+      "x": 957,
+      "y": 503,
+      "visible": true
+    },
+    {
+      "t": 38.216,
+      "x": 960,
+      "y": 517,
+      "visible": true
+    },
+    {
+      "t": 38.421,
+      "x": 960,
+      "y": 517,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 38.528,
+      "x": 960,
+      "y": 517,
+      "visible": true
+    },
+    {
+      "t": 39.973,
+      "x": 960,
+      "y": 518,
+      "visible": true
+    },
+    {
+      "t": 40.074,
+      "x": 960,
+      "y": 519,
+      "visible": true
+    },
+    {
+      "t": 40.192,
+      "x": 955,
+      "y": 538,
+      "visible": true
+    },
+    {
+      "t": 40.288,
+      "x": 956,
+      "y": 602,
+      "visible": true
+    },
+    {
+      "t": 40.396,
+      "x": 960,
+      "y": 619,
+      "visible": true
+    },
+    {
+      "t": 40.505,
+      "x": 960,
+      "y": 620,
+      "visible": true
+    },
+    {
+      "t": 40.733,
+      "x": 960,
+      "y": 620,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 40.831,
+      "x": 960,
+      "y": 620,
+      "visible": true
+    },
+    {
+      "t": 41.393,
+      "x": 960,
+      "y": 619,
+      "visible": true
+    },
+    {
+      "t": 41.485,
+      "x": 944,
+      "y": 510,
+      "visible": true
+    },
+    {
+      "t": 41.583,
+      "x": 869,
+      "y": 293,
+      "visible": true
+    },
+    {
+      "t": 41.678,
+      "x": 794,
+      "y": 178,
+      "visible": true
+    },
+    {
+      "t": 41.767,
+      "x": 781,
+      "y": 159,
+      "visible": true
+    },
+    {
+      "t": 41.91,
+      "x": 781,
+      "y": 159,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 42.017,
+      "x": 781,
+      "y": 159,
+      "visible": true
+    },
+    {
+      "t": 42.653,
+      "x": 781,
+      "y": 160,
+      "visible": true
+    },
+    {
+      "t": 42.748,
+      "x": 785,
+      "y": 166,
+      "visible": true
+    },
+    {
+      "t": 42.846,
+      "x": 823,
+      "y": 241,
+      "visible": true
+    },
+    {
+      "t": 42.956,
+      "x": 969,
+      "y": 453,
+      "visible": true
+    },
+    {
+      "t": 43.056,
+      "x": 1140,
+      "y": 596,
+      "visible": true
+    },
+    {
+      "t": 43.169,
+      "x": 1176,
+      "y": 623,
+      "visible": true
+    },
+    {
+      "t": 43.277,
+      "x": 1177,
+      "y": 623,
+      "visible": true
+    },
+    {
+      "t": 43.488,
+      "x": 1177,
+      "y": 623,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 43.587,
+      "x": 1177,
+      "y": 623,
+      "visible": true
+    },
+    {
+      "t": 46.955,
+      "x": 1796,
+      "y": 156,
+      "visible": true
+    },
+    {
+      "t": 48.945,
+      "x": 1795,
+      "y": 155,
+      "visible": true
+    },
+    {
+      "t": 48.973,
+      "x": 1794,
+      "y": 154,
+      "visible": true
+    },
+    {
+      "t": 48.998,
+      "x": 1793,
+      "y": 152,
+      "visible": true
+    },
+    {
+      "t": 49.019,
+      "x": 1791,
+      "y": 149,
+      "visible": true
+    },
+    {
+      "t": 49.038,
+      "x": 1787,
+      "y": 145,
+      "visible": true
+    },
+    {
+      "t": 49.066,
+      "x": 1784,
+      "y": 140,
+      "visible": true
+    },
+    {
+      "t": 49.087,
+      "x": 1777,
+      "y": 129,
+      "visible": true
+    },
+    {
+      "t": 49.111,
+      "x": 1772,
+      "y": 118,
+      "visible": true
+    },
+    {
+      "t": 49.129,
+      "x": 1767,
+      "y": 106,
+      "visible": true
+    },
+    {
+      "t": 49.149,
+      "x": 1765,
+      "y": 97,
+      "visible": true
+    },
+    {
+      "t": 49.156,
+      "x": 1763,
+      "y": 90,
+      "visible": true
+    },
+    {
+      "t": 49.182,
+      "x": 1763,
+      "y": 88,
+      "visible": true
+    },
+    {
+      "t": 49.194,
+      "x": 1761,
+      "y": 81,
+      "visible": true
+    },
+    {
+      "t": 49.218,
+      "x": 1761,
+      "y": 79,
+      "visible": true
+    },
+    {
+      "t": 49.249,
+      "x": 1760,
+      "y": 76,
+      "visible": true
+    },
+    {
+      "t": 49.282,
+      "x": 1760,
+      "y": 74,
+      "visible": true
+    },
+    {
+      "t": 49.299,
+      "x": 1760,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 49.554,
+      "x": 1760,
+      "y": 73,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 49.683,
+      "x": 1760,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 50.613,
+      "x": 1759,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 50.728,
+      "x": 1733,
+      "y": 73,
+      "visible": true
+    },
+    {
+      "t": 50.83,
+      "x": 1608,
+      "y": 76,
+      "visible": true
+    },
+    {
+      "t": 50.944,
+      "x": 1354,
+      "y": 108,
+      "visible": true
+    },
+    {
+      "t": 51.037,
+      "x": 1087,
+      "y": 202,
+      "visible": true
+    },
+    {
+      "t": 51.132,
+      "x": 992,
+      "y": 247,
+      "visible": true
+    },
+    {
+      "t": 51.228,
+      "x": 962,
+      "y": 262,
+      "visible": true
+    },
+    {
+      "t": 51.331,
+      "x": 960,
+      "y": 263,
+      "visible": true
+    },
+    {
+      "t": 51.552,
+      "x": 960,
+      "y": 263,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 51.645,
+      "x": 960,
+      "y": 263,
+      "visible": true
+    },
+    {
+      "t": 53.411,
+      "x": 960,
+      "y": 264,
+      "visible": true
+    },
+    {
+      "t": 53.506,
+      "x": 962,
+      "y": 272,
+      "visible": true
+    },
+    {
+      "t": 53.594,
+      "x": 968,
+      "y": 307,
+      "visible": true
+    },
+    {
+      "t": 53.683,
+      "x": 963,
+      "y": 345,
+      "visible": true
+    },
+    {
+      "t": 53.86,
+      "x": 960,
+      "y": 358,
+      "visible": true
+    },
+    {
+      "t": 53.956,
+      "x": 960,
+      "y": 359,
+      "visible": true
+    },
+    {
+      "t": 54.183,
+      "x": 960,
+      "y": 359,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 54.286,
+      "x": 960,
+      "y": 359,
+      "visible": true
+    }
+  ],
+  "idle": [
+    {
+      "t_start": 0.725,
+      "t_end": 2.699
+    },
+    {
+      "t_start": 15.16,
+      "t_end": 15.966
+    },
+    {
+      "t_start": 16.486,
+      "t_end": 18.526
+    },
+    {
+      "t_start": 24.62,
+      "t_end": 25.257
+    },
+    {
+      "t_start": 44.282,
+      "t_end": 46.404
+    },
+    {
+      "t_start": 47.124,
+      "t_end": 48.967
+    },
+    {
+      "t_start": 62.103,
+      "t_end": 65.713
+    }
+  ],
+  "warnings": [
+    "19 of 24 cursor moves were captured below 18 fps (lowest 7 fps at 30.9 s): the browser renders this page slowly (software rendering without a GPU, or heavy effects such as backdrop-filter blur), so motion will look choppy"
+  ]
+}

@@ -5,7 +5,7 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { FrameSpec, TransitionKind, Template } from '@demo-studio/core';
+import type { BBox, FrameSpec, PointSpec, TransitionKind, Template } from '@demo-studio/core';
 import type { CaptionCue, ComponentManifest, ThemeTokens } from '@demo-studio/components';
 
 export type { CaptionCue };
@@ -41,6 +41,14 @@ export interface PlanBrand {
   wordmark?: { url: string };
 }
 
+/**
+ * URL scheme of the assets a plan refers to (capture, logo, wordmark, fonts, music): `ds-asset:<name>`. The planner
+ * is pure and does not know where the renderer serves files, so every URL in a plan uses this scheme and
+ * `EditPlan.assets` maps each such URL to its absolute file; the renderer serves the files and swaps the URLs
+ * (`resolvePlanAssets`).
+ */
+export const PLAN_ASSET_SCHEME = 'ds-asset:';
+
 /** Geometry of the main layout (computed by the planner from the frame style + template). */
 export interface PlanLayout {
   /** Where the capture pixels are drawn (inside the card / mockup screen). */
@@ -55,6 +63,13 @@ export interface PlanLayout {
   radius: number;
   /** Brandmark position. */
   brandmark?: Rect;
+  /**
+   * Vertical variant: size (source CSS px) of the capture region shown in `capture` — the largest region of the
+   * capture with the aspect ratio of the screen rect; its centre follows `ClipSegment.reframe`.
+   */
+  crop?: { w: number; h: number };
+  /** The layout component's manifest had no geometry for this variant: a default geometry was used. */
+  fallback?: boolean;
 }
 
 /** A component resolved for one use in the plan (what the composition renders, what the UI can switch). */
@@ -67,6 +82,20 @@ export interface ResolvedComponent {
   slots: Record<string, string | undefined>;
   /** Where the choice came from (for the UI: "theme default" vs "scenario override"). */
   source: 'theme' | 'scenario' | 'override' | 'builtin-default';
+  /**
+   * Set when no registered component could be resolved for this use (not found, wrong kind or invalid params): the
+   * renderer draws a stand-in of the kind; the plan warnings say why.
+   */
+  missing?: boolean;
+}
+
+/** The transition that leads into a segment (absent: the first segment, or a contiguous same-page join). */
+export interface PlanTransition {
+  kind: TransitionKind;
+  /** crossfade: overlap with the previous segment; fade-black: fade-out frames + fade-in frames; cut: 0. */
+  frames: number;
+  /** The transition component (null for a cut). */
+  component: ResolvedComponent | null;
 }
 
 /** Provenance of a span of output frames: which scenario step produced it (comments, timeline UI, review). */
@@ -88,6 +117,50 @@ export interface OverlayUse {
   /** Step that requested it. */
   scene: string;
   step: number;
+  /**
+   * What the overlay points at, in SOURCE CSS px (the target box measured at the end of the step, else the cursor
+   * point). The composition maps it through the layout and the camera of each frame (`mapSourceRect`); absent when
+   * the runner recorded no anchor.
+   */
+  anchor?: { bbox?: BBox; point?: PointSpec };
+}
+
+/** Playback speed over output frames [from, to) of a clip (relative to the segment). */
+export interface SpeedSpan {
+  from: number;
+  to: number;
+  /** Speed (×) at `from`; equals `to_speed` except on a ramp. */
+  speed: number;
+  /** Speed (×) at `to` (ramps). */
+  to_speed: number;
+  /** 1× span kept by rule (opening still, hold, marked step window). */
+  protected?: boolean;
+}
+
+/** An idle gap shortened by the planner: at output frame `at` (relative), capture time jumps over [src_from_s, src_to_s). */
+export interface TrimSpan {
+  at: number;
+  src_from_s: number;
+  src_to_s: number;
+}
+
+/** A camera zoom of a clip, from a step `camera` hint (frames relative to the clip whose step asked for it). */
+export interface ZoomSpan {
+  scene: string;
+  step: number;
+  /** Zoom-in starts (the step's output start). */
+  from: number;
+  /** Ease-in length (frames). */
+  in_frames: number;
+  /** Ease-out starts (may lie beyond the clip: the zoom then continues into the next same-page clip or ends with the clip). */
+  out_at: number;
+  out_frames: number;
+  zoom: number;
+  /** The hint's zoom when it was clamped to the theme max_zoom. */
+  requested_zoom?: number;
+  /** Focus point in source CSS px (bbox centre, else point, else cursor) and the view centre after clamping. */
+  focus: PointSpec;
+  view: PointSpec;
 }
 
 export interface SegmentBase {
@@ -105,6 +178,8 @@ export interface SegmentBase {
   transitionIn: TransitionKind | 'none';
   /** The component that renders this segment (layout component for clips). */
   component: ResolvedComponent;
+  /** The transition into this segment, with its component (absent for the first segment and same-page joins). */
+  transition?: PlanTransition;
 }
 
 export interface IntroSegment extends SegmentBase {
@@ -147,6 +222,20 @@ export interface ClipSegment extends SegmentBase {
   overlays: OverlayUse[];
   /** Which scenario steps produced which output frames. */
   steps: StepSpan[];
+  /** The caption cues of this clip relative to the segment (the last one runs to the segment's end, overlap included). */
+  cues: CaptionCue[];
+  /** Geometry of this clip's layout component (equals plan.layout unless the scene has its own frame). */
+  layout: PlanLayout;
+  /** Source range shown, capture seconds [from, to) (page loads excluded). */
+  src: { from_s: number; to_s: number };
+  /** Playback speeds over the clip (output frames, relative). */
+  speeds: SpeedSpan[];
+  /** Idle gaps shortened in this clip. */
+  trims: TrimSpan[];
+  /** Camera zooms asked by this clip's steps. */
+  zooms: ZoomSpan[];
+  /** Number of trailing frames that repeat the last source frame (outgoing side of a crossfade / fade). */
+  heldFrames: number;
 }
 
 export type PlanSegment = IntroSegment | OutroSegment | CardSegment | ClipSegment;
@@ -206,6 +295,10 @@ export interface EditPlan {
   markers: Array<{ name: string; frame: number; scene: string }>;
   timemap: TimeMapEntry[];
   music?: PlanMusic;
+  /** Every `ds-asset:` URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
+  assets: Record<string, string>;
+  /** Run, scenario, project and theme the plan was made from. */
+  meta: { run_id: string; project: string; scenario: string; theme: string };
   /** Planner decisions worth surfacing (trimmed idle gaps, clamped zooms…). */
   notes: string[];
   warnings: string[];

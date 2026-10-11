@@ -9,6 +9,8 @@ import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './comman
 import type { HookCommandOptions } from './commands/hooks.js';
 import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, loginCommand, schemaCommand } from './commands/misc.js';
 import type { LoginOptions } from './commands/misc.js';
+import { planCommand } from './commands/plan.js';
+import type { PlanCommandOptions } from './commands/plan.js';
 import { listCommand, newCommand } from './commands/project.js';
 import type { NewOptions } from './commands/project.js';
 import { runCommand } from './commands/run.js';
@@ -96,6 +98,19 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--headed', 'show the browser window (needs a display)')
     .option('--json', 'stream progress events as JSON lines on stdout')
     .action(action((u, g, p: string, s: string, o: RunCommandOptions) => runCommand(u, g, p, s, o)));
+
+  program
+    .command('plan')
+    .description('plan the edit of a capture (segments, components, speeds, trims, zooms, captions) without rendering')
+    .argument('<project>', 'project slug or directory')
+    .argument('<run>', 'run id (folder under runs/), run directory, or "latest"')
+    .option('--scenario <name>', 'with "latest": the latest run of this scenario')
+    .option('--theme <name>', 'plan with another theme (template name or ./path) instead of the one the run used')
+    .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, raw or a layout component id')
+    .option('--vertical', 'the vertical 9:16 variant (1080×1920)')
+    .option('--json', 'print the plan as JSON')
+    .option('--out <file>', 'write the plan JSON to a file')
+    .action(action((u, g, p: string, r: string, o: PlanCommandOptions) => planCommand(u, g, p, r, o)));
 
   const hooks = program.command('hooks').description('run hooks or replay rollbacks outside a capture');
   hooks

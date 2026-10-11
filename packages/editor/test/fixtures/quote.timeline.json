@@ -1,0 +1,2286 @@
+{
+  "version": 1,
+  "run_id": "20261011-182706-quote",
+  "project": "northfield-fixture",
+  "scenario": "quote",
+  "created_at": "2026-10-11T18:27:06.568Z",
+  "mode": "capture",
+  "capture": {
+    "file": "capture.mp4",
+    "width": 1920,
+    "height": 1080,
+    "scale": 1,
+    "fps": 30,
+    "duration": 48.384,
+    "t0_wall": 1791743226929,
+    "frames": 525
+  },
+  "video": {
+    "title": {
+      "kicker": "For cafés",
+      "text": "Request a quote in a minute"
+    },
+    "outro": {
+      "tagline": "From request to proposal, in one place."
+    },
+    "frame": "card",
+    "template": "editorial"
+  },
+  "scenes": [
+    {
+      "id": "discover",
+      "index": 0,
+      "kind": "scene",
+      "t_start": 0.012,
+      "t_end": 8.862,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "Discover",
+        "text": "Award-winning lots and fresh arrivals, roasted to order."
+      },
+      "url": "http://localhost:4402/",
+      "t_actions": 2.629
+    },
+    {
+      "id": "chapter-request",
+      "index": 1,
+      "kind": "card",
+      "t_start": 8.862,
+      "t_end": 8.862,
+      "card": {
+        "slots": {
+          "kicker": "Step two",
+          "title": "Ask the roaster for a quote"
+        },
+        "duration": 2.2
+      },
+      "status": "ok"
+    },
+    {
+      "id": "request",
+      "index": 2,
+      "kind": "scene",
+      "t_start": 8.862,
+      "t_end": 33.558,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "Request a quote",
+        "text": "Choose the quantity, the grind, the labels and your delivery window."
+      },
+      "url": "http://localhost:4402/products/selowa-ridge",
+      "t_actions": 10.465
+    },
+    {
+      "id": "interstitial-3",
+      "index": 3,
+      "kind": "interstitial",
+      "t_start": 33.558,
+      "t_end": 33.558,
+      "interstitial": {
+        "text": "A few hours later",
+        "duration": 2.6
+      },
+      "status": "ok"
+    },
+    {
+      "id": "proposal",
+      "index": 4,
+      "kind": "scene",
+      "t_start": 33.559,
+      "t_end": 48.384,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "Proposal",
+        "text": "The roaster's proposal arrives as a notification, with a PDF ready to share."
+      },
+      "url": "http://localhost:4402/",
+      "t_actions": 36.151
+    }
+  ],
+  "events": [
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.012,
+      "t_end": 0.677,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/"
+    },
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 1.029,
+      "t_end": 2.629,
+      "status": "ok",
+      "point": {
+        "x": 661,
+        "y": 598
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 661,
+            "y": 598
+          },
+          "anchor": "link \"Cup of Origin · Lot #1Colombia · CaucaFinca Liran…\"",
+          "side": "above-right"
+        }
+      }
+    },
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": 0,
+      "action": "hover",
+      "t_start": 2.63,
+      "t_end": 3.74,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Cup of Origin · Lot #1Colombia · CaucaFinca Liran…\"",
+        "bbox": {
+          "x": 288,
+          "y": 669.5,
+          "w": 316.5,
+          "h": 353.56
+        }
+      },
+      "point": {
+        "x": 446,
+        "y": 846
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/"
+    },
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": 1,
+      "action": "scroll",
+      "t_start": 3.741,
+      "t_end": 5.383,
+      "status": "ok",
+      "target": {
+        "desc": "heading \"Fresh arrivals\"",
+        "bbox": {
+          "x": 288,
+          "y": 100.06,
+          "w": 352.91,
+          "h": 46.5
+        }
+      },
+      "data": {
+        "container": "document",
+        "from": 0,
+        "to": 979
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/"
+    },
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": 2,
+      "action": "click",
+      "t_start": 5.383,
+      "t_end": 7.654,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Top 10 · Ethiopia 2026Ethiopia · Gedeo, Yirgachef…\"",
+        "bbox": {
+          "x": 630.5,
+          "y": 189.56,
+          "w": 316.5,
+          "h": 353.56
+        }
+      },
+      "point": {
+        "x": 789,
+        "y": 366
+      },
+      "t_click": 6.155,
+      "strategy": "real",
+      "data": {
+        "navigation": {
+          "kind": "url",
+          "url": "http://localhost:4402/products/selowa-ridge"
+        }
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": 3,
+      "action": "wait_for",
+      "t_start": 7.655,
+      "t_end": 7.66,
+      "status": "ok",
+      "data": {
+        "waited_ms": 5
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "discover",
+      "scene_index": 0,
+      "step": 4,
+      "action": "hold",
+      "t_start": 7.66,
+      "t_end": 8.861,
+      "status": "ok",
+      "hold": {
+        "t_start": 7.66,
+        "t_end": 8.861
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 8.866,
+      "t_end": 10.465,
+      "status": "ok",
+      "point": {
+        "x": 789,
+        "y": 366
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "keep",
+          "to": {
+            "x": 789,
+            "y": 366
+          },
+          "from": {
+            "x": 789,
+            "y": 366
+          },
+          "anchor": "button \"Request a quote\""
+        }
+      }
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 0,
+      "action": "click",
+      "t_start": 10.466,
+      "t_end": 12.106,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Request a quote\"",
+        "bbox": {
+          "x": 990,
+          "y": 753.42,
+          "w": 189.02,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 1085,
+        "y": 776
+      },
+      "t_click": 11.188,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 1,
+      "action": "click",
+      "t_start": 12.107,
+      "t_end": 13.407,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Increase\"",
+        "bbox": {
+          "x": 910,
+          "y": 342.3,
+          "w": 40,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 930,
+        "y": 361
+      },
+      "t_click": 12.932,
+      "strategy": "real",
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 2,
+      "action": "click",
+      "t_start": 13.407,
+      "t_end": 13.982,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Increase\"",
+        "bbox": {
+          "x": 910,
+          "y": 342.3,
+          "w": 40,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 930,
+        "y": 361
+      },
+      "t_click": 13.54,
+      "strategy": "real",
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 3,
+      "action": "select",
+      "t_start": 13.982,
+      "t_end": 16.932,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Choose a size\"",
+        "bbox": {
+          "x": 969,
+          "y": 341.3,
+          "w": 302,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 1120,
+        "y": 361
+      },
+      "t_click": 14.784,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "5 kg",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 1120,
+              "y": 361
+            },
+            "t_click": 14.784,
+            "desc": "combobox \"Choose a size\"",
+            "bbox": {
+              "x": 969,
+              "y": 341.3,
+              "w": 302,
+              "h": 40
+            },
+            "popup_ms": 126
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 1120,
+              "y": 448
+            },
+            "t_click": 16.473,
+            "desc": "option \"5 kg\"",
+            "bbox": {
+              "x": 976,
+              "y": 430,
+              "w": 288,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 4,
+      "action": "select",
+      "t_start": 16.933,
+      "t_end": 19.678,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Choose a grind\"",
+        "bbox": {
+          "x": 649,
+          "y": 425.8,
+          "w": 302,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 800,
+        "y": 446
+      },
+      "t_click": 17.691,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "Whole bean",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 800,
+              "y": 446
+            },
+            "t_click": 17.691,
+            "desc": "combobox \"Choose a grind\"",
+            "bbox": {
+              "x": 649,
+              "y": 425.8,
+              "w": 302,
+              "h": 40
+            },
+            "popup_ms": 117
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 800,
+              "y": 497
+            },
+            "t_click": 19.231,
+            "desc": "option \"Whole bean\"",
+            "bbox": {
+              "x": 656,
+              "y": 479,
+              "w": 288,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 5,
+      "action": "click",
+      "t_start": 19.678,
+      "t_end": 21.36,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Delivery window\"",
+        "bbox": {
+          "x": 649,
+          "y": 510.3,
+          "w": 622,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 530
+      },
+      "t_click": 20.471,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 6,
+      "action": "click",
+      "t_start": 21.36,
+      "t_end": 22.745,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Next month\"",
+        "bbox": {
+          "x": 1238,
+          "y": 575.8,
+          "w": 34,
+          "h": 34
+        }
+      },
+      "point": {
+        "x": 1255,
+        "y": 593
+      },
+      "t_click": 22.249,
+      "strategy": "real",
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 7,
+      "action": "click",
+      "t_start": 22.746,
+      "t_end": 23.974,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Sunday, 10 January 2027\"",
+        "bbox": {
+          "x": 1227.56,
+          "y": 683.8,
+          "w": 40.42,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1248,
+        "y": 703
+      },
+      "t_click": 23.509,
+      "strategy": "real",
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 8,
+      "action": "click",
+      "t_start": 23.974,
+      "t_end": 25.205,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Sunday, 24 January 2027\"",
+        "bbox": {
+          "x": 1227.56,
+          "y": 765.8,
+          "w": 40.42,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1248,
+        "y": 785
+      },
+      "t_click": 24.738,
+      "strategy": "real",
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 9,
+      "action": "type",
+      "t_start": 25.205,
+      "t_end": 29.511,
+      "status": "ok",
+      "target": {
+        "desc": "textbox \"Message\"",
+        "bbox": {
+          "x": 649,
+          "y": 594.8,
+          "w": 622,
+          "h": 88
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 639
+      },
+      "t_click": 26.102,
+      "data": {
+        "chars": 55,
+        "cps": 18
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 10,
+      "action": "click",
+      "t_start": 29.512,
+      "t_end": 31.048,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Send request\"",
+        "bbox": {
+          "x": 1123.94,
+          "y": 723.8,
+          "w": 147.06,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1197,
+        "y": 743
+      },
+      "t_click": 30.194,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 11,
+      "action": "wait_for",
+      "t_start": 31.048,
+      "t_end": 31.057,
+      "status": "ok",
+      "data": {
+        "waited_ms": 9
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 2,
+      "step": 12,
+      "action": "hold",
+      "t_start": 31.057,
+      "t_end": 33.558,
+      "status": "ok",
+      "hold": {
+        "t_start": 31.057,
+        "t_end": 33.558
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 33.559,
+      "t_end": 34.159,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 34.551,
+      "t_end": 36.151,
+      "status": "ok",
+      "point": {
+        "x": 1459,
+        "y": 101
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1459,
+            "y": 101
+          },
+          "from": {
+            "x": 1197,
+            "y": 743
+          },
+          "anchor": "button \"Notifications, 1 unread\"",
+          "side": "below-right"
+        }
+      }
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 0,
+      "action": "wait",
+      "t_start": 36.151,
+      "t_end": 36.953,
+      "status": "ok",
+      "page": "shop",
+      "url": "http://localhost:4402/"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 1,
+      "action": "click",
+      "t_start": 36.954,
+      "t_end": 38.636,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Notifications, 1 unread\"",
+        "bbox": {
+          "x": 1360.56,
+          "y": 15,
+          "w": 42,
+          "h": 42
+        }
+      },
+      "point": {
+        "x": 1382,
+        "y": 36
+      },
+      "t_click": 37.61,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "shop",
+      "url": "http://localhost:4402/"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 2,
+      "action": "click",
+      "t_start": 38.637,
+      "t_end": 40.837,
+      "status": "ok",
+      "target": {
+        "desc": "button \"New proposal from Northfield RoastersSelowa Ridge…\"",
+        "bbox": {
+          "x": 994,
+          "y": 129,
+          "w": 408,
+          "h": 92.5
+        }
+      },
+      "point": {
+        "x": 1198,
+        "y": 175
+      },
+      "t_click": 39.338,
+      "strategy": "real",
+      "data": {
+        "navigation": {
+          "kind": "url",
+          "url": "http://localhost:4402/quotes/1043"
+        }
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 3,
+      "action": "wait_for",
+      "t_start": 40.838,
+      "t_end": 40.842,
+      "status": "ok",
+      "mark": "proposal",
+      "data": {
+        "waited_ms": 4
+      },
+      "overlay": {
+        "component": "studio/overlay-callout",
+        "slots": {
+          "text": "Total incl. VAT, ready to accept"
+        },
+        "params": {},
+        "duration": 2.5,
+        "target": "testid=\"proposal-total\"",
+        "bbox": {
+          "x": 1397.52,
+          "y": 530,
+          "w": 209.48,
+          "h": 57
+        }
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 4,
+      "action": "hover",
+      "t_start": 40.846,
+      "t_end": 41.982,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Accept proposal\"",
+        "bbox": {
+          "x": 1072.11,
+          "y": 636,
+          "w": 425.2,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 1285,
+        "y": 659
+      },
+      "hold": {
+        "t_start": 41.982,
+        "t_end": 43.483
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 5,
+      "action": "new_tab",
+      "t_start": 43.484,
+      "t_end": 44.882,
+      "status": "ok",
+      "target": {
+        "desc": "link \"PDFDownload quote PDFNorthfield_Quote_Q-1043.pdf …\"",
+        "bbox": {
+          "x": 1072.11,
+          "y": 704,
+          "w": 534.89,
+          "h": 66
+        }
+      },
+      "point": {
+        "x": 1340,
+        "y": 737
+      },
+      "t_click": 44.157,
+      "strategy": "real",
+      "data": {
+        "page": "pdf",
+        "url": "http://localhost:4402/quotes/1043/pdf",
+        "how": "popup"
+      },
+      "page": "pdf",
+      "url": "http://localhost:4402/quotes/1043/pdf"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 4,
+      "step": 6,
+      "action": "hold",
+      "t_start": 44.883,
+      "t_end": 48.383,
+      "status": "ok",
+      "hold": {
+        "t_start": 44.883,
+        "t_end": 48.383
+      },
+      "page": "pdf",
+      "url": "http://localhost:4402/quotes/1043/pdf"
+    }
+  ],
+  "markers": [
+    {
+      "name": "proposal",
+      "t": 40.838,
+      "scene": "proposal",
+      "step": 3
+    }
+  ],
+  "pages": [
+    {
+      "id": "shop",
+      "t_start": 0.002,
+      "t_end": 6.269,
+      "url": "http://localhost:4402/"
+    },
+    {
+      "id": "shop",
+      "t_start": 6.269,
+      "t_end": 33.573,
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "id": "shop",
+      "t_start": 33.573,
+      "t_end": 39.456,
+      "url": "http://localhost:4402/"
+    },
+    {
+      "id": "shop",
+      "t_start": 39.456,
+      "t_end": 44.664,
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "id": "pdf",
+      "t_start": 44.664,
+      "t_end": 48.384,
+      "url": "http://localhost:4402/quotes/1043/pdf"
+    }
+  ],
+  "cursor": [
+    {
+      "t": 0.699,
+      "x": 661,
+      "y": 598,
+      "visible": true
+    },
+    {
+      "t": 2.674,
+      "x": 660,
+      "y": 598,
+      "visible": true
+    },
+    {
+      "t": 2.711,
+      "x": 659,
+      "y": 599,
+      "visible": true
+    },
+    {
+      "t": 2.738,
+      "x": 655,
+      "y": 602,
+      "visible": true
+    },
+    {
+      "t": 2.762,
+      "x": 646,
+      "y": 608,
+      "visible": true
+    },
+    {
+      "t": 2.786,
+      "x": 633,
+      "y": 618,
+      "visible": true
+    },
+    {
+      "t": 2.812,
+      "x": 615,
+      "y": 631,
+      "visible": true
+    },
+    {
+      "t": 2.841,
+      "x": 586,
+      "y": 653,
+      "visible": true
+    },
+    {
+      "t": 2.863,
+      "x": 548,
+      "y": 689,
+      "visible": true
+    },
+    {
+      "t": 2.897,
+      "x": 516,
+      "y": 726,
+      "visible": true
+    },
+    {
+      "t": 2.956,
+      "x": 484,
+      "y": 775,
+      "visible": true
+    },
+    {
+      "t": 2.977,
+      "x": 456,
+      "y": 827,
+      "visible": true
+    },
+    {
+      "t": 3.01,
+      "x": 451,
+      "y": 836,
+      "visible": true
+    },
+    {
+      "t": 3.039,
+      "x": 447,
+      "y": 844,
+      "visible": true
+    },
+    {
+      "t": 3.07,
+      "x": 446,
+      "y": 846,
+      "visible": true
+    },
+    {
+      "t": 5.428,
+      "x": 446,
+      "y": 845,
+      "visible": true
+    },
+    {
+      "t": 5.47,
+      "x": 447,
+      "y": 844,
+      "visible": true
+    },
+    {
+      "t": 5.475,
+      "x": 449,
+      "y": 838,
+      "visible": true
+    },
+    {
+      "t": 5.49,
+      "x": 449,
+      "y": 837,
+      "visible": true
+    },
+    {
+      "t": 5.507,
+      "x": 452,
+      "y": 831,
+      "visible": true
+    },
+    {
+      "t": 5.523,
+      "x": 455,
+      "y": 822,
+      "visible": true
+    },
+    {
+      "t": 5.541,
+      "x": 460,
+      "y": 810,
+      "visible": true
+    },
+    {
+      "t": 5.557,
+      "x": 466,
+      "y": 795,
+      "visible": true
+    },
+    {
+      "t": 5.574,
+      "x": 474,
+      "y": 777,
+      "visible": true
+    },
+    {
+      "t": 5.591,
+      "x": 483,
+      "y": 754,
+      "visible": true
+    },
+    {
+      "t": 5.607,
+      "x": 495,
+      "y": 727,
+      "visible": true
+    },
+    {
+      "t": 5.623,
+      "x": 510,
+      "y": 696,
+      "visible": true
+    },
+    {
+      "t": 5.641,
+      "x": 528,
+      "y": 661,
+      "visible": true
+    },
+    {
+      "t": 5.675,
+      "x": 551,
+      "y": 620,
+      "visible": true
+    },
+    {
+      "t": 5.707,
+      "x": 614,
+      "y": 533,
+      "visible": true
+    },
+    {
+      "t": 5.744,
+      "x": 670,
+      "y": 472,
+      "visible": true
+    },
+    {
+      "t": 5.781,
+      "x": 720,
+      "y": 426,
+      "visible": true
+    },
+    {
+      "t": 5.803,
+      "x": 754,
+      "y": 395,
+      "visible": true
+    },
+    {
+      "t": 5.836,
+      "x": 768,
+      "y": 384,
+      "visible": true
+    },
+    {
+      "t": 5.865,
+      "x": 781,
+      "y": 373,
+      "visible": true
+    },
+    {
+      "t": 5.902,
+      "x": 787,
+      "y": 368,
+      "visible": true
+    },
+    {
+      "t": 5.925,
+      "x": 789,
+      "y": 366,
+      "visible": true
+    },
+    {
+      "t": 6.168,
+      "x": 789,
+      "y": 366,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 6.276,
+      "x": 789,
+      "y": 366,
+      "visible": true
+    },
+    {
+      "t": 10.527,
+      "x": 791,
+      "y": 367,
+      "visible": true
+    },
+    {
+      "t": 10.558,
+      "x": 793,
+      "y": 369,
+      "visible": true
+    },
+    {
+      "t": 10.583,
+      "x": 798,
+      "y": 373,
+      "visible": true
+    },
+    {
+      "t": 10.606,
+      "x": 808,
+      "y": 382,
+      "visible": true
+    },
+    {
+      "t": 10.629,
+      "x": 822,
+      "y": 394,
+      "visible": true
+    },
+    {
+      "t": 10.654,
+      "x": 843,
+      "y": 412,
+      "visible": true
+    },
+    {
+      "t": 10.684,
+      "x": 872,
+      "y": 438,
+      "visible": true
+    },
+    {
+      "t": 10.714,
+      "x": 916,
+      "y": 482,
+      "visible": true
+    },
+    {
+      "t": 10.739,
+      "x": 969,
+      "y": 546,
+      "visible": true
+    },
+    {
+      "t": 10.759,
+      "x": 1007,
+      "y": 605,
+      "visible": true
+    },
+    {
+      "t": 10.766,
+      "x": 1029,
+      "y": 647,
+      "visible": true
+    },
+    {
+      "t": 10.8,
+      "x": 1035,
+      "y": 659,
+      "visible": true
+    },
+    {
+      "t": 10.817,
+      "x": 1058,
+      "y": 710,
+      "visible": true
+    },
+    {
+      "t": 10.847,
+      "x": 1067,
+      "y": 730,
+      "visible": true
+    },
+    {
+      "t": 10.865,
+      "x": 1076,
+      "y": 753,
+      "visible": true
+    },
+    {
+      "t": 10.897,
+      "x": 1080,
+      "y": 763,
+      "visible": true
+    },
+    {
+      "t": 10.918,
+      "x": 1084,
+      "y": 772,
+      "visible": true
+    },
+    {
+      "t": 10.944,
+      "x": 1085,
+      "y": 775,
+      "visible": true
+    },
+    {
+      "t": 10.981,
+      "x": 1085,
+      "y": 776,
+      "visible": true
+    },
+    {
+      "t": 11.194,
+      "x": 1085,
+      "y": 776,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 11.357,
+      "x": 1085,
+      "y": 776,
+      "visible": true
+    },
+    {
+      "t": 12.151,
+      "x": 1085,
+      "y": 775,
+      "visible": true
+    },
+    {
+      "t": 12.258,
+      "x": 1084,
+      "y": 774,
+      "visible": true
+    },
+    {
+      "t": 12.261,
+      "x": 1054,
+      "y": 731,
+      "visible": true
+    },
+    {
+      "t": 12.351,
+      "x": 1052,
+      "y": 728,
+      "visible": true
+    },
+    {
+      "t": 12.441,
+      "x": 969,
+      "y": 567,
+      "visible": true
+    },
+    {
+      "t": 12.535,
+      "x": 935,
+      "y": 408,
+      "visible": true
+    },
+    {
+      "t": 12.635,
+      "x": 930,
+      "y": 362,
+      "visible": true
+    },
+    {
+      "t": 12.724,
+      "x": 930,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 12.944,
+      "x": 930,
+      "y": 361,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 13.04,
+      "x": 930,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 13.551,
+      "x": 930,
+      "y": 361,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 13.645,
+      "x": 930,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 14.072,
+      "x": 931,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 14.169,
+      "x": 935,
+      "y": 362,
+      "visible": true
+    },
+    {
+      "t": 14.269,
+      "x": 985,
+      "y": 373,
+      "visible": true
+    },
+    {
+      "t": 14.37,
+      "x": 1088,
+      "y": 369,
+      "visible": true
+    },
+    {
+      "t": 14.468,
+      "x": 1119,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 14.572,
+      "x": 1120,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 14.813,
+      "x": 1120,
+      "y": 361,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 14.907,
+      "x": 1120,
+      "y": 361,
+      "visible": true
+    },
+    {
+      "t": 15.771,
+      "x": 1120,
+      "y": 362,
+      "visible": true
+    },
+    {
+      "t": 15.879,
+      "x": 1121,
+      "y": 364,
+      "visible": true
+    },
+    {
+      "t": 15.987,
+      "x": 1124,
+      "y": 379,
+      "visible": true
+    },
+    {
+      "t": 16.085,
+      "x": 1124,
+      "y": 430,
+      "visible": true
+    },
+    {
+      "t": 16.188,
+      "x": 1120,
+      "y": 447,
+      "visible": true
+    },
+    {
+      "t": 16.285,
+      "x": 1120,
+      "y": 448,
+      "visible": true
+    },
+    {
+      "t": 16.477,
+      "x": 1120,
+      "y": 448,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 16.585,
+      "x": 1120,
+      "y": 448,
+      "visible": true
+    },
+    {
+      "t": 17.071,
+      "x": 1119,
+      "y": 448,
+      "visible": true
+    },
+    {
+      "t": 17.17,
+      "x": 1091,
+      "y": 455,
+      "visible": true
+    },
+    {
+      "t": 17.285,
+      "x": 949,
+      "y": 472,
+      "visible": true
+    },
+    {
+      "t": 17.387,
+      "x": 814,
+      "y": 450,
+      "visible": true
+    },
+    {
+      "t": 17.477,
+      "x": 800,
+      "y": 446,
+      "visible": true
+    },
+    {
+      "t": 17.709,
+      "x": 800,
+      "y": 446,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 17.805,
+      "x": 800,
+      "y": 446,
+      "visible": true
+    },
+    {
+      "t": 18.699,
+      "x": 800,
+      "y": 447,
+      "visible": true
+    },
+    {
+      "t": 18.821,
+      "x": 801,
+      "y": 448,
+      "visible": true
+    },
+    {
+      "t": 18.92,
+      "x": 801,
+      "y": 493,
+      "visible": true
+    },
+    {
+      "t": 19.043,
+      "x": 800,
+      "y": 497,
+      "visible": true
+    },
+    {
+      "t": 19.234,
+      "x": 800,
+      "y": 497,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 19.344,
+      "x": 800,
+      "y": 497,
+      "visible": true
+    },
+    {
+      "t": 19.75,
+      "x": 801,
+      "y": 497,
+      "visible": true
+    },
+    {
+      "t": 19.843,
+      "x": 802,
+      "y": 498,
+      "visible": true
+    },
+    {
+      "t": 19.944,
+      "x": 828,
+      "y": 510,
+      "visible": true
+    },
+    {
+      "t": 20.041,
+      "x": 911,
+      "y": 531,
+      "visible": true
+    },
+    {
+      "t": 20.142,
+      "x": 954,
+      "y": 530,
+      "visible": true
+    },
+    {
+      "t": 20.24,
+      "x": 960,
+      "y": 530,
+      "visible": true
+    },
+    {
+      "t": 20.475,
+      "x": 960,
+      "y": 530,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 20.605,
+      "x": 960,
+      "y": 530,
+      "visible": true
+    },
+    {
+      "t": 21.417,
+      "x": 961,
+      "y": 530,
+      "visible": true
+    },
+    {
+      "t": 21.537,
+      "x": 962,
+      "y": 531,
+      "visible": true
+    },
+    {
+      "t": 21.638,
+      "x": 1017,
+      "y": 557,
+      "visible": true
+    },
+    {
+      "t": 21.735,
+      "x": 1180,
+      "y": 594,
+      "visible": true
+    },
+    {
+      "t": 21.93,
+      "x": 1249,
+      "y": 593,
+      "visible": true
+    },
+    {
+      "t": 22.045,
+      "x": 1255,
+      "y": 593,
+      "visible": true
+    },
+    {
+      "t": 22.254,
+      "x": 1255,
+      "y": 593,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 22.365,
+      "x": 1255,
+      "y": 593,
+      "visible": true
+    },
+    {
+      "t": 22.862,
+      "x": 1255,
+      "y": 594,
+      "visible": true
+    },
+    {
+      "t": 22.956,
+      "x": 1254,
+      "y": 597,
+      "visible": true
+    },
+    {
+      "t": 23.082,
+      "x": 1245,
+      "y": 629,
+      "visible": true
+    },
+    {
+      "t": 23.19,
+      "x": 1246,
+      "y": 694,
+      "visible": true
+    },
+    {
+      "t": 23.293,
+      "x": 1248,
+      "y": 703,
+      "visible": true
+    },
+    {
+      "t": 23.517,
+      "x": 1248,
+      "y": 703,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 23.619,
+      "x": 1248,
+      "y": 703,
+      "visible": true
+    },
+    {
+      "t": 24.137,
+      "x": 1248,
+      "y": 704,
+      "visible": true
+    },
+    {
+      "t": 24.233,
+      "x": 1251,
+      "y": 716,
+      "visible": true
+    },
+    {
+      "t": 24.329,
+      "x": 1254,
+      "y": 754,
+      "visible": true
+    },
+    {
+      "t": 24.427,
+      "x": 1249,
+      "y": 780,
+      "visible": true
+    },
+    {
+      "t": 24.529,
+      "x": 1248,
+      "y": 785,
+      "visible": true
+    },
+    {
+      "t": 24.743,
+      "x": 1248,
+      "y": 785,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 24.844,
+      "x": 1248,
+      "y": 785,
+      "visible": true
+    },
+    {
+      "t": 25.395,
+      "x": 1247,
+      "y": 785,
+      "visible": true
+    },
+    {
+      "t": 25.494,
+      "x": 1245,
+      "y": 784,
+      "visible": true
+    },
+    {
+      "t": 25.598,
+      "x": 1194,
+      "y": 772,
+      "visible": true
+    },
+    {
+      "t": 25.707,
+      "x": 1041,
+      "y": 704,
+      "visible": true
+    },
+    {
+      "t": 25.804,
+      "x": 967,
+      "y": 645,
+      "visible": true
+    },
+    {
+      "t": 25.894,
+      "x": 960,
+      "y": 639,
+      "visible": true
+    },
+    {
+      "t": 26.118,
+      "x": 960,
+      "y": 639,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 26.212,
+      "x": 960,
+      "y": 639,
+      "visible": true
+    },
+    {
+      "t": 29.599,
+      "x": 962,
+      "y": 639,
+      "visible": true
+    },
+    {
+      "t": 29.912,
+      "x": 968,
+      "y": 640,
+      "visible": true
+    },
+    {
+      "t": 30.002,
+      "x": 1197,
+      "y": 743,
+      "visible": true
+    },
+    {
+      "t": 30.199,
+      "x": 1197,
+      "y": 743,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 30.305,
+      "x": 1197,
+      "y": 743,
+      "visible": true
+    },
+    {
+      "t": 34.197,
+      "x": 1459,
+      "y": 101,
+      "visible": true
+    },
+    {
+      "t": 37.016,
+      "x": 1458,
+      "y": 101,
+      "visible": true
+    },
+    {
+      "t": 37.054,
+      "x": 1458,
+      "y": 100,
+      "visible": true
+    },
+    {
+      "t": 37.089,
+      "x": 1455,
+      "y": 99,
+      "visible": true
+    },
+    {
+      "t": 37.123,
+      "x": 1450,
+      "y": 96,
+      "visible": true
+    },
+    {
+      "t": 37.147,
+      "x": 1440,
+      "y": 92,
+      "visible": true
+    },
+    {
+      "t": 37.177,
+      "x": 1431,
+      "y": 86,
+      "visible": true
+    },
+    {
+      "t": 37.182,
+      "x": 1417,
+      "y": 76,
+      "visible": true
+    },
+    {
+      "t": 37.205,
+      "x": 1414,
+      "y": 74,
+      "visible": true
+    },
+    {
+      "t": 37.229,
+      "x": 1404,
+      "y": 64,
+      "visible": true
+    },
+    {
+      "t": 37.249,
+      "x": 1397,
+      "y": 55,
+      "visible": true
+    },
+    {
+      "t": 37.282,
+      "x": 1392,
+      "y": 49,
+      "visible": true
+    },
+    {
+      "t": 37.307,
+      "x": 1387,
+      "y": 42,
+      "visible": true
+    },
+    {
+      "t": 37.361,
+      "x": 1384,
+      "y": 39,
+      "visible": true
+    },
+    {
+      "t": 37.382,
+      "x": 1382,
+      "y": 36,
+      "visible": true
+    },
+    {
+      "t": 37.613,
+      "x": 1382,
+      "y": 36,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 37.748,
+      "x": 1382,
+      "y": 36,
+      "visible": true
+    },
+    {
+      "t": 38.702,
+      "x": 1381,
+      "y": 37,
+      "visible": true
+    },
+    {
+      "t": 38.714,
+      "x": 1380,
+      "y": 38,
+      "visible": true
+    },
+    {
+      "t": 38.739,
+      "x": 1378,
+      "y": 41,
+      "visible": true
+    },
+    {
+      "t": 38.764,
+      "x": 1376,
+      "y": 44,
+      "visible": true
+    },
+    {
+      "t": 38.785,
+      "x": 1372,
+      "y": 49,
+      "visible": true
+    },
+    {
+      "t": 38.819,
+      "x": 1365,
+      "y": 57,
+      "visible": true
+    },
+    {
+      "t": 38.85,
+      "x": 1349,
+      "y": 76,
+      "visible": true
+    },
+    {
+      "t": 38.876,
+      "x": 1326,
+      "y": 99,
+      "visible": true
+    },
+    {
+      "t": 38.906,
+      "x": 1299,
+      "y": 122,
+      "visible": true
+    },
+    {
+      "t": 38.941,
+      "x": 1266,
+      "y": 143,
+      "visible": true
+    },
+    {
+      "t": 38.974,
+      "x": 1237,
+      "y": 158,
+      "visible": true
+    },
+    {
+      "t": 38.996,
+      "x": 1217,
+      "y": 167,
+      "visible": true
+    },
+    {
+      "t": 39.033,
+      "x": 1209,
+      "y": 170,
+      "visible": true
+    },
+    {
+      "t": 39.07,
+      "x": 1201,
+      "y": 174,
+      "visible": true
+    },
+    {
+      "t": 39.095,
+      "x": 1198,
+      "y": 175,
+      "visible": true
+    },
+    {
+      "t": 39.342,
+      "x": 1198,
+      "y": 175,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 39.458,
+      "x": 1198,
+      "y": 175,
+      "visible": true
+    },
+    {
+      "t": 40.891,
+      "x": 1198,
+      "y": 176,
+      "visible": true
+    },
+    {
+      "t": 40.925,
+      "x": 1199,
+      "y": 177,
+      "visible": true
+    },
+    {
+      "t": 40.957,
+      "x": 1201,
+      "y": 181,
+      "visible": true
+    },
+    {
+      "t": 40.979,
+      "x": 1206,
+      "y": 193,
+      "visible": true
+    },
+    {
+      "t": 41.003,
+      "x": 1212,
+      "y": 207,
+      "visible": true
+    },
+    {
+      "t": 41.029,
+      "x": 1222,
+      "y": 230,
+      "visible": true
+    },
+    {
+      "t": 41.049,
+      "x": 1236,
+      "y": 263,
+      "visible": true
+    },
+    {
+      "t": 41.074,
+      "x": 1249,
+      "y": 297,
+      "visible": true
+    },
+    {
+      "t": 41.077,
+      "x": 1267,
+      "y": 351,
+      "visible": true
+    },
+    {
+      "t": 41.102,
+      "x": 1269,
+      "y": 360,
+      "visible": true
+    },
+    {
+      "t": 41.124,
+      "x": 1283,
+      "y": 429,
+      "visible": true
+    },
+    {
+      "t": 41.148,
+      "x": 1289,
+      "y": 487,
+      "visible": true
+    },
+    {
+      "t": 41.172,
+      "x": 1291,
+      "y": 539,
+      "visible": true
+    },
+    {
+      "t": 41.197,
+      "x": 1290,
+      "y": 579,
+      "visible": true
+    },
+    {
+      "t": 41.216,
+      "x": 1288,
+      "y": 610,
+      "visible": true
+    },
+    {
+      "t": 41.236,
+      "x": 1287,
+      "y": 627,
+      "visible": true
+    },
+    {
+      "t": 41.256,
+      "x": 1286,
+      "y": 640,
+      "visible": true
+    },
+    {
+      "t": 41.275,
+      "x": 1286,
+      "y": 649,
+      "visible": true
+    },
+    {
+      "t": 41.295,
+      "x": 1285,
+      "y": 655,
+      "visible": true
+    },
+    {
+      "t": 41.315,
+      "x": 1285,
+      "y": 658,
+      "visible": true
+    },
+    {
+      "t": 41.349,
+      "x": 1285,
+      "y": 659,
+      "visible": true
+    },
+    {
+      "t": 43.561,
+      "x": 1285,
+      "y": 660,
+      "visible": true
+    },
+    {
+      "t": 43.594,
+      "x": 1286,
+      "y": 661,
+      "visible": true
+    },
+    {
+      "t": 43.625,
+      "x": 1287,
+      "y": 664,
+      "visible": true
+    },
+    {
+      "t": 43.656,
+      "x": 1289,
+      "y": 669,
+      "visible": true
+    },
+    {
+      "t": 43.684,
+      "x": 1292,
+      "y": 677,
+      "visible": true
+    },
+    {
+      "t": 43.713,
+      "x": 1297,
+      "y": 688,
+      "visible": true
+    },
+    {
+      "t": 43.748,
+      "x": 1306,
+      "y": 702,
+      "visible": true
+    },
+    {
+      "t": 43.774,
+      "x": 1318,
+      "y": 717,
+      "visible": true
+    },
+    {
+      "t": 43.8,
+      "x": 1325,
+      "y": 724,
+      "visible": true
+    },
+    {
+      "t": 43.832,
+      "x": 1331,
+      "y": 729,
+      "visible": true
+    },
+    {
+      "t": 43.865,
+      "x": 1336,
+      "y": 734,
+      "visible": true
+    },
+    {
+      "t": 43.897,
+      "x": 1339,
+      "y": 736,
+      "visible": true
+    },
+    {
+      "t": 43.924,
+      "x": 1340,
+      "y": 737,
+      "visible": true
+    },
+    {
+      "t": 44.161,
+      "x": 1340,
+      "y": 737,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 44.275,
+      "x": 1340,
+      "y": 737,
+      "visible": true
+    }
+  ],
+  "idle": [
+    {
+      "t_start": 0.727,
+      "t_end": 2.705
+    },
+    {
+      "t_start": 3.32,
+      "t_end": 3.887
+    },
+    {
+      "t_start": 6.834,
+      "t_end": 10.552
+    },
+    {
+      "t_start": 31.002,
+      "t_end": 33.597
+    },
+    {
+      "t_start": 35.55,
+      "t_end": 37.047
+    },
+    {
+      "t_start": 38.231,
+      "t_end": 38.732
+    },
+    {
+      "t_start": 40.122,
+      "t_end": 40.919
+    },
+    {
+      "t_start": 41.378,
+      "t_end": 43.588
+    },
+    {
+      "t_start": 44.722,
+      "t_end": 48.384
+    }
+  ],
+  "warnings": [
+    "11 of 18 cursor moves were captured below 18 fps (lowest 5 fps at 29.9 s): the browser renders this page slowly (software rendering without a GPU, or heavy effects such as backdrop-filter blur), so motion will look choppy"
+  ]
+}

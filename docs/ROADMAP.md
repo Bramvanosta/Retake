@@ -25,8 +25,8 @@ requirements of a lot with their gaps.
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
-| L2.3 | Edit planner (pure, unit-tested) | M | next |
-| L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | todo |
+| L2.3 | Edit planner (pure, unit-tested) | M | **done** |
+| L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | next |
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | todo |
 | L2.6 | Review package + `studio review` | M | todo |
 | L2.7 | Library completion (browser/laptop/phone/raw, cards, overlays, previews per theme) | M | todo |
@@ -142,6 +142,23 @@ requirements of a lot with their gaps.
   focus, easing, no reset at same-page joins, view clamping), captions, overlays positioning, provenance StepSpans,
   time map, overrides, notes/warnings (R-PLN-*, R-ED-02..09/15/22, R-THM-05).
 - **Acceptance:** unit tests on the two real fixture timelines (copied as test fixtures) + synthetic edge cases.
+- **Done:** `planEdit` (packages/editor/src/plan.ts, exported by `src/index.ts`), pure and deterministic: segments
+  intro → scenes/cards/interstitials → outro; components by precedence (segment id override → kind override →
+  scenario → theme via `registry.resolveTheme` → built-in default; unresolvable → next candidate with a warning, none →
+  `missing` stand-in) with `fillSlots`; clips from the end of the page load (exact CFR `srcFrames`); contiguous
+  same-page scenes planned as one "run" (no transition, camera continues); theme transitions elsewhere (crossfade with
+  held last frame, fade-black halves, cut); interstitial backdrop; speeds (scene, `overrides.speeds`, step) with 1×
+  protected spans (still, holds, ±0.6 s marks) and 0.3 s ramps; idle trims outside protected spans (> 1.2 s → 0.4 s);
+  camera zooms from step hints (max_zoom clamp + note, bbox → point → cursor focus, hint ease else theme zoom_ease
+  over max(0.8 s, duration) of output, step_end/scene_end/N s hold, view clamped); captions (scene, step, cues never
+  overlap); overlays with source-px anchors + `mapSourceRect`; StepSpans, markers, time map; layout geometry from the
+  manifest fitted to the capture; 1920×1080 × scale and the 1080×1920 vertical variant with a smoothed reframe track;
+  music; every EditOverrides field; notes/warnings. Additive plan-type fields (PlanTransition, clip cues/layout/src/
+  speeds/trims/zooms/heldFrames, OverlayUse.anchor, PlanLayout.crop, `missing`, `assets` with `ds-asset:` URLs +
+  `resolvePlanAssets`, `meta`). `studio plan <project> <run|latest>` (summary, `--json`, `--out`, `--theme`,
+  `--frame`, `--vertical`); README "Editing". 49 new tests (45 planner on the real catalogue/quote timelines in
+  `packages/editor/test/fixtures/` + synthetic cases, 4 CLI); 476 tests pass (6 Postgres tests skipped). R-ED-22 stays
+  partial (`motion.default_zoom` unused: zooms only from explicit hints).
 
 ### L2.4 — Render pipeline (M)
 - **Scope:** `DemoVideo` composition rendering a plan (segments, fades, Freeze+OffthreadVideo, camera transform,

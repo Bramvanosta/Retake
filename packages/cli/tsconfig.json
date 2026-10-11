@@ -2,5 +2,5 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "src", "tsBuildInfoFile": "dist/.tsbuildinfo" },
   "include": ["src"],
-  "references": [{ "path": "../core" }, { "path": "../hooks" }, { "path": "../runner-web" }, { "path": "../components" }]
+  "references": [{ "path": "../core" }, { "path": "../hooks" }, { "path": "../runner-web" }, { "path": "../components" }, { "path": "../editor" }]
 }
