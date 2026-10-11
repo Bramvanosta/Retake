@@ -1,0 +1,507 @@
+/**
+ * The checks of a review that need no pixels (pure): durations, captions (scene mismatch, overlaps, too long for their
+ * area, brand mark), text slots, cursor at clicks, long scenes at ~1×, camera zooms, transitions over clicks, and the
+ * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
+ */
+import type { Timeline } from '@demo-studio/core';
+import { fitText } from '@demo-studio/components';
+import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
+import { brandmarkRect, viewOf } from '@demo-studio/editor';
+import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
+import type { OutputClick } from './timeline.js';
+import { cursorAt } from './timeline.js';
+import type { Finding, FindingAt, ReviewRules, SegmentDuration, Severity } from './types.js';
+import type { SegmentSpan, TransitionSpan } from './spans.js';
+import { isClip, meanSpeed, round, segmentLabel, spanAt, stepAt, timecode } from './spans.js';
+
+export interface CheckContext {
+  record: RenderRecord;
+  plan: EditPlan;
+  timeline?: Timeline;
+  rules: ReviewRules;
+  spans: SegmentSpan[];
+  transitions: TransitionSpan[];
+  clicks: OutputClick[];
+  registry?: ComponentRegistry;
+  measure: TextMeasurer;
+}
+
+/** Where a frame is: time, segment, scene and step (from the plan's provenance). */
+export function locate(ctx: Pick<CheckContext, 'plan' | 'spans'>, frame: number, extra: Partial<FindingAt> = {}): FindingAt {
+  const f = Math.max(0, Math.min(ctx.plan.durationInFrames - 1, Math.round(frame)));
+  const span = spanAt(ctx.spans, f);
+  const at: FindingAt = { frame: f, time: round(f / ctx.plan.fps, 2) };
+  if (span) {
+    at.segment = span.segment.id;
+    if (isClip(span.segment)) {
+      at.scene = span.segment.scene;
+      const st = stepAt(span.segment, f - span.segment.from);
+      if (st) at.step = st.step;
+    } else if (span.segment.kind === 'card' || span.segment.kind === 'interstitial') at.scene = span.segment.id;
+  }
+  return { ...at, ...extra };
+}
+
+const finding = (severity: Severity, code: string, message: string, at?: FindingAt): Finding => (at ? { severity, code, message, at } : { severity, code, message });
+
+const fmtS = (s: number) => `${s.toFixed(1)} s`;
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+export function checkRender(ctx: CheckContext, probed?: { duration_s: number; frames?: number; width: number; height: number }): Finding[] {
+  const out: Finding[] = [];
+  const { record, plan } = ctx;
+  if (record.status !== 'succeeded') out.push(finding('error', 'render-failed', `the render ${record.status}${record.error ? `: ${record.error}` : ''}`));
+  const expected = plan.durationInFrames / plan.fps;
+  if (probed) {
+    if (Math.abs(probed.duration_s - expected) > Math.max(0.15, 2 / plan.fps)) {
+      out.push(finding('warning', 'duration-mismatch', `the video lasts ${probed.duration_s.toFixed(2)} s but the plan ${expected.toFixed(2)} s`));
+    }
+    if (probed.width !== plan.width || probed.height !== plan.height) {
+      out.push(finding('warning', 'size-mismatch', `the video is ${probed.width}×${probed.height}, the plan ${plan.width}×${plan.height}`));
+    }
+  }
+  for (const w of plan.warnings) out.push(finding('info', 'plan-warning', w));
+  const missing = (c: ResolvedComponent | null | undefined, where: string, frame: number) => {
+    if (c?.missing) out.push(finding('warning', 'component-missing', `${where}: component ${c.id} could not be resolved, a stand-in was rendered`, locate(ctx, frame)));
+  };
+  for (const s of plan.segments) {
+    missing(s.component, `${s.kind} ${s.id}`, s.from);
+    missing(s.transition?.component, `transition into ${s.id}`, s.from);
+    if (isClip(s)) {
+      missing(s.caption, `caption of ${s.id}`, s.from);
+      for (const o of s.overlays) missing(o.component, `overlay of ${s.id}`, s.from + o.from);
+    }
+  }
+  return out;
+}
+
+// ── Durations ─────────────────────────────────────────────────────────────────
+
+export function segmentDurations(ctx: Pick<CheckContext, 'plan' | 'spans'>): SegmentDuration[] {
+  const fps = ctx.plan.fps;
+  return ctx.spans.map(({ segment: s, from, to }) => {
+    const d: SegmentDuration = {
+      id: s.id,
+      kind: s.kind,
+      from,
+      to,
+      from_s: round(from / fps, 3),
+      to_s: round(to / fps, 3),
+      duration_s: round((to - from) / fps, 3),
+      component: s.component.id,
+    };
+    if (isClip(s)) {
+      d.scene = s.scene;
+      d.speed = round(meanSpeed(s), 3);
+    }
+    return d;
+  });
+}
+
+/** Video 1–2 min (look.md): info when a little outside, warning when far outside; scenes 4–25 s: info; < 2 s: warning. */
+export function checkDurations(ctx: CheckContext, durations: SegmentDuration[]): Finding[] {
+  const out: Finding[] = [];
+  const r = ctx.rules;
+  const total = ctx.plan.durationInFrames / ctx.plan.fps;
+  const lo = r.video_min_s;
+  const hi = r.video_max_s;
+  if (total < lo || total > hi) {
+    const far = total < lo * (1 - r.video_tolerance) || total > hi * (1 + r.video_tolerance);
+    const side = total < lo ? `${fmtS(lo - total)} shorter than` : `${fmtS(total - hi)} longer than`;
+    out.push(
+      finding(
+        far ? 'warning' : 'info',
+        'video-length',
+        `the video lasts ${fmtS(total)}: ${side} the ${lo}–${hi} s target of the reference look${far ? '' : ` (within the ${Math.round(r.video_tolerance * 100)} % tolerance)`}`,
+      ),
+    );
+  }
+  for (const d of durations) {
+    if (d.kind !== 'clip') continue;
+    const at = locate(ctx, d.from, { segment: d.id, scene: d.scene });
+    if (d.duration_s < r.scene_too_short_s) {
+      out.push(finding('warning', 'scene-too-short', `scene "${d.id}" is on screen ${fmtS(d.duration_s)}: too short to read its caption (< ${r.scene_too_short_s} s)`, at));
+    } else if (d.duration_s < r.scene_min_s || d.duration_s > r.scene_max_s) {
+      out.push(finding('info', 'scene-length', `scene "${d.id}" lasts ${fmtS(d.duration_s)} (reference look: ${r.scene_min_s}–${r.scene_max_s} s per scene)`, at));
+    }
+  }
+  return out;
+}
+
+/** Scenes longer than `long_scene_s` played at about 1×: suggest a speed or a cut. */
+export function checkLongScenes(ctx: CheckContext, durations: SegmentDuration[]): Finding[] {
+  const out: Finding[] = [];
+  const [a, b] = ctx.rules.normal_speed;
+  for (const d of durations) {
+    if (d.kind !== 'clip' || d.duration_s <= ctx.rules.long_scene_s) continue;
+    const speed = d.speed ?? 1;
+    if (speed < a || speed > b) continue;
+    out.push(
+      finding(
+        'warning',
+        'long-scene',
+        `scene "${d.id}" lasts ${fmtS(d.duration_s)} at ${speed.toFixed(2)}×: longer than ${ctx.rules.long_scene_s} s at normal speed — speed it up (scene \`speed\`), trim idle time or split it`,
+        locate(ctx, d.from, { segment: d.id, scene: d.scene }),
+      ),
+    );
+  }
+  return out;
+}
+
+// ── Captions ──────────────────────────────────────────────────────────────────
+
+/** Faces of the plan's theme fonts: CSS family + weight → file (through plan.assets). */
+export function planFontFiles(plan: EditPlan): Array<{ family: string; weight: number; style: 'normal' | 'italic'; file: string }> {
+  const faces = plan.brand.tokens.font_faces ?? [];
+  return faces.map((f) => ({ family: f.family, weight: f.weight, style: f.style, file: plan.assets[f.url] ?? f.url })).filter((f) => !f.file.startsWith('ds-asset:'));
+}
+
+interface CaptionFit {
+  scale: number;
+  truncated: boolean;
+  width: number;
+  lines: number;
+}
+
+/** How a caption line fits the clip's caption area with the theme's caption style (kit fitText, real font widths). */
+export function fitCaption(ctx: Pick<CheckContext, 'plan' | 'rules' | 'measure'>, clip: ClipSegment, text: string): CaptionFit | undefined {
+  const area = clip.layout.caption;
+  const style = ctx.plan.brand.tokens.captions?.line;
+  if (!area || !style) return undefined;
+  const unit = ctx.plan.unit;
+  const params = clip.caption?.params ?? {};
+  const maxLinesParam = typeof params.max_lines === 'number' ? params.max_lines : 1;
+  const maxLines = ctx.plan.variant === 'vertical' ? Math.max(2, maxLinesParam) : maxLinesParam;
+  const size = style.size * unit;
+  const inset = 6 * unit;
+  const r = fitText({
+    text,
+    width: area.w - 2 * inset,
+    maxFontSize: size,
+    minFontSize: size * ctx.rules.caption_floor_scale,
+    maxLines,
+    lineHeight: 1.18,
+    fontFamily: style.font,
+    fontWeight: style.weight,
+    letterSpacing: style.letter_spacing,
+    uppercase: style.uppercase,
+    measure: ctx.measure,
+  });
+  return { scale: r.fontSize / size, truncated: r.truncated, width: r.width, lines: r.lines.length };
+}
+
+export function checkCaptions(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const { plan, rules } = ctx;
+  const fps = plan.fps;
+  const edge = Math.round(0.15 * fps);
+  const clips = plan.segments.filter(isClip);
+
+  // 1. Cues of a clip belong to its scene; cues of a clip never overlap.
+  for (const clip of clips) {
+    const cues = [...clip.cues].sort((a, b) => a.from - b.from);
+    for (const cue of cues) {
+      if (cue.scene && cue.scene !== clip.scene) {
+        out.push(finding('error', 'caption-scene-mismatch', `the caption "${cue.text}" of scene "${cue.scene}" is shown on scene "${clip.scene}"`, locate(ctx, clip.from + cue.from)));
+      }
+    }
+    for (let i = 1; i < cues.length; i++) {
+      if (cues[i - 1].to > cues[i].from) {
+        out.push(
+          finding(
+            'error',
+            'caption-overlap',
+            `captions "${cues[i - 1].text}" and "${cues[i].text}" overlap for ${cues[i - 1].to - cues[i].from} frames in scene "${clip.scene}"`,
+            locate(ctx, clip.from + cues[i].from),
+          ),
+        );
+      }
+    }
+  }
+
+  // 2. Video-level cues: within the segments of their scene (plus the transitions at their edges), never overlapping.
+  const sceneFrames = (scene: string): Array<[number, number]> =>
+    ctx.spans.filter((s) => isClip(s.segment) && s.segment.scene === scene).map((s) => [s.from, s.to] as [number, number]);
+  const sorted = [...plan.captions].sort((a, b) => a.from - b.from);
+  for (const cue of sorted) {
+    const own = sceneFrames(cue.scene);
+    if (own.length === 0) {
+      out.push(finding('error', 'caption-scene-mismatch', `the caption "${cue.text}" belongs to scene "${cue.scene}", which is not in the video`, locate(ctx, cue.from)));
+      continue;
+    }
+    let outside = 0;
+    let firstOutside = -1;
+    for (let f = cue.from; f < cue.to; f++) {
+      const inside = own.some(([a, b]) => f >= a - edge && f < b + edge) || ctx.transitions.some((t) => f >= t.from && f < t.to);
+      if (!inside) {
+        outside++;
+        if (firstOutside < 0) firstOutside = f;
+      }
+    }
+    if (outside > 0) {
+      const other = spanAt(ctx.spans, firstOutside);
+      out.push(
+        finding(
+          'warning',
+          'caption-scene-mismatch',
+          `the caption of scene "${cue.scene}" ("${cue.text}") stays ${(outside / fps).toFixed(2)} s on ${other ? segmentLabel(other.segment) : 'another segment'}`,
+          locate(ctx, firstOutside),
+        ),
+      );
+    }
+  }
+  for (let i = 1; i < sorted.length; i++) {
+    const a = sorted[i - 1];
+    const b = sorted[i];
+    if (a.to <= b.from) continue;
+    // Cues of two clips joined by a crossfade overlap by the crossfade: the caption component fades them apart.
+    const allowed = a.scene !== b.scene ? Math.max(0, ...ctx.transitions.filter((t) => t.from <= b.from + 1 && t.to >= b.from).map((t) => t.to - t.from)) : 0;
+    if (a.to - b.from > allowed) {
+      out.push(finding('error', 'caption-overlap', `captions "${a.text}" and "${b.text}" are both on screen for ${((a.to - b.from) / fps).toFixed(2)} s`, locate(ctx, b.from)));
+    }
+  }
+
+  // 3. The captions of the capture (scene + step captions) are the ones shown.
+  if (ctx.timeline && ctx.record.overrides?.captions !== false) {
+    for (const clip of clips) {
+      if (!clip.caption) continue;
+      const scene = ctx.timeline.scenes.find((s) => s.id === clip.scene);
+      const expected = new Set<string>();
+      if (scene?.caption?.text) expected.add(scene.caption.text);
+      for (const ev of ctx.timeline.events) if (ev.scene === clip.scene && ev.caption?.text) expected.add(ev.caption.text);
+      if (scene?.caption?.text && clip.cues.length === 0) {
+        out.push(finding('warning', 'caption-missing', `scene "${clip.scene}" has a caption ("${scene.caption.text}") but none is shown`, locate(ctx, clip.from)));
+      }
+      for (const cue of clip.cues) {
+        if (expected.size > 0 && !expected.has(cue.text)) {
+          out.push(finding('warning', 'caption-scene-mismatch', `the caption "${cue.text}" is not a caption of scene "${clip.scene}" in the capture`, locate(ctx, clip.from + cue.from)));
+        }
+      }
+    }
+  }
+
+  // 4. Captions too long for their area (fitText with the theme caption style), and clear of the brand mark.
+  const seen = new Set<string>();
+  for (const clip of clips) {
+    if (!clip.caption || !clip.layout.caption) continue;
+    for (const cue of clip.cues) {
+      const key = `${clip.id}|${cue.text}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const fit = fitCaption(ctx, clip, cue.text);
+      if (!fit) continue;
+      const at = locate(ctx, clip.from + Math.max(cue.from, 0));
+      const pct = Math.round(fit.scale * 100);
+      if (fit.truncated) {
+        out.push(finding('error', 'caption-truncated', `the caption "${cue.text}" (${cue.text.length} characters) does not fit its area even at ${Math.round(rules.caption_floor_scale * 100)} % of the theme size: it is cut with "…"`, at));
+      } else if (fit.scale < rules.caption_min_scale) {
+        out.push(finding('warning', 'caption-too-long', `the caption "${cue.text}" (${cue.text.length} characters) shrinks to ${pct} % of the theme size to fit its area: shorten it`, at));
+      } else if (fit.scale < 0.999) {
+        out.push(finding('info', 'caption-shrunk', `the caption "${cue.text}" is drawn at ${pct} % of the theme size to fit its area`, at));
+      }
+      const mark = brandmarkRect(plan, clip.layout.brandmark, plan.brand.brandmark?.position);
+      const area = clip.layout.caption;
+      if (mark && clip.caption.params.position !== 'above') {
+        const left = clip.caption.params.align === 'center' ? area.x + (area.w - fit.width) / 2 : area.x + 6 * plan.unit;
+        const right = left + fit.width;
+        const vOverlap = mark.rect.y < area.y + area.h && mark.rect.y + mark.rect.h > area.y;
+        const hOverlap = right > mark.rect.x && left < mark.rect.x + mark.rect.w;
+        if (vOverlap && hOverlap) {
+          out.push(finding('warning', 'caption-overlaps-brandmark', `the caption "${cue.text}" runs under the brand mark (${Math.round(right - mark.rect.x)} px)`, at));
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// ── Text slots ────────────────────────────────────────────────────────────────
+
+function manifestOf(registry: ComponentRegistry | undefined, id: string): ComponentManifest | undefined {
+  if (!registry) return undefined;
+  try {
+    return registry.get(id).manifest;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Text slots longer than their component's `max_chars` (cards, intro, outro, interstitials, overlays, caption cues). */
+export function checkTextSlots(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const check = (c: ResolvedComponent, where: string, frame: number, values: Record<string, string | undefined>) => {
+    const m = manifestOf(ctx.registry, c.id);
+    if (!m) return;
+    for (const [name, spec] of Object.entries(m.slots)) {
+      if (spec.type !== 'text' && spec.type !== 'url') continue;
+      const v = values[name];
+      if (spec.required && (v === undefined || v.trim() === '') && c.kind !== 'caption') {
+        out.push(finding('warning', 'text-slot-empty', `${where}: the required slot "${name}" of ${c.id} is empty`, locate(ctx, frame)));
+      }
+      if (v !== undefined && spec.max_chars !== undefined && [...v].length > spec.max_chars) {
+        out.push(
+          finding('warning', 'text-slot-overflow', `${where}: "${name}" is ${[...v].length} characters (${c.id} allows ${spec.max_chars}): "${v.length > 60 ? `${v.slice(0, 57)}…` : v}"`, locate(ctx, frame)),
+        );
+      }
+    }
+  };
+  for (const s of ctx.plan.segments) {
+    if (isClip(s)) {
+      if (s.caption) {
+        const seen = new Set<string>();
+        for (const cue of s.cues) {
+          const key = `${cue.kicker ?? ''}|${cue.text}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          check(s.caption, `caption of ${s.id}`, s.from + cue.from, { text: cue.text, kicker: cue.kicker });
+        }
+      }
+      for (const o of s.overlays) check(o.component, `overlay of ${s.id}`, s.from + o.from, o.component.slots);
+    } else {
+      check(s.component, `${s.kind} ${s.id}`, s.from, s.component.slots);
+    }
+  }
+  return out;
+}
+
+// ── Cursor at clicks ──────────────────────────────────────────────────────────
+
+const inside = (p: { x: number; y: number }, v: { cx: number; cy: number; w: number; h: number }, margin: number) =>
+  p.x >= v.cx - v.w / 2 + margin && p.x <= v.cx + v.w / 2 - margin && p.y >= v.cy - v.h / 2 + margin && p.y <= v.cy + v.h / 2 - margin;
+
+export function checkCursor(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const { plan } = ctx;
+  const W = plan.source.cssWidth;
+  const H = plan.source.cssHeight;
+  const ripple = Math.round(0.4 * plan.fps);
+  for (const c of ctx.clicks) {
+    const clip = plan.segments.find((s): s is ClipSegment => s.id === c.segment && isClip(s));
+    if (!clip || !c.point) continue;
+    const rel = c.frame - clip.from;
+    const at = locate(ctx, c.frame, { scene: c.scene, step: c.step });
+    const what = `the ${c.action} of step ${c.step_id ?? c.step} in "${c.scene}"`;
+    if (c.point.x < 0 || c.point.y < 0 || c.point.x > W || c.point.y > H) {
+      out.push(finding('error', 'cursor-offscreen', `${what} happens with the cursor off screen (${Math.round(c.point.x)}, ${Math.round(c.point.y)} in a ${W}×${H} capture)`, at));
+      continue;
+    }
+    const ev = ctx.timeline?.events.find((e) => e.scene === c.scene && e.step === c.step && e.t_click !== undefined);
+    if (ctx.timeline && ev?.t_click !== undefined) {
+      const cur = cursorAt(ctx.timeline, ev.t_click);
+      if (cur && !cur.visible) out.push(finding('warning', 'cursor-hidden', `${what} happens while the cursor is hidden`, at));
+    }
+    for (const f of [rel, Math.min(clip.durationInFrames - 1, rel + ripple)]) {
+      const view = viewOf(plan, clip, f);
+      const zoomed = view.w < W - 0.5 || view.h < H - 0.5;
+      if (!inside(c.point, view, Math.min(view.w, view.h) * 0.01)) {
+        out.push(
+          finding(
+            'error',
+            'cursor-outside-view',
+            `${what} is outside the ${zoomed ? `zoomed view (${(W / view.w).toFixed(2)}×)` : 'visible area'}: cursor at (${Math.round(c.point.x)}, ${Math.round(c.point.y)}), view x ${Math.round(view.cx - view.w / 2)}–${Math.round(view.cx + view.w / 2)}, y ${Math.round(view.cy - view.h / 2)}–${Math.round(view.cy + view.h / 2)}${f === rel ? '' : ` ${(ripple / plan.fps).toFixed(1)} s after the click`}`,
+            at,
+          ),
+        );
+        break;
+      }
+      const bb = ev?.target?.bbox;
+      if (bb && zoomed && f === rel) {
+        const corners = [
+          { x: bb.x, y: bb.y },
+          { x: bb.x + bb.w, y: bb.y + bb.h },
+        ];
+        if (!corners.every((p) => inside(p, view, 0))) {
+          out.push(finding('warning', 'target-outside-view', `${what}: its target (${ev?.target?.desc ?? 'element'}) is partly outside the zoomed view`, at));
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────────
+
+const camAt = (plan: EditPlan, clip: ClipSegment, f: number): CameraFrame => clip.camera?.[Math.max(0, Math.min(clip.durationInFrames - 1, f))] ?? [1, plan.source.cssWidth / 2, plan.source.cssHeight / 2];
+
+export function checkCamera(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const { plan, rules } = ctx;
+  const W = plan.source.cssWidth;
+  const H = plan.source.cssHeight;
+  const clips = plan.segments.filter(isClip);
+  const zooms = new Map<string, { clip: ClipSegment; zoom: ClipSegment['zooms'][number] }>();
+  for (const clip of clips) for (const z of clip.zooms) zooms.set(`${z.scene}|${z.step}`, { clip, zoom: z });
+  const list = [...zooms.values()].sort((a, b) => a.clip.from + a.zoom.from - (b.clip.from + b.zoom.from));
+  if (list.length > rules.max_zooms) {
+    const extra = list[rules.max_zooms];
+    out.push(
+      finding(
+        'warning',
+        'zoom-count',
+        `${list.length} camera zooms (${list.map((z) => `${z.zoom.zoom}× at ${timecode((z.clip.from + z.zoom.from) / plan.fps)}`).join(', ')}): the reference look keeps the camera static with at most ${rules.max_zooms === 1 ? 'one very slow zoom' : `${rules.max_zooms} zooms`} per video`,
+        locate(ctx, extra.clip.from + extra.zoom.from, { scene: extra.zoom.scene, step: extra.zoom.step }),
+      ),
+    );
+  }
+  for (const { clip, zoom } of list) {
+    const at = locate(ctx, clip.from + zoom.from, { scene: zoom.scene, step: zoom.step });
+    const inS = zoom.in_frames / plan.fps;
+    if (inS < rules.slow_zoom_min_s || zoom.zoom > rules.slow_zoom_max) {
+      out.push(
+        finding('info', 'zoom-not-slow', `zoom ${zoom.zoom}× in ${inS.toFixed(1)} s (step ${zoom.step} of "${zoom.scene}"): the reference zoom is very slow (≈ 1.12× over ≈ 6 s, ≤ ${rules.slow_zoom_max}× over ≥ ${rules.slow_zoom_min_s} s)`, at),
+      );
+    }
+    if (zoom.requested_zoom !== undefined) {
+      out.push(finding('info', 'zoom-clamped', `zoom ${zoom.requested_zoom}× was limited to ${zoom.zoom}× by the theme's max_zoom`, at));
+    }
+  }
+  // Same-page joins (no transition) must continue the camera; inside a clip the camera never jumps.
+  for (let i = 0; i < plan.segments.length - 1; i++) {
+    const a = plan.segments[i];
+    const b = plan.segments[i + 1];
+    if (!isClip(a) || !isClip(b) || b.transition) continue;
+    const ca = camAt(plan, a, a.durationInFrames - 1 - a.heldFrames);
+    const cb = camAt(plan, b, 0);
+    if (Math.abs(ca[0] - cb[0]) > 0.01 || Math.abs(ca[1] - cb[1]) > 0.01 * W || Math.abs(ca[2] - cb[2]) > 0.01 * H) {
+      out.push(
+        finding('warning', 'zoom-reset', `the camera jumps at the same-page join "${a.scene}" → "${b.scene}" (${ca[0].toFixed(2)}× → ${cb[0].toFixed(2)}×): a zoom must continue across a join without a transition`, locate(ctx, b.from)),
+      );
+    }
+  }
+  for (const clip of clips) {
+    if (!clip.camera) continue;
+    for (let f = 1; f < clip.camera.length - clip.heldFrames; f++) {
+      const p = clip.camera[f - 1];
+      const c = clip.camera[f];
+      if (Math.abs(c[0] - p[0]) > 0.04 || Math.abs(c[1] - p[1]) > (0.03 * W) / c[0] || Math.abs(c[2] - p[2]) > (0.03 * H) / c[0]) {
+        out.push(finding('warning', 'camera-jump', `the camera jumps between two frames in "${clip.scene}" (${p[0].toFixed(2)}× → ${c[0].toFixed(2)}×)`, locate(ctx, clip.from + f)));
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+// ── Transitions over clicks ──────────────────────────────────────────────────
+
+export function checkTransitionsOnClicks(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const [before, after] = ctx.rules.click_window_s;
+  const fps = ctx.plan.fps;
+  for (const c of ctx.clicks) {
+    const a = c.frame - Math.round(before * fps);
+    const b = c.frame + Math.round(after * fps);
+    const t = ctx.transitions.find((x) => x.from < b && x.to > a);
+    if (!t) continue;
+    out.push(
+      finding(
+        'warning',
+        'transition-on-click',
+        `the ${c.action} of step ${c.step_id ?? c.step} in "${c.scene}" at ${timecode(c.frame / fps)} is covered by the ${t.kind} ${t.before ?? ''}→${t.after ?? ''} (${timecode(t.from / fps)}–${timecode(t.to / fps)}): the click and its ripple must be fully visible`,
+        locate(ctx, c.frame, { scene: c.scene, step: c.step }),
+      ),
+    );
+  }
+  return out;
+}

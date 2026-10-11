@@ -31,8 +31,8 @@ requirements of a lot with their gaps.
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | **done** |
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | **done** |
-| L2.6 | Review package + `studio review` | M | next |
-| L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | todo |
+| L2.6 | Review package + `studio review` | M | **done** |
+| L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | next |
 | L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | todo |
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | todo |
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | todo |
@@ -221,6 +221,25 @@ requirements of a lot with their gaps.
   (R-REV-*, R-CLI2-02, R-GOAL-06); the look checks moved from L2.5: video 1–2 min / scenes 4–25 s, at most one slow
   zoom per video (R-LOOK-03/05).
 - **Acceptance:** review of the L2.5 render; synthetic bad renders trigger each check.
+- **Done:** `@demo-studio/review` — `reviewRender({project, render: id|path|latest, scenario?, fps?, previous?,
+  thumbnails?, thumbnail_px?, rules?, out?})` → ReviewResult; writes `review/<render-id>/` (swapped in atomically):
+  `sheet_<fps>fps.jpg` (+ pages shared evenly, ≤ 6×10 tiles; timecode, frame, segment/step/marker/transition labels;
+  tiles outlined where a finding points), `sheet_scene_<id>.jpg` (2 fps, scenes/cards/interstitials), key frames
+  (markers, scene first/last fully visible frame, intro/outro hold), output-time `timeline.json` (segments with
+  components, captions, markers, step spans, transitions, zooms, overlays, clicks on the output), `report.json`,
+  `report.md`, `diff_<previous>.jpg`; JPEG thumbnails ≤ 1280 px as base64. One ffmpeg pass per video (render, capture,
+  previous render), sharp for tiles/sheets/key frames. Checks: durations (video 1–2 min: info within ±25 %, warning
+  beyond; scenes 4–25 s info, < 2 s warning), long scenes at ~1×, blank / near-uniform screens (screen rect, transitions
+  excluded, capture frame consulted), blank / loading scene starts, screen changing during the opening still,
+  `long-wait` (unchanging screen ≥ 3 s while the scenario waits), empty cards, caption/scene mismatch, caption overlaps,
+  captions too long (kit `fitText` + the theme's real font files), caption under the brand mark / not visible / missing,
+  text slots over `max_chars`, cursor off screen / hidden / outside the zoomed view at clicks, zoom count, slow zooms,
+  zoom resets at same-page joins, camera jumps, transitions over clicks, render status / probe / missing components,
+  diff with the previous render (durations, plan changes, visibly changed frames at the same segment offset).
+  `studio review` (+ `--fps`, `--previous`/`--no-previous`, `--scenario`, `--strict`, `--json`) and `studio render
+  --review`; README "Reviewing a render". Fixture reviews: quote-v3 clean (info: 56.3 s), catalogue-v3 one warning
+  (`long-wait`: 3.8 s of skeleton placeholders in add-product) + info (59.0 s; zoom 1.3× in 2.2 s not "very slow").
+  572 tests (566 pass, 6 Postgres tests skipped).
 
 ### L2.7 — Layouts & previews (M)
 - **Scope:** layout-browser (real URL from the timeline), laptop, phone, **tablet**, raw; caption-overlay; card-title;

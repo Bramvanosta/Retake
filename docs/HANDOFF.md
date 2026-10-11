@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.5. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.6. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -111,27 +111,57 @@ automatically with themeable components, and let Claude operate everything throu
   edges, caption, brand mark, logo rows, clock, texts within ≤ 3 px; motion at 0.4/1.0/1.3 s; width 1400 on screen;
   half size; determinism), library.test.ts rewritten for the reference look. 540 tests pass (6 Postgres tests
   skipped). Fixture renders `renders/{catalogue,quote}-v3.mp4` compared side by side with the reference stills.
-- **Requirements:** 561 tracked; 304 done, 75 partial, 167 todo, 15 n/a-here; the open ones are assigned to lots
+- **L2.6 done** (review package, `@demo-studio/review`): `reviewRender({project, render: id|path|'latest', scenario?,
+  fps?: 1|2, previous?: id|false, thumbnails?: false|'sheets'|'all', thumbnail_px?, rules?, sheet?, out?})` →
+  `ReviewResult` (src/review.ts; contract in src/types.ts with `DEFAULT_RULES`). Writes `review/<render-id>/` aside and
+  swaps it in: `sheet_<fps>fps.jpg` (+ `_p2`… pages, ≤ 6×10 tiles shared evenly; labels timecode · frame, segment ·
+  step · ◆ marker · ⇄ transition; tiles outlined red/orange where a finding points), `sheet_scene_<id>.jpg` (2 fps,
+  scenes/cards/interstitials), `keyframes/<marker>.png` + `<seg>-first/-last.png` (first/last fully visible frame) +
+  `intro-hold`/`outro-hold`, `timeline.json` (output time: segments + components/caption/transition/layout/speed/zooms/
+  overlays, transitions, captions, markers, step spans, clicks placed on the output — src/timeline.ts), `report.json`,
+  `report.md`, `diff_<previous>.jpg`; returns JPEG thumbnails ≤ 1280 px as base64 (sheet pages + marker key frames by
+  default). Frames: one ffmpeg `select` pass per video (render, capture, previous render), raw RGB streamed with
+  back-pressure (src/ffmpeg.ts); sharp tiles/sheets/key frames (src/sheets.ts); stats in JS (src/pixels.ts: share near
+  the median colour, luminance sd, 96×54 signatures; also `readImage`/`bbox` for tests). Spans (src/spans.ts): visible
+  `[from, next.from)`, `clearFrom/clearTo` outside transition windows. Checks: src/checks.ts (no pixels: durations,
+  long scenes, captions — mismatch, overlaps, `fitText` with the theme's REAL font files via src/fonts.ts (cmap/hmtx
+  reader; `fitText`/`estimateTextWidth` now exported from `@demo-studio/components`), brand mark —, text slots vs
+  `max_chars`, cursor at clicks with `viewOf`, camera, transitions over clicks, render status/probe/missing components)
+  and src/pixel-checks.ts (blank/near-uniform screen runs with the capture frame consulted, blank/loading scene starts,
+  screen changing during the opening still, `long-wait` = unchanging screen ≥ 3 s while the scenario waits — wait
+  steps + time after an action until the next step, holds excluded —, caption not visible, empty cards); src/diff.ts
+  (per-segment durations and plan changes, sample frames compared at the same segment offset). CLI `studio review
+  <project> <render|latest> [--scenario] [--fps 1|2] [--previous ID|--no-previous] [--strict] [--json]` and `studio
+  render --review` (packages/cli/src/commands/review.ts); README "Reviewing a render"; DESIGN-phase2 §3 notes. Tests:
+  review/test/review.test.ts (synthetic renders drawn with ffmpeg from real plans of synthetic runs at quarter size:
+  clean case, blank screen + blank scene start, overlapping / wrong-scene captions, too-long captions, cursor outside
+  the zoom + off screen + two zooms, transition on a click, 35 s scene + long wait + empty cards + pagination, video
+  length warning/info, diff, lookup errors), review/test/checks.test.ts (fixture plans pass the plan checks; caption
+  width with the real font = 1079 px vs 1072 px of ink on the render), cli/test/review.test.ts, render.test.ts
+  `--review`. 572 tests: 566 pass, 6 Postgres tests skipped (one timing flake in runner-web scene-cursor passed on
+  rerun). A 1-min 1080p review takes ≈ 10 s.
+- **Requirements:** 572 tracked; 329 done, 72 partial, 156 todo, 15 n/a-here; the open ones are assigned to lots
   L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer —
-  decided: L2.8). L2.4: all 16 done. L2.5: all done; R-LOOK-03 (video/scene length flags) and R-LOOK-05 (at most one
-  slow zoom per video) moved to L2.6 (review checks), R-LIB-00 (whole library final) to L2.7; the other R-LIB-*/
-  R-ED-10/12..14 items stay partial (placeholders, L2.7).
+  decided: L2.8). L2.4: all 16 done. L2.5: all done; R-LIB-00 (whole library final) moved to L2.7; the other R-LIB-*/
+  R-ED-10/12..14 items stay partial (placeholders, L2.7). L2.6: all 25 done (incl. R-LOOK-03/05).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
-  (L2.4) + reference-look components with geometry expressions (L2.5). `packages/{review,mcp}` are otherwise empty;
-  `studio review|export|record|mcp|ui` print "available in phase N".
+  (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6). `packages/mcp` is empty;
+  `studio export|record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.6 — review package + `studio review`** (M): `reviewRender` (contact sheets, per-scene sheets, key frames,
-output-time timeline, report.json + report.md, base64 thumbnails, every check of DESIGN-phase2 §3, diff vs the previous
-render) and `studio review` (R-REV-*, R-CLI2-02, R-GOAL-06, R-PROJ-10 / R-PRJ-01, R-LOOK-03/05) — unless the user picks
-otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See
-ROADMAP.
+**L2.7 — layouts & previews** (M): layout-browser (real URL from the timeline), laptop, phone, tablet, raw;
+caption-overlay; card-title; intro/outro-minimal; interstitial-plain; overlay-callout, lower-third; transition-fade-black
+— replacing the L2.4 placeholders, geometry as expressions where it follows params; committed `preview.png` + README per
+component (all 18), `studio components preview`, staleness test (R-LIB-*, R-ED-10/12/13/14, R-CMP-12/13/14) — unless
+the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a
+Mac). See ROADMAP.
 
-Render commands (fixture captures exist: runs 20261011-182524-catalogue and 20261011-182706-quote):
+Render and review commands (fixture captures exist: runs 20261011-182524-catalogue and 20261011-182706-quote):
 ```
 node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
-node packages/cli/dist/bin.js render northfield-fixture quote --theme motion
+node packages/cli/dist/bin.js render northfield-fixture quote --theme motion --review
 node packages/cli/dist/bin.js still northfield-fixture quote --frame 1409  # one frame as PNG (renders/stills/)
+node packages/cli/dist/bin.js review northfield-fixture catalogue-v3     # → review/catalogue-v3/ (≈ 10 s)
 ```
 Render times here (4 CPUs, no GPU, concurrency 3, 1080p; L2.5 components): catalogue 59.0 s → 3 m 37 s total (render 3 m
 26 s + bundle 10 s), quote 56.3 s → 2 m 58 s (cached bundle) — as in L2.4 (≈ 8–9 output fps; card frames are no cheaper
@@ -139,21 +169,23 @@ than clip frames: Chrome software raster + JPEG capture dominate; concurrency 4,
 or PNG frames did not help more than ±10 %); a new bundle ≈ 10 s; a still ≈ 1–2 s with a cached bundle (≈ 12 s when the
 bundle must be built); `renderStills` ≈ 0.3–0.6 s per extra frame in the same session.
 
-Notes for L2.6:
+Review of the L2.5 fixture renders (L2.6): **quote-v3 clean** (info: 56.3 s, a little under 1–2 min; 1 of 56 frames
+changed since quote-v2); **catalogue-v3: 1 warning** — `long-wait`: the screen barely changes for 3.8 s while
+add-product waits for its registry data (00:45.1–00:48.9: skeleton placeholders after the click on the registry lot,
+mostly inside the 1× window of the marked `reveal` step) — plus info: 59.0 s, zoom 1.3× in 2.2 s is not "very
+slow". Fixes for L2.12's clean review: shorten the fixture's registry delay, or speed the wait (the mark protects
+it: mark a later step). Sheets looked at: labels, outlines, pages, the diff sheet (v1 placeholders vs v3) all read well.
+
+Notes for L2.7:
+- Review the new components with `studio review` (or `reviewRender` on renders forcing them through
+  `overrides.components`): `caption-not-visible` assumes a caption component draws inside the layout's caption rect
+  unless its params say `position: above` — caption-overlay over a layout with a caption rect is fine (it uses `area`);
+  a caption drawn elsewhere needs that rule revisited. `caption-too-long` measures with the layout's caption rect
+  (minus a 6-unit inset), the theme caption line style and the caption params `max_lines` (vertical ≥ 2), floor 62 %.
 - Rendering many frames: `renderStills({plan, frames: [{frame, out}…]})` keeps one bundle + asset server + browser for
-  all frames (≈ 0.3–0.6 s per frame) — the base for contact sheets and key frames. Pixel helpers worth promoting into
-  the review package: `readImage` (ffmpeg → rgb24), `bbox`, `solidRect` in packages/editor/test/render-look.test.ts.
-- Key frames of the fixture plans: intro hold (intro.from + 78), crossfade midpoints (segment.from +
-  ⌊transition.frames / 2⌋), mid-clip, interstitial (from + 45 = full dark card), outro (from + 84); the catalogue
-  "Awards" zoom peak (1579), the quote card (353) and callout (1409).
-- Layout rects for review checks: `plan.layout` / `clip.layout` are the EVALUATED geometry (capture, card, caption,
-  brandmark, radius in output px) — never re-read the manifest geometry (it may contain expressions).
-- Caption timing (caption-below): a cue starting at the clip start shows from +0.15 s, one ending with the clip is gone
-  0.15 s before its end; the review's caption/scene checks should allow that margin. "Caption too long" should use
-  `fitText` with the theme caption style and the caption rect (caption-below shrinks to 62 % before cutting) rather
-  than a raw character count: the fixture captions (56–87 chars) all fit on one line.
-- R-LOOK-03: the fixture plans are 59.0 s and 56.3 s (just under the 1–2 min target) — decide whether the duration
-  check is a warning or info. R-LOOK-05 (at most one slow zoom per video): count `clip.zooms`.
+  all frames (≈ 0.3–0.6 s per frame) — the base for component previews.
+- Layout rects: `plan.layout` / `clip.layout` are the EVALUATED geometry (capture, card, caption, brandmark, radius in
+  output px) — never re-read the manifest geometry (it may contain expressions).
 - Side-by-side with the reference (L2.5, frames of catalogue-v3 / quote-v3): positions match within ≤ 3 px (card,
   caption kicker/line, brand mark, intro row/kicker/title/rule, clock, interstitial text, outro stack); the intro
   build-up at 0.4 / 1.0 / 2.6 s, the interstitial start / middle / end and the outro at 0.4 / 2.5 s match the
@@ -189,6 +221,10 @@ Notes for L2.6:
   marketplace: terminal, code, chat/SMS, Dynamic Island, calendar, sounds, webcam, SRT subtitles.
 - (2026-10-11) Theme `motion.default_zoom` (L2.8): only for style_bias balanced/motion — at most one slow zoom per
   scene on a marked step target, never across a cut; `real` keeps a static camera.
+- (2026-10-11, L2.6) Review severities for the look targets: video length outside 1–2 min = **info** within ±25 %
+  (45–150 s), warning beyond (the range is a style target measured on two reference videos, not a defect: the 59 s /
+  56 s fixtures are fine); scenes outside 4–25 s = info, < 2 s = warning; more than one zoom per video = warning, a zoom
+  that is not "very slow" = info. Thresholds live in `DEFAULT_RULES` and can be overridden per call (`rules`).
 - Risk to review before V2: Remotion's licence for a redistributed commercial tool (keep the renderer swappable
   behind the EditPlan/component contract).
 

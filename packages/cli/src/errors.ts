@@ -46,6 +46,7 @@ const KNOWN = new Set([
   'ComponentError',
   'RenderError',
   'PlanError',
+  'ReviewError',
 ]);
 
 export function errorMessage(e: unknown): string {

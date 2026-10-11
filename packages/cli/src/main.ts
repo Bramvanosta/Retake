@@ -13,6 +13,8 @@ import { planCommand } from './commands/plan.js';
 import type { PlanCommandOptions } from './commands/plan.js';
 import { listCommand, newCommand } from './commands/project.js';
 import { renderCommand, stillCommand } from './commands/render.js';
+import { reviewCommand } from './commands/review.js';
+import type { ReviewCommandOptions } from './commands/review.js';
 import type { RenderCommandOptions, StillCommandOptions } from './commands/render.js';
 import type { NewOptions } from './commands/project.js';
 import { runCommand } from './commands/run.js';
@@ -129,7 +131,21 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--out <file>', 'write the video (and its .json record) here instead of renders/')
     .option('--concurrency <n>', 'frames rendered in parallel (default: 3/4 of the CPUs, at most 8)')
     .option('--json', 'print the render record (without the plan) as JSON')
+    .option('--review', 'review the render right after it (studio review: sheets, key frames, report)')
     .action(action((u, g, p: string, s: string, o: RenderCommandOptions) => renderCommand(u, g, p, s, o)));
+
+  program
+    .command('review')
+    .description('review a render: contact sheets, per-scene sheets, key frames, timeline and report in review/<render>/')
+    .argument('<project>', 'project slug or directory')
+    .argument('<render>', 'render id (e.g. catalogue-v3), a renders/<id>.json or .mp4 path, or "latest"')
+    .addOption(new Option('--fps <n>', 'contact sheet frames per second').choices(['1', '2']))
+    .option('--previous <id>', 'compare with this render (default: the previous render of the same scenario)')
+    .option('--no-previous', 'do not compare with a previous render')
+    .option('--scenario <name>', 'with "latest": the latest render of this scenario')
+    .option('--strict', 'exit with 1 when the review is not clean (errors or warnings)')
+    .option('--json', 'print the review result (report.json) as JSON')
+    .action(action((u, g, p: string, r: string, o: ReviewCommandOptions) => reviewCommand(u, g, p, r, o)));
 
   program
     .command('still')

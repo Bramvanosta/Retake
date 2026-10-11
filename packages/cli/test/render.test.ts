@@ -77,4 +77,24 @@ describe.skipIf(!canRender)('studio render / still', () => {
     expect(past.code).toBe(EXIT.failure);
     expect(past.err).toContain('past the end of the video (57 frames');
   }, LONG);
+
+  it('--review reviews the render right after it', async () => {
+    const r = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2', '--review');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    const id = /✓ rendered (synthetic-v\d+)/.exec(r.err)?.[1];
+    expect(id).toBeDefined();
+    // Every frame of the colour-coded capture is one solid colour: the review sees blank screens (errors), and a
+    // 1.9 s video far from the 1–2 min target.
+    expect(r.err).toMatch(new RegExp(`✗ review ${id} \\(1\\.90 s, 2 segments\\) → .*review/${id}`));
+    expect(r.err).toMatch(/error {3}\[00:00\.0 · f0 · a\] scene "a" starts on a blank screen \(capture frame 30\)/);
+    expect(r.err).toMatch(/warning the video lasts 1\.9 s/);
+    expect(existsSync(join(ws.project.dir, 'review', id!, 'report.json'))).toBe(true);
+    const json = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2', '--review', '--json', '--no-intro');
+    expect(json.code, json.err).toBe(EXIT.ok);
+    const rec = JSON.parse(json.out) as { id: string; review: { render: { id: string }; clean: boolean; files: { report_md: string } } };
+    expect(rec.review.render.id).toBe(rec.id);
+    expect(rec.review.clean).toBe(false);
+    expect(existsSync(rec.review.files.report_md)).toBe(true);
+  }, LONG);
 });
+

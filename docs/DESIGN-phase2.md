@@ -260,6 +260,30 @@ text slot overflow; cursor off-screen or outside the zoomed view at clicks; scen
 at same-page joins; transitions overlapping a click; diff vs the previous render. Findings:
 `{ severity, code, message, at?: { frame, time, segment, scene, step } }`; `clean` = no error/warning.
 
+Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `latest`, `thumbnails?: false | 'sheets' |
+'all'`, `thumbnail_px?` ≤ 1280, `rules?` = thresholds, `sheet?` = grid, `out?`):
+- **Inputs**: the RenderRecord (its plan is the truth: segments, evaluated layout rects, cues, step spans, camera,
+  srcFrames, markers), the video, the run's `timeline.json` (clicks, cursor track, captions as captured; optional) and
+  the capture (scene starts; optional). Spans: a segment is "visible" over `[from, next.from)` (a crossfade counts with
+  the incoming segment); `clearFrom/clearTo` exclude the transition windows (`transitionWindows`).
+- **Frames**: one ffmpeg pass per video with a `select` on exact frame numbers, raw RGB streamed with back-pressure
+  (`extractFrames`): the render (contact sheet samples at the middle of each 1/fps interval, 2 fps scene samples, key
+  frames, the opening-still pair of each clip), the capture (first frame of each clip + capture frames behind blank
+  samples), the previous render (same segment, same offset). sharp makes tiles, sheets (labels in one SVG per page) and
+  key frames; statistics are plain JS on the RGB buffers (share of pixels near the median colour, luminance sd, 96×54
+  luminance signatures).
+- **Text widths** use the theme's real font files (`fonts.ts`: cmap + hmtx of TTF/OTF/WOFF, no kerning) with the kit's
+  `fitText` (now exported from `@demo-studio/components`), so "too long" matches what the caption component draws.
+- **Severities**: video length outside 1–2 min = info within ±25 % (45–150 s), warning beyond (the range is a style
+  target measured on two reference videos); scenes outside 4–25 s = info, < 2 s = warning; > 30 s at 0.85–1.2× =
+  warning; blank screen ≥ 1 s or at a scene start = error; caption cut = error, shrunk below 85 % = warning; cursor off
+  screen / outside the zoomed view at a click = error; more than one zoom = warning; transition over a click = warning;
+  diff findings are info. Added beyond the brief: `long-wait` (an unchanging screen ≥ 3 s while the scenario waits —
+  wait steps and the time after an action until the next step, holds excluded: catches loading skeletons that idle
+  trimming cannot), `loading-scene-start` (the screen changes during the opening still), `empty-segment`,
+  `caption-not-visible`, `caption-overlaps-brandmark`, `camera-jump`.
+- **Output** is written to `review/<id>.tmp-*` and swapped in, so a review never mixes pages of two runs.
+
 ## 4. Frame comments (data model now, UI in phase 4, MCP tools in phase 3)
 
 `<project>/comments/<scenario>.json`:

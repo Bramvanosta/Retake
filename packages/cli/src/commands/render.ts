@@ -9,6 +9,7 @@ import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
+import { printReview, runReview } from './review.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface RenderCommandOptions {
@@ -25,6 +26,8 @@ export interface RenderCommandOptions {
   out?: string;
   concurrency?: string;
   json?: boolean;
+  /** Review the render right after it (studio review). */
+  review?: boolean;
 }
 
 export interface StillCommandOptions {
@@ -150,10 +153,24 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
       onProgress: (p) => printer?.handle(p),
     });
     printer?.done();
+    if (!opts.json) summary(ui, record);
+    let review;
+    if (opts.review) {
+      try {
+        review = await runReview(ui, { project, root: ws.root, render: record.record, quiet: opts.json });
+      } catch (e) {
+        if (e instanceof Error && e.name === 'ReviewError') throw new CliError(`rendered ${record.id}, but the review failed: ${e.message}`);
+        throw e;
+      }
+      if (!opts.json) printReview(ui, review);
+    }
     if (opts.json) {
       const { plan: _plan, ...rest } = record;
-      ui.result(JSON.stringify(rest, null, 2));
-    } else summary(ui, record);
+      if (review) {
+        const { thumbnails: _t, ...r } = review;
+        ui.result(JSON.stringify({ ...rest, review: r }, null, 2));
+      } else ui.result(JSON.stringify(rest, null, 2));
+    }
     return EXIT.ok;
   } catch (e) {
     printer?.done();
