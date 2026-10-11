@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { HookStepSchema } from './hooks.js';
-import { FrameStyleSchema, nonEmpty } from './primitives.js';
+import { FrameSpecSchema, nonEmpty } from './primitives.js';
 import {
   AuthConfigSchema,
   BrowserConfigSchema,
@@ -24,7 +24,9 @@ const projectShape = {
     .describe('Global auth, or per environment name. Never passwords.')
     .optional(),
   capture: CapturePartialSchema.optional(),
-  frame: FrameStyleSchema.optional(),
+  frame: FrameSpecSchema.describe(
+    'Default frame of every scenario (default card): raw, card, browser, laptop, phone or a layout component id "namespace/name".',
+  ).optional(),
   template: nonEmpty().describe('Template name (templates/<name>) or a path relative to the project dir.').optional(),
   locale: nonEmpty().optional(),
   allow_hosts: z
@@ -55,7 +57,7 @@ export const ProjectConfigSchema = z.strictObject({
   ...projectShape,
   environments: projectShape.environments.unwrap(),
   capture: CaptureSettingsSchema,
-  frame: FrameStyleSchema,
+  frame: FrameSpecSchema,
   template: nonEmpty(),
 });
 

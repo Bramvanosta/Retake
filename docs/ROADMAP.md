@@ -23,8 +23,8 @@ requirements of a lot with their gaps.
 | L1.3 | Capture smoothness under load (spike) | M | todo |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
-| L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | next |
-| L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | todo |
+| L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
+| L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | next |
 | L2.3 | Edit planner (pure, unit-tested) | M | todo |
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | todo |
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | todo |
@@ -111,6 +111,12 @@ requirements of a lot with their gaps.
   overlay target bbox recorded by the runner; title/intro/outro carried into timeline.json (R-SCN-03); project frame
   default (R-PROJ-06); JSON Schemas regenerated.
 - **Acceptance:** schema/validation tests with line numbers; fixture scenarios still valid; runner test for overlay bbox.
+- **Done:** `ComponentKind`/`COMPONENT_KINDS`/`ComponentRef` live in core (re-exported by components); template `brand`
+  + `components` and `resolveThemeComponents` (legacy mapping, warning on contradictions); scenario intro/outro/
+  interstitial components, `card` entries, `frame` ids (`FrameSpec`), step `overlay`; runner records cards, overlay
+  anchors measured at the end of the step (camera too, tested on the SPEC scroll example) and `timeline.video`;
+  starter templates declare brand + components; quote fixture shows a card and an overlay (captured, bbox checked on
+  the frame); JSON Schemas regenerated. 345 tests pass (6 Postgres tests skipped).
 
 ### L2.2 — Components package foundation (M)
 - **Scope:** `@demo-studio/components`: manifest schema + validation, registry (workspace → built-in, did-you-mean,

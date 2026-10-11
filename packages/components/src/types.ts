@@ -9,6 +9,8 @@
  * Resolution order of component ids: workspace `components/` → built-in library → (V2) cloud marketplace cache.
  */
 
+import type { ComponentKind } from '@demo-studio/core';
+
 /** A caption to show, in output frames [from, to) relative to the segment (or the video for plans). */
 export interface CaptionCue {
   from: number;
@@ -18,32 +20,12 @@ export interface CaptionCue {
   scene: string;
 }
 
-export type ComponentKind =
-  | 'intro'
-  | 'outro'
-  /** Full-screen card inserted between scenes (title / chapter / quote card…). */
-  | 'card'
-  /** Full-screen "time passes" card (waiting screen), usually drawn over a dimmed last frame. */
-  | 'interstitial'
-  /** Renders the caption cues of a clip in the caption area of the layout. */
-  | 'caption'
-  /** Screen layout / frame: places the capture (card, browser chrome, laptop, phone, raw…). */
-  | 'layout'
-  /** Overlay shown over a clip for a while (lower third, callout, badge, highlight…). */
-  | 'overlay'
-  /** Transition between two segments. */
-  | 'transition';
-
-export const COMPONENT_KINDS: readonly ComponentKind[] = [
-  'intro',
-  'outro',
-  'card',
-  'interstitial',
-  'caption',
-  'layout',
-  'overlay',
-  'transition',
-] as const;
+/**
+ * Component kinds and references are part of the shared data model (templates and scenarios refer to components):
+ * their single source of truth is @demo-studio/core.
+ */
+export { COMPONENT_KINDS } from '@demo-studio/core';
+export type { ComponentId, ComponentKind, ComponentRef } from '@demo-studio/core';
 
 export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen';
 
@@ -111,9 +93,6 @@ export interface ComponentManifest {
   /** Sample values used to render previews with any theme. */
   preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[] };
 }
-
-/** Reference to a component from a theme or a scenario. */
-export type ComponentRef = string | { id: string; params?: Record<string, unknown> };
 
 /** Theme values resolved for rendering (URLs served by the renderer / UI). */
 export interface ThemeTokens {

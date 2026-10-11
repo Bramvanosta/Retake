@@ -27,8 +27,12 @@ of its `studio.yaml`), never in the Demo Studio installation.
    wordmark, cropped tight, in a colour that reads on your background.
 3. Put your fonts in `fonts/` (`.ttf`, `.otf`, `.woff` or `.woff2`) and update `fonts.display` and
    `fonts.body` (regular, semibold, bold). Replace `LICENSES.md` with your fonts' licences.
-4. Set `name`, the four `colors` (extra keys are allowed and usable as caption colours), the
+4. Set `name`, `brand` (name and site, e.g. `{name: Northfield, url: example.com}`), the four `colors`
+   (extra keys are allowed and usable as caption colours), the
    `background` and `cursor.ripple_color` (your accent at about 45 % opacity).
+   `components` picks the default component per kind (intro, outro, card, interstitial, layout, caption,
+   overlay, transition): keep it in step with `frame`, `intro`, `outro`, `interstitial`, `captions` and
+   `transitions` (validation warns when they disagree), or remove it to let those fields choose.
 5. Use it from a project: `template: <brand>` in `project.yaml` (or in a scenario).
 
 Every section of `template.yaml` is optional — missing values fall back to Demo Studio's built-in

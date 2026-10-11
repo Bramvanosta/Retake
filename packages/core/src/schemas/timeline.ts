@@ -3,8 +3,9 @@ import { ACTION_NAMES } from '../types.js';
 import type { RunRecord, Timeline } from '../types.js';
 import {
   BBoxSchema,
+  ComponentParamsSchema,
   EaseSpecSchema,
-  FrameStyleSchema,
+  FrameSpecSchema,
   PointSchema,
   TargetSpecSchema,
   TransitionSchema,
@@ -17,7 +18,7 @@ const CaptionObject = z.strictObject({ kicker: z.string().optional(), text: z.st
 const TimelineSceneSchema = z.strictObject({
   id: nonEmpty(),
   index: z.number().int().min(0),
-  kind: z.enum(['scene', 'interstitial']),
+  kind: z.enum(['scene', 'interstitial', 'card']),
   t_start: t(),
   t_end: t(),
   t_actions: t().optional(),
@@ -26,17 +27,42 @@ const TimelineSceneSchema = z.strictObject({
   caption: CaptionObject.optional(),
   speed: z.number().gt(0).optional(),
   transition: TransitionSchema.optional(),
-  frame: FrameStyleSchema.optional(),
+  frame: FrameSpecSchema.optional(),
   interstitial: z
     .strictObject({
       text: z.string(),
       kicker: z.string().optional(),
       duration: z.number().optional(),
       style: z.string().optional(),
+      component: z.string().optional(),
+      params: ComponentParamsSchema.optional(),
+    })
+    .optional(),
+  card: z
+    .strictObject({
+      component: z.string().optional(),
+      params: ComponentParamsSchema.optional(),
+      slots: z.record(z.string(), z.string()).optional(),
+      duration: z.number().optional(),
     })
     .optional(),
   status: z.enum(['ok', 'failed', 'skipped', 'partial']),
 });
+
+const IntroOutroBase = { component: z.string().optional(), params: ComponentParamsSchema.optional(), duration: z.number().optional() };
+
+const TimelineVideoSchema = z
+  .strictObject({
+    title: z.strictObject({ kicker: z.string().optional(), text: z.string() }).optional(),
+    intro: z.union([z.literal(false), z.strictObject(IntroOutroBase)]).optional(),
+    outro: z
+      .union([z.literal(false), z.strictObject({ ...IntroOutroBase, tagline: z.string().optional(), url: z.string().optional() })])
+      .optional(),
+    frame: FrameSpecSchema.optional(),
+    template: z.string().optional(),
+    music: z.strictObject({ file: z.string(), volume: z.number().optional(), duck: z.number().optional() }).optional(),
+  })
+  .describe("The scenario's edit info: title, intro, outro, effective frame, template, music.");
 
 const TimelineEventSchema = z.strictObject({
   scene: nonEmpty(),
@@ -62,6 +88,17 @@ const TimelineEventSchema = z.strictObject({
       until: z.union([z.enum(['step_end', 'scene_end']), z.number()]).optional(),
       bbox: BBoxSchema.optional(),
       point: PointSchema.optional(),
+    })
+    .optional(),
+  overlay: z
+    .strictObject({
+      component: nonEmpty(),
+      slots: z.record(z.string(), z.string()),
+      params: ComponentParamsSchema,
+      duration: z.number().gt(0).optional(),
+      target: z.string().describe('Description of the measured target.').optional(),
+      bbox: BBoxSchema.describe('Target bbox at the end of the step (after any scroll).').optional(),
+      point: PointSchema.describe('Anchor when there is no target bbox (cursor at the end of the step).').optional(),
     })
     .optional(),
   page: z.string().optional(),
@@ -91,6 +128,7 @@ export const TimelineSchema = z
       t0_wall: z.number().describe('Wall-clock epoch ms of capture time 0.'),
       frames: z.number().int().min(0),
     }),
+    video: TimelineVideoSchema.optional(),
     scenes: z.array(TimelineSceneSchema),
     events: z.array(TimelineEventSchema),
     markers: z.array(z.strictObject({ name: nonEmpty(), t: t(), scene: nonEmpty(), step: z.number().int() })),

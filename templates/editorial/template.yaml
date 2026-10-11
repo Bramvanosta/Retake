@@ -16,6 +16,7 @@ fonts:
 
 logo: logo.svg
 wordmark: wordmark.svg
+brand: {name: Atelier, url: example.com}       # placeholder brand (fictional)
 
 background: {type: radial, from: "#f8f4ef", to: "#ebe4dc"}
 
@@ -37,3 +38,15 @@ motion: {default_zoom: none, max_zoom: 1.4, zoom_ease: [0.45, 0, 0.2, 1]}
 style_bias: real
 
 brandmark: {position: bottom-right, size: 30}
+
+# Default component per kind (docs/DESIGN-phase2.md §1.4), consistent with the legacy fields above:
+# the reference look — stacked intro and outro, clock interstitial, card layout, captions below, crossfade.
+components:
+  intro: studio/intro-stack
+  outro: studio/outro-stack
+  interstitial: studio/interstitial-clock
+  card: studio/card-title
+  layout: {id: studio/layout-card, params: {width: 1560, radius: 18, shadow: soft}}
+  caption: studio/caption-below
+  overlay: studio/overlay-callout
+  transition: {id: studio/transition-crossfade, params: {duration: 0.35}}

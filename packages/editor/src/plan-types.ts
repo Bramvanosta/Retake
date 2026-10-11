@@ -5,7 +5,7 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { FrameStyle, TransitionKind, Template } from '@demo-studio/core';
+import type { FrameSpec, TransitionKind, Template } from '@demo-studio/core';
 import type { CaptionCue, ComponentManifest, ThemeTokens } from '@demo-studio/components';
 
 export type { CaptionCue };
@@ -129,7 +129,8 @@ export interface ClipSegment extends SegmentBase {
   kind: 'clip';
   /** Scene id from the scenario/timeline. */
   scene: string;
-  frame: FrameStyle;
+  /** Frame as resolved for this scene (scene → scenario → project); the layout component is `component`. */
+  frame: FrameSpec;
   /**
    * Source frame index (into the CFR capture.mp4) for each output frame of this segment.
    * length === durationInFrames. Encodes speed ramps, idle trims and the held last frame of a crossfade.
@@ -182,7 +183,7 @@ export interface EditPlan {
   /** Layout unit: output width / 1920 (landscape) or / 1080 (vertical). Multiply every design size by it. */
   unit: number;
   durationInFrames: number;
-  frame: FrameStyle;
+  frame: FrameSpec;
   brand: PlanBrand;
   layout: PlanLayout;
   source: {
@@ -212,7 +213,7 @@ export interface EditPlan {
 
 /** Overrides accepted by planEdit / render (MCP `render.overrides`). */
 export interface EditOverrides {
-  frame?: FrameStyle;
+  frame?: FrameSpec;
   variant?: PlanVariant;
   /** Output fps (default: capture fps). */
   fps?: number;

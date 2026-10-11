@@ -387,9 +387,154 @@
         }
       },
       "additionalProperties": false
+    },
+    "brand": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Brand name (wordmark drawn as text when there is no wordmark image)."
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Brand URL as shown, e.g. example.com (outro url when the scenario/template sets none)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Brand name and URL."
+    },
+    "components": {
+      "type": "object",
+      "properties": {
+        "intro": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Intro card, e.g. studio/intro-stack or studio/intro-minimal. An id \"namespace/name\" or {id, params}."
+        },
+        "outro": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Outro card, e.g. studio/outro-stack or studio/outro-minimal. An id \"namespace/name\" or {id, params}."
+        },
+        "card": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Full-screen card of scenario `card:` entries, e.g. studio/card-title. An id \"namespace/name\" or {id, params}."
+        },
+        "interstitial": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "\"Time passes\" card, e.g. studio/interstitial-clock or studio/interstitial-plain. An id \"namespace/name\" or {id, params}."
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Caption renderer, e.g. studio/caption-below or studio/caption-overlay; null = no captions. An id \"namespace/name\" or {id, params}."
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Screen layout around the capture, e.g. studio/layout-card, studio/layout-browser, studio/layout-raw. An id \"namespace/name\" or {id, params}."
+        },
+        "overlay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Default overlay of step `overlay:` modifiers, e.g. studio/overlay-callout. An id \"namespace/name\" or {id, params}."
+        },
+        "transition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Transition between scenes, e.g. studio/transition-crossfade; null = cut. An id \"namespace/name\" or {id, params}."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Default component per kind (id or {id, params}; null = none). A kind left out is mapped from the legacy fields (frame.style, intro.layout, outro.layout, interstitial.style, captions.position, transitions.between_scenes)."
     }
   },
   "additionalProperties": false,
   "title": "Demo Studio template",
-  "description": "Brand & motion style (templates/<name>/template.yaml), merged over the default template."
+  "description": "Brand & motion style (templates/<name>/template.yaml), merged over the default template.",
+  "$defs": {
+    "ComponentRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Component id \"namespace/name\"."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "A component id \"namespace/name\" (e.g. studio/intro-stack), or {id, params}."
+    }
+  }
 }

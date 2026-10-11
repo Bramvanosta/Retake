@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import type { Template, TextStyle } from '../types.js';
-import { FrameStyleSchema, TransitionSchema, nonEmpty, positiveSeconds, seconds } from './primitives.js';
+import { COMPONENT_KINDS } from '../types.js';
+import type { ComponentKind, Template, TemplateComponents, TextStyle } from '../types.js';
+import { ComponentRefSchema, FrameStyleSchema, TransitionSchema, nonEmpty, positiveSeconds, seconds } from './primitives.js';
 
 const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 const IMAGE_RE = /\.(svg|png|jpe?g|webp)$/i;
@@ -77,6 +78,41 @@ const sections = {
   }),
 };
 
+const KIND_HINTS: Record<ComponentKind, string> = {
+  intro: 'Intro card, e.g. studio/intro-stack or studio/intro-minimal.',
+  outro: 'Outro card, e.g. studio/outro-stack or studio/outro-minimal.',
+  card: 'Full-screen card of scenario `card:` entries, e.g. studio/card-title.',
+  interstitial: '"Time passes" card, e.g. studio/interstitial-clock or studio/interstitial-plain.',
+  caption: 'Caption renderer, e.g. studio/caption-below or studio/caption-overlay; null = no captions.',
+  layout: 'Screen layout around the capture, e.g. studio/layout-card, studio/layout-browser, studio/layout-raw.',
+  overlay: 'Default overlay of step `overlay:` modifiers, e.g. studio/overlay-callout.',
+  transition: 'Transition between scenes, e.g. studio/transition-crossfade; null = cut.',
+};
+
+/** `components:` — default component per kind; null = none. */
+const ComponentsSchema = z
+  .strictObject(
+    Object.fromEntries(
+      COMPONENT_KINDS.map((k) => [
+        k,
+        ComponentRefSchema.nullable()
+          .describe(`${KIND_HINTS[k]} An id "namespace/name" or {id, params}.`)
+          .optional(),
+      ]),
+    ) as Record<ComponentKind, z.ZodOptional<z.ZodNullable<typeof ComponentRefSchema>>>,
+  )
+  .describe(
+    'Default component per kind (id or {id, params}; null = none). A kind left out is mapped from the legacy fields ' +
+      '(frame.style, intro.layout, outro.layout, interstitial.style, captions.position, transitions.between_scenes).',
+  ) satisfies z.ZodType<TemplateComponents>;
+
+const BrandSchema = z
+  .strictObject({
+    name: nonEmpty().describe('Brand name (wordmark drawn as text when there is no wordmark image).').optional(),
+    url: nonEmpty().describe('Brand URL as shown, e.g. example.com (outro url when the scenario/template sets none).').optional(),
+  })
+  .describe('Brand name and URL.');
+
 const styleBias = z.enum(['real', 'balanced', 'motion']).describe('How much motion design is added: real | balanced | motion.');
 
 /** A complete template (after merging over DEFAULT_TEMPLATE). */
@@ -101,6 +137,8 @@ export const TemplateSchema = z.strictObject({
   motion: sections.motion,
   style_bias: styleBias,
   brandmark: sections.brandmark.optional(),
+  brand: BrandSchema.optional(),
+  components: ComponentsSchema.optional(),
 }) satisfies z.ZodType<Template>;
 
 /** templates/<name>/template.yaml: every section optional, merged over DEFAULT_TEMPLATE. */
@@ -128,6 +166,8 @@ export const TemplateFileSchema = z
     motion: sections.motion.partial().optional(),
     style_bias: styleBias.optional(),
     brandmark: sections.brandmark.partial().optional(),
+    brand: BrandSchema.optional(),
+    components: ComponentsSchema.optional(),
   })
   .meta({
     id: 'Template',

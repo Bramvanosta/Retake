@@ -105,15 +105,39 @@ class ScenarioChecker {
     let current = this.pages ? Object.keys(this.pages)[0] : undefined;
     let capturable = 0;
 
+    // Ids are unique across scenes, cards and interstitials (explicit ids first, then the default ids of unnamed
+    // cards and interstitials, which must not collide with an explicit one).
+    scenes.forEach((entry, i) => {
+      if (!isObj(entry) || typeof entry.id !== 'string') return;
+      const prev = sceneIds.get(entry.id);
+      if (prev !== undefined) this.ctx.error(['scenes', i, 'id'], `duplicate scene id "${entry.id}" (already used by scenes[${prev}])`);
+      else sceneIds.set(entry.id, i);
+    });
+    scenes.forEach((entry, i) => {
+      if (!isObj(entry) || entry.id !== undefined) return;
+      const kind = 'card' in entry ? 'card' : 'interstitial' in entry ? 'interstitial' : undefined;
+      if (!kind) return;
+      const auto = `${kind}-${i}`;
+      const prev = sceneIds.get(auto);
+      if (prev !== undefined) {
+        this.ctx.error(
+          ['scenes', i],
+          `the default id "${auto}" of this ${kind} is already used by scenes[${prev}]: give the ${kind} an \`id\``,
+        );
+      }
+    });
+
     scenes.forEach((entry, i) => {
       const p: IssuePath = ['scenes', i];
       if (!isObj(entry)) return;
-      if (typeof entry.id === 'string') {
-        const prev = sceneIds.get(entry.id);
-        if (prev !== undefined) this.ctx.error([...p, 'id'], `duplicate scene id "${entry.id}" (already used by scenes[${prev}])`);
-        else sceneIds.set(entry.id, i);
+      if ('interstitial' in entry) {
+        this.interstitial(entry.interstitial, [...p, 'interstitial']);
+        return;
       }
-      if ('interstitial' in entry) return;
+      if ('card' in entry) {
+        this.card(entry.card, [...p, 'card']);
+        return;
+      }
       if (entry.skip !== true) capturable++;
 
       const page = typeof entry.page === 'string' ? entry.page : current;
@@ -142,10 +166,26 @@ class ScenarioChecker {
     });
 
     if (scenes.length > 0 && capturable === 0) {
-      this.ctx.warning(['scenes'], 'nothing to capture: every entry is an interstitial or a skipped scene');
+      this.ctx.warning(['scenes'], 'nothing to capture: every entry is a card, an interstitial or a skipped scene');
     }
     for (const [id, path] of this.stepIds) {
       if (sceneIds.has(id)) this.ctx.warning([...path, 'id'], `step id "${id}" is also a scene id: --until "${id}" refers to the step`);
+    }
+  }
+
+  /** `card:` — something to show: a component, or the `title` slot of the theme's card component. */
+  private card(card: unknown, p: IssuePath): void {
+    if (!isObj(card) || this.ctx.broken(p)) return;
+    const slots = isObj(card.slots) ? card.slots : {};
+    if (card.component === undefined && (typeof slots.title !== 'string' || slots.title.trim() === '')) {
+      this.ctx.error(p, 'a card needs a `component` or a `slots.title` (the theme\'s card component shows a title)');
+    }
+  }
+
+  private interstitial(inter: unknown, p: IssuePath): void {
+    if (!isObj(inter) || this.ctx.broken(p)) return;
+    if (inter.style !== undefined && inter.component !== undefined) {
+      this.ctx.warning([...p, 'style'], '`style` (legacy) is ignored when `component` is set');
     }
   }
 
@@ -200,6 +240,7 @@ class ScenarioChecker {
       const ct = step.camera.target;
       if (ct !== 'cursor' && ct !== 'step') checkTarget(ct, [...sp, 'camera', 'target'], this.ctx);
     }
+    if (step.overlay?.target !== undefined) checkTarget(step.overlay.target, [...sp, 'overlay', 'target'], this.ctx);
     const facts = checkActionArgs(step, sp, this.ctx);
     if (facts.tabId) this.tabIds.add(facts.tabId);
     if (facts.switchTo) this.switches.push(facts.switchTo);

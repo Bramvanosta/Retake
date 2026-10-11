@@ -12,6 +12,9 @@ import {
   loadScenario,
   loadTemplate,
   parseTemplateYaml,
+  resolveThemeComponents,
+  COMPONENT_KINDS,
+  COMPONENT_ID_RE,
 } from '@demo-studio/core';
 
 /** The repository itself is a workspace: bundled starter templates and the fixture project. */
@@ -32,6 +35,27 @@ describe('bundled templates', () => {
   });
 });
 
+describe('bundled templates pick components (R-THM-01..03)', () => {
+  it('each declares a fictional brand and an explicit component per kind, consistent with its legacy fields', async () => {
+    for (const t of await listTemplates(ROOT)) {
+      const { template } = await loadTemplate(t.name, ROOT);
+      expect(template.brand?.name, t.name).toBeTruthy();
+      expect(template.brand?.url, t.name).toBe('example.com');
+      expect(Object.keys(template.components ?? {}).sort(), t.name).toEqual([...COMPONENT_KINDS].sort());
+      const chosen = resolveThemeComponents(template);
+      const legacy = resolveThemeComponents({ ...template, components: undefined });
+      for (const kind of COMPONENT_KINDS) {
+        const c = chosen[kind];
+        expect(c?.source, `${t.name}.${kind}`).toBe('theme');
+        expect(COMPONENT_ID_RE.test(c!.id), `${t.name}.${kind}`).toBe(true);
+        expect({ id: c!.id, params: c!.params }, `${t.name}.${kind} matches the legacy fields`).toEqual(
+          legacy[kind] && { id: legacy[kind]!.id, params: legacy[kind]!.params },
+        );
+      }
+    }
+  });
+});
+
 describe('bundled fixture project', () => {
   it('loads with its template, and every scenario validates without errors', async () => {
     const projects = await listProjects(ROOT);
@@ -44,5 +68,16 @@ describe('bundled fixture project', () => {
       const loaded = await loadScenario(project, name, { template: template.template });
       expect(errorsOf(loaded.issues), name).toEqual([]);
     }
+  });
+
+  it('the quote scenario shows the phase-2 syntax: a card entry and a step overlay with a target', async () => {
+    const project = await loadProject('northfield-fixture', ROOT);
+    const { scenario } = await loadScenario(project, 'quote');
+    const card = scenario.scenes.find((e) => 'card' in e);
+    expect(card).toMatchObject({ id: 'chapter-request', card: { slots: { title: expect.any(String) } } });
+    const steps = scenario.scenes.flatMap((e) => ('steps' in e ? e.steps : []));
+    const withOverlay = steps.filter((st) => st.overlay);
+    expect(withOverlay).toHaveLength(1);
+    expect(withOverlay[0].overlay).toMatchObject({ component: 'studio/overlay-callout', target: { testid: 'proposal-total' } });
   });
 });

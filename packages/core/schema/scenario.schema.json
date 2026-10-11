@@ -35,15 +35,29 @@
         {
           "type": "object",
           "properties": {
+            "component": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Intro component \"namespace/name\" (default: the theme's), e.g. studio/intro-stack."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
+            },
             "duration": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "exclusiveMinimum": 0,
+              "description": "Seconds (default: template intro.duration)."
             }
           },
           "additionalProperties": false
         }
       ],
-      "description": "`false` disables the intro card."
+      "description": "Intro card overrides {component, params, duration}; `false` disables the intro card."
     },
     "outro": {
       "anyOf": [
@@ -54,21 +68,37 @@
         {
           "type": "object",
           "properties": {
+            "component": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Outro component \"namespace/name\" (default: the theme's), e.g. studio/outro-stack."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
+            },
             "tagline": {
-              "type": "string"
+              "type": "string",
+              "description": "Tagline under the logo (default: template outro.tagline)."
             },
             "url": {
-              "type": "string"
+              "type": "string",
+              "description": "URL shown by the outro (default: template outro.url, else brand.url)."
             },
             "duration": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "exclusiveMinimum": 0,
+              "description": "Seconds (default: template outro.duration)."
             }
           },
           "additionalProperties": false
         }
       ],
-      "description": "`false` disables the outro card."
+      "description": "Outro card overrides {component, params, tagline, url, duration}; `false` disables the outro card."
     },
     "env": {
       "type": "string",
@@ -103,15 +133,8 @@
       "$ref": "#/$defs/CaptureOverrides"
     },
     "frame": {
-      "type": "string",
-      "enum": [
-        "raw",
-        "card",
-        "browser",
-        "laptop",
-        "phone"
-      ],
-      "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+      "description": "Frame of every scene (default: the project frame): raw, card, browser, laptop, phone or a layout component id \"namespace/name\".",
+      "$ref": "#/$defs/Frame"
     },
     "template": {
       "type": "string",
@@ -152,7 +175,7 @@
       "items": {
         "$ref": "#/$defs/SceneEntry"
       },
-      "description": "Scenes and interstitials, in order."
+      "description": "Scenes, cards and interstitials, in order."
     }
   },
   "required": [
@@ -594,6 +617,27 @@
       "additionalProperties": false,
       "description": "Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 100, crf 16)."
     },
+    "Frame": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "raw",
+            "card",
+            "browser",
+            "laptop",
+            "phone"
+          ],
+          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+          "description": "A layout component id \"namespace/name\", e.g. studio/layout-card or a workspace layout."
+        }
+      ],
+      "description": "How the capture is framed: raw, card, browser, laptop or phone (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+    },
     "PacingOverrides": {
       "type": "object",
       "properties": {
@@ -708,9 +752,12 @@
         },
         {
           "$ref": "#/$defs/Interstitial"
+        },
+        {
+          "$ref": "#/$defs/Card"
         }
       ],
-      "description": "A scene or an interstitial card."
+      "description": "A captured scene, an interstitial or a card."
     },
     "Scene": {
       "type": "object",
@@ -765,15 +812,8 @@
           "description": "Transition INTO this scene (default: template)."
         },
         "frame": {
-          "type": "string",
-          "enum": [
-            "raw",
-            "card",
-            "browser",
-            "laptop",
-            "phone"
-          ],
-          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+          "description": "Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone or a layout component id \"namespace/name\".",
+          "$ref": "#/$defs/Frame"
         },
         "irreversible": {
           "type": "boolean",
@@ -887,6 +927,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -955,6 +998,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1022,6 +1068,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -1177,6 +1226,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1264,6 +1316,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1346,6 +1401,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -1430,6 +1488,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -1540,6 +1601,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1638,6 +1702,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -1747,6 +1814,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1832,6 +1902,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -1940,6 +2013,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2000,6 +2076,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -2103,6 +2182,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2158,6 +2240,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -2276,6 +2361,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2357,6 +2445,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -2446,6 +2537,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2527,6 +2621,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -2612,6 +2709,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2693,6 +2793,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2771,6 +2874,9 @@
             },
             "camera": {
               "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
             },
             "mark": {
               "type": "string",
@@ -2868,6 +2974,9 @@
             "camera": {
               "$ref": "#/$defs/CameraHint"
             },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2899,7 +3008,7 @@
           "description": "Show, hide, move or teleport the in-page cursor."
         }
       ],
-      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor) plus optional modifiers (id, caption, speed, hold, camera, mark, timeout, optional, irreversible, note)."
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor) plus optional modifiers (id, caption, speed, hold, camera, overlay, mark, timeout, optional, irreversible, note)."
     },
     "CameraHint": {
       "type": "object",
@@ -3136,6 +3245,50 @@
       ],
       "description": "Easing preset or cubic-bezier [x1, y1, x2, y2]."
     },
+    "Overlay": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+          "description": "Overlay component \"namespace/name\", e.g. studio/overlay-callout or studio/overlay-lower-third."
+        },
+        "slots": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Slot values (title, kicker, text…) as the component declares them."
+        },
+        "params": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "Component params (see the component's params schema; unset params take its defaults)."
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "description": "Seconds on screen, at most 30 (default: the component's duration)."
+        },
+        "target": {
+          "description": "Element the overlay points at, measured at the end of the step after any scroll (default: the step target, else the cursor).",
+          "$ref": "#/$defs/TargetSpec"
+        }
+      },
+      "required": [
+        "component"
+      ],
+      "additionalProperties": false,
+      "description": "Edit-time overlay (callout, lower third, badge…) shown over the clip from the end of this step; the runner records the target bbox."
+    },
     "ClickArgs": {
       "type": "object",
       "properties": {
@@ -3310,7 +3463,8 @@
               "description": "Card text, e.g. \"A few hours later\"."
             },
             "kicker": {
-              "type": "string"
+              "type": "string",
+              "description": "Small line above the text."
             },
             "duration": {
               "type": "number",
@@ -3320,17 +3474,32 @@
             "style": {
               "type": "string",
               "minLength": 1,
-              "description": "Template interstitial style override."
+              "description": "Legacy template interstitial style override (dark-clock, paper, dark); ignored when `component` is set."
+            },
+            "component": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Interstitial component \"namespace/name\" (default: the theme's), e.g. studio/interstitial-clock."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
             }
           },
           "required": [
             "text"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "\"Time passes\" card: text, kicker, duration, component, params."
         },
         "id": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "Interstitial id (default \"interstitial-<index>\")."
         }
       },
       "required": [
@@ -3338,7 +3507,59 @@
       ],
       "additionalProperties": false,
       "title": "interstitial",
-      "description": "A title card between scenes (takes no capture time)."
+      "description": "A \"time passes\" card between scenes (takes no capture time)."
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "card": {
+          "type": "object",
+          "properties": {
+            "component": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Card component \"namespace/name\" (default: the theme's card component, studio/card-title)."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
+            },
+            "slots": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Slot values: title, kicker, text… as the component declares them (a card without `component` needs `title`)."
+            },
+            "duration": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds on screen (default: the component's duration)."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Full-screen card: component, params, slots, duration."
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "Card id (default \"card-<index>\")."
+        }
+      },
+      "required": [
+        "card"
+      ],
+      "additionalProperties": false,
+      "title": "card",
+      "description": "A generic full-screen card between scenes (title, chapter, quote…); takes no capture time."
     }
   }
 }

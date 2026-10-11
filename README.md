@@ -202,7 +202,7 @@ default_env: staging
 auth:                          # never passwords; global, or keyed by environment name
   profile: ~/.demo-studio/profiles/acme-staging
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → 4K frames from a 1080p viewport
-frame: card
+frame: card                    # raw | card | browser | laptop | phone, or a layout component id
 template: default              # a name in the workspace templates, or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
 allow_hosts: [api.staging.example.com]                    # extra hosts hooks may call
@@ -268,15 +268,20 @@ scenes:
   - interstitial: {text: A few hours later, duration: 2.6}
 ```
 
-**Scenario keys:** `video`, `title`, `intro` (`false` or `{duration}`), `outro` (`false` or
-`{tagline, url, duration}`), `env`, `vars`, `setup`, `teardown`, `capture`, `frame`, `template`, `pacing`,
-`music` (`{file, volume, duck}`), `scenes`.
+**Scenario keys:** `video`, `title`, `intro` (`false` or `{component, params, duration}`), `outro` (`false` or
+`{component, params, tagline, url, duration}`), `env`, `vars`, `setup`, `teardown`, `capture`, `frame` (default for
+every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck}`),
+`scenes`.
 
 **Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `steps`, `speed` (edit-time),
 `still` (seconds still at the start, default 1.6), `cursor` (where the cursor rests at the start, see below),
-`transition` (`crossfade`, `cut`, `fade-black`), `frame`, `irreversible`, `skip`, `note`. A scene without `page`
-continues on the previous scene's page; a scene without `open` continues from the current state. An
-`interstitial: {text, kicker, duration, style}` entry is a "time passes" card that takes no capture time.
+`transition` (`crossfade`, `cut`, `fade-black`), `frame` (a frame style or a layout component id), `irreversible`,
+`skip`, `note`. A scene without `page` continues on the previous scene's page; a scene without `open` continues from
+the current state. Two other entries take no capture time (the editor shows them between the clips around them):
+`interstitial: {text, kicker, duration, component, params}` (a "time passes" card; `style` is the legacy template
+style override) and `card: {component, params, slots, duration}` (a full-screen title / chapter / quote card), each
+with an optional `id` (default `interstitial-<n>` / `card-<n>`, `n` = position in `scenes`). Ids are unique across
+scenes, cards and interstitials.
 
 **Scene-start cursor** (`cursor:` on a scene):
 
@@ -324,12 +329,52 @@ Every step has exactly one action; shorthand forms are shown first.
 
 **Step modifiers** (on any step): `id` (for `--until` and references), `caption`, `speed` (edit-time),
 `hold` (seconds still after the step), `mark` (named marker), `camera` (zoom hint:
-`{zoom: 1.3, target: {text: Awards}, ease: slow, duration: 1.2, until: scene_end}`), `timeout` (seconds, default
-15), `optional` (a failure does not abort), `irreversible` (never executed in dry runs), `note`.
+`{zoom: 1.3, target: {text: Awards}, ease: slow, duration: 1.2, until: scene_end}`), `overlay` (an overlay component
+over the clip: `{component, slots, params, duration, target}`, see below), `timeout` (seconds, default 15),
+`optional` (a failure does not abort), `irreversible` (never executed in dry runs), `note`. The runner measures the
+`camera` and `overlay` targets at the **end** of the step — after a `scroll`, the box is where the element ended up.
 
 **Click options:** `strategy` (`auto` · `real` · `dom` · `pointer`), `expect_popup`, `outside`, `hover_ms`,
 `after_ms` (also replaces the `after_navigation_ms` minimum), `move_ms`, `button`, `modifiers` (`[Shift]`), `offset`
 (`{x, y}` from the element's top-left).
+
+### Components in scenarios
+
+Everything visual in the edit is a **component** with an id `namespace/name` (lower-case letters, digits and `-`,
+e.g. `studio/intro-stack`): the built-in library uses the `studio/` namespace, your workspace `components/` folder
+your own. The theme picks a default per kind (see [Templates](#templates-themes)); a scenario overrides it per use:
+
+```yaml
+intro: {component: studio/intro-minimal, duration: 2.4}
+outro: {component: studio/outro-stack, tagline: "Your catalogue, under control.", url: example.com}
+frame: browser                       # every scene; a scene can set its own `frame`
+scenes:
+  - card: {slots: {kicker: Step two, title: Ask the roaster for a quote}, duration: 2.2}
+    id: chapter-request              # cards and interstitials take no capture time
+  - id: proposal
+    frame: acme/tablet-frame         # a layout component of the workspace
+    steps:
+      - wait_for: {text: "€720.00"}
+        overlay:                     # shown from the end of the step, at most 30 s
+          component: studio/overlay-callout
+          slots: {text: "Total incl. VAT, ready to accept"}
+          duration: 2.5
+          target: {testid: proposal-total}   # default: the step's own target, else the cursor
+  - interstitial: {text: A few hours later, component: studio/interstitial-plain, params: {tone: dark}}
+```
+
+| Key | Where | Value |
+|---|---|---|
+| `frame` | project, scenario, scene | `raw`, `card`, `browser`, `laptop`, `phone` (= `studio/layout-<style>`) or a layout component id; default `card` (project) |
+| `intro` / `outro` | scenario | `false`, or `{component, params, duration}` (+ `tagline`, `url` for the outro) |
+| `interstitial` | scene entry | `{text, kicker, duration, component, params}` |
+| `card` | scene entry | `{component, params, slots, duration}`; needs `component` or `slots.title` (the theme's card component shows a title) |
+| `overlay` | step modifier | `{component, slots, params, duration (0 < s ≤ 30), target}` |
+
+Slots are the texts a component shows (`title`, `kicker`, `text`…); params tune it (see the component's params
+schema). The run records cards in `timeline.json` (`kind: card`), each overlay on its step event
+(`overlay: {component, slots, params, duration, target, bbox | point}`) and the scenario's `title`, `intro`, `outro`,
+effective `frame`, `template` and `music` under `video`, so the editor never re-reads the scenario.
 
 ### Targets
 
@@ -386,6 +431,42 @@ Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `sav
 back what it did; teardown hooks always run (even after a failure or Ctrl-C), then the pending setup rollbacks are
 replayed, most recent first.
 
+## Templates (themes)
+
+`templates/<name>/template.yaml` gives the brand and motion style (colours, fonts, logo, wordmark, background, cursor,
+captions, timings) and picks a default **component per kind**. Every section is optional and merged over the
+defaults; start from a starter template (`templates/README.md`).
+
+```yaml
+# yaml-language-server: $schema=../../packages/core/schema/template.schema.json
+brand: {name: Atelier, url: example.com}      # wordmark drawn as text, outro url
+components:                                    # an id, or {id, params}; null = none
+  intro: studio/intro-stack
+  outro: studio/outro-stack
+  interstitial: studio/interstitial-clock
+  card: studio/card-title
+  layout: {id: studio/layout-card, params: {width: 1560, radius: 18, shadow: soft}}
+  caption: studio/caption-below                # caption: null → no captions
+  overlay: studio/overlay-callout
+  transition: {id: studio/transition-crossfade, params: {duration: 0.35}}   # transition: null → cuts
+```
+
+A kind that `components` does not set is mapped from the legacy fields:
+
+| Legacy field | Value → component |
+|---|---|
+| `frame.style` | `card` → `studio/layout-card {width, radius, shadow}` (from `frame`); `browser`, `laptop`, `phone`, `raw` → `studio/layout-<style>` |
+| `intro.layout` | `logo-kicker-title` → `studio/intro-stack`; `kicker-title` → `studio/intro-minimal`; `logo-only` → `studio/intro-minimal {logo_only: true}` |
+| `outro.layout` | `logo-wordmark-tagline-url` → `studio/outro-stack`; `logo-tagline` → `studio/outro-minimal`; `logo-only` → `studio/outro-minimal {logo_only: true}` |
+| `interstitial.style` | `dark-clock` → `studio/interstitial-clock`; `paper`, `dark` → `studio/interstitial-plain {tone}` |
+| `captions.position` | `below` → `studio/caption-below`; `above` → `studio/caption-below {position: above}`; `overlay` → `studio/caption-overlay`; `none` → no caption |
+| `transitions.between_scenes` | `crossfade` → `studio/transition-crossfade {duration}`; `fade-black` → `studio/transition-fade-black {duration}`; `cut` → none |
+| (none) | `card` → `studio/card-title`; `overlay` → `studio/overlay-callout` |
+
+An explicit `components` entry is taken as written (legacy params are not merged into it); validation warns when it
+contradicts a legacy field written in the same file. `resolveThemeComponents(template)` (core) returns the resolved
+choice per kind with its source (`theme`, `legacy` or `default`). The starter templates declare both, consistently.
+
 ## Signing in once: pre-authenticated profiles
 
 Scenarios never contain passwords. Give the project a persistent browser profile and sign in by hand once:
@@ -425,7 +506,7 @@ A profile can be used by one browser at a time: close the login window before ru
 | File | Content |
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
-| `timeline.json` | scenes, step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened), markers, page/URL segments, cursor track, idle intervals, warnings |
+| `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors), markers, page/URL segments, cursor track, idle intervals, warnings |
 | `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet), updated live |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
@@ -447,7 +528,7 @@ packages/core         scenario parser and validator, project/template model, tem
 packages/hooks        setup/teardown hooks (http, sql, shell, js), rollback journal, allow-list, secrets
 packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), actions, screencast, encoder, timeline
 packages/cli          the `studio` command
-packages/components   component contract (phase 2)
+packages/components   component contract (phase 2; kinds and references come from core)
 packages/editor       edit plan contract (phase 2)
 packages/review, mcp  phase 2 and 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests
@@ -465,7 +546,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts drafted (`packages/components`, `packages/editor`) |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core done (L2.1: themes pick components, cards, overlays, frame ids); components, editor and review next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

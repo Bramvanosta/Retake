@@ -1,11 +1,12 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describeTarget, interpolate, isInterstitial, isPoint, normalizeStep, normalizeTarget, sceneId } from '@demo-studio/core';
+import { describeTarget, interpolate, isCard, isInterstitial, isPoint, normalizeStep, normalizeTarget, sceneId } from '@demo-studio/core';
 import type {
   CameraHint,
   CaptionSpec,
   MenuArgs,
   NormalizedStep,
+  OverlaySpec,
   RunProgress,
   RunRecord,
   Scenario,
@@ -107,6 +108,11 @@ export function describeStep(step: NormalizedStep): string {
   }
 }
 
+/**
+ * Camera hint of a step, with its focus measured at the END of the step (after the action, so after any scroll):
+ * the step target as the action reports it (a scroll reports the post-scroll box), an explicit target looked up now,
+ * a point, or the cursor.
+ */
 async function cameraFor(ctx: StepContext, hint: CameraHint, res: ActionResult): Promise<NonNullable<TimelineEvent['camera']>> {
   const cam: NonNullable<TimelineEvent['camera']> = { ...hint };
   const t = hint.target;
@@ -124,6 +130,37 @@ async function cameraFor(ctx: StepContext, hint: CameraHint, res: ActionResult):
     else ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: camera target ${describeTarget(t as TargetSpec)} not found; the editor will centre on the cursor`);
   }
   return cam;
+}
+
+/**
+ * Step `overlay` as recorded on the event: spec + anchor measured at the END of the step (after any scroll). With a
+ * `target`, that element is looked up now; without one, the step's own target box is used (as the action reports it),
+ * else the cursor position.
+ */
+async function overlayFor(ctx: StepContext, spec: OverlaySpec, res: ActionResult): Promise<NonNullable<TimelineEvent['overlay']>> {
+  const out: NonNullable<TimelineEvent['overlay']> = {
+    component: spec.component,
+    slots: { ...(spec.slots ?? {}) },
+    params: structuredClone(spec.params ?? {}),
+  };
+  if (spec.duration !== undefined) out.duration = spec.duration;
+  const { pointer, kit } = ctx.rt;
+  if (spec.target !== undefined) {
+    const t = normalizeTarget(spec.target);
+    out.target = describeTarget(spec.target);
+    const r = await kit.find(t);
+    if (r.count > 0 && 'bbox' in r) out.bbox = r.bbox;
+    else {
+      out.point = pointer.pos();
+      ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: overlay target ${out.target} not found; the overlay is anchored to the cursor`);
+    }
+  } else if (res.target?.bbox) {
+    out.target = res.target.desc;
+    out.bbox = res.target.bbox;
+  } else {
+    out.point = pointer.pos();
+  }
+  return out;
 }
 
 async function errorArtifacts(rt: Runtime, scene: string, step: number, e: unknown): Promise<{ screenshot?: string; dom?: string }> {
@@ -228,6 +265,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     if (res.data !== undefined) ev.data = res.data;
     if (res.hold) ev.hold = { t_start: ev.t_start, t_end: ev.t_end };
     if (step.camera) ev.camera = await cameraFor(ctx, step.camera, res);
+    if (step.overlay) ev.overlay = await overlayFor(ctx, step.overlay, res);
     if (step.hold !== undefined && step.hold > 0) {
       await rt.sleep(step.hold * 1000);
       ev.hold = { t_start: ev.t_end, t_end: rt.now() };
@@ -279,7 +317,13 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     const id = sceneId(entry, si);
     if (isInterstitial(entry)) {
       const t = rt.now();
-      rt.timeline.addScene({ id, index: si, kind: 'interstitial', t_start: t, t_end: t, interstitial: { ...entry.interstitial }, status: 'ok' });
+      rt.timeline.addScene({ id, index: si, kind: 'interstitial', t_start: t, t_end: t, interstitial: structuredClone(entry.interstitial), status: 'ok' });
+      continue;
+    }
+    if (isCard(entry)) {
+      // A card takes no capture time: the editor shows it between the clips around it.
+      const t = rt.now();
+      rt.timeline.addScene({ id, index: si, kind: 'card', t_start: t, t_end: t, card: structuredClone(entry.card), status: 'ok' });
       continue;
     }
     const scene = entry;

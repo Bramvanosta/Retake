@@ -2,12 +2,15 @@ import { statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { z } from 'zod';
+import { resolveThemeComponents } from './components.js';
+import type { ThemeComponent } from './components.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { TemplateFileSchema, TemplateSchema } from './schemas/template.js';
 import { DEFAULT_TEMPLATE } from './template-defaults.js';
-import type { LoadedProject, LoadedTemplate, Template, ValidationIssue } from './types.js';
+import type { ComponentKind, LoadedProject, LoadedTemplate, Template, ValidationIssue } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
-import { finalizeIssues } from './validation/located.js';
+import { finalizeIssues, issue } from './validation/located.js';
+import type { LocatedIssue } from './validation/located.js';
 import { suggestion } from './validation/suggest.js';
 import { zodIssues } from './validation/zod-issues.js';
 import { loadWorkspaceConfig, findWorkspaceRoot } from './workspace.js';
@@ -37,17 +40,77 @@ export function mergeTemplate(base: Template, file: TemplateFile): Template {
   return deepMerge(base, file) as Template;
 }
 
+/** The default template without its name: the name of a template comes from its file or its directory. */
+function nameless(): Template {
+  const { name: _defaultName, ...defaults } = DEFAULT_TEMPLATE;
+  return defaults;
+}
+
+/** Legacy template fields that select a default component when `components` does not (resolveThemeComponents). */
+const LEGACY_FIELDS: Partial<Record<ComponentKind, { section: string; keys: string[] }>> = {
+  layout: { section: 'frame', keys: ['style', 'width', 'radius', 'shadow'] },
+  intro: { section: 'intro', keys: ['layout'] },
+  outro: { section: 'outro', keys: ['layout'] },
+  interstitial: { section: 'interstitial', keys: ['style'] },
+  caption: { section: 'captions', keys: ['position'] },
+  transition: { section: 'transitions', keys: ['between_scenes', 'duration'] },
+};
+
+function sortedJson(v: unknown): string {
+  return JSON.stringify(v, (_k, x: unknown) =>
+    x && typeof x === 'object' && !Array.isArray(x)
+      ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : x,
+  );
+}
+
+function describeChoice(c: ThemeComponent | null): string {
+  if (!c) return 'none';
+  return Object.keys(c.params).length > 0 ? `${c.id} ${sortedJson(c.params)}` : c.id;
+}
+
+/**
+ * Semantic check of a template file: a `components` entry that disagrees with a legacy field written in the same
+ * file (e.g. `components.layout: studio/layout-browser` next to `frame: {style: card}`) is a warning — the
+ * components entry wins, so editing the legacy field would change nothing.
+ */
+function checkTemplateFile(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
+  if (hasErrors(structural) || !isPlainObject(value) || !isPlainObject(value.components)) return [];
+  const file = value as TemplateFile;
+  const merged = mergeTemplate(nameless(), file);
+  const chosen = resolveThemeComponents(merged);
+  const legacy = resolveThemeComponents({ ...merged, components: undefined });
+  const out: LocatedIssue[] = [];
+  for (const [kind, fields] of Object.entries(LEGACY_FIELDS) as Array<[ComponentKind, { section: string; keys: string[] }]>) {
+    if (file.components?.[kind] === undefined) continue;
+    const section = (value as Record<string, unknown>)[fields.section];
+    const written = isPlainObject(section) ? fields.keys.filter((k) => section[k] !== undefined) : [];
+    if (written.length === 0) continue;
+    const a = chosen[kind];
+    const b = legacy[kind];
+    const same = a === null || b === null ? a === b : a.id === b.id && sortedJson(a.params) === sortedJson(b.params);
+    if (same) continue;
+    out.push(
+      issue(
+        'warning',
+        ['components', kind],
+        `components.${kind} (${describeChoice(a)}) takes precedence over ${written.map((k) => `${fields.section}.${k}`).join(', ')} ` +
+          `(which ${written.length > 1 ? 'map' : 'maps'} to ${describeChoice(b)}): change components.${kind}, or remove it to use ${fields.section}`,
+      ),
+    );
+  }
+  return out;
+}
+
 /**
  * Validate template.yaml text and merge it over DEFAULT_TEMPLATE. `template` is returned only
  * when there is no error-level issue.
  */
 export function parseTemplateYaml(text: string): { template?: Template; issues: ValidationIssue[] } {
-  const { value, issues } = checkYamlDocument(text, TemplateFileSchema);
+  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, checkTemplateFile);
   if (hasErrors(issues)) return { issues };
   const file = value as TemplateFile;
-  // The default's name must not leak into other templates: the name comes from the file or the dir.
-  const { name: _defaultName, ...defaults } = DEFAULT_TEMPLATE;
-  const template = mergeTemplate(defaults, file);
+  const template = mergeTemplate(nameless(), file);
   const merged = finalizeIssues(zodIssues(TemplateSchema, template));
   if (hasErrors(merged)) return { issues: [...issues, ...merged] };
   return { template, issues };

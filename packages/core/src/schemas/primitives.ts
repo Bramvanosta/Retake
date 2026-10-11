@@ -1,5 +1,18 @@
 import { z } from 'zod';
-import type { BBox, CameraHint, CaptionSpec, EaseSpec, PointSpec, ScopeSpec, TargetSpec } from '../types.js';
+import { COMPONENT_KINDS } from '../types.js';
+import type {
+  BBox,
+  CameraHint,
+  CaptionSpec,
+  ComponentRef,
+  EaseSpec,
+  FrameSpec,
+  FrameStyle,
+  PointSpec,
+  ScopeSpec,
+  TargetSpec,
+} from '../types.js';
+import { suggestion } from '../validation/suggest.js';
 
 /** Scene / step / marker ids: used in refs ("scene.step"), file names and CLI flags. */
 export const SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -117,8 +130,64 @@ export const CameraHintSchema: z.ZodType<CameraHint> = z
   })
   .meta({ id: 'CameraHint', description: 'Edit-time camera move keyed to this step. The camera is static otherwise.' });
 
+export const FRAME_STYLES: readonly FrameStyle[] = ['raw', 'card', 'browser', 'laptop', 'phone'];
+
 export const FrameStyleSchema = z
   .enum(['raw', 'card', 'browser', 'laptop', 'phone'])
   .describe('How the capture is framed: raw, card, browser chrome, laptop or phone mockup.');
+
+/** Component ids: "namespace/name", lower-case letters, digits and "-" on each side. */
+export const COMPONENT_ID_RE = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
+
+const COMPONENT_ID_RULE = 'lower-case letters, digits and "-", e.g. "studio/intro-stack"';
+
+/** A component id ("namespace/name"); `what` names the field in the message ("layout component id"…). */
+export function componentIdSchema(what = 'component id') {
+  return z.string().regex(COMPONENT_ID_RE, {
+    error: (iss) => `${what} must be "namespace/name" (${COMPONENT_ID_RULE}), got ${JSON.stringify(iss.input)}`,
+  });
+}
+
+export const ComponentKindSchema = z.enum(COMPONENT_KINDS as [string, ...string[]]);
+
+export const ComponentParamsSchema = z
+  .record(z.string(), z.unknown())
+  .describe("Component params (see the component's params schema; unset params take its defaults).");
+
+export const ComponentRefSchema: z.ZodType<ComponentRef> = z
+  .union([
+    componentIdSchema(),
+    z.strictObject({
+      id: componentIdSchema().describe('Component id "namespace/name".'),
+      params: ComponentParamsSchema.optional(),
+    }),
+  ])
+  .meta({
+    id: 'ComponentRef',
+    description: 'A component id "namespace/name" (e.g. studio/intro-stack), or {id, params}.',
+  });
+
+/** Slot values of a component use (title, kicker, text…). */
+export const SlotsSchema = z
+  .record(keyString('slot name'), z.string())
+  .describe('Slot values (title, kicker, text…) as the component declares them.');
+
+/** A FrameStyle or a layout component id. */
+export const FrameSpecSchema: z.ZodType<FrameSpec> = z
+  .union([
+    FrameStyleSchema,
+    z.string().regex(COMPONENT_ID_RE, {
+      error: (iss) =>
+        `expected a frame style (${FRAME_STYLES.join(', ')}) or a layout component id "namespace/name" ` +
+        `(${COMPONENT_ID_RULE.replace('studio/intro-stack', 'studio/layout-card')}), got ${JSON.stringify(iss.input)}` +
+        suggestion(String(iss.input), FRAME_STYLES),
+    }).describe('A layout component id "namespace/name", e.g. studio/layout-card or a workspace layout.'),
+  ])
+  .meta({
+    id: 'Frame',
+    description:
+      'How the capture is framed: raw, card, browser, laptop or phone (built-in layouts studio/layout-<style>), ' +
+      'or a layout component id "namespace/name".',
+  });
 
 export const TransitionSchema = z.enum(['crossfade', 'cut', 'fade-black']);

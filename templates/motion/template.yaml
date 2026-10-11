@@ -19,6 +19,7 @@ fonts:
 
 logo: logo.svg
 wordmark: wordmark.svg
+brand: {name: Demo Studio, url: example.com}   # placeholder brand (fictional)
 
 background: {type: linear, from: "#0a0b11", to: "#1c2030"}
 
@@ -40,3 +41,16 @@ motion: {default_zoom: none, max_zoom: 1.6, zoom_ease: [0.7, 0, 0.2, 1]}
 style_bias: motion
 
 brandmark: {position: none}
+
+# Default component per kind (docs/DESIGN-phase2.md §1.4), consistent with the legacy fields above:
+# frame browser → layout-browser, intro kicker-title → intro-minimal, interstitial paper → interstitial-plain
+# {tone: paper}, captions overlay → caption-overlay, fade-black 0.4 s.
+components:
+  intro: studio/intro-minimal
+  outro: studio/outro-stack
+  interstitial: {id: studio/interstitial-plain, params: {tone: paper}}
+  card: studio/card-title
+  layout: studio/layout-browser
+  caption: studio/caption-overlay
+  overlay: studio/overlay-callout
+  transition: {id: studio/transition-fade-black, params: {duration: 0.4}}

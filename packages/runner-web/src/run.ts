@@ -2,11 +2,12 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
-  isInterstitial,
+  isCaptureScene,
   listSteps,
   newRunId,
   resolveEnvironment,
   resolveStepRef,
+  timelineVideo,
   writeJson,
 } from '@demo-studio/core';
 import type {
@@ -154,7 +155,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const signal = opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal;
   const removeSignals = installSignalHandlers((sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)));
   const clock = new CaptureClock();
-  const timeline = new TimelineBuilder({ run_id: runId, project: project.slug, scenario: loaded.name, mode, capture }, clock);
+  const video = timelineVideo(sc, project.config, opts.template?.name);
+  const timeline = new TimelineBuilder({ run_id: runId, project: project.slug, scenario: loaded.name, mode, capture, video }, clock);
   const template: TemplateContext = {
     pages: env.pages,
     vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) },
@@ -207,8 +209,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record });
     }
 
-    const firstScene = sc.scenes.find((s) => !isInterstitial(s) && !s.skip);
-    const firstPage = (firstScene && !isInterstitial(firstScene) ? firstScene.page : undefined) ?? Object.keys(env.pages)[0];
+    const firstScene = sc.scenes.filter(isCaptureScene).find((s) => !s.skip);
+    const firstPage = firstScene?.page ?? Object.keys(env.pages)[0];
     if (!firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
     // Capture time 0: right before the first page is shown and the screencast starts.
     clock.t0Wall = wallNow();

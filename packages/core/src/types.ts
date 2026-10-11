@@ -73,6 +73,47 @@ export interface BBox {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Component references (phase-2 contracts; docs/DESIGN-phase2.md §1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What a component renders. Every visual element of an edit is a component of one of these kinds. */
+export type ComponentKind =
+  | 'intro'
+  | 'outro'
+  /** Full-screen card inserted between scenes (title / chapter / quote card…). */
+  | 'card'
+  /** Full-screen "time passes" card (waiting screen), usually drawn over a dimmed last frame. */
+  | 'interstitial'
+  /** Renders the caption cues of a clip in the caption area of the layout. */
+  | 'caption'
+  /** Screen layout / frame: places the capture (card, browser chrome, laptop, phone, raw…). */
+  | 'layout'
+  /** Overlay shown over a clip for a while (lower third, callout, badge, highlight…). */
+  | 'overlay'
+  /** Transition between two segments. */
+  | 'transition';
+
+export const COMPONENT_KINDS: readonly ComponentKind[] = [
+  'intro',
+  'outro',
+  'card',
+  'interstitial',
+  'caption',
+  'layout',
+  'overlay',
+  'transition',
+] as const;
+
+/**
+ * A component id: "namespace/name", lower-case letters, digits and "-" on each side (e.g. "studio/intro-stack").
+ * Validated by `COMPONENT_ID_RE`. Resolution order: workspace `components/` → built-in library → (V2) marketplace.
+ */
+export type ComponentId = string;
+
+/** Reference to a component from a theme or a scenario: an id, or an id with params. */
+export type ComponentRef = ComponentId | { id: ComponentId; params?: Record<string, unknown> };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Scenario language
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -297,8 +338,26 @@ export interface StepCommon {
   optional?: boolean;
   /** Not executed in dry-run (the runner hovers the target, screenshots, and stops the scene). */
   irreversible?: boolean;
+  /** Edit-time overlay (callout, lower third, badge…) shown over this step; the runner records its target bbox. */
+  overlay?: OverlaySpec;
   /** Free-form note (ignored). */
   note?: string;
+}
+
+/**
+ * Step modifier `overlay`: a component drawn over the clip from the end of the step's action for `duration` seconds.
+ * The runner measures the target at the END of the step (after any scroll) and records it on the event.
+ */
+export interface OverlaySpec {
+  /** Overlay component id, e.g. "studio/overlay-callout". */
+  component: ComponentId;
+  /** Slot values (text, kicker, title…), as the component declares them. */
+  slots?: Record<string, string>;
+  params?: Record<string, unknown>;
+  /** Seconds on screen (0 < d ≤ 30; default: the component's duration). */
+  duration?: number;
+  /** Element the overlay points at. Default: the step's own target, else the cursor position. */
+  target?: TargetSpec;
 }
 
 export interface ActionArgsMap {
@@ -400,6 +459,21 @@ export type NormalizedArgs = NormalizedArgsMap;
 export type FrameStyle = 'raw' | 'card' | 'browser' | 'laptop' | 'phone';
 
 /**
+ * How a capture is framed: a FrameStyle (`card` ⇒ studio/layout-card, `browser` ⇒ studio/layout-browser…) or the id of
+ * a layout component ("namespace/name").
+ */
+export type FrameSpec = FrameStyle | ComponentId;
+
+/** The built-in layout component each FrameStyle stands for. */
+export const FRAME_STYLE_LAYOUTS: Readonly<Record<FrameStyle, ComponentId>> = {
+  card: 'studio/layout-card',
+  browser: 'studio/layout-browser',
+  laptop: 'studio/layout-laptop',
+  phone: 'studio/layout-phone',
+  raw: 'studio/layout-raw',
+};
+
+/**
  * Where the cursor rests at a scene's start (scene key `cursor`):
  *  - 'auto' (default): a neutral point near the scene's first pointer target, never covering it, inside the viewport
  *    (the previous position is kept on a scene that continues from the current state when it is already clear of the
@@ -429,27 +503,83 @@ export interface Scene {
   cursor?: SceneCursor;
   /** Transition INTO this scene (default template.transitions.between_scenes). */
   transition?: TransitionKind;
-  frame?: FrameStyle;
+  /** Frame of this scene: a FrameStyle or a layout component id (default: scenario frame, else project frame). */
+  frame?: FrameSpec;
   irreversible?: boolean;
   /** Skip this scene entirely. */
   skip?: boolean;
   note?: string;
 }
 
+export interface InterstitialSpec {
+  text: string;
+  kicker?: string;
+  /** Seconds on screen (> 0). */
+  duration?: number;
+  /** Legacy template interstitial style override (ignored when `component` is set). */
+  style?: string;
+  /** Interstitial component id (default: the theme's). */
+  component?: ComponentId;
+  params?: Record<string, unknown>;
+}
+
+/** "Time passes" card between scenes; takes no capture time. */
 export interface InterstitialScene {
-  interstitial: {
-    text: string;
-    kicker?: string;
-    duration?: number;
-    style?: string;
-  };
+  interstitial: InterstitialSpec;
+  /** Default "interstitial-<index>". */
   id?: string;
 }
 
-export type SceneEntry = Scene | InterstitialScene;
+export interface CardSpec {
+  /** Card component id (default: the theme's card component, studio/card-title). */
+  component?: ComponentId;
+  params?: Record<string, unknown>;
+  /** Slot values (title, kicker, text…); a card needs `component` or `slots.title`. */
+  slots?: Record<string, string>;
+  /** Seconds on screen (> 0; default: the component's duration). */
+  duration?: number;
+}
+
+/** Generic full-screen card (title, chapter, quote…) between scenes; takes no capture time. */
+export interface CardScene {
+  card: CardSpec;
+  /** Default "card-<index>". */
+  id?: string;
+}
+
+export type SceneEntry = Scene | InterstitialScene | CardScene;
 
 export function isInterstitial(s: SceneEntry): s is InterstitialScene {
   return (s as InterstitialScene).interstitial !== undefined;
+}
+
+export function isCard(s: SceneEntry): s is CardScene {
+  return (s as CardScene).card !== undefined;
+}
+
+/** A captured scene (with steps), as opposed to a card or an interstitial (which take no capture time). */
+export function isCaptureScene(s: SceneEntry): s is Scene {
+  return !isInterstitial(s) && !isCard(s);
+}
+
+/** Scenario `intro` (or `false`): overrides of the theme's intro card. */
+export interface IntroSpec {
+  /** Intro component id (default: the theme's). */
+  component?: ComponentId;
+  params?: Record<string, unknown>;
+  /** Seconds (> 0; default template.intro.duration). */
+  duration?: number;
+}
+
+/** Scenario `outro` (or `false`): overrides of the theme's outro card. */
+export interface OutroSpec {
+  /** Outro component id (default: the theme's). */
+  component?: ComponentId;
+  params?: Record<string, unknown>;
+  tagline?: string;
+  url?: string;
+  /** Seconds (> 0; default template.outro.duration). */
+  duration?: number;
 }
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
@@ -526,8 +656,9 @@ export interface Scenario {
   video: string;
   title?: { kicker?: string; text: string };
   /** `false` disables the intro card. */
-  intro?: false | { duration?: number };
-  outro?: false | { tagline?: string; url?: string; duration?: number };
+  intro?: false | IntroSpec;
+  /** `false` disables the outro card. */
+  outro?: false | OutroSpec;
   /** Environment name (default project.default_env, else the first environment). */
   env?: string;
   /** Free variables usable as {{vars.x}} (and {{x}} when not shadowed). */
@@ -535,11 +666,20 @@ export interface Scenario {
   setup?: HookStep[];
   teardown?: HookStep[];
   capture?: Partial<CaptureSettings>;
-  frame?: FrameStyle;
+  /** Frame of every scene (default: the project frame). */
+  frame?: FrameSpec;
   template?: string;
   pacing?: Partial<Pacing>;
-  music?: { file: string; volume?: number; duck?: number };
+  music?: MusicSpec;
   scenes: SceneEntry[];
+}
+
+export interface MusicSpec {
+  /** Audio file relative to the project dir. */
+  file: string;
+  volume?: number;
+  /** Volume factor under footage. */
+  duck?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -671,7 +811,8 @@ export interface ProjectConfig {
   /** Global auth, or per environment name. */
   auth?: AuthConfig | Record<string, AuthConfig>;
   capture: CaptureSettings;
-  frame: FrameStyle;
+  /** Default frame of every scenario: a FrameStyle or a layout component id (default 'card'). */
+  frame: FrameSpec;
   template: string;
   locale?: string;
   /** Extra hosts hooks may target (environment hosts, localhost and 127.0.0.1 are always allowed). */
@@ -721,7 +862,23 @@ export interface Template {
   motion: { default_zoom: 'none' | number; max_zoom: number; zoom_ease: [number, number, number, number] };
   style_bias: 'real' | 'balanced' | 'motion';
   brandmark?: { position: 'bottom-right' | 'bottom-left' | 'top-right' | 'none'; opacity?: number; size?: number };
+  /** Brand name and URL (wordmark drawn as text, outro url). */
+  brand?: TemplateBrand;
+  /**
+   * Default component per kind (an id, or {id, params}); `null` = none (e.g. `caption: null`: no captions).
+   * A kind absent here is mapped from the legacy fields (frame.style, intro.layout, outro.layout, interstitial.style,
+   * captions.position, transitions.between_scenes): see `resolveThemeComponents`.
+   */
+  components?: TemplateComponents;
 }
+
+export interface TemplateBrand {
+  name?: string;
+  /** Shown as written (e.g. "example.com"). */
+  url?: string;
+}
+
+export type TemplateComponents = Partial<Record<ComponentKind, ComponentRef | null>>;
 
 export interface LoadedTemplate {
   name: string;
@@ -739,8 +896,8 @@ export interface LoadedTemplate {
 export interface TimelineScene {
   id: string;
   index: number;
-  kind: 'scene' | 'interstitial';
-  /** Capture time. Interstitials have t_start === t_end (they take no capture time). */
+  kind: 'scene' | 'interstitial' | 'card';
+  /** Capture time. Interstitials and cards have t_start === t_end (they take no capture time). */
   t_start: number;
   t_end: number;
   /** Time the scene's "still" ends (actions begin). */
@@ -750,9 +907,40 @@ export interface TimelineScene {
   caption?: { kicker?: string; text: string };
   speed?: number;
   transition?: TransitionKind;
-  frame?: FrameStyle;
-  interstitial?: { text: string; kicker?: string; duration?: number; style?: string };
+  /** Scene-level frame as written in the scenario (the scenario/project default is in `Timeline.video.frame`). */
+  frame?: FrameSpec;
+  interstitial?: InterstitialSpec;
+  card?: CardSpec;
   status: 'ok' | 'failed' | 'skipped' | 'partial';
+}
+
+/** Step `overlay` as recorded by the runner: the spec plus the target measured at the END of the step. */
+export interface TimelineOverlay {
+  component: ComponentId;
+  slots: Record<string, string>;
+  params: Record<string, unknown>;
+  /** Seconds, when the scenario sets it (else the component's default). */
+  duration?: number;
+  /** Description of the target that was measured. */
+  target?: string;
+  /** Target bbox at the end of the step (after any scroll), CSS px. */
+  bbox?: BBox;
+  /** Anchor point when there is no target bbox (cursor position at the end of the step). */
+  point?: PointSpec;
+}
+
+/** Edit info of the scenario carried into the timeline, so the editor does not re-read scenario.yaml. */
+export interface TimelineVideo {
+  title?: { kicker?: string; text: string };
+  /** Scenario `intro` as written (`false` = no intro card; absent = theme intro). */
+  intro?: false | IntroSpec;
+  /** Scenario `outro` as written (`false` = no outro card; absent = theme outro). */
+  outro?: false | OutroSpec;
+  /** Effective default frame of the video: scenario `frame`, else the project `frame` (default 'card'). */
+  frame?: FrameSpec;
+  /** Template the run used (name or path). */
+  template?: string;
+  music?: MusicSpec;
 }
 
 export interface TimelineEvent {
@@ -776,7 +964,9 @@ export interface TimelineEvent {
   mark?: string;
   caption?: { kicker?: string; text: string };
   speed?: number;
+  /** Camera hint; `bbox` (target) / `point` measured at the end of the step, after any scroll. */
   camera?: CameraHint & { bbox?: BBox; point?: PointSpec };
+  overlay?: TimelineOverlay;
   page?: string;
   url?: string;
   status: 'ok' | 'skipped' | 'failed' | 'dry';
@@ -830,6 +1020,8 @@ export interface Timeline {
     t0_wall: number;
     frames: number;
   };
+  /** Title, intro, outro, frame, template and music of the scenario (written by runners since L2.1). */
+  video?: TimelineVideo;
   scenes: TimelineScene[];
   events: TimelineEvent[];
   markers: TimelineMarker[];

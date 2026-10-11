@@ -10,6 +10,8 @@ export * from './workspace.js';
 export * from './project.js';
 export * from './scenario.js';
 export * from './template.js';
+export * from './components.js';
+export * from './video.js';
 export * from './destructive.js';
 export { didYouMean, editDistance } from './validation/suggest.js';
 export { HookFileSchema, parseHookFile } from './hookfile.js';

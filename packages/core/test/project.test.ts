@@ -130,7 +130,7 @@ describe('projects', () => {
     const err = await loadProject('p', ws.dir).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
     expect(errors((err as ConfigError).issues).map((i) => `${i.line}:${i.col} ${i.message}`)).toEqual([
-      '2:8 expected one of "raw", "card", "browser", "laptop", "phone", got "browsr" (did you mean "browser"?)',
+      '2:8 expected a frame style (raw, card, browser, laptop, phone) or a layout component id "namespace/name" (lower-case letters, digits and "-", e.g. "studio/layout-card"), got "browsr" (did you mean "browser"?)',
       '3:16 must be ≥ 1, got 0',
     ]);
   });

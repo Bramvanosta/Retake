@@ -1,7 +1,8 @@
 # Demo Studio — phase 2 contracts: components, themes, editor, review
 
 Types: `packages/components/src/types.ts` (component contract), `packages/editor/src/plan-types.ts` (EditPlan),
-`packages/core/src/types.ts` (scenario, timeline, template). Reference look: `docs/reference/look.md`.
+`packages/core/src/types.ts` (scenario, timeline, template — and `ComponentKind`, `COMPONENT_KINDS`, `ComponentRef`,
+which `@demo-studio/components` re-exports: core is their single source of truth). Reference look: `docs/reference/look.md`.
 Product rules: docs/SPEC.md §0, §9–§12.
 
 ## 1. Components (`packages/components`)
@@ -55,28 +56,58 @@ themeTokens(template: LoadedTemplate, urls: { logo?, wordmark? }): ThemeTokens
 ```
 
 ### 1.4 Themes (templates) pick components
-Template gains (additive, core types):
+Template gains (additive, core types + `TemplateSchema` / `TemplateFileSchema`):
 ```yaml
 brand: { name: Atelier, url: example.com }          # used by wordmark-as-text, outro url
-components:                                          # defaults per kind (string id or {id, params})
+components:                                          # defaults per kind (string id or {id, params}); null = none
   intro: studio/intro-stack
   outro: studio/outro-stack
   interstitial: studio/interstitial-clock
   card: studio/card-title
   layout: { id: studio/layout-card, params: { width: 1560, radius: 18, shadow: soft } }
-  caption: studio/caption-below
-  transition: studio/transition-crossfade
+  caption: studio/caption-below                      # null = no captions
+  overlay: studio/overlay-callout
+  transition: { id: studio/transition-crossfade, params: { duration: 0.35 } }   # null = cut
 ```
-The legacy fields (`frame`, `intro.layout`, `outro.layout`, `interstitial.style`, `captions.position`) map to these
-defaults when `components` is absent.
+Component ids match `COMPONENT_ID_RE` = `/^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/` ("namespace/name"). The pure
+helper `resolveThemeComponents(template): Record<ComponentKind, {id, params, source: 'theme'|'legacy'|'default'} | null>`
+(core) applies, per kind: the `components` entry as written (`null` = none; legacy params are NOT merged into an
+explicit entry) → the legacy field mapping → the built-in default.
+
+| Legacy field | Value → component |
+|---|---|
+| `frame.style` | card → `studio/layout-card {width, radius, shadow}` (from `frame`); browser / laptop / phone / raw → `studio/layout-<style>` (no params yet: their params schemas come with L2.7, which may map `frame.width/radius/shadow` too) |
+| `intro.layout` | logo-kicker-title → `studio/intro-stack`; kicker-title → `studio/intro-minimal`; logo-only → `studio/intro-minimal {logo_only: true}` |
+| `outro.layout` | logo-wordmark-tagline-url → `studio/outro-stack`; logo-tagline → `studio/outro-minimal`; logo-only → `studio/outro-minimal {logo_only: true}` |
+| `interstitial.style` | dark-clock → `studio/interstitial-clock`; paper / dark → `studio/interstitial-plain {tone}` |
+| `captions.position` | below → `studio/caption-below`; above → `studio/caption-below {position: 'above'}`; overlay → `studio/caption-overlay`; none → null |
+| `transitions.between_scenes` | crossfade → `studio/transition-crossfade {duration}`; fade-black → `studio/transition-fade-black {duration}`; cut → null |
+| (none) | card → `studio/card-title`; overlay → `studio/overlay-callout` (source `default`) |
+
+Validation of template.yaml warns when a `components` entry contradicts a legacy field written in the same file
+(the entry wins, so editing the legacy field would change nothing). The starter templates (default, editorial,
+motion) declare `brand` (fictional) and an explicit `components` map consistent with their legacy fields (tested).
+`FRAME_STYLE_LAYOUTS` (core) maps each FrameStyle to its built-in layout id.
 
 ### 1.5 Scenario additions (additive, core types + schema)
-- `intro: { component?, params?, duration? }`, `outro: { component?, params?, tagline?, url?, duration? }`
-- `interstitial: { text, kicker?, duration?, component?, params? }`
-- new scene entry `card: { component?, params?, slots: {title, kicker, …}, duration? }`
-- scene `frame:` accepts a layout component id as well as a FrameStyle (`card` ⇒ studio/layout-card …)
-- step modifier `overlay: { component, slots?, params?, duration?, target?: TargetSpec }` (the runner records the
-  target bbox on the event, like camera targets)
+- `intro: false | { component?, params?, duration? }`, `outro: false | { component?, params?, tagline?, url?, duration? }`
+- `interstitial: { text, kicker?, duration?, style?, component?, params? }` (`style` = legacy override, ignored with
+  `component`: warning)
+- new scene entry `card: { component?, params?, slots?: Record<string,string>, duration? }` + optional `id` (default
+  `card-<index>`); takes no capture time; needs `component` or `slots.title` (error otherwise)
+- `frame:` on a project, scenario or scene accepts a FrameStyle (`card` ⇒ studio/layout-card …) or a layout component
+  id (`FrameSpec`); the project default stays `card`
+- step modifier `overlay: { component, slots?, params?, duration? (0 < d ≤ 30 s), target?: TargetSpec }`
+- ids are unique across scenes, cards and interstitials, default ids included; every duration is > 0
+- runner: cards are recorded in `timeline.scenes` (`kind: 'card'`, `card: {component?, params?, slots?, duration?}`,
+  `t_start === t_end`); a step with `overlay` records `event.overlay = {component, slots, params, duration?, target?,
+  bbox? | point?}`, the anchor measured at the END of the step (after any scroll): the `target` element if given, else
+  the step's own target box as the action reports it, else the cursor position (a target not found → cursor + a
+  warning). `camera` targets follow the same rule (tested on the SPEC example: scroll to "Awards" with a camera on
+  "Awards" records the post-scroll box).
+- `Timeline.video = { title?, intro?, outro?, frame?, template?, music? }` (`timelineVideo()` in core): the scenario's
+  edit info as written, the effective default `frame` (scenario, else project) and the template the run used — the
+  editor never re-reads scenario.yaml. Optional in the schema so older timelines stay valid.
 
 ## 2. Editor (`packages/editor`)
 
@@ -113,7 +144,8 @@ listRenders(project): Promise<RenderRecord[]>
   rect; no reset at same-page joins.
 - Captions: scene caption from the scene's first visible frame to its end; a step caption replaces it from the step's
   output start; cues never overlap. Rendered by the clip's caption component in the layout's caption rect.
-- Overlays: from step `overlay` modifiers, positioned with the event's target bbox mapped through layout + camera.
+- Overlays: from step `overlay` modifiers (`event.overlay`), shown from the step's output end for `duration` (else the
+  component's default), anchored on `overlay.bbox` (else `overlay.point`) mapped through layout + camera.
 - Provenance: every clip segment lists `steps` (output frame spans per scenario step) and the plan keeps markers and a
   time map — used by review, the Studio timeline and frame comments.
 - Output: 1920×1080 × scale (capture scale 2 ⇒ 4K); vertical 1080×1920 uses `geometry_vertical` and a crop following a

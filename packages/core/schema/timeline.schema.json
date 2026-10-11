@@ -78,6 +78,114 @@
       ],
       "additionalProperties": false
     },
+    "video": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "object",
+          "properties": {
+            "kicker": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "intro": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "const": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string"
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                },
+                "duration": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "outro": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "const": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string"
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                },
+                "duration": {
+                  "type": "number"
+                },
+                "tagline": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "frame": {
+          "$ref": "#/$defs/Frame"
+        },
+        "template": {
+          "type": "string"
+        },
+        "music": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "volume": {
+              "type": "number"
+            },
+            "duck": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "description": "The scenario's edit info: title, intro, outro, effective frame, template, music."
+    },
     "scenes": {
       "type": "array",
       "items": {
@@ -95,7 +203,8 @@
             "type": "string",
             "enum": [
               "scene",
-              "interstitial"
+              "interstitial",
+              "card"
             ]
           },
           "t_start": {
@@ -147,15 +256,7 @@
             ]
           },
           "frame": {
-            "type": "string",
-            "enum": [
-              "raw",
-              "card",
-              "browser",
-              "laptop",
-              "phone"
-            ],
-            "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+            "$ref": "#/$defs/Frame"
           },
           "interstitial": {
             "type": "object",
@@ -171,11 +272,51 @@
               },
               "style": {
                 "type": "string"
+              },
+              "component": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "description": "Component params (see the component's params schema; unset params take its defaults)."
               }
             },
             "required": [
               "text"
             ],
+            "additionalProperties": false
+          },
+          "card": {
+            "type": "object",
+            "properties": {
+              "component": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "description": "Component params (see the component's params schema; unset params take its defaults)."
+              },
+              "slots": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "duration": {
+                "type": "number"
+              }
+            },
             "additionalProperties": false
           },
           "status": {
@@ -378,6 +519,54 @@
             ],
             "additionalProperties": false
           },
+          "overlay": {
+            "type": "object",
+            "properties": {
+              "component": {
+                "type": "string",
+                "minLength": 1
+              },
+              "slots": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "params": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "description": "Component params (see the component's params schema; unset params take its defaults)."
+              },
+              "duration": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "target": {
+                "type": "string",
+                "description": "Description of the measured target."
+              },
+              "bbox": {
+                "description": "Target bbox at the end of the step (after any scroll).",
+                "$ref": "#/$defs/BBox"
+              },
+              "point": {
+                "description": "Anchor when there is no target bbox (cursor at the end of the step).",
+                "$ref": "#/$defs/Point"
+              }
+            },
+            "required": [
+              "component",
+              "slots",
+              "params"
+            ],
+            "additionalProperties": false
+          },
           "page": {
             "type": "string"
           },
@@ -560,6 +749,27 @@
   "title": "Demo Studio timeline",
   "description": "runs/<id>/timeline.json: scenes, step events, markers, pages and cursor track in capture time.",
   "$defs": {
+    "Frame": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "raw",
+            "card",
+            "browser",
+            "laptop",
+            "phone"
+          ],
+          "description": "How the capture is framed: raw, card, browser chrome, laptop or phone mockup."
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+          "description": "A layout component id \"namespace/name\", e.g. studio/layout-card or a workspace layout."
+        }
+      ],
+      "description": "How the capture is framed: raw, card, browser, laptop or phone (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+    },
     "BBox": {
       "type": "object",
       "properties": {

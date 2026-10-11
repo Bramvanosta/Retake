@@ -35,6 +35,10 @@ scenes:
       - wait_for: {target: {role: button, name: Request a quote}}
       - hold: 1.2
 
+  # A full-screen chapter card (takes no capture time): the theme's card component (studio/card-title) with slots.
+  - card: {slots: {kicker: Step two, title: Ask the roaster for a quote}, duration: 2.2}
+    id: chapter-request
+
   - id: request
     caption: {kicker: Request a quote, text: "Choose the quantity, the grind, the labels and your delivery window."}
     steps:
@@ -63,6 +67,12 @@ scenes:
       - click: {text: New proposal from Northfield Roasters}
       - wait_for: {text: "€720.00"}
         mark: proposal
+        # A callout on the proposal total, anchored to the element measured at the end of the step.
+        overlay:
+          component: studio/overlay-callout
+          slots: {text: "Total incl. VAT, ready to accept"}
+          duration: 2.5
+          target: {testid: proposal-total}
       - hover: {text: Accept proposal, ms: 600}
         hold: 1.5
       - new_tab: {target: {text: Download quote PDF}, as: pdf}

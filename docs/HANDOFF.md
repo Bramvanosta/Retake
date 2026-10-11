@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L1.1. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-11, end of lot L2.1. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -30,13 +30,25 @@ automatically with themeable components, and let Claude operate everything throu
   `<project>/.demo-studio/journals/`, pacing `nudge_*`, `after_navigation_ms`, `popup_fallback_ms`, `scroll_offset`,
   64 KB DOM snippets, project `locale` → browser locale, missing hook files are errors, `studio doctor`,
   `docs/MACOS-CHECKLIST.md` (the steps of L1.5). 301 tests pass (6 Postgres tests skipped).
-- **Requirements:** 529 tracked; 187 done; the open ones are assigned to lots L1.2 … L6.
-- **Groundwork for phase 2:** contracts only (components types, EditPlan types). `packages/{editor,review,mcp}` are
-  otherwise empty; `studio render|review|export|record|mcp|ui` print "available in phase N".
+- **L2.1 done** (phase-2 contracts in core): `ComponentKind`, `COMPONENT_KINDS`, `ComponentRef`, `ComponentId`,
+  `COMPONENT_ID_RE` and `FrameSpec` live in `packages/core` (`@demo-studio/components` re-exports the first three);
+  template `brand` + `components` (id or `{id, params}`, `null` = none) with `resolveThemeComponents()` (legacy field
+  mapping, `source: theme|legacy|default`) and a validation warning when an entry contradicts a legacy field; scenario
+  `intro`/`outro`/`interstitial` take `component` + `params`, new `card:` entries (no capture time, `card-<n>` default
+  id), `frame` = FrameStyle or layout id on project/scenario/scene, step `overlay` (≤ 30 s); the runner records card
+  scenes, `event.overlay` with the anchor measured at the END of the step (camera too) and `timeline.video` (title,
+  intro, outro, effective frame, template, music; `timelineVideo()` in core). Starter templates declare brand +
+  components; the quote fixture has a card and an overlay (run `20261011-172942-quote`: overlay bbox on the €720.00
+  total). JSON Schemas regenerated. 345 tests pass (6 Postgres tests skipped).
+- **Requirements:** 529 tracked; 200 done; the open ones are assigned to lots L1.2 … L6.
+- **Groundwork for phase 2:** contracts in core (L2.1) + components types + EditPlan types. `packages/{editor,review,
+  mcp}` are otherwise empty; `studio render|review|export|record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.1 — phase-2 contracts in core** (S) unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness
-under load, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP for scope and acceptance.
+**L2.2 — components package foundation** (M): manifest schema + validation, registry (workspace → built-in, resolve
+with params defaults — use core's `resolveThemeComponents` for theme defaults and `COMPONENT_ID_RE` for ids),
+scaffolding, `themeTokens` (template `brand` is now available), kit helpers — unless the user picks otherwise (L1.2
+robustness, L1.3 capture smoothness, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

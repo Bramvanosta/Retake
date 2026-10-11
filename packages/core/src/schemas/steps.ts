@@ -1,13 +1,16 @@
 import { z } from 'zod';
 import { ACTION_NAMES } from '../types.js';
-import type { ActionArgsMap, ActionName } from '../types.js';
+import type { ActionArgsMap, ActionName, OverlaySpec } from '../types.js';
 import { keyedUnion } from './keyed.js';
 import {
   CameraHintSchema,
   CaptionSpecSchema,
+  ComponentParamsSchema,
   PointSchema,
+  SlotsSchema,
   TargetObjectSchema,
   TargetSpecSchema,
+  componentIdSchema,
   keyString,
   millis,
   nonEmpty,
@@ -20,12 +23,37 @@ import {
 /** Edit-time playback speed: (0, 8]. */
 export const speedSchema = () => z.number().gt(0).lte(8);
 
+/** Longest overlay (seconds): an overlay is a short callout over a clip, not a card. */
+export const OVERLAY_MAX_SECONDS = 30;
+
+export const OverlaySpecSchema: z.ZodType<OverlaySpec> = z
+  .strictObject({
+    component: componentIdSchema('overlay component id').describe(
+      'Overlay component "namespace/name", e.g. studio/overlay-callout or studio/overlay-lower-third.',
+    ),
+    slots: SlotsSchema.optional(),
+    params: ComponentParamsSchema.optional(),
+    duration: positiveSeconds()
+      .max(OVERLAY_MAX_SECONDS)
+      .describe(`Seconds on screen, at most ${OVERLAY_MAX_SECONDS} (default: the component's duration).`)
+      .optional(),
+    target: TargetSpecSchema.describe(
+      'Element the overlay points at, measured at the end of the step after any scroll (default: the step target, else the cursor).',
+    ).optional(),
+  })
+  .meta({
+    id: 'Overlay',
+    description:
+      'Edit-time overlay (callout, lower third, badge…) shown over the clip from the end of this step; the runner records the target bbox.',
+  });
+
 export const stepCommonShape = {
   id: slugString('step id').describe('Step id, used in refs ("scene.step") and by --until.').optional(),
   caption: CaptionSpecSchema.describe("Caption shown from this step's start until the next caption or scene end.").optional(),
   speed: speedSchema().describe("Edit-time playback speed for this step's span (overrides the scene speed).").optional(),
   hold: seconds().describe('Seconds of stillness AFTER the step; never trimmed by the editor.').optional(),
   camera: CameraHintSchema.optional(),
+  overlay: OverlaySpecSchema.optional(),
   mark: slugString('mark').describe('Named marker (editor: speed 1 around it; review: key frame).').optional(),
   timeout: positiveSeconds().describe('Seconds before the step fails (default 15).').optional(),
   optional: z.boolean().describe('A failure is logged but does not abort the run.').optional(),

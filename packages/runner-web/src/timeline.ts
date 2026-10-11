@@ -7,6 +7,7 @@ import type {
   TimelineMarker,
   TimelinePageSegment,
   TimelineScene,
+  TimelineVideo,
 } from '@demo-studio/core';
 import { round3, wallNow } from './util.js';
 
@@ -95,6 +96,8 @@ export interface TimelineMeta {
   scenario: string;
   mode: RunMode;
   capture: CaptureSettings;
+  /** The scenario's edit info (title, intro, outro, frame, template, music). */
+  video?: TimelineVideo;
 }
 
 /** Collects scenes, events, markers, page segments and the cursor track during a run. */
@@ -180,6 +183,7 @@ export class TimelineBuilder {
         t0_wall: Math.round(this.clock.t0Wall),
         frames: capture.frames,
       },
+      ...(this.meta.video ? { video: this.meta.video } : {}),
       scenes: this.scenes,
       events: this.events,
       markers: this.markers,

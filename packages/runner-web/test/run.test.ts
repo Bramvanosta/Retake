@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { TimelineSchema } from '@demo-studio/core';
 import type { RunRecord, Scenario, TimelineEvent } from '@demo-studio/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
@@ -193,6 +194,84 @@ describe('scroll', () => {
     expect(docTop).toBeGreaterThan(1500);
     // Default pacing.scroll_offset −140: the target ends ~140 px below the top (field notes, R-CHO-17).
     expect(ev[4].target?.bbox?.y).toBeCloseTo(140, -1);
+  });
+});
+
+describe('phase-2 contracts: cards, overlays, camera at the end of the step, video block (L2.1)', () => {
+  it('records card scenes and overlay anchors; overlay and camera targets are measured after the scroll', async () => {
+    const rec = await run('phase2', {
+      title: { kicker: 'For suppliers', text: 'Availability' },
+      intro: { component: 'studio/intro-minimal', duration: 2 },
+      outro: false,
+      music: { file: 'assets/bed.mp3', volume: 0.3 },
+      scenes: [
+        { card: { slots: { kicker: 'Chapter one', title: 'Regions' }, duration: 2 }, id: 'chapter' },
+        {
+          id: 'regions',
+          open: '/scroll.html',
+          frame: 'studio/layout-browser',
+          steps: [
+            // The SPEC example: scroll to "Awards" with a camera on "Awards" (+ an overlay pointing at it).
+            {
+              scroll: { to: { text: 'Awards' }, duration: 0.3 },
+              camera: { zoom: 1.3, target: { text: 'Awards' } },
+              overlay: { component: 'studio/overlay-callout', slots: { text: 'Prizes' }, duration: 2, target: { text: 'Awards' } },
+            },
+            { scroll: { to: 'top', duration: 0.3 } },
+            // Default targets: the step's own (post-scroll) target.
+            {
+              scroll: { to: { text: 'Awards' }, duration: 0.3 },
+              camera: { zoom: 1.2 },
+              overlay: { component: 'studio/overlay-lower-third', slots: { title: 'Awards' } },
+            },
+            { wait: 0.1, overlay: { component: 'studio/overlay-lower-third', params: { side: 'left' } } },
+            { wait: 0.1, overlay: { component: 'studio/overlay-callout', target: { text: 'No such element' } } },
+          ],
+        },
+        { interstitial: { text: 'Later', component: 'studio/interstitial-plain', params: { tone: 'dark' } } },
+      ],
+    });
+    expect(rec.error?.message).toBeUndefined();
+    const tl = await readTimeline(rec.timeline!);
+    expect(TimelineSchema.safeParse(tl).success).toBe(true);
+    expect(tl.scenes.map((x) => `${x.id}:${x.kind}`)).toEqual(['chapter:card', 'regions:scene', 'interstitial-2:interstitial']);
+    const [card, scene, inter] = tl.scenes;
+    expect(card).toMatchObject({ index: 0, card: { slots: { kicker: 'Chapter one', title: 'Regions' }, duration: 2 }, status: 'ok' });
+    expect(card.t_start).toBe(card.t_end);
+    expect(card.t_end).toBeLessThanOrEqual(scene.t_start);
+    expect(scene.frame).toBe('studio/layout-browser');
+    expect(inter.interstitial).toEqual({ text: 'Later', component: 'studio/interstitial-plain', params: { tone: 'dark' } });
+    expect(tl.video).toEqual({
+      title: { kicker: 'For suppliers', text: 'Availability' },
+      intro: { component: 'studio/intro-minimal', duration: 2 },
+      outro: false,
+      frame: 'raw',
+      template: 'editorial',
+      music: { file: 'assets/bed.mp3', volume: 0.3 },
+    });
+
+    const ev = stepEvents(tl.events);
+    // Awards starts ~1900 px down the page: the boxes below are the post-scroll ones (~140 px from the top).
+    const explicit = ev[0];
+    expect(explicit.overlay).toMatchObject({ component: 'studio/overlay-callout', slots: { text: 'Prizes' }, params: {}, duration: 2 });
+    expect(explicit.overlay?.target).toContain('Awards');
+    expect(explicit.overlay?.bbox?.y).toBeCloseTo(140, -1);
+    expect(explicit.overlay?.point).toBeUndefined();
+    expect(explicit.camera?.bbox?.y).toBeCloseTo(140, -1);
+    expect(explicit.camera?.bbox).toEqual(explicit.overlay?.bbox);
+    const byDefault = ev[2];
+    expect(byDefault.overlay).toMatchObject({ component: 'studio/overlay-lower-third', slots: { title: 'Awards' }, params: {} });
+    expect(byDefault.overlay?.duration).toBeUndefined();
+    expect(byDefault.overlay?.bbox?.y).toBeCloseTo(140, -1);
+    expect(byDefault.camera?.bbox?.y).toBeCloseTo(140, -1);
+    // No target at all: anchored to the cursor; a missing target falls back to the cursor with a warning.
+    expect(ev[3].overlay).toMatchObject({ params: { side: 'left' }, point: expect.objectContaining({ x: expect.any(Number) }) });
+    expect(ev[3].overlay?.bbox).toBeUndefined();
+    expect(ev[4].overlay?.bbox).toBeUndefined();
+    expect(ev[4].overlay?.point).toBeDefined();
+    expect(tl.warnings.some((w) => w.includes('overlay target') && w.includes('No such element'))).toBe(true);
+    // Events without the modifier carry no overlay.
+    expect(ev[1].overlay).toBeUndefined();
   });
 });
 

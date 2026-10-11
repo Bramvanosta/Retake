@@ -3,7 +3,7 @@
  * JSON Schemas. Objects are strict: unknown keys are errors (typo protection).
  * For precise, positioned messages use parseScenario / parseProjectYaml rather than `safeParse`.
  */
-export { SLUG_RE, KEY_RE } from './schemas/primitives.js';
+export { SLUG_RE, KEY_RE, COMPONENT_ID_RE, FRAME_STYLES, componentIdSchema } from './schemas/primitives.js';
 export {
   PointSchema,
   BBoxSchema,
@@ -14,11 +14,29 @@ export {
   EaseSpecSchema,
   CameraHintSchema,
   FrameStyleSchema,
+  FrameSpecSchema,
   TransitionSchema,
+  ComponentKindSchema,
+  ComponentRefSchema,
+  SlotsSchema,
 } from './schemas/primitives.js';
-export { StepSchema, ACTION_ARG_SCHEMAS, ACTION_DESCRIPTIONS, STEP_COMMON_KEYS } from './schemas/steps.js';
+export {
+  StepSchema,
+  OverlaySpecSchema,
+  OVERLAY_MAX_SECONDS,
+  ACTION_ARG_SCHEMAS,
+  ACTION_DESCRIPTIONS,
+  STEP_COMMON_KEYS,
+} from './schemas/steps.js';
 export { HookStepSchema, HOOK_KINDS, HOOK_COMMON_KEYS } from './schemas/hooks.js';
-export { SceneSchema, SceneCursorSchema, InterstitialSchema, SceneEntrySchema, ScenarioSchema } from './schemas/scenario.js';
+export {
+  SceneSchema,
+  SceneCursorSchema,
+  InterstitialSchema,
+  CardSchema,
+  SceneEntrySchema,
+  ScenarioSchema,
+} from './schemas/scenario.js';
 export {
   CaptureSettingsSchema,
   CapturePartialSchema,

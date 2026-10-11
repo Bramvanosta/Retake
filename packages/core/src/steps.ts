@@ -1,4 +1,4 @@
-import { ACTION_NAMES, isInterstitial } from './types.js';
+import { ACTION_NAMES, isCaptureScene, isCard, isInterstitial } from './types.js';
 import type {
   ActionName,
   NormalizedArgsMap,
@@ -28,6 +28,7 @@ const COMMON_KEYS: ReadonlyArray<keyof StepCommon> = [
   'speed',
   'hold',
   'camera',
+  'overlay',
   'mark',
   'timeout',
   'optional',
@@ -145,8 +146,10 @@ export function normalizeStep(step: Step, index: number): NormalizedStep {
   return out;
 }
 
+/** Id of a scenario entry: its `id`, else "interstitial-<index>" / "card-<index>" for interstitials and cards. */
 export function sceneId(entry: Scenario['scenes'][number], index: number): string {
   if (isInterstitial(entry)) return entry.id ?? `interstitial-${index}`;
+  if (isCard(entry)) return entry.id ?? `card-${index}`;
   return entry.id;
 }
 
@@ -158,11 +161,11 @@ export interface ListedStep {
   ref: string;
 }
 
-/** Every step of every (non-interstitial, non-skipped) scene, in execution order. */
+/** Every step of every captured (non-skipped) scene, in execution order; cards and interstitials have no steps. */
 export function listSteps(s: Scenario, opts: { includeSkipped?: boolean } = {}): ListedStep[] {
   const out: ListedStep[] = [];
   s.scenes.forEach((entry, sceneIndex) => {
-    if (isInterstitial(entry)) return;
+    if (!isCaptureScene(entry)) return;
     if (entry.skip && !opts.includeSkipped) return;
     (entry.steps ?? []).forEach((raw, i) => {
       const step = normalizeStep(raw, i);
@@ -179,7 +182,7 @@ export function listSteps(s: Scenario, opts: { includeSkipped?: boolean } = {}):
 export function resolveStepRef(s: Scenario, ref: string): { sceneIndex: number; stepIndex: number } | null {
   const scenes = s.scenes;
   const findScene = (id: string) =>
-    scenes.findIndex((e, i) => !isInterstitial(e) && sceneId(e, i) === id);
+    scenes.findIndex((e, i) => isCaptureScene(e) && sceneId(e, i) === id);
 
   const dot = ref.indexOf('.');
   if (dot > 0) {
@@ -201,7 +204,7 @@ export function resolveStepRef(s: Scenario, ref: string): { sceneIndex: number; 
   // step id across the scenario
   const hits: Array<{ sceneIndex: number; stepIndex: number }> = [];
   scenes.forEach((e, si) => {
-    if (isInterstitial(e)) return;
+    if (!isCaptureScene(e)) return;
     (e.steps ?? []).forEach((st, i) => {
       if (st.id === ref) hits.push({ sceneIndex: si, stepIndex: i });
     });
