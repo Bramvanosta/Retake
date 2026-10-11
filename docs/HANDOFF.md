@@ -148,6 +148,16 @@ Notes for L2.5:
 - The user allowed force-pushes on this working branch (used to squash WIP checkpoints into one commit per phase/lot).
 - App UI language: English. Conversation with the user: French.
 
+- (2026-10-11) Autonomy granted through the end of phase 4: chain lots without asking, one clean commit per lot,
+  short report per phase. Phase 5 needs a Mac.
+- (2026-10-11) Phase 2 now ends with L2.9 mails/notifications/documents, L2.10 tutorial overlays & story cards,
+  L2.11 multi-page capture (split screen, picture in picture), L2.12 acceptance (see ROADMAP). Backlog for the
+  marketplace: terminal, code, chat/SMS, Dynamic Island, calendar, sounds, webcam, SRT subtitles.
+- (2026-10-11) Theme `motion.default_zoom` (L2.8): only for style_bias balanced/motion — at most one slow zoom per
+  scene on a marked step target, never across a cut; `real` keeps a static camera.
+- Risk to review before V2: Remotion's licence for a redistributed commercial tool (keep the renderer swappable
+  behind the EditPlan/component contract).
+
 ## Conventions
 - TypeScript ESM/NodeNext, relative imports end in `.js`; `pnpm build` (= `tsc -b`), `pnpm test` (= `vitest run`;
   `vitest.config.ts` aliases `@demo-studio/*` to `src/`). No new dependencies without a strong reason.

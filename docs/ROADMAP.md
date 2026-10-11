@@ -10,7 +10,8 @@ requirements of a lot with their gaps.
 - A lot ends with: build + full test suite green, the lot's acceptance checked (tests, real runs, frames looked at),
   `docs/requirements.json` statuses/evidence updated (`node scripts/requirements.mjs`), `docs/HANDOFF.md` updated,
   one commit pushed to the working branch, and a short report (what was done, verification, consumption, next lot).
-- The user picks how many lots to chain. Never start the next lot without that go.
+- The user picks how many lots to chain. Current go (2026-10-11): autonomous through the end of phase 4, one clean
+  commit per lot, a short report at the end of each phase.
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data.
 
 ## Status
@@ -29,9 +30,12 @@ requirements of a lot with their gaps.
 | L2.4 | Render pipeline (Remotion bundle, asset server, `studio render`) | M | **done** |
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | next |
 | L2.6 | Review package + `studio review` | M | todo |
-| L2.7 | Library completion (browser/laptop/phone/raw, cards, overlays, previews per theme) | M | todo |
-| L2.8 | Variants & export (vertical 9:16, 4K, music bed, export formats) | M | todo |
-| L2.9 | Phase 2 acceptance (two videos, clean review, theme/component switch) | S | todo |
+| L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | todo |
+| L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | todo |
+| L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | todo |
+| L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | todo |
+| L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
+| L2.12 | Phase 2 acceptance (two videos, clean review, theme/component switch) | S | todo |
 | L3.1 | MCP server skeleton, job runner, project/scenario/run/hooks tools | M | todo |
 | L3.2 | MCP render/review/export + theme & component tools | M | todo |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
@@ -53,7 +57,7 @@ requirements of a lot with their gaps.
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
-| L6 | V2 — marketplace, licensing, packaging | — | later |
+| L6 | V2 — marketplace (+ backlog candidates: terminal, code, chat/SMS, Dynamic Island, calendar, sounds, webcam, SRT), licensing (incl. Remotion licence review), packaging | — | later |
 
 ## Lots
 
@@ -194,16 +198,40 @@ requirements of a lot with their gaps.
   (R-REV-*, R-CLI2-02, R-GOAL-06).
 - **Acceptance:** review of the L2.5 render; synthetic bad renders trigger each check.
 
-### L2.7 — Library completion (M)
-- **Scope:** layout-browser (real URL), laptop, phone, raw; caption-overlay; card-title; intro/outro-minimal;
-  interstitial-plain; overlay-callout, lower-third; transition-fade-black; previews generated per theme
-  (R-LIB-02/04/05/07/09..12/14..16/18, R-ED-10/12/13/14, R-CMP-12/13).
+### L2.7 — Layouts & previews (M)
+- **Scope:** layout-browser (real URL from the timeline), laptop, phone, **tablet**, raw; caption-overlay; card-title;
+  intro/outro-minimal; interstitial-plain; overlay-callout, lower-third; transition-fade-black — replacing the L2.4
+  placeholders; layout geometry following params (e.g. layout-card width); previews generated per theme
+  (R-LIB-02/04/05/07/09..12/14..16/18/19, R-ED-10/12/13/14, R-CMP-12/13).
 
 ### L2.8 — Variants & export (M)
-- **Scope:** vertical 9:16 with smoothed reframing, 4K from scale-2 captures, music bed with ducking, export formats
-  mp4_1080p / mp4_4k / webm / vertical_9x16 / gif_preview, `studio export` (R-ED-17/20/21, R-EXP-*, R-CLI2-03).
+- **Scope:** vertical 9:16 and square 1:1 with smoothed reframing on the cursor/targets, 4K from scale-2 captures,
+  music bed with ducking, export formats mp4_1080p / mp4_4k / webm / vertical_9x16 / square / gif_preview,
+  `studio export`; theme `default_zoom` for balanced/motion styles (R-ED-17/20/21/22, R-EXP-*, R-CLI2-03).
 
-### L2.9 — Phase 2 acceptance (S)
+### L2.9 — Mails, notifications & documents (L)
+- **Scope:** project `mailbox` (Mailpit or HTTP), `wait_for_email` capturing the message and an image of its HTML;
+  `download` capturing files from download events or new-tab documents with the session, PDFs rasterised with pdf.js
+  in Chromium; captured artefacts referenced by components (`email: <name>`, `document: <name>` or a project file);
+  components `studio/notification` (5 styles, scenario-filled), `studio/mail-notification`, `studio/mail-view`,
+  `studio/document-pdf`, `studio/phone-lockscreen` (stacked notifications), `studio/phone-home-badge`; capture of the
+  product's web notifications; "tap to open" transition; fixture: sign-up with a confirmation email, a real quote PDF
+  and a web notification (R-MAIL-*, R-DOC-*, R-NTF-*).
+- **Acceptance:** a fixture scenario captures an email, a PDF and a web notification and renders each component;
+  frames reviewed.
+
+### L2.10 — Tutorial overlays & story cards (L)
+- **Scope:** automatic overlays from the timeline — keyboard shortcut, spotlight, numbered steps, typing loupe,
+  chapter progress bar — and cards — key figure (animated counter; `capture_text` action), feature list, before/after
+  wipe, testimonial, final CTA with QR code, animated chart from data/CSV (R-TUT-*, R-STO-*).
+- **Acceptance:** each enabled on the fixture videos and reviewed in both themes.
+
+### L2.11 — Multi-page capture: split screen & picture in picture (M)
+- **Scope:** the runner records two pages on one clock (e.g. supplier + buyer, or desktop + mobile viewport); timeline
+  tracks per page; scenario syntax for parallel pages; layouts `studio/layout-split` and `studio/layout-pip` planned
+  and rendered in sync (R-MPC-*).
+
+### L2.12 — Phase 2 acceptance (S)
 - **Scope:** render catalogue + quote with the editorial theme, clean review, contact-sheet review by Claude, switch a
   component and the theme without touching the scenario (R-ACC2-*, R-GOAL-05, R-LES-10, R-CMP-01); README update.
 

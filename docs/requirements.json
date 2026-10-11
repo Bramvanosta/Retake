@@ -186,7 +186,7 @@
    "evidence": "packages/editor/src/plan-types.ts contract only",
    "gap": "Phase 2.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-GOAL-06",
@@ -316,7 +316,7 @@
    "evidence": "editor not implemented",
    "gap": "Phase 2 editor rules.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ARCH-01",
@@ -3124,9 +3124,9 @@
    "requirement": "Template `style_bias` (real | balanced | motion) and `motion.default_zoom` tune how much motion design the edit adds.",
    "status": "partial",
    "evidence": "style_bias is carried in the plan (brand.style_bias and brand.tokens.style_bias) for components to tune their motion; the theme max_zoom and zoom_ease drive the camera (tests 'packages/editor/test/planner-rules.test.ts' camera).",
-   "gap": "motion.default_zoom is not consumed: zooms come only from explicit step camera hints (R-ED-07), so what a theme default zoom (and style_bias balanced/motion) should add to the edit needs a product decision (candidate: L2.5/L2.7 components reading style_bias).",
+   "gap": "motion.default_zoom is not consumed: zooms come only from explicit step camera hints (R-ED-07), so what a theme default zoom (and style_bias balanced/motion) should add to the edit needs a product decision (candidate: L2.5/L2.7 components reading style_bias). Decision (lead, 2026-10-11): motion.default_zoom applies only when style_bias is balanced or motion: at most one slow zoom per scene on a marked step target, never across a cut; style_bias real keeps a static camera.",
    "phase": "2",
-   "lot": "L2.3"
+   "lot": "L2.8"
   },
   {
    "id": "R-ED-23",
@@ -3526,7 +3526,7 @@
    "evidence": "",
    "gap": "To be verified on renders (L2.9). The planner already resolves every visual element of a plan to a component (intro, outro, card, interstitial, layout, caption, overlay, transition).",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-CMP-02",
@@ -5156,7 +5156,7 @@
    "evidence": "",
    "gap": "No components.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ACC2-02",
@@ -5166,7 +5166,7 @@
    "evidence": "",
    "gap": "Contract done in L2.1 (template `components` + resolveThemeComponents, R-THM-02/03); the acceptance needs rendered videos that switch theme components (L2.9).",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ACC2-03",
@@ -5176,7 +5176,7 @@
    "evidence": "",
    "gap": "No renderer. Inputs exist locally (git-ignored): projects/northfield-fixture/runs/20261011-150847-catalogue (66.5 s) and 20261011-151034-quote (47.4 s) with capture.mp4 + timeline.json.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ACC2-04",
@@ -5186,7 +5186,7 @@
    "evidence": "",
    "gap": "No review; caption length (83/87 chars) and low-fps capture warnings are likely to trip checks.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ACC2-05",
@@ -5196,7 +5196,7 @@
    "evidence": "",
    "gap": "No review.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ACC2-06",
@@ -5206,7 +5206,7 @@
    "evidence": "",
    "gap": "No renderer.",
    "phase": "2",
-   "lot": "L2.9"
+   "lot": "L2.12"
   },
   {
    "id": "R-ACC3-01",
@@ -5295,6 +5295,326 @@
    "status": "partial",
    "evidence": "packages/components/src/types.ts:9 (marketplace resolution documented), :95-97 (publisher/license/tags)",
    "gap": "Unverifiable until those layers exist.",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-LIB-19",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/layout-tablet (layout): tablet mockup for tablet-sized captures.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.7"
+  },
+  {
+   "id": "R-EXP-06",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Export/variant square 1:1 (social formats) with reframing like the vertical variant.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.8"
+  },
+  {
+   "id": "R-MAIL-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Project `mailbox: {provider: mailpit | http, url}` configures a test mailbox; its host must be in the allow-list.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-MAIL-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "`wait_for_email: {to?, from?, subject?, timeout?, as}` polls the mailbox and captures the message (from, to, subject, date, text, html) plus an image of the rendered HTML into the run; recorded on the timeline as an artefact.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-MAIL-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/mail-notification: a notification preset fed by a captured email (slots email: <name>) or by scenario values.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-MAIL-04",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/mail-view (card): mail client card with sender, date, subject and the rendered body, scrolling slowly when long; fed by a captured email or scenario values.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-DOC-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "`download: {click: <target>, as, timeout?}` captures the file from the download event or from a document opened in a new tab (with the session cookies); PDFs are rasterised page by page (pdf.js in Chromium) into the run.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-DOC-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "A document can also come from a project file (slot document: assets/x.pdf).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-DOC-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/document-pdf (card): A4 page(s) on the theme background with a paper shadow; motion scroll | zoom | static; page selection.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-NTF-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/notification (overlay): icon, app name, title, body, time; styles macos | windows | ios-banner | android | in-app; filled from the scenario.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-NTF-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/phone-lockscreen (card): phone lock screen (wallpaper from the theme, big time and date) with notifications arriving one by one, stacked and grouped.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-NTF-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "The runner captures web notifications shown by the product (Notification API, ServiceWorkerRegistration.showNotification): title, body, icon, time on the timeline; components can display them.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-NTF-04",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "\"Tap to open\" transition: zoom from a notification into the next clip.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-NTF-05",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/phone-home-badge (card): phone home screen with the app icon badge counting up.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-NTF-06",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Fixture: account creation sending a confirmation email to a Mailpit-compatible mailbox API, a real quote PDF download, and a web notification, so L2.9 is verified end to end.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.9"
+  },
+  {
+   "id": "R-TUT-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Keyboard-shortcut overlay shown automatically for `press` steps (e.g. ⌘ K), themeable.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-TUT-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Spotlight overlay: everything dims except the step target bbox (per step or per scene option).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-TUT-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Numbered step badges next to clicked targets (1, 2, 3…), automatic from the timeline when enabled.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-TUT-04",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Typing loupe: magnifies the focused field during `type` steps (readable in vertical exports).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-TUT-05",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Chapter progress bar across the video (chapters = scenes or cards).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-STO-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Key-figure card with an animated counter; value from the scenario or captured from the page (`capture_text: {target, as}`).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-STO-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Feature-list card: 3–5 items appearing one by one.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-STO-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Before/after card with a wipe, from two captured frames (by marker) or two image files.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-STO-04",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Testimonial card: quote, name, role, logo.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-STO-05",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Final call-to-action card with button text, URL and a QR code (generated locally).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-STO-06",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Animated chart card (bars or line) from inline data or a CSV file.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.10"
+  },
+  {
+   "id": "R-MPC-01",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "The runner records two pages at the same time (two screencasts, independent viewports such as desktop + mobile) on one clock, with a track per page in the timeline.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-MPC-02",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/layout-split: two captures side by side, planned and rendered in sync.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-MPC-03",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "studio/layout-pip: a phone capture over the desktop capture (picture in picture).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-MPC-04",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Scenario syntax for parallel pages (scene pages: [a, b] and step `on: <page>`), validated.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-V2-07",
+   "source": "decision (user, 2026-10-11)",
+   "requirement": "Marketplace candidates kept in the backlog: terminal session, code snippet, chat/SMS conversation, Dynamic Island / live activity, calendar invite, sound effects, webcam bubble, SRT subtitles.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "V2",
+   "lot": "L6"
+  },
+  {
+   "id": "R-V2-08",
+   "source": "lead review",
+   "requirement": "Review the Remotion licence for a redistributed commercial tool before V2; keep the renderer behind the EditPlan/component contract so another renderer could replace it.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
    "phase": "V2",
    "lot": "L6"
   }
