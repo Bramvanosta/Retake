@@ -198,7 +198,28 @@ pnpm studio run northfield-fixture ~/demo-check/notify.yaml --dry
   allow notifications for "Script Editor" in System Settings → Notifications, and run it again).
 - **Send back:** whether the notification appeared, and the run output.
 
-## 12. Clean up
+## 12. Raw export into your editing tools (L2.13)
+
+```sh
+pnpm studio run northfield-fixture quote --raw --cursor layer --format prores --fps 60
+```
+
+Then import the package (`projects/northfield-fixture/exports/<run>-raw-prores60-layer/`) into the tools you have:
+Final Cut Pro (File → Import → XML… → `markers/quote.fcpxml`), DaVinci Resolve (File → Import → Timeline… → the
+`.fcpxml` or `.otio`), Premiere Pro (File → Import → `markers/quote.edl` with the `clips/` folder).
+
+- **Expected:** the clips land in one timeline in order, with the scene / step / mark / caption markers; the cursor
+  layers sit on the track above their clip (FCPXML, OTIO) and composite cleanly (no halo, no offset); the clips'
+  timecodes match the timeline (00:00:00:00 at the start); a ProRes 60 fps export takes noticeably less than here
+  (≈ 3.5 min for 50 s of clips on 4 CPUs without hardware encoders). The FCPXML and OTIO point at the clips with
+  `file://` URLs: no relink prompt while the package stays where it was written. For Premiere through the OTIO, try
+  `otioconvert -i markers/quote.otio -o quote.xml` (otio-fcp-adapter, FCP 7 XML) and File → Import that XML.
+- **Optional (WebM layers):** `pnpm studio export-capture northfield-fixture latest --scenario quote --cursor layer
+  --layer webm` — the README says Final Cut Pro and Premiere cannot read them; say whether Resolve imports the `.otio`
+  with the WebM cursor track lined up on its clips (media from 00:00:00:00) and keeps their transparency.
+- **Send back:** which tools imported which file, any error message, a screenshot of a timeline with its markers.
+
+## 13. Clean up
 
 Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-studio/`) are git-ignored; delete them
 with `rm -rf projects/northfield-fixture/runs projects/northfield-fixture/.demo-studio` if you want.

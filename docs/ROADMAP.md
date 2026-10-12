@@ -48,8 +48,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | **done** |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | **done** |
 | L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | **done** |
-| L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | next |
-| L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | todo |
+| L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | **done** |
+| L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | next |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
 | L3.2 | MCP render/review/export + theme & component tools | M | todo |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
@@ -445,6 +445,28 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - **Scope:** `studio export-capture` / `run --raw`: clean clip per scene (loads cut), MP4 HQ or ProRes 422 HQ, 30/60 fps;
   cursor baked / absent + cursor & clicks as data / separate transparent cursor layer; markers as FCPXML, EDL, OTIO,
   CSV/JSON; package manifest (R-RAW-*). Use case: script and film with Demo Studio, edit in another tool.
+- **Done:** `studio export-capture <project> <run|latest>` and `studio run … --raw` (runner-web `src/raw/`,
+  `exportCapture`) → `exports/<run>-raw-<format><fps>-<cursor>/`: one clip per scene (per page of a multi-page scene,
+  on the same frames), from the scene's still (page loads never in a clip), the loading inside scenes cut (a run of
+  waits that really waited, from just after the press — or its URL change — to the awaited state painted, paced on the
+  capture's own frame interval; never a result, hold, mark or still), real time otherwise; MP4 (H.264 high, CRF 14,
+  yuv420p, faststart) or ProRes 422 HQ (prores_ks profile 3, yuv422p10le), 30 or 60 fps CFR from the screencast's own
+  frame timing (never interpolated), encoded once from the captured frames, each clip's start timecode = its place on
+  the sequence; optional `selects` file. Cursor: `baked`; `none` (new runner option `hideCursor` / `run --raw --cursor
+  none|layer`: the kit draws nothing, real input and the track unchanged, `capture.cursor: hidden`); `layer` (a
+  transparent ProRes 4444 / VP9-alpha video per clip drawn from an atlas the kit's own look renders in Chromium, frame
+  by frame from the cursor track). The kit now reports what its cursor draws (icon, press, ripple → timeline
+  `cursor_effects`); cursor and clicks as JSON / CSV in every mode. Markers (scenes, steps, marks, captions, cuts) as
+  FCPXML 1.10, CMX 3600 with locators, OpenTimelineIO and CSV / JSON; `manifest.json` + `README.md`. project.yaml
+  `raw` defaults. Packages checked with ffprobe (counted frames, codec, profile, pix_fmt, fps, timecode) against the
+  manifest and every marker file, with OpenTimelineIO 0.18.1 (otio_json, cmx_3600, fcpx_xml adapters) and frames
+  looked at (clip starts / ends, both sides of every cut, the layer composited over the cursorless and the baked
+  clips) — HANDOFF lists the runs and packages. Real-NLE imports are for the Mac (L1.5 / R-RAW-06). **Review
+  fixes:** a cut starts after the step's last press (a type's typing and Enter, a select's option click are never
+  cut), resumes on a frame painted after the awaited state at any export rate, and is not made when the scene ends on
+  that state (loading kept, note); markers at a scene's very end are kept; WebM cursor layers (no timecode) are
+  referenced from 0 in the OTIO and left out of the FCPXML; OTIO media URLs are `file://`; `run --raw --json` stays
+  JSON lines; all packages re-exported and re-validated.
 
 ### L2.14 — Phase 2 acceptance (S)
 - **Scope:** render catalogue + quote with the editorial theme, clean review, contact-sheet review by Claude, switch a

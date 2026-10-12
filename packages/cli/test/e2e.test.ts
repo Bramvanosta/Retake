@@ -201,6 +201,28 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(record.screenshots).toHaveLength(2);
     expect(record.capture).toBeUndefined();
   });
+
+  it('run --raw --json: JSON lines only — the RunProgress events, then one raw_export line with the manifest', async () => {
+    const out = join(ws, 'raw-pkg');
+    const r = await studio('run', 'e2e', 'short', '--raw', '--cursor', 'none', '--json', '--out', out);
+    expect(r.code, r.err).toBe(EXIT.ok);
+    const lines = r.out.trim().split('\n');
+    const events = lines.map((l, i) => {
+      try {
+        return JSON.parse(l) as { type: string };
+      } catch {
+        throw new Error(`stdout line ${i + 1} is not JSON: ${l.slice(0, 80)}`);
+      }
+    });
+    expect(events[0].type).toBe('run_start');
+    expect(events[events.length - 2].type).toBe('run_end');
+    const last = events[events.length - 1] as { type: string; dir: string; manifest: { kind: string; run: { cursor: string }; clips: Array<{ file: string }> } };
+    expect(last.type).toBe('raw_export');
+    expect(last.dir).toBe(out);
+    expect(last.manifest).toMatchObject({ kind: 'demo-studio/raw-capture', run: { cursor: 'hidden' } });
+    expect(last.manifest.clips.map((c) => c.file)).toEqual(['clips/01-import.mp4']);
+    expect(existsSync(join(out, 'manifest.json'))).toBe(true);
+  });
 });
 
 describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {

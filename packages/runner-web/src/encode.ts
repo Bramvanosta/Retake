@@ -44,7 +44,7 @@ export function cfrSchedule(index: readonly FrameIndexEntry[], endT: number, fps
 }
 
 /** Link (or copy, across devices) every scheduled frame to <dir>/<n>.<ext> so ffmpeg reads a plain CFR sequence. */
-async function materialize(framesDir: string, schedule: readonly string[], dir: string, ext: string): Promise<void> {
+export async function materialize(framesDir: string, schedule: readonly string[], dir: string, ext: string): Promise<void> {
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   const BATCH = 64;
@@ -61,6 +61,10 @@ async function materialize(framesDir: string, schedule: readonly string[], dir: 
       }),
     );
   }
+}
+
+export function runFfmpeg(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
+  return run(bin, args, signal);
 }
 
 function run(bin: string, args: string[], signal?: AbortSignal): Promise<void> {

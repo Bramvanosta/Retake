@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { formatIssues, loadProjectTemplate, loadScenario, readJson } from '@demo-studio/core';
 import type { LoadedTemplate, RunProgress, RunRecord, Timeline } from '@demo-studio/core';
-import { CliError, EXIT, errorMessage } from '../errors.js';
+import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { ProgressPrinter, runStatusText } from '../progress.js';
 import type { Ui } from '../ui.js';
@@ -9,14 +9,31 @@ import { formatMs, plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { printIssues } from './validate.js';
+import { parseRawFlags, rawExportOfRun } from './export-capture.js';
+import type { RawFlags } from './export-capture.js';
 
-export interface RunCommandOptions {
+export interface RunCommandOptions extends RawFlags {
   dry?: boolean;
   until?: string;
   hooks?: 'run' | 'skip';
   env?: string;
   headed?: boolean;
   json?: boolean;
+  /** Capture, then export the raw package for editors (L2.13). */
+  raw?: boolean;
+}
+
+/** Raw flags given without --raw are a usage error (they only shape the raw export). */
+function rawFlagsWithoutRaw(o: RunCommandOptions): string[] {
+  const given: string[] = [];
+  if (o.cursor !== undefined) given.push('--cursor');
+  if (o.format !== undefined) given.push('--format');
+  if (o.fps !== undefined) given.push('--fps');
+  if (o.layer !== undefined) given.push('--layer');
+  if (o.selects !== undefined) given.push('--selects');
+  if (o.cuts === false) given.push('--no-cuts');
+  if (o.out !== undefined) given.push('--out');
+  return given;
 }
 
 /** `studio run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
@@ -29,6 +46,10 @@ export async function runCommand(
 ): Promise<ExitCode> {
   const json = opts.json === true;
   const emitJson = (e: RunProgress) => ui.result(JSON.stringify(e));
+  const stray = rawFlagsWithoutRaw(opts);
+  if (!opts.raw && stray.length) throw new UsageError(`${stray.join(', ')} ${stray.length > 1 ? 'shape' : 'shapes'} the raw export: add --raw`);
+  if (opts.raw && opts.dry) throw new UsageError('--raw exports a capture: it cannot be combined with --dry');
+  const rawFlags = opts.raw ? parseRawFlags(opts) : undefined;
   const fail = (message: string): ExitCode => {
     if (json) emitJson({ type: 'log', level: 'error', message });
     else ui.error(message);
@@ -42,6 +63,8 @@ export async function runCommand(
     return fail(errorMessage(e));
   }
   const { ws, project, scenario, template, templateWarning } = prepared;
+  // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
+  const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
 
   const notes = templateWarning ? [templateWarning] : [];
   if (opts.dry && opts.hooks === undefined && (scenario.scenario.setup?.length ?? 0) > 0) {
@@ -69,13 +92,24 @@ export async function runCommand(
       hooks: opts.hooks,
       headed: opts.headed,
       ffmpeg: ws.ffmpeg,
+      ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
       onProgress: json ? emitJson : (e) => printer.handle(e),
     });
   } catch (e) {
     return fail(errorMessage(e));
   }
   if (!json) await printSummary(ui, record, printer.elapsedMs);
-  return record.status === 'succeeded' ? EXIT.ok : EXIT.failure;
+  if (record.status !== 'succeeded') return EXIT.failure;
+  if (rawFlags) {
+    if (!json) ui.line();
+    try {
+      // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
+      await rawExportOfRun(ui, ws, project, record.dir, { ...rawFlags, cursor: rawCursor }, { json, jsonLines: json });
+    } catch (e) {
+      return fail(`raw export: ${errorMessage(e)}`);
+    }
+  }
+  return EXIT.ok;
 }
 
 async function prepare(global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions) {

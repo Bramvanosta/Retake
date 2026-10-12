@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { HookStepSchema } from './hooks.js';
 import { FrameSpecSchema, nonEmpty } from './primitives.js';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '../types.js';
 import {
   AuthConfigSchema,
   BrowserConfigSchema,
@@ -56,6 +57,20 @@ const projectShape = {
         .optional(),
     })
     .describe('Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API).')
+    .optional(),
+  raw: z
+    .strictObject({
+      format: z.enum(RAW_FORMATS).describe('Clip codec: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ .mov). Default mp4.').optional(),
+      fps: z.union([z.literal(30), z.literal(60)]).describe('Clip frame rate (default 30).').optional(),
+      cursor: z
+        .enum(RAW_CURSOR_MODES)
+        .describe('baked (as captured), none (captured without the cursor; cursor data only) or layer (a transparent cursor video per clip). Default baked.')
+        .optional(),
+      layer: z.enum(RAW_LAYER_FORMATS).describe('Cursor layer codec: prores (ProRes 4444) or webm (VP9 alpha). Default prores.').optional(),
+      selects: z.boolean().describe('Also write one continuous selects file of the clips (default false).').optional(),
+      cuts: z.boolean().describe('Cut the loading inside scenes (default true).').optional(),
+    })
+    .describe('Defaults of the raw capture export for editors (studio export-capture, studio run --raw).')
     .optional(),
 };
 

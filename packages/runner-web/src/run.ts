@@ -63,6 +63,12 @@ export interface RunOptions {
   browser?: BrowserConfig;
   /** ffmpeg binary (default "ffmpeg" on PATH). */
   ffmpeg?: string;
+  /**
+   * Capture without the in-page cursor (raw export for editors, L2.13: `studio run --raw --cursor none|layer`). The
+   * pointer still drives real input and the cursor track, icon, presses and ripples are recorded; nothing of the
+   * cursor is drawn in the pictures. The timeline says so (`capture.cursor: hidden`).
+   */
+  hideCursor?: boolean;
 }
 
 /** SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process. */
@@ -141,6 +147,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     warnings: [],
   };
   if (opts.until !== undefined) record.options.until = opts.until;
+  if (opts.hideCursor) record.options.cursor = 'hidden';
   const files = new RunFiles(dir, record);
   const emit = (e: RunProgress) => {
     files.progress(e);
@@ -159,7 +166,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const removeSignals = installSignalHandlers((sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)));
   const clock = new CaptureClock();
   const video = timelineVideo(sc, project.config, opts.template?.name);
-  const timeline = new TimelineBuilder({ run_id: runId, project: project.slug, scenario: loaded.name, mode, capture, video }, clock);
+  const timeline = new TimelineBuilder(
+    { run_id: runId, project: project.slug, scenario: loaded.name, mode, capture, video, ...(opts.hideCursor ? { cursor: 'hidden' as const } : {}) },
+    clock,
+  );
   const template: TemplateContext = {
     pages: env.pages,
     vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) },
@@ -183,7 +193,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       width: capture.width,
       height: capture.height,
       scale: capture.scale,
-      kit: kitConfigFor(opts.template),
+      kit: kitConfigFor(opts.template, opts.hideCursor ? { hidden: true } : undefined),
       browser: projectBrowser(project, opts.browser),
       profileDir: auth.profileDir,
       storageState: auth.storageState,
@@ -206,6 +216,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       log,
     });
 
+    if (opts.hideCursor) log('info', 'capturing without the in-page cursor (raw export): its track, icon, presses and ripples are recorded as data');
     notifications = watchNotifications(rt);
     // wait_for_email takes only the messages that arrive during the run: remember those already there (before setup).
     if (project.config.mailbox && listed.some((l) => l.step.action === 'wait_for_email')) await snapshotMailbox(rt);
@@ -271,7 +282,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         const st = recorder.stats();
         if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
         const minFps = Math.min(capture.fps, 30) * 0.6;
-        const motion = motionCapture(frames.map((f) => f.t), timeline.cursor, minFps);
+        // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
+        const motion = opts.hideCursor ? { moves: 0, slow: 0 } : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps);
         if (motion.slow > 0 && motion.worst) {
           const message =
             `${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
@@ -318,7 +330,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const st = t.recorder.stats();
       if (st.write_errors) timeline.warn(`page ${id}: ${st.write_errors} frames could not be written`);
       const minFps = Math.min(capture.fps, 30) * 0.6;
-      const motion = motionCapture(list.map((f) => f.t), t.builder.cursor, minFps);
+      const motion = opts.hideCursor ? { moves: 0, slow: 0 } : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps);
       if (motion.slow > 0 && motion.worst) {
         const message =
           `page ${id}: ${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +

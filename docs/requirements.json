@@ -1343,7 +1343,7 @@
    "source": "README run --json; DESIGN §4",
    "requirement": "`--json` streams RunProgress events as JSON lines.",
    "status": "done",
-   "evidence": "cli/src/commands/run.ts:208,249; e2e parses run_start…run_end",
+   "evidence": "cli/src/commands/run.ts:208,249; e2e parses run_start…run_end With --raw: one more line {type: raw_export, dir, manifest} after run_end (L2.13 review; e2e 'run --raw --json: JSON lines only').",
    "gap": "",
    "phase": "1",
    "lot": "P1"
@@ -6012,8 +6012,8 @@
    "id": "R-RAW-01",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Raw capture export (`studio export-capture` / `studio run --raw`): one clean clip per scene (page loads cut) as high-quality MP4 or ProRes 422 HQ, 30 or 60 fps.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "studio export-capture <project> <run|latest> [--format mp4|prores] [--fps 30|60] [--cursor] [--layer] [--selects] [--no-cuts] [--out] and studio run … --raw (packages/cli/src/commands/export-capture.ts; engine runner-web src/raw: plan.ts planRawExport / loadingCuts, encode.ts, export.ts exportCapture). One clip per scene (per page of a multi-page scene, same frames, NN-<scene>[-<page>]), from the scene's still (page loads never in a clip), real time; loading inside scenes cut (wait_for / wait_for_email that waited ≥ 0.3 s: from 0.3 s after the press — or the URL change — to the awaited state painted, paced on the capture's local frame interval; never a result, hold, mark or still); MP4 libx264 high CRF 14 yuv420p faststart GOP 1 s or ProRes 422 HQ prores_ks profile 3 yuv422p10le .mov; 30/60 fps CFR from the screencast's own timing (cfrSchedule at the export rate, never interpolated), encoded once from the captured JPEGs; clip timecode = its sequence position; optional selects file. Tests: runner-web raw-units.test.ts, raw-real.test.ts (real captures: no loading frame, first frame after the cut = loaded page, ffprobe), cli export-capture.test.ts (colour-coded run: each capture frame twice at 60 fps, load out, video fallback). Real packages (exports/): quote run 20261012-022141 MP4 30 baked and ProRes 60 layer + selects, catalogue 20261012-093047 MP4 30 + selects (cuts 2.2 s loading / 4.3 s navigation), live-quote 20261012-073840 MP4 30 (8 clips, 2 pages) and webm layers, run 20261012-123617-quote (run --raw --cursor none --selects) + ProRes 60 layer — every clip ffprobe'd (-count_frames: codec, profile, pix_fmt, fps, frames, duration, timecode) = manifest; frames looked at (starts, ends, both sides of every cut). Review fixes (L2.13 review): the cut starts 0.3 s after the step's LAST press (actionMoment: latest of t_click, data.clicks[].t_click, t_typed, t_enter; drag / repeated keys / typing without t_typed kept whole) — a type's typing and Enter, a select's open popup and option click are never cut; a navigation is a URL change after that press; the resume snaps to the next screencast frame when the page was still painting (first frame after the cut painted after it at 30 and 60 fps — catalogue import at 60 fps: frame 1005 was a half-drawn dialog, now the full '921 offers created'); a scene ending on its awaited state keeps its loading with a note (min_tail_s 0.2) and markers at a scene's very end land on its last frame (live-quote 'delivery' step 6 marker was dropped before). Unit cases in raw-units.test.ts (type+Enter→wait, type→wait, select / menu / drag / repeated keys→wait, URL rewritten while typing, scene ending on a wait with / without mark, paint snap at 30 / 60 fps via cfrSchedule, idle page). Scratch checks: a copy of signup run 034207 with a 1 s search (typing 'Selowa' + Enter kept, cut from the URL change), a copy of the catalogue run ending on the import wait (loading kept, 'import-done' on the last frame), catalogue at 60 fps (frames 1004–1006 looked at).",
    "gap": "",
    "phase": "2",
    "lot": "L2.13"
@@ -6022,8 +6022,8 @@
    "id": "R-RAW-02",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Cursor options for raw export: baked in; or captured without the cursor with the cursor track and clicks exported as data (JSON/CSV: time, position, click, target bbox); or a separate transparent cursor layer (cursor + ripples).",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "baked | none | layer. none: runner RunOptions.hideCursor (run --raw --cursor none|layer; kit cursor.hidden → .c,.rps{display:none}; real input and the cursor track unchanged; timeline capture.cursor: hidden, run.json options.cursor); the kit reports icon / press / release / ripple (binding __demoStudioCursor → timeline cursor_effects, tracks[].cursor_effects). layer: renderCursorAtlas (the kit's own cursorLook CSS + markup rendered by Chromium: icons × press scales, ripple ages) composited per frame → ProRes 4444 (prores_aw) or VP9-alpha WebM, same frames / fps / timecode as the clip. Every mode: cursor/cursor.json + cursor.csv (per frame: clip-relative and sequence time, x, y in clip px, visible, down, icon, press scale, ripples) and clicks.csv (frame, times, x, y, scene, step, step id, action, target, bbox). Runs before L2.13: icons / presses / ripples approximated (noted). Tests raw-real.test.ts (debug cursor: no magenta pixel in the cursorless clip, the layer's dot on the baked dot and on the samples ±1.5 px, ripple ring, effects recorded), raw-units.test.ts (press curve, ripples, icons, kit CSS drift). Real: run 20261012-123617-quote clips without cursor, its layer composited over them (ffmpeg overlay) = the baked look (hand, ripple, arrow) at the click points; quote 20261012-022141 layer over its own baked clips covers the captured cursor exactly. Review fixes: VP9 WebM layers carry no timecode (Matroska): referenced from media time 0 in the OTIO, left out of the FCPXML (Final Cut Pro cannot read VP9), README / note say so and point FCP / Premiere users to --layer prores; ProRes layers keep their clip's timecode. Layer codec labels name no pixel format; clips[].layer.pix_fmt is ffprobe's (ProRes 4444 → yuva444p12le). Tests raw-units.test.ts (WebM: no layer in FCPXML, OTIO layer ranges from 0 while clips keep their timecode; ProRes layer asset start = a later clip's sequence start), raw-real.test.ts (WebM package: no timecode, OTIO from 0, README wording; ProRes manifest pix_fmt = ffprobe).",
    "gap": "",
    "phase": "2",
    "lot": "L2.13"
@@ -6032,8 +6032,8 @@
    "id": "R-RAW-03",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Markers for editing tools: scenes, steps, marks and captions exported as FCPXML, EDL, OpenTimelineIO and CSV/JSON so clips land in a timeline with markers.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "runner-web src/raw/markers.ts: scenes (chapter markers), steps, marks, captions (until the next), loading cuts, in clip-relative and sequence time — FCPXML 1.10 (one event / project, clips on the spine, assets with media-rep and start = timecode, layers lane 1, other pages connected and disabled, every time N/fps s), CMX 3600 NDF with * LOC: locators (source TC = record TC), OpenTimelineIO JSON (V1 + Cursor + Page tracks, Marker.2 with colour / comment), markers.csv / markers.json. Validated outside the repo with OpenTimelineIO 0.18.1 (otio_json read, cmx_3600 read at the package rate, fcpx_xml adapter read of the FCPXML 1.10) and a Python checker: spine offsets / durations / asset starts vs ffprobe counted frames and timecodes, markers inside their clips, counts equal in FCPXML / OTIO / EDL / CSV / JSON — all packages OK. Tests raw-units.test.ts (well-formed XML, frame grid, EDL line format, OTIO structure, multi-page lanes). Review fixes: OTIO target_url is a file:// URL (as the FCPXML's media-rep) — otioconvert with otio-fcp-adapter now writes file:// pathurls for Premiere; WebM layers from media time 0 in the OTIO, not in the FCPXML; markers at the very end of a scene no longer dropped. The scratch validator now also checks every OTIO track's clips against their media (URL scheme, start = the file's timecode or 0, frame count), FCPXML layer starts against the layer's own timecode, and every cut strictly inside its clip; all 7 re-exported packages OK.",
    "gap": "",
    "phase": "2",
    "lot": "L2.13"
@@ -6042,11 +6042,31 @@
    "id": "R-RAW-04",
    "source": "decision (user, 2026-10-12)",
    "requirement": "A manifest describing the raw package (clips, durations, markers, resolution, cursor data), readable by humans and Claude.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "manifest.json (RawManifest: source run, scenario, settings incl. codec / fps / cursor / cuts, sequence, each clip with file, scene, page, primary, caption, size, fps, frames, duration, codec, profile, pix_fmt, timecode, sequence start, capture range, cuts, layer — measured by ffprobe —, selects, cursor files and icon source, marker files and counts, the files the edit uses (planFileRefs / themeFileRefs), notes, warnings) and README.md (packageReadme: what is inside, clip table, import steps for Final Cut Pro, Premiere Pro, DaVinci Resolve and OTIO tools). Output folder replaced only when new, empty or an earlier package. Tests raw-real.test.ts, export-capture.test.ts; read on the real packages. Review fix: `studio run --raw --json` keeps stdout JSON lines — RunProgress events, then one {type: raw_export, dir, manifest} line (export-capture --json still prints the manifest document); e2e.test.ts parses every stdout line of a real `run --raw --cursor none --json`.",
    "gap": "",
    "phase": "2",
    "lot": "L2.13"
+  },
+  {
+   "id": "R-RAW-05",
+   "source": "L2.13 (needed for a faithful cursor layer)",
+   "requirement": "The runner records what the in-page cursor draws besides its position — icon changes, presses, click ripples — on the capture clock, per recorded page (timeline cursor_effects), so the cursor can be redrawn identically outside the page.",
+   "status": "done",
+   "evidence": "kit effect() through the binding __demoStudioCursor (session CURSOR_BINDING, Runtime.cursorEffect / currentIcon, TimelineBuilder / TrackBuilder cursorEffects, core CursorEffect + schema); api.cursorLook exposes the overlay CSS + markup. Tests raw-real.test.ts (hand icon, press / release / ripple at the click point ±1 px in both cursor modes, TimelineSchema valid).",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.13"
+  },
+  {
+   "id": "R-RAW-06",
+   "source": "L2.13 (use case: edit in another tool)",
+   "requirement": "A raw package imports cleanly into Final Cut Pro, Premiere Pro and DaVinci Resolve (clips in order, markers, cursor layers composited, timecodes matching).",
+   "status": "n/a-here",
+   "evidence": "Interchange files validated with OpenTimelineIO 0.18.1 (incl. its FCPXML and CMX 3600 adapters) and against ffprobe in the cloud container; the tools themselves need a Mac (docs/MACOS-CHECKLIST.md step 12).",
+   "gap": "Import into Final Cut Pro, Premiere Pro and DaVinci Resolve on the Mac (L1.5).",
+   "phase": "2",
+   "lot": "L1.5"
   }
  ]
 }

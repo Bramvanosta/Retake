@@ -7,6 +7,7 @@ import type { BrowserConfig } from '@demo-studio/core';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
 import type {
+  CursorEffectPayload,
   CursorState,
   DropOutcome,
   ElementInfo,
@@ -83,6 +84,8 @@ export interface NotificationPayload {
 
 /** Name of the binding the kit calls for each web notification the page shows. */
 export const NOTIFICATION_BINDING = '__demoStudioNotification';
+/** Name of the binding the kit calls with what its cursor shows: icon changes, presses, click ripples (L2.13). */
+export const CURSOR_BINDING = '__demoStudioCursor';
 
 /** playwright-core launch target for a browser config: an executable, else a channel (new headless by default). */
 export function launchTarget(b: BrowserConfig = {}): { executablePath?: string; channel?: string } {
@@ -274,6 +277,8 @@ export class BrowserSession {
   private readonly emulations = new Map<Page, { session: CDPSession; key: string; ua?: string }>();
   /** Called for every web notification a page of the session shows (set by the runner). */
   onNotification: ((page: Page, n: NotificationPayload) => void) | null = null;
+  /** Called for every cursor effect (icon, press, ripple) a page's kit reports (set by the runner, L2.13). */
+  onCursorEffect: ((page: Page, e: CursorEffectPayload) => void) | null = null;
 
   private constructor(
     readonly context: BrowserContext,
@@ -327,6 +332,13 @@ export class BrowserSession {
     await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: NotificationPayload) => {
       try {
         if (session?.onNotification && src.page) session.onNotification(src.page, payload);
+      } catch {
+        /* a listener error must not reach the page */
+      }
+    });
+    await context.exposeBinding(CURSOR_BINDING, (src, payload: CursorEffectPayload) => {
+      try {
+        if (session?.onCursorEffect && src.page) session.onCursorEffect(src.page, payload);
       } catch {
         /* a listener error must not reach the page */
       }

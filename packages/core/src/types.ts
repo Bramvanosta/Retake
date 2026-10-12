@@ -1123,6 +1123,38 @@ export interface ProjectConfig {
   vars?: Record<string, string>;
   /** Test mailbox read by `wait_for_email`. */
   mailbox?: MailboxConfig;
+  /** Defaults of the raw capture export for editors (`studio export-capture`, `studio run --raw`; L2.13). */
+  raw?: RawSettings;
+}
+
+// ── Raw capture export for editors (L2.13) ────────────────────────────────────
+
+/** Clip codecs of a raw export: H.264 high profile MP4, or ProRes 422 HQ (.mov). */
+export const RAW_FORMATS = ['mp4', 'prores'] as const;
+export type RawFormat = (typeof RAW_FORMATS)[number];
+/** Frame rates of a raw export (CFR, from the capture's own frame timing — never interpolated). */
+export const RAW_FPS = [30, 60] as const;
+export type RawFps = (typeof RAW_FPS)[number];
+/**
+ * Cursor of a raw export: `baked` as captured; `none` captured without the in-page cursor (the cursor track and the
+ * clicks are still exported as data); `layer` a separate transparent cursor + click-ripple video per clip.
+ */
+export const RAW_CURSOR_MODES = ['baked', 'none', 'layer'] as const;
+export type RawCursorMode = (typeof RAW_CURSOR_MODES)[number];
+/** Transparent cursor layers: ProRes 4444 (.mov) or VP9 with alpha (.webm). */
+export const RAW_LAYER_FORMATS = ['prores', 'webm'] as const;
+export type RawLayerFormat = (typeof RAW_LAYER_FORMATS)[number];
+
+/** project.yaml `raw`: defaults of `studio export-capture` / `studio run --raw` (the CLI flags win). */
+export interface RawSettings {
+  format?: RawFormat;
+  fps?: RawFps;
+  cursor?: RawCursorMode;
+  layer?: RawLayerFormat;
+  /** Also write one continuous "selects" file of the clips (default false). */
+  selects?: boolean;
+  /** Cut the loading inside scenes (default true; page loads before a scene's still are never in a clip). */
+  cuts?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1276,6 +1308,8 @@ export interface TimelineTrack {
   pages: TimelinePageSegment[];
   /** This page's in-page cursor (each page has its own; only the acting page's moves). */
   cursor: CursorSample[];
+  /** Icon changes, presses and click ripples of this page's cursor (L2.13). */
+  cursor_effects?: CursorEffect[];
 }
 
 /** Step `overlay` as recorded by the runner: the spec plus the target measured at the END of the step. */
@@ -1378,6 +1412,22 @@ export interface CursorSample {
   y: number;
   visible: boolean;
   down?: boolean;
+}
+
+/** Icon the in-page cursor draws: arrow, pointing hand (links, buttons), text beam (fields). */
+export const CURSOR_ICONS = ['arrow', 'hand', 'ibeam'] as const;
+export type CursorIcon = (typeof CURSOR_ICONS)[number];
+
+/**
+ * What the in-page cursor showed besides its position (L2.13), reported by the kit as it drew it: `icon` (the icon
+ * changed), `press` / `release` (the press scale), `ripple` (a click ripple centred at x, y, CSS px).
+ */
+export interface CursorEffect {
+  t: number;
+  type: 'icon' | 'press' | 'release' | 'ripple';
+  icon?: CursorIcon;
+  x?: number;
+  y?: number;
 }
 
 // ── Artefacts (L2.9): captured emails, documents and web notifications ────────
@@ -1501,6 +1551,11 @@ export interface Timeline {
     /** Wall-clock epoch ms of capture time 0. */
     t0_wall: number;
     frames: number;
+    /**
+     * `hidden`: captured without the in-page cursor (`studio run --raw --cursor none|layer`, L2.13) — real input,
+     * cursor track and effects recorded as usual, nothing drawn. Absent: the cursor is in the pictures.
+     */
+    cursor?: 'hidden';
   };
   /** Title, intro, outro, frame, template and music of the scenario (written by runners since L2.1). */
   video?: TimelineVideo;
@@ -1511,6 +1566,11 @@ export interface Timeline {
   pages: TimelinePageSegment[];
   /** The cursor of `capture` (per-page tracks keep their own: `tracks[].cursor`). */
   cursor: CursorSample[];
+  /**
+   * What the in-page cursor of `capture` showed besides its position (L2.13; absent in older runs): icon changes,
+   * presses and click ripples, as the kit drew them (per-page tracks keep their own).
+   */
+  cursor_effects?: CursorEffect[];
   /**
    * Intervals where the screen did not change at all (no screencast frame) for ≥ 0.5 s — of any recorded page: with
    * tracks, a frame of any of them counts.
@@ -1557,7 +1617,7 @@ export interface RunRecord {
   /** Absolute run directory. */
   dir: string;
   env: string;
-  options: { until?: string; hooks: 'run' | 'skip'; headed: boolean };
+  options: { until?: string; hooks: 'run' | 'skip'; headed: boolean; cursor?: 'hidden' };
   steps_total: number;
   steps_done: number;
   current?: { scene: string; step: number; action: string };

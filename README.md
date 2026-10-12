@@ -123,6 +123,8 @@ studio new <slug> [--name N] [--template T] [--env name=key:url,...]
 studio list [--json]                                  # projects (with scenarios) and templates
 studio validate <project> [scenario|file] [--env E] [--until REF] [--json]
 studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--json]
+           [--raw [--cursor baked|none|layer] [--format mp4|prores] [--fps 30|60] [--layer prores|webm] [--selects]
+           [--no-cuts] [--out DIR]]          # capture, then the raw package for editors
 studio hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--dry]
 studio hooks rollback <project> [run-id] [--env E] [--dry]
 studio env reset <project> [--env E] [--yes] [--dry]
@@ -139,6 +141,8 @@ studio export <project> <render-id|file|latest> [--formats LIST|all] [--scenario
               [--concurrency N] [--json]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
 studio review <project> <render-id|file|latest> [--scenario S] [--fps 1|2] [--previous ID | --no-previous] [--strict]
               [--json]
+studio export-capture <project> <run-id|dir|latest> [--scenario S] [--format mp4|prores] [--fps 30|60]
+              [--cursor baked|none|layer] [--layer prores|webm] [--selects] [--no-cuts] [--out DIR] [--json]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
 studio login <project> [--env E] [--page KEY] [--url URL]
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
@@ -177,6 +181,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   and prints the findings of its checks — see [Reviewing a render](#reviewing-a-render).
 - **export** writes delivery files of a render to `exports/<render-id>/` with a `manifest.json` — see
   [Variants, 4K, music and export](#variants-4k-music-and-export).
+- **export-capture** (and **run --raw**) writes the raw package of a run for another editing tool — clips per scene,
+  cursor data or layer, FCPXML / EDL / OTIO / CSV markers, `manifest.json` — see
+  [Raw export for editors](#raw-export-for-editors).
 - **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
@@ -1245,6 +1252,80 @@ streams, time taken, the GIF window, warnings; earlier exports of other formats 
 Without `--formats` it exports `mp4_1080p,webm,gif_preview` (no re-render); `all` exports the six. A format that fails
 is reported (exit code 1) and the others are still written.
 
+## Raw export for editors
+
+Script and film with Demo Studio, then edit in Final Cut Pro, Premiere Pro, DaVinci Resolve, After Effects or any
+OpenTimelineIO tool: `studio export-capture <project> <run|latest>` (API `exportCapture({project, runDir, …})` in
+`@demo-studio/runner-web`) turns a capture into a package that drops into those tools; `studio run <project>
+<scenario> --raw` captures and exports in one go.
+
+```
+studio export-capture northfield-fixture latest --scenario quote                       # MP4 30 fps, cursor as captured
+studio export-capture northfield-fixture latest --scenario quote --format prores --fps 60 --cursor layer --selects
+studio run northfield-fixture quote --raw --cursor none                                # captured without the cursor
+```
+
+- **Clips** — one per scene, `clips/01-<scene>.mp4` (multi-page scenes: one per page, `01-<scene>-<page>.mp4`, on
+  the same frames), sortable and readable. A clip starts at the scene's opening still: the page load before it is
+  never in a clip. Inside a scene the **loading is cut** (a jump cut): when steps wait for the product (`wait_for`,
+  `wait_for_email` that really waited), the clip keeps the step that started it up to 0.3 s after its **last** press
+  (a select's option click, a menu's confirm, a type's Enter or end of typing; a drag whole), or until the URL
+  changed after that press, and resumes once the awaited state is painted (the wait's end + 1.5 screencast intervals
+  there, 0.05–0.3 s, then on the next screencast frame when the page was still painting) — never a step's visible
+  action or result, a hold, a mark or the opening still. A scene that ends on its awaited state (no `hold` after the
+  wait) keeps its loading, with a note: a cut there would leave the result out of the clip. `--no-cuts` keeps the
+  loading. Otherwise real time: speeds and shortened waits are the editor's job.
+- **Codecs** — `--format mp4` (default): H.264 high profile, CRF 14, yuv420p, 1-second GOP, faststart;
+  `--format prores`: Apple ProRes 422 HQ (`prores_ks` profile 3), yuv422p10le, `.mov`. BT.709, limited range. Encoded
+  once from the run's own screencast frames (not from `capture.mp4`). `--fps 30|60`: constant frame rate on the
+  capture's clock — frame n shows the screencast frame on screen at n / fps; 60 fps comes from the screencast's real
+  timing (up to 60 frames a second when the page moves), never interpolated. A run that did not keep its frames
+  (`capture.keep_frames: false`) is cut from its CFR video (frames repeated for 60 fps; a note says so).
+- **Timecode** — every clip carries a start timecode equal to its place on the sequence (`00:00:00:00` = the first
+  clip), so source and record timecodes agree in every tool (an EDL's source in = record in).
+- **Cursor** (`--cursor`) — `baked`: as captured. `none`: the run was captured **without** the in-page cursor
+  (`studio run … --raw --cursor none|layer`, or `raw.cursor` in project.yaml): the pointer still drives real input and
+  its track is recorded; the clips show no cursor. `layer`: also one transparent video per clip,
+  `cursor/01-<scene>-cursor.mov` — ProRes 4444 with alpha (`--layer prores`, default) or VP9 with alpha
+  (`--layer webm`) — with the cursor and its click ripples drawn exactly as the in-page kit draws them (icon, press
+  scale, ripple; the kit reports them during the capture), same size, frame rate and length as its clip: put it on
+  the track above. A ProRes layer carries its clip's start timecode. A WebM layer has none (Matroska keeps no
+  timecode: its media time starts at 0, and the OTIO references it so), ffmpeg decodes its alpha with
+  `-c:v libvpx-vp9` only, and Final Cut Pro and Premiere Pro do not read it — it is for web players and ffmpeg-based
+  tools, left out of the FCPXML; use `--layer prores` for editing tools. On a run captured with its cursor, the layer
+  duplicates it (a note says so). In every mode `cursor/cursor.json` and `cursor/cursor.csv` give the cursor on every
+  frame (clip-relative time, sequence time, x, y in clip pixels, visible, pressed, icon, press scale, ripples) and
+  `cursor/clicks.csv` every click (frame, times, x, y, scene, step, step id, action, target and its box).
+- **Markers** — scenes (blue; chapter markers in Final Cut Pro), steps (green), marks (red), captions (yellow, lasting
+  until the next one) and loading cuts (magenta), in clip-relative and sequence time:
+  - `markers/<scenario>.fcpxml` — FCPXML 1.10: one event, one project, the clips on the primary storyline with their
+    markers; ProRes cursor layers connected above their clip; the other page of a multi-page scene connected and
+    **disabled** (enable it to build a split screen). Final Cut Pro: *File → Import → XML…*; DaVinci Resolve:
+    *File → Import → Timeline…*.
+  - `markers/<scenario>.otio` — OpenTimelineIO: track V1 with the clips (+ a Cursor track, + one track per extra
+    page, disabled), markers with name, colour and comment. DaVinci Resolve imports it (*File → Import →
+    Timeline…*); other tools through OTIO adapters (e.g. Premiere Pro, Avid).
+  - `markers/<scenario>.edl` — CMX 3600 (non-drop) with `* LOC:` locators: the sequence clips on one picture track.
+    Premiere Pro: *File → Import*; Resolve and Avid read it too.
+  - `markers/markers.csv` / `markers.json` — every marker with frames, seconds and timecodes, for spreadsheets,
+    After Effects scripts or Claude.
+- **Selects** (`--selects`) — `selects.mp4|mov`: the sequence clips back to back in one file (stream copy).
+- **Manifest** — `manifest.json` (source run, scenario, settings, sequence, every clip with its file, scene, page,
+  duration, frames, fps, size, codec, profile, pixel format, timecode, cuts and layer; the cursor files, the marker
+  files and counts, the files the Demo Studio edit of this scenario uses — intro / outro videos, overlays, images — for
+  reuse, notes and warnings) and a short `README.md` for people.
+
+Package: `<project>/exports/<run-id>-raw-<format><fps>-<cursor>/` (or `--out`). The interchange files point at the
+clips by absolute path (`file://` URLs in the FCPXML and OTIO): if you move the folder, relink to `clips/`.
+`studio run … --raw --json` prints the RunProgress events, then one `{"type":"raw_export","dir":…,"manifest":…}` line.
+project.yaml can hold the defaults:
+
+```yaml
+raw: {format: prores, fps: 60, cursor: layer, layer: prores, selects: true, cuts: true}
+```
+
+A run captured without its cursor still renders with `studio render`, with a plan warning: the video shows no cursor.
+
 ## Reviewing a render
 
 `studio review <project> <render>` (a render id such as `catalogue-v3`, a `renders/<id>.json` or `.mp4` path, or
@@ -1348,6 +1429,7 @@ A profile can be used by one browser at a time: close the login window before ru
 | `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet), updated live |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
+| `timeline.json` `cursor_effects` | what the in-page cursor showed besides its position: icon changes, presses, click ripples (L2.13; per page in `tracks[]`); `capture.cursor: hidden` when captured without the cursor (`run --raw --cursor none\|layer`) |
 | `capture-<page>.mp4`, `frames-<page>/`, `frames-<page>.jsonl` | multi-page scenes: one recording per page on the same frame grid as `capture.mp4` (listed in `timeline.json` `tracks`) |
 | `screenshots/` | dry-run screenshots, `screenshot` steps, error screenshots and DOM snippets |
 | `hooks-journal.json` | executed hooks and their rollbacks |
@@ -1388,7 +1470,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) done; L2.13 next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) done; L2.14 next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

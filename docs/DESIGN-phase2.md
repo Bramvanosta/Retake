@@ -527,6 +527,79 @@ and palette-quantises it with ffmpeg when the full-colour PNG exceeds 200 KB; in
 (regenerating previews never rebuilds a render bundle). The theme defaults to the `editorial` starter (a workspace
 template of the same name wins); `--theme` renders with any template.
 
+### 2.4 Raw export for editors (L2.13)
+Capture-side, so it lives in `@demo-studio/runner-web` (`src/raw/`): it owns the screencast frames, the CFR schedule
+and the kit's cursor look. `exportCapture({project, runDir, template?, format, fps, cursor, layer, selects, cuts, out,
+editFiles})` → `<project>/exports/<run-id>-raw-<format><fps>-<cursor>/` (written as `<dir>.partial-<pid>`, swapped in).
+CLI `studio export-capture <project> <run|latest>` and `studio run … --raw` (packages/cli/src/commands/export-capture.ts;
+the CLI resolves the run with the editor's `findRun`, loads the run's template for the cursor look and lists the edit's
+own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawSettings`) holds defaults; flags win.
+- **Clip plan** (`plan.ts`, pure): one clip per captured scene, one per page of a multi-page scene (same spans; the
+  page of the opening still is `primary` = on the sequence). Range `[scene_still.t_start (else the last scene_open's
+  end), scene.t_end)` — the page load is never in a clip; on the export grid frame n = capture time n / fps,
+  `[ceil(s0·fps), ceil(s1·fps))`. `loadingCuts`: each run of wait steps (`wait_for`, `wait_for_email`, same page,
+  stopping at a marked wait or one with a hold) that waited ≥ 0.3 s is cut from `action_keep_s` (0.3 s) after the
+  LAST press of the contiguous step before it (`actionMoment`: the latest of `t_click`, each `data.clicks[].t_click`
+  — a select's option, a menu's item / confirm, a pick's close —, `t_typed`, `t_enter`; a drag, repeated keys and
+  typing without `t_typed` are kept whole: their end) — or from that step's URL change after that press when it
+  navigated earlier (nothing of the loading page kept; a URL rewritten while typing is no navigation) — to the last
+  wait's end + margin, margin = max(0.05 s, min(0.3 s, 1.5 × the capture's local screencast interval)), then snapped
+  to the next screencast frame of that page when one arrived within another margin (the page was still painting:
+  the frame on screen may be half drawn — seen at 60 fps on the catalogue import, ≈ 8 fps under a backdrop blur; an
+  idle page sends no frame, its last one is final). So the first frame after the cut is a frame painted after it, at
+  any export rate. A cut must leave ≥ `min_tail_s` (0.2 s) of its scene after it: a scene that ends on its awaited
+  state keeps its loading (a note says so — add a `hold`), else the result would be in no clip. Never into the
+  opening still, a hold or a marked step; ≥ 0.4 s or not at all; reasons `navigation`, `loading`, `mail`. Markers at
+  the very end of a scene land on the clip's last frame (never dropped). Clip names `NN-<scene>[-<page>]`. `clipFrameAt` maps capture times (a time inside a cut → the
+  frame after it); the sequence = the primary clips back to back.
+- **Encoding** (`encode.ts`): `cfrSchedule(frames.jsonl, duration, fps)` at the EXPORT rate (60 fps = the
+  screencast's real timing, up to 60 frames/s when the page moves — never interpolated), the clip's frames hard-linked
+  as a sequence, encoded once from the JPEG/PNG frames: MP4 = libx264 high, CRF 14, preset medium, GOP = 1 s,
+  yuv420p, faststart; ProRes = `prores_ks` profile 3 (422 HQ), yuv422p10le, `.mov`; BT.709 limited (JPEG full-range
+  BT.601 converted); `-timecode` = the clip's sequence position (tmcd track in both containers). No frames kept →
+  the CFR video decoded once (its tagged matrix → full-range JPEG) and repeated, with a note. Each output ffprobe'd
+  (frames, codec, profile, pix_fmt, timecode) into the manifest. Selects: the primary clips concatenated by stream copy
+  (skipped with a warning when their sizes differ).
+- **Cursor** — runner: `RunOptions.hideCursor` (CLI `run --raw --cursor none|layer`) → `KitConfig.cursor.hidden`: the
+  kit adds `.c,.rps{display:none}` (the file-drag ghost card stays — page content); real input, the Node cursor track
+  and everything else unchanged; `timeline.capture.cursor: 'hidden'`, `run.json options.cursor`; the cursor-motion
+  frame-rate warning is skipped (a hidden cursor's move changes nothing on screen). In every run the kit now reports
+  what its cursor draws through the binding `__demoStudioCursor` (`effect()`: `icon` on every change and the first
+  one of each document, `press` / `release`, `ripple` at x, y) → `Runtime.cursorEffect` → `timeline.cursor_effects`
+  for the main capture's active page, `tracks[].cursor_effects` while a track records (plus the current icon when a
+  page starts being filmed: `currentIcon`). `cursor.ts`: `cursorFrames` (per clip frame: the latest sample at n/fps,
+  last icon, press scale = the kit's 90 ms ease-out to 0.9, ripples younger than 550 ms — `CURSOR_LOOK`, a test keeps
+  it equal to the kit's CSS), `approximateEffects` for runs before L2.13 (presses / ripples at button-down samples and
+  synthetic clicks, the hand over a running step's clickable target, the text beam over a field), `clipClicks`
+  (`data.clicks` of widgets, else the step's click) → `cursor/cursor.json|csv`, `clicks.csv` in clip pixels.
+- **Cursor layer** (`layer.ts`): `renderCursorAtlas` evaluates `kitSource` in a blank Chromium page, reads
+  `api.cursorLook` (the overlay's stylesheet + markup, the same strings the kit draws with) into open shadow roots, one
+  cell per icon × press-scale step (11) and per ripple age (1/120 s, animations paused at that age), one transparent
+  screenshot at the capture's device scale decoded by ffmpeg; `encodeCursorLayer` blits the sprites (straight-alpha
+  over, ripples under the icon) into a reused RGBA frame per clip frame and pipes it to ffmpeg: ProRes 4444
+  (`prores_aw` profile 4 — ≈ 5× faster than prores_ks on these mostly empty frames, alpha within 1/255 measured) or
+  VP9 + alpha (`.webm`). Frame-aligned with its clip by construction (same frame list, fps; ProRes: same timecode).
+  WebM cannot carry a timecode (Matroska): its media time starts at 0 — the OTIO references it from 0, the FCPXML
+  leaves it out (Final Cut Pro does not read VP9), the package README and a note say `--layer prores` is the one for
+  editing tools. The manifest names no pixel format in the layer codec label: each layer's `pix_fmt` is what ffprobe
+  reads back (ProRes 4444 decodes as yuva444p12le).
+- **Markers** (`markers.ts`): `rawMarkers` on each scene's sequence clip — scene (chapter), caption (until the next),
+  step (its span; page named in multi-page scenes), mark (a wait's end, a click's press, else the start), cut —
+  colours BLUE / YELLOW / GREEN / RED / MAGENTA. `writeFcpxml` (1.10: a format per clip size, an asset per clip and
+  layer with `start` = its timecode and a `media-rep`, one event / project / sequence `tcStart="0s"`, spine of
+  asset-clips; inside each, connected clips — its layer lane 1, other pages and their layers enabled="0" — then
+  `chapter-marker` / `marker` with notes; every time N/fps s), `writeEdl` (CMX 3600 NDF, reel `CLIP<nnn>`, `* FROM CLIP
+  NAME` / `FROM CLIP`, `* LOC: <tc> <COLOUR> <KIND>: <name>`; one picture track: other pages and layers are left to
+  FCPXML / OTIO), `writeOtio` (OTIO 0.17/0.18 JSON: V1, Cursor, Page n [+ cursor] tracks, Gap fillers, Clip.2 with
+  ExternalReference with a `file://` target_url and available_range at the timecode — 0 for WebM layers —, Marker.2
+  with colour / comment / metadata), `markersCsv|Json`.
+  Checked with OpenTimelineIO 0.18.1 (otio_json, cmx_3600 and fcpx_xml adapters) outside the repo.
+- **Manifest** (`RawManifest`, `manifest.json`) + `README.md` (`packageReadme`): run, settings, sequence, clips
+  (measured), selects, cursor files and icon source, marker files and counts, the edit's own files, notes, warnings.
+- **Editor**: a hidden-cursor capture still plans and renders, with a plan warning (no cursor in the video).
+- **CLI JSON**: `export-capture --json` prints the manifest (one document); `run --raw --json` keeps stdout JSON
+  lines — the RunProgress events, then one `{"type":"raw_export","dir","manifest"}` line.
+
 ## 3. Review (`packages/review`)
 
 ```ts

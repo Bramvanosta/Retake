@@ -6,6 +6,7 @@ import type {
   ResolvedViewport,
   BBox,
   CaptureSettings,
+  CursorEffect,
   LoadedProject,
   NormalizedStep,
   Pacing,
@@ -15,6 +16,7 @@ import type {
 } from '@demo-studio/core';
 import type { TemplateContext } from '@demo-studio/core';
 import type { BrowserSession, KitClient } from './session.js';
+import type { CursorEffectPayload } from './kit/types.js';
 import { ScreencastRecorder } from './recorder.js';
 import { TrackBuilder } from './timeline.js';
 import type { TimelineBuilder } from './timeline.js';
@@ -108,6 +110,8 @@ export class Runtime {
     this.recorder = init.recorder;
     this.log = init.log;
     this.artefacts = new ArtefactStore(init.runDir, (m) => this.warn(m));
+    // What each page's cursor shows (icon, press, ripple; L2.13) goes with the capture that films that page.
+    this.session.onCursorEffect = (page, p) => this.cursorEffect(page, p);
     this.mainPointer = new Pointer({
       page: () => this.page,
       kit: () => this.kit,
@@ -116,6 +120,33 @@ export class Runtime {
       signal: this.signal,
       scale: this.capture.scale,
     });
+  }
+
+  /**
+   * A cursor effect reported by a page's kit (L2.13): on that page's track while it records (multi-page scenes), on
+   * the main capture's timeline when that page is the one recorded there.
+   */
+  private cursorEffect(page: Page, p: CursorEffectPayload): void {
+    const id = this.session.idOf(page);
+    if (!id || typeof p?.time !== 'number' || !['icon', 'press', 'release', 'ripple'].includes(p.type)) return;
+    const e: CursorEffect = { t: this.timeline.clock.at(p.time), type: p.type };
+    if (p.type === 'icon') {
+      if (p.icon !== 'arrow' && p.icon !== 'hand' && p.icon !== 'ibeam') return;
+      e.icon = p.icon;
+    }
+    if (p.type === 'ripple' && typeof p.x === 'number' && typeof p.y === 'number') {
+      e.x = p.x;
+      e.y = p.y;
+    }
+    const track = this.tracks.get(id);
+    if (track?.builder.recordingNow) track.builder.cursorEffect(e);
+    if (!this.scenePageIds && this.session.activeId === id) this.timeline.cursorEffect(e);
+  }
+
+  /** The icon a page's cursor shows right now, as an effect of the capture that starts filming it. */
+  private async currentIcon(page: Page, to: { cursorEffect(e: CursorEffect): void }): Promise<void> {
+    const st = await this.session.kit(page).cursorState().catch(() => null);
+    if (st?.kind) to.cursorEffect({ t: this.now(), type: 'icon', icon: st.kind });
   }
 
   /** The cursor of the acting page: its own in a multi-page scene, else the main one. */
@@ -222,6 +253,7 @@ export class Runtime {
       }
       track.started = true;
       track.builder.start(page.url());
+      await this.currentIcon(page, track.builder);
       // The page may already show a cursor (filmed by an earlier scene): this page's cursor takes over from there.
       if (!pane.pointer.known) {
         const st = await this.session.kit(page).cursorState().catch(() => null);
@@ -325,6 +357,7 @@ export class Runtime {
       if (this.recorder) await this.recorder.switchTo(p);
       this.timeline.pageSegment(id, p.url());
       if (prev !== id) await this.pointer.syncPage();
+      if (prev !== id || resumed) await this.currentIcon(p, this.timeline);
     }
     return p;
   }

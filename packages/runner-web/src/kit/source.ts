@@ -15,6 +15,7 @@ export function kitConfigFor(template?: LoadedTemplate, override?: Partial<KitCo
       style,
       size: override?.size ?? c?.size ?? DEFAULT_CURSOR_SIZE,
       ripple_color: override?.ripple_color ?? c?.ripple_color ?? DEFAULT_RIPPLE_COLOR,
+      ...(override?.hidden ? { hidden: true } : {}),
     },
     storage_key: CURSOR_STORAGE_KEY,
   };

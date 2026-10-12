@@ -64,6 +64,11 @@
         "frames": {
           "type": "integer",
           "minimum": 0
+        },
+        "cursor": {
+          "type": "string",
+          "const": "hidden",
+          "description": "Captured without the in-page cursor (raw export for editors)."
         }
       },
       "required": [
@@ -1008,6 +1013,49 @@
         "additionalProperties": false
       }
     },
+    "cursor_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "press",
+              "release",
+              "ripple"
+            ]
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "arrow",
+              "hand",
+              "ibeam"
+            ]
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "What the in-page cursor showed besides its position: icon change, press, release or click ripple (CSS px)."
+      },
+      "description": "Icon changes, presses and click ripples of the in-page cursor of `capture`."
+    },
     "idle": {
       "type": "array",
       "items": {
@@ -1512,6 +1560,48 @@
                 "visible"
               ],
               "additionalProperties": false
+            }
+          },
+          "cursor_effects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "t": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "icon",
+                    "press",
+                    "release",
+                    "ripple"
+                  ]
+                },
+                "icon": {
+                  "type": "string",
+                  "enum": [
+                    "arrow",
+                    "hand",
+                    "ibeam"
+                  ]
+                },
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "t",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "What the in-page cursor showed besides its position: icon change, press, release or click ripple (CSS px)."
             }
           }
         },

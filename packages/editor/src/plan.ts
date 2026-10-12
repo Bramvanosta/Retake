@@ -227,6 +227,9 @@ export function planEdit(input: PlanEditInput): EditPlan {
   if (timeline.mode === 'dry') throw new PlanError(`run ${timeline.run_id} is a dry run: it has no capture to edit`);
   const cap = timeline.capture;
   if (!(cap.fps > 0) || !(cap.duration > 0)) throw new PlanError(`run ${timeline.run_id} has no usable capture (fps ${cap.fps}, ${cap.duration} s)`);
+  if (cap.cursor === 'hidden') {
+    warnings.add(`run ${timeline.run_id} was captured without its in-page cursor (raw export for editors, run --raw --cursor none|layer): the video shows no cursor — capture without --raw for an edited video`);
+  }
 
   // ── Output format ────────────────────────────────────────────────────────────
   const srcFps = cap.fps;

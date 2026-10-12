@@ -1330,7 +1330,8 @@ export function demoKit(config: KitConfig): void {
   );
 
   const host = document.createElement('demo-studio-cursor');
-  const css = `
+  /** The overlay's look (also handed to the raw export's cursor layer, L2.13: `api.cursorLook`). */
+  const lookCss = `
     :host{all:initial}
     .c{position:absolute;left:0;top:0;display:none;will-change:transform}
     .c.on{display:block}
@@ -1357,6 +1358,23 @@ export function demoKit(config: KitConfig): void {
     .g .n{font-size:15px;font-weight:600;color:#1f1413;line-height:1.25}
     .g .d{font-size:12px;color:#6b605d;line-height:1.3;margin-top:2px}
   `;
+  const lookHtml =
+    `<div class="rps"></div><div class="g"></div>` +
+    `<div class="c" data-k="arrow"><div class="s">${arrowSvg}${handSvg}${ibeamSvg}</div>${debug ? '<div class="dbg"></div>' : ''}</div>`;
+  // Raw capture without the cursor (L2.13): the pointer, its icon, presses and ripples keep working and are reported,
+  // nothing of them is drawn (the file-drag ghost card stays: it is the page's content being dragged).
+  const css = lookCss + (config.cursor.hidden ? '.c,.rps{display:none!important}' : '');
+  /** Report what the cursor shows (icon, press, ripple) to the runner (binding `__demoStudioCursor`), never failing. */
+  function effect(type: 'icon' | 'press' | 'release' | 'ripple', extra: { icon?: CursorKind; x?: number; y?: number } = {}): void {
+    try {
+      const b = (window as unknown as Record<string, unknown>).__demoStudioCursor;
+      if (typeof b !== 'function') return;
+      const r = (b as (p: unknown) => unknown)({ type, time: Date.now(), ...extra }) as { catch?: (f: () => void) => void } | undefined;
+      if (r && typeof r.catch === 'function') r.catch(() => undefined);
+    } catch {
+      /* the runner is gone */
+    }
+  }
   let shadow: ShadowRoot | null = null;
   let cursorEl: HTMLElement | null = null;
   let scaleEl: HTMLElement | null = null;
@@ -1381,8 +1399,7 @@ export function demoKit(config: KitConfig): void {
     );
     if ('popover' in HTMLElement.prototype) host.setAttribute('popover', 'manual');
     shadow = host.attachShadow({ mode: 'closed' });
-    shadow.innerHTML = `<style>${css}</style><div class="rps"></div><div class="g"></div>
-      <div class="c" data-k="arrow"><div class="s">${arrowSvg}${handSvg}${ibeamSvg}</div>${debug ? '<div class="dbg"></div>' : ''}</div>`;
+    shadow.innerHTML = `<style>${css}</style>${lookHtml}`;
     cursorEl = shadow.querySelector('.c');
     scaleEl = shadow.querySelector('.s');
     ripplesEl = shadow.querySelector('.rps');
@@ -1481,6 +1498,8 @@ export function demoKit(config: KitConfig): void {
     return 'arrow';
   }
   let kindTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Last icon reported to the runner (a new document reports its first one). */
+  let reportedKind: CursorKind | null = null;
   function updateKind(force: boolean): void {
     const now = performance.now();
     if (!force && now - lastKind < 50) {
@@ -1496,6 +1515,10 @@ export function demoKit(config: KitConfig): void {
     if (kd !== state.kind) {
       state.kind = kd;
       render();
+    }
+    if (kd !== reportedKind) {
+      reportedKind = kd;
+      effect('icon', { icon: kd });
     }
   }
   function moveTo(x: number, y: number): void {
@@ -1514,6 +1537,7 @@ export function demoKit(config: KitConfig): void {
     d.style.setProperty('--p', `translate(${x}px,${y}px)`);
     d.style.transform = `translate(${x}px,${y}px)`;
     ripplesEl.appendChild(d);
+    effect('ripple', { x, y });
     const kill = () => d.remove();
     d.addEventListener('animationend', (e) => {
       if ((e as AnimationEvent).animationName === 'dsr-o') kill();
@@ -1521,8 +1545,10 @@ export function demoKit(config: KitConfig): void {
     setTimeout(kill, 800);
   }
   function press(down: boolean): void {
+    const changed = state.pressed !== down;
     state.pressed = down;
     scaleEl?.classList.toggle('p', down);
+    if (changed) effect(down ? 'press' : 'release');
   }
   const cursorApi = {
     set(x: number, y: number, show?: boolean): void {
@@ -1723,6 +1749,7 @@ export function demoKit(config: KitConfig): void {
     },
     config,
     cursor: cursorApi,
+    cursorLook: { css: lookCss, html: lookHtml },
     ghost,
     fileDrag,
     find,

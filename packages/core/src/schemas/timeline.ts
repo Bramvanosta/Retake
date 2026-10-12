@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ACTION_NAMES } from '../types.js';
+import { ACTION_NAMES, CURSOR_ICONS } from '../types.js';
 import type { RunRecord, Timeline } from '../types.js';
 import {
   BBoxSchema,
@@ -28,6 +28,15 @@ const ViewportObject = z.strictObject({
 
 const PageSegmentSchema = z.strictObject({ id: nonEmpty(), t_start: t(), t_end: t(), url: z.string().optional() });
 const CursorSampleSchema = z.strictObject({ t: t(), x: z.number(), y: z.number(), visible: z.boolean(), down: z.boolean().optional() });
+const CursorEffectSchema = z
+  .strictObject({
+    t: t(),
+    type: z.enum(['icon', 'press', 'release', 'ripple']),
+    icon: z.enum(CURSOR_ICONS).optional(),
+    x: z.number().optional(),
+    y: z.number().optional(),
+  })
+  .describe('What the in-page cursor showed besides its position: icon change, press, release or click ripple (CSS px).');
 
 const TimelineSceneSchema = z.strictObject({
   id: nonEmpty(),
@@ -96,6 +105,7 @@ const TimelineTrackSchema = z
     recording: z.array(z.strictObject({ t_start: t(), t_end: t() })),
     pages: z.array(PageSegmentSchema),
     cursor: z.array(CursorSampleSchema),
+    cursor_effects: z.array(CursorEffectSchema).optional(),
   })
   .describe('A page recorded on its own track (multi-page scenes), on the capture clock.');
 
@@ -247,6 +257,7 @@ export const TimelineSchema = z
       duration: z.number().min(0),
       t0_wall: z.number().describe('Wall-clock epoch ms of capture time 0.'),
       frames: z.number().int().min(0),
+      cursor: z.literal('hidden').describe('Captured without the in-page cursor (raw export for editors).').optional(),
     }),
     video: TimelineVideoSchema.optional(),
     scenes: z.array(TimelineSceneSchema),
@@ -254,6 +265,7 @@ export const TimelineSchema = z
     markers: z.array(z.strictObject({ name: nonEmpty(), t: t(), scene: nonEmpty(), step: z.number().int(), page: z.string().optional() })),
     pages: z.array(PageSegmentSchema),
     cursor: z.array(CursorSampleSchema),
+    cursor_effects: z.array(CursorEffectSchema).describe('Icon changes, presses and click ripples of the in-page cursor of `capture`.').optional(),
     idle: z.array(z.strictObject({ t_start: t(), t_end: t() })),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
@@ -276,7 +288,7 @@ export const RunRecordSchema = z
     finished_at: z.string().optional(),
     dir: nonEmpty(),
     env: z.string(),
-    options: z.strictObject({ until: z.string().optional(), hooks: z.enum(['run', 'skip']), headed: z.boolean() }),
+    options: z.strictObject({ until: z.string().optional(), hooks: z.enum(['run', 'skip']), headed: z.boolean(), cursor: z.literal('hidden').optional() }),
     steps_total: z.number().int().min(0),
     steps_done: z.number().int().min(0),
     current: z.strictObject({ scene: z.string(), step: z.number().int(), action: z.string() }).optional(),

@@ -153,6 +153,59 @@
       ],
       "additionalProperties": false,
       "description": "Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API)."
+    },
+    "raw": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "mp4",
+            "prores"
+          ],
+          "description": "Clip codec: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ .mov). Default mp4."
+        },
+        "fps": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 30
+            },
+            {
+              "type": "number",
+              "const": 60
+            }
+          ],
+          "description": "Clip frame rate (default 30)."
+        },
+        "cursor": {
+          "type": "string",
+          "enum": [
+            "baked",
+            "none",
+            "layer"
+          ],
+          "description": "baked (as captured), none (captured without the cursor; cursor data only) or layer (a transparent cursor video per clip). Default baked."
+        },
+        "layer": {
+          "type": "string",
+          "enum": [
+            "prores",
+            "webm"
+          ],
+          "description": "Cursor layer codec: prores (ProRes 4444) or webm (VP9 alpha). Default prores."
+        },
+        "selects": {
+          "type": "boolean",
+          "description": "Also write one continuous selects file of the clips (default false)."
+        },
+        "cuts": {
+          "type": "boolean",
+          "description": "Cut the loading inside scenes (default true)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Defaults of the raw capture export for editors (studio export-capture, studio run --raw)."
     }
   },
   "required": [

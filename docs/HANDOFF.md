@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.12 (after its review fixes). Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.13. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -399,29 +399,85 @@ automatically with themeable components, and let Claude operate everything throu
   protected whole again (`protectedSpans(…, waitsFaster)`). New tests in render-media, planner-media (4) and review
   tutorial (1). 833 tests: 827 pass, 6 Postgres tests skipped (full suite run twice after the fixes, green both
   times).
-- **Requirements:** 604 tracked; 400 done, 50 partial, 139 todo, 15 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.12 all done (L2.10: R-TUT-01…05, R-STO-01…06; L2.11: R-MPC-01…07,
-  R-TUT-06…07; L2.12: R-OWN-01…04 + R-OWN-05, new — the waits). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
-  (2560×1440 still untested).
+- **L2.13 done** (raw capture export for editors; R-RAW-01…06): `studio export-capture <project> <run|latest>
+  [--scenario] [--format mp4|prores] [--fps 30|60] [--cursor baked|none|layer] [--layer prores|webm] [--selects]
+  [--no-cuts] [--out] [--json]` and `studio run … --raw [same flags]` (packages/cli/src/commands/export-capture.ts;
+  engine `exportCapture` in **runner-web `src/raw/`**: plan.ts, encode.ts, cursor.ts, layer.ts, markers.ts, export.ts)
+  → `<project>/exports/<run>-raw-<format><fps>-<cursor>/` = `clips/NN-<scene>[-<page>].mp4|mov`, `cursor/`
+  (cursor.json, cursor.csv, clicks.csv, `NN-<scene>-cursor.mov|webm` layers), `markers/<scenario>.fcpxml|.edl|.otio`
+  + markers.csv/json, optional `selects.*`, `manifest.json`, `README.md`. **Clips**: one per scene (per page of a
+  multi-page scene, same frames; the page of the opening still is on the sequence), from the still (page loads never
+  in), real time; **loading cuts** (`loadingCuts`): a run of `wait_for` / `wait_for_email` that waited ≥ 0.3 s is cut
+  from 0.3 s after the LAST press of the step before (`actionMoment`: its option / item / confirm click, its Enter, the
+  end of its typing; a drag or repeated keys whole) — or that press's URL change — to the awaited state painted (wait
+  end + 1.5 local screencast intervals, 0.05–0.3 s, then the next screencast frame when the page was still painting —
+  the catalogue import dialog paints a frame behind its DOM at ≈ 8 fps); not made when the scene ends < 0.2 s after
+  it (loading kept, note: add a `hold`); `--no-cuts` keeps them. Frames: `cfrSchedule` at the export rate over `frames.jsonl` (60 fps = real screencast
+  timing, never interpolated), encoded once from the JPEGs (MP4 libx264 high CRF 14 GOP 1 s yuv420p faststart;
+  ProRes 422 HQ prores_ks profile 3 yuv422p10le), BT.709 tv; each clip's tmcd timecode = its sequence position (source
+  TC = record TC); runs without kept frames fall back to the CFR video (tag-aware decode, frames repeated, note).
+  **Cursor**: runner option `hideCursor` (kit `cursor.hidden` → `.c,.rps{display:none}`; `timeline.capture.cursor:
+  hidden`, `run.json options.cursor`; the cursor-motion fps warning is skipped then); the kit now reports icon / press /
+  release / ripple through the binding `__demoStudioCursor` → `timeline.cursor_effects` (+ `tracks[].cursor_effects`,
+  current icon when a page starts being filmed); `api.cursorLook` exposes the overlay's CSS + markup. Layer:
+  `renderCursorAtlas` draws the kit's look in Chromium (icons × 11 press scales, ripple every 1/120 s), Node composites
+  per frame, ffmpeg `prores_aw` profile 4 (5× faster than prores_ks here, alpha within 1/255) or VP9-alpha WebM; runs
+  before L2.13 get approximated icons / presses / ripples (`approximateEffects`, noted). **Markers**: scene (chapter),
+  step, mark, caption (until the next), cut — FCPXML 1.10 (assets with media-rep and start = timecode, one project,
+  spine, ProRes layers lane 1, other pages connected `enabled="0"`; WebM layers left out), CMX 3600 (reel CLIP<nnn>,
+  `* LOC:`), OTIO JSON (V1, Cursor, Page n tracks; `file://` target URLs; WebM layers from media time 0), CSV / JSON;
+  a marker at a scene's very end sits on the clip's last frame. project.yaml `raw` defaults (core `RawSettings`, schema regenerated). Output
+  folders are replaced only when new, empty or an earlier raw package. Editor: a hidden-cursor run plans with a
+  warning. Tests: runner-web raw-units.test.ts (21: cuts, plans on frozen catalogue / quote / live-quote timelines,
+  writers, cursor model, kit CSS drift, settings), raw-real.test.ts (two real captures with the debug cursor — hidden /
+  baked —: effects recorded, no cursor pixel, no loading frame, green first frame after the cut, layer dot on the baked
+  dot and on the samples ±1.5 px, ripple ring, refusals, folder guard), cli export-capture.test.ts (colour-coded run:
+  each capture frame twice at 60 fps, load out, video fallback; usage errors), editor planner-rules (hidden-cursor
+  warning). No dependency added (OpenTimelineIO only in a scratch venv to validate). 865 tests: 859 pass, 6 Postgres
+  tests skipped (full suite run twice, green both times).
+  **Review fixes (after two reviews — code and an editor receiving the package):** the cut no longer starts inside
+  the step before the waits (it used `t_click`, the first press: a type's field click, a select's trigger — it cut the
+  typing, the Enter, the open popup and the option click); the resume snaps to the next screencast frame when the page
+  was still painting (at 60 fps the catalogue import resumed on a half-drawn dialog, frame 1005); a scene that ends on
+  its awaited state keeps its loading (the cut ran to the clip's end: the result, the wait's step marker and its mark
+  were in no clip) and markers at a scene's very end land on its last frame (live-quote "delivery" step 6 was dropped
+  even without a cut); WebM layers have no timecode — the FCPXML / OTIO declared them at their clip's timecode: now
+  OTIO from 0, not in the FCPXML, README and a note say Final Cut Pro / Premiere need `--layer prores`; OTIO
+  target_url is a `file://` URL (Premiere via otio-fcp-adapter then gets `file://` pathurls); layer codec labels name
+  no pixel format (the manifest said yuva444p10le next to ffprobe's yuva444p12le); `run --raw --json` prints one
+  `raw_export` JSON line instead of a pretty manifest in the JSON-lines stream. Tests added: raw-units (last press for
+  type / select / menu / drag / keys, URL rewritten while typing, scene ending on a wait with / without mark, paint
+  snap at 30 / 60 fps through `cfrSchedule`, idle page, WebM interchange, ProRes layer at a later sequence start),
+  raw-real (WebM package: no timecode, OTIO from 0, README; manifest pix_fmt = ffprobe), cli e2e (`run --raw --cursor
+  none --json`: every stdout line is JSON, last = raw_export). 873 tests: 867 pass, 6 Postgres tests skipped (full
+  suite run twice after the review fixes, green both times).
+- **Requirements:** 606 tracked; 405 done, 50 partial, 135 todo, 16 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.13 all done (L2.10: R-TUT-01…05, R-STO-01…06; L2.11: R-MPC-01…07,
+  R-TUT-06…07; L2.12: R-OWN-01…04 + R-OWN-05; L2.13: R-RAW-01…04 + R-RAW-05, new — cursor effects recorded;
+  R-RAW-06, new, n/a-here for L1.5 — imports into Final Cut Pro / Premiere / Resolve on the Mac). From L1.4, R-ARCH-06
+  (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture (2560×1440 still untested).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
   (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
   and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9) + tutorial
   overlays & story cards (L2.10) + multi-page capture, split screen & picture in picture (L2.11) + your own media &
-  motion — video / image / Lottie segments, alpha overlay videos, Lottie overlays (L2.12).
+  motion — video / image / Lottie segments, alpha overlay videos, Lottie overlays (L2.12) + raw capture export for
+  editors — clips per scene, cursor data / layer, FCPXML / EDL / OTIO markers, manifest (L2.13).
   `packages/mcp` is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.13 — Raw capture export for editors** (M): `studio export-capture` / `run --raw`: a clean clip per scene (page
-loads cut) as MP4 HQ or ProRes 422 HQ at 30 / 60 fps; cursor baked, absent (+ cursor and clicks as data) or a separate
-transparent cursor layer; markers as FCPXML, EDL, OTIO, CSV / JSON; a package manifest (R-RAW-01…04). Then L2.14
-(phase 2 acceptance + Mac handoff); after phase 2 the work moves to a local session on the user's Mac starting with
-L1.5 (see ROADMAP).
+**L2.14 — Phase 2 acceptance** (S): render catalogue + quote with the editorial theme, clean review, contact-sheet
+review by Claude, switch a component and the theme without touching the scenario (R-ACC2-*, R-GOAL-05, R-LES-10,
+R-CMP-01); one video with a user intro file and an alpha overlay; one raw export imported checks (FCPXML / OTIO
+validate — the L2.13 packages below already pass OpenTimelineIO 0.18.1); README update; **Mac handoff** (root
+`CLAUDE.md`, HANDOFF "Mac setup" + "First local session", every helper in the repo, branch ready to merge). After
+phase 2 the work moves to a local session on the user's Mac starting with L1.5 (see ROADMAP).
 
 Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote
 (before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup (L2.9),
 20261012-034207-signup (L2.10: tutorial overlays), 20261012-034247-highlights (L2.10: story cards),
 20261012-073840-live-quote and 20261012-080444-phone-and-desktop (L2.11: two pages on one clock),
-20261012-093815-own-media (L2.12: your own files) and 20261012-093047-catalogue (L2.12: waits), 20261011-222856-mobile-quote,
+20261012-093815-own-media (L2.12: your own files) and 20261012-093047-catalogue (L2.12: waits), 20261012-123617-quote (L2.13: quote
+captured without the cursor, `run --raw --cursor none`), 20261011-222856-mobile-quote,
 and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario). Captures need the fixture server
 (`node fixtures/wholesale/server.mjs`; stop it with `kill <pid>` — `pkill -f` with its path also matches the shell
 that runs it):
@@ -436,6 +492,9 @@ node packages/cli/dist/bin.js run northfield-fixture own-media           # intro
 node packages/cli/dist/bin.js render northfield-fixture own-media --music projects/northfield-fixture/.demo-studio/test-bed.m4a --review
 node packages/cli/dist/bin.js render northfield-fixture phone-and-desktop --vertical --review
 node packages/cli/dist/bin.js still northfield-fixture live-quote --square --frame 880
+node packages/cli/dist/bin.js run northfield-fixture quote --raw --cursor none --selects            # capture without the cursor + raw package (≈ 2 m)
+node packages/cli/dist/bin.js export-capture northfield-fixture latest --scenario quote --format prores --fps 60 --cursor layer
+node packages/cli/dist/bin.js export-capture northfield-fixture 20261012-073840-live-quote --cursor layer --layer webm
 node packages/cli/dist/bin.js render northfield-fixture signup && node packages/cli/dist/bin.js review northfield-fixture signup-v12
 node packages/cli/dist/bin.js render northfield-fixture signup --no-tutorial   # the same video without the overlays
 node packages/cli/dist/bin.js render northfield-fixture highlights --theme motion
@@ -586,7 +645,75 @@ catalogue-v3/v4), frames 58.2–60.4 s looked at; the video is longer than catal
 slower here (steps took longer; capture fps), not because of the waits (none of the review fixes changes its plan).
 Render times: ≈ 2 m 35 s–2 m 55 s per own-media render (1080p and vertical).
 
-Notes for L2.13:
+Raw packages of L2.13 (`projects/northfield-fixture/exports/`, git-ignored), all re-exported after the review fixes
+and each checked: every clip and layer ffprobe'd with `-count_frames` (codec, profile, pix_fmt, fps, frames,
+duration, timecode) against `manifest.json`, every cut strictly inside its clip, the FCPXML (well-formed; spine
+offsets, durations, asset starts on the frame grid and equal to the clips' timecodes; a ProRes layer's asset start =
+its own file's timecode; no WebM layer; markers inside their clips), the OTIO (read by OpenTimelineIO 0.18.1: V1
+clips at their sequence position, available range = timecode, `file://` URLs; every other track's clip against its
+media — start = its timecode or 0 for WebM, frame count — and its sequence position; markers inside), the EDL (read by
+OTIO's cmx_3600 adapter at the package rate: events and LOC locators), the FCPXML again through OTIO's fcpx_xml
+adapter, markers.csv = markers.json — script `validate.py` (scratch, not in the repo; L2.14 can add a repo helper if
+wanted). The OTIOs of the catalogue and live-quote packages converted with otio-fcp-adapter (FCP 7 XML, Premiere's
+route): `file://` pathurls, markers kept (31, 29):
+- `20261012-022141-quote-raw-mp430-baked` — 4 clips, H.264 High yuv420p 30 fps, 1700 frames (56.67 s), 35 markers;
+  starts / ends looked at (loaded pages, cursor in place).
+- `20261012-022141-quote-raw-prores60-layer` — ProRes 422 HQ 60 fps + ProRes 4444 layers + selects (3398 frames);
+  each layer composited over its own baked clip (ffmpeg overlay, crops ×2 at the clicks): the drawn cursor covers the
+  captured one exactly (hand on "Request a quote"); the baked ripple starts later where the screencast ran at ≈ 9 fps
+  (the layer draws the frame's true time).
+- `20261012-123617-quote-raw-mp430-none` — `run --raw --cursor none --selects`: no cursor or ripple anywhere (crops at every
+  click), effects recorded (icons hand / ibeam / arrow, 17 presses and ripples).
+- `20261012-123617-quote-raw-prores60-layer` — its ProRes 60 clips + layers: composited, the kit's hand, ripple and arrow at
+  the click points, the same look as the baked captures; the icon switches to the arrow as the request dialog takes
+  the pointer (recorded by the kit).
+- `20261012-073840-live-quote-raw-mp430-baked` — 8 clips (4 scenes × buyer / supplier, 1440×900, same frames per
+  scene; the supplier is on the sequence for "arrives"), 1092 frames, 29 markers (28 before the review: "delivery"
+  ends on a 6 ms wait whose step marker fell one frame past the clip and was dropped); both pages' first / last frames
+  looked at. `…-raw-mp430-layer` — the same with VP9-alpha WebM layers: no timecode, so out of the FCPXML and from
+  media time 0 in the OTIO (the validator checks each against its file); composited with libvpx-vp9 over its baked
+  clip at "Send request": the layer's hand on the captured hand.
+- `20261012-093047-catalogue-raw-mp430-baked` — 3 clips + selects, cuts: import 2.24 s of loading (17.807–20.051 s:
+  the press on "Start import" with its ripple → "921 offers created" fully painted; the resume is now the arrival of
+  the first painted frame, 20.051 s) and add-product 4.36 s of page loading (from the URL change after the option
+  click → the product page's reveal starting, no skeleton frame); frames 502–504 and 270–272 looked at.
+
+Scratch checks of the review fixes (scratchpad, not in the repo): the catalogue at 60 fps (frame 1005 after the import
+cut = the full "Import complete" dialog, was its title only; the navigation cut clean at 542); a copy of signup run
+20261012-034207 whose search wait lasts 1 s (the cut starts at the URL change after Enter: "Selo" → "Selowa" typed and
+kept, then the results page — the old plan cut from 16.13 s, mid-typing); a copy of the catalogue run whose import
+scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a note, mark "import-done" on the last
+frame).
+
+Notes for L2.14:
+- The raw export lives in runner-web (`src/raw/`): capture-side (frames, CFR schedule, the kit's look). Its CLI is
+  `packages/cli/src/commands/export-capture.ts` (+ `run --raw`). The acceptance's "one raw export imported" can reuse
+  the packages above or `studio export-capture northfield-fixture latest --scenario quote`; real imports into Final Cut
+  Pro / Premiere / Resolve are R-RAW-06 (Mac, MACOS-CHECKLIST step 12).
+- Encoding speed here (4 CPUs, no hardware encoder): MP4 30 fps ≈ 30–40 s per minute of clips; ProRes 422 HQ
+  (prores_ks) ≈ 17 fps → ≈ 3 min for 50 s at 60 fps; layers (prores_aw 4444) ≈ 90 fps. VideoToolbox on the Mac would be
+  much faster (not wired: the brief names prores_ks; BACKLOG open decision on encoders).
+- Runs before L2.13 have no `cursor_effects`: their cursor data / layers use approximated icons, presses and ripples
+  (hand over a running step's clickable target); new runs record what the kit drew. A run captured without the cursor
+  renders with a plan warning (no cursor in the edited video) — use it for raw exports only.
+- Loading cuts only follow wait steps that really waited (≥ 0.3 s); a load the scenario does not wait for stays in the
+  clip at real time (the editor's 4× wait speed-up is edit-only). Marked waits keep their moment; `--no-cuts` keeps
+  everything; cut markers (magenta) show where the jump cuts are. A cut starts after the step's last recorded press
+  (`actionMoment`); an action that runs past what it records (drag, repeated keys, typing in runs before `t_typed`)
+  is kept whole. A scene whose last step is a long wait keeps its loading (a note asks for a `hold`): the result after
+  it was never filmed in that scene. No fixture run has a type / select right before a long wait — the checks used
+  edited copies of real runs (scratch) and unit cases.
+- WebM cursor layers are for web players and ffmpeg tools: no timecode (OTIO from 0, not in the FCPXML), alpha only
+  through libvpx-vp9 in ffmpeg. Editing tools want `--layer prores` (the default). Whether Resolve takes the WebM
+  layers from the OTIO is an optional MACOS-CHECKLIST step 12 item.
+- `studio run --raw --json`: RunProgress lines, then `{"type":"raw_export","dir","manifest"}`; `export-capture
+  --json` prints the manifest as one document.
+- Interchange files reference the clips by absolute path (relink after moving the folder). The EDL has one picture
+  track: other pages and layers are in the FCPXML / OTIO only. Clips of different sizes in one sequence (a phone page
+  on the sequence of a multi-page scene) skip the selects file with a warning; FCPXML gives each size its own format.
+- `exportCapture` refuses to replace a folder that is not empty and not an earlier raw package (`--out` safety).
+
+Notes from L2.12 for L2.13 (kept for reference):
 - The run already has what a raw export needs: `capture.mp4` (+ `capture-<page>.mp4` per page of a multi-page scene),
   the CFR frame grid, `timeline.json` (scenes, events with t_start / t_end, markers, cursor samples, clicks with
   target boxes, page segments, idle) — the planner's source ranges (`ClipSegment.source` / `srcFrames`) cut page

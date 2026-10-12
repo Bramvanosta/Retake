@@ -10,6 +10,8 @@ import type { HookCommandOptions } from './commands/hooks.js';
 import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, loginCommand, schemaCommand } from './commands/misc.js';
 import type { LoginOptions } from './commands/misc.js';
 import { exportCommand } from './commands/export.js';
+import { exportCaptureCommand } from './commands/export-capture.js';
+import type { ExportCaptureCommandOptions } from './commands/export-capture.js';
 import type { ExportCommandOptions } from './commands/export.js';
 import { planCommand } from './commands/plan.js';
 import type { PlanCommandOptions } from './commands/plan.js';
@@ -103,7 +105,31 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
     .option('--headed', 'show the browser window (needs a display)')
     .option('--json', 'stream progress events as JSON lines on stdout')
+    .option('--raw', 'then export the raw package for editors (as studio export-capture: clips per scene, cursor data, markers)')
+    .addOption(new Option('--cursor <mode>', 'with --raw: baked (as captured), none (captured without the cursor; data only) or layer (captured without it + a transparent cursor layer per clip)').choices(['baked', 'none', 'layer']))
+    .addOption(new Option('--format <format>', 'with --raw: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ)').choices(['mp4', 'prores']))
+    .addOption(new Option('--fps <n>', 'with --raw: 30 or 60 fps').choices(['30', '60']))
+    .addOption(new Option('--layer <format>', 'with --raw --cursor layer: prores (ProRes 4444) or webm (VP9 alpha)').choices(['prores', 'webm']))
+    .option('--selects', 'with --raw: also one continuous selects file of the clips')
+    .option('--no-cuts', 'with --raw: keep the loading inside scenes')
+    .option('--out <dir>', 'with --raw: package folder (default exports/<run>-raw-<format><fps>-<cursor>/)')
     .action(action((u, g, p: string, s: string, o: RunCommandOptions) => runCommand(u, g, p, s, o)));
+
+  program
+    .command('export-capture')
+    .description('export a run raw for another editing tool: a clip per scene (loads cut), MP4 or ProRes, 30/60 fps, cursor baked/none/layer, FCPXML/EDL/OTIO/CSV markers, manifest')
+    .argument('<project>', 'project slug or directory')
+    .argument('<run>', 'run id (folder under runs/), run directory, or "latest"')
+    .option('--scenario <name>', 'with "latest": the latest run of this scenario')
+    .addOption(new Option('--format <format>', 'mp4 (H.264 high profile, CRF 14, yuv420p) or prores (ProRes 422 HQ .mov); default mp4 or project raw.format').choices(['mp4', 'prores']))
+    .addOption(new Option('--fps <n>', '30 or 60 (real frame timing, never interpolated); default 30').choices(['30', '60']))
+    .addOption(new Option('--cursor <mode>', 'baked (as captured), none (run captured with run --raw --cursor none) or layer (a transparent cursor video per clip); default: as captured').choices(['baked', 'none', 'layer']))
+    .addOption(new Option('--layer <format>', 'cursor layer codec: prores (ProRes 4444) or webm (VP9 alpha); default prores').choices(['prores', 'webm']))
+    .option('--selects', 'also one continuous selects file of the clips')
+    .option('--no-cuts', 'keep the loading inside scenes (page loads before a scene are never in a clip)')
+    .option('--out <dir>', 'package folder (default exports/<run>-raw-<format><fps>-<cursor>/)')
+    .option('--json', 'print the package manifest as JSON')
+    .action(action((u, g, p: string, r: string, o: ExportCaptureCommandOptions) => exportCaptureCommand(u, g, p, r, o)));
 
   program
     .command('plan')

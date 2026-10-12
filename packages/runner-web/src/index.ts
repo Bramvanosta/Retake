@@ -30,3 +30,7 @@ export type { MailAddress, MailMessage, MailSummary } from './artefacts/mailbox.
 export { ARTEFACT_TIMEOUT_S, captureValue, textPattern } from './actions/artefacts.js';
 export { NOTIFICATION_BINDING, launchTarget } from './session.js';
 export type { NotificationPayload } from './session.js';
+export * from './raw/index.js';
+export { CURSOR_BINDING } from './session.js';
+export { pushCursorEffect } from './timeline.js';
+export { materialize, runFfmpeg } from './encode.js';

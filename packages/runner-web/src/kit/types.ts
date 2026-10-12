@@ -14,6 +14,11 @@ export interface KitConfig {
     /** Rendered size of the 24-unit cursor box in CSS px (the arrow itself is ~0.82 of it). */
     size: number;
     ripple_color: string;
+    /**
+     * Raw capture without the cursor (L2.13, `studio run --raw --cursor none|layer`): the cursor and its ripples are
+     * not drawn; real input, icon, presses and ripples are still reported (binding `__demoStudioCursor`).
+     */
+    hidden?: boolean;
   };
   /** sessionStorage key holding the last cursor position (restored after a full navigation). */
   storage_key: string;
@@ -127,6 +132,16 @@ export interface DropOutcome {
   target: string;
 }
 
+/** What the kit reports to the runner about its cursor (binding `__demoStudioCursor`, L2.13). */
+export interface CursorEffectPayload {
+  type: 'icon' | 'press' | 'release' | 'ripple';
+  /** Wall-clock epoch ms. */
+  time: number;
+  icon?: CursorKind;
+  x?: number;
+  y?: number;
+}
+
 export interface CursorState {
   x: number;
   y: number;
@@ -164,6 +179,8 @@ export interface KitApi {
   dispose(): void;
   config: KitConfig;
   cursor: KitCursorApi;
+  /** The cursor overlay's stylesheet and markup (shadow root content), as drawn — the raw export's layer uses them. */
+  cursorLook: { css: string; html: string };
   ghost: KitGhostApi;
   fileDrag: KitFileDragApi;
   find(target: TargetObject, opts?: FindOptions): ResolveResult;

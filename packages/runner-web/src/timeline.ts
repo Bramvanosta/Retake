@@ -1,5 +1,6 @@
 import type {
   CaptureSettings,
+  CursorEffect,
   CursorSample,
   TimelineTrack,
   ViewportPreset,
@@ -102,6 +103,23 @@ export function pushCursorSample(list: CursorSample[], s: Omit<CursorSample, 't'
   list.push(sample);
 }
 
+/** Append a cursor effect (L2.13) unless it repeats the icon already shown. */
+export function pushCursorEffect(list: CursorEffect[], e: CursorEffect): void {
+  if (e.type === 'icon') {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].type !== 'icon') continue;
+      if (list[i].icon === e.icon) return;
+      break;
+    }
+  }
+  list.push({ ...e, t: round3(e.t) });
+}
+
+/** Effects in time order (the kit reports them asynchronously). */
+function sortedEffects(list: readonly CursorEffect[]): CursorEffect[] {
+  return [...list].sort((a, b) => a.t - b.t);
+}
+
 /**
  * The track of one page of multi-page scenes (L2.11): its video, viewport, the intervals it was recorded, its URL
  * segments and its own cursor, on the capture clock.
@@ -110,6 +128,8 @@ export class TrackBuilder {
   readonly recording: Array<{ t_start: number; t_end: number }> = [];
   readonly pages: TimelinePageSegment[] = [];
   readonly cursor: CursorSample[] = [];
+  /** Icon changes, presses and ripples of this page's cursor (L2.13). */
+  readonly cursorEffects: CursorEffect[] = [];
   frames = 0;
   private since: number | null = null;
 
@@ -139,6 +159,10 @@ export class TrackBuilder {
 
   sampleCursor(s: Omit<CursorSample, 't'> & { t?: number }): void {
     pushCursorSample(this.cursor, { ...s, t: s.t ?? this.clock.now() });
+  }
+
+  cursorEffect(e: CursorEffect): void {
+    pushCursorEffect(this.cursorEffects, e);
   }
 
   /** A URL segment while recording (a navigation of the page). */
@@ -182,6 +206,7 @@ export class TrackBuilder {
       recording: this.recording,
       pages: this.pages,
       cursor: this.cursor,
+      ...(this.cursorEffects.length ? { cursor_effects: sortedEffects(this.cursorEffects) } : {}),
     };
     return out;
   }
@@ -195,6 +220,8 @@ export interface TimelineMeta {
   capture: CaptureSettings;
   /** The scenario's edit info (title, intro, outro, frame, template, music). */
   video?: TimelineVideo;
+  /** Captured without the in-page cursor (raw export, L2.13). */
+  cursor?: 'hidden';
 }
 
 /** Collects scenes, events, markers, page segments and the cursor track during a run. */
@@ -204,6 +231,8 @@ export class TimelineBuilder {
   readonly markers: TimelineMarker[] = [];
   readonly pages: TimelinePageSegment[] = [];
   readonly cursor: CursorSample[] = [];
+  /** Icon changes, presses and ripples of the main capture's cursor (L2.13). */
+  readonly cursorEffects: CursorEffect[] = [];
   readonly warnings: string[] = [];
   readonly createdAt = new Date().toISOString();
   /** Captured emails, documents and notifications (the run's ArtefactStore items). */
@@ -226,6 +255,10 @@ export class TimelineBuilder {
 
   sampleCursor(s: Omit<CursorSample, 't'> & { t?: number }): void {
     pushCursorSample(this.cursor, { ...s, t: s.t ?? this.now() });
+  }
+
+  cursorEffect(e: CursorEffect): void {
+    pushCursorEffect(this.cursorEffects, e);
   }
 
   /** Close the current page segment and open a new one (page switch or main-frame navigation). */
@@ -282,6 +315,7 @@ export class TimelineBuilder {
         duration: end,
         t0_wall: Math.round(this.clock.t0Wall),
         frames: capture.frames,
+        ...(this.meta.cursor ? { cursor: this.meta.cursor } : {}),
       },
       ...(this.meta.video ? { video: this.meta.video } : {}),
       scenes: this.scenes,
@@ -289,6 +323,7 @@ export class TimelineBuilder {
       markers: this.markers,
       pages: this.pages,
       cursor: this.cursor,
+      ...(this.cursorEffects.length ? { cursor_effects: sortedEffects(this.cursorEffects) } : {}),
       idle: this.meta.mode === 'capture' ? computeIdle(capture.idleFrameTimes ?? capture.frameTimes, end) : [],
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),

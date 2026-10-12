@@ -727,5 +727,14 @@ describe('music, overrides, errors', () => {
   });
 });
 
+describe('raw captures (L2.13)', () => {
+  it('a run captured without its cursor (run --raw --cursor none|layer) plans with a warning: the video shows no cursor', () => {
+    const tl = synthTimeline({ entries: [{ id: 'a', t_start: 0, t_end: 4 }], duration: 4 });
+    expect(plan(ctx, tl).warnings.some((w) => w.includes('without its in-page cursor'))).toBe(false);
+    tl.capture.cursor = 'hidden';
+    expect(plan(ctx, tl).warnings.some((w) => w.includes('captured without its in-page cursor') && w.includes('shows no cursor'))).toBe(true);
+  });
+});
+
 /** Narrowing helper kept for type-checking ClipSegment imports. */
 export type _Clip = ClipSegment;
