@@ -25,6 +25,8 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
 - **2026-10-12 — Commercialisation later.** First a local tool for our own use; the open decisions below that are about
   selling are parked, and nothing in the locked MVP changes.
 - **2026-10-12 — MVP scope locked** to the lots in `docs/ROADMAP.md`; new ideas land here.
+- **2026-10-12 — Remotion licence for internal use: free.** One-person company, within the free licence (up to 3
+  people); revisit at 4 people or before selling.
 
 ## Direction notes (from the review)
 
@@ -563,10 +565,10 @@ and L4.8 Record screen. Fold these precisions in when the lots start; what goes 
 
 ## Open decisions
 
-**Active (internal use):** Remotion is free for individuals and for companies of up to 3 people; a company of 4 or
-more needs a Remotion Company licence even for internal use — check it for our company before relying on renders
-(terms shipped in `node_modules/remotion/LICENSE.md`, v4). The renderer stays replaceable behind the EditPlan/component contract (R-V2-08,
-BL-24).
+**Settled for internal use (2026-10-12):** Remotion is free for individuals and for companies of up to 3 people
+(terms shipped in `node_modules/remotion/LICENSE.md`, v4); the founder's company has one person, so the free licence
+applies. Revisit if the company reaches 4 people or when selling (parked decision below). The renderer stays
+replaceable behind the EditPlan/component contract (R-V2-08, BL-24).
 
 **Parked — commercialisation is a future topic (2026-10-12).** Recorded so they are not lost:
 
