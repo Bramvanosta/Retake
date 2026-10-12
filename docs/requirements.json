@@ -5727,6 +5727,66 @@
    "gap": "",
    "phase": "2",
    "lot": "L2.7"
+  },
+  {
+   "id": "R-ARC-01",
+   "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
+   "requirement": "Local engine API (HTTP/JSON + event stream: progress, logs, live preview frames) shared by the Studio UI, the MCP server and the CLI; the UI never reads workspace files directly.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-ARC-02",
+   "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
+   "requirement": "Job runner abstraction (capture, render, review, export: status, progress, cancel) executed by a local worker, designed so a remote worker can be added later without changing callers.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-ARC-03",
+   "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
+   "requirement": "Media storage abstraction for artefacts (local paths now, object storage later), content-hashed where useful.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-ARC-04",
+   "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
+   "requirement": "Frame comments stored one file per thread (<project>/comments/<scenario>/<thread-id>.json) to avoid conflicts.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.6"
+  },
+  {
+   "id": "R-ARC-05",
+   "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
+   "requirement": "SQLite index under <workspace>/.demo-studio/ (runs, renders, jobs, search) rebuilt from files; files stay the source of truth.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.1"
+  },
+  {
+   "id": "R-V2-09",
+   "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
+   "requirement": "Cloud layer (later, not V1): shareable review links with comments, team sync, optional cloud render; Chrome-extension capture mode if needed.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "V2",
+   "lot": "L6"
   }
  ]
 }

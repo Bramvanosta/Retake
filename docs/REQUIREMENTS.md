@@ -10,11 +10,11 @@ Lots are described in `docs/ROADMAP.md`.
 |---|---|---|---|---|---|
 | 1 | 253 | 189 | 44 | 13 | 7 |
 | 2 | 211 | 186 | 1 | 24 | 0 |
-| 3 | 54 | 0 | 0 | 54 | 0 |
+| 3 | 59 | 0 | 0 | 59 | 0 |
 | 4 | 34 | 0 | 0 | 34 | 0 |
 | 5 | 10 | 0 | 0 | 2 | 8 |
-| V2 | 10 | 0 | 5 | 5 | 0 |
-| **all** | 572 | 375 | 50 | 132 | 15 |
+| V2 | 11 | 0 | 5 | 6 | 0 |
+| **all** | 578 | 375 | 50 | 138 | 15 |
 
 ## Phase 1
 
@@ -468,7 +468,7 @@ Lots are described in `docs/ROADMAP.md`.
 | R-DOC-02 | A document can also come from a project file (slot document: assets/x.pdf). <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | `document: assets/x.pdf\|png\|jpg` in a component slot: checked (file exists) and rasterised into the run at the end of the capture (`via: project`); tests core artefacts.test.ts + runner 'project document'. |
 | R-DOC-03 | studio/document-pdf (card): A4 page(s) on the theme background with a paper shadow; motion scroll \| zoom \| static; page selection. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | studio/document-pdf (card): A4 page(s) on the theme background with a paper shadow, motion scroll \| zoom \| static, `pages` selection (`selectPages`: "1-3,5"), kicker/title column; preview. Fixture quote `quote-pdf` card (zoom), frames inspected. |
 | R-NTF-01 | studio/notification (overlay): icon, app name, title, body, time; styles macos \| windows \| ios-banner \| android \| in-app; filled from the scenario. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | studio/notification (overlay): icon, app name, title, body, time; styles macos \| windows \| ios-banner \| android \| in-app (kit notifications.tsx: sizes, placement frame/screen, motion, theme tones); filled from the scenario or from a captured `notification: <name\|index>`; preview + variant sheets of the five styles inspected. |
-| R-NTF-02 | studio/phone-lockscreen (card): phone lock screen (wallpaper from the theme, big time and date) with notifications arriving one by one, stacked and grouped. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | studio/phone-lockscreen (card): phone (kit PhoneDevice) with theme wallpaper, big time and date, notifications arriving one by one, stacked, grouped by app after `group_after` (`groupsAfter`); the captured email or scenario notifications; side or top caption by format; preview. Fixture signup `lockscreen` card, frames inspected. |
+| R-NTF-02 | studio/phone-lockscreen (card): phone lock screen (wallpaper from the theme, big time and date) with notifications arriving one by one, stacked and grouped. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | studio/phone-lockscreen (card): phone (kit PhoneDevice) with theme wallpaper, big time and date, notifications arriving one by one, stacked, grouped by app as they pile up (`groupsAfter`), arrival `start` / `interval`; the captured email or scenario notifications; side or top caption by format; preview. Fixture signup `lockscreen` card, frames inspected. |
 | R-NTF-03 | The runner captures web notifications shown by the product (Notification API, ServiceWorkerRegistration.showNotification): title, body, icon, time on the timeline; components can display them. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | kit patches `new Notification` and `ServiceWorkerRegistration.prototype.showNotification` once per window (permission granted by the runner, binding `__demoStudioNotification`); runner records each as artefact (title, body, tag, icon fetched → 192 px PNG, time, origin, page, via) + timeline event `notification`; slot `notification: <name\|index>`; the planner starts the overlay when it showed. Tests runner artefacts.test.ts (Notification + service worker). Fixture quote: the console tab's notification captured and overlaid (macos). |
 | R-NTF-04 | "Tap to open" transition: zoom from a notification into the next clip. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | studio/transition-tap-open: scene/card `transition` accepts a component id (`SceneTransition`); the planner computes the tap anchor from the outgoing overlay or card (manifest `anchor` / `anchor_vertical` / `anchor_square` expressions, frame and screen builtins), tap ring then the next segment grows from that box. Tests planner-artefacts.test.ts, library-l29.test.ts. Fixture signup: mail notification → mail-view, home badge → welcome clip; frames inspected. |
 | R-NTF-05 | studio/phone-home-badge (card): phone home screen with the app icon badge counting up. <br><sub>decision (user, 2026-10-11)</sub> | done | L2.9 | studio/phone-home-badge (card): phone home screen grid (theme-tinted icons, the app icon from the theme logo) with the badge counting from → to; anchor on the app icon for tap to open; preview. Fixture signup `badge` card, frames inspected. |
@@ -548,6 +548,11 @@ Lots are described in `docs/ROADMAP.md`.
 | R-ACC3-05 | Claude dry-runs, captures, renders and reviews via MCP. <br><sub>SPEC §14.3</sub> | todo | L3.8 | No MCP. |
 | R-ACC3-06 | Claude reads frame comments and iterates without human steps except approval. <br><sub>SPEC §14.3</sub> | todo | L3.8 | No MCP/comments. |
 | R-AUTH-09 | MCP tools `auth_status` and `auth_login` (opens the headed browser and asks the human to sign in; Claude never types credentials). <br><sub>decision (user, 2026-10-11)</sub> | todo | L3.1 |  |
+| R-ARC-01 | Local engine API (HTTP/JSON + event stream: progress, logs, live preview frames) shared by the Studio UI, the MCP server and the CLI; the UI never reads workspace files directly. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.1 |  |
+| R-ARC-02 | Job runner abstraction (capture, render, review, export: status, progress, cancel) executed by a local worker, designed so a remote worker can be added later without changing callers. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.1 |  |
+| R-ARC-03 | Media storage abstraction for artefacts (local paths now, object storage later), content-hashed where useful. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.1 |  |
+| R-ARC-04 | Frame comments stored one file per thread (<project>/comments/<scenario>/<thread-id>.json) to avoid conflicts. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.6 |  |
+| R-ARC-05 | SQLite index under <workspace>/.demo-studio/ (runs, renders, jobs, search) rebuilt from files; files stay the source of truth. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.1 |  |
 
 ## Phase 4
 
@@ -617,3 +622,4 @@ Lots are described in `docs/ROADMAP.md`.
 | R-ACC6-01 | Architecture does not prevent cloud marketplace, licensing and packaging. <br><sub>SPEC §14.6</sub> | partial | L6 | Unverifiable until those layers exist. (packages/components/src/types.ts:9 (marketplace resolution documented), :95-97 (publisher/license/tags)) |
 | R-V2-07 | Marketplace candidates kept in the backlog: terminal session, code snippet, chat/SMS conversation, Dynamic Island / live activity, calendar invite, sound effects, webcam bubble, SRT subtitles. <br><sub>decision (user, 2026-10-11)</sub> | todo | L6 |  |
 | R-V2-08 | Review the Remotion licence for a redistributed commercial tool before V2; keep the renderer behind the EditPlan/component contract so another renderer could replace it. <br><sub>lead review</sub> | todo | L6 |  |
+| R-V2-09 | Cloud layer (later, not V1): shareable review links with comments, team sync, optional cloud render; Chrome-extension capture mode if needed. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L6 |  |

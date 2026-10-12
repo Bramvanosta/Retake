@@ -398,6 +398,9 @@ Notes for L2.10:
 - Risk to review before V2: Remotion's licence for a redistributed commercial tool (keep the renderer swappable
   behind the EditPlan/component contract).
 
+- (2026-10-12) **Architecture: local-first, desktop-first, flat files** — see docs/ARCHITECTURE.md (ADR-1, ADR-2).
+  V1 stays simple: no server-side capture/render; full cloud later, outside this development phase.
+
 ## Conventions
 - TypeScript ESM/NodeNext, relative imports end in `.js`; `pnpm build` (= `tsc -b`), `pnpm test` (= `vitest run`;
   `vitest.config.ts` aliases `@demo-studio/*` to `src/`). No new dependencies without a strong reason.

@@ -4,6 +4,8 @@ Every requirement of the brief is tracked in `docs/requirements.json` (source of
 `docs/REQUIREMENTS.md`; each one belongs to exactly one lot below. `node scripts/requirements.mjs --lot L2.3` lists the
 requirements of a lot with their gaps.
 
+Architecture decisions (local-first, desktop-first; flat files as source of truth): `docs/ARCHITECTURE.md`.
+
 ## Working agreement
 - **One lot at a time**, sized to stay readable and cheap: S ≈ 0.3–0.5 M tokens, M ≈ 0.6–1.0 M, L ≈ 1.0–1.6 M
   (reference: phase 1 took ≈ 2.5 M across 6 agents; the spec audit ≈ 0.65 M).
@@ -38,7 +40,7 @@ requirements of a lot with their gaps.
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | next |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
 | L2.12 | Phase 2 acceptance (two videos, clean review, theme/component switch) | S | todo |
-| L3.1 | MCP server skeleton, job runner, project/scenario/run/hooks tools | M | todo |
+| L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
 | L3.2 | MCP render/review/export + theme & component tools | M | todo |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
 | L3.4 | Recorder (`studio record`, scenario_record) | M | todo |
@@ -46,7 +48,7 @@ requirements of a lot with their gaps.
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | todo |
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | todo |
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | todo |
-| L4.1 | Studio app shell + local API (`studio ui`), projects, README editor | M | todo |
+| L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | todo |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | todo |
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | todo |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
