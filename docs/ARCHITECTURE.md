@@ -34,8 +34,10 @@ from the files — never the source of truth.
 portable, offline, no lock-in, easy backup.
 
 ## Later (not V1)
+
+Not planned: a browser extension (decision 2026-10-12 — capture stays in the local engine).
+
 - Cloud layer: shareable review links with frame comments, team sync of the workspace, component marketplace and
   licences, optional cloud render (4K, batches). The cloud stores the same file tree (object storage + index), so the
   formats and the MCP stay identical.
-- Chrome extension (CDP through `chrome.debugger`) as a "no install" capture mode, if needed.
 - Client-side final rendering (WebCodecs) once mature; the Studio preview is already client-side (Remotion Player).

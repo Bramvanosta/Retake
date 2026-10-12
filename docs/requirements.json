@@ -5781,7 +5781,7 @@
   {
    "id": "R-V2-09",
    "source": "decision (user, 2026-10-12) — docs/ARCHITECTURE.md",
-   "requirement": "Cloud layer (later, not V1): shareable review links with comments, team sync, optional cloud render; Chrome-extension capture mode if needed.",
+   "requirement": "Cloud layer (later, not V1): shareable review links with comments, team sync, optional cloud render. No browser extension.",
    "status": "todo",
    "evidence": "",
    "gap": "",
