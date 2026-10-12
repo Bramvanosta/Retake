@@ -412,24 +412,160 @@
         "intro": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ComponentRef"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ComponentRef"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "video": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A video file of the project (.mp4, .mov, .webm, .m4v — H.264, HEVC, VP8, VP9, AV1 or ProRes) shown instead of a component; its own sound is kept."
+                    },
+                    "image": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "An image file of the project (.png, .jpg, .jpeg, .webp, .svg) shown instead of a component."
+                    },
+                    "lottie": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A Lottie animation of the project (bodymovin .json) played by studio/lottie instead of a component."
+                    },
+                    "from": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Video: the second of the file the part shown starts at (default 0)."
+                    },
+                    "to": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Video: the second of the file the part shown ends at (default: the file's end)."
+                    },
+                    "fit": {
+                      "type": "string",
+                      "enum": [
+                        "cover",
+                        "contain"
+                      ],
+                      "description": "cover (fills, cropped) or contain (whole). Default: an overlay contains; a segment covers when the file has about the frame's shape, else contains."
+                    },
+                    "background": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Around a contained or transparent file: theme (the theme background, default), a theme colour key (paper, dark, accent…), a CSS colour or none."
+                    },
+                    "volume": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Video: volume of the file's own sound, 0–1 (default 1)."
+                    },
+                    "duration": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Seconds on screen (default: a video or Lottie file: its own length; an image: the kind's duration)."
+                    },
+                    "params": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {},
+                      "description": "Component params (see the component's params schema; unset params take its defaults)."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "The theme's own file instead of a component: {video | image | lottie, from, to, fit, background, volume, duration} (paths relative to the template folder)."
+                }
+              ]
             },
             {
               "type": "null"
             }
           ],
-          "description": "Intro card, e.g. studio/intro-stack or studio/intro-minimal. An id \"namespace/name\" or {id, params}."
+          "description": "Intro card, e.g. studio/intro-stack or studio/intro-minimal. An id \"namespace/name\", {id, params}, or the theme's own file {video | image | lottie, …}."
         },
         "outro": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ComponentRef"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ComponentRef"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "video": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A video file of the project (.mp4, .mov, .webm, .m4v — H.264, HEVC, VP8, VP9, AV1 or ProRes) shown instead of a component; its own sound is kept."
+                    },
+                    "image": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "An image file of the project (.png, .jpg, .jpeg, .webp, .svg) shown instead of a component."
+                    },
+                    "lottie": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A Lottie animation of the project (bodymovin .json) played by studio/lottie instead of a component."
+                    },
+                    "from": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Video: the second of the file the part shown starts at (default 0)."
+                    },
+                    "to": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Video: the second of the file the part shown ends at (default: the file's end)."
+                    },
+                    "fit": {
+                      "type": "string",
+                      "enum": [
+                        "cover",
+                        "contain"
+                      ],
+                      "description": "cover (fills, cropped) or contain (whole). Default: an overlay contains; a segment covers when the file has about the frame's shape, else contains."
+                    },
+                    "background": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Around a contained or transparent file: theme (the theme background, default), a theme colour key (paper, dark, accent…), a CSS colour or none."
+                    },
+                    "volume": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Video: volume of the file's own sound, 0–1 (default 1)."
+                    },
+                    "duration": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Seconds on screen (default: a video or Lottie file: its own length; an image: the kind's duration)."
+                    },
+                    "params": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {},
+                      "description": "Component params (see the component's params schema; unset params take its defaults)."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "The theme's own file instead of a component: {video | image | lottie, from, to, fit, background, volume, duration} (paths relative to the template folder)."
+                }
+              ]
             },
             {
               "type": "null"
             }
           ],
-          "description": "Outro card, e.g. studio/outro-stack or studio/outro-minimal. An id \"namespace/name\" or {id, params}."
+          "description": "Outro card, e.g. studio/outro-stack or studio/outro-minimal. An id \"namespace/name\", {id, params}, or the theme's own file {video | image | lottie, …}."
         },
         "card": {
           "anyOf": [
@@ -445,13 +581,81 @@
         "interstitial": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ComponentRef"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ComponentRef"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "video": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A video file of the project (.mp4, .mov, .webm, .m4v — H.264, HEVC, VP8, VP9, AV1 or ProRes) shown instead of a component; its own sound is kept."
+                    },
+                    "image": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "An image file of the project (.png, .jpg, .jpeg, .webp, .svg) shown instead of a component."
+                    },
+                    "lottie": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "A Lottie animation of the project (bodymovin .json) played by studio/lottie instead of a component."
+                    },
+                    "from": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Video: the second of the file the part shown starts at (default 0)."
+                    },
+                    "to": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Video: the second of the file the part shown ends at (default: the file's end)."
+                    },
+                    "fit": {
+                      "type": "string",
+                      "enum": [
+                        "cover",
+                        "contain"
+                      ],
+                      "description": "cover (fills, cropped) or contain (whole). Default: an overlay contains; a segment covers when the file has about the frame's shape, else contains."
+                    },
+                    "background": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Around a contained or transparent file: theme (the theme background, default), a theme colour key (paper, dark, accent…), a CSS colour or none."
+                    },
+                    "volume": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Video: volume of the file's own sound, 0–1 (default 1)."
+                    },
+                    "duration": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Seconds on screen (default: a video or Lottie file: its own length; an image: the kind's duration)."
+                    },
+                    "params": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {},
+                      "description": "Component params (see the component's params schema; unset params take its defaults)."
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "The theme's own file instead of a component: {video | image | lottie, from, to, fit, background, volume, duration} (paths relative to the template folder)."
+                }
+              ]
             },
             {
               "type": "null"
             }
           ],
-          "description": "\"Time passes\" card, e.g. studio/interstitial-clock or studio/interstitial-plain. An id \"namespace/name\" or {id, params}."
+          "description": "\"Time passes\" card, e.g. studio/interstitial-clock or studio/interstitial-plain. An id \"namespace/name\", {id, params}, or the theme's own file {video | image | lottie, …}."
         },
         "caption": {
           "anyOf": [
@@ -499,7 +703,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Default component per kind (id or {id, params}; null = none). A kind left out is mapped from the legacy fields (frame.style, intro.layout, outro.layout, interstitial.style, captions.position, transitions.between_scenes)."
+      "description": "Default component per kind (id or {id, params}; null = none; intro, outro and interstitial may be a file of the theme). A kind left out is mapped from the legacy fields (frame.style, intro.layout, outro.layout, interstitial.style, captions.position, transitions.between_scenes)."
     }
   },
   "additionalProperties": false,

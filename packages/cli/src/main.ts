@@ -227,7 +227,8 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .action(action((u, g, id: string | undefined, o: ComponentsValidateOptions) => componentsValidateCommand(u, g, id, o)));
   components
     .command('create')
-    .description('scaffold a workspace component (components/<namespace>/<name>/) from the template of its kind')
+    .alias('new')
+    .description('scaffold a workspace component (components/<namespace>/<name>/) from the template of its kind (alias: new)')
     .argument('<id>', 'component id "namespace/name" (lower-case letters, digits and "-")')
     .addOption(new Option('--kind <kind>', 'what it renders').choices([...COMPONENT_KINDS]).makeOptionMandatory())
     .option('--description <text>', 'one or two sentences: what it looks like and when to use it')

@@ -352,6 +352,52 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   start of a scene where a pane's page only rests, its view settles the same way (once the previous step's targets
   are over).
 
+### 1.9 Your own files (L2.12)
+- **Scenario / template** (core `types.ts` `MediaFileFields`, `media.ts`, `checks/media.ts`): `intro`, `outro`, `card`,
+  `interstitial` take `{video | image | lottie, from, to, fit, background, volume, duration}`; a step `overlay` takes
+  `{video | image | lottie, at, anchor | rect, scale, fit, duration, loop, volume}` (`OverlaySpec.component` optional);
+  a template's `components.intro / outro / interstitial` may be a file (`TemplateMediaRef`, relative to the template
+  folder). `mediaSegmentUse` / `overlayUseOf` turn a spec into a use of a built-in component — the file goes in slot
+  `file`, the fields in params: `studio/media` (video, image) or `studio/lottie` (`MEDIA_COMPONENTS`). Validation is
+  positioned and synchronous: one file per use, extension per kind (with hints: a `.gif`, a `.lottie`, a video given
+  as `image`), existence, image signature, Lottie JSON (external images: warning), and `ffprobe` (cached by path, size
+  and mtime; `DEMO_STUDIO_FFPROBE`): unreadable file / codec outside `VIDEO_CODECS` (H.264, HEVC, VP8, VP9, AV1,
+  ProRes) / not a WebM codec in `.webm` (error), `from` / `to` past the end (error), a file shorter or longer than the
+  part (warning), an overlay video without alpha (warning: alpha from `alpha_mode` or a `yuva` / `rgba` pixel format),
+  `volume` on a silent file (warning), no ffprobe (warning — the render still works).
+- **Components**: a manifest may declare `kinds` (the other kinds it can be used as: `MULTI_USE_KINDS`); the registry
+  resolves an id for any of them (`usableAs`) and the resolved kind is the requested one; the component receives it as
+  `props.as`. Slot types `media` (video or image file → `VideoMedia` / `PictureMedia`) and `lottie` (→ `LottieMedia`
+  with the parsed JSON's size, fps, frames) arrive in `props.media.<slot>` like the L2.9 artefacts. Kit `media.tsx`:
+  `VideoFile` (OffthreadVideo, `transparent` for alpha — PNG frames, composites ProRes 4444 and VP9 alpha; plays once
+  then holds its last frame muted, or loops; 4-frame volume ramps — `filePartGain` from the element's own frame, as a
+  number per frame: a `volume` callback's frame restarts inside a transition's `<Sequence from={-shift}>`), `ImageFile`, `LottieFile` (`@remotion/lottie`
+  4.0.534 pinned to Remotion + `lottie-web`, kept external by `compile.ts`; data fetched under `delayRender`, cached;
+  `recolorLottie` replaces static and animated fill / stroke / gradient / text colours by a map `#rrggbb → theme key
+  or colour`), `mediaBackground`, `mediaLength`. `studio/media` and `studio/lottie` (kind card, `kinds: [intro, outro,
+  interstitial, overlay]`) draw full frame (`fit`, `background`; studio/media's default `fit: auto` = `autoFit`: cover when
+  covering keeps ≥ `AUTO_COVER_MIN_SHARE` = 80 % of each side of the file, else contain — a plan note says so), or, as an overlay, inside `props.anchor` clipped to
+  the capture screen with its radius.
+- **Inputs** (`editor/inputs.ts`): `planInputFiles(timeline, project, template)` reads every file the plan will use
+  before planning (`PlanInputFile`: probe of a video, Lottie metadata, or the error) — the planner stays pure. A file
+  that cannot be read plans the use as `missing` (review: `media-missing`, error).
+- **Planner**: a file is a candidate of the segment's chain (scenario file → theme file with its absolute path →
+  theme component); its length is the segment's unless `duration` is set (video part `to − from`, Lottie
+  `frames / fps`; an image takes the kind's default), noted `"<where>": your file … for N s`. A file overlay gets
+  `at` (output start: step end, step start, the click, a mark, or seconds after the step start), a duration (the
+  file's, an image 3 s, `loop` → to the clip's end, ≤ 30 s) and `box` (`OverlayUse.box`: `rect` as written; `target` /
+  `cursor`: the file's own size in page CSS px × `scale`, centred there; a screen position: its size, placed by the
+  composition `OVERLAY_BOX_MARGIN` inside the visible capture; `screen`), layer `screen`. A step overlay is resolved
+  once (`stepOverlayOf`, memoised): the reframe of a vertical / square clip (`reframeTargets(events, overlayKeep)`)
+  keeps its page box — `rect`, the file's box on the target / cursor, a callout's target — in view over the capture time
+  it really shows (`overlayStartAt`: `at` incl. click and marks; its length through the run's time map). A file at a
+  screen position (`SCREEN_POSITION_CHOICES`) keeps clear of its step's and the coming steps' `stepBoxes` in the
+  variant's framing: the nearest free corner / opposite side, else as asked — a plan note either way. A user file's
+  chain skips the kind-wide `overrides.components.overlay`. A file that is missing or unreadable is not a plan asset
+  (the renderer refuses plans with missing assets). **Composition**: `overlayBoxAt(plan, clip, use, f)` maps the box through layout, camera and reframe per
+  frame → `props.anchor`. Audio: `playsSound(use)` (a video with an audio stream and volume > 0) and `duckSpans(plan)`
+  — clips plus segments whose file plays sound — drive `musicVolumeAt`; a silent file never ducks the music.
+
 ## 2. Editor (`packages/editor`)
 
 ```ts
@@ -391,7 +437,15 @@ listRenders(project): Promise<RenderRecord[]>
   with NO transition (only the caption changes; camera continues). Intro→first scene and last scene→outro use the theme
   transition. Interstitials: backdrop = dimmed last frame of the previous clip (`backdropSrcFrame`), fade in/out.
 - Speed: scene speed (overrides.speeds wins), step speed for its span; always 1×: the opening still, every hold
-  (action and modifier), ±0.6 s around a marked step through its hold end. Speed changes are ramped over ~0.3 s.
+  (action and modifier), ±0.6 s around a marked step through its hold end (a marked `wait_for` /
+  `wait_for_email`: only around its end — the moment the awaited state appears). Speed changes are ramped over ~0.3 s.
+- Waiting (L2.12, `timing.ts` `waitingSpans`): the time a `wait_for` / `wait_for_email` step spends waiting — plus the
+  pause after a navigation that precedes waits which really waited (≥ `WAIT_LOADING_MIN_S` = 0.3 s) — is a loading
+  state: after its first `WAIT_KEEP_S` = 0.5 s it plays at up to `WAIT_SPEED` = 4× (only spans ≥ `WAIT_MIN_S`; a step
+  speed wins; protected spans stay 1×; `overrides.trim_idle: false` disables it and gives a marked wait step back its
+  whole 1× mark window). Noted per scene. This is the root
+  cause fix of the catalogue's `long-wait` warning: the import's 3.8 s loading spinner was protected at 1× by its
+  marked wait step.
 - Idle trimming: the part of a timeline.idle interval outside the protected spans (still, hold, mark window), when
   longer than `idle_threshold` (1.2 s), is shortened to 0.4 s (0.2 s kept on each side of the cut). Nothing changes on
   screen during idle, so the trim is invisible.
@@ -403,7 +457,8 @@ listRenders(project): Promise<RenderRecord[]>
 - Captions: scene caption from the scene's first visible frame to its end; a step caption replaces it from the step's
   output start; cues never overlap. Rendered by the clip's caption component in the layout's caption rect.
 - Overlays: from step `overlay` modifiers (`event.overlay`), shown from the step's output end for `duration` (else the
-  component's default), anchored on `overlay.bbox` (else `overlay.point`) mapped through layout + camera.
+  component's default), anchored on `overlay.bbox` (else `overlay.point`) mapped through layout + camera. A file
+  overlay (L2.12) starts at its `at` and fills its `box` (§1.9).
 - Provenance: every clip segment lists `steps` (output frame spans per scenario step) and the plan keeps markers and a
   time map — used by review, the Studio timeline and frame comments.
 - Output: 1920×1080 × scale (capture scale 2 ⇒ 4K; a scale above the capture's is a warning: the capture is

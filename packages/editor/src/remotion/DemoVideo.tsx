@@ -17,7 +17,7 @@ import type { SourceView } from '../layout.js';
 import { layoutPaneRectsAt, paneSource, paneViewOf } from '../panes.js';
 import type { PlanSource } from '../plan-types.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, envelopeAt, insetHole, layoutRects, mapUseRect, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
+import { brandmarkRect, envelopeAt, insetHole, layoutRects, mapUseRect, overlayBoxAt, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 
@@ -37,7 +37,8 @@ function Use(props: { rc: ResolvedComponent; plan: EditPlan; durationInFrames: n
   const modules = useModules();
   const { Component, params } = pickComponent(modules, props.rc, props.transitionKind);
   const media = props.rc.media ? { media: props.rc.media } : {};
-  return <Component {...baseProps(props.plan)} slots={props.rc.slots} params={params} durationInFrames={props.durationInFrames} {...media} {...props.extra} />;
+  // `as`: the kind of this use (a component usable as several kinds — a user file, a Lottie — draws accordingly).
+  return <Component {...baseProps(props.plan)} as={props.rc.kind} slots={props.rc.slots} params={params} durationInFrames={props.durationInFrames} {...media} {...props.extra} />;
 }
 
 // ── Clips ─────────────────────────────────────────────────────────────────────
@@ -149,7 +150,8 @@ function OverlayView({ plan, clip, use }: { plan: EditPlan; clip: ClipSegment; u
   const f = use.from + local;
   // The anchor of this frame (a track glides from box to box), mapped through layout (or the page's pane) + camera + reframe.
   const a = trackBoxAt(use, local, plan.fps);
-  const anchor = a ? mapUseRect(plan, clip, use, f, a) : undefined;
+  // A box-filling overlay (a user file, L2.12): the box it fills this frame; else what it points at.
+  const anchor = use.box ? overlayBoxAt(plan, clip, use, f) : a ? mapUseRect(plan, clip, use, f, a) : undefined;
   const extra: Partial<ComponentProps> = { rects: overlayRects(plan, clip, use, f), ...(anchor ? { anchor } : {}) };
   if (use.moment !== undefined) extra.moment = use.moment;
   // A caption band over the screen, the key caps' row, the targets of the current and next steps: kept clear.

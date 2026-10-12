@@ -17,5 +17,8 @@ fixtures/*/public/build/
 *.mp4
 *.mov
 *.webm
+# user media of the fixture project (L2.12, scripts/fixture-media.mjs; each < 1 MB) are committed
+!projects/*/assets/*.mp4
+!projects/*/assets/*.webm
 **/test-output/
 **/.tmp/

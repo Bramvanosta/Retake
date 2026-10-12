@@ -26,6 +26,7 @@ function UseOf({ use, spec, extra }: { use: PreviewUse; spec: ComponentPreviewSp
   const Component = own.component;
   return (
     <Component
+      as={use.kind}
       theme={spec.theme}
       unit={spec.width / 1920}
       width={spec.width}

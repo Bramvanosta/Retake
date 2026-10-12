@@ -6,7 +6,7 @@
 import type { Timeline } from '@demo-studio/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
-import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, paneCaptureAt, paneSource, paneViewOf, trackBoxAt, viewOf } from '@demo-studio/editor';
+import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@demo-studio/editor';
 import { insetPhoneEdge } from '@demo-studio/components/kit';
 import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
 import type { OutputClick } from './timeline.js';
@@ -643,6 +643,7 @@ export function checkOverlayCover(ctx: CheckContext): Finding[] {
   for (const clip of plan.segments) {
     if (!isClip(clip)) continue;
     const clicks = ctx.clicks.filter((c) => c.segment === clip.id && c.bbox && c.bbox.w > 0 && c.bbox.h > 0);
+    out.push(...checkFileOverlayCover(ctx, clip, clicks));
     if (clicks.length === 0) continue;
     const targetAt = (c: (typeof clicks)[number], rel: number) => {
       const box = focusBox(c.bbox!, c.point);
@@ -650,6 +651,7 @@ export function checkOverlayCover(ctx: CheckContext): Finding[] {
     };
     const what = (c: (typeof clicks)[number]) => `the ${c.action} of step ${c.step_id ?? c.step}${c.page ? ` on page ${c.page}` : ''} (${c.target ?? 'its target'})`;
     for (const o of clip.overlays) {
+      if (screenFileOverlay(o)) continue;
       const name = COVER_OVERLAYS[o.component.id];
       if (!name) continue;
       let reported = false;
@@ -693,6 +695,72 @@ export function checkOverlayCover(ctx: CheckContext): Finding[] {
   return out;
 }
 
+/**
+ * Your own file placed at a position of the screen (L2.12: a corner, a side, the centre — not one on its target, a
+ * `rect` of the page or the whole screen, which are where they were asked to be).
+ */
+function screenFileOverlay(o: ClipSegment['overlays'][number]): boolean {
+  return (o.component.id === 'studio/media' || o.component.id === 'studio/lottie') && !!o.box && !o.box.rect && o.box.anchor !== 'screen' && o.box.anchor !== 'rect';
+}
+
+/**
+ * `overlay-covers-target` for your own files placed on the screen (L2.12): the box the file fills (`overlayBoxAt`, in
+ * the framing of this render) over more than COVER_SHARE of what the viewer looks at — the target of a step that is on
+ * while it shows (its own step — a hover too — and the next ones from CLEAR_LOOKAHEAD_S before they start: `stepBoxes`,
+ * around the cursor) or a click target in the window the other overlays are checked over.
+ */
+function checkFileOverlayCover(ctx: CheckContext, clip: ClipSegment, clicks: OutputClick[]): Finding[] {
+  const out: Finding[] = [];
+  const { plan } = ctx;
+  const fps = plan.fps;
+  const before = Math.round(0.3 * fps);
+  const ahead = Math.round(CLEAR_LOOKAHEAD_S * fps);
+  const stepEvery = Math.max(1, Math.round(0.2 * fps));
+  const events = (ctx.timeline?.events ?? []).filter((ev) => ev.scene === clip.scene && ev.step >= 0 && ev.status !== 'skipped');
+  for (const o of clip.overlays) {
+    if (!screenFileOverlay(o)) continue;
+    const file = o.component.media?.file;
+    const name = `your ${file?.kind === 'lottie' ? 'Lottie' : file?.kind === 'video' ? 'video' : 'image'} overlay${file ? ` ${file.name}` : ''} (${o.box!.anchor})`;
+    const page = o.pane !== undefined ? clip.panes?.[o.pane]?.page : undefined;
+    for (let local = 0; local < o.durationInFrames; local += stepEvery) {
+      const rel = o.from + local;
+      if (rel >= clip.durationInFrames) break;
+      const f = clip.from + rel;
+      const box = overlayBoxAt(plan, clip, o, rel);
+      if (!box) break;
+      const t = clip.srcFrames[Math.min(rel, clip.srcFrames.length - 1)] / plan.source.fps;
+      let hit: string | undefined;
+      for (const ev of events) {
+        if ((page !== undefined && ev.page !== page) || t < ev.t_start - (ev.step === o.step ? 0 : CLEAR_LOOKAHEAD_S) || t > Math.max(ev.t_end, ev.hold?.t_end ?? ev.t_end)) continue;
+        for (const b of stepBoxes(ev)) {
+          const r = mapUseRect(plan, clip, o, rel, b);
+          if (overlapArea(box, r) > COVER_SHARE * r.w * r.h) {
+            hit = `the ${ev.action} target of step ${ev.id ?? ev.step}${ev.target?.desc ? ` (${ev.target.desc})` : ''}`;
+            break;
+          }
+        }
+        if (hit) break;
+      }
+      if (!hit) {
+        for (const c of clicks) {
+          if (c.frame < f - before || c.frame > f + ahead) continue;
+          const box2 = focusBox(c.bbox!, c.point);
+          const r = c.pane !== undefined && clip.panes?.[c.pane] ? mapPaneRect(plan, clip, c.pane, rel, box2) : mapSourceRect(plan, clip, rel, box2);
+          if (overlapArea(box, r) > COVER_SHARE * r.w * r.h) {
+            hit = `the ${c.action} of step ${c.step_id ?? c.step} (${c.target ?? 'its target'})`;
+            break;
+          }
+        }
+      }
+      if (hit) {
+        out.push(finding('warning', 'overlay-covers-target', `${clip.id}: ${name} of step ${o.step} covers ${hit} at ${timecode(f / fps)}`, locate(ctx, f, { scene: clip.scene, step: o.step })));
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 // ── Tutorial overlays and story-card media (L2.10) ─────────────────────────────
 
 /** How long a spotlight or a step badge may stay on its target's box after its page changed URL (seconds). */
@@ -707,7 +775,8 @@ export const STALE_TARGET_S = 0.6;
  *  - `tutorial-target-cut` (warning): the target of a spotlight, a badge or a loupe lies outside the visible capture
  *    (zoom, reframe) while the overlay shows;
  *  - `media-missing` (warning): a card / overlay names data (a captured text, a frame, a CSV, an email…) that the plan
- *    could not resolve — the component shows a fallback.
+ *    could not resolve — the component shows a fallback; an error for a user file (L2.12: a video, image or Lottie file
+ *    of a segment or an overlay) that could not be read — nothing is shown.
  */
 export function checkTutorial(ctx: CheckContext): Finding[] {
   const out: Finding[] = [];
@@ -772,10 +841,19 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
     const m = manifestOf(ctx.registry, c.id);
     if (!m) return;
     for (const [name, spec] of Object.entries(m.slots)) {
-      if (!['email', 'document', 'notification', 'capture', 'frame', 'data'].includes(spec.type)) continue;
+      if (!['email', 'document', 'notification', 'capture', 'frame', 'data', 'media', 'lottie'].includes(spec.type)) continue;
       const v = c.slots[name];
       if (v === undefined || v.trim() === '' || c.media?.[name]) continue;
-      out.push(finding('warning', 'media-missing', `${where}: ${c.id} slot "${name}" (${spec.type} "${v}") could not be resolved — the component shows a fallback`, locate(ctx, frame)));
+      // A user file (L2.12) that could not be read shows nothing at all: an error.
+      const file = spec.type === 'media' || spec.type === 'lottie';
+      out.push(
+        finding(
+          file ? 'error' : 'warning',
+          'media-missing',
+          file ? `${where}: your ${spec.type === 'lottie' ? 'Lottie ' : ''}file "${v}" could not be read — nothing is shown` : `${where}: ${c.id} slot "${name}" (${spec.type} "${v}") could not be resolved — the component shows a fallback`,
+          locate(ctx, frame),
+        ),
+      );
     }
   };
   for (const s of plan.segments) {

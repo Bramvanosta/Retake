@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/media",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 1,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "3e906084ff402c22",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

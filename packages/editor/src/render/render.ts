@@ -24,6 +24,7 @@ import type { RenderBrowser } from './browser.js';
 import { bundleComponentsFor, ensureBundle } from './bundle.js';
 import type { RenderBundle } from './bundle.js';
 import { findRun, rendersDir, reserveVersion, runScenario } from './runs.js';
+import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import type { RenderProgress, RenderRecord } from './types.js';
 
@@ -392,7 +393,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     const probe = await probeMedia(file);
     if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
   }
-  const files = await planInputFiles(timeline, project);
+  const files = await planInputFiles(timeline, project, template);
   const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, overrides, musicDuration_s, files });
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
@@ -437,7 +438,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     width: plan.width,
     height: plan.height,
     size_bytes: 0,
-    encoding: { ...RENDER_ENCODING, faststart: true, audio: plan.music ? 'music' : 'silent' },
+    encoding: { ...RENDER_ENCODING, faststart: true, audio: audioOf(plan) },
     concurrency: opts.concurrency ?? defaultConcurrency(),
     bundle: { hash: '', cached: false, ms: 0 },
     browser: { path: null, source: 'remotion' },
@@ -563,4 +564,10 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
   } finally {
     await session.close();
   }
+}
+
+/** What the audio track of a render carries: the music bed and / or the own sound of the plan's files (L2.12). */
+export function audioOf(plan: Pick<EditPlan, 'music' | 'segments'>): RenderRecord['encoding']['audio'] {
+  const files = plan.segments.some((s) => playsSound(s.component) || (s.kind === 'clip' && s.overlays.some((o) => playsSound(o.component))));
+  return plan.music ? (files ? 'music+files' : 'music') : files ? 'files' : 'silent';
 }

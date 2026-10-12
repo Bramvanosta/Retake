@@ -1,17 +1,29 @@
 /**
  * The project files a plan needs (L2.10), read before planning — `planEdit` itself does no I/O: the CSV / TSV text of
- * `data:` slots and the pixel size of image files named by card and overlay slots (`logo:`, `before:` …).
+ * `data:` slots and the pixel size of image files named by card and overlay slots (`logo:`, `before:` …). L2.12: the
+ * user files of segments and overlays (`intro: {video: …}`, `overlay: {lottie: …}`) and of the theme
+ * (`components.intro: {video: …}`): videos are probed (ffprobe: size, length, sound, alpha), Lottie files parsed.
  */
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
-import { isImagePath } from '@demo-studio/core';
-import type { LoadedProject, Timeline } from '@demo-studio/core';
+import { isAbsolute, join, resolve } from 'node:path';
+import {
+  LOTTIE_FILE_EXTENSIONS,
+  MEDIA_COMPONENTS,
+  VIDEO_FILE_EXTENSIONS,
+  fileExtension,
+  isImagePath,
+  mediaFileOf,
+  probeVideoFile,
+  readLottieMeta,
+  resolveThemeComponents,
+} from '@demo-studio/core';
+import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@demo-studio/core';
 import type { PlanInputFile } from './plan.js';
 
 const DATA_RE = /\.(csv|tsv)$/i;
 
-/** Slot values of the timeline's cards and step overlays that name a project file (data or image). */
-export function planFileRefs(timeline: Pick<Timeline, 'scenes' | 'events'>): string[] {
+/** Slot values of the timeline's cards and step overlays that name a project file (data or image), and the user files of its segments and overlays (L2.12). */
+export function planFileRefs(timeline: Pick<Timeline, 'scenes' | 'events'> & Partial<Pick<Timeline, 'video'>>): string[] {
   const out = new Set<string>();
   const add = (slots: Record<string, string> | undefined) => {
     for (const v of Object.values(slots ?? {})) {
@@ -20,9 +32,56 @@ export function planFileRefs(timeline: Pick<Timeline, 'scenes' | 'events'>): str
       if (DATA_RE.test(s) || isImagePath(s)) out.add(s);
     }
   };
-  for (const s of timeline.scenes) add(s.card?.slots);
-  for (const e of timeline.events) add(e.overlay?.slots);
+  const file = (spec: Partial<MediaFileFields> | false | undefined) => {
+    const f = spec ? mediaFileOf(spec) : undefined;
+    if (f) out.add(f.path);
+  };
+  for (const s of timeline.scenes) {
+    add(s.card?.slots);
+    file(s.card);
+    file(s.interstitial);
+  }
+  file(timeline.video?.intro);
+  file(timeline.video?.outro);
+  for (const e of timeline.events) {
+    add(e.overlay?.slots);
+    const o = e.overlay;
+    if (o && (o.component === MEDIA_COMPONENTS.media || o.component === MEDIA_COMPONENTS.lottie) && o.slots.file) out.add(o.slots.file.trim());
+  }
   return [...out].sort();
+}
+
+/** The theme's own files (`components.intro: {video: …}`, L2.12), absolute. */
+export function themeFileRefs(template: LoadedTemplate | undefined): string[] {
+  if (!template) return [];
+  const out: string[] = [];
+  for (const c of Object.values(resolveThemeComponents(template.template))) if (c?.file) out.push(resolve(template.dir, c.file.path));
+  return out;
+}
+
+/** Read one user / project file for the planner (L2.12 videos and Lottie files included). */
+async function readInputFile(ref: string, file: string): Promise<PlanInputFile> {
+  const ext = fileExtension(ref);
+  if (VIDEO_FILE_EXTENSIONS.includes(ext)) {
+    try {
+      const v = probeVideoFile(file);
+      return { file, width: v.width, height: v.height, video: v };
+    } catch (e) {
+      const reason = (e as { reason?: string }).reason;
+      return reason === 'unreadable' && /not found/.test((e as Error).message) ? { file, missing: true } : { file, error: (e as Error).message };
+    }
+  }
+  const bytes = await readFile(file);
+  if (DATA_RE.test(ref)) return { file, text: bytes.toString('utf8') };
+  if (LOTTIE_FILE_EXTENSIONS.includes(ext)) {
+    try {
+      const l = readLottieMeta(bytes.toString('utf8'));
+      return { file, width: l.width, height: l.height, lottie: l };
+    } catch (e) {
+      return { file, error: (e as Error).message };
+    }
+  }
+  return { file, ...(imageFileSize(bytes) ?? {}) };
 }
 
 /** Pixel size of a PNG, JPEG, GIF or SVG (width/height or viewBox); undefined when unknown. */
@@ -61,15 +120,20 @@ export function imageFileSize(bytes: Buffer): { width: number; height: number } 
   return undefined;
 }
 
-/** Read the project files the plan of `timeline` needs (`PlanEditInput.files`). Missing files are marked, not thrown. */
-export async function planInputFiles(timeline: Pick<Timeline, 'scenes' | 'events'>, project: Pick<LoadedProject, 'dir'>): Promise<Record<string, PlanInputFile>> {
+/**
+ * Read the project files the plan of `timeline` needs (`PlanEditInput.files`) — and the theme's own files when the
+ * template is given. Missing files are marked, unusable ones carry an `error`; nothing is thrown.
+ */
+export async function planInputFiles(
+  timeline: Pick<Timeline, 'scenes' | 'events'> & Partial<Pick<Timeline, 'video'>>,
+  project: Pick<LoadedProject, 'dir'>,
+  template?: LoadedTemplate,
+): Promise<Record<string, PlanInputFile>> {
   const out: Record<string, PlanInputFile> = {};
-  for (const ref of planFileRefs(timeline)) {
+  for (const ref of [...planFileRefs(timeline), ...themeFileRefs(template)]) {
     const file = isAbsolute(ref) ? ref : join(project.dir, ref);
     try {
-      const bytes = await readFile(file);
-      if (DATA_RE.test(ref)) out[ref] = { file, text: bytes.toString('utf8') };
-      else out[ref] = { file, ...(imageFileSize(bytes) ?? {}) };
+      out[ref] = await readInputFile(ref, file);
     } catch {
       out[ref] = { file, missing: true };
     }

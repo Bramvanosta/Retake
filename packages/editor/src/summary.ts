@@ -58,10 +58,23 @@ function clipLines(plan: EditPlan, c: ClipSegment): string[] {
     const range = Math.round(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
     out.push(`reframe ${Math.round(c.layout.crop.w)}×${Math.round(c.layout.crop.h)} of the capture, ${range ? `travels ${range} px (at most ${step.toFixed(1)} px per frame)` : 'still'}`);
   }
+  const box = (r: { x: number; y: number; w: number; h: number }) => `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.w)}×${Math.round(r.h)}`;
   for (const o of c.overlays) {
-    const anchor = o.anchor?.bbox ? ` on box ${Math.round(o.anchor.bbox.x)},${Math.round(o.anchor.bbox.y)} ${Math.round(o.anchor.bbox.w)}×${Math.round(o.anchor.bbox.h)}` : o.anchor?.point ? ` on point ${o.anchor.point.x},${o.anchor.point.y}` : '';
+    // A box-filling overlay (a user file, L2.12): where its box goes; else what it points at.
+    const anchor = o.box
+      ? o.box.rect
+        ? ` in box ${box(o.box.rect)} (${o.box.anchor === 'rect' ? 'rect' : `on the ${o.box.anchor}`})`
+        : o.box.anchor === 'screen'
+          ? ' over the whole screen'
+          : ` at the ${o.box.anchor} of the screen${o.box.size ? ` (${Math.round(o.box.size.w)}×${Math.round(o.box.size.h)} page px)` : ''}`
+      : o.anchor?.bbox
+        ? ` on box ${box(o.anchor.bbox)}`
+        : o.anchor?.point
+          ? ` on point ${o.anchor.point.x},${o.anchor.point.y}`
+          : '';
     const text = o.component.slots.text ?? o.component.slots.title;
-    out.push(`overlay ${component(o.component)} step ${o.step} at ${s(o.from, fps)} for ${s(o.durationInFrames, fps)}${anchor}${text ? `: "${text}"` : ''}`);
+    const file = o.component.media?.file && 'name' in o.component.media.file ? ` file "${o.component.media.file.name}"` : '';
+    out.push(`overlay ${component(o.component)}${file} step ${o.step} at ${s(o.from, fps)} for ${s(o.durationInFrames, fps)}${anchor}${text ? `: "${text}"` : ''}`);
   }
   out.push(`caption ${component(c.caption)}${c.cues.length ? `, ${c.cues.length} cue${c.cues.length === 1 ? '' : 's'}` : ''}`);
   const steps = c.steps.map((st) => `${st.step < 0 ? st.action.replace('scene_', '') : `${st.step}:${st.action}`} ${((st.to - st.from) / fps).toFixed(1)}`).join(', ');

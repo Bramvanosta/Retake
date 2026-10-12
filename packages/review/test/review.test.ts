@@ -220,7 +220,8 @@ describe.skipIf(!can)('reviewRender', () => {
   }, LONG);
 
   it('a 35 s scene at 1×, a long wait on an unchanging screen, empty cards, a video far under 1 min; pagination', async () => {
-    await makeCase(ws, 'long', scenesTimeline([35], { steps: { 0: [{ action: 'wait_for', t_start: 8, t_end: 13 }] } }), { draw: { emptyCards: true } });
+    // A fixed `wait` (since L2.12 the planner plays a `wait_for`'s waiting faster; a fixed wait is the author's choice).
+    await makeCase(ws, 'long', scenesTimeline([35], { steps: { 0: [{ action: 'wait', t_start: 8, t_end: 13 }] } }), { draw: { emptyCards: true } });
     const r = await review('long-v1', { sheet: { columns: 4, rows: 3 } });
     expect(of(r, 'long-scene')).toHaveLength(1);
     expect(of(r, 'long-scene')[0]).toMatchObject({ severity: 'warning', at: { segment: 's1' } });

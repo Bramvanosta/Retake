@@ -16,6 +16,7 @@ import { suggestion } from '../validation/suggest.js';
 import { checkActionArgs, checkTarget } from './actions.js';
 import { CheckContext, isObj } from './context.js';
 import { checkHooks } from './hooks.js';
+import { checkMediaFields } from './media.js';
 import { checkTokens } from './tokens.js';
 
 export interface ScenarioCheckOptions {
@@ -81,6 +82,8 @@ class ScenarioChecker {
   private readonly sceneIdSet = new Set<string>();
   /** Artefact references in card / overlay slots (`email: <name>`…), checked once every step is known. */
   private readonly artefactRefs: Array<{ kind: ArtefactRefKind; value: string; path: IssuePath }> = [];
+  /** Overlays starting at a mark (`at: mark:<name>`, L2.12), checked once every mark is known. */
+  private readonly atMarks: Array<{ name: string; path: IssuePath }> = [];
 
   constructor(
     private readonly s: Record<string, unknown>,
@@ -316,10 +319,25 @@ class ScenarioChecker {
   private card(card: unknown, p: IssuePath): void {
     if (!isObj(card) || this.ctx.broken(p)) return;
     const slots = isObj(card.slots) ? card.slots : {};
+    const file = checkMediaFields(card, p, this.ctx);
+    if (file.kind) {
+      const unused = Object.keys(slots);
+      if (unused.length > 0) this.ctx.warning([...p, 'slots'], `the ${file.kind} file replaces the card component: slots ${unused.join(', ')} are not shown`);
+      return;
+    }
     if (card.component === undefined && (typeof slots.title !== 'string' || slots.title.trim() === '')) {
-      this.ctx.error(p, 'a card needs a `component` or a `slots.title` (the theme\'s card component shows a title)');
+      this.ctx.error(p, 'a card needs a `component`, a `slots.title` (the theme\'s card component shows a title) or a `video` / `image` / `lottie` file');
     }
     this.slotRefs(slots, [...p, 'slots']);
+  }
+
+  /** `intro` / `outro` (L2.12): the user's own file instead of the theme's component. */
+  private segmentFile(spec: unknown, p: IssuePath, what: 'intro' | 'outro'): void {
+    if (!isObj(spec)) return;
+    const file = checkMediaFields(spec, p, this.ctx);
+    if (!file.kind) return;
+    const unused = what === 'outro' ? (['tagline', 'url'] as const).filter((k) => spec[k] !== undefined) : [];
+    for (const k of unused) this.ctx.warning([...p, k], `the ${file.kind} file replaces the outro component: \`${k}\` is not shown`);
   }
 
   /**
@@ -428,6 +446,16 @@ class ScenarioChecker {
 
   private interstitial(inter: unknown, p: IssuePath): void {
     if (!isObj(inter) || this.ctx.broken(p)) return;
+    const file = checkMediaFields(inter, p, this.ctx);
+    if (file.kind) {
+      for (const k of ['text', 'kicker', 'style'] as const) {
+        if (inter[k] !== undefined) this.ctx.warning([...p, k], `the ${file.kind} file replaces the interstitial component: \`${k}\` is not shown`);
+      }
+      return;
+    }
+    if (typeof inter.text !== 'string' || inter.text.trim() === '') {
+      this.ctx.error(p, 'an interstitial needs `text` (or a `video` / `image` / `lottie` file)');
+    }
     if (inter.style !== undefined && inter.component !== undefined) {
       this.ctx.warning([...p, 'style'], '`style` (legacy) is ignored when `component` is set');
     }
@@ -532,6 +560,7 @@ class ScenarioChecker {
     }
     if (step.overlay?.target !== undefined) checkTarget(step.overlay.target, [...sp, 'overlay', 'target'], this.ctx);
     if (step.overlay?.slots) this.slotRefs(step.overlay.slots, [...sp, 'overlay', 'slots']);
+    if (step.overlay) this.overlay(step, [...sp, 'overlay']);
     if (step.tutorial !== undefined) this.tutorial(step.tutorial, [...sp, 'tutorial'], 'step', step.action);
     const facts = checkActionArgs(step, sp, this.ctx);
     if (facts.artefact) {
@@ -550,6 +579,28 @@ class ScenarioChecker {
     if (facts.switchTo) this.switches.push(facts.switchTo);
     if (facts.openPage && this.pages && !Object.hasOwn(this.pages, facts.openPage.page)) {
       this.unknownPage(facts.openPage.page, facts.openPage.path);
+    }
+  }
+
+  /** A step `overlay` (L2.12 additions): a component or a file, when it starts, where a file goes. */
+  private overlay(step: NormalizedStep, op: IssuePath): void {
+    const o = step.overlay!;
+    if (this.ctx.broken(op)) return;
+    const file = checkMediaFields(o, op, this.ctx, { overlay: true });
+    if (!file.kind && o.component === undefined) {
+      this.ctx.error(op, 'an overlay needs a `component` or a `video` / `image` / `lottie` file');
+    }
+    if (o.rect !== undefined && o.anchor !== undefined) this.ctx.warning([...op, 'anchor'], '`rect` places the overlay: `anchor` is ignored');
+    if (o.scale !== undefined && (o.rect !== undefined || o.anchor === 'screen')) {
+      this.ctx.warning([...op, 'scale'], `\`scale\` is ignored: ${o.rect !== undefined ? '`rect` sets the size' : '`anchor: screen` fills the visible capture'}`);
+    }
+    if (typeof o.at === 'string' && o.at.startsWith('mark:')) this.atMarks.push({ name: o.at.slice(5), path: [...op, 'at'] });
+    const clicks = ['click', 'double_click', 'menu', 'pick', 'select', 'drag', 'drop_file', 'download'];
+    if (o.at === 'click' && !clicks.includes(step.action)) {
+      this.ctx.warning([...op, 'at'], `a ${step.action} step has no click: the overlay starts at the end of the step`);
+    }
+    if (file.kind === 'lottie' && file.lottie && typeof o.duration === 'number' && o.duration > file.lottie.duration_s + 0.05 && o.loop !== true) {
+      this.ctx.warning([...op, 'duration'], `the animation lasts ${file.lottie.duration_s} s: its last frame is held (\`loop: true\` replays it instead)`);
     }
   }
 
@@ -574,6 +625,13 @@ class ScenarioChecker {
   private misc(): void {
     this.checkArtefactRefs();
     this.checkFrameRefs();
+    for (const r of this.atMarks) {
+      if (this.marks.has(r.name)) continue;
+      const names = [...this.marks.keys()];
+      this.ctx.error(r.path, `unknown mark "${r.name}": no step has \`mark: ${r.name}\`${suggestion(r.name, names)}` + (names.length ? ` (marks: ${names.join(', ')})` : ''));
+    }
+    if (!this.ctx.broken(['intro'])) this.segmentFile(this.s.intro, ['intro'], 'intro');
+    if (!this.ctx.broken(['outro'])) this.segmentFile(this.s.outro, ['outro'], 'outro');
     this.tutorial(this.s.tutorial, ['tutorial'], 'scenario');
     if (this.pages && this.switches.length > 0) {
       const known = new Set([...Object.keys(this.pages), ...STATIC_PAGE_IDS, ...this.tabIds, ...this.scenePageIds]);

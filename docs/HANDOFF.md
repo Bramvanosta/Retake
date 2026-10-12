@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.11. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.12 (after its review fixes). Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -347,27 +347,81 @@ automatically with themeable components, and let Claude operate everything throu
   leading start, settle), planner-tutorial.test.ts (navigation ends the spotlight run and the badge), review
   tutorial.test.ts (`tutorial-stale-target`); counts now 39 built-in components. 792 tests: 786 pass, 6 Postgres
   tests skipped (full suite run twice after the review fixes, green both times). No dependency added.
-- **Requirements:** 603 tracked; 395 done, 50 partial, 143 todo, 15 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.11 all done (L2.10: R-TUT-01…05, R-STO-01…06; L2.11: R-MPC-01…07,
-  R-TUT-06…07). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
+- **L2.12 done** (bring your own media & motion; R-OWN-01…05): `intro`, `outro`, `card`, `interstitial` take
+  `{video | image | lottie, from, to, fit, background, volume, duration}` and a template's `components.intro / outro /
+  interstitial` may be a file (relative to the template folder) — no component is mandatory. **Core**: `types.ts`
+  (`MediaFileFields`, `OverlaySpec`, `OverlayAt`, `OVERLAY_ANCHORS`, `MEDIA_COMPONENTS`, `TemplateMediaRef`),
+  `media.ts` (`mediaSegmentUse`, `overlayUseOf`, `probeVideoFile` = sync ffprobe cached by path / size / mtime,
+  `readLottieMeta`), `checks/media.ts` (positioned: one file per use, extension per kind with hints, existence, image
+  signature, Lottie JSON, codec / container / alpha / from-to / volume via ffprobe). **Components**: `studio/media`
+  (video, image; `fit: auto` default = cover when covering keeps ≥ 80 % of each side, else contain) and
+  `studio/lottie` (`@remotion/lottie` 4.0.534 + `lottie-web` 5.13.0 — the only dependencies added; `colors` maps the
+  file's colours to theme keys), both kind `card` with `kinds: [intro, outro, interstitial, overlay]` (new manifest
+  field; the registry resolves an id for any of its kinds, the component gets `props.as`); slot types `media` /
+  `lottie` → `props.media.file` (`VideoMedia` with size, length, fps, audio, alpha, codec; `LottieMedia`); kit
+  `media.tsx` (`VideoFile` with `transparent` for alpha, plays once then holds its last frame, or loops; `ImageFile`,
+  `LottieFile`, `recolorLottie`, `autoFit`, `mediaBackground`); previews committed. **Editor**: `inputs.ts`
+  `planInputFiles` reads every file before planning (the planner stays pure); the scenario file → theme file → theme
+  component chain; durations from the file (note `"<where>": your file … for N s`, and a note when `fit: auto`
+  contains); file overlays: `at` (step / end, start, click, `mark:<name>`, seconds), `box` (`rect`, or target /
+  cursor / screen / a corner or side: the file's own size × `scale` in page px), layer `screen`, mapped per frame by
+  `overlayBoxAt` (layout, camera, reframe; `insetHole` around a PiP inset); music ducks under clips and under files
+  that play sound (`duckSpans`, `playsSound`); render record `encoding.audio`: `silent | music | files |
+  music+files`. **Catalogue long-wait, root cause** (R-OWN-05, `timing.ts` `waitingSpans`): a marked wait protected
+  its whole waiting at 1× — now a marked wait protects only the moment its state appears (around its end), and the
+  waiting itself (wait steps + the load pause before a wait that really waited) plays at up to 4× after its first
+  0.5 s (`WAIT_SPEED`, `WAIT_KEEP_S`; step speed wins; off with `overrides.trim_idle: false`). **Review**:
+  `media-missing` covers files ("could not be read — nothing is shown"), `empty-segment` names the file. **CLI**:
+  `studio components new` (alias of `create`), plan / render pass the template (theme files). **Docs**:
+  `docs/BRING-YOUR-OWN-MOTION.md` (linked from the README; export settings for motion tools, Remotion, Lottie,
+  workspace components, the output of Claude motion / design skills), README section "Your own media and motion",
+  DESIGN-phase2 §1.9. **Fixture**: `scripts/fixture-media.mjs` renders the media with Remotion
+  (`fixtures/own-media/src`: intro 1920×1080 3.6 s with a chime made by ffmpeg, end card, a 480×480 VP9-alpha burst;
+  `--prores` also writes a ProRes 4444 burst to `.demo-studio/`) and `fixtures/own-media/lottie.mjs` writes two
+  hand-written Lottie files → `projects/northfield-fixture/assets/` (each < 300 KB; `.gitignore` lets
+  `projects/*/assets/*.mp4|webm` in); scenario `own-media` (46 s). Tests: core media.test.ts, components media.test.ts,
+  editor planner-media.test.ts and render-media.test.ts (real render: the intro's tone, VP9 and ProRes alpha pixel
+  checks with a halo scan), review tutorial.test.ts case; planner-real / planner-rules / review tests updated for the
+  waits; counts now 41 built-in components. Dependencies added: `@remotion/lottie@4.0.534` and `lottie-web@5.13.0`
+  (components). **Review fixes** (two reviewers, code + video editor): (1) a file's own sound dipped and clicked where
+  the transition after it began and never got its end ramp — `VideoFile` took its 4-frame ramps from the frame
+  Remotion passes to a `volume` callback, which restarts at 0 inside TransitionRender's `<Sequence from={-shift}>`;
+  the gain now comes from the video element's own frame (kit `filePartGain`, a number per frame); render test with an
+  intro leaving and an outro entering by crossfade (per-frame RMS within 1 dB, end ramp; fails on the old callback).
+  (2) the vertical / square reframe kept a step overlay over [step end, +2.5 s] and its target — now over the capture
+  time it really shows (`overlayStartAt`: `at` incl. click / marks / seconds, its own length through the run's time
+  map) and its real box (a file's box on the target / cursor, a `rect`): `stepOverlayOf` resolves each step overlay
+  once for the reframe and the clip. (3) a file at a corner / side moves to the nearest free corner (side) when, in the
+  variant's framing, it would cover its step's or the coming steps' `stepBoxes` (`SCREEN_POSITION_CHOICES`, plan
+  note), and the review's `overlay-covers-target` measures user file overlays at screen positions (hover targets too).
+  (4) a kind-wide `overrides.components.overlay` no longer replaces user files (note). (5) a missing / unreadable file
+  is no longer a plan asset (the render refused the plan). (6) with `overrides.trim_idle: false` a marked wait step is
+  protected whole again (`protectedSpans(…, waitsFaster)`). New tests in render-media, planner-media (4) and review
+  tutorial (1). 833 tests: 827 pass, 6 Postgres tests skipped (full suite run twice after the fixes, green both
+  times).
+- **Requirements:** 604 tracked; 400 done, 50 partial, 139 todo, 15 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.12 all done (L2.10: R-TUT-01…05, R-STO-01…06; L2.11: R-MPC-01…07,
+  R-TUT-06…07; L2.12: R-OWN-01…04 + R-OWN-05, new — the waits). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
   (2560×1440 still untested).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
   (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
   and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9) + tutorial
-  overlays & story cards (L2.10) + multi-page capture, split screen & picture in picture (L2.11).
+  overlays & story cards (L2.10) + multi-page capture, split screen & picture in picture (L2.11) + your own media &
+  motion — video / image / Lottie segments, alpha overlay videos, Lottie overlays (L2.12).
   `packages/mcp` is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.12 — Bring your own media & motion** (M): any segment can be a user video/image file; transparent overlay videos
-(ProRes 4444 / WebM alpha); Lottie component (card/overlay); "bring your own motion" docs (files, Lottie, custom
-Remotion components, output of any Claude motion skill) (R-OWN-*). Templates are never mandatory. Then L2.13 (raw
-capture export), L2.14 (phase 2 acceptance + Mac handoff); after phase 2 the work
-moves to a local session on the user's Mac starting with L1.5 (see ROADMAP).
+**L2.13 — Raw capture export for editors** (M): `studio export-capture` / `run --raw`: a clean clip per scene (page
+loads cut) as MP4 HQ or ProRes 422 HQ at 30 / 60 fps; cursor baked, absent (+ cursor and clicks as data) or a separate
+transparent cursor layer; markers as FCPXML, EDL, OTIO, CSV / JSON; a package manifest (R-RAW-01…04). Then L2.14
+(phase 2 acceptance + Mac handoff); after phase 2 the work moves to a local session on the user's Mac starting with
+L1.5 (see ROADMAP).
 
 Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote
 (before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup (L2.9),
 20261012-034207-signup (L2.10: tutorial overlays), 20261012-034247-highlights (L2.10: story cards),
-20261012-073840-live-quote and 20261012-080444-phone-and-desktop (L2.11: two pages on one clock), 20261011-222856-mobile-quote,
+20261012-073840-live-quote and 20261012-080444-phone-and-desktop (L2.11: two pages on one clock),
+20261012-093815-own-media (L2.12: your own files) and 20261012-093047-catalogue (L2.12: waits), 20261011-222856-mobile-quote,
 and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario). Captures need the fixture server
 (`node fixtures/wholesale/server.mjs`; stop it with `kill <pid>` — `pkill -f` with its path also matches the shell
 that runs it):
@@ -377,6 +431,9 @@ node packages/cli/dist/bin.js run northfield-fixture highlights          # captu
 node packages/cli/dist/bin.js run northfield-fixture live-quote          # shop + console at once (split, ≈ 1 m 15 s)
 node packages/cli/dist/bin.js run northfield-fixture phone-and-desktop   # desktop + phone at once (pip, ≈ 50 s)
 node packages/cli/dist/bin.js render northfield-fixture live-quote --theme motion --review
+node scripts/fixture-media.mjs [--prores]                                # regenerate the fixture's own media (Remotion + ffmpeg)
+node packages/cli/dist/bin.js run northfield-fixture own-media           # intro video, outro image, alpha burst, Lottie card + overlay (≈ 45 s)
+node packages/cli/dist/bin.js render northfield-fixture own-media --music projects/northfield-fixture/.demo-studio/test-bed.m4a --review
 node packages/cli/dist/bin.js render northfield-fixture phone-and-desktop --vertical --review
 node packages/cli/dist/bin.js still northfield-fixture live-quote --square --frame 880
 node packages/cli/dist/bin.js render northfield-fixture signup && node packages/cli/dist/bin.js review northfield-fixture signup-v12
@@ -498,10 +555,45 @@ Capture fps per page (the runner's own measure, cursor moves below 18 fps): live
 the request dialog's backdrop blur), supplier 1 of 2 (lowest 13); phone-and-desktop phone 1 of 12 (lowest 18), desk
 none. General capture speed stays L1.3. Render times: ≈ 3 m per 1080p video (42 s), vertical ≈ 3 m 30 s, pip ≈ 2 m 30 s.
 
-Notes for L2.12:
-- A segment's video is a `PlanSource` (`plan.source`, `plan.tracks[key]`): `CaptureScreen` takes a `source`, the asset
-  server serves `ds-asset:` files — a user video segment can be one more `PlanSource` (+ its own time map instead of
-  `srcFrames` of the capture).
+Renders of L2.12, reviewed with `studio review` and looked at frame by frame (ffmpeg frames at every segment boundary,
+inside the intro and the outro, through the alpha burst — full-resolution crops of its edges over the white dialog and
+the dimmed page —, the Lottie card and the Lottie check overlay; audio measured sample by sample against the source
+intro). Run **20261012-093815-own-media** — **own-media-v6** (editorial + the test bed, 46.03 s; review clean, 9 info
+— the diff against v3 counts as info): the intro is the user's video (coffee bean, "Northfield", tagline) crossfading
+into the shop; the burst (VP9 alpha) bursts on the Send request button from the click, rays clean over the dialog and
+the dimmed page (no halo, no black fringe); the Lottie cup recoloured in the theme's accent (burgundy) on the paper
+card; the check badge Lottie at the top-right of the screen over empty space right of the quotes list; the end-card
+image as the outro; record `audio: music+files`. Music (measured on v2, same plan): bass −46.8 dB under the intro ≈
+−47.5 dB under footage vs −40.0 / −41.2 dB on the silent Lottie card and the image outro → ducked ≈ 6–7 dB under the
+file with sound only. **own-media-v7** (motion + music, 47.17 s; clean, 9 info): fade-black transitions around the
+files, the cup in the motion accent (orange) on the night background. **own-media-v8-vertical** (46.03 s; clean,
+4 info): the 16:9 intro and outro shown whole on the theme background (`fit: auto` → contain, plan notes), the whole
+burst kept in the reframe while it plays, the check badge placed at the bottom-right of the crop (asked top-right: it
+would cover the hovered Selowa Ridge row there — plan note) clear of the row and the cursor; record `audio: files`.
+Intro audio after the fix: in v8-vertical the intro's gain against `assets/intro.mp4` (least squares per frame) is
+1.000 on frames 3–104 then 0.68 / 0.49 / 0.25 (its end ramp; v5-vertical: 0.27 at frame 97 where the crossfade
+starts, and no end ramp); v6 − v7 bit-identical over the intro although the crossfade starts at 97 and the
+fade-black at 102; v6 vs v2 and v7 vs v3 differ only on frames 96–108 (pictures identical: PSNR ≥ 58 dB); the click
+at 3.22 s (sample jump 0.0388) is gone (0.0037, as in the source). The new `overlay-covers-target` on the old plans
+flags v5-vertical's badge, not v6 / v7 / v8-vertical. Superseded: own-media-v2 / v3 / v5-vertical (the intro's sound
+dipped with a click where the transition began, no end ramp; v5-vertical's badge over the hovered row),
+own-media-v1 (run 20261012-090240, 42.7 s: `video-length` warning → the scenario holds longer),
+own-media-v4-vertical (16:9 intro and outro cropped by cover → `fit: auto`; its record still says `audio: silent`,
+before the `files` label); earlier own-media runs 20261012-085959 / 090124 (the burst first on the cursor, then on a
+toast that the cut hid). Run **20261012-093047-catalogue** — **catalogue-v5** (editorial, 70.13 s; review clean,
+7 info): the add-product registry spinner is on screen ≈ 2.2 s (was 3.8 s at 1× → `long-wait` warning in
+catalogue-v3/v4), frames 58.2–60.4 s looked at; the video is longer than catalogue-v4 (59 s) because this capture ran
+slower here (steps took longer; capture fps), not because of the waits (none of the review fixes changes its plan).
+Render times: ≈ 2 m 35 s–2 m 55 s per own-media render (1080p and vertical).
+
+Notes for L2.13:
+- The run already has what a raw export needs: `capture.mp4` (+ `capture-<page>.mp4` per page of a multi-page scene),
+  the CFR frame grid, `timeline.json` (scenes, events with t_start / t_end, markers, cursor samples, clicks with
+  target boxes, page segments, idle) — the planner's source ranges (`ClipSegment.source` / `srcFrames`) cut page
+  loads; a per-scene clip = the scene's source range (opening still → scene end) without the edit's speed changes.
+- Waits now play faster in the edit (R-OWN-05): a raw export should keep real time (1×) — the editor's job.
+- User files (`studio/media`, `studio/lottie`) belong to the edit, not to the capture: a raw export can list them in
+  its manifest (`planFileRefs`, `themeFileRefs`) so an editor can re-use them.
 - The composition bundle's hash covers `COMPOSITION_DEPS` (editor files the composition imports besides
   `remotion/`): add any new module the composition imports (a Lottie player…), or a stale bundle is reused.
 - `ClipSegment` stays capture-based; multi-page clips add `panes` / `acting` / `inset`. Overlays carry `pane`;
@@ -512,7 +604,26 @@ Notes for L2.12:
 - The reframe changed for every vertical / square plan (leading part of wide targets, leading-edge start, no pan for a
   resting cursor, `settle` for idle panes): earlier vertical / square renders of other scenarios (quote-v9-vertical,
   signup-v8-vertical, catalogue exports) would frame differently if re-rendered — not re-rendered here.
-- Known limits: two pages per scene (`MAX_SCENE_PAGES`); a step badge outlives a target that disappears right after
+- Known limits of L2.12: ffprobe on PATH (or `$DEMO_STUDIO_FFPROBE`) is needed to check and plan video files (without
+  it: a validation warning and the file is planned as unreadable); GIF and dotLottie (`.lottie`) are not read (the
+  validation says how to convert); a Lottie with external images or expressions is drawn as `lottie-web` can (warning
+  for external images); an overlay file is clipped to the capture screen (never over the caption or the frame); an
+  overlay video plays its own length (the fixture's burst outlives the closing dialog by ≈ 0.6 s — 18 frames: the
+  dialog closes at frame 892 of own-media-v6, the burst runs 874–909; `duration` shortens it — cut, not faded); a file
+  at a screen position picks its corner once for its whole span (it does not move while it shows) and `center` never
+  moves (a note when it covers a target); `fit: auto` uses an 80 % threshold (a 4:3 image in a 16:9 video is
+  contained; write `fit: cover`); the 4-frame ramps of a file's sound are steps per frame (Remotion's volume is per
+  frame) — far below a click (sample jumps 0.0039 at the intro's end vs 0.037 in its chime); renders and reviews made
+  before `encoding.audio: files` say `silent` / `music` for videos with an intro's own sound.
+- A `wait_for` records no box for what it waited for, so the vertical / square reframe does not aim at it: in
+  own-media-v8-vertical the "Quote request sent" toast at the page's bottom-right is cut by the crop's right edge
+  during the send scene's last second (it was cut in v5-vertical too; a little more now, because the reframe keeps the
+  whole burst in view while it plays). Recording the awaited element's box (runner) and making it a soft reframe
+  target would fix it — a candidate for L2.14 or the backlog.
+- The overlay keep of the reframe changed for every vertical / square plan with a step overlay (its real start and
+  length, its real box): earlier vertical / square renders with callouts (quote-v9-vertical, quote-v10-square) would
+  frame slightly differently if re-rendered — not re-rendered here.
+- Known limits (L2.11): two pages per scene (`MAX_SCENE_PAGES`); a step badge outlives a target that disappears right after
   its click without a URL change (a closing dialog) by ≈ 1 s (after a navigating click it leaves with the page, the
   spotlight fades within 0.45 s); "leading" means top-left (left-to-right pages); in a stacked vertical split a click
   at a page's far right still cuts the page's left edge (the crop keeps ≥ 0.9 design px per CSS px) — the idle pane

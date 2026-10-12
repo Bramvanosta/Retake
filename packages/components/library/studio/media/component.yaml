@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# Your own video or image instead of a provided component (L2.12, R-OWN-01/02). Templates are never mandatory: an
+# intro, an outro, a card, an interstitial — or an overlay over the capture — can be the user's own motion design
+# (made in any tool, or the output of any Claude motion / design skill). The scenario writes it as
+# `intro: {video: assets/intro.mp4}`, `outro: {image: assets/end.png, duration: 3}`, `card: {video: …}` or
+# `overlay: {video: assets/burst.webm, anchor: target}`; the planner turns that into this component with the file in
+# its `file` slot. Full frame: the file fills the frame (cover) or sits whole on the theme background (contain; by
+# default the one that keeps the file whole enough: `auto`, so a 16:9 intro shows whole in the vertical variant). As an
+# overlay: the file fills the box the planner computed (`props.anchor`), clipped to the visible capture; alpha videos
+# (ProRes 4444 .mov, VP8 / VP9 .webm with alpha) composite over it. A video plays once and holds its last frame, or
+# loops; its own sound plays at `volume` (a file without sound stays silent).
+id: studio/media
+version: 1.0.0
+kind: card
+kinds: [intro, outro, interstitial, overlay]
+name: Your file
+description: Your own video or image instead of a provided component — full frame (cover, or whole on the theme background) as an intro, outro, card or interstitial, or in a box over the capture as an overlay (alpha videos composite).
+tags: [media, file, video, image, own, alpha]
+slots:
+  file: {type: media, required: true, description: 'A video (.mp4, .mov, .webm, .m4v) or an image (.png, .jpg, .jpeg, .webp, .svg) of the project or the theme.'}
+params:
+  type: object
+  properties:
+    fit: {type: string, enum: [auto, cover, contain], default: auto, description: 'cover: fills the frame or the box (cropped); contain: the whole file, on the background; auto (default): cover when the file has about the frame''s shape (covering keeps ≥ 80 % of each side), else contain — a 16:9 intro shows whole in the vertical variant.'}
+    background: {type: string, default: theme, description: 'Full frame: around a contained or transparent file — theme (the theme background), a theme colour key (paper, dark, accent…), a CSS colour or none.'}
+    volume: {type: number, minimum: 0, maximum: 1, default: 1, description: "Video: volume of the file's own sound."}
+    from: {type: number, minimum: 0, default: 0, description: 'Video: the second of the file the part shown starts at.'}
+    to: {type: number, exclusiveMinimum: 0, description: "Video: the second of the file the part shown ends at (default: the file's end)."}
+    loop: {type: boolean, default: false, description: 'Video: replay the part for the whole use (default: play once, then hold the last frame).'}
+tokens: [background, colors.paper, colors.dark]
+duration: {default: 3, min: 0.2, max: 600}
+variants: [landscape, vertical, square]
+preview:
+  slots: {file: sample}
+  params: {fit: contain}
+  at: [1]

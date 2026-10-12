@@ -2,7 +2,9 @@ import { statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { z } from 'zod';
-import { resolveThemeComponents } from './components.js';
+import { CheckContext } from './checks/context.js';
+import { checkMediaFields } from './checks/media.js';
+import { isTemplateMediaRef, resolveThemeComponents } from './components.js';
 import type { ThemeComponent } from './components.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { TemplateFileSchema, TemplateSchema } from './schemas/template.js';
@@ -103,11 +105,24 @@ function checkTemplateFile(value: unknown, structural: readonly LocatedIssue[]):
 }
 
 /**
- * Validate template.yaml text and merge it over DEFAULT_TEMPLATE. `template` is returned only
- * when there is no error-level issue.
+ * The theme's own files (L2.12, `components.intro: {video: …}`): checked like a scenario's (container, existence,
+ * codec, from / to) relative to the template folder `dir` — skipped without one.
  */
-export function parseTemplateYaml(text: string): { template?: Template; issues: ValidationIssue[] } {
-  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, checkTemplateFile);
+function checkTemplateMedia(value: unknown, structural: readonly LocatedIssue[], dir: string | undefined): LocatedIssue[] {
+  if (!dir || !isPlainObject(value) || !isPlainObject(value.components)) return [];
+  const ctx = new CheckContext(structural, dir, 'the template folder');
+  for (const [kind, ref] of Object.entries(value.components)) {
+    if (isTemplateMediaRef(ref as never)) checkMediaFields(ref, ['components', kind], ctx);
+  }
+  return ctx.out;
+}
+
+/**
+ * Validate template.yaml text and merge it over DEFAULT_TEMPLATE. `template` is returned only
+ * when there is no error-level issue. With `dir` (the template folder), the theme's own files are checked too.
+ */
+export function parseTemplateYaml(text: string, opts: { dir?: string } = {}): { template?: Template; issues: ValidationIssue[] } {
+  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir)]);
   if (hasErrors(issues)) return { issues };
   const file = value as TemplateFile;
   const template = mergeTemplate(nameless(), file);
@@ -160,7 +175,7 @@ async function resolveTemplateDir(nameOrDir: string, root: string | undefined, b
 
 async function loadTemplateDir(dir: string): Promise<LoadedTemplate> {
   const file = join(dir, TEMPLATE_FILE);
-  const { template, issues } = parseTemplateYaml(await readFile(file, 'utf8'));
+  const { template, issues } = parseTemplateYaml(await readFile(file, 'utf8'), { dir });
   if (!template) throw new ConfigError(issuesMessage('template', issues, file), issues, file);
   const name = basename(dir);
   template.name ??= name;

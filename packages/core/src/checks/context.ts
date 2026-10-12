@@ -14,6 +14,8 @@ export class CheckContext {
     private readonly structural: readonly LocatedIssue[],
     /** Directory relative files are resolved against (undefined → files cannot be checked). */
     readonly projectDir?: string,
+    /** How messages name that directory ("the project", "the template folder"). */
+    readonly dirLabel = 'the project',
   ) {}
 
   error(path: IssuePath, message: string, loc?: LocatedIssue['loc']): void {
@@ -38,12 +40,12 @@ export class CheckContext {
    * Check that a project-relative file exists. Without a project directory a warning says it
    * could not be checked.
    */
-  file(rel: string, path: IssuePath, what: string, severity: 'error' | 'warning'): void {
-    if (!this.projectDir) {
+  file(rel: string, path: IssuePath, what: string, severity: 'error' | 'warning', dir: string | undefined = this.projectDir): void {
+    if (!dir) {
       this.warning(path, `cannot check that ${what} "${rel}" exists: no project given`);
       return;
     }
-    const abs = resolve(this.projectDir, rel);
+    const abs = resolve(dir, rel);
     let isFile = false;
     try {
       isFile = existsSync(abs) && statSync(abs).isFile();
@@ -52,7 +54,8 @@ export class CheckContext {
     }
     if (!isFile) {
       const consequence = severity === 'warning' ? ' (it will fail when it runs)' : '';
-      this.out.push(issue(severity, path, `${what} "${rel}" not found in the project${consequence}`));
+      const where = dir === this.projectDir ? this.dirLabel : dir;
+      this.out.push(issue(severity, path, `${what} "${rel}" not found in ${where}${consequence}`));
     }
   }
 }

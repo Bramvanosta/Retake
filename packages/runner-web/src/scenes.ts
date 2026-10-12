@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describeTarget, interpolate, isCard, isInterstitial, isPoint, normalizeStep, normalizeTarget, resolvePageUrl, resolveScenePages, sceneId } from '@demo-studio/core';
+import { describeTarget, interpolate, isCard, isInterstitial, isPoint, normalizeStep, normalizeTarget, overlayUseOf, resolvePageUrl, resolveScenePages, sceneId } from '@demo-studio/core';
 import type {
   CameraHint,
   CaptionSpec,
@@ -146,12 +146,12 @@ async function cameraFor(ctx: StepContext, hint: CameraHint, res: ActionResult):
  * else the cursor position.
  */
 async function overlayFor(ctx: StepContext, spec: OverlaySpec, res: ActionResult): Promise<NonNullable<TimelineEvent['overlay']>> {
-  const out: NonNullable<TimelineEvent['overlay']> = {
-    component: spec.component,
-    slots: { ...(spec.slots ?? {}) },
-    params: structuredClone(spec.params ?? {}),
-  };
+  // A user file (L2.12) is recorded as its component use (studio/media, studio/lottie) with the box it goes in.
+  const use = overlayUseOf(spec);
+  const out: NonNullable<TimelineEvent['overlay']> = { component: use.component, slots: use.slots, params: use.params };
   if (spec.duration !== undefined) out.duration = spec.duration;
+  if (spec.at !== undefined) out.at = spec.at;
+  if (use.box) out.box = use.box;
   const { pointer, kit } = ctx.rt;
   if (spec.target !== undefined) {
     const t = normalizeTarget(spec.target);
@@ -168,6 +168,8 @@ async function overlayFor(ctx: StepContext, spec: OverlaySpec, res: ActionResult
   } else {
     out.point = pointer.pos();
   }
+  // A file anchored on the cursor goes where the cursor is at the end of the step, whatever the step's target.
+  if (use.box?.anchor === 'cursor' && !out.point) out.point = pointer.pos();
   return out;
 }
 

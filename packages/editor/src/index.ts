@@ -8,8 +8,8 @@ export * from './plan-types.js';
 export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
 export type { PlanEditInput, PlanInputFile } from './plan.js';
 export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
-export { imageFileSize, planFileRefs, planInputFiles } from './inputs.js';
-export { DEFAULT_IDLE_THRESHOLD_S, IDLE_KEEP_S, MARK_WINDOW_S, SPEED_RAMP_S, planRunTiming, protectedSpans, outFrameAt } from './timing.js';
+export { imageFileSize, planFileRefs, planInputFiles, themeFileRefs } from './inputs.js';
+export { DEFAULT_IDLE_THRESHOLD_S, IDLE_KEEP_S, MARK_WINDOW_S, SPEED_RAMP_S, WAIT_ACTIONS, WAIT_KEEP_S, WAIT_LOADING_MIN_S, WAIT_MIN_S, WAIT_SPEED, planRunTiming, protectedSpans, outFrameAt, waitingSpans } from './timing.js';
 export type { MapPiece, ProtectedSpan, RunTiming, RunTimingInput } from './timing.js';
 export { MIN_ZOOM_EASE_S, REFRAME, cameraTrack, clampView, corridorSmooth, dampedSmooth, hintEase, leadingPart, reframeTrack } from './camera.js';
 export type { ReframeTarget, ZoomMove } from './camera.js';
@@ -55,7 +55,7 @@ export {
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
-export { brandmarkRect, captionBandOver, drawnOverlayBox, envelopeAt, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayRects, overlayTargets, plateOf, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
+export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, envelopeAt, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
 export {
   ACTING_EASE_S,
   ACTING_LEAD_S,

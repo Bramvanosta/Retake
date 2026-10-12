@@ -73,6 +73,9 @@ const IDS = [
   // L2.11: two pages at once.
   'studio/layout-split',
   'studio/layout-pip',
+  // L2.12: your own files (video, image, Lottie).
+  'studio/media',
+  'studio/lottie',
 ];
 
 /** The reference-look components (docs/reference/look.md), final since L2.5. */
@@ -132,6 +135,9 @@ function render(id: string, opts: { theme?: ThemeTokens; at?: number; unit?: num
 const px = (v: number) => (v === 0 ? '0' : `${v}px`);
 const rectCss = (r: { x: number; y: number; w: number; h: number }) => `left:${px(r.x)};top:${px(r.y)};width:${px(r.w)};height:${px(r.h)}`;
 
+/** The components that show the user's own files (L2.12). */
+const USER_FILES = ['studio/media', 'studio/lottie'];
+
 describe('built-in library: a component for every referenced id', () => {
   it('has exactly the referenced ids, each valid (manifest + compile) and final: no placeholder left (R-LIB-00)', async () => {
     const found = readdirSync(join(LIBRARY_DIR, 'studio')).map((n) => `studio/${n}`).sort();
@@ -145,8 +151,8 @@ describe('built-in library: a component for every referenced id', () => {
       expect(manifests[id].version, id).toBe('1.0.0');
       if (REFERENCE_LOOK.includes(id)) expect(manifests[id].tags, id).toContain('reference-look');
       // style_bias is read (R-TPL-04) — except by layouts, static at every bias by design (a frame never moves on its
-      // own; camera and transitions do).
-      if (manifests[id].kind !== 'layout') expect(manifests[id].tokens, id).toContain('style_bias');
+      // own; camera and transitions do), and by the user-file components (L2.12): the motion is the user's own.
+      if (manifests[id].kind !== 'layout' && !USER_FILES.includes(id)) expect(manifests[id].tokens, id).toContain('style_bias');
     }
   });
 

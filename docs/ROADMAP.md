@@ -47,8 +47,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | **done** |
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | **done** |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | **done** |
-| L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | next |
-| L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | todo |
+| L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | **done** |
+| L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | next |
 | L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | todo |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
 | L3.2 | MCP render/review/export + theme & component tools | M | todo |
@@ -414,6 +414,32 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - **Scope:** any segment can be a user video/image file; transparent overlay videos (ProRes 4444 / WebM alpha); Lottie
   component (card/overlay); "bring your own motion" docs (files, Lottie, custom Remotion components, output of any
   Claude motion skill) (R-OWN-*). Templates are never mandatory.
+- **Done:** `intro`, `outro`, `card`, `interstitial` take your own file — `{video | image | lottie, from, to, fit,
+  background, volume, duration}` — and a theme can name files for its intro / outro / interstitial (no component is
+  mandatory). Files are drawn by two built-in components usable as several kinds (manifest `kinds`, `props.as`):
+  `studio/media` (video, image; `fit: auto` keeps a 16:9 file whole in the vertical variant) and `studio/lottie`
+  (`@remotion/lottie` 4.0.534 + `lottie-web`, theme colours replacing the file's via `colors`), previews committed.
+  Step `overlay` takes a file over the capture — `{video | image | lottie, at: step | start | click | mark:<name> |
+  seconds, anchor: target | cursor | screen | corner… | rect, scale, duration, loop}` — mapped through layout, camera
+  and reframe; ProRes 4444 and VP9-alpha videos composite (pixel test: no halo). Positioned validation with ffprobe
+  (missing file, extension / container, codec, `from` / `to` past the end, overlay without alpha, volume on a silent
+  file). Audio: the file's own sound at `volume`, a silent file stays silent, the music bed ducks under files with
+  sound; the render record says `audio: files | music+files`. Docs `docs/BRING-YOUR-OWN-MOTION.md` (export settings
+  for motion tools and Remotion, Lottie, workspace components — `studio components new` —, output of Claude motion /
+  design skills), linked from the README. Fixture: generated media (`scripts/fixture-media.mjs`: Remotion renders,
+  hand-written Lottie JSON, each < 300 KB) and scenario `own-media` (user intro video with sound, outro image, alpha
+  burst on the clicked button, Lottie card, Lottie check overlay; 46 s). **Catalogue `long-wait` fixed at the root
+  cause:** waiting (wait steps and the load pause before them) plays at up to 4× after its first 0.5 s, marked waits
+  protect only the moment the state appears (R-OWN-05) — catalogue-v5 reviews clean. **Review fixes:** a file's own
+  sound no longer dips and clicks where the next transition begins (its ramps from the video element's own frame, end
+  ramp applied); the vertical / square reframe keeps a step overlay's real box over the time it really shows (`at`,
+  its own length); a file at a corner moves to the nearest free corner when a variant's framing would put it over the
+  step's target (plan note; the review's `overlay-covers-target` now measures user files); a kind-wide overlay
+  override keeps user files; a missing file is not a plan asset; `trim_idle: false` restores a marked wait's whole
+  1× window. Renders (run 20261012-093815-own-media): own-media-v6 (editorial + music), v7 (motion + music),
+  v8-vertical; catalogue-v5 (run 20261012-093047-catalogue) — all reviewed clean; frames at every segment boundary,
+  inside the intro / outro, during the alpha burst (full-resolution crops) and the Lottie card / overlay looked at,
+  intro audio measured sample by sample against the source (HANDOFF).
 
 ### L2.13 — Raw capture export for editors (M)
 - **Scope:** `studio export-capture` / `run --raw`: clean clip per scene (loads cut), MP4 HQ or ProRes 422 HQ, 30/60 fps;

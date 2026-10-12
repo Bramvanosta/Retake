@@ -149,16 +149,40 @@ export function musicVolumeAt(plan: Pick<EditPlan, 'music' | 'fps' | 'durationIn
   const fadeOut = m.fadeOut_s > 0 ? smoothstep((total - t) / m.fadeOut_s) : 1;
   const ramp = Math.max(1, Math.round((m.duck_ramp_s ?? 0.4) * plan.fps));
   let onClip = 0;
-  for (const s of plan.segments) {
-    if (s.kind !== 'clip') continue;
-    const a = s.from;
-    const b = s.from + s.durationInFrames;
+  for (const [a, b] of duckSpans(plan)) {
     if (f < a - ramp || f >= b + ramp) continue;
     const inside = f < a ? (f - (a - ramp)) / ramp : f >= b ? 1 - (f - b + 1) / ramp : 1;
     onClip = Math.max(onClip, smoothstep(inside));
   }
   const duck = 1 - (1 - m.duck) * onClip;
   return Math.round(m.volume * fadeIn * fadeOut * duck * 1e4) / 1e4;
+}
+
+/** Does a use play a sound of its own (a user video with sound and a volume above 0, L2.12)? */
+export function playsSound(rc: Pick<ResolvedComponent, 'media' | 'params'>): boolean {
+  const m = rc.media?.file;
+  return m?.kind === 'video' && m.audio && (typeof rc.params.volume === 'number' ? rc.params.volume > 0 : true);
+}
+
+const duckCache = new WeakMap<object, Array<[number, number]>>();
+
+/**
+ * Output frames [a, b) under which the music bed ducks: product footage (every clip) and every user file with sound
+ * (L2.12: a video intro, outro, card or interstitial, an overlay video over a clip) — "like under any audio segment".
+ */
+export function duckSpans(plan: Pick<EditPlan, 'segments'>): Array<[number, number]> {
+  const hit = duckCache.get(plan.segments);
+  if (hit) return hit;
+  const out: Array<[number, number]> = [];
+  for (const s of plan.segments) {
+    if (s.kind === 'clip') {
+      out.push([s.from, s.from + s.durationInFrames]);
+      continue;
+    }
+    if (playsSound(s.component)) out.push([s.from, s.from + s.durationInFrames]);
+  }
+  duckCache.set(plan.segments, out);
+  return out;
 }
 
 /**
@@ -497,4 +521,29 @@ export function insetHole(plan: Pick<EditPlan, 'tracks' | 'source' | 'fps' | 'un
   const n = (v: number) => Math.round(v * 100) / 100;
   const [x, y, w, h] = [n(r.x - e), n(r.y - e), n(r.w + 2 * e), n(r.h + 2 * e)];
   return `path(evenodd, 'M0 0H${plan.width}V${plan.height}H0Z M${x} ${y}h${w}v${h}h${-w}Z')`;
+}
+
+/** Margin (share of the visible capture's shorter side) of a box overlay placed at a side or a corner of the screen. */
+export const OVERLAY_BOX_MARGIN = 0.04;
+
+/**
+ * The box a box-filling overlay fills at clip frame `f` (L2.12), output px: its rect of the page mapped through the
+ * layout (or its pane), the camera and the reframe; or its size — scaled like the page at this frame — at a position of
+ * the visible capture (`overlayRects(…).screen`); or that whole visible capture (`screen`). Undefined without a box.
+ */
+export function overlayBoxAt(plan: Pick<EditPlan, 'source' | 'tracks' | 'variant' | 'fps'>, clip: ClipSegment, use: OverlayUse, f: number): Rect | undefined {
+  const box = use.box;
+  if (!box) return undefined;
+  if (box.rect) return mapUseRect(plan, clip, use, f, box.rect);
+  const screen = overlayRects(plan, clip, use, f).screen;
+  if (box.anchor === 'screen' || !box.size) return { ...screen };
+  const unitBox = mapUseRect(plan, clip, use, f, { x: 0, y: 0, w: box.size.w, h: box.size.h });
+  const w = unitBox.w;
+  const h = unitBox.h;
+  const m = OVERLAY_BOX_MARGIN * Math.min(screen.w, screen.h);
+  const a = box.anchor;
+  const x = /left$/.test(a) || a === 'left' ? screen.x + m : /right$/.test(a) || a === 'right' ? screen.x + screen.w - m - w : screen.x + (screen.w - w) / 2;
+  const y = /^top/.test(a) ? screen.y + m : /^bottom/.test(a) ? screen.y + screen.h - m - h : screen.y + (screen.h - h) / 2;
+  const r = (v: number) => Math.round(v * 100) / 100;
+  return { x: r(x), y: r(y), w: r(w), h: r(h) };
 }

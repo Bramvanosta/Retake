@@ -5184,7 +5184,7 @@
    "requirement": "Review report is clean (no error/warning) for both videos.",
    "status": "todo",
    "evidence": "",
-   "gap": "Review exists (L2.6). On the L2.5 renders: quote-v3 is clean (info: 56.3 s, a little under 1–2 min); catalogue-v3 has one warning — long-wait: 3.8 s of skeleton placeholders while add-product waits for its registry data (00:45.1–00:48.9, kept at 1×). The fixture captions fit their area (fitText with the real font).",
+   "gap": "Review exists (L2.6). The catalogue's long-wait warning was fixed at its root cause in L2.12 (waiting plays at up to 4×, R-OWN-05): catalogue-v5 (run 20261012-093047-catalogue) reviews clean (7 info). quote-v3 was clean (info: 56.3 s). To confirm on the final acceptance renders of L2.14.",
    "phase": "2",
    "lot": "L2.14"
   },
@@ -5962,8 +5962,8 @@
    "id": "R-OWN-01",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Any segment (intro, outro, card, interstitial) can be a user video or image file (`intro: {video: assets/intro.mp4}`, `outro: {image: …, duration}`), with the theme transitions and audio rules applied; provided templates are never mandatory.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "Scenario `intro` / `outro` / `card` / `interstitial` take `{video | image | lottie, from, to, fit, background, volume, duration}` (core types.ts MediaFileFields, schemas/primitives.ts mediaFileShape); a template's `components.intro / outro / interstitial` may be a file relative to the template folder (TemplateMediaRef, checkTemplateMedia) — no component is mandatory. They become uses of the built-in `studio/media` (video, image) / `studio/lottie` with the file in slot `file` (core media.ts mediaSegmentUse; components manifest `kinds` + `props.as`, registry usableAs). Positioned validation (core checks/media.ts): one file per use, extension per kind with hints (.gif, .lottie, a video given as image), existence, image signature, Lottie JSON, ffprobe (cached): unreadable / codec outside H.264, HEVC, VP8, VP9, AV1, ProRes / non-WebM codec in .webm (errors), from / to past the end (error), part vs duration (warning), volume on a silent file (warning), no ffprobe (warning). Planner (editor plan.ts fileCandidate / useDuration, inputs.ts planInputFiles): the file's length (video part, Lottie) unless `duration`, note per use; the theme transitions around it (crossfade / fade-black measured on renders); audio: the file's own sound at `volume` (4-frame ramps at the part's edges, kit `filePartGain`, computed from the video element's own frame — review fix: the `volume` callback's frame restarted at 0 inside a transition's exiting window, replaying the start ramp mid-sound with a click and skipping the end ramp), a silent file stays silent, the music bed ducks under files with sound (frames.ts playsSound / duckSpans, musicVolumeAt); `fit: auto` (default) covers a file of about the frame's shape, else shows it whole (a 16:9 intro in the vertical variant). The render record says `audio: files | music+files`. Tests: core media.test.ts (9: validation messages and positions, probe parsing), components media.test.ts (kit helpers, kinds, fit auto, rendered as card / overlay), editor planner-media.test.ts (segments, theme file, durations, notes, ducking, vertical fit), render-media.test.ts (a real render: a 2 s intro and a 2 s outro video with their own tones, the intro leaving and the outro entering by the theme crossfade — per-frame RMS steady within 1 dB across the transition windows, the end ramp on the last frames; fails on the pre-fix callback; clips silent). A missing / unreadable file is a warning, shows nothing and is not a plan asset (review fix: it was registered and made the render refuse the plan; planner-media.test.ts checks plan.assets). Fixture scenario own-media (intro video with its own chime, outro image), run 20261012-093815-own-media: renders own-media-v6 (editorial + music; music ducked ≈ 6–7 dB under the intro's sound, not under the silent Lottie card or the image outro — measured on v2, same plan), own-media-v7 (motion: fade-black transitions), own-media-v8-vertical (intro and outro whole, fit auto; no music) — reviews clean. Intro audio measured after the review fix: in v8-vertical the intro's gain against assets/intro.mp4 (least squares per frame) is 1.000 on frames 3–104 and 0.68 / 0.49 / 0.25 on its last three frames (was 0.27 at frame 97 — the crossfade window — and 1.0 to the end in v5-vertical); v6 − v7 is bit-identical over the intro (the crossfade at frame 97 and the fade-black at 102 no longer change its sound); v6 vs v2 and v7 vs v3 differ only on frames 96–108 (pictures identical, PSNR ≥ 58 dB); the 3.22 s click (sample jump 0.0388) is gone (0.0037 = the source).",
    "gap": "",
    "phase": "2",
    "lot": "L2.12"
@@ -5972,8 +5972,8 @@
    "id": "R-OWN-02",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Overlay videos with transparency (ProRes 4444 / WebM alpha) composited over the capture at a step or a time, positioned by anchor or rect.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "Step `overlay: {video | image | lottie, at, anchor | rect, scale, fit, duration, loop, volume}` (core OverlaySpec, schemas/steps.ts; runner scenes.ts records it on the event with `at` and `box`). `at`: step / end (default), start, click, mark:<name>, seconds after the step start; `anchor`: target, cursor, screen, centre, the 8 sides / corners; `rect` in page CSS px; `scale` of the file's own size. Planner: OverlayUse.box + layer `screen`, the file's own length (image 3 s, loop → to the clip's end, ≤ 30 s), the reframe of a vertical / square clip keeps the overlay's page box (rect, the file's box on the target / cursor) in view over the capture time it really shows (`overlayStartAt`: `at` incl. click and marks, its own length through the run's time map — review fix: it used the step end + 2.5 s and the target, so `at: 6` left a file off screen); a file at a corner / side keeps clear of its step's and the coming steps' targets in each variant's framing (nearest free corner, plan note — review fix: own-media-v5-vertical's check badge covered the hovered row) and the review's overlay-covers-target now measures user file overlays at screen positions (hover targets included); a kind-wide overrides.components.overlay no longer replaces user files (review fix); composition overlayBoxAt maps the box through layout, camera and reframe per frame (→ props.anchor), studio/media clips it to the capture screen with its radius. Alpha: OffthreadVideo `transparent` (PNG frames) composites ProRes 4444 (.mov) and VP9 alpha (.webm); validation warns when an overlay video has no alpha (alpha_mode tag or yuva / rgba pixel format). Pixel test editor/test/render-media.test.ts: a 64×64 half-opaque-green / half-transparent file, both formats, over a colour-coded synthetic capture — opaque half green, transparent half = the capture frame the plan expects, no darker fringe across the edge. Fixture: sparkle-burst.webm (VP9 alpha, 480×480, generated by a Remotion render, scripts/fixture-media.mjs; `--prores` writes the ProRes 4444 version) on the Send request button at the click — frames of own-media-v2 / v6 (identical pictures) cropped at full resolution: rays over the white dialog and the dimmed page, no halo or black fringe; in own-media-v8-vertical the whole burst stays in the reframe. Tests planner-media.test.ts (reframe keeps the box with `at` seconds / a mark / by default, a cursor-anchored file, the corner move with its note, the override), review tutorial.test.ts (a corner file over the hovered row is a warning, the planner's choice is clean).",
    "gap": "",
    "phase": "2",
    "lot": "L2.12"
@@ -5982,8 +5982,8 @@
    "id": "R-OWN-03",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Lottie animations (After Effects bodymovin JSON) as a component usable as card or overlay.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "`studio/lottie` (packages/components/library/studio/lottie, kind card, kinds intro / outro / interstitial / overlay) with `@remotion/lottie` 4.0.534 (= the Remotion version) + `lottie-web` 5.13.0, kept external by compile.ts; kit media.tsx LottieFile (seeked to the composition frame, its own fps mapped, holds its last frame or loops; JSON fetched under delayRender and cached) and recolorLottie / themeColorMap: `params.colors` maps the file's colours (#rrggbb) to theme keys or colours — static and animated fills, strokes, gradient stops, text. As a card (`card: {lottie: …}`, `size`, `fit`, `background`) and as an overlay (`overlay: {lottie: …, anchor, scale, loop}`). Preview committed (packages/components/library/studio/lottie/preview.png: a hand-written Lottie cup, accent from the theme). Tests components media.test.ts (recolouring, frames, rendered as card and overlay), editor planner-media.test.ts. Fixture: assets/cup-steam.json (card, recoloured: burgundy in editorial, orange in motion) and assets/check-badge.json (overlay asked at the top-right of the screen: there in landscape; in the vertical variant it would cover the hovered row, so the planner places it at the bottom-right, with a note — own-media-v8-vertical), hand-written by fixtures/own-media/lottie.mjs — looked at in own-media-v6 / v7 / v8-vertical.",
    "gap": "",
    "phase": "2",
    "lot": "L2.12"
@@ -5992,8 +5992,18 @@
    "id": "R-OWN-04",
    "source": "decision (user, 2026-10-12)",
    "requirement": "Documentation \"bring your own motion\": video/image files, Lottie, custom Remotion components in the workspace (incl. output of any Claude motion/design skill).",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "docs/BRING-YOUR-OWN-MOTION.md (linked from README: table of contents, 'Your own media and motion' section, scenario table rows, components table): files instead of segments, theme files, transparent overlay videos with export settings (After Effects, Premiere / Media Encoder, DaVinci Resolve, Final Cut Pro / Motion, Blender, a Remotion project (`--codec=vp9 --pixel-format=yuva420p` or `--codec=prores --prores-profile=4444`), a PNG sequence with ffmpeg), Lottie (bodymovin export, colours mapped to the theme), workspace Remotion components (`studio components new acme/launch-intro --kind intro`, the kit, `props.as`), the output of a Claude motion or design skill (where to put it, a prompt), converting and checking files (ffmpeg / ffprobe), a complete example; `studio components new` alias of `create` (cli main.ts).",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.12"
+  },
+  {
+   "id": "R-OWN-05",
+   "source": "L2.12 (root cause of the catalogue long-wait warning)",
+   "requirement": "A wait in the scenario (wait_for, wait_for_email, and the page-load pause before a wait that really waited) is shown as a short loading state: its first 0.5 s at 1×, the rest at up to 4× (ramped), marked moments and holds kept at 1×; disabled with overrides.trim_idle = false.",
+   "status": "done",
+   "evidence": "editor timing.ts waitingSpans (WAIT_SPEED 4, WAIT_KEEP_S 0.5, WAIT_MIN_S 0.3, WAIT_LOADING_MIN_S 0.3) feeding planRunTiming; a marked wait step protects only the moment its state appears (MARK_WINDOW_S around its end), not the waiting — with overrides.trim_idle: false its whole span again (review fix: protectedSpans(…, waitsFaster)); step speed wins; a note per scene. Tests editor planner-media.test.ts ('waiting plays faster'), planner-real.test.ts (catalogue add-product loading), planner-rules / review tests updated. Catalogue re-captured (run 20261012-093047-catalogue) and rendered catalogue-v5: review clean (the long-wait warning of catalogue-v3 gone; the registry spinner on screen ≈ 2.2 s instead of 3.8 s, frames looked at).",
    "gap": "",
    "phase": "2",
    "lot": "L2.12"

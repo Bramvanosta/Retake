@@ -36,15 +36,18 @@ export type OutputVariant = 'landscape' | 'vertical' | 'square';
  * name) and the planner hands the component the captured data as `props.media[<slot>]`. L2.10: `capture` names a text
  * read by `capture_text` (→ `TextMedia`), `frame` a frame of the capture (a mark, `start:` / `end:` a scene, `12.5s`)
  * or an image file (→ `PictureMedia`), `data` a CSV / TSV file of the project (→ `TableMedia`). An `image` slot may
- * name an image file of the project: the planner serves it and the slot holds its URL.
+ * name an image file of the project: the planner serves it and the slot holds its URL. L2.12: `media` names a video or
+ * an image file of the project (→ `VideoMedia` / `PictureMedia`), `lottie` a Lottie JSON file (→ `LottieMedia`).
  */
-export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen' | 'email' | 'document' | 'notification' | 'capture' | 'frame' | 'data';
+export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen' | 'email' | 'document' | 'notification' | 'capture' | 'frame' | 'data' | 'media' | 'lottie';
 
 /** Slot types whose value names a run artefact (resolved into `ComponentProps.media`). */
 export const ARTEFACT_SLOT_TYPES = ['email', 'document', 'notification', 'capture'] as const;
 export type ArtefactSlotType = (typeof ARTEFACT_SLOT_TYPES)[number];
 /** Every slot type the planner resolves into `ComponentProps.media`. */
-export const MEDIA_SLOT_TYPES = ['email', 'document', 'notification', 'capture', 'frame', 'data'] as const;
+export const MEDIA_SLOT_TYPES = ['email', 'document', 'notification', 'capture', 'frame', 'data', 'media', 'lottie'] as const;
+/** User-file slot types (L2.12): a video or image file, a Lottie file. */
+export const FILE_SLOT_TYPES = ['media', 'lottie'] as const;
 export type MediaSlotType = (typeof MEDIA_SLOT_TYPES)[number];
 
 export interface SlotSpec {
@@ -146,6 +149,11 @@ export interface ComponentManifest {
   /** Semver. */
   version: string;
   kind: ComponentKind;
+  /**
+   * Other kinds the component can be used as (L2.12), e.g. studio/lottie: a card that also plays as an intro, an outro,
+   * an interstitial or an overlay. The component reads `props.as` to know how it is used.
+   */
+  kinds?: ComponentKind[];
   name: string;
   description: string;
   /** V2 marketplace metadata. */
@@ -314,7 +322,40 @@ export interface TableMedia {
   rows: string[][];
 }
 
-export type MediaValue = EmailMedia | DocumentMedia | NotificationMedia | TextMedia | PictureMedia | TableMedia;
+/**
+ * A video file of the project or the theme (L2.12, `media` slots: a user intro, an alpha overlay…), served by the
+ * renderer, with what ffprobe said about it.
+ */
+export interface VideoMedia {
+  kind: 'video';
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+  /** Length of the file (s). */
+  duration_s: number;
+  fps: number;
+  /** The file has a sound track. */
+  audio: boolean;
+  /** The video carries an alpha channel (ProRes 4444, VP8 / VP9 with alpha): drawn transparent. */
+  alpha: boolean;
+  codec: string;
+}
+
+/** A Lottie animation of the project or the theme (L2.12, `lottie` slots), served by the renderer (`url`: its JSON). */
+export interface LottieMedia {
+  kind: 'lottie';
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+  /** Frames per second of the animation and its length in frames (op − ip). */
+  fps: number;
+  frames: number;
+  duration_s: number;
+}
+
+export type MediaValue = EmailMedia | DocumentMedia | NotificationMedia | TextMedia | PictureMedia | TableMedia | VideoMedia | LottieMedia;
 
 /** A chapter of the progress bar (L2.10), in frames relative to the progress overlay. */
 export interface ProgressChapter {
@@ -376,6 +417,11 @@ export interface LayoutRects {
 
 /** Props received by every component implementation (default export of its entry). */
 export interface ComponentProps<P extends Record<string, unknown> = Record<string, unknown>> {
+  /**
+   * The kind this use is (L2.12): the manifest's `kind`, or one of its `kinds` — a component usable as a card and as an
+   * overlay draws full frame or in its box accordingly. Absent outside a plan (unit tests): the manifest's kind.
+   */
+  as?: ComponentKind;
   theme: ThemeTokens;
   /** Slot values: strings for text/url/color/image (image = URL). */
   slots: Record<string, string | undefined>;
@@ -417,7 +463,8 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
    */
   area?: { x: number; y: number; w: number; h: number };
   /**
-   * overlay: the box it points at, in output px (a point is a 0×0 box), when the step recorded one.
+   * overlay: the box it points at, in output px (a point is a 0×0 box), when the step recorded one. A box-filling overlay
+   * (a user file, L2.12 — the step's `anchor` / `rect` / `scale`): the box it fills, this frame.
    * transition: the box it opens from (the outgoing segment's tap target — a notification banner, an app icon — from
    * that component's manifest `anchor`), when there is one.
    */

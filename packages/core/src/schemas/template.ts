@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { COMPONENT_KINDS } from '../types.js';
-import type { ComponentKind, Template, TemplateComponents, TextStyle } from '../types.js';
-import { ComponentRefSchema, FrameStyleSchema, TransitionSchema, nonEmpty, positiveSeconds, seconds } from './primitives.js';
+import { COMPONENT_KINDS, TEMPLATE_MEDIA_KINDS } from '../types.js';
+import type { ComponentKind, ComponentRef, Template, TemplateComponents, TemplateMediaRef, TextStyle } from '../types.js';
+import { ComponentParamsSchema, ComponentRefSchema, FrameStyleSchema, TransitionSchema, mediaFileShape, nonEmpty, positiveSeconds, seconds } from './primitives.js';
 
 const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 const IMAGE_RE = /\.(svg|png|jpe?g|webp)$/i;
@@ -89,20 +89,30 @@ const KIND_HINTS: Record<ComponentKind, string> = {
   transition: 'Transition between scenes, e.g. studio/transition-crossfade; null = cut.',
 };
 
+/** A theme's own file for an intro, an outro or an interstitial (L2.12): paths relative to the template folder. */
+const TemplateMediaSchema = z
+  .strictObject({
+    ...mediaFileShape,
+    duration: positiveSeconds().describe('Seconds on screen (default: a video or Lottie file: its own length; an image: the kind\'s duration).').optional(),
+    params: ComponentParamsSchema.optional(),
+  })
+  .describe('The theme\'s own file instead of a component: {video | image | lottie, from, to, fit, background, volume, duration} (paths relative to the template folder).');
+
 /** `components:` — default component per kind; null = none. */
 const ComponentsSchema = z
   .strictObject(
     Object.fromEntries(
       COMPONENT_KINDS.map((k) => [
         k,
-        ComponentRefSchema.nullable()
-          .describe(`${KIND_HINTS[k]} An id "namespace/name" or {id, params}.`)
-          .optional(),
+        ((TEMPLATE_MEDIA_KINDS as readonly string[]).includes(k)
+          ? z.union([ComponentRefSchema, TemplateMediaSchema]).nullable().describe(`${KIND_HINTS[k]} An id "namespace/name", {id, params}, or the theme's own file {video | image | lottie, …}.`)
+          : ComponentRefSchema.nullable().describe(`${KIND_HINTS[k]} An id "namespace/name" or {id, params}.`)
+        ).optional(),
       ]),
-    ) as Record<ComponentKind, z.ZodOptional<z.ZodNullable<typeof ComponentRefSchema>>>,
+    ) as Record<ComponentKind, z.ZodOptional<z.ZodNullable<z.ZodType<ComponentRef | TemplateMediaRef>>>>,
   )
   .describe(
-    'Default component per kind (id or {id, params}; null = none). A kind left out is mapped from the legacy fields ' +
+    'Default component per kind (id or {id, params}; null = none; intro, outro and interstitial may be a file of the theme). A kind left out is mapped from the legacy fields ' +
       '(frame.style, intro.layout, outro.layout, interstitial.style, captions.position, transitions.between_scenes).',
   ) satisfies z.ZodType<TemplateComponents>;
 

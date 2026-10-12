@@ -92,9 +92,15 @@ importers:
       '@demo-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@remotion/lottie':
+        specifier: 4.0.534
+        version: 4.0.534(lottie-web@5.13.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
+      lottie-web:
+        specifier: 5.13.0
+        version: 5.13.0
       react:
         specifier: 19.1.1
         version: 19.1.1
@@ -1454,6 +1460,13 @@ packages:
   '@remotion/licensing@4.0.534':
     resolution: {integrity: sha512-pNP8OfY+vbDbjNBLYGoxGyE0SsReRy85G/QTF17mQC86dt2+pzsYlOkG2mq6R4tkt27xaQv8O5EFiJfYYfVkkw==}
 
+  '@remotion/lottie@4.0.534':
+    resolution: {integrity: sha512-YIuS2EX/85UHFD5uDWkg+bg54CfSwTo6Uc3u4rcQJ2L6RLOHTeDxCaLk1UM+xdNdaPzAzk3kK89xkuTSW++KXw==}
+    peerDependencies:
+      lottie-web: ^5
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
   '@remotion/media-parser@4.0.534':
     resolution: {integrity: sha512-FE/Ww9wBOrxiMCqGwHWbPXZBxs27WzDCDhOxkYyxnOSzSePzYseDrDdwuqCGApr1cDxiwkAm91EcqvP5acPziQ==}
 
@@ -2496,6 +2509,9 @@ packages:
   locate-path@5.0.0:
     resolution: {integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==}
     engines: {node: '>=8'}
+
+  lottie-web@5.13.0:
+    resolution: {integrity: sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ==}
 
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
@@ -4382,6 +4398,13 @@ snapshots:
 
   '@remotion/licensing@4.0.534': {}
 
+  '@remotion/lottie@4.0.534(lottie-web@5.13.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+    dependencies:
+      lottie-web: 5.13.0
+      react: 19.1.1
+      react-dom: 19.1.1(react@19.1.1)
+      remotion: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+
   '@remotion/media-parser@4.0.534': {}
 
   '@remotion/media-utils@4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
@@ -5517,6 +5540,8 @@ snapshots:
   locate-path@5.0.0:
     dependencies:
       p-locate: 4.1.0
+
+  lottie-web@5.13.0: {}
 
   loupe@3.2.1: {}
 

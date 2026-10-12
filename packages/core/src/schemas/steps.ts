@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ACTION_NAMES } from '../types.js';
-import type { ActionArgsMap, ActionName, OverlaySpec } from '../types.js';
+import { ACTION_NAMES, OVERLAY_ANCHORS } from '../types.js';
+import type { ActionArgsMap, ActionName, OverlayAnchor, OverlayAt, OverlaySpec } from '../types.js';
 import { keyedUnion } from './keyed.js';
 import {
   CameraHintSchema,
@@ -13,6 +13,7 @@ import {
   TutorialSwitchSchema,
   componentIdSchema,
   keyString,
+  mediaFileShape,
   millis,
   nonEmpty,
   positiveSeconds,
@@ -27,25 +28,51 @@ export const speedSchema = () => z.number().gt(0).lte(8);
 /** Longest overlay (seconds): an overlay is a short callout over a clip, not a card. */
 export const OVERLAY_MAX_SECONDS = 30;
 
+/** Overlay anchors (L2.12): where a box-filling overlay (a user file) goes. */
+export const OverlayAnchorSchema = z.enum(OVERLAY_ANCHORS as unknown as [OverlayAnchor, ...OverlayAnchor[]]);
+
+/** When an overlay starts: start | end | step | click | mark:<name> | seconds after the step starts. */
+export const OverlayAtSchema = z
+  .union([
+    z.enum(['start', 'end', 'step', 'click']),
+    z.string().regex(/^mark:[A-Za-z0-9][A-Za-z0-9_-]*$/, { error: 'at must be start, end, step, click, mark:<name> or a number of seconds after the step starts' }),
+    z.number().min(0).max(OVERLAY_MAX_SECONDS),
+  ])
+  .describe('When it starts: end / step (the end of the step, default), start, click, mark:<name> or seconds after the step starts.') as z.ZodType<OverlayAt>;
+
+const { background: _background, ...overlayMediaShape } = mediaFileShape;
+
 export const OverlaySpecSchema: z.ZodType<OverlaySpec> = z
   .strictObject({
-    component: componentIdSchema('overlay component id').describe(
-      'Overlay component "namespace/name", e.g. studio/overlay-callout or studio/overlay-lower-third.',
-    ),
+    component: componentIdSchema('overlay component id')
+      .describe('Overlay component "namespace/name", e.g. studio/overlay-callout or studio/overlay-lower-third (or a video, image or lottie file instead).')
+      .optional(),
     slots: SlotsSchema.optional(),
     params: ComponentParamsSchema.optional(),
     duration: positiveSeconds()
       .max(OVERLAY_MAX_SECONDS)
-      .describe(`Seconds on screen, at most ${OVERLAY_MAX_SECONDS} (default: the component's duration).`)
+      .describe(`Seconds on screen, at most ${OVERLAY_MAX_SECONDS} (default: the component's duration; a file: its own length).`)
       .optional(),
     target: TargetSpecSchema.describe(
       'Element the overlay points at, measured at the end of the step after any scroll (default: the step target, else the cursor).',
     ).optional(),
+    ...overlayMediaShape,
+    at: OverlayAtSchema.optional(),
+    anchor: OverlayAnchorSchema.describe(
+      'Where a file (video with alpha, image, Lottie) goes: target (default when the step has one), cursor, screen (the whole visible capture), center or a side / corner of the screen.',
+    ).optional(),
+    rect: z
+      .strictObject({ x: z.number(), y: z.number(), w: z.number().gt(0), h: z.number().gt(0) })
+      .describe('Where a file goes, as a rect of the page in CSS px (instead of anchor).')
+      .optional(),
+    scale: z.number().gt(0).max(10).describe("Size of a file relative to its own size in page CSS px (default 1).").optional(),
+    loop: z.boolean().describe('Replay a video or Lottie file for the whole duration (default false: it plays once and holds its last frame).').optional(),
   })
   .meta({
     id: 'Overlay',
     description:
-      'Edit-time overlay (callout, lower third, badge…) shown over the clip from the end of this step; the runner records the target bbox.',
+      'Edit-time overlay (callout, lower third, badge…) shown over the clip from the end of this step; the runner records the target bbox. ' +
+      'Or your own file composited over the capture: {video | image | lottie, at, anchor | rect, scale, duration, loop}.',
   });
 
 export const stepCommonShape = {

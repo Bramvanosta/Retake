@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A Lottie animation (After Effects → bodymovin JSON, or any Lottie tool) instead of a provided component (L2.12,
+# R-OWN-03): full frame on the theme background (a card, an intro, an outro, an interstitial) or in a box over the
+# capture (an overlay: `overlay: {lottie: assets/check.json, anchor: target}`). The animation is seeked to the frame of
+# the video (its own frame rate mapped), played once — holding its last frame — or looped. `colors` replaces colours
+# of the animation by theme colours, so one generic animation takes every theme's palette:
+# `colors: {"#ff5a1f": accent, "#1b1b1f": text}`.
+id: studio/lottie
+version: 1.0.0
+kind: card
+kinds: [intro, outro, interstitial, overlay]
+name: Lottie animation
+description: A Lottie (bodymovin JSON) animation of the project — full frame on the theme background, or in a box over the capture — with optional colour replacement by theme colours.
+tags: [lottie, animation, motion, own]
+slots:
+  file: {type: lottie, required: true, description: 'A Lottie animation (bodymovin .json) of the project or the theme.'}
+params:
+  type: object
+  properties:
+    fit: {type: string, enum: [contain, cover], default: contain, description: 'contain: the whole animation; cover: it fills the frame or the box (cropped).'}
+    background: {type: string, default: theme, description: 'Full frame: behind the animation — theme (the theme background), a theme colour key (paper, dark, accent…), a CSS colour or none.'}
+    size: {type: number, exclusiveMinimum: 0, maximum: 1, default: 1, description: 'Full frame: share of the frame the animation box takes (centred).'}
+    loop: {type: boolean, default: false, description: 'Replay the animation for the whole use (default: play once, then hold the last frame).'}
+    colors:
+      type: object
+      additionalProperties: {type: string}
+      default: {}
+      description: 'Colours of the animation to replace: source colour (#rrggbb) → a theme colour key (accent, text, muted, paper, dark…) or a CSS colour.'
+tokens: [background, colors.accent, colors.text, colors.muted, colors.paper, colors.dark]
+duration: {default: 3, min: 0.2, max: 120}
+variants: [landscape, vertical, square]
+preview:
+  slots: {file: sample}
+  params: {size: 0.62, colors: {'#ff5a1f': accent, '#2b2b33': text, '#f2c14e': muted}}
+  at: [1.2]

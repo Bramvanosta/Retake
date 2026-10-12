@@ -32,7 +32,9 @@
   },
   "dependencies": {
     "@demo-studio/core": "workspace:*",
+    "@remotion/lottie": "4.0.534",
     "esbuild": "0.28.1",
+    "lottie-web": "5.13.0",
     "react": "19.1.1",
     "remotion": "4.0.534",
     "yaml": "^2.8.1",

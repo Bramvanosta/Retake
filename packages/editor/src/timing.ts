@@ -19,6 +19,22 @@ export const SPEED_RAMP_S = 0.3;
 export const DEFAULT_IDLE_THRESHOLD_S = 1.2;
 /** What is left of a shortened idle gap (seconds of capture: half before the cut, half after). */
 export const IDLE_KEEP_S = 0.4;
+/**
+ * Waiting (L2.12 — the root cause of the catalogue `long-wait`): a wait step (`wait_for`, `wait_for_email`) and the
+ * post-navigation pause of the step right before it show a loading state (placeholders, spinners — they animate, so the
+ * capture is never idle and idle trimming cannot shorten them). The planner plays such a span at `WAIT_SPEED` after its
+ * first `WAIT_KEEP_S` (the viewer sees that it loads), ramped like any speed change; marks, holds and the opening still
+ * stay at 1×, a step's own `speed` wins, a faster scene speed is kept. A marked wait step protects the moment it waited
+ * for (its end), not the waiting.
+ */
+export const WAIT_SPEED = 4;
+export const WAIT_KEEP_S = 0.5;
+/** Waiting shorter than this (after the kept part) is left alone. */
+export const WAIT_MIN_S = 0.3;
+/** Wait steps that waited at least this long in all show that the page before them was still loading. */
+export const WAIT_LOADING_MIN_S = 0.3;
+/** Steps that wait for the product. */
+export const WAIT_ACTIONS: ReadonlySet<string> = new Set(['wait_for', 'wait_for_email']);
 
 const EPS = 1e-6;
 
@@ -41,6 +57,11 @@ export interface RunTimingInput {
   idle: ReadonlyArray<{ t_start: number; t_end: number }>;
   trimIdle: boolean;
   idleThresholdS: number;
+  /**
+   * Capture seconds the scenario spends waiting for the product (`waitingSpans`): played at `WAIT_SPEED` (outside
+   * protected spans). Absent / empty: no compression.
+   */
+  waits?: ReadonlyArray<{ t_start: number; t_end: number }>;
 }
 
 /** Why a span is played at 1× whatever the speeds. */
@@ -96,15 +117,21 @@ export interface RunTiming {
   protectedSpans: ProtectedSpan[];
 }
 
-/** Spans played at 1× whatever the speeds: the opening still, holds (action and modifier), marked step windows. */
-export function protectedSpans(clips: readonly RunClipInput[], fps: number): ProtectedSpan[] {
+/**
+ * Spans played at 1× whatever the speeds: the opening still, holds (action and modifier), marked step windows. With
+ * `waitsFaster` (the default: waiting plays faster, see `WAIT_SPEED`) a marked wait step protects the moment it waited
+ * for (its end); without it (`overrides.trim_idle: false`) the whole marked step, as before L2.12.
+ */
+export function protectedSpans(clips: readonly RunClipInput[], fps: number, waitsFaster = true): ProtectedSpan[] {
   const out: ProtectedSpan[] = [];
   for (const c of clips) {
     for (const e of c.events) {
       if (e.action === 'scene_still' && e.t_end > e.t_start) out.push({ a: e.t_start * fps, b: e.t_end * fps, reason: 'still', scene: c.scene, step: e.step });
       if (e.hold && e.hold.t_end > e.hold.t_start) out.push({ a: e.hold.t_start * fps, b: e.hold.t_end * fps, reason: 'hold', scene: c.scene, step: e.step });
       else if (e.action === 'hold' && e.t_end > e.t_start) out.push({ a: e.t_start * fps, b: e.t_end * fps, reason: 'hold', scene: c.scene, step: e.step });
-      if (e.mark) out.push({ a: (e.t_start - MARK_WINDOW_S) * fps, b: (stepEnd(e) + MARK_WINDOW_S) * fps, reason: 'mark', scene: c.scene, step: e.step });
+      // A marked wait step: the moment it waited for (its end) is what the mark points at, not the waiting before it.
+      const markFrom = waitsFaster && WAIT_ACTIONS.has(e.action) ? e.t_end : e.t_start;
+      if (e.mark) out.push({ a: (markFrom - MARK_WINDOW_S) * fps, b: (stepEnd(e) + MARK_WINDOW_S) * fps, reason: 'mark', scene: c.scene, step: e.step });
     }
   }
   const run = { a: clips[0].A, b: clips[clips.length - 1].B };
@@ -137,7 +164,7 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
   const P0 = clips[0].A;
   const P1 = clips[clips.length - 1].B;
 
-  const prot = protectedSpans(clips, srcFps);
+  const prot = protectedSpans(clips, srcFps, input.trimIdle);
   const protMerged = mergeIntervals(prot);
 
   // Step speeds (a step's own span, before its hold).
@@ -149,6 +176,14 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
         if (x) stepSpeeds.push({ ...x, v: e.speed });
       }
     }
+  }
+
+  // Waiting played faster (after the explicit step speeds: those win).
+  for (const w of input.waits ?? []) {
+    clips.forEach((c) => {
+      const x = intersect({ a: w.t_start * srcFps, b: w.t_end * srcFps }, { a: c.A, b: c.B });
+      if (x && x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(WAIT_SPEED, c.baseSpeed) });
+    });
   }
 
   // Idle trims: the part of an idle interval outside protected spans, when longer than the threshold.
@@ -306,6 +341,44 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
 
   const runCuts: RunCut[] = cuts.map((c) => ({ ...c, at: firstFrameAtOrAfter(p, c.b) }));
   return { srcFps, outFps, pieces: map, length, p, src, clipRanges, cuts: runCuts, protectedSpans: prot };
+}
+
+/**
+ * The capture seconds a scene spends waiting for the product (see `WAIT_SPEED`): each wait step without its own speed,
+ * and — when a run of consecutive wait steps actually waited (≥ `WAIT_LOADING_MIN_S` in all: the new page was still
+ * loading) right after a step that changed the page — that step's pause after the change (from the URL change,
+ * `pageChanges` in capture seconds, to the step's end): the viewer was looking at the loading page. Contiguous spans
+ * merge; the first `WAIT_KEEP_S` of each is left out (played as usual). Pure.
+ */
+export function waitingSpans(events: readonly TimelineEvent[], pageChanges: readonly number[] = []): Array<{ t_start: number; t_end: number }> {
+  const steps = events.filter((e) => e.step >= 0 && e.status !== 'skipped').sort((a, b) => a.t_start - b.t_start || a.step - b.step);
+  const isWait = (e: TimelineEvent) => WAIT_ACTIONS.has(e.action) && !(typeof e.speed === 'number' && e.speed > 0) && e.t_end > e.t_start;
+  const contiguous = (prev: TimelineEvent, next: TimelineEvent) => next.t_start - stepEnd(prev) <= 0.1 && !(prev.hold && prev.hold.t_end > prev.hold.t_start);
+  const raw: Interval[] = [];
+  for (let i = 0; i < steps.length; i++) {
+    if (!isWait(steps[i])) continue;
+    // A run of consecutive waits.
+    let j = i;
+    while (j + 1 < steps.length && isWait(steps[j + 1]) && contiguous(steps[j], steps[j + 1])) j++;
+    const run = steps.slice(i, j + 1);
+    for (const w of run) raw.push({ a: w.t_start, b: w.t_end });
+    const waited = run.reduce((n, w) => n + (w.t_end - w.t_start), 0);
+    const prev = steps[i - 1];
+    if (prev && !WAIT_ACTIONS.has(prev.action) && contiguous(prev, steps[i]) && waited >= WAIT_LOADING_MIN_S) {
+      // The page changed during the previous step and was still loading after its pause.
+      const from = prev.t_click ?? prev.t_start;
+      const change = pageChanges.find((t) => t >= from - 1e-6 && t < prev.t_end);
+      if (change !== undefined) raw.push({ a: change, b: prev.t_end });
+    }
+    i = j;
+  }
+  const out: Array<{ t_start: number; t_end: number }> = [];
+  for (const m of mergeIntervals(raw.map((x) => ({ a: x.a, b: x.b + 0.1 })))) {
+    const a = m.a + WAIT_KEEP_S;
+    const b = m.b - 0.1;
+    if (b - a >= WAIT_MIN_S) out.push({ t_start: Math.round(a * 1e4) / 1e4, t_end: Math.round(b * 1e4) / 1e4 });
+  }
+  return out;
 }
 
 /** First output frame whose source position is at or after source frame position `pos` (p.length when none). */

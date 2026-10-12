@@ -16,6 +16,7 @@ profiles live in **your own workspace folder**, never in this repository.
 - [Command line](#command-line)
 - [Project layout](#project-layout)
 - [Scenario language](#scenario-language)
+- [Your own media and motion](#your-own-media-and-motion)
 - [Editing: the edit plan](#editing-the-edit-plan)
 - [Rendering](#rendering)
 - [Signing in once: pre-authenticated profiles](#signing-in-once-pre-authenticated-profiles)
@@ -401,11 +402,14 @@ scenes:
 | Key | Where | Value |
 |---|---|---|
 | `frame` | project, scenario, scene | `raw`, `card`, `browser`, `laptop`, `phone`, `tablet` (= `studio/layout-<style>`), `split`, `pip` (multi-page scenes: `studio/layout-split`, `studio/layout-pip`, see [several pages at once](#several-pages-at-once)) or a layout component id; default `card` (project) |
-| `intro` / `outro` | scenario | `false`, or `{component, params, duration}` (+ `tagline`, `url` for the outro) |
-| `interstitial` | scene entry | `{text, kicker, duration, component, params}` |
-| `card` | scene entry | `{component, params, slots, duration, transition}`; needs `component` or `slots.title` (the theme's card component shows a title) |
-| `overlay` | step modifier | `{component, slots, params, duration (0 < s ≤ 30), target}` |
+| `intro` / `outro` | scenario | `false`, or `{component, params, duration}` (+ `tagline`, `url` for the outro), or **your file**: `{video \| image \| lottie, from, to, fit, background, volume, duration}` ([your own media](#your-own-media-and-motion)) |
+| `interstitial` | scene entry | `{text, kicker, duration, component, params}`, or your file (as the intro) |
+| `card` | scene entry | `{component, params, slots, duration, transition}`; needs `component`, `slots.title` (the theme's card component shows a title) or your file (`video`, `image`, `lottie`) |
+| `overlay` | step modifier | `{component, slots, params, duration (0 < s ≤ 30), target}`, or your file over the capture: `{video \| image \| lottie, at, anchor \| rect, scale, duration, loop}` |
 | `transition` | scene, card | the transition INTO it: `crossfade` · `cut` · `fade-black` (the theme's of that kind) or a transition component — `studio/transition-tap-open` or `{component, params}` |
+
+No component is ever mandatory: a file given as `video`, `image` or `lottie` is drawn by the built-in `studio/media` /
+`studio/lottie` components — see [your own media and motion](#your-own-media-and-motion).
 
 Slots are the texts a component shows (`title`, `kicker`, `text`…); params tune it (see the component's params
 schema). The run records cards in `timeline.json` (`kind: card`), each overlay on its step event
@@ -466,6 +470,39 @@ Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `sav
 `rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`. Setup stops at the first failure and rolls
 back what it did; teardown hooks always run (even after a failure or Ctrl-C), then the pending setup rollbacks are
 replayed, most recent first.
+
+## Your own media and motion
+
+Templates never lock you in: the intro, the outro, a card, an interstitial and an overlay can each be **your own file**
+instead of a provided component — the full guide, with export settings for motion tools, Remotion, Lottie, your own
+components and the output of Claude motion / design skills, is
+**[docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md)**.
+
+```yaml
+intro: {video: assets/intro.mp4}                     # with its own sound; the music bed ducks under it
+outro: {image: assets/end-card.png, duration: 3}
+scenes:
+  - card: {lottie: assets/cup-steam.json, params: {colors: {"#ff5a1f": accent}}}   # theme colours replace the file's
+  - id: send
+    steps:
+      - click: {text: Send request}
+        overlay: {video: assets/sparkle-burst.webm, at: click, anchor: target, scale: 0.9}   # VP9 or ProRes 4444 alpha
+```
+
+| Field | Value |
+|---|---|
+| `video` · `image` · `lottie` | one file per use: `.mp4` `.mov` `.webm` `.m4v` (H.264, HEVC, VP8, VP9, AV1, ProRes) · `.png` `.jpg` `.jpeg` `.webp` `.svg` · a Lottie `.json` |
+| `from`, `to` | video only: the part of the file to play (s); its length is the segment's unless `duration` is set (a shorter file holds its last frame, an overlay can `loop`) |
+| `fit`, `background` | `cover` or `contain` (default: cover when the file has about the frame's shape, else contain — a 16:9 intro shows whole in the vertical variant), and what shows around a contained or transparent file: `theme` (the theme background, default), a theme colour key (`paper`, `dark`, `accent`…), a CSS colour or `none` |
+| `volume` | video only, 0–1 (default 1): the file's own sound; a silent file stays silent and the music bed ducks only under files that play sound |
+| `at` (overlay) | `step` / `end` (the end of the step, default) · `start` · `click` (the click of a pointer step) · `mark:<name>` (a marked step) · seconds after the step starts |
+| `anchor` · `rect` (overlay) | `target` (default when the step has one), `cursor`, `screen`, `center`, `top-left` … `bottom-right` · or a page rect `{x, y, w, h}` in CSS px; `scale` sizes an anchored file relative to its own size in page px; the box follows the camera, zooms and vertical / square reframing (which keeps a target / cursor / rect box in view while it shows); a corner or side moves to the nearest free one when, in a variant's framing, it would cover the step's target (plan note) |
+
+Validation is positioned (line:column) and says what to do: a missing file, a wrong extension or container, a codec
+outside the list, `from` / `to` past the end of the file, an overlay video without alpha. Files are drawn by the
+built-in **`studio/media`** (video, image) and **`studio/lottie`** components, usable as intro, outro, card,
+interstitial and overlay; a theme can name files too (`components: {intro: {video: intro.mp4}}`, relative to the
+template folder).
 
 ## Templates (themes)
 
@@ -541,6 +578,7 @@ template fields use, plus a tablet layout — every one theme-driven, in the fam
 | `studio/caption-below` · `studio/caption-overlay` | caption | rule + kicker + line under the card (reference) · a translucent band over the capture (`position: over \| area`) |
 | `studio/overlay-callout` · `studio/overlay-lower-third` | overlay | a ring on the target + a pill pointing at it, never off-screen · a paper lower third inside the capture |
 | `studio/transition-crossfade` · `studio/transition-fade-black` | transition | crossfade (reference) · dip through black or the theme's night tone |
+| `studio/media` · `studio/lottie` | card (also intro, outro, interstitial, overlay) | **your file** (slot `file`): a video (alpha composited, own sound) or an image · a Lottie animation with theme colours replacing its own (`colors`) — see [your own media](#your-own-media-and-motion) |
 
 Layouts size their screen from the **capture's aspect** (geometry expressions below): the browser and laptop keep it
 exactly, the phone and the tablet within device proportions (0.42–0.62, 0.62–1.6) — a capture outside them is
@@ -1009,8 +1047,13 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   page is joined with **no** transition: only the caption changes and the camera continues. Interstitials are drawn
   over the last frame of the previous clip.
 - **Speed**: the scene `speed` (`overrides.speeds` wins), a step `speed` for its own span; always 1× during the
-  opening still, every hold (`hold` steps and the `hold` modifier) and ±0.6 s around a `mark` step through its hold.
-  Speed changes are ramped over 0.3 s of output, inside the unprotected side.
+  opening still, every hold (`hold` steps and the `hold` modifier) and ±0.6 s around a `mark` step through its hold
+  (a marked `wait_for` / `wait_for_email`: around the moment its state appears, not the waiting). Speed changes are
+  ramped over 0.3 s of output, inside the unprotected side.
+- **Waiting**: the time a `wait_for` / `wait_for_email` step waits — and the pause after a page change before a wait
+  that really waited (the page was loading) — is a loading state: its first 0.5 s plays at 1×, the rest at up to 4×
+  (a step `speed` wins; `overrides.trim_idle: false` keeps it at 1× — and a marked wait step's whole span at 1× again). A slow back end never shows as a long frozen
+  spinner; the plan notes each span.
 - **Idle trims**: the part of a `timeline.idle` gap outside those protected spans, when longer than 1.2 s
   (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on screen).
 - **Camera**: static unless a step has a `camera` hint, or the theme has a **default zoom** (below). The zoom is clamped to the theme `max_zoom` (noted), focused on
@@ -1345,7 +1388,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) done; L2.12 next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) done; L2.13 next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

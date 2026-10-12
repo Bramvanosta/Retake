@@ -79,6 +79,9 @@ export const THEME_TOKENS = [
   'motion.zoom_ease',
 ] as const;
 
+/** Kinds a component may declare in `kinds` besides its own (L2.12): the full-frame kinds and the overlay. */
+export const MULTI_USE_KINDS = ['intro', 'outro', 'card', 'interstitial', 'overlay'] as const satisfies readonly ComponentKind[];
+
 /** Kinds whose duration comes from the clip they decorate (a manifest `duration` is ignored). */
 const CLIP_BOUND_KINDS: readonly ComponentKind[] = ['layout', 'caption'];
 
@@ -87,13 +90,14 @@ const nonEmpty = () => z.string().min(1);
 export const SlotSpecSchema = z
   .strictObject({
     type: z
-      .enum(['text', 'image', 'url', 'color', 'screen', 'email', 'document', 'notification', 'capture', 'frame', 'data'])
+      .enum(['text', 'image', 'url', 'color', 'screen', 'email', 'document', 'notification', 'capture', 'frame', 'data', 'media', 'lottie'])
       .describe(
         'text, image (a URL, or an image file of the project), url (shown as text), color (CSS), screen (the capture, ' +
           'layouts only), or data the scenario names: email (a wait_for_email `as`), document (a download `as` or a ' +
           'project file), notification (a captured web notification: its name or 1-based index), capture (a ' +
           'capture_text `as`), frame (a frame of the capture — a mark, start:/end:<scene>, 12.5s — or an image file), ' +
-          'data (a CSV / TSV file of the project) — the component receives it as `props.media[<slot>]`.',
+          'data (a CSV / TSV file of the project), media (a video or image file of the project), lottie (a Lottie JSON ' +
+          'file of the project) — the component receives it as `props.media[<slot>]`.',
       ),
     description: z.string().describe('What the slot shows (for the UI and Claude).').optional(),
     required: z.boolean().describe('The component cannot render without it (default false).').optional(),
@@ -188,6 +192,11 @@ export const ComponentManifestFileSchema = z
       .regex(SEMVER_RE, { error: (iss) => `version must be a semantic version like "1.0.0", got ${JSON.stringify(iss.input)}` })
       .describe('Semantic version (e.g. 1.0.0).'),
     kind: z.enum(COMPONENT_KINDS as [ComponentKind, ...ComponentKind[]]).describe(`What it renders: ${COMPONENT_KINDS.join(', ')}.`),
+    kinds: z
+      .array(z.enum(MULTI_USE_KINDS as unknown as [ComponentKind, ...ComponentKind[]]))
+      .min(1)
+      .describe(`Other kinds it can be used as (${MULTI_USE_KINDS.join(', ')}): it reads \`props.as\` to know how it is used.`)
+      .optional(),
     name: nonEmpty().describe('Display name.'),
     description: nonEmpty().describe('One or two sentences: what it looks like and when to use it.'),
     publisher: nonEmpty().describe('Publisher (marketplace metadata).').optional(),
@@ -432,6 +441,17 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
     }
     if (slot.type === 'screen' && kind !== undefined && kind !== 'layout' && kind !== 'interstitial' && kind !== 'transition') {
       out.push(locatedIssue('warning', ['slots', name, 'type'], `screen slots are filled for layouts, interstitials and transitions only, not for ${kind} components`));
+    }
+  }
+
+  // Other kinds (L2.12).
+  if (Array.isArray(m.kinds) && ok(['kinds'])) {
+    m.kinds.forEach((k, i) => {
+      if (k === kind) out.push(locatedIssue('warning', ['kinds', i], `"${k}" is the component's own kind: no need to list it in kinds`));
+      else if (m.kinds!.indexOf(k) !== i) out.push(locatedIssue('error', ['kinds', i], `"${k}" is listed twice`));
+    });
+    if (kind !== undefined && !(MULTI_USE_KINDS as readonly string[]).includes(kind)) {
+      out.push(locatedIssue('error', ['kinds'], `only ${MULTI_USE_KINDS.join(', ')} components may be used as other kinds (this one is ${kind})`, { path: ['kinds'], key: true }));
     }
   }
 

@@ -186,7 +186,7 @@ describe('structural errors are precise and positioned', () => {
     const msgs = errors(parseScenario(text).issues).map((i) => `${i.line} ${i.path.join('.')}: ${i.message}`);
     expect(msgs).toEqual([
       '5 scenes.0: unknown key "stepz" (did you mean "steps"?)',
-      '6 scenes.1.interstitial: missing required key "text"',
+      '6 scenes.1.interstitial: an interstitial needs `text` (or a `video` / `image` / `lottie` file)',
       '8 scenes.2: unknown key "steps"',
     ]);
   });

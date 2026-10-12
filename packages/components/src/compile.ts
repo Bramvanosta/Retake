@@ -21,6 +21,8 @@ export const ALLOWED_IMPORTS = ['react', 'react/jsx-runtime', 'react/jsx-dev-run
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json']);
 
 const STUB_NS = 'demo-studio-stub';
+/** Packages the kit itself may use (left out of the compile check of a component). */
+const KIT_EXTERNALS = ['@remotion/lottie', 'lottie-web'] as const;
 const STUBBED = ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'remotion'] as const;
 const IDENT = /^[A-Za-z_$][\w$]*$/;
 
@@ -255,7 +257,7 @@ export function kitExports(): Promise<string[]> {
         jsx: 'automatic',
         logLevel: 'silent',
         outdir: 'out',
-        external: ['react', 'react/*', 'remotion'],
+        external: ['react', 'react/*', 'remotion', ...KIT_EXTERNALS],
       });
       return Object.values(r.metafile.outputs).flatMap((o) => o.exports ?? []).sort();
     } catch {
@@ -311,6 +313,7 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
         const p = args.path;
         if (fromKit) {
           if (p.startsWith('.') || isAbsolute(p)) return undefined;
+          if ((KIT_EXTERNALS as readonly string[]).includes(p)) return { path: p, external: true };
         } else {
           const problem = importProblem(p, args.resolveDir, absDir);
           if (problem) {

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/lottie",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 1.2,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "a9c0aafae0b5ead3",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

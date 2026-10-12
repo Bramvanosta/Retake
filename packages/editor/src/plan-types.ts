@@ -5,7 +5,7 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { BBox, FrameSpec, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@demo-studio/core';
+import type { BBox, FrameSpec, OverlayAnchor, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@demo-studio/core';
 import type { CaptionCue, ComponentManifest, MediaValue, ProgressChapter, ThemeTokens } from '@demo-studio/components';
 
 export type { CaptionCue };
@@ -175,6 +175,14 @@ export interface OverlayUse {
    * whose targets they keep clear of too), mapped through that pane.
    */
   clear?: Array<{ from: number; to: number; bbox: BBox; pane?: number }>;
+  /**
+   * A box-filling overlay (L2.12: a user video, image or Lottie file — or any overlay given `anchor` / `rect` / `scale`):
+   * the box the component fills (`ComponentProps.anchor`), evaluated per frame by the composition (`overlayBoxAt`).
+   * `rect` (target, cursor, rect anchors): a box of its page in SOURCE CSS px, mapped through the layout, the camera and
+   * the reframe like any anchor; a position of the screen (`center`, `top-right`…): `size` (source CSS px, scaled like
+   * the page) at that point of the visible capture; `screen`: the whole visible capture.
+   */
+  box?: { anchor: OverlayAnchor | 'rect'; rect?: BBox; size?: { w: number; h: number } };
 }
 
 /** The video-wide chapter progress bar (L2.10): drawn over every segment between the intro and the outro. */

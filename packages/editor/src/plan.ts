@@ -3,10 +3,14 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join } from 'node:path';
-import { COMPONENT_KINDS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, applyTutorial, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
+import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, fileExtension, mediaSegmentUse, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
 import type {
   ComponentKind,
   FrameSpec,
+  LottieMeta,
+  MediaFileFields,
+  OverlayAnchor,
+  VideoProbe,
   LoadedProject,
   LoadedTemplate,
   Scenario,
@@ -52,11 +56,12 @@ import type {
 } from './plan-types.js';
 import { ComponentResolver, transitionKindOf } from './resolve.js';
 import type { Candidate } from './resolve.js';
-import { DEFAULT_IDLE_THRESHOLD_S, outFrameAt, planRunTiming } from './timing.js';
+import { DEFAULT_IDLE_THRESHOLD_S, WAIT_SPEED, outFrameAt, planRunTiming, waitingSpans } from './timing.js';
 import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
 import { INSET_GROW, cornerOf, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
-import { captionBandOver, staysInInset } from './remotion/frames.js';
+import { captionBandOver, mapUseRect, overlayBoxAt, playsSound, staysInInset } from './remotion/frames.js';
+import { autoFit } from '@demo-studio/components/kit';
 import { planBadgeNumbers, planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 import type { TutorialResolve } from './tutorial.js';
 import type { PlanTutorial } from './plan-types.js';
@@ -90,9 +95,15 @@ export interface PlanInputFile {
   file: string;
   /** Text files (CSV / TSV). */
   text?: string;
-  /** Images. */
+  /** Images, videos and Lottie files: pixel size. */
   width?: number;
   height?: number;
+  /** A video file (L2.12): what ffprobe says. */
+  video?: VideoProbe;
+  /** A Lottie file (L2.12): its metadata. */
+  lottie?: LottieMeta;
+  /** The file exists but could not be used (not a video ffprobe reads, not a Lottie JSON…). */
+  error?: string;
   /** The file does not exist or could not be read. */
   missing?: boolean;
 }
@@ -189,6 +200,16 @@ function pageAt(timeline: Timeline, t: number): { id: string; url?: string } | u
     if (p.t_start > t) break;
   }
   return found;
+}
+
+/** A short deterministic hash of a string (FNV-1a, 8 hex digits): unique asset names for user files. */
+function shortHash(v: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < v.length; i++) {
+    h ^= v.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
 }
 
 function centre(b: { x: number; y: number; w: number; h: number }): { x: number; y: number } {
@@ -416,6 +437,39 @@ export function planEdit(input: PlanEditInput): EditPlan {
     if (t === undefined) return undefined;
     return { kind: 'picture', name: slot, url: src.url, width: src.width, height: src.height, video: { time_s: captureFrameTime(t) }, label };
   };
+  /** A user file named by a `media` / `lottie` slot (L2.12): served by the renderer, with what was read of it. */
+  const fileMedia = (type: 'media' | 'lottie', v: string, where: string): MediaValue | undefined => {
+    const f = input.files?.[v];
+    const file = f?.file ?? projectFile(v);
+    // Served only when it is drawn: a file that is missing or unreadable is a warning and shows nothing — it is not an
+    // asset of the plan (the renderer refuses a plan whose assets are missing).
+    const served = () => asset(`file-${slugOf(v.replace(/^.*[\\/]/, ''))}-${shortHash(file)}`, file);
+    if (!f || f.missing) {
+      warnings.add(`${where}: file ${v} ${f?.missing ? 'not found' : 'was not read (the caller passes `files`, see planInputFiles)'}: nothing is shown`);
+      return undefined;
+    }
+    if (f.error) {
+      warnings.add(`${where}: file ${v}: ${f.error}: nothing is shown`);
+      return undefined;
+    }
+    if (type === 'lottie') {
+      if (!f.lottie) {
+        warnings.add(`${where}: ${v} is not a Lottie file: nothing is shown`);
+        return undefined;
+      }
+      const l = f.lottie;
+      return { kind: 'lottie', name: v, url: served(), width: l.width, height: l.height, fps: l.fps, frames: l.frames, duration_s: l.duration_s };
+    }
+    if (VIDEO_FILE_EXTENSIONS.includes(fileExtension(v))) {
+      const p = f.video;
+      if (!p) {
+        warnings.add(`${where}: video ${v} could not be probed (ffprobe): nothing is shown`);
+        return undefined;
+      }
+      return { kind: 'video', name: v, url: served(), width: p.width, height: p.height, duration_s: p.duration_s, fps: p.fps, audio: p.audio, alpha: p.alpha, codec: p.codec };
+    }
+    return { kind: 'picture', name: v, url: served(), ...(f.width && f.height ? { width: f.width, height: f.height } : {}), label: v };
+  };
   const mediaOf = (manifest: ComponentManifest, slots: Record<string, string | undefined>, where: string): Record<string, MediaValue> | undefined => {
     let out: Record<string, MediaValue> | undefined;
     for (const [slot, spec] of Object.entries(manifest.slots)) {
@@ -433,6 +487,13 @@ export function planEdit(input: PlanEditInput): EditPlan {
       }
       if (spec.type === 'frame') {
         const m = frameMedia(slot, value, where);
+        if (m) (out ??= {})[slot] = m;
+        continue;
+      }
+      if (spec.type === 'media' || spec.type === 'lottie') {
+        // A user file (L2.12): a video or an image (media), a Lottie JSON (lottie) — of the project, or of the theme
+        // (absolute paths).
+        const m = fileMedia(spec.type, value.trim(), where);
         if (m) (out ??= {})[slot] = m;
         continue;
       }
@@ -584,7 +645,10 @@ export function planEdit(input: PlanEditInput): EditPlan {
     else runs.push([e]);
   }
   const runOf = new Map<ClipEntry, { run: RunTiming; index: number; entries: ClipEntry[] }>();
+  // Page changes (URL segments of the main capture and of every page track): a wait right after one shows loading.
+  const pageChanges = [...timeline.pages.map((pg) => pg.t_start), ...(timeline.tracks ?? []).flatMap((tr) => tr.pages.map((pg) => pg.t_start))].sort((a, b) => a - b);
   for (const runEntries of runs) {
+    const waits = trimIdle ? runEntries.flatMap((e) => waitingSpans(e.events, pageChanges)) : [];
     const run = planRunTiming({
       clips: runEntries.map((e) => ({ scene: e.scene.id, A: e.A, B: e.B, baseSpeed: e.speed, events: e.events })),
       srcFps,
@@ -592,7 +656,12 @@ export function planEdit(input: PlanEditInput): EditPlan {
       idle: timeline.idle,
       trimIdle,
       idleThresholdS: idleThreshold,
+      waits,
     });
+    for (const w of waits) {
+      const sc = runEntries.find((e) => w.t_start >= e.s0 - 1e-6 && w.t_start < e.s1)?.scene.id ?? runEntries[0].scene.id;
+      notes.add(`"${sc}": waiting ${secs(w.t_start)}–${secs(w.t_end)} of the capture played at up to ${WAIT_SPEED}× (a loading state; marks and holds stay at 1×)`);
+    }
     runEntries.forEach((e, index) => runOf.set(e, { run, index, entries: runEntries }));
     for (const c of run.cuts) {
       const kept = (c.idle.b - c.idle.a - (c.b - c.a)) / srcFps;
@@ -822,7 +891,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
         if (!track) {
           const tl = timelineTracks.get(pg.track)!;
           const evsOf = (x: ClipEntry) => x.events.filter((ev) => ev.page === pg.id);
-          const targets = r.entries.flatMap((x) => [...reframeTargets(evsOf(x)), ...(tutorialOn ? tutorialReframeTargets(evsOf(x), (ev) => stateOf(x.scene, ev)) : [])]);
+          const targets = r.entries.flatMap((x) => [...reframeTargets(evsOf(x), overlayKeepOf(x)), ...(tutorialOn ? tutorialReframeTargets(evsOf(x), (ev) => stateOf(x.scene, ev)) : [])]);
           const camTrack = pc?.track ?? cameraTrack([], r.run.src.length, src.cssWidth, src.cssHeight);
           // A scene where this page only rests (the other page acts) lets its view settle on the page's content.
           const settle = r.entries.slice(1).filter((x) => !x.events.some((ev) => ev.step >= 0 && ev.status !== 'skipped' && ev.page === pg.id)).map((x) => x.s0);
@@ -870,18 +939,199 @@ export function planEdit(input: PlanEditInput): EditPlan {
     return s;
   };
 
+  /** The natural length (s) of a use's file (L2.12): a video's part, a Lottie animation; undefined otherwise. */
+  const fileLength = (rc: ResolvedComponent | null | undefined): number | undefined => {
+    const m = rc?.media?.file;
+    if (!m) return undefined;
+    if (m.kind === 'lottie') return m.duration_s;
+    if (m.kind !== 'video') return undefined;
+    const from = typeof rc!.params.from === 'number' ? rc!.params.from : 0;
+    const to = typeof rc!.params.to === 'number' ? rc!.params.to : m.duration_s;
+    return Math.max(1 / outFps, Math.min(to, m.duration_s) - from);
+  };
+  /** The scenario's own file for a segment (`intro: {video: …}`), as a candidate of its chain (L2.12). */
+  const fileCandidate = (spec: (MediaFileFields & { params?: Record<string, unknown> }) | undefined, label: string): Candidate[] => {
+    const use = spec ? mediaSegmentUse(spec) : undefined;
+    if (!use) return [];
+    return [{ ref: { id: use.id, params: use.params }, slots: use.slots, source: 'scenario', label: `${label} file ${use.slots.file}` }];
+  };
+  /**
+   * The box of a box-filling overlay (L2.12) in its page: `rect` as written; a target / cursor anchor: the file's own
+   * size (its pixels / the page's device scale, × `scale`) centred on the step's target / the cursor; a position of the
+   * screen: that size, placed by the composition; `screen`: the visible capture.
+   */
+  const overlayBox = (o: NonNullable<TimelineEvent['overlay']>, rc: ResolvedComponent, page: PlanSource, where: string): NonNullable<OverlayUse['box']> => {
+    const b = o.box ?? {};
+    if (b.rect) return { anchor: 'rect', rect: { ...b.rect } };
+    const file = rc.media?.file;
+    const natural = file && (file.kind === 'video' || file.kind === 'lottie' || file.kind === 'picture') && file.width && file.height ? { w: file.width, h: file.height } : undefined;
+    const k = (b.scale ?? 1) / (file?.kind === 'lottie' ? 1 : page.scale || 1);
+    const size = natural ? { w: round(natural.w * k, 2), h: round(natural.h * k, 2) } : { w: round(page.cssWidth * 0.25 * (b.scale ?? 1), 2), h: round(page.cssWidth * 0.25 * (b.scale ?? 1), 2) };
+    if (!natural) notes.add(`${where}: the file's size is unknown: a box of a quarter of the page width`);
+    let anchor = b.anchor ?? (o.bbox ? 'target' : 'center');
+    let c: { x: number; y: number } | undefined;
+    if (anchor === 'target') {
+      c = o.bbox ? centre(o.bbox) : o.point;
+      if (!o.bbox) notes.add(`${where}: no target recorded: ${o.point ? 'centred on the cursor' : 'centred on the screen'}`);
+    } else if (anchor === 'cursor') {
+      c = o.point ?? (o.bbox ? centre(o.bbox) : undefined);
+      if (!o.point) notes.add(`${where}: no cursor position recorded: ${o.bbox ? 'centred on the target' : 'centred on the screen'}`);
+    }
+    if (anchor === 'target' || anchor === 'cursor') {
+      if (!c) anchor = 'center';
+      else return { anchor, rect: { x: round(c.x - size.w / 2, 2), y: round(c.y - size.h / 2, 2), w: size.w, h: size.h } };
+    }
+    return anchor === 'screen' ? { anchor } : { anchor, size };
+  };
+
+  /**
+   * Seconds of a full-frame use: the scenario's `duration`, else what the winning candidate sets (a theme's file), else
+   * the file's own length (a video part, a Lottie animation), else the kind's default (theme, component, fallback).
+   */
+  const useDuration = (rc: ResolvedComponent, explicit: number | undefined, themeDefault: number | undefined, fallback: number, where: string): number => {
+    const own = explicit ?? resolver.candidateOf(rc)?.duration ?? fileLength(rc);
+    const s = segDuration(rc, own, rc.media?.file ? (own === undefined ? themeDefault : undefined) : themeDefault, fallback, where);
+    if (rc.media?.file) {
+      const m = rc.media.file;
+      const what = m.kind === 'video' ? `video ${secs(fileLength(rc) ?? m.duration_s)}${m.audio ? ', with sound' : ''}${m.alpha ? ', alpha' : ''}` : m.kind === 'lottie' ? `Lottie ${secs(m.duration_s)}` : 'image';
+      notes.add(`${where}: your file ${m.name} (${what}) for ${secs(s)}`);
+      if (rc.params.fit === 'auto' && (m.kind === 'video' || m.kind === 'picture') && m.width && m.height && autoFit(m, { w: width, h: height }) === 'contain') {
+        notes.add(`${where}: ${m.name} (${m.width}×${m.height}) does not have the shape of the ${width}×${height} video: shown whole on the background (fit: contain; write fit: cover to fill the frame, cropped)`);
+      }
+    }
+    return s;
+  };
+
+  /**
+   * The step overlay of `ev` in clip `entry`, resolved once — the reframe of a vertical / square clip asks for it before
+   * the clip's overlays are drawn: its component, when it starts (capture s: `at`, or when its notification showed),
+   * how long it shows (output s; undefined: a looped file, to the clip's end) and the box of its page the reframe keeps
+   * in view (a `rect`, a file's box on the target / the cursor, what a callout points at; nothing for a file placed on
+   * the screen — it follows the view).
+   */
+  type StepOverlay = { rc: ResolvedComponent; where: string; tAt: number; seconds?: number; keep?: { x: number; y: number; w: number; h: number } };
+  const stepOverlays = new Map<TimelineEvent, StepOverlay | null>();
+  const stepOverlayOf = (entry: ClipEntry, ev: TimelineEvent): StepOverlay | null => {
+    const known = stepOverlays.get(ev);
+    if (known !== undefined) return known;
+    const o = ev.overlay;
+    let out: StepOverlay | null = null;
+    if (o && ev.step >= 0) {
+      const where = `scene "${entry.scene.id}" step ${ev.step} overlay`;
+      // Your own file (L2.12) stays yours: a kind-wide override restyles the provided overlays, not the files.
+      const userFile = o.component === MEDIA_COMPONENTS.media || o.component === MEDIA_COMPONENTS.lottie;
+      const kindWide = kindOverride('overlay');
+      if (userFile && kindWide.length > 0) notes.add(`${where}: your file is kept (overrides.components.overlay replaces the provided overlays, not your own files)`);
+      const chain: Candidate[] = [...(userFile ? [] : kindWide), { ref: { id: o.component, params: o.params }, source: 'scenario', label: 'the step overlay' }, ...themeAndBuiltin('overlay')];
+      const rc = resolver.resolve('overlay', chain, where, { explicit: o.slots, ctx: { ...slotBase, scene: { caption: entry.scene.caption } } });
+      if (rc) {
+        // When it starts (L2.12 `at`): the end of the step (default), its start, its click, a mark, or seconds after it starts.
+        const start = overlayStartAt(ev, timeline.markers, entry);
+        if (start.fallback === 'no-click') notes.add(`${where}: the step recorded no click: it starts at the end of the step`);
+        else if (start.fallback === 'no-mark') warnings.add(`${where}: ${String(o.at)} is not a mark of run ${timeline.run_id}: it starts at the end of the step`);
+        else if (start.fallback === 'outside-clip') warnings.add(`${where}: ${String(o.at)} (${secs(start.markT!)}) is outside the clip of "${entry.scene.id}": it starts at the end of the step`);
+        let tAt = start.t;
+        // A notification overlay shows when the notification showed (when that moment is inside this clip).
+        const nName = Object.entries(o.slots).find(([k]) => resolver.manifest(rc)?.slots[k]?.type === 'notification')?.[1];
+        const shown = nName ? findArtefact('notification', nName) : undefined;
+        if (shown && shown.t >= entry.s0 && shown.t < entry.s1) {
+          tAt = shown.t;
+          notes.add(`${where}: starts when notification "${shown.name}" showed (${secs(shown.t)} of the capture)`);
+        }
+        const len = fileLength(rc);
+        const looped = rc.params.loop === true && len !== undefined;
+        const seconds = o.duration ?? (looped ? undefined : (len ?? resolver.manifest(rc)?.duration?.default ?? 2.5));
+        out = { rc, where, tAt, ...(seconds !== undefined ? { seconds } : {}) };
+        if (o.box || rc.id === MEDIA_COMPONENTS.media || rc.id === MEDIA_COMPONENTS.lottie) {
+          const pg = entry.pages?.find((x) => x.id === ev.page);
+          const rect = overlayBox(o, rc, pg && trackSources[pg.track] ? trackSources[pg.track] : mainSource, where).rect;
+          if (rect) out.keep = { ...rect };
+        } else if (o.bbox) out.keep = { ...o.bbox };
+      }
+    }
+    stepOverlays.set(ev, out);
+    return out;
+  };
+  /** See the per-clip pass "Your own file placed at a position of the screen". */
+  const placeScreenOverlay = (entry: ClipEntry, seg: ClipSegment, use: OverlayUse, rel: (t: number) => number): void => {
+    const b = use.box;
+    if (!b || b.rect || !b.size || b.anchor === 'screen' || b.anchor === 'rect') return;
+    const asked: OverlayAnchor = b.anchor;
+    const choices = SCREEN_POSITION_CHOICES[asked];
+    if (!choices) return;
+    const end = use.from + use.durationInFrames;
+    const page = use.pane !== undefined ? seg.panes?.[use.pane]?.page : undefined;
+    const clear: Array<{ from: number; to: number; bbox: { x: number; y: number; w: number; h: number }; what: string }> = [];
+    for (const ev of entry.events) {
+      if (ev.step < 0 || ev.status === 'skipped' || (page !== undefined && ev.page !== page)) continue;
+      const a = ev.step === use.step ? rel(ev.t_start) : rel(ev.t_start - CLEAR_LOOKAHEAD_S);
+      const z = rel(stepEnd(ev)) + 1;
+      if (z <= use.from || a >= end) continue;
+      const what = `the ${ev.action} target of step ${ev.step}${ev.target?.desc ? ` (${ev.target.desc})` : ''}`;
+      for (const box of stepBoxes(ev)) clear.push({ from: Math.max(0, a - use.from), to: Math.min(use.durationInFrames, z - use.from), bbox: { ...box }, what });
+    }
+    if (clear.length === 0) return;
+    // Every 0.1 s of the overlay and its last frame.
+    const every = Math.max(1, Math.round(0.1 * outFps));
+    const samples: number[] = [];
+    for (let local = 0; local < use.durationInFrames; local += every) samples.push(local);
+    if (samples[samples.length - 1] !== use.durationInFrames - 1) samples.push(use.durationInFrames - 1);
+    const boxAt = (anchor: OverlayAnchor, local: number) => overlayBoxAt(planShape, seg, { ...use, box: { ...b, anchor } }, use.from + local)!;
+    const covered = (anchor: OverlayAnchor): string | undefined => {
+      for (const local of samples) {
+        const box = boxAt(anchor, local);
+        for (const c of clear) {
+          if (local < c.from || local >= c.to) continue;
+          const t = mapUseRect(planShape, seg, use, use.from + local, c.bbox);
+          const ox = Math.min(box.x + box.w, t.x + t.w) - Math.max(box.x, t.x);
+          const oy = Math.min(box.y + box.h, t.y + t.h) - Math.max(box.y, t.y);
+          if (ox > 0 && oy > 0) return c.what;
+        }
+      }
+      return undefined;
+    };
+    const hit = covered(asked);
+    if (!hit) return;
+    // The other positions of the same kind, nearest first (at the overlay's first frame).
+    const c0 = boxAt(asked, 0);
+    const dist = (a: OverlayAnchor) => {
+      const x = boxAt(a, 0);
+      return Math.hypot(x.x - c0.x, x.y - c0.y);
+    };
+    const others = choices.filter((a) => a !== asked).sort((x, y) => dist(x) - dist(y));
+    const where = `scene "${entry.scene.id}" step ${use.step} overlay`;
+    const free = others.find((a) => !covered(a));
+    if (free) {
+      b.anchor = free;
+      notes.add(`${where}: at ${asked} it would cover ${hit} in this ${variant} framing: placed at ${free}`);
+    } else notes.add(`${where}: at ${asked} it covers ${hit} in this ${variant} framing (no free ${others.length === 3 ? 'corner' : 'position'}): kept there`);
+  };
+  /** The reframe's keep of a step overlay of clip `entry`: its box over the capture time it shows (stepOverlayOf). */
+  const overlayKeepOf =
+    (entry: ClipEntry) =>
+    (ev: TimelineEvent): OverlayKeep | null => {
+      const so = stepOverlayOf(entry, ev);
+      const r = runOf.get(entry);
+      if (!so?.keep || !r) return null;
+      const range = r.run.clipRanges[r.index];
+      const q0 = Math.max(range.k0, outFrameAt(r.run, so.tAt));
+      if (q0 >= range.k1) return null;
+      const q1 = so.seconds === undefined ? range.k1 - 1 : Math.min(range.k1 - 1, q0 + fr(so.seconds));
+      return { t0: round(r.run.p[q0] / srcFps, 4), t1: round(r.run.p[q1] / srcFps, 4), box: so.keep };
+    };
+
   // Intro
   const introOn = ov.intro ?? video.intro !== false;
   if (ov.intro === true && video.intro === false) notes.add('intro forced on (overrides.intro) although the scenario disables it');
   if (ov.intro === false) notes.add('intro disabled (overrides.intro = false)');
   if (introOn) {
     const spec = video.intro === false ? undefined : video.intro;
-    const chain: Candidate[] = [...kindOverride('intro')];
+    const chain: Candidate[] = [...kindOverride('intro'), ...fileCandidate(spec, 'the scenario intro')];
     if (spec?.component) chain.push({ ref: { id: spec.component, params: spec.params }, source: 'scenario', label: 'the scenario intro' });
     chain.push(...themeAndBuiltin('intro'));
     const rc = resolver.resolve('intro', chain, 'intro', { named: { title: video.title?.text, kicker: video.title?.kicker }, ctx: slotBase });
     if (rc) {
-      const frames = fr(segDuration(rc, spec?.duration, t.intro.duration, 3.2, 'intro'));
+      const frames = fr(useDuration(rc, spec?.duration, t.intro.duration, 3.2, 'intro'));
       drafts.push({ seg: { ...base('intro', frames, rc), kind: 'intro' } as IntroSegment, content: frames });
     } else notes.add('no intro: the theme has none');
   } else if (video.intro === false && ov.intro === undefined) notes.add('no intro (scenario intro: false)');
@@ -893,21 +1143,22 @@ export function planEdit(input: PlanEditInput): EditPlan {
     const id = e.scene.id;
     if (e.type === 'card') {
       const spec = e.scene.card ?? {};
-      const chain: Candidate[] = [...segmentOverride(id, 'card'), ...kindOverride('card')];
+      const file = fileCandidate(spec, 'the scenario card');
+      const chain: Candidate[] = [...segmentOverride(id, 'card'), ...kindOverride('card'), ...file];
       if (spec.component) chain.push({ ref: { id: spec.component, params: spec.params }, source: 'scenario', label: 'the scenario card' });
       chain.push(...themeAndBuiltin('card'));
-      const rc = resolver.resolve('card', chain, `card "${id}"`, { explicit: spec.slots, ctx: slotBase });
+      const rc = resolver.resolve('card', chain, `card "${id}"`, { explicit: file.length > 0 ? undefined : spec.slots, ctx: slotBase });
       if (!rc) {
         warnings.add(`card "${id}": the theme has no card component and the scenario names none: left out`);
         continue;
       }
-      const frames = fr(segDuration(rc, spec.duration, undefined, 2.5, `card "${id}"`));
+      const frames = fr(useDuration(rc, spec.duration, undefined, 2.5, `card "${id}"`));
       drafts.push({ seg: { ...base(id, frames, rc), kind: 'card' } as CardSegment, content: frames });
       continue;
     }
     if (e.type === 'interstitial') {
       const spec = e.scene.interstitial ?? { text: '' };
-      const chain: Candidate[] = [...segmentOverride(id, 'interstitial'), ...kindOverride('interstitial')];
+      const chain: Candidate[] = [...segmentOverride(id, 'interstitial'), ...kindOverride('interstitial'), ...fileCandidate(spec, 'the scenario interstitial')];
       if (spec.component) {
         chain.push({ ref: { id: spec.component, params: spec.params }, source: 'scenario', label: 'the scenario interstitial' });
         if (spec.style) warnings.add(`interstitial "${id}": style "${spec.style}" ignored (component ${spec.component} is set)`);
@@ -916,13 +1167,13 @@ export function planEdit(input: PlanEditInput): EditPlan {
         chain.push({ ref: legacy, source: 'scenario', label: `the scenario interstitial style "${spec.style}"` });
       }
       chain.push(...themeAndBuiltin('interstitial'));
-      const ctx: SlotContext = { ...slotBase, interstitial: { text: spec.text, kicker: spec.kicker } };
+      const ctx: SlotContext = { ...slotBase, interstitial: { text: spec.text ?? '', kicker: spec.kicker } };
       const rc = resolver.resolve('interstitial', chain, `interstitial "${id}"`, { named: { text: spec.text, kicker: spec.kicker }, ctx });
       if (!rc) {
         warnings.add(`interstitial "${id}": the theme has no interstitial component and the scenario names none: left out`);
         continue;
       }
-      const frames = fr(segDuration(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`));
+      const frames = fr(useDuration(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`));
       drafts.push({ seg: { ...base(id, frames, rc), kind: 'interstitial' } as CardSegment, content: frames });
       continue;
     }
@@ -1007,7 +1258,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     } else if (variant !== 'landscape' && layout.crop) {
       let track = reframeByRun.get(r.run);
       if (!track) {
-        const targets = r.entries.flatMap((x) => [...reframeTargets(x.events), ...(tutorialOn ? tutorialReframeTargets(x.events, (ev) => stateOf(x.scene, ev)) : [])]);
+        const targets = r.entries.flatMap((x) => [...reframeTargets(x.events, overlayKeepOf(x)), ...(tutorialOn ? tutorialReframeTargets(x.events, (ev) => stateOf(x.scene, ev)) : [])]);
         track = reframeTrack({ times: r.run.p.map((p) => p / srcFps), camera: cam.track, cursor: timeline.cursor, crop: layout.crop, css: { w: cssW, h: cssH }, outFps, targets });
         reframeByRun.set(r.run, track);
       }
@@ -1022,7 +1273,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
   if (ov.outro === true && video.outro === false) notes.add('outro forced on (overrides.outro) although the scenario disables it');
   if (ov.outro === false) notes.add('outro disabled (overrides.outro = false)');
   if (outroOn) {
-    const chain: Candidate[] = [...kindOverride('outro')];
+    const chain: Candidate[] = [...kindOverride('outro'), ...fileCandidate(outro, 'the scenario outro')];
     if (outro?.component) chain.push({ ref: { id: outro.component, params: outro.params }, source: 'scenario', label: 'the scenario outro' });
     chain.push(...themeAndBuiltin('outro'));
     const rc = resolver.resolve('outro', chain, 'outro', {
@@ -1030,7 +1281,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
       ctx: slotBase,
     });
     if (rc) {
-      const frames = fr(segDuration(rc, outro?.duration, t.outro.duration, 3, 'outro'));
+      const frames = fr(useDuration(rc, outro?.duration, t.outro.duration, 3, 'outro'));
       drafts.push({ seg: { ...base('outro', frames, rc), kind: 'outro' } as OutroSegment, content: frames });
     } else notes.add('no outro: the theme has none');
   } else if (video.outro === false && ov.outro === undefined) notes.add('no outro (scenario outro: false)');
@@ -1132,27 +1383,21 @@ export function planEdit(input: PlanEditInput): EditPlan {
       seg.cues = kept.map((c, j) => ({ ...c, from: c.from - F, to: j === kept.length - 1 ? seg.durationInFrames : c.to - F }));
     }
 
-    // Overlays from step `overlay` modifiers, shown from the step's output end.
+    // Overlays from step `overlay` modifiers (resolved by stepOverlayOf: the reframe already asked for them), shown from
+    // their start (`at`; default: the step's output end).
     for (const ev of entry.events) {
       if (!ev.overlay || ev.step < 0) continue;
       const o = ev.overlay;
-      const where = `scene "${entry.scene.id}" step ${ev.step} overlay`;
-      const chain: Candidate[] = [...kindOverride('overlay'), { ref: { id: o.component, params: o.params }, source: 'scenario', label: 'the step overlay' }, ...themeAndBuiltin('overlay')];
-      const rc = resolver.resolve('overlay', chain, where, { explicit: o.slots, ctx: { ...slotBase, scene: { caption: entry.scene.caption } } });
-      if (!rc) continue;
-      let from = rel(ev.t_end);
-      // A notification overlay shows when the notification showed (when that moment is inside this clip).
-      const nName = Object.entries(o.slots).find(([k]) => resolver.manifest(rc)?.slots[k]?.type === 'notification')?.[1];
-      const shown = nName ? findArtefact('notification', nName) : undefined;
-      if (shown && shown.t >= entry.s0 && shown.t < entry.s1) {
-        from = rel(shown.t);
-        notes.add(`${where}: starts when notification "${shown.name}" showed (${secs(shown.t)} of the capture)`);
-      }
+      const so = stepOverlayOf(entry, ev);
+      if (!so) continue;
+      const { rc, where } = so;
+      const from = rel(so.tAt);
       if (from >= n) {
         warnings.add(`${where}: the step ends after the clip: overlay left out`);
         continue;
       }
-      const seconds = o.duration ?? resolver.manifest(rc)?.duration?.default ?? 2.5;
+      // A file plays for its own length (a looped one: to the clip's end, at most 30 s) unless the step says how long.
+      const seconds = so.seconds ?? Math.min(30, (seg.durationInFrames - from) / outFps);
       let frames = fr(seconds);
       let componentFrames: number | undefined;
       if (from + frames > seg.durationInFrames) {
@@ -1168,6 +1413,13 @@ export function planEdit(input: PlanEditInput): EditPlan {
       // Multi-page clip: the overlay belongs to the page the step acted on.
       const pi = paneIndexOf(seg, ev.page);
       if (pi >= 0) use.pane = pi;
+      // A box-filling overlay (L2.12): a user file — or any overlay given anchor / rect / scale.
+      const isFile = rc.id === MEDIA_COMPONENTS.media || rc.id === MEDIA_COMPONENTS.lottie;
+      if (o.box || isFile) {
+        const page = pi >= 0 && seg.panes ? paneSource(planShape, seg.panes[pi]) : mainSource;
+        use.box = overlayBox(o, rc, page, where);
+        use.layer = 'screen';
+      }
       seg.overlays.push(use);
     }
 
@@ -1301,6 +1553,12 @@ export function planEdit(input: PlanEditInput): EditPlan {
         }
       }
     }
+
+    // Your own file placed at a position of the screen (L2.12: a corner, a side) keeps clear of what the viewer looks
+    // at — the boxes of its step and of the steps that come while it shows, around the cursor (stepBoxes) — in the
+    // framing of THIS variant (a vertical crop puts a corner over a list that a landscape frame leaves free): the
+    // nearest free position of the same kind, else where it was asked, with a note naming what it covers.
+    for (const use of seg.overlays) placeScreenOverlay(entry, seg, use, rel);
 
     // Speeds, trims, zooms, time map.
     const r = srcFps / outFps;
@@ -1464,7 +1722,8 @@ export function planEdit(input: PlanEditInput): EditPlan {
       else if (!music.loop) notes.add(`music: the ${secs(L)} track plays once (loop: false); the rest of the ${total} video has no music`);
       else notes.add(`music: the ${secs(L)} track loops ${music.plays.length}× over ${total} (seams crossfaded over ${secs(music.crossfade_s)})`);
     }
-    notes.add(`music: volume ${music.volume} on the intro, outro and cards, ×${music.duck} under footage`);
+    const ownSound = segments.some((sg) => sg.kind !== 'clip' && playsSound(sg.component));
+    notes.add(`music: volume ${music.volume} on the intro, outro and cards, ×${music.duck} under footage${ownSound ? ' and under your files with sound' : ''}`);
   }
 
   const plan: EditPlan = {
@@ -1553,14 +1812,88 @@ export function musicPlays(L: number, total: number, fps: number, loop: boolean,
   return out;
 }
 
+/**
+ * Where a file overlay placed at a position of the screen may move to keep clear of the step's targets (the planner's
+ * per-variant check): a corner to another corner, a top / bottom side to the other, a left / right side to the other.
+ * The centre stays (a note when it covers a target).
+ */
+export const SCREEN_POSITION_CHOICES: Partial<Record<OverlayAnchor, readonly OverlayAnchor[]>> = {
+  'top-left': ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+  'top-right': ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+  'bottom-left': ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+  'bottom-right': ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+  top: ['top', 'bottom'],
+  bottom: ['top', 'bottom'],
+  left: ['left', 'right'],
+  right: ['left', 'right'],
+  center: ['center'],
+};
+
 type ClickData = { bbox?: { x: number; y: number; w: number; h: number }; t_click?: number };
+
+/**
+ * When a step overlay starts (capture s; L2.12 `at`): the end of the step (default), its start, its click, a mark of
+ * the run, or seconds after the step starts. `fallback` says why a requested start was not used (the end of the step
+ * then): the step recorded no click, no such mark, or the mark (at `markT`) lies outside `clip`. Shared by the planner
+ * (where the overlay shows) and the reframe (what it keeps in view meanwhile).
+ */
+export function overlayStartAt(
+  ev: TimelineEvent,
+  markers: ReadonlyArray<{ name: string; t: number }>,
+  clip?: { s0: number; s1: number },
+): { t: number; fallback?: 'no-click' | 'no-mark' | 'outside-clip'; markT?: number } {
+  const at = ev.overlay?.at;
+  if (at === 'start') return { t: ev.t_start };
+  if (at === 'click') {
+    const clicks = (ev.data as { clicks?: Array<{ t_click?: number }> } | undefined)?.clicks;
+    const tc = ev.t_click ?? clicks?.find((c) => typeof c.t_click === 'number')?.t_click;
+    return tc === undefined ? { t: ev.t_end, fallback: 'no-click' } : { t: tc };
+  }
+  if (typeof at === 'number') return { t: ev.t_start + at };
+  if (typeof at === 'string' && at.startsWith('mark:')) {
+    const mk = markers.find((m) => m.name === at.slice(5));
+    if (!mk) return { t: ev.t_end, fallback: 'no-mark' };
+    if (clip && (mk.t < clip.s0 || mk.t >= clip.s1)) return { t: ev.t_end, fallback: 'outside-clip', markT: mk.t };
+    return { t: mk.t };
+  }
+  return { t: ev.t_end };
+}
+
+/** What the reframe keeps in view for a step overlay: a box of the page (CSS px) over capture seconds [t0, t1]. */
+export interface OverlayKeep {
+  t0: number;
+  t1: number;
+  box: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * The overlay keep of a step without the planner's knowledge (its resolved component, the file's length, the time
+ * map): from its start (`overlayStartAt`, marks unknown) for its `duration` (default 2.5 s) of capture time; its `rect`,
+ * the box around the cursor (`anchor: cursor`), or its target — nothing for a file placed on the screen (a corner, a
+ * side, the centre, the whole screen: it follows the view).
+ */
+export function defaultOverlayKeep(ev: TimelineEvent): OverlayKeep | null {
+  const o = ev.overlay;
+  if (!o) return null;
+  const t0 = overlayStartAt(ev, []).t;
+  const t1 = t0 + (o.duration ?? 2.5);
+  const anchor = o.box?.anchor;
+  if (o.box?.rect) return { t0, t1, box: { ...o.box.rect } };
+  if (anchor === 'cursor') {
+    const p = o.point ?? (o.bbox ? centre(o.bbox) : undefined);
+    return p ? { t0, t1, box: { x: p.x - 1, y: p.y - 1, w: 2, h: 2 } } : null;
+  }
+  if (anchor !== undefined && anchor !== 'target') return null;
+  return o.bbox ? { t0, t1, box: { ...o.bbox } } : null;
+}
 
 /**
  * What the reframe of a vertical / square clip keeps in view (camera.ts `reframeTrack`): each step's target over the
  * step (soft), each click's target around the click (hard: never cut — widgets list every click of a select / date
- * pick in `data.clicks`), camera targets (soft) and overlay anchors while the overlay shows (hard).
+ * pick in `data.clicks`), camera targets (soft) and step overlays while they show (hard; `overlayKeep` — the planner
+ * passes what it planned: the overlay's real start, length and box; default `defaultOverlayKeep`).
  */
-export function reframeTargets(events: readonly TimelineEvent[]): ReframeTarget[] {
+export function reframeTargets(events: readonly TimelineEvent[], overlayKeep: (ev: TimelineEvent) => OverlayKeep | null = defaultOverlayKeep): ReframeTarget[] {
   const out: ReframeTarget[] = [];
   const W = REFRAME_CLICK_WINDOW_S;
   for (const ev of events) {
@@ -1579,8 +1912,8 @@ export function reframeTargets(events: readonly TimelineEvent[]): ReframeTarget[
     }
     if (clicks.length === 0 && box && ev.t_click !== undefined) out.push({ t0: ev.t_click - W.before, t1: ev.t_click + W.after, box: { ...box }, hard: true, label: `${label} click` });
     if (ev.camera?.bbox) out.push({ t0: ev.t_start, t1: end, box: { ...ev.camera.bbox }, label: `${label} camera` });
-    const o = ev.overlay;
-    if (o?.bbox) out.push({ t0: ev.t_end, t1: ev.t_end + (o.duration ?? 2.5), box: { ...o.bbox }, hard: true, label: `${label} overlay` });
+    const keep = ev.overlay ? overlayKeep(ev) : null;
+    if (keep) out.push({ t0: keep.t0, t1: keep.t1, box: { ...keep.box }, hard: true, label: `${label} overlay` });
   }
   return out;
 }

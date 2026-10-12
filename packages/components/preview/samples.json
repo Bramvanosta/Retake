@@ -80,6 +80,18 @@
         "height": 720,
         "label": "confirmation sent"
       }
-    ]
+    ],
+    "image": {
+      "file": "media-sample.png",
+      "width": 1200,
+      "height": 900
+    },
+    "lottie": {
+      "file": "lottie-sample.json",
+      "width": 600,
+      "height": 500,
+      "fps": 30,
+      "frames": 96
+    }
   }
 }

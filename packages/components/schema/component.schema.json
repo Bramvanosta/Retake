@@ -27,6 +27,21 @@
       ],
       "description": "What it renders: intro, outro, card, interstitial, caption, layout, overlay, transition."
     },
+    "kinds": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "intro",
+          "outro",
+          "card",
+          "interstitial",
+          "overlay"
+        ]
+      },
+      "description": "Other kinds it can be used as (intro, outro, card, interstitial, overlay): it reads `props.as` to know how it is used."
+    },
     "name": {
       "type": "string",
       "minLength": 1,
@@ -238,9 +253,11 @@
             "notification",
             "capture",
             "frame",
-            "data"
+            "data",
+            "media",
+            "lottie"
           ],
-          "description": "text, image (a URL, or an image file of the project), url (shown as text), color (CSS), screen (the capture, layouts only), or data the scenario names: email (a wait_for_email `as`), document (a download `as` or a project file), notification (a captured web notification: its name or 1-based index), capture (a capture_text `as`), frame (a frame of the capture — a mark, start:/end:<scene>, 12.5s — or an image file), data (a CSV / TSV file of the project) — the component receives it as `props.media[<slot>]`."
+          "description": "text, image (a URL, or an image file of the project), url (shown as text), color (CSS), screen (the capture, layouts only), or data the scenario names: email (a wait_for_email `as`), document (a download `as` or a project file), notification (a captured web notification: its name or 1-based index), capture (a capture_text `as`), frame (a frame of the capture — a mark, start:/end:<scene>, 12.5s — or an image file), data (a CSV / TSV file of the project), media (a video or image file of the project), lottie (a Lottie JSON file of the project) — the component receives it as `props.media[<slot>]`."
         },
         "description": {
           "type": "string",

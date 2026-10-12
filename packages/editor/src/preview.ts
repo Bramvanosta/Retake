@@ -49,6 +49,10 @@ export interface PreviewMediaSamples {
   document?: { file_name: string; pages: Array<{ file: string; width: number; height: number; width_pt: number; height_pt: number }> };
   /** Two states of one screen, for `frame` slots (before / after cards). */
   frames?: Array<{ file: string; width: number; height: number; label: string }>;
+  /** A user image for `media` slots (studio/media, L2.12). */
+  image?: { file: string; width: number; height: number };
+  /** A Lottie animation for `lottie` slots (studio/lottie, L2.12). */
+  lottie?: { file: string; width: number; height: number; fps: number; frames: number };
 }
 
 /** The table a preview shows for `data` slots (chart cards). */
@@ -81,6 +85,8 @@ export function loadPreviewSamples(dir = PREVIEW_SAMPLES_DIR): PreviewSamples {
     if (media.email) out.media.email = { ...media.email, file: join(dir, media.email.file) };
     if (media.document) out.media.document = { ...media.document, pages: media.document.pages.map((p) => ({ ...p, file: join(dir, p.file) })) };
     if (media.frames) out.media.frames = media.frames.map((f) => ({ ...f, file: join(dir, f.file) }));
+    if (media.image) out.media.image = { ...media.image, file: join(dir, media.image.file) };
+    if (media.lottie) out.media.lottie = { ...media.lottie, file: join(dir, media.lottie.file) };
   }
   return out;
 }
@@ -171,6 +177,15 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
       }
       if (spec.type === 'data') {
         (out ??= {})[name] = { kind: 'table', name: 'sample.csv', columns: [...SAMPLE_TABLE.columns], rows: SAMPLE_TABLE.rows.map((r) => [...r]) };
+        continue;
+      }
+      if (spec.type === 'media' && m?.image) {
+        (out ??= {})[name] = { kind: 'picture', name: 'sample', url: opts.sampleUrl(m.image.file), width: m.image.width, height: m.image.height, label: 'sample image' };
+        continue;
+      }
+      if (spec.type === 'lottie' && m?.lottie) {
+        const l = m.lottie;
+        (out ??= {})[name] = { kind: 'lottie', name: 'sample', url: opts.sampleUrl(l.file), width: l.width, height: l.height, fps: l.fps, frames: l.frames, duration_s: Math.round((l.frames / l.fps) * 1000) / 1000 };
         continue;
       }
       if (spec.type === 'email' && m?.email) {

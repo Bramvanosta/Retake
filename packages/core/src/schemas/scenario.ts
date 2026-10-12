@@ -12,6 +12,7 @@ import {
   TutorialSwitchSchema,
   componentIdSchema,
   keyString,
+  mediaFileShape,
   nonEmpty,
   positiveSeconds,
   seconds,
@@ -98,7 +99,7 @@ export const InterstitialSchema = z
   .strictObject({
     interstitial: z
       .strictObject({
-        text: nonEmpty().describe('Card text, e.g. "A few hours later".'),
+        text: nonEmpty().describe('Card text, e.g. "A few hours later" (not needed for a video, image or lottie file).').optional(),
         kicker: z.string().describe('Small line above the text.').optional(),
         duration: positiveSeconds().describe('Seconds on screen.').optional(),
         style: nonEmpty()
@@ -108,8 +109,9 @@ export const InterstitialSchema = z
           .describe('Interstitial component "namespace/name" (default: the theme\'s), e.g. studio/interstitial-clock.')
           .optional(),
         params: ComponentParamsSchema.optional(),
+        ...mediaFileShape,
       })
-      .describe('"Time passes" card: text, kicker, duration, component, params.'),
+      .describe('"Time passes" card: text, kicker, duration, component, params — or a video, image or lottie file.'),
     id: slugString('scene id').describe('Interstitial id (default "interstitial-<index>").').optional(),
   })
   .meta({ id: 'Interstitial', title: 'interstitial', description: 'A "time passes" card between scenes (takes no capture time).' });
@@ -125,12 +127,13 @@ export const CardSchema = z
         slots: SlotsSchema.describe(
           'Slot values: title, kicker, text… as the component declares them (a card without `component` needs `title`).',
         ).optional(),
-        duration: positiveSeconds().describe("Seconds on screen (default: the component's duration).").optional(),
+        duration: positiveSeconds().describe("Seconds on screen (default: the component's duration; a video or Lottie file: its own length).").optional(),
         transition: SceneTransitionSchema.describe(
           "Transition INTO this card: crossfade, cut, fade-black or a transition component, e.g. studio/transition-tap-open (default: the theme's).",
         ).optional(),
+        ...mediaFileShape,
       })
-      .describe('Full-screen card: component, params, slots, duration, transition.'),
+      .describe('Full-screen card: component, params, slots, duration, transition — or a video, image or lottie file.'),
     id: slugString('scene id').describe('Card id (default "card-<index>").').optional(),
   })
   .meta({
@@ -173,10 +176,11 @@ export const ScenarioSchema = z
             .describe('Intro component "namespace/name" (default: the theme\'s), e.g. studio/intro-stack.')
             .optional(),
           params: ComponentParamsSchema.optional(),
-          duration: positiveSeconds().describe('Seconds (default: template intro.duration).').optional(),
+          duration: positiveSeconds().describe('Seconds (default: template intro.duration; a video or Lottie file: its own length).').optional(),
+          ...mediaFileShape,
         }),
       ])
-      .describe('Intro card overrides {component, params, duration}; `false` disables the intro card.')
+      .describe('Intro card overrides {component, params, duration}, or your own file {video | image | lottie, …}; `false` disables the intro card.')
       .optional(),
     outro: z
       .union([
@@ -188,10 +192,11 @@ export const ScenarioSchema = z
           params: ComponentParamsSchema.optional(),
           tagline: z.string().describe('Tagline under the logo (default: template outro.tagline).').optional(),
           url: z.string().describe('URL shown by the outro (default: template outro.url, else brand.url).').optional(),
-          duration: positiveSeconds().describe('Seconds (default: template outro.duration).').optional(),
+          duration: positiveSeconds().describe('Seconds (default: template outro.duration; a video or Lottie file: its own length).').optional(),
+          ...mediaFileShape,
         }),
       ])
-      .describe('Outro card overrides {component, params, tagline, url, duration}; `false` disables the outro card.')
+      .describe('Outro card overrides {component, params, tagline, url, duration}, or your own file {video | image | lottie, …}; `false` disables the outro card.')
       .optional(),
     env: nonEmpty().describe('Environment name (default: project default_env, else the first one).').optional(),
     vars: z

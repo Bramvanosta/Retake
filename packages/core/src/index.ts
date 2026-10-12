@@ -15,6 +15,7 @@ export * from './components.js';
 export * from './video.js';
 export * from './tutorial.js';
 export * from './pages.js';
+export * from './media.js';
 export * from './destructive.js';
 export { didYouMean, editDistance, suggestion } from './validation/suggest.js';
 /** Building blocks for other packages' YAML formats (component.yaml…): positioned, friendly issues. */

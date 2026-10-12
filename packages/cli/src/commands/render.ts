@@ -233,7 +233,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
     scenario: await runScenario(run.dir),
     overrides,
-    files: await planInputFiles(timeline, project),
+    files: await planInputFiles(timeline, project, template),
   });
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out

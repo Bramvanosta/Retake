@@ -443,21 +443,102 @@ export const TUTORIAL_COMPONENTS: Readonly<Record<TutorialFeatureName, Component
   progress: 'studio/overlay-progress',
 };
 
+// ── User media (L2.12, R-OWN-*) ──────────────────────────────────────────────
+
+/** How a user file fills its frame (segments) or its box (overlays): `cover` = filled (cropped), `contain` = whole. */
+export type MediaFit = 'cover' | 'contain';
+export const MEDIA_FITS: readonly MediaFit[] = ['cover', 'contain'];
+
+/** The kinds of user files a segment or an overlay can show instead of a component. */
+export type MediaFileKind = 'video' | 'image' | 'lottie';
+export const MEDIA_FILE_KINDS: readonly MediaFileKind[] = ['video', 'image', 'lottie'];
+
+/**
+ * A user file instead of a component (L2.12): exactly one of `video`, `image` or `lottie` — a path relative to the
+ * project (a theme's own entries: relative to the template folder). The provided components are never mandatory: an
+ * intro, an outro, a card, an interstitial or an overlay can be the user's own motion design.
+ */
+export interface MediaFileFields {
+  /** A video file (.mp4, .mov, .webm, .m4v): H.264, HEVC, VP8, VP9, AV1 or ProRes; its own sound is kept. */
+  video?: string;
+  /** An image file (.png, .jpg, .jpeg, .webp, .svg). */
+  image?: string;
+  /** A Lottie animation (bodymovin JSON), played by studio/lottie. */
+  lottie?: string;
+  /** Video: the second of the file the part shown starts at (default 0). */
+  from?: number;
+  /** Video: the second of the file the part shown ends at (default: its end). */
+  to?: number;
+  /**
+   * cover (fills the frame, cropped) or contain (whole, on `background`; default for overlays). Unset on a segment:
+   * cover when the file has about the frame's shape (covering keeps ≥ 80 % of each side), else contain — a 16:9 intro
+   * shows whole in the vertical variant.
+   */
+  fit?: MediaFit;
+  /**
+   * Segments: what shows around a `contain` file (and under a transparent one) — `theme` (the theme background,
+   * default), a theme colour key (paper, dark, accent…), a CSS colour or `none` (transparent).
+   */
+  background?: string;
+  /** Video: volume of the file's own sound, 0..1 (default 1; 0 = muted). A file without sound stays silent. */
+  volume?: number;
+}
+
+/** Where a box-filling overlay (a user video, image or Lottie) goes over the capture. */
+export const OVERLAY_ANCHORS = [
+  'target',
+  'cursor',
+  'screen',
+  'center',
+  'top-left',
+  'top',
+  'top-right',
+  'left',
+  'right',
+  'bottom-left',
+  'bottom',
+  'bottom-right',
+] as const;
+export type OverlayAnchor = (typeof OVERLAY_ANCHORS)[number];
+
+/**
+ * When an overlay starts: at the end of its step (`end`, or `step`; the default), at its start (`start`), at its click
+ * (`click`), at a mark (`mark:<name>`, a step of the same scene) or a number of seconds after the step starts.
+ */
+export type OverlayAt = 'start' | 'end' | 'step' | 'click' | `mark:${string}` | number;
+
 /**
  * Step modifier `overlay`: a component drawn over the clip from the end of the step's action for `duration` seconds.
  * The runner measures the target at the END of the step (after any scroll) and records it on the event.
+ *
+ * L2.12: instead of a component, a user file — `video` (an alpha video: ProRes 4444 .mov or VP9 .webm with alpha),
+ * `image` or `lottie` — composited over the capture in a box placed by `anchor` (target, cursor, screen or a position of
+ * the screen) or `rect` (page CSS px), at its own size × `scale`; mapped through the layout, the camera and the reframe.
  */
-export interface OverlaySpec {
-  /** Overlay component id, e.g. "studio/overlay-callout". */
-  component: ComponentId;
+export interface OverlaySpec extends Omit<MediaFileFields, 'background'> {
+  /** Overlay component id, e.g. "studio/overlay-callout" (required unless the overlay is a video, image or lottie file). */
+  component?: ComponentId;
   /** Slot values (text, kicker, title…), as the component declares them. */
   slots?: Record<string, string>;
   params?: Record<string, unknown>;
-  /** Seconds on screen (0 < d ≤ 30; default: the component's duration). */
+  /** Seconds on screen (0 < d ≤ 30; default: the component's duration — a file: its own length). */
   duration?: number;
   /** Element the overlay points at. Default: the step's own target, else the cursor position. */
   target?: TargetSpec;
+  /** When it starts (default: the end of the step). */
+  at?: OverlayAt;
+  /** Box placement (files, or any box-filling component): default `target` when there is one, else `center`. */
+  anchor?: OverlayAnchor;
+  /** Box placement: a rect of the page in CSS px (instead of `anchor`). */
+  rect?: BBox;
+  /** Size factor of the file's own size (in page CSS px), default 1; ignored with `rect` and `anchor: screen`. */
+  scale?: number;
+  /** Replay the file for the whole `duration` (default false: a file plays once and holds its last frame). */
+  loop?: boolean;
 }
+
+/** The built-in components that show user files (L2.12). */
+export const MEDIA_COMPONENTS = { media: 'studio/media', lottie: 'studio/lottie' } as const;
 
 export interface ActionArgsMap {
   open: string | OpenArgs;
@@ -699,8 +780,9 @@ export interface Scene {
   note?: string;
 }
 
-export interface InterstitialSpec {
-  text: string;
+export interface InterstitialSpec extends MediaFileFields {
+  /** Card text (required unless the interstitial is a video, image or lottie file). */
+  text?: string;
   kicker?: string;
   /** Seconds on screen (> 0). */
   duration?: number;
@@ -718,13 +800,13 @@ export interface InterstitialScene {
   id?: string;
 }
 
-export interface CardSpec {
+export interface CardSpec extends MediaFileFields {
   /** Card component id (default: the theme's card component, studio/card-title). */
   component?: ComponentId;
   params?: Record<string, unknown>;
-  /** Slot values (title, kicker, text…); a card needs `component` or `slots.title`. */
+  /** Slot values (title, kicker, text…); a card needs `component`, `slots.title` or a video / image / lottie file. */
   slots?: Record<string, string>;
-  /** Seconds on screen (> 0; default: the component's duration). */
+  /** Seconds on screen (> 0; default: the component's duration — a video or Lottie file: its own length). */
   duration?: number;
   /** Transition INTO this card: a kind or a transition component, e.g. studio/transition-tap-open (default: the theme's). */
   transition?: SceneTransition;
@@ -752,8 +834,8 @@ export function isCaptureScene(s: SceneEntry): s is Scene {
   return !isInterstitial(s) && !isCard(s);
 }
 
-/** Scenario `intro` (or `false`): overrides of the theme's intro card. */
-export interface IntroSpec {
+/** Scenario `intro` (or `false`): overrides of the theme's intro card — or the user's own file (L2.12). */
+export interface IntroSpec extends MediaFileFields {
   /** Intro component id (default: the theme's). */
   component?: ComponentId;
   params?: Record<string, unknown>;
@@ -761,8 +843,8 @@ export interface IntroSpec {
   duration?: number;
 }
 
-/** Scenario `outro` (or `false`): overrides of the theme's outro card. */
-export interface OutroSpec {
+/** Scenario `outro` (or `false`): overrides of the theme's outro card — or the user's own file (L2.12). */
+export interface OutroSpec extends MediaFileFields {
   /** Outro component id (default: the theme's). */
   component?: ComponentId;
   params?: Record<string, unknown>;
@@ -1096,7 +1178,19 @@ export interface TemplateBrand {
   url?: string;
 }
 
-export type TemplateComponents = Partial<Record<ComponentKind, ComponentRef | null>>;
+/**
+ * A theme's own file for a full-frame kind (L2.12): `components: {intro: {video: assets/intro.mp4}}` — paths relative to
+ * the template folder; `duration`, `params` (of studio/media or studio/lottie) as for a scenario entry.
+ */
+export interface TemplateMediaRef extends MediaFileFields {
+  duration?: number;
+  params?: Record<string, unknown>;
+}
+
+/** The kinds a theme may fill with a file instead of a component. */
+export const TEMPLATE_MEDIA_KINDS = ['intro', 'outro', 'interstitial'] as const;
+
+export type TemplateComponents = Partial<Record<ComponentKind, ComponentRef | TemplateMediaRef | null>>;
 
 export interface LoadedTemplate {
   name: string;
@@ -1197,6 +1291,10 @@ export interface TimelineOverlay {
   bbox?: BBox;
   /** Anchor point when there is no target bbox (cursor position at the end of the step). */
   point?: PointSpec;
+  /** L2.12: when it starts, as written (default: the end of the step). */
+  at?: OverlayAt;
+  /** L2.12: a box-filling overlay (a user video, image or Lottie file): where its box goes. */
+  box?: { anchor?: OverlayAnchor; rect?: BBox; scale?: number };
 }
 
 /** Edit info of the scenario carried into the timeline, so the editor does not re-read scenario.yaml. */

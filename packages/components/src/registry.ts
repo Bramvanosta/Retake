@@ -24,7 +24,12 @@ import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
 import { MANIFEST_FILE, parseManifest } from './manifest.js';
 import { LIBRARY_DIR } from './paths.js';
-import type { ComponentInfo, ComponentIssue, ComponentSource, ResolvedComponentRef } from './types.js';
+import type { ComponentInfo, ComponentIssue, ComponentManifest, ComponentSource, ResolvedComponentRef } from './types.js';
+
+/** Can a component be used as `kind`? Its own kind, or one of its `kinds` (L2.12). */
+export function usableAs(m: Pick<ComponentManifest, 'kind' | 'kinds'>, kind: ComponentKind): boolean {
+  return m.kind === kind || (m.kinds ?? []).includes(kind);
+}
 
 export interface LoadComponentRegistryOptions {
   /** Workspace root (studio.yaml `components_dir`, default `<root>/components`). */
@@ -168,7 +173,7 @@ class Registry implements ComponentRegistry {
   list(kind?: ComponentKind): ComponentInfo[] {
     return [...this.found.values()]
       .map((f) => f.info)
-      .filter((i): i is ComponentInfo => i !== undefined && (kind === undefined || i.manifest.kind === kind))
+      .filter((i): i is ComponentInfo => i !== undefined && (kind === undefined || usableAs(i.manifest, kind)))
       .sort((a, b) => a.manifest.id.localeCompare(b.manifest.id));
   }
 
@@ -207,7 +212,7 @@ class Registry implements ComponentRegistry {
     const { id, params } = normalizeComponentRef(ref);
     const info = this.lookup(id, kind);
     const m = info.manifest;
-    if (m.kind !== kind) {
+    if (!usableAs(m, kind)) {
       const same = this.list(kind).map((i) => i.manifest.id);
       throw new ComponentError(
         `component "${id}" is ${article(m.kind)} ${m.kind} component, not ${article(kind)} ${kind} (${kind} components: ${same.join(', ') || 'none'})`,
@@ -224,7 +229,7 @@ class Registry implements ComponentRegistry {
         issues.map(({ loc: _loc, ...i }) => ({ ...i, file: '' })),
       );
     }
-    return { id, version: m.version, kind: m.kind, params: merged, manifest: m, dir: info.dir, entry: info.entry, source: info.source };
+    return { id, version: m.version, kind, params: merged, manifest: m, dir: info.dir, entry: info.entry, source: info.source };
   }
 
   resolveTheme(template: Template): Record<ComponentKind, ResolvedComponentRef | null> {

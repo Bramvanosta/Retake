@@ -16,6 +16,7 @@ export {
   SEMVER_RE,
   SLOT_SOURCES,
   THEME_TOKENS,
+  MULTI_USE_KINDS,
   SlotSpecSchema,
   GeometryValueSchema,
   RectSchema,
@@ -53,7 +54,7 @@ export {
 } from './json-schema.js';
 export type { JsonSchemaNode, ParamType } from './json-schema.js';
 export { componentJsonSchema, writeComponentJsonSchema } from './schema-json.js';
-export { loadComponentRegistry, loadComponentDir } from './registry.js';
+export { loadComponentRegistry, loadComponentDir, usableAs } from './registry.js';
 export type { ComponentRegistry, LoadComponentRegistryOptions, RegistryNotice } from './registry.js';
 export { ALLOWED_IMPORTS, FORBIDDEN_APIS, checkComponentEntry, scanSource, stripComments } from './compile.js';
 export type { EntryCheck } from './compile.js';

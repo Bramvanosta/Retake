@@ -13,9 +13,9 @@ import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import { planEdit } from '@demo-studio/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile, RenderRecord } from '@demo-studio/editor';
-import { DEFAULT_RULES, captionOverDuring, checkTutorial, fontFileMeasurer, outputClicks, overlayDuring, planFontFiles, segmentSpans, stillFromSource, stillPair, stillSourceFrames, transitionSpans, viewMoves } from '../src/index.js';
+import { DEFAULT_RULES, captionOverDuring, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, overlayDuring, planFontFiles, segmentSpans, stillFromSource, stillPair, stillSourceFrames, transitionSpans, viewMoves } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { REPO } from './helpers.js';
+import { REPO, synthTimeline } from './helpers.js';
 
 const FIXTURES = join(REPO, 'packages/editor/test/fixtures');
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;
@@ -127,6 +127,15 @@ describe('story cards in the review', () => {
     expect(f[0].at?.scene).toBe('chart');
   });
 
+  it('your own file (L2.12) that could not be read is an error: nothing is shown', async () => {
+    const t = load('highlights');
+    t.scenes.find((s) => s.id === 'figure')!.card = { video: 'assets/gone.mp4' };
+    const ctx = await ctxOf(t, {}, { ...CSV, 'assets/gone.mp4': { file: '/p/assets/gone.mp4', missing: true } });
+    expect(ctx.plan.warnings).toContain('card "figure": file assets/gone.mp4 not found: nothing is shown');
+    const f = checkTutorial(ctx).filter((x) => x.code === 'media-missing');
+    expect(f).toEqual([expect.objectContaining({ severity: 'error', message: 'card figure: your file "assets/gone.mp4" could not be read — nothing is shown', at: expect.objectContaining({ scene: 'figure' }) })]);
+  });
+
   it('an unknown capture and an unknown mark are reported too', async () => {
     const t = load('highlights');
     t.scenes.find((s) => s.id === 'figure')!.card!.slots!.capture = 'nope';
@@ -134,5 +143,48 @@ describe('story cards in the review', () => {
     const ctx = await ctxOf(t, {}, CSV);
     const f = checkTutorial(ctx).filter((x) => x.code === 'media-missing');
     expect(f.map((x) => x.at?.scene).sort()).toEqual(['before-after', 'figure']);
+  });
+});
+
+describe('your own overlay files in the review (L2.12)', () => {
+  const CHECK: Record<string, PlanInputFile> = {
+    'assets/check.json': { file: '/p/assets/check.json', width: 240, height: 240, lottie: { version: '5.7.4', width: 240, height: 240, fps: 30, frames: 60, duration_s: 2, external_images: 0 } },
+  };
+  // A wide row near the top of the page, hovered on its right part, then clicked; a check badge asked at the top-right.
+  const row = { desc: 'row', bbox: { x: 700, y: 120, w: 700, h: 60 } };
+  const badgeTimeline = () =>
+    synthTimeline({
+      duration: 12,
+      cursor: [[0, 960, 540], [2, 1250, 150]],
+      entries: [
+        {
+          id: 's',
+          t_start: 0,
+          t_end: 12,
+          open_end: 0.5,
+          still: [0.5, 2],
+          steps: [
+            { action: 'hover', t_start: 2, t_end: 3, holdS: 2, point: { x: 1250, y: 150 }, target: row, overlay: { component: 'studio/lottie', slots: { file: 'assets/check.json' }, params: { fit: 'contain', background: 'none' }, box: { anchor: 'top-right', scale: 1.4 } } },
+            { action: 'click', t_start: 6, t_end: 7, t_click: 6.5, point: { x: 1250, y: 150 }, target: row },
+          ],
+        },
+      ],
+    });
+
+  it('a file placed at a corner over the hovered target is a warning; the planner’s corner choice keeps it clear', async () => {
+    const clean = await ctxOf(badgeTimeline(), { variant: 'vertical' }, CHECK);
+    expect(checkOverlayCover(clean)).toEqual([]);
+    // Pinned back at the top-right of the vertical crop (what the planner moved it from): over the hovered row.
+    const bad = await ctxOf(badgeTimeline(), { variant: 'vertical' }, CHECK);
+    const o = (bad.plan.segments.find((s) => s.id === 's') as ClipSegment).overlays[0];
+    expect(o.box?.anchor).not.toBe('top-right');
+    o.box!.anchor = 'top-right';
+    const f = checkOverlayCover(bad);
+    expect(f).toEqual([expect.objectContaining({ severity: 'warning', code: 'overlay-covers-target', at: expect.objectContaining({ scene: 's', step: 0 }) })]);
+    expect(f[0].message).toMatch(/^s: your Lottie overlay assets\/check\.json \(top-right\) of step 0 covers the hover target of step 0 \(row\) at /);
+    // In landscape the top-right corner is clear of the row: no finding, nothing moved.
+    const land = await ctxOf(badgeTimeline(), {}, CHECK);
+    expect((land.plan.segments.find((s) => s.id === 's') as ClipSegment).overlays[0].box?.anchor).toBe('top-right');
+    expect(checkOverlayCover(land)).toEqual([]);
   });
 });

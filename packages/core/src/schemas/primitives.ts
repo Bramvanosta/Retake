@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMPONENT_KINDS } from '../types.js';
+import { COMPONENT_KINDS, MEDIA_FITS } from '../types.js';
 import type {
   BBox,
   CameraHint,
@@ -8,6 +8,7 @@ import type {
   EaseSpec,
   FrameSpec,
   FrameStyle,
+  MediaFit,
   MultiPageFrame,
   PointSpec,
   ScopeSpec,
@@ -176,6 +177,27 @@ export const ComponentRefSchema: z.ZodType<ComponentRef> = z
     id: 'ComponentRef',
     description: 'A component id "namespace/name" (e.g. studio/intro-stack), or {id, params}.',
   });
+
+// ── User media (L2.12) ───────────────────────────────────────────────────────
+
+/**
+ * The fields of a user file (video, image or Lottie) on an intro, an outro, a card, an interstitial — and, without
+ * `background`, on a step overlay. Which of them apply to which file is checked semantically (positioned errors).
+ */
+export const mediaFileShape = {
+  video: nonEmpty()
+    .describe('A video file of the project (.mp4, .mov, .webm, .m4v — H.264, HEVC, VP8, VP9, AV1 or ProRes) shown instead of a component; its own sound is kept.')
+    .optional(),
+  image: nonEmpty().describe('An image file of the project (.png, .jpg, .jpeg, .webp, .svg) shown instead of a component.').optional(),
+  lottie: nonEmpty().describe('A Lottie animation of the project (bodymovin .json) played by studio/lottie instead of a component.').optional(),
+  from: z.number().min(0).describe('Video: the second of the file the part shown starts at (default 0).').optional(),
+  to: z.number().gt(0).describe("Video: the second of the file the part shown ends at (default: the file's end).").optional(),
+  fit: z.enum(MEDIA_FITS as [MediaFit, ...MediaFit[]]).describe('cover (fills, cropped) or contain (whole). Default: an overlay contains; a segment covers when the file has about the frame\'s shape, else contains.').optional(),
+  background: nonEmpty()
+    .describe('Around a contained or transparent file: theme (the theme background, default), a theme colour key (paper, dark, accent…), a CSS colour or none.')
+    .optional(),
+  volume: z.number().min(0).max(1).describe("Video: volume of the file's own sound, 0–1 (default 1).").optional(),
+};
 
 /** Slot values of a component use (title, kicker, text…). */
 export const SlotsSchema = z

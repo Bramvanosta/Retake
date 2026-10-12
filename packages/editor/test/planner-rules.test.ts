@@ -202,7 +202,7 @@ function speedScene(): EntrySpec[] {
         { action: 'click', t_start: 2, t_end: 5 },
         { action: 'type', t_start: 5, t_end: 9, speed: 4 },
         { action: 'click', t_start: 9, t_end: 11, holdS: 1 },
-        { action: 'wait_for', t_start: 12, t_end: 14, mark: 'm' },
+        { action: 'hover', t_start: 12, t_end: 14, mark: 'm' },
         { action: 'click', t_start: 14.6, t_end: 20 },
       ],
     },
@@ -270,7 +270,7 @@ function idleScene(): EntrySpec[] {
       still: [0.5, 2],
       steps: [
         { action: 'click', t_start: 2, t_end: 3 },
-        { action: 'wait_for', t_start: 3, t_end: 9 },
+        { action: 'wait', t_start: 3, t_end: 9 },
         { action: 'click', t_start: 9, t_end: 10, holdS: 3 },
         { action: 'wait', t_start: 13.5, t_end: 16 },
         { action: 'click', t_start: 16, t_end: 17, mark: 'done' },

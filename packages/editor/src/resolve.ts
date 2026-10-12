@@ -5,6 +5,7 @@
  * reported and the next one is tried; when none resolves, the use keeps the most specific id marked `missing` (the
  * renderer draws a stand-in of the kind). Slots are filled with `fillSlots` (given values, then `default_from`).
  */
+import { resolve as resolvePath } from 'node:path';
 import { FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, normalizeComponentRef, resolveThemeComponents } from '@demo-studio/core';
 import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, MultiPageFrame, SceneTransition, TransitionKind } from '@demo-studio/core';
 import { fillSlots } from '@demo-studio/components';
@@ -45,6 +46,10 @@ export interface Candidate {
   label: string;
   /** The ref is the theme's own choice for the kind (already resolved by `registry.resolveTheme` when it succeeded). */
   fromTheme?: boolean;
+  /** Slot values this candidate brings (a user file in studio/media's `file` slot, L2.12), over the use's own. */
+  slots?: Record<string, string>;
+  /** Seconds on screen this candidate sets (a theme's own file, L2.12). */
+  duration?: number;
 }
 
 export interface SlotInput {
@@ -70,6 +75,7 @@ export type MediaResolver = (manifest: ComponentManifest, slots: Record<string, 
 
 export class ComponentResolver {
   private readonly manifests = new WeakMap<ResolvedComponent, ComponentManifest>();
+  private readonly winners = new WeakMap<ResolvedComponent, Candidate>();
   private readonly theme: ReturnType<typeof resolveThemeComponents>;
   private readonly themeResolved: Record<ComponentKind, ResolvedComponentRef | null> | null;
   /** Component problems, reported once with every use they affect (message → uses). */
@@ -95,7 +101,19 @@ export class ComponentResolver {
   themeCandidate(kind: ComponentKind): Candidate {
     const c = this.theme[kind];
     if (c === null) return { ref: null, source: 'theme', label: `the theme (${kind}: none)` };
-    return { ref: { id: c.id, params: c.params }, source: c.source === 'default' ? 'builtin-default' : 'theme', label: 'the theme', fromTheme: true };
+    const out: Candidate = { ref: { id: c.id, params: c.params }, source: c.source === 'default' ? 'builtin-default' : 'theme', label: 'the theme', fromTheme: true };
+    if (c.file) {
+      // The theme's own file (L2.12): its path is relative to the template folder.
+      out.slots = { file: resolvePath(this.template.dir, c.file.path) };
+      out.label = `the theme's ${c.file.kind} file ${c.file.path}`;
+      if (c.duration !== undefined) out.duration = c.duration;
+    }
+    return out;
+  }
+
+  /** The candidate of the chain that produced a resolved use (its slots / duration). */
+  candidateOf(rc: ResolvedComponent | null | undefined): Candidate | undefined {
+    return rc ? this.winners.get(rc) : undefined;
   }
 
   builtinCandidate(kind: ComponentKind): Candidate {
@@ -192,7 +210,7 @@ export class ComponentResolver {
         continue;
       }
       if (failures.length > 0) this.reportFallback(where, kind, failures, `${resolved.id} (${c.label})`);
-      const filled = this.fill(resolved.manifest, slots, where, resolved.id);
+      const filled = this.fill(resolved.manifest, c.slots ? { ...slots, explicit: { ...(slots.explicit ?? {}), ...c.slots } } : slots, where, resolved.id);
       const out: ResolvedComponent = {
         id: resolved.id,
         version: resolved.version,
@@ -204,6 +222,7 @@ export class ComponentResolver {
       const media = this.media?.(resolved.manifest, filled, where);
       if (media && Object.keys(media).length > 0) out.media = media;
       this.manifests.set(out, resolved.manifest);
+      this.winners.set(out, c);
       return out;
     }
     // Nothing resolves: keep the most specific wish, marked missing.

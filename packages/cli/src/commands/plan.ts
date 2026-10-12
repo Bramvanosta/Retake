@@ -118,7 +118,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
     scenario: await runScenario(run.dir),
     overrides,
-    files: await planInputFiles(timeline, project),
+    files: await planInputFiles(timeline, project, template),
   });
   if (opts.out) {
     const out = resolve(opts.out);

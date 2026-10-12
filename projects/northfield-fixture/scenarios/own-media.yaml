@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Bring your own motion (L2.12): the provided components are never mandatory. This video opens on the brand's own intro
+# video (with its own chime: the music bed, when there is one, ducks under it), ends on the brand's own end card (a
+# PNG), composites a transparent burst (VP9 + alpha .webm) over the capture when the request is sent, and plays two
+# Lottie animations — a card between the scenes and a check badge over the quotes list — in the theme's colours.
+# The media are generated locally by scripts/fixture-media.mjs (a small Remotion project, fixtures/own-media/, and
+# hand-written Lottie JSON): any tool, or the output of any Claude motion / design skill, works the same way.
+video: own-media
+title: {kicker: Your own motion, text: "Request a quote, in your brand"}
+intro: {video: assets/intro.mp4}
+outro: {image: assets/end-card.png, duration: 3}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: request
+    caption: {kicker: Request a quote, text: "Choose the quantity, the bag size and the grind."}
+    page: shop
+    open: /products/selowa-ridge
+    steps:
+      - click: {role: button, name: Request a quote}
+      - click: {aria: Increase, in: dialog}
+      - select: {field: Bag size, option: 5 kg}
+      - select: {field: Grind, option: Whole bean}
+
+  # Same page, same dialog: joined to the scene before it (only the caption changes).
+  - id: send
+    caption: {kicker: Delivery, text: "Pick a delivery window and send the request."}
+    steps:
+      - click: {label: Delivery window}
+      - click: {aria: Next month}
+      - click: {aria: "10 January 2027"}
+      - click: {aria: "24 January 2027"}
+      # Your own alpha video, composited over the capture from the click, centred on the button (anchor: target — the
+      # step's own target; its box: the file's own size × scale, in page px).
+      - click: {text: Send request, in: dialog}
+        overlay: {video: assets/sparkle-burst.webm, at: click, anchor: target, scale: 0.9}
+      - wait_for: {text: Quote request sent}
+        hold: 1.6
+
+  # A Lottie card: a generic animation in the theme's colours (its orange, ink and gold → accent, text, muted).
+  - card:
+      lottie: assets/cup-steam.json
+      params: {size: 0.7, colors: {"#ff5a1f": accent, "#2b2b33": text, "#f2c14e": muted}}
+    id: brewing
+
+  - id: quotes
+    caption: {kicker: Quotes, text: "Every request and proposal, in one list."}
+    open: /quotes
+    steps:
+      - hover: {text: Selowa Ridge, ms: 600}
+        # A Lottie overlay at a corner of the screen, in the theme's accent.
+        overlay: {lottie: assets/check-badge.json, anchor: top-right, scale: 0.9, params: {colors: {"#ff5a1f": accent}}}
+        hold: 2.2
+      - click: {text: Selowa Ridge}
+      - wait_for: {text: Your request}
+        hold: 1.8

@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cubicBezier } from '@demo-studio/components';
 import type { Timeline, TimelineEvent } from '@demo-studio/core';
-import { mapSourceRect, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@demo-studio/editor';
+import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@demo-studio/editor';
 import type { CardSegment, ClipSegment, EditPlan } from '@demo-studio/editor';
 import { clip, clips, fixtureProject, plan, realTimeline, seg, studioWorkspace, template } from './helpers.js';
 import type { PlanContext } from './helpers.js';
@@ -76,13 +76,44 @@ describe('catalogue (real timeline)', () => {
     expect(p.notes.filter((n) => n.includes('page load')).length).toBe(3);
   });
 
-  it('plays 1× scenes frame by frame (exact source indices), then holds the last frame under the crossfade', () => {
+  it('plays 1× scenes frame by frame (exact source indices) except their loading waits, then holds the last frame under the crossfade', () => {
     const imp = clip(p, 'import');
     const A = expectedStart(tl, 'import');
     const n = imp.durationInFrames - imp.heldFrames;
-    expect(imp.srcFrames.slice(0, n)).toEqual(Array.from({ length: n }, (_, k) => A + k));
+    // L2.12: the import wait (`wait_for: 921 offers created`, 2.0 s, marked) plays faster after its first 0.5 s, up to
+    // the mark window before what it waited for (0.6 s before its end): exact 1× before and after.
+    const wait = events(tl, 'import').find((e) => e.action === 'wait_for' && e.mark)!;
+    const a = Math.ceil((wait.t_start + WAIT_KEEP_S) * FPS - 1e-6) - A;
+    expect(imp.srcFrames.slice(0, a)).toEqual(Array.from({ length: a }, (_, k) => A + k));
+    const fast = imp.speeds.filter((x) => x.speed > 1 || x.to_speed > 1);
+    expect(fast.length).toBeGreaterThan(0);
+    expect(Math.max(...fast.map((x) => Math.max(x.speed, x.to_speed)))).toBeLessThanOrEqual(WAIT_SPEED);
+    const markFrom = Math.ceil((wait.t_end - 0.6) * FPS - 1e-6);
+    const k = imp.srcFrames.findIndex((f) => f >= markFrom);
+    expect(imp.srcFrames.slice(k, n)).toEqual(Array.from({ length: n - k }, (_, j) => markFrom + j));
+    // Shorter than the source by what the faster wait saved.
+    expect(n).toBeLessThan(expectedEnd(tl, 'import') - A - 5);
     expect(imp.heldFrames).toBe(XFADE);
-    expect(imp.srcFrames.slice(n)).toEqual(Array(XFADE).fill(A + n - 1));
+    expect(imp.srcFrames.slice(n)).toEqual(Array(XFADE).fill(imp.srcFrames[n - 1]));
+    expect(p.notes.some((x) => /"import": waiting .* played at up to 4×/.test(x))).toBe(true);
+  });
+
+  it('plays the loading of the new product page faster (L2.12: the root cause of the `long-wait`), the reveal at 1×', () => {
+    const ap = clip(p, 'add-product');
+    const evs = events(tl, 'add-product');
+    const click = evs.find((e) => e.step === 2)!;
+    const reveal = evs.find((e) => e.mark === 'reveal')!;
+    // From the URL change after the click (+ 0.5 s) to 0.6 s before the reveal: up to 4×.
+    const change = tl.pages.find((pg) => pg.t_start >= click.t_click! && pg.t_start < click.t_end)!.t_start;
+    const src = (t: number) => Math.ceil(t * FPS - 1e-6);
+    const out = (t: number) => ap.srcFrames.findIndex((f) => f >= src(t));
+    const loading = (out(reveal.t_end) - out(change)) / FPS;
+    expect(reveal.t_end - change).toBeGreaterThan(4);
+    expect(loading).toBeLessThan(2.5);
+    // The reveal (from 0.6 s before it) and its hold at 1×.
+    const k = out(reveal.t_end - 0.6);
+    const h = out(reveal.hold!.t_end) - 1;
+    expect(ap.srcFrames.slice(k, h)).toEqual(Array.from({ length: h - k }, (_, j) => ap.srcFrames[k] + j));
   });
 
   it('crossfades at every non-contiguous join (each scene opens a page): overlap = transition frames', () => {
@@ -146,9 +177,11 @@ describe('catalogue (real timeline)', () => {
     // The focus (x ≈ 409) is too close to the left edge at 1.3×: the view centre is clamped to 1920 / 2.6.
     expect(z.view.x).toBeCloseTo(1920 / 2.6, 2);
     expect(z.view.y).toBeCloseTo(z.focus.y, 2);
-    const A = expectedStart(tl, 'add-product');
-    const start = Math.ceil(ev.t_start * FPS - 1e-6) - A;
-    expect(z.from).toBe(start);
+    // The output frame of the step's start (the loading before it plays faster since L2.12).
+    // (srcFrames are whole frames: the plan's source position of that output frame is within one frame of it.)
+    const approx = ap.srcFrames.findIndex((f) => f >= Math.ceil(ev.t_start * FPS - 1e-6));
+    expect(Math.abs(z.from - approx)).toBeLessThanOrEqual(1);
+    const start = z.from;
     // Duration: the step's own output duration (≥ 0.8 s).
     const stepFrames = Math.ceil(ev.t_end * FPS - 1e-6) - Math.ceil(ev.t_start * FPS - 1e-6);
     expect(z.in_frames).toBe(stepFrames);
@@ -178,7 +211,7 @@ describe('catalogue (real timeline)', () => {
     expect(p.markers.map((m) => m.name)).toEqual(['import-done', 'reveal']);
     const imp = clip(p, 'import');
     const mk = tl.markers.find((m) => m.name === 'import-done')!;
-    expect(p.markers[0].frame).toBe(imp.from + Math.ceil(mk.t * FPS - 1e-6) - expectedStart(tl, 'import'));
+    expect(p.markers[0].frame).toBe(imp.from + imp.srcFrames.findIndex((f) => f >= Math.ceil(mk.t * FPS - 1e-6)));
   });
 });
 

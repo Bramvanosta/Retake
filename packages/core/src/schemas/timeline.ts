@@ -10,8 +10,10 @@ import {
   TargetSpecSchema,
   SceneTransitionSchema,
   TutorialSwitchSchema,
+  mediaFileShape,
   nonEmpty,
 } from './primitives.js';
+import { OverlayAnchorSchema, OverlayAtSchema } from './steps.js';
 
 const t = () => z.number().min(0).describe('Capture time in seconds.');
 const CaptionObject = z.strictObject({ kicker: z.string().optional(), text: z.string() });
@@ -42,12 +44,13 @@ const TimelineSceneSchema = z.strictObject({
   frame: FrameSpecSchema.optional(),
   interstitial: z
     .strictObject({
-      text: z.string(),
+      text: z.string().optional(),
       kicker: z.string().optional(),
       duration: z.number().optional(),
       style: z.string().optional(),
       component: z.string().optional(),
       params: ComponentParamsSchema.optional(),
+      ...mediaFileShape,
     })
     .optional(),
   card: z
@@ -57,6 +60,7 @@ const TimelineSceneSchema = z.strictObject({
       slots: z.record(z.string(), z.string()).optional(),
       duration: z.number().optional(),
       transition: SceneTransitionSchema.optional(),
+      ...mediaFileShape,
     })
     .optional(),
   tutorial: TutorialSwitchSchema.optional(),
@@ -95,7 +99,7 @@ const TimelineTrackSchema = z
   })
   .describe('A page recorded on its own track (multi-page scenes), on the capture clock.');
 
-const IntroOutroBase = { component: z.string().optional(), params: ComponentParamsSchema.optional(), duration: z.number().optional() };
+const IntroOutroBase = { component: z.string().optional(), params: ComponentParamsSchema.optional(), duration: z.number().optional(), ...mediaFileShape };
 
 const TimelineVideoSchema = z
   .strictObject({
@@ -146,6 +150,11 @@ const TimelineEventSchema = z.strictObject({
       target: z.string().describe('Description of the measured target.').optional(),
       bbox: BBoxSchema.describe('Target bbox at the end of the step (after any scroll).').optional(),
       point: PointSchema.describe('Anchor when there is no target bbox (cursor at the end of the step).').optional(),
+      at: OverlayAtSchema.optional(),
+      box: z
+        .strictObject({ anchor: OverlayAnchorSchema.optional(), rect: BBoxSchema.optional(), scale: z.number().gt(0).optional() })
+        .describe('A box-filling overlay (a user file): where its box goes.')
+        .optional(),
     })
     .optional(),
   tutorial: TutorialSwitchSchema.optional(),

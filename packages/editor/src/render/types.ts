@@ -68,7 +68,11 @@ export interface RenderRecord {
   height: number;
   /** File size in bytes. */
   size_bytes: number;
-  encoding: { codec: 'h264'; crf: number; pixel_format: 'yuv420p'; faststart: true; audio: 'silent' | 'music' };
+  /**
+   * `audio`: what the audio track carries — `silent` (a silent AAC track), `music` (the bed), `files` (the own sound of
+   * your files: a video intro, outro, card, interstitial or overlay, L2.12) or `music+files`.
+   */
+  encoding: { codec: 'h264'; crf: number; pixel_format: 'yuv420p'; faststart: true; audio: 'silent' | 'music' | 'files' | 'music+files' };
   /** What ffprobe saw in the file (when available). */
   probe?: { duration_s: number; frames?: number; width: number; height: number; fps: number; audio_streams: number; video_codec?: string; audio_codec?: string };
   concurrency: number;

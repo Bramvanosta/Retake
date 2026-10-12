@@ -329,7 +329,11 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
       // Cards, intro, outro, interstitials: something must be drawn.
       const stats = samples.map((f) => input.analyses.get(f)?.full).filter((s): s is RegionStats => s !== undefined);
       if (stats.length >= 2 && stats.every((s) => s.share >= rules.empty_share || s.sd < rules.uniform_sd)) {
-        out.push({ severity: 'warning', code: 'empty-segment', message: `${seg.kind} "${seg.id}" shows a uniform frame: its component (${seg.component.id}) draws nothing`, at: locate(ctx, span.clearFrom) });
+        const file = seg.component.media?.file;
+        const message = file
+          ? `${seg.kind} "${seg.id}" shows a uniform frame: your file ${'name' in file ? file.name : ''} looks empty (or did not load)`
+          : `${seg.kind} "${seg.id}" shows a uniform frame: its component (${seg.component.id}) draws nothing`;
+        out.push({ severity: 'warning', code: 'empty-segment', message, at: locate(ctx, span.clearFrom) });
       }
     }
   }

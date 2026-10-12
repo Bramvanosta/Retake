@@ -1,5 +1,6 @@
+import { mediaFileOf, mediaSegmentUse } from './media.js';
 import { COMPONENT_KINDS, FRAME_STYLE_LAYOUTS } from './types.js';
-import type { ComponentId, ComponentKind, ComponentRef, Template } from './types.js';
+import type { ComponentId, ComponentKind, ComponentRef, MediaFileKind, Template, TemplateMediaRef } from './types.js';
 
 /** A theme's default component for one kind, and where the choice came from. */
 export interface ThemeComponent {
@@ -11,6 +12,20 @@ export interface ThemeComponent {
    * kind without a legacy field (card, overlay).
    */
   source: 'theme' | 'legacy' | 'default';
+  /**
+   * L2.12: the theme's own file for this kind (`components.intro: {video: assets/intro.mp4}`) — the use is studio/media or
+   * studio/lottie with the file in its `file` slot; `path` is relative to the template folder.
+   */
+  file?: { kind: MediaFileKind; path: string };
+  /** Slot values of the use (the file slot of a theme file). */
+  slots?: Record<string, string>;
+  /** Seconds on screen the theme sets for its file. */
+  duration?: number;
+}
+
+/** A `components` entry that is a file of the theme (L2.12) rather than a component reference. */
+export function isTemplateMediaRef(ref: ComponentRef | TemplateMediaRef | null | undefined): ref is TemplateMediaRef {
+  return typeof ref === 'object' && ref !== null && !('id' in ref) && mediaFileOf(ref) !== undefined;
 }
 
 /** Default component per kind; `null` = none (no captions, cut transitions…). */
@@ -106,6 +121,11 @@ export function resolveThemeComponents(template: Template): ThemeComponents {
     const ref = declared[kind];
     if (ref === null) {
       out[kind] = null;
+    } else if (isTemplateMediaRef(ref)) {
+      const use = mediaSegmentUse(ref)!;
+      const c: ThemeComponent = { id: use.id, params: use.params, source: 'theme', file: mediaFileOf(ref)!, slots: use.slots };
+      if (ref.duration !== undefined) c.duration = ref.duration;
+      out[kind] = c;
     } else if (ref !== undefined) {
       out[kind] = { ...normalizeComponentRef(ref), source: 'theme' };
     } else if (kind === 'card' || kind === 'overlay') {

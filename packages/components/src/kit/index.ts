@@ -20,6 +20,7 @@ export * from './icons.js';
 export * from './picture.js';
 export * from './place.js';
 export * from './panes.js';
+export * from './media.js';
 export type {
   ComponentProps,
   ThemeTokens,
@@ -35,5 +36,7 @@ export type {
   TextMedia,
   PictureMedia,
   TableMedia,
+  VideoMedia,
+  LottieMedia,
   ProgressChapter,
 } from '../types.js';

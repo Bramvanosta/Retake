@@ -27,7 +27,7 @@ import {
   timelineJsonSchema,
   timelineVideo,
 } from '@demo-studio/core';
-import { COMMENTS_DIR } from '@demo-studio/core';
+import { COMMENTS_DIR, TEMPLATE_MEDIA_KINDS } from '@demo-studio/core';
 import type { FrameComment, FrameCommentsFile, Scenario, Template, Timeline, ValidationIssue } from '@demo-studio/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
@@ -133,8 +133,8 @@ describe('scenario additions (R-SCN2-01..06)', () => {
       ...SCENE,
     );
     expect(errs(parseScenario(text).issues)).toEqual([
-      `3:11 scenes.0.card: a card needs a \`component\` or a \`slots.title\` (the theme's card component shows a title)`,
-      `4:11 scenes.1.card: a card needs a \`component\` or a \`slots.title\` (the theme's card component shows a title)`,
+      `3:11 scenes.0.card: a card needs a \`component\`, a \`slots.title\` (the theme's card component shows a title) or a \`video\` / \`image\` / \`lottie\` file`,
+      `4:11 scenes.1.card: a card needs a \`component\`, a \`slots.title\` (the theme's card component shows a title) or a \`video\` / \`image\` / \`lottie\` file`,
       `5:${colOf(text, '0}')} scenes.2.card.duration: must be > 0, got 0`,
       `7:5 scenes.3: unknown key "steps"`,
       `8:${colOf(text, 'x, title')} scenes.4.card.slots.two words: slot name must be an identifier: letters, digits, "_" or "-", starting with a letter or "_"`,
@@ -218,7 +218,7 @@ describe('scenario additions (R-SCN2-01..06)', () => {
     );
     expect(errs(parseScenario(bad).issues)).toEqual([
       `7:${colOf(bad, '45')} scenes.0.steps.0.overlay.duration: must be ≤ 30, got 45`,
-      `9:18 scenes.0.steps.1.overlay: missing required key "component"`,
+      `9:18 scenes.0.steps.1.overlay: an overlay needs a \`component\` or a \`video\` / \`image\` / \`lottie\` file`,
       `11:${colOf(bad, 'callout}')} scenes.0.steps.2.overlay.component: overlay component id must be "namespace/name" (lower-case letters, digits and "-", e.g. "studio/intro-stack"), got "callout"`,
       `13:${colOf(bad, '{nth: 1}')} scenes.0.steps.3.overlay.target: target needs at least one of text, contains, role, label, aria, placeholder, css or testid`,
       `15:${colOf(bad, '0}')} scenes.0.steps.4.overlay.duration: must be > 0, got 0`,
@@ -434,9 +434,12 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     const d = s.$defs;
     expect(d.SceneEntry.anyOf.map((b: Json) => b.$ref)).toEqual(['#/$defs/Scene', '#/$defs/Interstitial', '#/$defs/Card']);
     expect(d.Card.required).toEqual(['card']);
-    expect(Object.keys(d.Card.properties.card.properties)).toEqual(['component', 'params', 'slots', 'duration', 'transition']);
+    expect(Object.keys(d.Card.properties.card.properties)).toEqual(['component', 'params', 'slots', 'duration', 'transition', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
     for (const k of ['component', 'params', 'slots', 'duration', 'transition']) expect(typeof d.Card.properties.card.properties[k].description, k).toBe('string');
-    expect(d.Overlay.required).toEqual(['component']);
+    // L2.12: a component or a file (checked semantically): nothing is required by the schema.
+    expect(d.Overlay.required).toBeUndefined();
+    for (const k of ['video', 'image', 'lottie', 'at', 'anchor', 'rect', 'scale', 'loop']) expect(typeof d.Overlay.properties[k].description, k).toBe('string');
+    expect(d.Overlay.properties.background).toBeUndefined();
     expect(d.Overlay.properties.duration).toMatchObject({ exclusiveMinimum: 0, maximum: 30 });
     expect(d.Overlay.properties.component.pattern).toBe(COMPONENT_ID_RE.source);
     for (const branch of d.Step.anyOf as Json[]) expect(branch.properties.overlay, branch.title).toEqual({ $ref: '#/$defs/Overlay' });
@@ -446,10 +449,10 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     expect(d.Scene.properties.frame).toMatchObject({ $ref: '#/$defs/Frame', description: expect.any(String) });
     expect(s.properties.frame).toMatchObject({ $ref: '#/$defs/Frame', description: expect.any(String) });
     const intro = s.properties.intro.anyOf[1].properties;
-    expect(Object.keys(intro)).toEqual(['component', 'params', 'duration']);
-    expect(Object.keys(s.properties.outro.anyOf[1].properties)).toEqual(['component', 'params', 'tagline', 'url', 'duration']);
-    expect(Object.keys(d.Interstitial.properties.interstitial.properties)).toEqual(['text', 'kicker', 'duration', 'style', 'component', 'params']);
-    for (const k of ['component', 'params', 'duration']) expect(typeof intro[k].description, k).toBe('string');
+    expect(Object.keys(intro)).toEqual(['component', 'params', 'duration', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
+    expect(Object.keys(s.properties.outro.anyOf[1].properties)).toEqual(['component', 'params', 'tagline', 'url', 'duration', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
+    expect(Object.keys(d.Interstitial.properties.interstitial.properties)).toEqual(['text', 'kicker', 'duration', 'style', 'component', 'params', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']);
+    for (const k of ['component', 'params', 'duration', 'video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume']) expect(typeof intro[k].description, k).toBe('string');
   });
 
   it('template: brand and one described key per component kind; timeline: video, card, overlay', () => {
@@ -459,7 +462,12 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     expect(comps.additionalProperties).toBe(false);
     expect(Object.keys(comps.properties)).toEqual([...COMPONENT_KINDS]);
     for (const k of COMPONENT_KINDS) {
-      expect(comps.properties[k].anyOf, k).toEqual([{ $ref: '#/$defs/ComponentRef' }, { type: 'null' }]);
+      // L2.12: an intro, an outro or an interstitial may be the theme's own file.
+      if ((TEMPLATE_MEDIA_KINDS as readonly string[]).includes(k)) {
+        expect(comps.properties[k].anyOf[0].anyOf[0], k).toEqual({ $ref: '#/$defs/ComponentRef' });
+        expect(Object.keys(comps.properties[k].anyOf[0].anyOf[1].properties), k).toEqual(['video', 'image', 'lottie', 'from', 'to', 'fit', 'background', 'volume', 'duration', 'params']);
+        expect(comps.properties[k].anyOf[1], k).toEqual({ type: 'null' });
+      } else expect(comps.properties[k].anyOf, k).toEqual([{ $ref: '#/$defs/ComponentRef' }, { type: 'null' }]);
       expect(typeof comps.properties[k].description, k).toBe('string');
     }
     expect(t.$defs.ComponentRef.anyOf[0].pattern).toBe(COMPONENT_ID_RE.source);
@@ -474,6 +482,8 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
       'target',
       'bbox',
       'point',
+      'at',
+      'box',
     ]);
   });
 });
