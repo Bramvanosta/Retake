@@ -1,6 +1,6 @@
 /**
- * The Remotion root of a render bundle: the compositions DemoVideo (landscape) and DemoVertical (9:16), both taking
- * `{ plan }` and sized by the plan (calculateMetadata). The generated bundle entry calls
+ * The Remotion root of a render bundle: the compositions DemoVideo (landscape), DemoVertical (9:16) and DemoSquare
+ * (1:1), all taking `{ plan }` and sized by the plan (calculateMetadata). The generated bundle entry calls
  * `registerRoot(createRoot(modules))` with the generated registry module.
  */
 import type { ComponentType } from 'react';
@@ -14,7 +14,7 @@ import { ComponentPreview } from './Preview.js';
 import type { ComponentPreviewProps } from './Preview.js';
 
 /** Composition ids. */
-export const COMPOSITIONS = { landscape: 'DemoVideo', vertical: 'DemoVertical', preview: 'ComponentPreview' } as const;
+export const COMPOSITIONS = { landscape: 'DemoVideo', vertical: 'DemoVertical', square: 'DemoSquare', preview: 'ComponentPreview' } as const;
 
 const previewMetadata: CalculateMetadataFunction<ComponentPreviewProps> = ({ props }) => {
   const p = props.preview;
@@ -22,7 +22,7 @@ const previewMetadata: CalculateMetadataFunction<ComponentPreviewProps> = ({ pro
   return { durationInFrames: Math.max(1, p.durationInFrames), fps: p.fps, width: p.width, height: p.height };
 };
 
-function metadata(variant: 'landscape' | 'vertical'): CalculateMetadataFunction<DemoVideoProps> {
+function metadata(variant: 'landscape' | 'vertical' | 'square'): CalculateMetadataFunction<DemoVideoProps> {
   return ({ props }) => {
     const plan = props.plan;
     if (!plan) return {};
@@ -68,6 +68,16 @@ export function createRoot(modules: ComponentModules): ComponentType {
           height={1920}
           defaultProps={defaultProps}
           calculateMetadata={metadata('vertical')}
+        />
+        <Composition
+          id={COMPOSITIONS.square}
+          component={Video}
+          durationInFrames={1}
+          fps={30}
+          width={1080}
+          height={1080}
+          defaultProps={defaultProps}
+          calculateMetadata={metadata('square')}
         />
         <Composition
           id={COMPOSITIONS.preview}

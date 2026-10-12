@@ -1,5 +1,5 @@
 import { useCurrentFrame } from 'remotion';
-import { Background, CapText, Logo, Wordmark, backgroundSample, biasMotion, capTextLayout, darkLight, progress, readableOn, roundTo } from '@demo-studio/components/kit';
+import { Background, CapText, Logo, Wordmark, backgroundSample, biasMotion, capTextLayout, darkLight, progress, readableOn, roundTo, formatMetrics } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { logo_only: boolean };
@@ -14,9 +14,9 @@ const WORDMARK = 64;
  * their bands — or, with logo_only, the logo and the wordmark on one row. style_bias balanced / motion: more rise and
  * a softer pace.
  */
-export default function OutroMinimal({ theme, slots, params, unit, width, height, fps }: ComponentProps<Params>) {
+export default function OutroMinimal({ theme, slots, params, unit, width, height, fps, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const bg = backgroundSample(theme);
   const { dark, light } = darkLight(theme);
@@ -51,7 +51,7 @@ export default function OutroMinimal({ theme, slots, params, unit, width, height
     );
   }
 
-  const line = capTextLayout({ text: tagline, width: Math.min(width - 320 * u, 1300 * u), maxFontSize: 52 * u, minFontSize: 28 * u, maxLines: 2, lineHeight: 1.12, fontFamily: theme.fonts.display });
+  const line = capTextLayout({ text: tagline, width: Math.min(width - 2 * inset(160), 1300 * u), maxFontSize: 52 * u, minFontSize: 28 * u, maxLines: 2, lineHeight: 1.12, fontFamily: theme.fonts.display });
   const stack = LOGO * u + GAP_LOGO_TAGLINE * u + line.band;
   const top = Math.round((height - stack) / 2);
   const lineP = progress(frame, fps, { delay: 0.45, duration: 0.5 * bias.pace, ease: 'easeInOut' });

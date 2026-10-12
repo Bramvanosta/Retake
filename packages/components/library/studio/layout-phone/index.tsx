@@ -16,11 +16,30 @@ function edges(sh: number, statusBar: boolean) {
  * The default rects (design px × unit) — ONLY used outside a plan (unit tests): in a plan the composition passes
  * `rects`, the manifest geometry evaluated by the planner. Mirrors component.yaml (the library test checks it).
  */
-export function defaultRects(params: Pick<Params, 'height' | 'status_bar'>, variant: 'landscape' | 'vertical', unit: number, aspect = 390 / 844): LayoutRects {
+export function defaultRects(params: Pick<Params, 'height' | 'status_bar'>, variant: 'landscape' | 'vertical' | 'square', unit: number, aspect = 390 / 844): LayoutRects {
   const s = (v: number) => v * unit;
   const vertical = variant === 'vertical';
   // Geometry vars are kept to 3 decimals (evalLayoutGeometry): so is the clamped aspect here.
   const a = Math.round(Math.min(Math.max(aspect, PHONE_ASPECT.min), PHONE_ASPECT.max) * 1000) / 1000;
+  if (variant === 'square') {
+    // The phone on the left, the caption column beside it.
+    const sh = 900;
+    const { bezel, band, bar } = edges(sh, params.status_bar);
+    const sw = Math.round((sh - bar) * a);
+    const e = bezel + band;
+    const bw = sw + 2 * e;
+    const bh = sh + 2 * e;
+    const cw = 400;
+    const x = Math.round((1080 - bw - 50 - cw) / 2);
+    const y = Math.round((1080 - bh) / 2);
+    return {
+      frame: { x: s(x), y: s(y), w: s(bw), h: s(bh) },
+      screen: { x: s(x + e), y: s(y + e + bar), w: s(sw), h: s(sh - bar) },
+      caption: { x: s(x + bw + 50), y: s(420), w: s(cw), h: s(240) },
+      brandmark: { x: s(x + bw + 50 + cw - 320), y: s(1000), w: s(320), h: s(40) },
+      radius: s(Math.round(sw * 0.13)),
+    };
+  }
   const sh = vertical ? 1300 : params.height;
   const { bezel, band, bar } = edges(sh, params.status_bar);
   const sw = Math.round((sh - bar) * a);
@@ -48,7 +67,7 @@ export function defaultRects(params: Pick<Params, 'height' | 'status_bar'>, vari
 export default function LayoutPhone({ theme, params, unit, variant, screen, rects }: ComponentProps<Params>) {
   const u = unit;
   const r = rects ?? defaultRects(params, variant, u);
-  const sh = variant === 'vertical' ? 1300 : params.height;
+  const sh = variant === 'vertical' ? 1300 : variant === 'square' ? 900 : params.height;
   const { bezel, band, bar } = edges(sh, params.status_bar);
   // The capture area (the declared screen rect, the capture letterboxed in it when its aspect differs) and the display
   // glass: the capture area with the status bar above it.

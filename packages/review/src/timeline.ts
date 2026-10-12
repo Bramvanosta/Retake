@@ -30,6 +30,10 @@ export interface OutputClick {
   point?: { x: number; y: number };
   screen?: { x: number; y: number };
   target?: string;
+  /** The clicked element's box (source CSS px), when the timeline recorded it (widgets: each of their clicks). */
+  bbox?: { x: number; y: number; w: number; h: number };
+  /** Index of the click within its step (widgets click more than once: trigger, option…). */
+  click?: number;
 }
 
 export interface OutputTimeline {
@@ -98,25 +102,36 @@ export function outputClicks(plan: EditPlan, timeline: Timeline | undefined): Ou
   if (!timeline) return [];
   const out: OutputClick[] = [];
   const fps = plan.source.fps;
+  type Moment = { t: number; point?: { x: number; y: number }; bbox?: OutputClick['bbox']; desc?: string };
   for (const ev of timeline.events) {
     if (ev.t_click === undefined || ev.status === 'skipped') continue;
-    for (const clip of plan.segments.filter(isClip)) {
-      if (clip.scene !== ev.scene) continue;
-      const rel = outputFrameOf(clip, Math.round(ev.t_click * fps));
-      if (rel === undefined || rel >= clip.durationInFrames - clip.heldFrames) continue;
-      const frame = clip.from + rel;
-      const cur = ev.point ?? cursorAt(timeline, ev.t_click);
-      const click: OutputClick = { scene: ev.scene, step: ev.step, action: ev.action, segment: clip.id, frame, time: round(frame / plan.fps, 3) };
-      if (ev.id) click.step_id = ev.id;
-      if (cur) {
-        click.point = { x: round(cur.x), y: round(cur.y) };
-        const r = mapSourceRect(plan, clip, rel, { x: cur.x, y: cur.y });
-        click.screen = { x: r.x, y: r.y };
+    // A widget (select, date pick…) records every click it made in `data.clicks`; other actions click once.
+    const data = ev.data as { clicks?: Array<{ t_click?: number; point?: { x: number; y: number }; bbox?: OutputClick['bbox']; desc?: string }> } | undefined;
+    const widget = Array.isArray(data?.clicks) ? data!.clicks.filter((c) => typeof c.t_click === 'number') : [];
+    const moments: Moment[] = widget.length > 0
+      ? widget.map((c) => ({ t: c.t_click!, point: c.point, bbox: c.bbox, desc: c.desc }))
+      : [{ t: ev.t_click, point: ev.point, bbox: ev.target?.bbox, desc: ev.target?.desc }];
+    moments.forEach((m, i) => {
+      for (const clip of plan.segments.filter(isClip)) {
+        if (clip.scene !== ev.scene) continue;
+        const rel = outputFrameOf(clip, Math.round(m.t * fps));
+        if (rel === undefined || rel >= clip.durationInFrames - clip.heldFrames) continue;
+        const frame = clip.from + rel;
+        const cur = m.point ?? cursorAt(timeline, m.t);
+        const click: OutputClick = { scene: ev.scene, step: ev.step, action: ev.action, segment: clip.id, frame, time: round(frame / plan.fps, 3) };
+        if (ev.id) click.step_id = ev.id;
+        if (moments.length > 1) click.click = i;
+        if (cur) {
+          click.point = { x: round(cur.x), y: round(cur.y) };
+          const r = mapSourceRect(plan, clip, rel, { x: cur.x, y: cur.y });
+          click.screen = { x: r.x, y: r.y };
+        }
+        if (m.desc) click.target = m.desc;
+        if (m.bbox && m.bbox.w > 0 && m.bbox.h > 0) click.bbox = { x: m.bbox.x, y: m.bbox.y, w: m.bbox.w, h: m.bbox.h };
+        out.push(click);
+        break;
       }
-      if (ev.target?.desc) click.target = ev.target.desc;
-      out.push(click);
-      break;
-    }
+    });
   }
   return out.sort((a, b) => a.frame - b.frame);
 }

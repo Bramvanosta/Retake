@@ -9,13 +9,25 @@ type Params = { width: number; radius: number; shadow: 'none' | 'soft' | 'strong
  * composition passes `rects`, the manifest geometry evaluated by the planner (the single source of truth). Mirrors
  * component.yaml; the library test checks they agree.
  */
-export function defaultRects(params: Pick<Params, 'width' | 'radius'>, variant: 'landscape' | 'vertical', unit: number): LayoutRects {
+export function defaultRects(params: Pick<Params, 'width' | 'radius'>, variant: 'landscape' | 'vertical' | 'square', unit: number): LayoutRects {
   const s = (v: number) => v * unit;
-  if (variant === 'vertical') {
-    const h = Math.min(Math.round(1000 / (16 / 9)), 1100);
-    const y = Math.round((1688 - h) / 2);
-    const card = { x: s(40), y: s(y), w: s(1000), h: s(h) };
-    return { screen: card, frame: card, caption: { x: s(40), y: s(y + h + 12), w: s(1000), h: s(220) }, brandmark: { x: s(700), y: s(1840), w: s(340), h: s(40) }, radius: s(params.radius) };
+  if (variant === 'vertical' || variant === 'square') {
+    // A 16:9 capture is reframed: 4:5 (vertical) or ≈ 4:3 (square), as tall as the format allows.
+    const v = variant === 'vertical';
+    const a = Math.min(16 / 9, v ? 0.8 : 1.32);
+    const room = v ? 1240 : 760;
+    const h = Math.min(Math.round(1000 / a), room);
+    const w = Math.min(1000, Math.round(room * a));
+    const x = Math.round((1080 - w) / 2);
+    const y = Math.round(v ? (1688 - h) / 2 : (1000 - h - 172) / 2);
+    const card = { x: s(x), y: s(y), w: s(w), h: s(h) };
+    return {
+      screen: card,
+      frame: card,
+      caption: { x: s(40), y: s(y + h + 12), w: s(1000), h: s(v ? 220 : 160) },
+      brandmark: { x: s(700), y: s(v ? 1840 : 1010), w: s(340), h: s(40) },
+      radius: s(params.radius),
+    };
   }
   const h = Math.min(Math.round(params.width / (16 / 9)), 878);
   const w = Math.min(params.width, Math.floor(878 * (16 / 9)));

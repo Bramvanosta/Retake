@@ -10,11 +10,11 @@ import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { availableParallelism, cpus } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, loadProjectTemplate, readJson } from '@demo-studio/core';
+import { findWorkspaceRoot, loadProject, loadProjectTemplate, readJson, timelineVideo } from '@demo-studio/core';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
-import { planEdit } from '../plan.js';
+import { musicFile, musicSpecOf, planEdit } from '../plan.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
@@ -31,7 +31,9 @@ export const RENDER_ENCODING = { codec: 'h264', crf: 16, pixel_format: 'yuv420p'
 /** JPEG quality of the frames Remotion captures before encoding (high: captures are full of small text). */
 export const FRAME_JPEG_QUALITY = 95;
 /** Composition ids by variant (see ../remotion/Root.tsx). */
-export const COMPOSITION_IDS = { landscape: 'DemoVideo', vertical: 'DemoVertical' } as const;
+export const COMPOSITION_IDS = { landscape: 'DemoVideo', vertical: 'DemoVertical', square: 'DemoSquare' } as const;
+/** File name suffix of each variant's renders (`<scenario>-v<N><suffix>.mp4`). */
+export const VARIANT_SUFFIX = { landscape: '', vertical: '-vertical', square: '-square' } as const;
 
 /**
  * Default concurrency: three quarters of the CPUs, 1–8 (frame capture, the frame extractor and the encoder share the
@@ -341,7 +343,7 @@ export interface RenderVideoOptions {
   /** Theme to use instead of the one the run was captured with (name, ./path or a loaded template). */
   template?: string | LoadedTemplate;
   overrides?: EditOverrides;
-  /** Explicit output .mp4 (default renders/<scenario>-v<N>[-vertical].mp4 with the next free N). */
+  /** Explicit output .mp4 (default renders/<scenario>-v<N>[-vertical|-square].mp4 with the next free N). */
   out?: string;
   onProgress?: (p: RenderProgress) => void;
   signal?: AbortSignal;
@@ -354,7 +356,7 @@ export interface RenderVideoOptions {
 }
 
 /**
- * Plan and render a run: renders/<scenario>-v<N>.mp4 (+ "-vertical" for the vertical variant) and the RenderRecord
+ * Plan and render a run: renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square" for those variants) and the RenderRecord
  * renders/<scenario>-v<N>.json (plan, overrides, theme, run, duration, frames, size, status). N is the next free
  * version. Nothing is written under the final names when the render fails or is cancelled.
  */
@@ -379,12 +381,22 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   const registry = opts.registry ?? (await loadComponentRegistry({ root }));
   const captureFile = join(run.dir, timeline.capture.file || 'capture.mp4');
   if (!existsSync(captureFile)) throw new RenderError(`run ${run.id} has no capture video (${captureFile})`);
-  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: await runScenario(run.dir), overrides });
+  const scenarioSnapshot = await runScenario(run.dir);
+  // The planner is pure: the music track's length is measured here so it can plan the loops (or the trim).
+  const musicSpec = musicSpecOf(timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined), overrides);
+  let musicDuration_s: number | undefined;
+  if (musicSpec) {
+    const file = musicFile(musicSpec, project);
+    if (!existsSync(file)) throw new RenderError(`music file not found: ${file}`);
+    const probe = await probeMedia(file);
+    if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
+  }
+  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, overrides, musicDuration_s });
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
 
   const scenario = timeline.scenario;
-  const suffix = plan.variant === 'vertical' ? '-vertical' : '';
+  const suffix = VARIANT_SUFFIX[plan.variant];
   let file: string;
   let version: number | undefined;
   let release = async () => undefined as void;

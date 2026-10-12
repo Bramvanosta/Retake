@@ -58,7 +58,24 @@ geometry_vertical:
   caption: {x: 40, y: y + bh + 24, w: 1000, h: 220}
   brandmark: {x: 700, y: 1840, w: 340, h: 40}
   radius: round(sw * 0.13)
-variants: [landscape, vertical]
+geometry_square:
+  vars:
+    a: min(max(aspect, 0.42), 0.62)
+    sh: 900
+    sb: round(sh * 0.062) * status_bar
+    sw: round((sh - sb) * a)
+    e: round(sh * 0.017) + round(sh * 0.006)
+    bw: sw + 2 * e
+    bh: sh + 2 * e
+    cw: 400                                     # caption column beside the phone
+    x: round((1080 - bw - 50 - cw) / 2)
+    y: round((1080 - bh) / 2)
+  frame: {x: x, y: y, w: bw, h: bh}
+  screen: {x: x + e, y: y + e + sb, w: sw, h: sh - sb}
+  caption: {x: x + bw + 50, y: 420, w: cw, h: 240}
+  brandmark: {x: x + bw + 50 + cw - 320, y: 1000, w: 320, h: 40}
+  radius: round(sw * 0.13)
+variants: [landscape, vertical, square]
 preview:
   at: [1]
   screen: phone

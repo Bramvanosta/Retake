@@ -18,7 +18,7 @@ import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
 import { ReviewError, findPrevious, findRender, openProject, renderTimeline, reviewsDir } from './load.js';
-import { checkPixels, sourceFramesAtStarts, stillPair } from './pixel-checks.js';
+import { checkPixels, sourceFramesAtStarts, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
 import { compareSignatures, regionStats, signature, uniformity } from './pixels.js';
@@ -174,10 +174,13 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
 
     // ── Pass 2: the capture behind the clips (scene starts, blank suspects) ──
     let sources: Map<number, RegionStats> | undefined;
+    let sourceSigs: Map<number, Float32Array> | undefined;
     const captureFile = plan.source.file;
     if (captureFile && existsSync(captureFile)) {
       progress({ stage: 'capture' });
       const want = new Set(sourceFramesAtStarts(spans));
+      const sigWanted = new Set(stillSourceFrames(plan, spans, F));
+      for (const f of sigWanted) want.add(f);
       for (const [f, a] of analyses) {
         const span = spanAt(spans, f);
         if (!span || !isClip(span.segment) || !a.screen || !uniformity(a.screen, rules)) continue;
@@ -186,13 +189,16 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       const cw = Math.min(640, plan.source.width);
       const ch = Math.max(2, Math.round((cw * plan.source.height) / plan.source.width / 2) * 2);
       sources = new Map();
+      sourceSigs = new Map();
       try {
         const info = await probeVideo(captureFile);
         await extractFrames(captureFile, [...want], { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height }, (f, img: RgbImage) => {
           sources!.set(f, regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: 2 }));
+          if (sigWanted.has(f)) sourceSigs!.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }, 64, 36));
         });
       } catch (e) {
         sources = undefined;
+        sourceSigs = undefined;
         notes.push({ severity: 'info', code: 'capture-unreadable', message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only` });
       }
     } else {
@@ -266,7 +272,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       ...checkCursor(ctx),
       ...checkCamera(ctx),
       ...checkTransitionsOnClicks(ctx),
-      ...checkPixels(ctx, { analyses, sources, sceneSamples, sampleSpacing_s: 0.5 }),
+      ...checkPixels(ctx, { analyses, sources, sourceSigs, sceneSamples, sampleSpacing_s: 0.5 }),
       ...(diff ? diffFindings(diff) : []),
     ]);
     const counts: Record<Severity, number> = { error: 0, warning: 0, info: 0 };

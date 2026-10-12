@@ -23,6 +23,10 @@ geometry_vertical:
   screen: {x: 0, y: 0, w: 1080, h: 1920}
   caption: {x: 60, y: 1560, w: 960, h: 220}
   radius: 0
-variants: [landscape, vertical]
+geometry_square:
+  screen: {x: 0, y: 0, w: 1080, h: 1080}
+  caption: {x: 60, y: 820, w: 960, h: 200}
+  radius: 0
+variants: [landscape, vertical, square]
 preview:
   at: [1]

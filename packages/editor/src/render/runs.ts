@@ -75,7 +75,7 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Versions already taken (sorted, unique) by `<name>-v<N>[-vertical].{mp4,json}` and pending `.<name>-v<N>.lock` files. */
+/** Versions already taken (sorted, unique) by `<name>-v<N>[-vertical|-square].{mp4,json}` and pending `.<name>-v<N>.lock` files. */
 export function takenVersions(dir: string, name: string): number[] {
   let files: string[];
   try {
@@ -83,7 +83,7 @@ export function takenVersions(dir: string, name: string): number[] {
   } catch {
     return [];
   }
-  const re = new RegExp(`^\\.?${escapeRe(name)}-v(\\d+)(?:-vertical)?\\.(?:mp4|json|lock)$`);
+  const re = new RegExp(`^\\.?${escapeRe(name)}-v(\\d+)(?:-vertical|-square)?\\.(?:mp4|json|lock)$`);
   const versions = files.map((f) => re.exec(f)?.[1]).filter((v): v is string => v !== undefined).map(Number);
   return [...new Set(versions)].sort((a, b) => a - b);
 }

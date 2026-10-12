@@ -47,8 +47,16 @@ function clipLines(plan: EditPlan, c: ClipSegment): string[] {
     const clamped = z.requested_zoom !== undefined ? ` (asked ${z.requested_zoom}×, clamped)` : '';
     const out_ = z.out_at >= content ? 'held to the end of the clip' : `eases out at ${s(z.out_at, fps)}`;
     out.push(
-      `zoom ${z.zoom}×${clamped} step ${z.step}: from ${s(z.from, fps)} over ${s(z.in_frames, fps)} on (${Math.round(z.focus.x)}, ${Math.round(z.focus.y)}) → view (${Math.round(z.view.x)}, ${Math.round(z.view.y)}), ${out_}`,
+      `${z.source === 'theme' ? 'theme zoom' : 'zoom'} ${z.zoom}×${clamped} step ${z.step}: from ${s(z.from, fps)} over ${s(z.in_frames, fps)} on (${Math.round(z.focus.x)}, ${Math.round(z.focus.y)}) → view (${Math.round(z.view.x)}, ${Math.round(z.view.y)}), ${out_}`,
     );
+  }
+  if (c.reframe && c.layout.crop) {
+    const xs = c.reframe.map((r) => r[0]);
+    const ys = c.reframe.map((r) => r[1]);
+    let step = 0;
+    for (let k = 1; k < c.reframe.length; k++) step = Math.max(step, Math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]));
+    const range = Math.round(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+    out.push(`reframe ${Math.round(c.layout.crop.w)}×${Math.round(c.layout.crop.h)} of the capture, ${range ? `travels ${range} px (at most ${step.toFixed(1)} px per frame)` : 'still'}`);
   }
   for (const o of c.overlays) {
     const anchor = o.anchor?.bbox ? ` on box ${Math.round(o.anchor.bbox.x)},${Math.round(o.anchor.bbox.y)} ${Math.round(o.anchor.bbox.w)}×${Math.round(o.anchor.bbox.h)}` : o.anchor?.point ? ` on point ${o.anchor.point.x},${o.anchor.point.y}` : '';
@@ -97,7 +105,9 @@ export function summarizePlan(plan: EditPlan): string[] {
   }
   if (plan.music) {
     lines.push('');
-    lines.push(`Music ${plan.music.file} (volume ${plan.music.volume}, ducked ×${plan.music.duck})`);
+    const m = plan.music;
+    const plays = m.plays ? (m.plays.length > 1 ? `, ${m.plays.length} loops of ${m.duration_s} s` : m.duration_s !== undefined ? `, ${m.duration_s} s track` : '') : '';
+    lines.push(`Music ${m.file} (volume ${m.volume}, ducked ×${m.duck} under footage${plays})`);
   }
   lines.push('');
   lines.push(`Notes (${plan.notes.length})`);

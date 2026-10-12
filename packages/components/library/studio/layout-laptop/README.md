@@ -23,7 +23,7 @@ The capture on the display of a MacBook-style laptop (glass bezel with a camera,
 | `finish` | `light` \| `dark` | light | Aluminium finish: light (silver) or dark (space grey), both tinted by the theme. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the device (tinted with the theme's dark tone). |
 
-- variants: landscape, vertical
+- variants: landscape, vertical, square
 - theme tokens: `colors.text`, `colors.paper`, `colors.dark`, `background`
 - geometry: see `component.yaml` (values may follow the params and the capture aspect)
 

@@ -12,6 +12,7 @@ import {
   readableOn,
   roundTo,
   withAlpha,
+  formatMetrics,
 } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
@@ -40,9 +41,9 @@ function appear(frame: number, fps: number, delay: number, duration: number, dis
  * Big logo (fades in while scaling 0.92 → 1), the wordmark 0.2 s later, then the rule, the tagline and the url, each
  * `stagger` s after the previous one; centred, then held. style_bias balanced / motion: more rise and a softer pace.
  */
-export default function OutroStack({ theme, slots, params, unit, width, height, fps }: ComponentProps<Params>) {
+export default function OutroStack({ theme, slots, params, unit, width, height, fps, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const bg = backgroundSample(theme);
   const { dark, light } = darkLight(theme);
@@ -52,7 +53,7 @@ export default function OutroStack({ theme, slots, params, unit, width, height, 
   const brand = slots.logo ? { ...theme, logo: { url: slots.logo } } : theme;
   const hasLogo = !!(brand.logo?.url || theme.brand.name);
   const hasWordmark = !!(theme.wordmark?.url || theme.wordmark?.text || theme.brand.name);
-  const column = Math.min(width - 320 * u, 1300 * u);
+  const column = Math.min(width - 2 * inset(160), 1300 * u);
   const logo = params.logo_size;
 
   const tagline = slots.tagline

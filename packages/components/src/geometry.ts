@@ -1,7 +1,7 @@
 /**
  * Layout geometry that follows params (DESIGN-phase2 §1.3, "Geometry expressions").
  *
- * A layout manifest declares its rects in the design space (1920×1080, or 1080×1920 for `geometry_vertical`). Each
+ * A layout manifest declares its rects in the design space (1920×1080, 1080×1920 for `geometry_vertical`, 1080×1080 for `geometry_square`). Each
  * value is a number or an arithmetic EXPRESSION over the component's numeric params, the geometry's own `vars`
  * (evaluated in order) and the built-in `aspect` (the capture's width / height; 16/9 when unknown, e.g. previews):
  *

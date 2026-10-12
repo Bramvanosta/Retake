@@ -10,7 +10,8 @@ import type { CaptionCue, ComponentManifest, ThemeTokens } from '@demo-studio/co
 
 export type { CaptionCue };
 
-export type PlanVariant = 'landscape' | 'vertical';
+/** Output orientation: landscape 16:9 (1920×1080 × scale), vertical 9:16 (1080×1920), square 1:1 (1080×1080). */
+export type PlanVariant = 'landscape' | 'vertical' | 'square';
 
 export interface Rect {
   x: number;
@@ -70,8 +71,9 @@ export interface PlanLayout {
   /** Brandmark position. */
   brandmark?: Rect;
   /**
-   * Vertical variant: size (source CSS px) of the capture region shown in `capture` — the largest region of the
-   * capture with the aspect ratio of the screen rect; its centre follows `ClipSegment.reframe`.
+   * Vertical and square variants: size (source CSS px) of the capture region shown in `capture` — the region of the
+   * capture with the aspect ratio of the screen rect (the whole capture when the aspects match); its centre follows
+   * `ClipSegment.reframe`.
    */
   crop?: { w: number; h: number };
   /** The layout component's manifest had no geometry for this variant: a default geometry was used. */
@@ -167,6 +169,12 @@ export interface ZoomSpan {
   /** Focus point in source CSS px (bbox centre, else point, else cursor) and the view centre after clamping. */
   focus: PointSpec;
   view: PointSpec;
+  /**
+   * `hint` (default): a step `camera` hint. `theme`: the theme's `motion.default_zoom` (style_bias balanced / motion) —
+   * at most one per scene, on a marked step's target, eased slowly in and back out before the scene ends (never across
+   * a cut or a same-page join).
+   */
+  source?: 'hint' | 'theme';
 }
 
 export interface SegmentBase {
@@ -221,7 +229,10 @@ export interface ClipSegment extends SegmentBase {
   camera: CameraFrame[] | null;
   /** URL shown by the browser-chrome frame, from relative frame `frame` onwards. */
   urls: Array<{ frame: number; url: string }>;
-  /** Vertical variant only: per-output-frame crop centre in source CSS px (smoothed cursor/target track). */
+  /**
+   * Vertical and square variants: per-output-frame crop centre in source CSS px (the reframe track: cursor, step
+   * targets and overlay anchors kept in view, dead zone, critically damped smoothing; see camera.ts `reframeTrack`).
+   */
   reframe?: Array<[cx: number, cy: number]>;
   /** Caption component used for this clip (cues are in plan.captions). */
   caption: ResolvedComponent | null;
@@ -261,12 +272,24 @@ export interface PlanMusic {
   url: string;
   /** Absolute path of the audio file. */
   file: string;
-  /** Base volume 0..1. */
+  /** Base volume 0..1: the level of the intro, the outro, cards and interstitials. */
   volume: number;
-  /** Multiplier applied while product footage is on screen (bed ducking), 0..1. */
+  /** Multiplier applied while product footage is on screen (bed ducking), 0..1; eased over `duck_ramp_s`. */
   duck: number;
+  duck_ramp_s: number;
   fadeIn_s: number;
   fadeOut_s: number;
+  /** A track shorter than the video loops (seams crossfaded over `crossfade_s`); false: it plays once. */
+  loop: boolean;
+  crossfade_s: number;
+  /** Length of the track (s), when the caller measured it (renderVideo does, with ffprobe): loops are then planned. */
+  duration_s?: number;
+  /**
+   * The track's plays (output frames): one, trimmed to the video (a longer track, or `loop: false`), or one per loop
+   * when the track is shorter — each next play starts `crossfade_s` before the previous one ends. Absent when the
+   * track length is unknown (the composition then loops the element itself).
+   */
+  plays?: Array<{ from: number; frames: number; fadeIn: number; fadeOut: number }>;
 }
 
 export interface EditPlan {
@@ -275,7 +298,7 @@ export interface EditPlan {
   fps: number;
   width: number;
   height: number;
-  /** Layout unit: output width / 1920 (landscape) or / 1080 (vertical). Multiply every design size by it. */
+  /** Layout unit: output width / 1920 (landscape) or / 1080 (vertical, square). Multiply every design size by it. */
   unit: number;
   durationInFrames: number;
   frame: FrameSpec;

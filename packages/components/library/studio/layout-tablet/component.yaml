@@ -73,7 +73,36 @@ geometry_vertical:
   caption: {x: 40, y: y + bh + 24, w: 1000, h: 220}
   brandmark: {x: 700, y: 1840, w: 340, h: 40}
   radius: round(min(sw, sh) * 0.03)
-variants: [landscape, vertical]
+geometry_square:
+  vars:
+    a: min(max(aspect, 0.62), 1.6)
+    land: min(1, max(0, ceil((a - 1) * 1000)))
+    pe: 36                                      # portrait: the tablet on the left, the caption beside it
+    psw: min(round(760 * a), 518)               # 1080 − margins − 50 − caption column − bezels
+    psh: round(psw / a)
+    pbw: psw + 2 * pe
+    pbh: psh + 2 * pe
+    pcw: 360
+    px: round((1080 - pbw - 50 - pcw) / 2)
+    py: round((1080 - pbh) / 2)
+    le: 30                                      # landscape: the tablet above the caption
+    lsw: 860
+    lsh: round(lsw / a)
+    lbw: lsw + 2 * le
+    lbh: lsh + 2 * le
+    lx: round((1080 - lbw) / 2)
+    ly: round((1000 - lbh - 184) / 2)
+    e: land * le + (1 - land) * pe
+    x: land * lx + (1 - land) * px
+    y: land * ly + (1 - land) * py
+    bw: land * lbw + (1 - land) * pbw
+    bh: land * lbh + (1 - land) * pbh
+  frame: {x: x, y: y, w: bw, h: bh}
+  screen: {x: x + e, y: y + e, w: bw - 2 * e, h: bh - 2 * e}
+  caption: {x: land * 40 + (1 - land) * (px + pbw + 50), y: land * (ly + lbh + 24) + (1 - land) * 400, w: land * 1000 + (1 - land) * pcw, h: land * 160 + (1 - land) * 280}
+  brandmark: {x: 700, y: 1010, w: 340, h: 40}
+  radius: round(min(bw - 2 * e, bh - 2 * e) * 0.03)
+variants: [landscape, vertical, square]
 preview:
   at: [1]
   screen: tablet

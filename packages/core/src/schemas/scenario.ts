@@ -162,8 +162,9 @@ export const ScenarioSchema = z
     music: z
       .strictObject({
         file: nonEmpty().describe('Audio file relative to the project dir.'),
-        volume: z.number().min(0).max(1).optional(),
-        duck: z.number().min(0).max(1).describe('Volume factor under footage.').optional(),
+        volume: z.number().min(0).max(1).describe('Base volume (intro, outro, cards): 0–1, default 0.6.').optional(),
+        duck: z.number().min(0).max(1).describe('Volume factor under footage: 0–1, default 0.5.').optional(),
+        loop: z.boolean().describe('Loop a track shorter than the video (default true, crossfaded seams); false: play it once.').optional(),
       })
       .optional(),
     scenes: z.array(SceneEntrySchema).min(1).describe('Scenes, cards and interstitials, in order.'),

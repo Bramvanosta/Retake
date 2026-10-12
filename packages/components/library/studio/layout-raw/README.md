@@ -19,7 +19,7 @@ The capture fills the whole frame, edge to edge (letterboxed with the theme back
 
 None.
 
-- variants: landscape, vertical
+- variants: landscape, vertical, square
 - theme tokens: `background`
 - geometry: see `component.yaml` (values may follow the params and the capture aspect)
 

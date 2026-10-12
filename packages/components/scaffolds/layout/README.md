@@ -22,7 +22,7 @@ Capture in a rounded card with a soft shadow on the theme background, caption ar
 | `radius` | number (0–64) | 18 | Corner radius of the card in design px. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the card. |
 
-- variants: landscape, vertical
+- variants: landscape, vertical, square
 - theme tokens: `colors.text`, `colors.paper`, `background`
 - geometry: see `component.yaml` (values may follow the params and the capture aspect)
 

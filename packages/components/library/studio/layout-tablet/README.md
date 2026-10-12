@@ -24,7 +24,7 @@ The capture on an iPad-style tablet (uniform glass bezels with a camera, rounded
 | `finish` | `dark` \| `light` | dark | Edge and bezel: dark (space grey) or light (silver edge), both tinted by the theme. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the tablet (tinted with the theme's dark tone). |
 
-- variants: landscape, vertical
+- variants: landscape, vertical, square
 - theme tokens: `colors.text`, `colors.paper`, `colors.dark`, `background`
 - geometry: see `component.yaml` (values may follow the params and the capture aspect)
 

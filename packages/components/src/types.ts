@@ -27,6 +27,9 @@ export interface CaptionCue {
 export { COMPONENT_KINDS } from '@demo-studio/core';
 export type { ComponentId, ComponentKind, ComponentRef } from '@demo-studio/core';
 
+/** Output orientations: landscape 16:9 (1920×1080 design space), vertical 9:16 (1080×1920), square 1:1 (1080×1080). */
+export type OutputVariant = 'landscape' | 'vertical' | 'square';
+
 export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen';
 
 export interface SlotSpec {
@@ -44,7 +47,7 @@ export interface SlotSpec {
 }
 
 export interface Rect1920 {
-  /** Rectangle in a 1920×1080 (landscape) or 1080×1920 (vertical) design space. */
+  /** Rectangle in a 1920×1080 (landscape), 1080×1920 (vertical) or 1080×1080 (square) design space. */
   x: number;
   y: number;
   w: number;
@@ -117,7 +120,9 @@ export interface ComponentManifest {
   /** Layout kind only: values may be expressions over the params (evaluated by `evalLayoutGeometry`). */
   geometry?: LayoutGeometrySpec;
   geometry_vertical?: LayoutGeometrySpec;
-  variants?: Array<'landscape' | 'vertical'>;
+  /** Square variant (1080×1080 design space). */
+  geometry_square?: LayoutGeometrySpec;
+  variants?: Array<OutputVariant>;
   /** Sample values used to render previews with any theme. */
   /**
    * Sample values used to render previews with any theme: slots, params, the seconds at which stills are taken (the
@@ -197,13 +202,14 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   /** Slot values: strings for text/url/color/image (image = URL). */
   slots: Record<string, string | undefined>;
   params: P;
-  /** Output width / 1920 (landscape) or / 1080 (vertical): multiply every design size by it. */
+  /** Output width / 1920 (landscape) or / 1080 (vertical, square): multiply every design size by it. */
   unit: number;
   width: number;
   height: number;
   fps: number;
   durationInFrames: number;
-  variant: 'landscape' | 'vertical';
+  /** Output orientation: 1920×1080, 1080×1920 or 1080×1080 design space (× unit). */
+  variant: OutputVariant;
   /**
    * layout: the rendered capture (video + camera) to place in the screen rect. interstitial: the dimmed last frame
    * of the previous clip, when there is one. transition: the segment this render wraps (see `direction`).

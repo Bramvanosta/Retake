@@ -11,6 +11,7 @@ import {
   readableOn,
   roundTo,
   withAlpha,
+  formatMetrics,
 } from '@demo-studio/components/kit';
 import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
 
@@ -49,13 +50,13 @@ function appear(frame: number, fps: number, delay: number, duration: number, dis
  * staggered in (kicker 0.15 s, title 0.3 s, rule 0.55 s, text 0.65 s), then held. style_bias balanced / motion: more
  * rise and a softer pace.
  */
-export default function CardTitle({ theme, slots, params, unit, width, height, fps }: ComponentProps<Params>) {
+export default function CardTitle({ theme, slots, params, unit, width, height, fps, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const c = palette(theme, params.tone);
   const center = params.align !== 'left';
-  const margin = 180 * u;
+  const margin = inset(180);
   const column = Math.min(width - 2 * margin, 1400 * u);
 
   const kicker = slots.kicker

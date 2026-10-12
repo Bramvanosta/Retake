@@ -27,7 +27,7 @@ The capture in a macOS-style browser window (traffic lights, optional tabs, an a
 | `chrome` | `auto` \| `light` \| `dark` | auto | Toolbar tone: auto = dark on a dark theme background, light otherwise. |
 | `controls` | `color` \| `theme` | color | Window controls: the classic red / yellow / green, or quiet dots tinted from the theme. |
 
-- variants: landscape, vertical
+- variants: landscape, vertical, square
 - theme tokens: `colors.text`, `colors.paper`, `colors.dark`, `colors.accent`, `background`, `fonts.body`
 - geometry: see `component.yaml` (values may follow the params and the capture aspect)
 

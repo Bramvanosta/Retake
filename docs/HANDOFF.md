@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-11, end of lot L2.7. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.8. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -174,63 +174,133 @@ automatically with themeable components, and let Claude operate everything throu
   full-width toasts); scenario `mobile-quote` (capture 390×844 scale 1, frame phone; run 20261011-222856-mobile-quote).
   `runIdMatchesScenario` (core): `latest` for `quote` no longer picks a `mobile-quote` run. 600 tests: 594 pass,
   6 Postgres tests skipped (full suite run twice, green both times).
-- **Requirements:** 572 tracked; 350 done, 55 partial, 152 todo, 15 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.3: all done but R-ED-22 (partial: `motion.default_zoom` has no consumer —
-  decided: L2.8). L2.4: all 16 done. L2.5: all done. L2.6: all 25 done (incl. R-LOOK-03/05). L2.7: all 21 done
-  (R-LIB-00…, R-ED-10/12/13/14, R-CMP-12/13/14).
+- **L2.8 done** (variants & export): **square 1:1** variant next to vertical 9:16 (`PlanVariant` `square`, manifest
+  `geometry_square` + JSON schema, `variants: [landscape, vertical, square]`, composition `DemoSquare`, `--square` on
+  plan/render/still, renders `<scenario>-v<N>-square.mp4`); every layout + the layout scaffold declare both formats
+  (card / browser as tall as the format allows: a capture wider than 4:5 (vertical) / ≈ 4:3 (square) is **reframed**,
+  narrower ones shown whole; devices keep their proportions; caption block below, or beside a phone / portrait tablet in
+  square). **Reframing** (camera.ts `reframeTrack`, plan.ts `reframeTargets`): region of interest = cursor box (+ where
+  it goes in 0.4 s), step targets (0.5 s look-ahead), hard boxes (every click ± 0.35/0.5 s — widgets: each
+  `data.clicks` —, overlay anchors while shown); dead zone 15 % + re-centring; calm start (framed on the first step,
+  nothing moves during the opening still); `dampedSmooth` (two first-order lags τ 0.2 s forward + backward: critically
+  damped, zero phase); `corridorSmooth` (banded QP Σd² + 2L²Σ(Δd)² + L⁴Σ(Δ²x)², L 0.3 s, ADMM: the smoothest critically
+  damped repair keeping the cursor and hard boxes in view — no ringing); view inside the capture; per run. Crop ≥ 0.9
+  design px per CSS px (`REFRAME_MIN_SCALE`). The composition draws the crop with `object-fit: fill` (it was
+  letterboxed). Kit `formatMetrics` (full-frame type ×1.2 vertical / ×1.05 square, margins halved) used by intro/outro/
+  card/interstitial components, `captionMaxLines` (≥ 2 lines vertical/square, ≥ 3 in a narrow column; review too),
+  `captionBandBox` puts caption-overlay bands below the card in vertical/square. **4K** (spike numbers below):
+  `--force-device-scale-factor=<scale>` at launch for headless scale ≠ 1 (runner-web `scaleArgs`) → real 3840×2160
+  frames; 4K render of a 1080p capture works with an upscaling plan warning. **Music bed**: `music: {file, volume, duck,
+  loop}` (core types/schemas) / `--music` / `--no-music`; renderVideo measures the track (ffprobe) → `planEdit({…,
+  musicDuration_s})` plans `PlanMusic.plays` (trim, or loops with 1 s equal-power seams), `musicVolumeAt` (smoothstep
+  fades and ducking ×0.5 under clips, base volume on intro/outro/cards), `musicPlayGain`; MusicBed = one Html5Audio per
+  play; `generateTestTrack` (ffmpeg sine chords, nothing committed). **Theme default zoom** (R-ED-22 decision):
+  `DEFAULT_ZOOM` rules in plan.ts, `ZoomMove/ZoomSpan.source 'theme'`, asymmetric ease-out (`outFrames`), the motion
+  starter sets `default_zoom: 1.12`. **Export**: `exportRender` (editor render/export.ts) + `studio export` (cli
+  commands/export.ts) → `exports/<render-id>/` + manifest.json; formats mp4_1080p (copy / lanczos scale, CRF 18),
+  mp4_4k (copy / re-render scale 2), webm (VP9 CRF 32 + Opus), vertical_9x16 / square_1x1 (re-rendered with the
+  master's run, theme and overrides), gif_preview (480 px, 12 fps, palette, 15 s around the first marker). **Review**:
+  widget clicks placed one by one with their bbox, `target-cut` (error), `cursor-outside-reframe`, `reframe-jump`
+  (rules `reframe_max_step` 6 %, `reframe_max_accel` 1.5 %), theme zooms outside the `max_zooms` budget with
+  `theme-zoom-count|cut|real`, the opening-still check compares the capture frames when the view moves. `studio plan`
+  shows the reframe travel and theme zooms. Previews regenerated (15 + caption-overlay; landscape look unchanged).
+  Tests: editor reframe.test.ts, planner-motion-music.test.ts, export-real.test.ts (DemoSquare frame, test track loops
+  and ducking measured, export of 4 formats + manifest), planner-rules (vertical/square/music), review checks
+  (variants, theme zooms, widget clicks), components library/scaffolds (square geometry = defaultRects, nothing over the
+  device), runner scale-2 capture, CLI export/square. 630 tests: 624 pass, 6 Postgres tests skipped (full suite run
+  twice, green both times).
+- **Requirements:** 572 tracked; 362 done, 50 partial, 145 todo, 15 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.7 all done. L2.8: all 11 done (R-ED-17/20/21/22, R-EXP-01…06,
+  R-CLI2-03); from L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
+  (2560×1440 still untested).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
   (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
-  and previews (L2.7). `packages/mcp` is empty; `studio export|record|mcp|ui` print "available in phase N".
+  and previews (L2.7) + variants, 4K, music and export (L2.8). `packages/mcp` is empty; `studio record|mcp|ui` print
+  "available in phase N".
 
 ## Next lot
-**L2.8 — Variants & export** (M): vertical 9:16 and square 1:1 with smoothed reframing on the cursor/targets, 4K from
-scale-2 captures, music bed with ducking, export formats mp4_1080p / mp4_4k / webm / vertical_9x16 / square /
-gif_preview, `studio export`; theme `default_zoom` for balanced/motion styles (R-ED-17/20/21/22, R-EXP-*, R-CLI2-03) —
-unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness, L1.5 = the user runs
+**L2.9 — Mails, notifications & documents** (L): project `mailbox` (Mailpit or HTTP), `wait_for_email`, `download`
+(files and new-tab documents, PDFs rasterised with pdf.js), captured artefacts referenced by components, the
+notification / mail / document / lock-screen / badge components, web notifications of the product, a "tap to open"
+transition, fixture sign-up with a confirmation email and a real quote PDF (R-MAIL-*, R-DOC-*, R-NTF-*) — unless the
+user picks otherwise (L1.2 robustness, L1.3 capture smoothness — now also 4K —, L1.5 = the user runs
 `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
 
-Render, review and preview commands (fixture captures exist: runs 20261011-182524-catalogue, 20261011-182706-quote,
-20261011-222856-mobile-quote):
+Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote,
+20261011-222856-mobile-quote, and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario):
 ```
 node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
-node packages/cli/dist/bin.js render northfield-fixture quote --theme motion --review
-node packages/cli/dist/bin.js render northfield-fixture quote --frame browser   # laptop | phone | tablet | raw | card
-node packages/cli/dist/bin.js render northfield-fixture mobile-quote             # frame: phone (scenario)
-node packages/cli/dist/bin.js still northfield-fixture quote --frame 1409 --layout studio/layout-laptop
-node packages/cli/dist/bin.js review northfield-fixture catalogue-v3     # → review/catalogue-v3/ (≈ 10 s)
+node packages/cli/dist/bin.js render northfield-fixture quote --vertical # 1080×1920, reframed → quote-v<N>-vertical.mp4
+node packages/cli/dist/bin.js render northfield-fixture quote --square --theme motion   # 1080×1080 + theme zoom
+node packages/cli/dist/bin.js render northfield-fixture catalogue --music projects/northfield-fixture/.demo-studio/test-bed.m4a
+node packages/cli/dist/bin.js export northfield-fixture catalogue-v4 --formats all     # → exports/catalogue-v4/
+node packages/cli/dist/bin.js plan northfield-fixture latest --scenario quote --vertical   # shows each clip's reframe
+node packages/cli/dist/bin.js review northfield-fixture quote-v9-vertical
 node packages/cli/dist/bin.js components preview --all --stale          # regenerate stale committed previews
-node packages/cli/dist/bin.js components preview --all --theme motion --out /tmp/previews   # look in another theme
+node -e "import('./packages/editor/dist/index.js').then(m => m.generateTestTrack('projects/northfield-fixture/.demo-studio/test-bed.m4a', {seconds: 16}))"
 ```
-Render times here (4 CPUs, no GPU, concurrency 3, 1080p): quote 56.3 s → 3 m 10–30 s with the L2.7 layouts (browser
-3 m 11 s, laptop 3 m 30 s, raw 3 m 09 s; a new bundle ≈ 10 s each), mobile-quote 33.3 s → ≈ 1 m 20 s (phone 1 m 23 s,
-tablet 1 m 19 s); catalogue 59.0 s → 3 m 37 s (L2.5). ≈ 8–9 output fps (Chrome software raster + JPEG capture
-dominate); a still ≈ 1–2 s with a cached bundle; `renderStills` ≈ 0.3–0.6 s per extra frame; all 27 previews ≈ 1 min.
+Render times here (4 CPUs, no GPU, concurrency 3): 1080p quote 56.3 s → ≈ 3 m; vertical 1080×1920 → 3 m 13 s,
+square 1080×1080 → 2 m 23 s; catalogue 59 s with music → 3 m 34 s; 4K catalogue (export mp4_4k) → 8 m 04 s; WebM (VP9)
+transcode of 59 s 1080p → 1 m 25 s; ≈ 8–9 output fps at 1080p; a still ≈ 1–2 s with a cached bundle.
 
-Renders of L2.7, looked at frame by frame (frames extracted with ffmpeg) and reviewed with `studio review`:
-**quote-v4** (`--frame browser`: the address bar follows the capture — localhost:4402 → /products/selowa-ridge in
-the shop, / → /quotes/1043 → /quotes/1043/pdf in the console; callout on the €720.00 total), **quote-v5** (laptop),
-**quote-v6** (raw + caption-overlay) — all three clean (info: 56.3 s); **mobile-quote-v1** (phone) and
-**mobile-quote-v2** (`--frame tablet`: the phone capture pillarboxed in a portrait tablet) — one warning each,
-`video-length` 33.3 s (the scenario is short on purpose). Earlier reviews: quote-v3 clean; catalogue-v3 one
-`long-wait` warning (registry delay of the fixture, 00:45.1–00:48.9) — to fix for L2.12.
+**4K findings (spike, measured here — headless Chromium 141, 4 CPUs, no GPU, JPEG q 90):**
+- Without help, scale 2 gives CSS-size images on every path: the CDP screencast (new headless and the headless shell
+  alike), `Emulation.setDeviceMetricsOverride` re-sent on the recorder's session with screencast maxWidth/maxHeight at
+  device pixels, and `Page.captureScreenshot` (with or without `clip`, `fromSurface`, `optimizeForSpeed`) — all
+  1920×1080 for a 1920×1080 viewport at DPR 2 (the page reports DPR 2).
+- `--force-device-scale-factor=2` at launch makes all of them 3840×2160, text rasterised at 2× (crops compared with a
+  Playwright DPR-2 screenshot: identical sharpness). Kept: the runner adds it for headless captures with scale ≠ 1.
+- Frame rate (animated element on the fixture pages): screencast 9.5 fps on the shop, 13.6 on the console, 16 on a
+  blank page at 4K vs 44–58 fps at 1080p; `captureScreenshot` in a loop 5.6 fps at 4K (13 at 1080p) → the screencast
+  stays the path. JPEG quality 60–95 changes nothing (raster / readback bound).
+- Real capture `quote` at scale 2 (run 20261011-234009-quote-4k): 3840×2160 capture.mp4, 338 frames over 110.9 s of
+  capture (48.4 s at scale 1): 6–9 fps on the shop pages, 2–3 fps under the request dialog (backdrop blur); the cursor
+  glides on its motion clock, so the run itself slows down (4 m 53 s) and motion stays smooth but slow. Usable for
+  stills and slow scenes here; a Mac with a GPU should be much faster (L1.3 / L1.5).
+- 4K output: a scale-2 capture renders 3840×2160 with every component at unit 2 (crisp, stills compared with a 4K
+  render of the 1080p capture: visibly sharper text); `--scale 2` / export `mp4_4k` of a 1080p capture works with the
+  plan warning "the capture is 1920×1080 px (scale 1): it is upscaled …".
 
-Notes for L2.8:
-- Scale-2 capture is impossible with the current capture path: new-headless Chromium's CDP screencast ignores
-  `deviceScaleFactor: 2` and sends frames at CSS size (tried for mobile-quote: every frame was dropped as the wrong
-  size, and the run "succeeded" with no frame — it now fails with an EncodeError). 4K output (R-ED-20) needs another
-  capture path (old headless, `Page.captureScreenshot` per frame, or a `--headed` capture on the Mac) — L1.4/L2.8.
-- Vertical (DemoVertical): the device layouts have `geometry_vertical` (phone/tablet/laptop/browser/raw) evaluated
-  with the capture aspect; real 9:16 reframing on the cursor/targets is still to do.
-- Device layouts letterbox a capture outside their proportions: phone screen aspect clamped to 0.42–0.62, tablet
-  portrait/landscape picked by a 0/1 switch on the aspect; `plan.layout.display` is then the device screen rect (the
-  layout paints the bars there) and `capture` stays the fitted image rect — overlays and camera keep mapping into
-  `capture`.
-- Captions: `captionRegion(plan, clip)` (review) and `captionBandBox` (components) share the band of caption-overlay
-  (`position: over`); caption-below over a layout without a caption area paints a paper band. A new caption component
-  drawn elsewhere needs `captionRegion` extended.
+Renders of L2.8, looked at frame by frame (frames extracted with ffmpeg at every click and the 5 frames around the
+largest reframe move of each clip) and reviewed with `studio review`: **quote-v9-vertical** (editorial, 56.3 s;
+review clean, 1 info) — every clicked target (Selowa Ridge, Request a quote, Increase ×2, the size and grind
+dropdowns and their options, Delivery window, Next month at the right edge, 10 Jan, 24 Jan, Message, Send request, the
+notification bell and item, Download quote PDF) and the cursor in view, the callout on €720.00 mapped through the
+crop, captions on one line under the card, consecutive frames of the largest pans move ≈ 11 px a frame, nothing moves
+during the opening stills; **quote-v10-square** (motion theme, 57.2 s; review clean, 1 info): the same, caption bands
+under the card, the theme zoom 1.12× on the marked proposal (in 3.8 s, back to 1× before the outro); **catalogue-v4**
+(editorial + the 16 s test track, 59.0 s): music RMS ≈ −25 dB on the intro, ≈ −31/−33 dB under footage (−6 dB
+ducking), −27.6 dB on the outro, no dip at the loop seams (15.5 s, 30.5 s, 45.5 s), faded out to silence at 59 s.
+**Export of catalogue-v4, all six formats** (`studio export … --formats all`, 15 m 37 s; every file ffprobed):
+mp4_1080p copy 1920×1080 h264 + aac 59.01 s 8.8 MB; mp4_4k re-rendered 3840×2160 h264 + aac 59.01 s 17.4 MB (8 m 04 s,
+the upscaling warning); webm 1920×1080 vp9 + opus 59.02 s 4.6 MB (1 m 25 s); vertical_9x16 re-rendered 1080×1920
+h264 + aac 59.01 s 11.5 MB (3 m 17 s); square_1x1 re-rendered 1080×1080 h264 + aac 59.01 s 9.1 MB (2 m 49 s);
+gif_preview 480×270 12 fps 15.0 s 0.77 MB (8.4–23.4 s around the first marker, 1.5 s). Every file with sound carries
+the music (mean −31.1 dB, the master's level). Frames of the exported vertical and square looked at (every click of
+import / availability / add-product: targets and cursor in view; the file chip dragged in from the capture's right
+edge followed smoothly), the exported vertical reviewed: the known `long-wait` warning only.
+Earlier: quote-v7-vertical / quote-v8-square (before the calm start and the caption bands below the card),
+catalogue-v3 one `long-wait` warning (registry delay of the fixture, 00:45.1–00:48.9) — to fix for L2.12.
+
+Notes for L2.9:
+- Reframing reads targets from `timeline.events` (step target bbox, `data.clicks[].bbox`, `camera.bbox`,
+  `overlay.bbox`): new actions (wait_for_email, download, tap to open) should record a bbox for what the viewer must
+  see, or the vertical/square crop only follows the cursor there. Components drawn over the capture (a notification
+  banner) are not known to the reframe: anchor them to the frame (output px), not to the capture.
+- Caption bands over a reframed capture: in vertical/square, `captionBandBox` moves caption-overlay to the caption area
+  below the card; with `layout-raw` (caption area over the capture) the band still covers the bottom of the crop and
+  the vertical crop cannot move vertically (full height) — a reframe that avoids occluded zones is not done.
+- Release from the capture's edge (a file dragged in from the right edge in catalogue/import) is the worst jolt of the
+  reframe (≈ 1 % of the crop width per frame²): the cursor pins the view to the edge and the smoothed path wants to leave
+  earlier; acceptable, the review threshold is 1.5 %.
+- 4K: export `mp4_4k` re-renders at scale 2 (≈ 4× the 1080p time). The runner's scale flag is headless-only: `--headed`
+  on a non-retina screen would still get CSS-size frames.
+- Music: the planner is pure, so `renderVideo` measures the track; `studio plan` / `still` plan without its length
+  (no `plays`: the composition then loops the element itself). Volume curves are frame functions (Remotion builds the
+  ffmpeg volume filter from them).
 - Previews: `preview.json.source_hash` covers the manifest, the entry and its relative imports — not the kit. A kit
-  change that alters a look needs `components preview --all` (not `--stale`). Sample screens are regenerated with
-  `node scripts/preview-samples.mjs` (fixture server running) and are not part of the hash either.
+  change that alters a look needs `components preview --all` (not `--stale`). Previews are landscape only (vertical /
+  square looks are checked by renders, not previews).
 - Remaining look differences vs the reference are brand-related (editorial display face lighter than the reference's
   serif; the placeholder brand's wordmark is shorter); the reference fades the clip caption during the interstitial
   dim, ours has already left.

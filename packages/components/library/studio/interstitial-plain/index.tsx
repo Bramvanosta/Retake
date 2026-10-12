@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { Background, CapText, biasMotion, capTextLayout, darkLight, nightTone, progress, readableOn, roundTo, withAlpha } from '@demo-studio/components/kit';
+import { Background, CapText, biasMotion, capTextLayout, darkLight, nightTone, progress, readableOn, roundTo, withAlpha, formatMetrics } from '@demo-studio/components/kit';
 import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
 
 type Params = { tone: 'dark' | 'paper'; dim: number };
@@ -28,9 +28,9 @@ function palette(theme: ThemeTokens, tone: Params['tone']) {
  * the text rise in centred, and an accent line fills across the card's duration. style_bias balanced / motion: more
  * rise and a softer pace.
  */
-export default function InterstitialPlain({ theme, slots, params, unit, width, height, fps, durationInFrames, screen }: ComponentProps<Params>) {
+export default function InterstitialPlain({ theme, slots, params, unit, width, height, fps, durationInFrames, screen, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const c = palette(theme, params.tone);
   const seconds = durationInFrames / fps;
@@ -38,9 +38,9 @@ export default function InterstitialPlain({ theme, slots, params, unit, width, h
   const kickerP = progress(frame, fps, { delay: 0.12, duration: 0.5 * bias.pace, ease: 'easeInOut' });
   const textP = progress(frame, fps, { delay: 0.2, duration: 0.55 * bias.pace, ease: 'easeInOut' });
   const run = progress(frame, fps, { delay: 0.35, duration: Math.max(0.3, seconds - 0.6), ease: 'linear' });
-  const text = capTextLayout({ text: slots.text ?? '', width: Math.min(width - 320 * u, 1300 * u), maxFontSize: 68 * u, minFontSize: 34 * u, maxLines: 2, lineHeight: 1.1, fontFamily: theme.fonts.display });
+  const text = capTextLayout({ text: slots.text ?? '', width: Math.min(width - 2 * inset(160), 1300 * u), maxFontSize: 68 * u, minFontSize: 34 * u, maxLines: 2, lineHeight: 1.1, fontFamily: theme.fonts.display });
   const kicker = slots.kicker
-    ? capTextLayout({ text: slots.kicker, width: Math.min(width - 320 * u, 1100 * u), maxFontSize: 16 * u, minFontSize: 11 * u, maxLines: 1, lineHeight: 1.2, fontFamily: theme.fonts.body, fontWeight: 600, letterSpacing: 0.16, uppercase: true })
+    ? capTextLayout({ text: slots.kicker, width: Math.min(width - 2 * inset(160), 1100 * u), maxFontSize: 16 * u, minFontSize: 11 * u, maxLines: 1, lineHeight: 1.2, fontFamily: theme.fonts.body, fontWeight: 600, letterSpacing: 0.16, uppercase: true })
     : null;
   const lift = (text.lines.length - 1) * text.lineHeightPx * 0.5;
   const cy = height / 2 - lift;

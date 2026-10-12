@@ -678,9 +678,12 @@ export interface Scenario {
 export interface MusicSpec {
   /** Audio file relative to the project dir. */
   file: string;
+  /** Base volume 0..1 (intro, outro, cards and interstitials play at this level). */
   volume?: number;
-  /** Volume factor under footage. */
+  /** Volume factor under footage (0..1): the bed is ducked while product footage is on screen. */
   duck?: number;
+  /** A track shorter than the video loops (default, with crossfaded seams); `false`: it plays once. */
+  loop?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

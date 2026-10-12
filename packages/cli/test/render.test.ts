@@ -96,5 +96,22 @@ describe.skipIf(!canRender)('studio render / still', () => {
     expect(rec.review.clean).toBe(false);
     expect(existsSync(rec.review.files.report_md)).toBe(true);
   }, LONG);
+  it('export: the master transcoded (WebM, GIF) into exports/<render>/ + manifest.json; --square renders a square variant', async () => {
+    const r = await studio('export', 'demo', 'synthetic-v1', '--formats', 'webm,gif_preview');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    expect(r.err).toMatch(/export synthetic-v1 \(480×270, 1\.90 s\) → .*exports\/synthetic-v1/);
+    expect(r.err).toMatch(/✓ WebM \(VP9\) {3}.*synthetic-v1\.webm {2}1920×1080 vp9 \+ opus, 1\.9\d s/);
+    expect(r.err).toMatch(/✓ GIF preview {3}.*synthetic-v1-preview\.gif {2}480×270 gif, 1\.9\d s, 0\.0–1\.9 s \(first\)/);
+    const dir = join(ws.project.dir, 'exports', 'synthetic-v1');
+    expect((await readdir(dir)).sort()).toEqual(['manifest.json', 'synthetic-v1-preview.gif', 'synthetic-v1.webm']);
+    const json = await studio('export', 'demo', 'latest', '--formats', 'gif_preview', '--gif-start', '0.5', '--json');
+    expect(json.code, json.err).toBe(EXIT.ok);
+    const m = JSON.parse(json.out) as { render: string; outputs: Array<{ format: string; window?: { start_s: number } }> };
+    expect(m.outputs.find((o) => o.format === 'gif_preview')?.window?.start_s).toBe(0.5);
+    const sq = await studio('render', 'demo', 'synthetic', '--square', '--scale', '0.25', '--concurrency', '2', '--json');
+    expect(sq.code, sq.err).toBe(EXIT.ok);
+    expect(JSON.parse(sq.out)).toMatchObject({ variant: 'square', width: 270, height: 270 });
+    expect((await studio('render', 'demo', 'synthetic', '--square', '--vertical')).code).toBe(EXIT.usage);
+  }, LONG);
 });
 

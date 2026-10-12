@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAMERA_EASINGS, cubicBezier } from '@demo-studio/components';
 import type { LoadedTemplate } from '@demo-studio/core';
-import { PlanError, mapSourceRect, planEdit, planRunTiming } from '@demo-studio/editor';
+import { PlanError, mapSourceRect, planEdit, planRunTiming, viewOf } from '@demo-studio/editor';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
 import { clip, clips, fixtureProject, plan, seg, studioWorkspace, synthTimeline, template } from './helpers.js';
 import type { EntrySpec, PlanContext, Workspace } from './helpers.js';
@@ -20,8 +20,6 @@ beforeAll(async () => {
   ctx = { ws: await studioWorkspace(), project: await fixtureProject(), editorial: await template('editorial') };
   alt = await studioWorkspace(
     {
-      // A tall vertical screen so the vertical crop is narrower than the capture.
-      'studio/layout-card': (y) => y.replace(/geometry_vertical:\n  screen: \{[^}]*\}/, 'geometry_vertical:\n  screen: {x: 40, y: 200, w: 1000, h: 1500}'),
     },
     {
       extra: [
@@ -584,35 +582,82 @@ describe('layouts and output size', () => {
     expect([withWs(alt, tl2).width, withWs(alt, tl2).source.width]).toEqual([3840, 3840]);
   });
 
-  it('plans the vertical variant: 1080×1920, geometry_vertical, a crop that follows the cursor smoothly', () => {
+  it('plans the vertical variant: 1080×1920, geometry_vertical (a 4:5 card), a crop that follows the cursor smoothly', () => {
+    const glide: Array<[number, number, number]> = [[0, 300, 500], [4.9, 300, 500]];
+    for (let i = 1; i <= 10; i++) glide.push([4.9 + i * 0.07, 300 + (1300 * i) / 10, 500]);
+    glide.push([10, 1600, 500]);
     const tl = synthTimeline({
       entries: [{ id: 'v', t_start: 0, t_end: 10, still: [0, 1], steps: [{ action: 'click', t_start: 1, t_end: 10 }] }],
       duration: 10,
-      cursor: [[0, 300, 500], [4.9, 300, 500], [5, 1600, 500], [10, 1600, 500]],
+      cursor: glide,
     });
-    const p = withWs(alt, tl, { variant: 'vertical' });
+    const p = withWs(ctx.ws, tl, { variant: 'vertical' });
     expect([p.width, p.height, p.unit, p.variant]).toEqual([1080, 1920, 1, 'vertical']);
-    expect(p.layout.capture).toEqual({ x: 40, y: 200, w: 1000, h: 1500 });
-    expect(p.layout.crop).toEqual({ w: 720, h: 1080 });
+    // The (scaffolded) card's vertical screen is 1000 × 1240: a 16:9 capture is reframed, the crop has the full height.
+    expect(p.layout.capture).toEqual({ x: 40, y: 224, w: 1000, h: 1240 });
+    expect(p.layout.crop).toEqual({ w: 870.968, h: 1080 });
     const v = clip(p, 'v');
+    const v0 = v;
     const rf = v.reframe!;
     expect(rf).toHaveLength(v.durationInFrames);
-    expect(rf[0]).toEqual([360, 540]);
-    expect(rf[rf.length - 1]).toEqual([1560, 540]);
-    const dx = diffs(rf.map((r) => r[0]));
-    expect(dx.every((d) => d >= 0)).toBe(true);
-    expect(Math.max(...dx)).toBeLessThan(80);
+    // At the start the cursor (300, 500) is near the left edge: the crop rests against it; at the end it shows the
+    // cursor at 1600 (its arrow box and the margin inside the view).
+    expect(rf[0][0]).toBeCloseTo(870.968 / 2, 1);
+    expect(rf[rf.length - 1][0]).toBeGreaterThan(1600 + 56 + 12 - 870.968 / 2);
+    expect(rf[rf.length - 1][0]).toBeLessThanOrEqual(1920 - 870.968 / 2 + 0.01);
+    expect(rf.every((r) => r[1] === 540)).toBe(true);
+    // One smooth pan to the right: no back-and-forth beyond a gentle settle (< 2 % of the travel), no jump, no jolt.
+    const xs = rf.map((r) => r[0]);
+    const dx = diffs(xs);
+    const travel = xs[xs.length - 1] - xs[0];
+    let peak = xs[0];
+    let back = 0;
+    for (const x of xs) {
+      peak = Math.max(peak, x);
+      back = Math.max(back, peak - x);
+    }
+    expect(back).toBeLessThan(0.02 * travel);
+    expect(Math.max(...dx)).toBeLessThan(40);
+    expect(Math.max(...diffs(dx).map(Math.abs))).toBeLessThan(4);
+    // The cursor never leaves the view.
+    for (let k = 0; k < rf.length; k++) {
+      const v = viewOf(p, v0, k);
+      const t = v0.srcFrames[k] / 30;
+      const next = tl.cursor.findIndex((s) => s.t > t);
+      const i = next < 0 ? tl.cursor.length - 1 : Math.max(0, next - 1);
+      const [a, b] = [tl.cursor[i], tl.cursor[Math.min(i + 1, tl.cursor.length - 1)]];
+      const x = b.t > a.t ? a.x + (b.x - a.x) * Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : a.x;
+      expect(x >= v.cx - v.w / 2 && x <= v.cx + v.w / 2, `frame ${k}: cursor ${x}, view ${v.cx - v.w / 2}–${v.cx + v.w / 2}`).toBe(true);
+    }
     // Mid-move the crop is between the two positions; the view is the crop.
-    const mid = rf[Math.round(5 * FPS)];
-    expect(mid[0]).toBeGreaterThan(360);
-    expect(mid[0]).toBeLessThan(1560);
-    const r = mapSourceRect(p, v, 0, { x: 360 - 360, y: 0, w: 720, h: 1080 });
-    expect(r).toEqual({ x: 40, y: 200, w: 1000, h: 1500 });
+    const mid = rf[Math.round(5.25 * FPS)];
+    expect(mid[0]).toBeGreaterThan(rf[0][0] + 50);
+    expect(mid[0]).toBeLessThan(rf[rf.length - 1][0] - 50);
+    const r = mapSourceRect(p, v, 0, { x: rf[0][0] - 870.968 / 2, y: 0, w: 870.968, h: 1080 });
+    expect(r).toEqual({ x: 40, y: 224, w: 1000, h: 1240 });
+  });
+
+  it('plans the square variant: 1080×1080, geometry_square, a crop narrowed for readability', () => {
+    const tl = synthTimeline({ entries: [{ id: 'v', t_start: 0, t_end: 6, still: [0, 1], steps: [{ action: 'click', t_start: 1, t_end: 6 }] }], duration: 6 });
+    const p = withWs(ctx.ws, tl, { variant: 'square' });
+    expect([p.width, p.height, p.unit, p.variant]).toEqual([1080, 1080, 1, 'square']);
+    expect(p.layout.capture).toEqual({ x: 40, y: 40, w: 1000, h: 750 });
+    expect(p.layout.caption).toEqual({ x: 40, y: 802, w: 1000, h: 160 });
+    expect(p.layout.brandmark).toEqual({ x: 960, y: 1010, w: 80, h: 40 });
+    // The largest 4:3 region (1440 × 1080) would show the page at 0.69×: narrowed to 0.9× (REFRAME_MIN_SCALE).
+    expect(p.layout.crop!.w).toBeCloseTo(1000 / 0.9, 2);
+    expect(p.layout.crop!.h).toBeCloseTo(750 / 0.9, 2);
+    expect(clip(p, 'v').reframe).toHaveLength(clip(p, 'v').durationInFrames);
+    // 4K square from a scale-1 capture: everything doubles, with an upscaling warning.
+    const big = withWs(ctx.ws, tl, { variant: 'square', scale: 2 });
+    expect([big.width, big.height, big.unit]).toEqual([2160, 2160, 2]);
+    expect(big.warnings.some((w) => /upscaled/.test(w))).toBe(true);
+    expect(p.warnings.some((w) => /upscaled/.test(w))).toBe(false);
   });
 
   it('uses a default geometry (with a warning) when the layout has none for the variant', async () => {
     const ws = await studioWorkspace({
-      'studio/layout-card': (y) => y.replace(/geometry_vertical:\n(  .*\n)+?(?=variants)/, '').replace(/variants: \[ ?landscape, vertical ?\]/, 'variants: [landscape]'),
+      'studio/layout-card': (y) => y.replace(/geometry_vertical:\n(  .*\n)+/, '').replace(/variants: \[ ?landscape, vertical, square ?\]/, 'variants: [landscape, square]'),
     });
     try {
       const p = withWs(ws, synthTimeline({ entries, duration: 9 }), { variant: 'vertical' });
@@ -632,7 +677,7 @@ describe('music, overrides, errors', () => {
     const tl = synthTimeline({ entries, duration: 5 });
     tl.video = { ...tl.video, music: { file: 'assets/bed.mp3', volume: 0.4 } };
     const p = plan(ctx, tl);
-    expect(p.music).toEqual({ url: 'ds-asset:music.mp3', file: join(ctx.project.dir, 'assets/bed.mp3'), volume: 0.4, duck: 0.5, fadeIn_s: 1, fadeOut_s: 2 });
+    expect(p.music).toEqual({ url: 'ds-asset:music.mp3', file: join(ctx.project.dir, 'assets/bed.mp3'), volume: 0.4, duck: 0.5, duck_ramp_s: 0.5, fadeIn_s: 1, fadeOut_s: 2, loop: true, crossfade_s: 1 });
     expect(p.assets['ds-asset:music.mp3']).toBe(p.music!.file);
     expect(plan(ctx, tl, { music: false }).music).toBeUndefined();
     expect(plan(ctx, tl, { music: '/abs/other.wav' }).music).toMatchObject({ file: '/abs/other.wav', volume: 0.4 });

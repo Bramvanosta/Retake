@@ -1,6 +1,6 @@
 /**
- * Layout geometry: the layout component's manifest geometry (design space 1920×1080, or 1080×1920 for the vertical
- * variant) scaled by `unit`, with the capture fitted to its aspect ratio — and the mapping of source CSS px to output
+ * Layout geometry: the layout component's manifest geometry (design space 1920×1080, 1080×1920 for the vertical
+ * variant, 1080×1080 for the square one) scaled by `unit`, with the capture fitted to its aspect ratio — and the mapping of source CSS px to output
  * px through the layout and the camera (overlay anchors, review). Pure.
  */
 import type { LayoutGeometry } from '@demo-studio/components';
@@ -21,11 +21,32 @@ export const FALLBACK_GEOMETRY: Readonly<Record<PlanVariant, LayoutGeometry>> = 
     brandmark: { x: 700, y: 1840, w: 340, h: 40 },
     radius: 18,
   },
+  square: {
+    screen: { x: 40, y: 35, w: 1000, h: 758 },
+    caption: { x: 40, y: 805, w: 1000, h: 160 },
+    brandmark: { x: 700, y: 1010, w: 340, h: 40 },
+    radius: 18,
+  },
 };
+
+/** Design space of each variant (layout geometry and every size a component draws, before `unit`). */
+export const DESIGN_SPACES: Readonly<Record<PlanVariant, { width: number; height: number }>> = {
+  landscape: { width: 1920, height: 1080 },
+  vertical: { width: 1080, height: 1920 },
+  square: { width: 1080, height: 1080 },
+};
+
+/**
+ * Reframed variants (vertical, square) show the capture at least this many design px per CSS px when the layout
+ * reframes it (its screen rect has another aspect than the capture): a square card would otherwise show a whole
+ * 1920-px page at 0.7× — text too small on a phone. The crop is then narrower and follows the action.
+ */
+export const REFRAME_MIN_SCALE = 0.9;
 
 /** Names of the rects of an evaluated geometry that leave the design space of the variant. */
 export function geometryOutside(g: LayoutGeometry, variant: PlanVariant): string[] {
-  const space = variant === 'landscape' ? { w: 1920, h: 1080 } : { w: 1080, h: 1920 };
+  const d = DESIGN_SPACES[variant];
+  const space = { w: d.width, h: d.height };
   const eps = 0.5;
   const out: string[] = [];
   for (const name of ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const) {
@@ -40,6 +61,7 @@ export function geometryOutside(g: LayoutGeometry, variant: PlanVariant): string
 export const RAW_GEOMETRY: Readonly<Record<PlanVariant, LayoutGeometry>> = {
   landscape: { screen: { x: 0, y: 0, w: 1920, h: 1080 }, radius: 0 },
   vertical: { screen: { x: 0, y: 0, w: 1080, h: 1920 }, radius: 0 },
+  square: { screen: { x: 0, y: 0, w: 1080, h: 1080 }, radius: 0 },
 };
 
 function scale(r: Rect, unit: number): Rect {
@@ -60,8 +82,10 @@ export function fitRect(box: Rect, aspect: number): Rect {
 
 /**
  * PlanLayout from a layout geometry. Landscape: the capture is fitted inside the screen rect (letterboxed by the
- * card/device when the aspect ratios differ); the card is the declared frame, else the fitted capture. Vertical: the
- * capture region with the screen rect's aspect ratio (`crop`, source CSS px) fills the screen rect.
+ * card/device when the aspect ratios differ); the card is the declared frame, else the fitted capture. Vertical and
+ * square: the capture region with the screen rect's aspect ratio (`crop`, source CSS px) fills the screen rect — the
+ * whole capture when the aspects match, else a reframe (the largest such region, narrowed so the capture shows at
+ * least REFRAME_MIN_SCALE design px per CSS px) whose centre follows `ClipSegment.reframe`.
  */
 export function planLayout(
   geometry: LayoutGeometry,
@@ -80,7 +104,10 @@ export function planLayout(
     out.capture = screen;
     out.card = geometry.frame ? scale(geometry.frame, opts.unit) : screen;
     const screenAspect = geometry.screen.w / geometry.screen.h;
-    const crop = screenAspect < aspect ? { w: opts.cssHeight * screenAspect, h: opts.cssHeight } : { w: opts.cssWidth, h: opts.cssWidth / screenAspect };
+    let crop = screenAspect < aspect ? { w: opts.cssHeight * screenAspect, h: opts.cssHeight } : { w: opts.cssWidth, h: opts.cssWidth / screenAspect };
+    const reframed = Math.abs(screenAspect / aspect - 1) > 0.01;
+    const maxW = geometry.screen.w / REFRAME_MIN_SCALE;
+    if (reframed && crop.w > maxW) crop = { w: maxW, h: maxW / screenAspect };
     out.crop = { w: round(crop.w, 3), h: round(crop.h, 3) };
   }
   if (geometry.chrome) out.chrome = scale(geometry.chrome, opts.unit);
@@ -100,8 +127,8 @@ export interface SourceView {
 
 /**
  * The visible source region of frame `frame` (relative) of a clip: the whole capture (landscape) or the crop
- * centred on the reframe track (vertical), divided by the camera zoom around the camera centre, clamped inside the
- * capture.
+ * centred on the reframe track (vertical, square), divided by the camera zoom around the camera centre, clamped
+ * inside the capture.
  */
 export function viewOf(plan: Pick<EditPlan, 'source' | 'variant'>, clip: Extract<PlanSegment, { kind: 'clip' }>, frame: number): SourceView {
   const W = plan.source.cssWidth;
@@ -113,7 +140,7 @@ export function viewOf(plan: Pick<EditPlan, 'source' | 'variant'>, clip: Extract
   let h = H / zoom;
   let cx = cam[1];
   let cy = cam[2];
-  if (plan.variant === 'vertical' && clip.layout.crop) {
+  if (plan.variant !== 'landscape' && clip.layout.crop) {
     w = clip.layout.crop.w / zoom;
     h = clip.layout.crop.h / zoom;
     const rf = clip.reframe?.[f];

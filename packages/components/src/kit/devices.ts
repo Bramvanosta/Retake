@@ -118,6 +118,12 @@ export interface CaptionBandInput {
   position: 'over' | 'area';
   /** Widest band, design px. */
   maxWidth: number;
+  /**
+   * Output format. In vertical and square the capture is reframed on the action: a band over it would hide what the
+   * reframe keeps in view, so the band goes to the layout's caption area (below the card) when there is one outside
+   * the capture.
+   */
+  variant?: 'landscape' | 'vertical' | 'square';
 }
 
 /** Narrowest capture a band is drawn over (design px); narrower captures (phones) use the caption area. */
@@ -129,14 +135,20 @@ export const CAPTION_BAND_PAD_X = 34;
 
 /**
  * Where studio/caption-overlay draws its band: `box` = the widest band (it shrinks to its text, centred in it, bottom
- * aligned); `over` tells whether it lies over the capture. Over the capture when asked and the capture is wide enough,
- * else in the layout's caption area, else over the bottom of the frame. The review measures captions in this box.
+ * aligned); `over` tells whether it lies over the capture. Over the capture when asked and the capture is wide enough
+ * (not in the vertical / square formats when the layout has a caption area clear of the capture: the reframed capture
+ * stays unobstructed), else in the layout's caption area, else over the bottom of the frame. The review measures
+ * captions in this box.
  */
 export function captionBandBox(i: CaptionBandInput): { box: { x: number; y: number; w: number; h: number }; over: boolean } {
   const u = i.unit;
   const screen = i.rects?.screen;
   const height = 150 * u;
-  if (i.position === 'over' && screen && screen.w >= CAPTION_BAND_MIN_SCREEN * u) {
+  const intersects = (a: { x: number; y: number; w: number; h: number }, b?: { x: number; y: number; w: number; h: number }) =>
+    !!b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const reframed = i.variant === 'vertical' || i.variant === 'square';
+  const areaClear = !!i.area && !intersects(i.area, screen);
+  if (i.position === 'over' && screen && screen.w >= CAPTION_BAND_MIN_SCREEN * u && !(reframed && areaClear)) {
     const w = Math.min(i.maxWidth * u, screen.w - 2 * CAPTION_BAND_INSET * u);
     const h = Math.min(height, screen.h * 0.4);
     return { box: { x: screen.x + (screen.w - w) / 2, y: screen.y + screen.h - CAPTION_BAND_INSET * u - h, w, h }, over: true };
@@ -147,4 +159,29 @@ export function captionBandBox(i: CaptionBandInput): { box: { x: number; y: numb
   }
   const w = Math.min(i.maxWidth * u, i.width - 2 * 120 * u);
   return { box: { x: (i.width - w) / 2, y: i.height - 64 * u - height, w, h: height }, over: true };
+}
+
+/**
+ * Lines a caption line may take: the component's `max_lines` in landscape; at least 2 in the vertical and square
+ * variants (their caption areas are ≈ 1000 px wide, half the landscape line), at least 3 in a narrow column (a caption
+ * beside a phone or a portrait tablet, < 600 design px). Never more than 3. Shared by the caption components and the
+ * review (caption-too-long).
+ */
+export function captionMaxLines(variant: 'landscape' | 'vertical' | 'square' | undefined, maxLines: number, areaWidthDesignPx?: number): number {
+  if (!variant || variant === 'landscape') return maxLines;
+  const floor = areaWidthDesignPx !== undefined && areaWidthDesignPx < 600 ? 3 : 2;
+  return Math.min(3, Math.max(floor, maxLines));
+}
+
+/** Type scale of full-frame components (intro, outro, cards, interstitials) per variant: a phone-first 9:16 frame reads better with larger type. */
+export const FORMAT_SCALE = { landscape: 1, vertical: 1.2, square: 1.05 } as const;
+
+/**
+ * Sizes of a full-frame component in the output variant: `u` = the unit for type and spacing (the output unit × the
+ * variant's type scale), `inset(m)` = a side margin designed for 1920 px (halved in the 1080-px-wide variants, so a
+ * column stays wide enough for the larger type).
+ */
+export function formatMetrics(variant: 'landscape' | 'vertical' | 'square' | undefined, unit: number): { u: number; inset: (designPx: number) => number } {
+  const v = variant ?? 'landscape';
+  return { u: unit * FORMAT_SCALE[v], inset: (m: number) => (v === 'landscape' ? m : m / 2) * unit };
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { Background, CapText, biasMotion, capTextLayout, darkLight, mixColors, nightTone, progress, roundTo, withAlpha } from '@demo-studio/components/kit';
+import { Background, CapText, biasMotion, capTextLayout, darkLight, mixColors, nightTone, progress, roundTo, withAlpha, formatMetrics } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { dim: number; turns: number };
@@ -21,9 +21,9 @@ const TEXT_CENTRE = 72; // cap centre, from the frame centre
  * minute hand sweeps about one turn (eased) and the hour hand creeps; the next clip then crossfades in.
  * style_bias balanced / motion: the clock settles from a slightly smaller scale and its ring draws itself.
  */
-export default function InterstitialClock({ theme, slots, params, unit, width, height, fps, durationInFrames, screen }: ComponentProps<Params>) {
+export default function InterstitialClock({ theme, slots, params, unit, width, height, fps, durationInFrames, screen, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const night = nightTone(theme);
   const { light } = darkLight(theme);
@@ -44,7 +44,7 @@ export default function InterstitialClock({ theme, slots, params, unit, width, h
 
   const text = capTextLayout({
     text: slots.text ?? '',
-    width: Math.min(width - 320 * u, 1400 * u),
+    width: Math.min(width - 2 * inset(160), 1400 * u),
     maxFontSize: 72 * u,
     minFontSize: 36 * u,
     maxLines: 2,
@@ -57,7 +57,7 @@ export default function InterstitialClock({ theme, slots, params, unit, width, h
   const size = CLOCK * u;
   const textCapTop = height / 2 + TEXT_CENTRE * u - lift - text.capHeight / 2;
   const kicker = slots.kicker
-    ? capTextLayout({ text: slots.kicker, width: Math.min(width - 320 * u, 1200 * u), maxFontSize: 16 * u, minFontSize: 11 * u, maxLines: 1, lineHeight: 1.2, fontFamily: theme.fonts.body, fontWeight: 600, letterSpacing: 0.16, uppercase: true })
+    ? capTextLayout({ text: slots.kicker, width: Math.min(width - 2 * inset(160), 1200 * u), maxFontSize: 16 * u, minFontSize: 11 * u, maxLines: 1, lineHeight: 1.2, fontFamily: theme.fonts.body, fontWeight: 600, letterSpacing: 0.16, uppercase: true })
     : null;
   const r = 48.5;
   const circumference = 2 * Math.PI * r;

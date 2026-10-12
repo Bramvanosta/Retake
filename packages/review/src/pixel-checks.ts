@@ -3,7 +3,8 @@
  * scene starts (rendered frames, and the capture frames behind them), a screen still changing during the scene's
  * opening still (the page was loading), captions that do not show in their area, segments that render nothing.
  */
-import type { ClipSegment } from '@demo-studio/editor';
+import { viewOf } from '@demo-studio/editor';
+import type { ClipSegment, EditPlan } from '@demo-studio/editor';
 import type { CheckContext } from './checks.js';
 import { captionRegion, locate } from './checks.js';
 import type { RegionStats } from './pixels.js';
@@ -29,6 +30,8 @@ export interface PixelCheckInput {
   analyses: Map<number, FrameAnalysis>;
   /** Capture frames analysed (index → whole-frame stats); undefined when the capture is not available. */
   sources?: Map<number, RegionStats>;
+  /** Signatures of capture frames (whole frame): the opening-still check of a clip whose view moves (a reframe, a zoom). */
+  sourceSigs?: Map<number, Float32Array>;
   /** Frames sampled per segment for its sheet (2 fps). */
   sceneSamples: Map<string, number[]>;
   /** Seconds between two scene samples. */
@@ -44,6 +47,29 @@ export function sourceFramesAtStarts(spans: SegmentSpan[]): number[] {
     if (!isClip(s.segment)) continue;
     out.push(s.segment.srcFrames[0] ?? 0);
     out.push(s.segment.srcFrames[Math.min(s.segment.srcFrames.length - 1, s.clearFrom - s.from)] ?? 0);
+  }
+  return out;
+}
+
+/**
+ * True when the visible region of the capture differs between two frames of a clip (a reframe pan or a camera move):
+ * the rendered screens then differ even on a still page, and the capture frames are compared instead.
+ */
+export function viewMoves(plan: Pick<EditPlan, 'source' | 'variant'>, clip: ClipSegment, a: number, b: number): boolean {
+  const va = viewOf(plan, clip, a - clip.from);
+  const vb = viewOf(plan, clip, b - clip.from);
+  // Even a sub-pixel glide of the crop changes every edge of a detailed page: any move counts.
+  const tol = 0.25;
+  return Math.abs(va.cx - vb.cx) > tol || Math.abs(va.cy - vb.cy) > tol || Math.abs(va.w - vb.w) > tol;
+}
+
+/** The capture frames shown at the still pair of a clip whose view moves (their signatures are compared instead). */
+export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, spans: SegmentSpan[], fps: number): number[] {
+  const out: number[] = [];
+  for (const s of spans) {
+    const pair = stillPair(s, fps);
+    if (!pair || !isClip(s.segment) || !viewMoves(plan, s.segment, pair[0], pair[1])) continue;
+    out.push(s.segment.srcFrames[pair[0] - s.from], s.segment.srcFrames[pair[1] - s.from]);
   }
   return out;
 }
@@ -158,8 +184,12 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
       // Opening still: nothing should change on screen (the page is loaded and the cursor rests).
       const pair = stillPair(span, fps);
       if (pair) {
-        const a = input.analyses.get(pair[0])?.screenSig;
-        const b = input.analyses.get(pair[1])?.screenSig;
+        // When the view moves during the still (a reframe, a zoom), the page itself is compared: its capture frames.
+        const moving = viewMoves(plan, seg, pair[0], pair[1]);
+        const srcA = seg.srcFrames[pair[0] - seg.from];
+        const srcB = seg.srcFrames[pair[1] - seg.from];
+        const a = moving ? input.sourceSigs?.get(srcA) : input.analyses.get(pair[0])?.screenSig;
+        const b = moving ? input.sourceSigs?.get(srcB) : input.analyses.get(pair[1])?.screenSig;
         if (a && b) {
           const d = compareSignatures(a, b);
           if (d.changed > rules.still_change_share) {

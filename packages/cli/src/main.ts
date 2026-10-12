@@ -9,6 +9,8 @@ import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './comman
 import type { HookCommandOptions } from './commands/hooks.js';
 import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, loginCommand, schemaCommand } from './commands/misc.js';
 import type { LoginOptions } from './commands/misc.js';
+import { exportCommand } from './commands/export.js';
+import type { ExportCommandOptions } from './commands/export.js';
 import { planCommand } from './commands/plan.js';
 import type { PlanCommandOptions } from './commands/plan.js';
 import { listCommand, newCommand } from './commands/project.js';
@@ -111,7 +113,8 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--scenario <name>', 'with "latest": the latest run of this scenario')
     .option('--theme <name>', 'plan with another theme (template name or ./path) instead of the one the run used')
     .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, tablet, raw or a layout component id')
-    .option('--vertical', 'the vertical 9:16 variant (1080×1920)')
+    .option('--vertical', 'the vertical 9:16 variant (1080×1920, reframed on the cursor and the targets)')
+    .option('--square', 'the square 1:1 variant (1080×1080, reframed on the cursor and the targets)')
     .option('--json', 'print the plan as JSON')
     .option('--out <file>', 'write the plan JSON to a file')
     .action(action((u, g, p: string, r: string, o: PlanCommandOptions) => planCommand(u, g, p, r, o)));
@@ -124,7 +127,10 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
     .option('--theme <name>', 'render with another theme (template name or ./path) instead of the one the run used')
     .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, tablet, raw or a layout component id')
-    .option('--vertical', 'the vertical 9:16 variant (1080×1920), written as <scenario>-v<N>-vertical.mp4')
+    .option('--vertical', 'the vertical 9:16 variant (1080×1920, reframed on the cursor and the targets), written as <scenario>-v<N>-vertical.mp4')
+    .option('--square', 'the square 1:1 variant (1080×1080, reframed), written as <scenario>-v<N>-square.mp4')
+    .option('--music <file>', 'music bed (an audio file: path from here, else relative to the project) instead of the scenario\'s')
+    .option('--no-music', 'leave the scenario\'s music bed out')
     .option('--scale <n>', 'output size multiplier of 1920×1080 (default: the capture scale)')
     .option('--no-intro', 'leave the intro out')
     .option('--no-outro', 'leave the outro out')
@@ -148,6 +154,19 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .action(action((u, g, p: string, r: string, o: ReviewCommandOptions) => reviewCommand(u, g, p, r, o)));
 
   program
+    .command('export')
+    .description('export a render: mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview → exports/<render>/ + manifest.json')
+    .argument('<project>', 'project slug or directory')
+    .argument('<render>', 'render id (e.g. quote-v6), a renders/<id>.json or .mp4 path, or "latest"')
+    .option('--formats <list>', 'comma-separated formats, or "all" (default: mp4_1080p,webm,gif_preview)')
+    .option('--scenario <name>', 'with "latest": the latest render of this scenario')
+    .option('--out <dir>', 'output folder (default: exports/<render-id>/)')
+    .option('--gif-start <s>', 'start of the GIF preview, seconds (default: around the first marker, else the start)')
+    .option('--concurrency <n>', 'frames rendered in parallel by re-rendered formats')
+    .option('--json', 'print the export manifest as JSON')
+    .action(action((u, g, p: string, r: string, o: ExportCommandOptions) => exportCommand(u, g, p, r, o)));
+
+  program
     .command('still')
     .description('render one frame of the planned video as a PNG (renders/stills/)')
     .argument('<project>', 'project slug or directory')
@@ -157,6 +176,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--layout <frame>', 'frame of every scene (as `studio render --frame`): card, browser, laptop, phone, tablet, raw or a layout id')
     .option('--theme <name>', 'plan with another theme (template name or ./path)')
     .option('--vertical', 'a frame of the vertical 9:16 variant')
+    .option('--square', 'a frame of the square 1:1 variant')
     .option('--out <file>', 'PNG file to write')
     .option('--json', 'print the result as JSON')
     .action(action((u, g, p: string, s: string, o: StillCommandOptions) => stillCommand(u, g, p, s, o)));

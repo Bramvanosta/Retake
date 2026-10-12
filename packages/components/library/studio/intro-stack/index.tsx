@@ -11,6 +11,7 @@ import {
   progress,
   readableOn,
   roundTo,
+  formatMetrics,
 } from '@demo-studio/components/kit';
 import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
 
@@ -50,12 +51,12 @@ function appear(frame: number, fps: number, delay: number, duration: number, dis
  * (≈ 1.0–1.5 s), then everything holds until the crossfade into the first clip. style_bias balanced / motion: more
  * rise, a small scale settle on the row and a tracking settle on the title.
  */
-export default function IntroStack({ theme, slots, params, unit, width, height, fps }: ComponentProps<Params>) {
+export default function IntroStack({ theme, slots, params, unit, width, height, fps, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const center = params.align !== 'left';
-  const margin = 160 * u;
+  const margin = inset(160);
   const column = Math.min(width - 2 * margin, 1500 * u);
   const bg = backgroundSample(theme);
   const { dark, light } = darkLight(theme);

@@ -22,7 +22,7 @@ export {
   segmentDurations,
 } from './checks.js';
 export type { CheckContext } from './checks.js';
-export { checkPixels, sourceFramesAtStarts, stillPair } from './pixel-checks.js';
+export { checkPixels, sourceFramesAtStarts, stillPair, stillSourceFrames, viewMoves } from './pixel-checks.js';
 export type { FrameAnalysis, PixelCheckInput } from './pixel-checks.js';
 export { diffFindings, diffRecords, framePairs } from './diff.js';
 export { extractFrames, probeVideo } from './ffmpeg.js';

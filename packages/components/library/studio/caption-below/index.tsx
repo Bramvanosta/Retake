@@ -5,6 +5,7 @@ import {
   backgroundSample,
   biasMotion,
   capTextLayout,
+  captionMaxLines,
   darkLight,
   fadeOut,
   progress,
@@ -85,7 +86,7 @@ export default function CaptionBelow({ theme, slots, params, unit, width, height
   const local = frame - cue.from;
   const enter = rise(local - (cue.from === 0 ? edge : 0), fps, { duration: 0.35 * bias.pace, distance: 7 * bias.travel, unit, ease: 'entrance' });
   const exit = cue.to === FOREVER ? 1 : fadeOut(local, fps, cue.to - cue.from - (cue.to >= durationInFrames ? edge : 0), { duration: 0.25 });
-  const maxLines = variant === 'vertical' ? Math.max(2, params.max_lines) : params.max_lines;
+  const maxLines = captionMaxLines(variant, params.max_lines, box.w / unit);
   const line = capTextLayout({
     text: cue.text,
     width: textW,

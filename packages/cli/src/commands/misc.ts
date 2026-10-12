@@ -41,13 +41,12 @@ export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: st
 
 /** Commands of later phases: registered so `studio --help` lists them, they only say when they arrive. */
 export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 2 | 3 | 4; summary: string }> = [
-  { name: 'export', phase: 2, summary: 'export a render (4K, webm, vertical 9:16, gif preview)' },
   { name: 'record', phase: 3, summary: 'record a draft scenario by clicking through a site' },
   { name: 'mcp', phase: 3, summary: 'MCP server so a Claude session can drive Demo Studio' },
   { name: 'ui', phase: 4, summary: 'Studio web app (scenario blocks, timeline, frame comments)' },
 ];
 
 export function laterCommand(ui: Ui, name: string, phase: number): ExitCode {
-  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, plan, render, still, review, hooks, env reset, components, schema, login and doctor`);
+  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, plan, render, still, review, export, hooks, env reset, components, schema, login and doctor`);
   return EXIT.failure;
 }

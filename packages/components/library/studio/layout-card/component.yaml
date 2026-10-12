@@ -30,14 +30,33 @@ geometry:
   caption: {x: x, y: y + h + 12, w: w - 340, h: 110}
   brandmark: {x: x + w - 320, y: y + h + 47, w: 320, h: 40}
   radius: radius
+# Vertical and square: the card is as tall as the format allows and a capture wider than the card (a desktop page) is
+# REFRAMED — the planner shows the region of the capture with the card's aspect, following the cursor and the targets
+# (4:5 in vertical, ≈ 4:3 in square); a narrower capture (a phone) is shown whole.
 geometry_vertical:
   vars:
-    h: min(round(1000 / aspect), 1100)
-  screen: {x: 40, y: round((1688 - h) / 2), w: 1000, h: h}
-  frame: {x: 40, y: round((1688 - h) / 2), w: 1000, h: h}
-  caption: {x: 40, y: round((1688 - h) / 2) + h + 12, w: 1000, h: 220}
+    a: min(aspect, 0.8)                         # wider captures are reframed to 4:5
+    h: min(round(1000 / a), 1240)
+    w: min(1000, round(1240 * a))
+    x: round((1080 - w) / 2)
+    y: round((1688 - h) / 2)                    # card + 12 + 220 caption block, centred above the brand mark
+  screen: {x: x, y: y, w: w, h: h}
+  frame: {x: x, y: y, w: w, h: h}
+  caption: {x: 40, y: y + h + 12, w: 1000, h: 220}
   brandmark: {x: 700, y: 1840, w: 340, h: 40}
   radius: radius
-variants: [landscape, vertical]
+geometry_square:
+  vars:
+    a: min(aspect, 1.32)                        # wider captures are reframed to ≈ 4:3
+    h: min(round(1000 / a), 760)
+    w: min(1000, round(760 * a))
+    x: round((1080 - w) / 2)
+    y: round((1000 - h - 172) / 2)              # card + 12 + 160 caption block, centred above the brand mark
+  screen: {x: x, y: y, w: w, h: h}
+  frame: {x: x, y: y, w: w, h: h}
+  caption: {x: 40, y: y + h + 12, w: 1000, h: 160}
+  brandmark: {x: 700, y: 1010, w: 340, h: 40}
+  radius: radius
+variants: [landscape, vertical, square]
 preview:
   at: [1]

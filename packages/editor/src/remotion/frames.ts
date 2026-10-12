@@ -124,18 +124,24 @@ export function brandmarkRect(
   return { rect: { ...rect }, align: 'right' };
 }
 
+const smoothstep = (x: number) => {
+  const k = clamp(x, 0, 1);
+  return k * k * (3 - 2 * k);
+};
+
 /**
- * Volume of the music bed at output frame `f`: base volume × fade in × fade out × ducking (×duck while a clip is on
- * screen, eased over 0.4 s at clip boundaries).
+ * Volume of the music bed at output frame `f` (before any loop-seam gain): base volume × fade in × fade out × ducking.
+ * The bed is at its base volume on the intro, the outro, cards and interstitials, and ducked (× `duck`) while product
+ * footage (a clip) is on screen, eased (smoothstep) over `duck_ramp_s` around each clip's edges.
  */
 export function musicVolumeAt(plan: Pick<EditPlan, 'music' | 'fps' | 'durationInFrames' | 'segments'>, f: number): number {
   const m = plan.music;
   if (!m) return 0;
   const t = f / plan.fps;
   const total = plan.durationInFrames / plan.fps;
-  const fadeIn = m.fadeIn_s > 0 ? clamp(t / m.fadeIn_s, 0, 1) : 1;
-  const fadeOut = m.fadeOut_s > 0 ? clamp((total - t) / m.fadeOut_s, 0, 1) : 1;
-  const ramp = Math.max(1, Math.round(0.4 * plan.fps));
+  const fadeIn = m.fadeIn_s > 0 ? smoothstep(t / m.fadeIn_s) : 1;
+  const fadeOut = m.fadeOut_s > 0 ? smoothstep((total - t) / m.fadeOut_s) : 1;
+  const ramp = Math.max(1, Math.round((m.duck_ramp_s ?? 0.4) * plan.fps));
   let onClip = 0;
   for (const s of plan.segments) {
     if (s.kind !== 'clip') continue;
@@ -143,10 +149,22 @@ export function musicVolumeAt(plan: Pick<EditPlan, 'music' | 'fps' | 'durationIn
     const b = s.from + s.durationInFrames;
     if (f < a - ramp || f >= b + ramp) continue;
     const inside = f < a ? (f - (a - ramp)) / ramp : f >= b ? 1 - (f - b + 1) / ramp : 1;
-    onClip = Math.max(onClip, clamp(inside, 0, 1));
+    onClip = Math.max(onClip, smoothstep(inside));
   }
   const duck = 1 - (1 - m.duck) * onClip;
   return Math.round(m.volume * fadeIn * fadeOut * duck * 1e4) / 1e4;
+}
+
+/**
+ * Gain of one play of the track at frame `local` of that play (loop seams): equal-power fade in over its first
+ * `fadeIn` frames and fade out over its last `fadeOut` frames, so two overlapping plays keep a steady loudness.
+ */
+export function musicPlayGain(play: { frames: number; fadeIn: number; fadeOut: number }, local: number): number {
+  let g = 1;
+  if (play.fadeIn > 0 && local < play.fadeIn) g *= Math.sin(((local + 0.5) / play.fadeIn) * (Math.PI / 2));
+  const fromEnd = play.frames - local;
+  if (play.fadeOut > 0 && fromEnd <= play.fadeOut) g *= Math.sin(((fromEnd - 0.5) / play.fadeOut) * (Math.PI / 2));
+  return clamp(g, 0, 1);
 }
 
 /** The kinds the composition may need a stand-in for. */

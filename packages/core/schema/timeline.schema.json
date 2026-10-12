@@ -175,6 +175,9 @@
             },
             "duck": {
               "type": "number"
+            },
+            "loop": {
+              "type": "boolean"
             }
           },
           "required": [

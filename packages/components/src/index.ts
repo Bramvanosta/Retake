@@ -11,6 +11,8 @@ export {
   MANIFEST_FILE,
   DEFAULT_ENTRY,
   DESIGN_SPACE,
+  GEOMETRY_KEYS,
+  VARIANTS,
   SEMVER_RE,
   SLOT_SOURCES,
   THEME_TOKENS,
@@ -67,7 +69,7 @@ export type { Bezier, EasingFn } from './kit/easing.js';
 /** The kit's text fitting (pure, no React), for Node-side consumers such as the review. */
 export { estimateTextWidth, fitText, wrapText } from './kit/fit-text.js';
 /** Caption band placement (pure), shared by studio/caption-overlay and the review. */
-export { CAPTION_BAND_INSET, CAPTION_BAND_MIN_SCREEN, CAPTION_BAND_PAD_X, captionBandBox } from './kit/devices.js';
+export { CAPTION_BAND_INSET, CAPTION_BAND_MIN_SCREEN, CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines } from './kit/devices.js';
 export type { CaptionBandInput } from './kit/devices.js';
 export type { FitTextOptions, FitTextResult, TextFont, TextMeasurer } from './kit/fit-text.js';
 export {

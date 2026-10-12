@@ -37,7 +37,9 @@ transitions: {between_scenes: fade-black, duration: 0.4}
 
 cursor: {style: arrow-dark, ripple_color: "rgba(255, 92, 56, 0.5)", size: 28}
 
-motion: {default_zoom: none, max_zoom: 1.6, zoom_ease: [0.7, 0, 0.2, 1]}
+# style_bias motion + a default zoom: a very slow 1.12× zoom on the first marked step of each scene (eased back out
+# before the scene ends). Themes with style_bias real never zoom on their own.
+motion: {default_zoom: 1.12, max_zoom: 1.6, zoom_ease: [0.7, 0, 0.2, 1]}
 style_bias: motion
 
 brandmark: {position: none}

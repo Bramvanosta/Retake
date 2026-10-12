@@ -60,7 +60,7 @@ function kickerRun(list: CaptionCue[], i: number): [number, number] {
  * same kicker and only the line changes (out 0.25 s, in 0.35 s with a rise); it rises in with the first cue of a run
  * and fades out with the last. style_bias balanced / motion: more rise and a slight scale settle of the band.
  */
-export default function CaptionOverlay({ theme, slots, params, unit, width, height, fps, durationInFrames, cues, area, rects }: ComponentProps<Params>) {
+export default function CaptionOverlay({ theme, slots, params, unit, width, height, fps, durationInFrames, cues, area, rects, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
   const u = unit;
   const list: CaptionCue[] =
@@ -71,7 +71,7 @@ export default function CaptionOverlay({ theme, slots, params, unit, width, heig
   const bias = biasMotion(theme.style_bias);
   const c = tones(theme);
   const st = styles(theme);
-  const { box, over } = captionBandBox({ rects, area, width, height, unit: u, position: params.position, maxWidth: params.max_width });
+  const { box, over } = captionBandBox({ rects, area, width, height, unit: u, position: params.position, maxWidth: params.max_width, variant });
   const padX = CAPTION_BAND_PAD_X * u;
   const padY = PAD_Y * u;
   const inner = box.w - 2 * padX;

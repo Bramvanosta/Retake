@@ -128,10 +128,12 @@ studio components list [--kind K] [--json]            # workspace components, th
 studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
 studio components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
 studio components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
-studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical] [--json] [--out FILE]
-studio render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical] [--scale N] [--no-intro]
-              [--no-outro] [--out FILE] [--concurrency N] [--review] [--json]
-studio still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical] [--out FILE] [--json]
+studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
+studio render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
+              [--music FILE|--no-music] [--no-intro] [--no-outro] [--out FILE] [--concurrency N] [--review] [--json]
+studio still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json]
+studio export <project> <render-id|file|latest> [--formats LIST|all] [--scenario S] [--out DIR] [--gif-start S]
+              [--concurrency N] [--json]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
 studio review <project> <render-id|file|latest> [--scenario S] [--fps 1|2] [--previous ID | --no-previous] [--strict]
               [--json]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
@@ -170,7 +172,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   [Rendering](#rendering).
 - **review** writes contact sheets, per-scene sheets, key frames, an output-time timeline and a report of a render,
   and prints the findings of its checks — see [Reviewing a render](#reviewing-a-render).
-- **export** (phase 2), **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
+- **export** writes delivery files of a render to `exports/<render-id>/` with a `manifest.json` — see
+  [Variants, 4K, music and export](#variants-4k-music-and-export).
+- **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
 invalid command line.
@@ -224,7 +228,7 @@ environments:                  # environment → page key → base URL ({{app}} 
 default_env: staging
 auth:                          # never passwords; global, or keyed by environment name
   profile: ~/.demo-studio/profiles/acme-staging
-capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → 4K frames from a 1080p viewport
+capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → real 3840×2160 frames from a 1080p viewport (4K)
 frame: card                    # raw | card | browser | laptop | phone | tablet, or a layout component id
 template: default              # a name in the workspace templates, or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
@@ -293,8 +297,8 @@ scenes:
 
 **Scenario keys:** `video`, `title`, `intro` (`false` or `{component, params, duration}`), `outro` (`false` or
 `{component, params, tagline, url, duration}`), `env`, `vars`, `setup`, `teardown`, `capture`, `frame` (default for
-every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck}`),
-`scenes`.
+every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck, loop}`, see
+[the music bed](#music-bed)), `scenes`.
 
 **Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `steps`, `speed` (edit-time),
 `still` (seconds still at the start, default 1.6), `cursor` (where the cursor rests at the start, see below),
@@ -563,7 +567,7 @@ params:                           # JSON Schema (object) with defaults
     stagger: {type: number, minimum: 0, maximum: 0.5, default: 0.12}
 tokens: [colors.accent, colors.text, fonts.display, logo]   # theme tokens it reads
 duration: {default: 3.2, min: 1.5, max: 8}                  # seconds (not for layouts and captions)
-variants: [landscape, vertical]
+variants: [landscape, vertical, square]
 preview:                          # sample values: previews render with any theme, without a scenario
   slots: {title: Quotes in two clicks, kicker: Product tour}
   at: [0.4, 1.6]
@@ -573,7 +577,7 @@ preview:                          # sample values: previews render with any them
 |---|---|
 | `slots.<name>` | `type`: `text`, `image` (URL), `url` (shown as text), `color`, `screen` (the capture: layouts, interstitials, transitions); `required`; `default_from`: `theme.logo`, `theme.wordmark`, `theme.brand.name`, `theme.brand.url`, `theme.outro.tagline`, `theme.outro.url`, `scenario.title.text`, `scenario.title.kicker`, `scenario.outro.tagline`, `scenario.outro.url`, `scene.caption.text`, `scene.caption.kicker`, `interstitial.text`, `interstitial.kicker`; `max_chars` (text and url) |
 | `params` | JSON Schema subset: `type`, `properties`, `required`, `additionalProperties`, `default`, `enum`, `const`, `minimum`/`maximum` (+ exclusive), `multipleOf`, `minLength`/`maxLength`, `pattern`, `items`, `minItems`/`maxItems`, `uniqueItems`, `anyOf`, `oneOf` (+ annotations such as `description`). Objects are **closed** unless they set `additionalProperties`. Every `default` must match its schema |
-| `geometry`, `geometry_vertical` | layouts only, required: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920) design space, and `radius` — the planner and the review reason on them without rendering. Every value may be an **expression** over the numeric params (see below) |
+| `geometry`, `geometry_vertical`, `geometry_square` | layouts only: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920, square: 1080×1080) design space, and `radius` — the planner and the review reason on them without rendering. `geometry` is required, the others when `variants` lists `vertical` / `square`. Every value may be an **expression** over the numeric params (see below). In the vertical and square variants a screen rect with another aspect than the capture **reframes** it (see [Variants](#variants-4k-music-and-export)) |
 | `preview` | `slots` must give a sample for every required slot that is not filled from the theme; `params` are validated; `at` = seconds of the preview stills (preview.png shows the last one); `screen`: `desktop` (default), `tablet` or `phone` — the sample screen a layout, caption, overlay or transition preview shows |
 
 **Geometry that follows params.** A layout's geometry values are numbers or arithmetic expressions over its numeric
@@ -660,6 +664,7 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 | `backgroundCss`, `backgroundSample`, `isDarkBackground`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `safeAreaRect`, `scaleRect`, `roundTo` | CSS from tokens, colour helpers (a representative background colour, mixes, the night tone `colors.dark` or the darker of text / paper), rects |
 | `biasMotion(style_bias)` | `{travel, settle, tracking, pace}`: how much livelier than the reference a component may move (`real` = 1, 0, 0, 1) |
 | `cardShadow`, `deviceTones`, `SYSTEM_COLORS`, `addressParts`, `captionBandBox` | frames around a capture: the reference soft shadow tinted with the theme; device metals and glass derived from the theme (`dark` / `light` finish); the classic window-control colours (system UI, not brand); a URL split for an address bar; where an overlay caption band goes (shared with the review) |
+| `formatMetrics(variant, unit)`, `FORMAT_SCALE`, `captionMaxLines(variant, max, width)` | laying out for the output format: full-frame components (intros, outros, cards, interstitials) take `u` (type ×1.2 in vertical, ×1.05 in square) and `inset(m)` (side margins halved in the 1080-wide formats); caption lines may wrap to 2 lines in vertical / square, 3 in a narrow column (shared with the review) |
 
 ### Creating, checking and previewing components
 
@@ -732,30 +737,38 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   Speed changes are ramped over 0.3 s of output, inside the unprotected side.
 - **Idle trims**: the part of a `timeline.idle` gap outside those protected spans, when longer than 1.2 s
   (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on screen).
-- **Camera**: static unless a step has a `camera` hint. The zoom is clamped to the theme `max_zoom` (noted), focused on
+- **Camera**: static unless a step has a `camera` hint, or the theme has a **default zoom** (below). The zoom is clamped to the theme `max_zoom` (noted), focused on
   the target box measured at the end of the step (else the hint's point, else the cursor), eased with the hint's
   `ease` (else the theme `zoom_ease`) over `max(0.8 s, duration)` of output time — `duration` defaults to the step's
   own length, so a zoom lands when its step ends — held until `step_end`, `scene_end` (default) or N seconds, then
   eased out the same way. The view is clamped so the capture always fills its rect; at a same-page join the zoom
-  carries on into the next scene instead of resetting.
+  carries on into the next scene instead of resetting. **Theme default zoom** (`motion.default_zoom`, R-ED-22): only
+  with `style_bias: balanced` or `motion` — at most one very slow zoom per scene, on the target of the scene's first
+  marked step (`mark:`), eased in over up to 4 s from that step and back out to the full view so that the scene's last
+  frame is at 1× (never across a cut or a same-page join); a scene with its own `camera` hint keeps it, a scene with
+  too little room after its mark gets none (a note says so). `style_bias: real` keeps a static camera (the starter
+  `motion` theme sets `default_zoom: 1.12`).
 - **Captions**: the scene caption from the clip's first visible frame; a step caption replaces it from that step's
   output start; cues never overlap. **Overlays** (step `overlay`) start when their step ends, last their `duration`
   (else the component's), and keep their anchor in capture pixels; `mapSourceRect` maps it through the layout and the
   camera of any frame.
 - **Layout and size**: the layout component's `geometry` (scaled by `unit`, the capture fitted to its aspect ratio);
-  1920×1080 × scale (a scale-2 capture gives 4K); the vertical variant is 1080×1920 with `geometry_vertical` and a crop
-  that follows the cursor (or the zoom focus) smoothly. Music comes from the scenario `music` (volume, ducking).
+  1920×1080 × scale (a scale-2 capture gives 4K; a larger scale than the capture's is a warning: the capture is
+  upscaled); the vertical (1080×1920) and square (1080×1080) variants use `geometry_vertical` / `geometry_square` and
+  **reframe** the capture (see [Variants](#variants-4k-music-and-export)). Music comes from the scenario `music`
+  (volume, ducking, loop).
 - **Provenance**: each clip lists which step produced which output frames, its speeds, trims and zooms; the plan keeps
   the markers and an output → capture time map. Every decision worth knowing (cut page loads, joins, trims, clamped
   zooms, missing components…) is in `notes` / `warnings`.
 
 `EditOverrides` change the edit without touching the scenario: `frame`, `variant`, `fps`, `scale`, `intro`, `outro`,
 `captions`, `trim_idle`, `idle_threshold`, `speeds`, `transition`, `transition_duration`, `camera`, `components` (by
-kind or segment id), `theme` (the caller loads that template) and `music`.
+kind or segment id), `theme` (the caller loads that template) and `music` (a file, or `false`). `variant` is
+`landscape`, `vertical` or `square`.
 
 `studio plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
-JSON with `--out` (or prints it with `--json`); `--theme`, `--frame` and `--vertical` try another theme, frame or the
-9:16 variant:
+JSON with `--out` (or prints it with `--json`); `--theme`, `--frame`, `--vertical` and `--square` try another theme,
+frame or the 9:16 / 1:1 variant:
 
 ```
 $ studio plan northfield-fixture latest --scenario catalogue
@@ -792,7 +805,8 @@ $ studio render northfield-fixture catalogue
   record projects/northfield-fixture/renders/catalogue-v1.json
 ```
 
-- **Outputs**: `renders/<scenario>-v<N>.mp4` (`-v<N>-vertical.mp4` for `--vertical`) and its **RenderRecord**
+- **Outputs**: `renders/<scenario>-v<N>.mp4` (`-v<N>-vertical.mp4` / `-v<N>-square.mp4` for `--vertical` /
+  `--square`) and its **RenderRecord**
   `renders/<scenario>-v<N>.json`: id, project, scenario, run id and directory, theme, overrides, variant, status,
   duration, frames, fps, size, file size, encoding, what ffprobe saw in the file, bundle hash, browser, timings,
   warnings and the whole plan. N is the next free version of the scenario (both variants share the counter); `--out`
@@ -801,7 +815,8 @@ $ studio render northfield-fixture catalogue
 - **Encoding**: H.264 CRF 16, `yuv420p` limited-range BT.709 (tagged), `+faststart` (moov first), and always an audio
   track: AAC silence when there is no music (checked with ffprobe after the render, added with ffmpeg if ever missing).
 - **Options**: `--theme` (another template, the scenario untouched), `--frame` (frame style or layout component id for
-  every scene), `--vertical` (1080×1920), `--scale` (output size × 1920×1080), `--no-intro`, `--no-outro`,
+  every scene), `--vertical` (1080×1920) or `--square` (1080×1080), `--scale` (output size × the variant's size),
+  `--music <file>` / `--no-music` (replace or drop the scenario's music bed), `--no-intro`, `--no-outro`,
   `--concurrency` (frames rendered in parallel; default ¾ of the CPUs, 1–8), `--json` (the record without the plan).
 - **Stills**: `studio still <project> <scenario> --frame <n>` renders output frame n of the planned video as a PNG
   (default `renders/stills/<scenario>-f<n>.png`) — the quick way to look at one moment of an edit.
@@ -810,7 +825,7 @@ $ studio render northfield-fixture catalogue
 
 How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
 
-- **Compositions** `DemoVideo` (landscape) and `DemoVertical` take `{ plan }` and draw only the plan: the theme
+- **Compositions** `DemoVideo` (landscape), `DemoVertical` and `DemoSquare` take `{ plan }` and draw only the plan: the theme
   background; one `Sequence` per segment with its transition component (rendered around the end of the outgoing
   segment and the start of the incoming one: a crossfade overlaps them, a dip splits its frames) or its plain fade
   envelope; the segment's component with its slots and params; for clips, the layout component whose `screen` is the
@@ -819,7 +834,8 @@ How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
   wrong frame for captures longer than the edit), letterboxed to its aspect ratio and moved by the per-frame camera
   (zoom + centre mapped into the layout's screen rect) —, the caption component with the clip's cues in the layout's
   caption area, the overlays placed from their capture-pixel anchor through layout and camera, the brand mark in the
-  layout's `brandmark` rect (layouts never draw it), and the music bed (fades, ducked under clips). Interstitials get
+  layout's `brandmark` rect (layouts never draw it), and the music bed (its planned plays: loops with crossfaded
+  seams, or one trimmed play; fades; ducked under clips). Interstitials get
   the previous clip's last frame (layout, capture, brand mark) as their `screen`. Theme fonts are registered with
   `FontFace` before anything is drawn (text fitting measures with the real fonts). A component the plan marks
   `missing` is drawn by the scaffold of its kind.
@@ -841,6 +857,69 @@ How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
 (≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached.
+
+## Variants, 4K, music and export
+
+**Vertical 9:16 and square 1:1** (`--vertical`, `--square`, `overrides.variant`): the same run, theme and scenario,
+re-planned for a 1080×1920 or 1080×1080 frame (× `--scale`). Each layout declares its geometry for the format
+(`geometry_vertical`, `geometry_square`): the card and the browser window are as tall as the format allows (4:5 in
+vertical, ≈ 4:3 in square) and a wider capture is **reframed** — the screen rect shows the region of the capture with
+its aspect (narrowed so the page shows at ≥ 0.9 design px per CSS px: readable on a phone) and that region follows the
+action; device mockups (laptop, phone, tablet) keep the whole capture. Captions wrap to two lines (three in a narrow
+column beside a phone); intros, outros, cards and interstitials use larger type (×1.2 in vertical) and narrower margins.
+The reframe track (`ClipSegment.reframe`, `camera.ts reframeTrack`):
+
+- **what must be seen**: the cursor (its arrow and ripple), where it goes in the next 0.4 s, the active step's target
+  from 0.5 s before the step starts (look-ahead), every click's target around the click (widgets: each click of a
+  select or a date pick) and overlay anchors while the overlay shows — their union while it fits, else the clicked
+  target and the cursor;
+- **no jitter**: the target centre only moves when that region leaves the view inset by 15 % (dead zone), then
+  re-centres;
+- **critically damped smoothing** (two first-order lags forward and backward: no lag, no overshoot, moves start a
+  little before they are needed), then the smoothest critically damped repair that keeps the cursor and the clicked
+  target inside the view (a banded quadratic programme: never a cut target, never the cursor out of frame, no
+  wrong-way moves), the view eased into the capture's edges;
+- per run of contiguous same-page clips, so it never crosses a cut. Overlays and the camera map through the crop
+  (`viewOf`, `mapSourceRect`).
+
+On the fixture captures the crop moves at most ≈ 25 CSS px per frame and accelerates ≤ 1 % of its width per frame²;
+every click target and the cursor stay in view (tests on the real timelines). `studio review` checks it on the render:
+`target-cut` (error), `cursor-outside-view` at clicks (error), `cursor-outside-reframe` and `reframe-jump` (warnings).
+
+**4K**: a capture at `capture.scale: 2` is recorded at real device pixels (the runner launches headless Chromium with
+`--force-device-scale-factor=2`: without it the screencast stays at CSS size whatever `deviceScaleFactor` says) and
+renders to 3840×2160 by default, every component drawn at unit 2. `--scale 2` on a 1080p capture renders 4K too —
+everything crisp except the capture, upscaled (a plan warning says so). Capturing 8 MP frames is heavy without a GPU:
+on the 4-CPU Linux container the screencast delivers ≈ 9–16 fps at 4K against ≈ 45–58 fps at 1080p (2–3 fps under a
+backdrop-blur dialog), so motion is choppy there; a Mac with a GPU is the place for 4K captures (L1.3 / L1.5).
+
+### Music bed
+
+A scenario `music: {file, volume, duck, loop}` (or `studio render --music <file>`) adds a bed under the video: at
+`volume` (default 0.6) on the intro, the outro, cards and interstitials, × `duck` (default 0.5, −6 dB) while product
+footage is on screen (eased over 0.5 s at each clip edge), faded in over 1 s and out over the last 2 s. The render
+measures the track (ffprobe) so the planner can lay it out: a longer track is trimmed to the video; a shorter one
+loops with 1 s equal-power crossfades at the seams (`loop: false`: it plays once). Tests and demos use a procedural
+royalty-free track — `generateTestTrack(out, {seconds})` in `@demo-studio/editor` (ffmpeg sine chords C–Am–F–G, no
+audio file in the repository).
+
+### Export
+
+`studio export <project> <render|latest> --formats …` (API `exportRender({project, render, formats})`) writes delivery
+files to `exports/<render-id>/` with a `manifest.json` (per file: format, method, size, duration, fps, codecs, audio
+streams, time taken, the GIF window, warnings; earlier exports of other formats into the folder are kept):
+
+| Format | File | How |
+|---|---|---|
+| `mp4_1080p` | `<id>-1080p.mp4` | the master when it is 1080p (copy), else scaled down from it (lanczos, H.264 CRF 18, audio copied) |
+| `mp4_4k` | `<id>-4k.mp4` | the master when it is 4K, else **re-rendered** at scale 2 from the run (capture upscaled unless it was captured at scale 2) |
+| `webm` | `<id>.webm` | VP9 (CRF 32, constant quality) + Opus 128 kb/s at the base size, from the master |
+| `vertical_9x16` | `<id>-vertical.mp4` | **re-rendered** through the planner (reframed), same run, theme and overrides; its render record next to it |
+| `square_1x1` | `<id>-square.mp4` | **re-rendered** the same way |
+| `gif_preview` | `<id>-preview.gif` | 480 px wide, 12 fps, palette (128 colours, Bayer dither), 15 s around the first marker (5 s before it), else the first 15 s; `--gif-start` picks the start |
+
+Without `--formats` it exports `mp4_1080p,webm,gif_preview` (no re-render); `all` exports the six. A format that fails
+is reported (exit code 1) and the others are still written.
 
 ## Reviewing a render
 
@@ -936,7 +1015,7 @@ A profile can be used by one browser at a time: close the login window before ru
 
 ## Outputs of a run
 
-`projects/<slug>/runs/<run-id>/` (git-ignored):
+`projects/<slug>/runs/<run-id>/` (git-ignored; renders go to `renders/`, reviews to `review/`, exports to `exports/`):
 
 | File | Content |
 |---|---|
@@ -964,8 +1043,8 @@ packages/hooks        setup/teardown hooks (http, sql, shell, js), rollback jour
 packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), actions, screencast, encoder, timeline
 packages/cli          the `studio` command
 packages/components   components: manifest schema, registry, validation, scaffolds, theme tokens, kit (L2.2)
-packages/editor       edit planner (planEdit → EditPlan), the Remotion compositions (src/remotion) and the render
-                      pipeline (bundle cache, asset server, renderVideo / renderStill / listRenders)
+packages/editor       edit planner (planEdit → EditPlan, reframing), the Remotion compositions (src/remotion) and the
+                      render pipeline (bundle cache, asset server, renderVideo / renderStill / listRenders, exportRender)
 packages/review       review of a render: contact sheets, key frames, output-time timeline, checks, report, diff
 packages/mcp          phase 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests
@@ -983,7 +1062,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) done; variants & export next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) done; mails, notifications & documents next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

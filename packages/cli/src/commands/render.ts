@@ -1,8 +1,9 @@
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, loadProjectTemplate, readJson } from '@demo-studio/core';
 import type { Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
-import { RenderCancelledError, RenderError, findRun, planEdit, renderStill, renderVideo, runScenario } from '@demo-studio/editor';
+import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, renderStill, renderVideo, runScenario } from '@demo-studio/editor';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -19,7 +20,10 @@ export interface RenderCommandOptions {
   /** Frame style or layout component id for every scene. */
   frame?: string;
   vertical?: boolean;
+  square?: boolean;
   scale?: string;
+  /** commander: --music <file> (string) or --no-music (false). */
+  music?: string | boolean;
   /** commander: --no-intro / --no-outro set these to false. */
   intro?: boolean;
   outro?: boolean;
@@ -38,8 +42,15 @@ export interface StillCommandOptions {
   layout?: string;
   theme?: string;
   vertical?: boolean;
+  square?: boolean;
   out?: string;
   json?: boolean;
+}
+
+/** The variant asked by `--vertical` / `--square` (not both). */
+export function variantOption(opts: { vertical?: boolean; square?: boolean }): EditOverrides['variant'] {
+  if (opts.vertical && opts.square) throw new UsageError('--vertical and --square: pick one variant');
+  return opts.vertical ? 'vertical' : opts.square ? 'square' : undefined;
 }
 
 function checkFrameSpec(frame: string | undefined): void {
@@ -134,9 +145,13 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const overrides: EditOverrides = {};
+  const variant = variantOption(opts);
   if (opts.frame) overrides.frame = opts.frame;
-  if (opts.vertical) overrides.variant = 'vertical';
+  if (variant) overrides.variant = variant;
   if (scale !== undefined) overrides.scale = scale;
+  if (opts.music === false) overrides.music = false;
+  // A path from the shell (cwd) when it exists there, else relative to the project like the scenario's `music.file`.
+  else if (typeof opts.music === 'string') overrides.music = existsSync(resolve(opts.music)) ? resolve(opts.music) : opts.music;
   if (opts.intro === false) overrides.intro = false;
   if (opts.outro === false) overrides.outro = false;
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
@@ -189,6 +204,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   if (opts.frame === undefined || !/^\d+$/.test(opts.frame)) throw new UsageError('--frame <n>: the output frame number (0-based) is required');
   const frame = Number(opts.frame);
   checkFrameSpec(opts.layout);
+  const variant = variantOption(opts);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   let run;
@@ -204,7 +220,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   const registry = await loadComponentRegistry({ root: ws.root });
   const overrides: EditOverrides = {};
   if (opts.theme) overrides.theme = template.name;
-  if (opts.vertical) overrides.variant = 'vertical';
+  if (variant) overrides.variant = variant;
   if (opts.layout) overrides.frame = opts.layout;
   const plan = planEdit({
     timeline,
@@ -218,7 +234,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out
     ? resolve(opts.out)
-    : join(project.dir, 'renders', 'stills', `${scenario}${plan.variant === 'vertical' ? '-vertical' : ''}-f${String(frame).padStart(5, '0')}.png`);
+    : join(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[plan.variant]}-f${String(frame).padStart(5, '0')}.png`);
   const t0 = performance.now();
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {

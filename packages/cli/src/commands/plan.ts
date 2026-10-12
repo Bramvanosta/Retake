@@ -7,6 +7,7 @@ import { loadComponentRegistry } from '@demo-studio/components';
 import { planEdit, summarizePlan } from '@demo-studio/editor';
 import type { EditOverrides } from '@demo-studio/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
+import { variantOption } from './render.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
@@ -20,6 +21,7 @@ export interface PlanCommandOptions {
   /** Frame style or layout component id for every scene. */
   frame?: string;
   vertical?: boolean;
+  square?: boolean;
   json?: boolean;
   /** Write the plan JSON to this file. */
   out?: string;
@@ -106,7 +108,8 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   const overrides: EditOverrides = {};
   if (opts.theme) overrides.theme = template.name;
   if (opts.frame) overrides.frame = opts.frame;
-  if (opts.vertical) overrides.variant = 'vertical';
+  const variant = variantOption(opts);
+  if (variant) overrides.variant = variant;
   const plan = planEdit({
     timeline,
     template,

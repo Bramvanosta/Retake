@@ -96,11 +96,15 @@ describe('spans of the fixture plans', () => {
   it('places the clicks of the capture on the output, inside their clip and the capture rect', () => {
     const { plan, timeline } = plans.catalogue;
     const clicks = outputClicks(plan, timeline);
-    expect(clicks.map((c) => `${c.scene}:${c.step}`)).toEqual([
+    expect([...new Set(clicks.map((c) => `${c.scene}:${c.step}`))]).toEqual([
       'import:0', 'import:1', 'import:2', 'import:3',
       'availability:1', 'availability:2', 'availability:3', 'availability:4', 'availability:5', 'availability:6',
       'add-product:0', 'add-product:1', 'add-product:2',
     ]);
+    // Widgets (selects, date picks) are placed click by click, each with the box it clicked.
+    const widget = clicks.filter((c) => c.click !== undefined);
+    expect(widget.length).toBeGreaterThan(0);
+    expect(widget.filter((c) => c.bbox && c.bbox.w > 0).length).toBeGreaterThan(widget.length / 2);
     const spans = segmentSpans(plan);
     for (const c of clicks) {
       const s = spans.find((x) => x.segment.id === c.segment)!;
@@ -213,6 +217,79 @@ describe('plan checks on the fixture plans', () => {
     a.camera = a.srcFrames.map(() => [1.3, 900, 500]);
     const f = checkCamera({ ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) });
     expect(f.find((x) => x.code === 'zoom-reset')).toMatchObject({ severity: 'warning', at: { segment: b.id } });
+  });
+});
+
+describe('variants (vertical, square) and the theme zoom', () => {
+  async function variantCtx(name: 'catalogue' | 'quote', variant: 'vertical' | 'square'): Promise<CheckContext> {
+    const project = await loadProject('northfield-fixture', REPO);
+    const editorial = await loadTemplate('editorial', REPO);
+    const timeline = realTimeline(name);
+    const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4', overrides: { variant } });
+    const record = { ...plans[name].record, id: `${name}-v1-${variant}`, variant, plan } as RenderRecord;
+    return { ...ctxOf(name), record, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan), clicks: outputClicks(plan, timeline) };
+  }
+
+  it('the reframed fixture plans pass: every clicked target and the cursor in view, a smooth reframe, captions fit', async () => {
+    for (const name of ['catalogue', 'quote'] as const) {
+      for (const variant of ['vertical', 'square'] as const) {
+        const ctx = await variantCtx(name, variant);
+        const f = [...checkCursor(ctx), ...checkCamera(ctx), ...checkCaptions(ctx)].filter((x) => x.severity !== 'info');
+        expect(f.map((x) => `${x.code}: ${x.message}`), `${name} ${variant}`).toEqual([]);
+        // Widget clicks are checked one by one (a select clicks its trigger, then its option).
+        expect(ctx.clicks.filter((c) => c.click !== undefined).length).toBeGreaterThan(0);
+        expect(ctx.clicks.filter((c) => c.bbox !== undefined).length).toBeGreaterThan(ctx.clicks.length / 2);
+      }
+    }
+  });
+
+  it('flags a reframe that cuts the clicked target, jumps, or loses the cursor', async () => {
+    const ctx = await variantCtx('quote', 'vertical');
+    const plan = structuredClone(ctx.plan);
+    const req = plan.segments.find((x): x is ClipSegment => x.id === 'request')!;
+    const click = ctx.clicks.find((c) => c.segment === 'request' && c.step === 10)!; // "Send request" (1124–1271)
+    const k = click.frame - req.from;
+    // Move the crop so its right edge cuts the target (the cursor, at its centre, stays in), for the whole clip.
+    const crop = req.layout.crop!;
+    const cx = click.bbox!.x + click.bbox!.w * 0.8 - crop.w / 2;
+    req.reframe = req.reframe!.map(() => [cx, 540] as [number, number]);
+    const c2 = { ...ctx, plan, clicks: outputClicks(plan, ctx.timeline) };
+    const f = checkCursor(c2);
+    expect(f.find((x) => x.code === 'target-cut' && x.at?.step === 10)).toMatchObject({ severity: 'error' });
+    expect(f.every((x) => x.code !== 'target-cut' || x.message.includes('vertical reframe'))).toBe(true);
+    // A jump of the crop in one frame, and a crop that leaves the cursor.
+    req.reframe![k] = [req.reframe![k][0] + 200, 540];
+    const cam = checkCamera(c2);
+    expect(cam.find((x) => x.code === 'reframe-jump')).toMatchObject({ severity: 'warning', at: { segment: 'request' } });
+    req.reframe = req.reframe!.map(() => [crop.w / 2, 540] as [number, number]);
+    expect(checkCamera(c2).find((x) => x.code === 'cursor-outside-reframe')).toMatchObject({ severity: 'warning' });
+  });
+
+  it('theme zooms: not counted against the per-video budget, at most one per scene, back to 1× before the cut', () => {
+    const ctx = ctxOf('catalogue');
+    const plan = structuredClone(ctx.plan);
+    plan.brand.style_bias = 'motion';
+    const [a, b] = plan.segments.filter((x): x is ClipSegment => x.kind === 'clip');
+    const n = a.durationInFrames - a.heldFrames;
+    const theme = { scene: a.scene, step: 1, from: 30, in_frames: 100, out_at: n - 36, out_frames: 36, zoom: 1.12, focus: { x: 900, y: 500 }, view: { x: 900, y: 500 }, source: 'theme' as const };
+    a.zooms = [theme];
+    a.camera = a.srcFrames.map((_, f) => [f < 30 ? 1 : f >= n ? 1 : 1.12, 900, 500] as [number, number, number]);
+    // Smooth enough for the camera-jump check: ease the camera in and out linearly.
+    a.camera = a.camera.map((c, f) => [f < 30 ? 1 : f < 130 ? 1 + (0.12 * (f - 30)) / 100 : f < n - 36 ? 1.12 : f < n ? 1.12 - (0.12 * (f - (n - 36) + 1)) / 36 : 1, 900, 500] as [number, number, number]);
+    const c2 = { ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) };
+    let f = checkCamera(c2);
+    expect(f.filter((x) => x.code === 'zoom-count')).toEqual([]); // 1 hint + 1 theme zoom
+    expect(f.filter((x) => x.code.startsWith('theme-zoom')).map((x) => x.message)).toEqual([]);
+    // Two in one scene, and one still zoomed when its scene ends.
+    a.zooms = [theme, { ...theme, step: 2 }];
+    b.zooms.push({ ...theme, scene: b.scene, out_at: b.durationInFrames + 10 });
+    b.camera = b.srcFrames.map(() => [1.12, 900, 500] as [number, number, number]);
+    f = checkCamera(c2);
+    expect(f.find((x) => x.code === 'theme-zoom-count')).toMatchObject({ severity: 'warning', at: { scene: a.scene } });
+    expect(f.find((x) => x.code === 'theme-zoom-cut')).toMatchObject({ severity: 'warning', at: { scene: b.scene } });
+    // With style_bias real, a theme zoom is a contradiction.
+    plan.brand.style_bias = 'real';
+    expect(checkCamera(c2).find((x) => x.code === 'theme-zoom-real')).toMatchObject({ severity: 'warning' });
   });
 });
 

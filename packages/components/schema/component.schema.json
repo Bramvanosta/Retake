@@ -116,6 +116,10 @@
       "description": "Layouts with the vertical variant: geometry in the 1080×1920 design space.",
       "$ref": "#/$defs/LayoutGeometry"
     },
+    "geometry_square": {
+      "description": "Layouts with the square variant: geometry in the 1080×1080 design space.",
+      "$ref": "#/$defs/LayoutGeometry"
+    },
     "variants": {
       "minItems": 1,
       "type": "array",
@@ -123,7 +127,8 @@
         "type": "string",
         "enum": [
           "landscape",
-          "vertical"
+          "vertical",
+          "square"
         ]
       },
       "description": "Output orientations the component supports (default [landscape])."

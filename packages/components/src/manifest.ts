@@ -29,7 +29,12 @@ export const DEFAULT_ENTRY = 'index.tsx';
 export const DESIGN_SPACE = {
   landscape: { width: 1920, height: 1080 },
   vertical: { width: 1080, height: 1920 },
+  square: { width: 1080, height: 1080 },
 } as const;
+
+/** Output variants (orientations) and the manifest key of each one's layout geometry. */
+export const VARIANTS = ['landscape', 'vertical', 'square'] as const;
+export const GEOMETRY_KEYS = { landscape: 'geometry', vertical: 'geometry_vertical', square: 'geometry_square' } as const;
 
 /** Semantic version (semver.org 2.0.0). */
 export const SEMVER_RE =
@@ -171,8 +176,9 @@ export const ComponentManifestFileSchema = z
       .optional(),
     geometry: LayoutGeometrySchema.describe('Layouts: geometry in the 1920×1080 design space.').optional(),
     geometry_vertical: LayoutGeometrySchema.describe('Layouts with the vertical variant: geometry in the 1080×1920 design space.').optional(),
+    geometry_square: LayoutGeometrySchema.describe('Layouts with the square variant: geometry in the 1080×1080 design space.').optional(),
     variants: z
-      .array(z.enum(['landscape', 'vertical']))
+      .array(z.enum(VARIANTS))
       .min(1)
       .describe('Output orientations the component supports (default [landscape]).')
       .optional(),
@@ -203,14 +209,16 @@ function rectInside(r: { x: number; y: number; w: number; h: number }, space: { 
 }
 
 const GEOMETRY_RECTS = ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const;
+type GeometryKey = (typeof GEOMETRY_KEYS)[keyof typeof GEOMETRY_KEYS];
+const ALL_GEOMETRY_KEYS = Object.values(GEOMETRY_KEYS) as GeometryKey[];
 
 /**
  * Geometry checks: every expression parses and only names numeric/boolean params, earlier vars or `aspect`; the
  * geometry evaluated with the param defaults (capture aspect 16:9) has positive sizes and stays inside the design
  * space.
  */
-function checkGeometry(g: LayoutGeometrySpec, key: 'geometry' | 'geometry_vertical', paramTypes: ReadonlyMap<string, string>, out: LocatedIssue[], defaults: Record<string, unknown>): void {
-  const space = key === 'geometry' ? DESIGN_SPACE.landscape : DESIGN_SPACE.vertical;
+function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: ReadonlyMap<string, string>, out: LocatedIssue[], defaults: Record<string, unknown>): void {
+  const space = key === 'geometry' ? DESIGN_SPACE.landscape : key === 'geometry_vertical' ? DESIGN_SPACE.vertical : DESIGN_SPACE.square;
   const known = new Set<string>([...GEOMETRY_BUILTINS, ...[...paramTypes].filter(([, t]) => t === 'number' || t === 'integer' || t === 'boolean').map(([n]) => n)]);
   let syntaxOk = true;
   const check = (path: Array<string | number>, v: unknown) => {
@@ -328,20 +336,24 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
         }),
       );
     }
-    const vertical = ok(['variants']) && Array.isArray(m.variants) && m.variants.includes('vertical');
-    if (vertical && m.geometry_vertical === undefined) {
-      out.push(
-        locatedIssue('error', [], 'a layout with the vertical variant must declare "geometry_vertical" (1080×1920 design space)', {
-          path: ['variants'],
-        }),
-      );
+    for (const variant of ['vertical', 'square'] as const) {
+      const declared = ok(['variants']) && Array.isArray(m.variants) && m.variants.includes(variant);
+      const key = GEOMETRY_KEYS[variant];
+      if (declared && m[key] === undefined) {
+        const space = DESIGN_SPACE[variant];
+        out.push(
+          locatedIssue('error', [], `a layout with the ${variant} variant must declare "${key}" (${space.width}×${space.height} design space)`, {
+            path: ['variants'],
+          }),
+        );
+      }
     }
   } else if (kind !== undefined) {
-    for (const key of ['geometry', 'geometry_vertical'] as const) {
+    for (const key of ALL_GEOMETRY_KEYS) {
       if (m[key] !== undefined) out.push(locatedIssue('warning', [key], `${key} is only used by layout components (this one is ${kind})`, { path: [key], key: true }));
     }
   }
-  if (m.geometry !== undefined || m.geometry_vertical !== undefined) {
+  if (ALL_GEOMETRY_KEYS.some((key) => m[key] !== undefined)) {
     const paramTypes = new Map<string, string>();
     let defaults: Record<string, unknown> = {};
     if (m.params !== undefined && ok(['params']) && !hasErrors(checkParamsSchema(m.params, ['params']))) {
@@ -352,7 +364,7 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
       }
       defaults = paramDefaults(m.params as JsonSchemaNode);
     }
-    for (const key of ['geometry', 'geometry_vertical'] as const) {
+    for (const key of ALL_GEOMETRY_KEYS) {
       if (m[key] !== undefined && ok([key])) checkGeometry(m[key] as LayoutGeometrySpec, key, paramTypes, out, defaults);
     }
   }

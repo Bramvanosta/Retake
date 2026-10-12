@@ -62,6 +62,26 @@ geometry_vertical:
   caption: {x: 40, y: y + dh + 24, w: 1000, h: 220}
   brandmark: {x: 700, y: 1840, w: 340, h: 40}
   radius: round(sw * 0.008)
-variants: [landscape, vertical]
+geometry_square:
+  vars:
+    sw: 820
+    bz: round(sw * 0.022)
+    chin: round(sw * 0.03)
+    hinge: round(sw * 0.008)
+    deck: round(sw * 0.026)
+    h: min(round(sw / aspect), 600)
+    w: min(sw, round(600 * aspect))
+    lw: w + 2 * bz
+    ov: round(lw * 0.075)
+    bw: lw + 2 * ov
+    dh: bz + h + chin + hinge + deck
+    x: round((1080 - bw) / 2)
+    y: round((1000 - dh - 184) / 2)             # device + 24 + 160 caption block, centred above the brand mark
+  frame: {x: x, y: y, w: bw, h: dh}
+  screen: {x: x + ov + bz, y: y + bz, w: w, h: h}
+  caption: {x: 40, y: y + dh + 24, w: 1000, h: 160}
+  brandmark: {x: 700, y: 1010, w: 340, h: 40}
+  radius: round(sw * 0.008)
+variants: [landscape, vertical, square]
 preview:
   at: [1]

@@ -35,20 +35,24 @@ export const TAB_STRIP = 34;
  * The default rects (design px × unit) — ONLY used outside a plan (unit tests): in a plan the composition passes
  * `rects`, the manifest geometry evaluated by the planner. Mirrors component.yaml (the library test checks it).
  */
-export function defaultRects(params: Pick<Params, 'width' | 'radius' | 'tabs'>, variant: 'landscape' | 'vertical', unit: number, aspect = 16 / 9): LayoutRects {
+export function defaultRects(params: Pick<Params, 'width' | 'radius' | 'tabs'>, variant: 'landscape' | 'vertical' | 'square', unit: number, aspect = 16 / 9): LayoutRects {
   const s = (v: number) => v * unit;
   const bar = TOOLBAR + (params.tabs ? TAB_STRIP : 0);
-  if (variant === 'vertical') {
-    const h = Math.min(Math.round(1000 / aspect), 1100);
-    const w = Math.min(1000, Math.round(1100 * aspect));
+  if (variant === 'vertical' || variant === 'square') {
+    // A wider capture is reframed: 4:5 (vertical) or ≈ 4:3 (square), the window as tall as the format allows.
+    const v = variant === 'vertical';
+    const a = Math.min(aspect, v ? 0.8 : 1.32);
+    const room = (v ? 1240 : 760) - bar;
+    const h = Math.min(Math.round(1000 / a), room);
+    const w = Math.min(1000, Math.round(room * a));
     const x = Math.round((1080 - w) / 2);
-    const y = Math.round((1688 - bar - h) / 2);
+    const y = Math.round(v ? (1688 - bar - h) / 2 : (1000 - bar - h - 172) / 2);
     return {
       frame: { x: s(x), y: s(y), w: s(w), h: s(bar + h) },
       chrome: { x: s(x), y: s(y), w: s(w), h: s(bar) },
       screen: { x: s(x), y: s(y + bar), w: s(w), h: s(h) },
-      caption: { x: s(40), y: s(y + bar + h + 12), w: s(1000), h: s(220) },
-      brandmark: { x: s(700), y: s(1840), w: s(340), h: s(40) },
+      caption: { x: s(40), y: s(y + bar + h + 12), w: s(1000), h: s(v ? 220 : 160) },
+      brandmark: { x: s(700), y: s(v ? 1840 : 1010), w: s(340), h: s(40) },
       radius: s(params.radius),
     };
   }

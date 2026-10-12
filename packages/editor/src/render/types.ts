@@ -41,7 +41,7 @@ export interface RenderProgress {
 /** renders/<id>.json: everything needed to reproduce, review and comment a render. */
 export interface RenderRecord {
   version: 1;
-  /** "<scenario>-v<N>" (+ "-vertical"), or the base name of an explicit `out` file. */
+  /** "<scenario>-v<N>" (+ "-vertical" / "-square"), or the base name of an explicit `out` file. */
   id: string;
   project: string;
   scenario: string;

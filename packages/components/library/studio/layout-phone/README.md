@@ -25,7 +25,7 @@ The capture on an iPhone-style phone (metal band, glass bezel, rounded display w
 | `status_bar` | boolean | true | A status bar (time, signal, battery) above the capture, around the island; without it the capture fills the display and the island floats over its top. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the phone (tinted with the theme's dark tone). |
 
-- variants: landscape, vertical
+- variants: landscape, vertical, square
 - theme tokens: `colors.text`, `colors.paper`, `colors.dark`, `background`
 - geometry: see `component.yaml` (values may follow the params and the capture aspect)
 

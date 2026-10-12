@@ -4,10 +4,11 @@ import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
 
 type Params = { radius: number; shadow: 'none' | 'soft' | 'strong' };
 
-/** Same screen rects as `geometry` / `geometry_vertical` in component.yaml (design px). */
+/** Same screen rects as `geometry` / `geometry_vertical` / `geometry_square` in component.yaml (design px). */
 const GEOMETRY = {
   landscape: { screen: { x: 180, y: 54, w: 1560, h: 878 } },
-  vertical: { screen: { x: 40, y: 600, w: 1000, h: 563 } },
+  vertical: { screen: { x: 40, y: 224, w: 1000, h: 1240 } },
+  square: { screen: { x: 40, y: 40, w: 1000, h: 750 } },
 };
 
 function shadowCss(kind: Params['shadow'], color: string, unit: number): string {
@@ -42,9 +43,9 @@ function Skeleton({ theme, unit }: { theme: ThemeTokens; unit: number }) {
  * The capture in a rounded card on the theme background. The composition draws the caption component in the
  * `caption` rect and the theme's brand mark in the `brandmark` rect of the geometry: a layout draws neither.
  */
-export default function Layout({ theme, params, unit, variant, screen }: ComponentProps<Params>) {
-  const g = GEOMETRY[variant === 'vertical' ? 'vertical' : 'landscape'];
-  const s = scaleRect(g.screen, unit);
+export default function Layout({ theme, params, unit, variant, screen, rects }: ComponentProps<Params>) {
+  // In a plan, `rects` is the manifest geometry evaluated by the planner (the capture fitted in it): draw there.
+  const s = rects?.screen ?? scaleRect(GEOMETRY[variant].screen, unit);
   return (
     <Background theme={theme}>
       <div

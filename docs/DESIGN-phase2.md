@@ -73,6 +73,19 @@ L2.7 rules for frames around a capture:
 - **Overlays** stay inside the capture (`rects.screen`) when they fit there, else inside the frame's safe area
   (`placeCallout` is exported and property-tested: never off-screen, pointer toward the target's centre).
 
+L2.8 rules for the other formats (vertical 9:16, square 1:1):
+- **Geometry per format.** Layouts declare `geometry_vertical` (1080×1920) and `geometry_square` (1080×1080; manifest
+  key added in L2.8, `variants: [landscape, vertical, square]`). Card and browser: as tall as the format allows, a
+  capture wider than 4:5 (vertical) or ≈ 4:3 (square) is **reframed** (`a: min(aspect, 0.8)` / `min(aspect, 1.32)`:
+  the screen rect's aspect differs from the capture's), a narrower one (a phone) is shown whole. Devices keep their
+  proportions (the capture whole, except where the phone / tablet clamp the aspect: then reframed). Raw fills the
+  frame (reframed). Caption block below (220 px tall in vertical, 160 px in square) or beside a phone / portrait
+  tablet in square; brand mark at the bottom right.
+- **Type for the format.** Full-frame components (intro, outro, card, interstitial) size type and spacing with the kit
+  `formatMetrics(variant, unit)` (`u` = unit × 1.2 in vertical, × 1.05 in square; side margins halved); caption lines
+  may wrap (`captionMaxLines`: ≥ 2 in vertical / square, ≥ 3 in a column narrower than 600 design px) — the review
+  measures with the same rule.
+
 Reference-look rules shared by the six (all values design px × unit, every colour/font/logo from the theme):
 - **Text is placed by its cap band** (`capTextLayout` + `<CapText>` in the kit): look.md positions are cap centres;
   the kit measures the font (canvas: cap height, ascent, descent) and puts the line box where the caps land on the
@@ -109,6 +122,8 @@ ComponentRegistry = {
 }
 ComponentInfo = { manifest: ComponentManifest; dir: string; entry: string /* abs */; source: 'workspace' | 'builtin' }
 evalLayoutGeometry(spec, params, { aspect? }): LayoutGeometry   // geometry expressions → design px (see below)
+DESIGN_SPACE / VARIANTS / GEOMETRY_KEYS   // landscape 1920×1080 `geometry`, vertical 1080×1920 `geometry_vertical`,
+                                          // square 1080×1080 `geometry_square` (L2.8)
 parseManifest(text, file?, { folderId? }): { manifest?, issues: ComponentIssue[] }   // strict zod schema + semantic checks
 validateComponent(dir): Promise<ComponentIssue[]>   // manifest, id = folder, entry exists, params schema + defaults,
 //  preview samples fill required slots, layout geometry, esbuild compile (imports: react, remotion, the kit and own
@@ -216,15 +231,21 @@ planEdit(input: { timeline; template: LoadedTemplate; project; registry: Compone
 //  ResolvedComponent.missing, plan.assets (`ds-asset:` URL → file, swapped by resolvePlanAssets) and plan.meta.
 renderVideo(opts: { project; run /* id or dir */; scenario?; template?; overrides?; out?; onProgress?; signal?;
                     concurrency? }): Promise<RenderRecord>
-//  renders/<scenario>-v<N>.mp4 (+ "-vertical") and renders/<scenario>-v<N>.json (RenderRecord incl. plan + overrides)
+//  renders/<scenario>-v<N>.mp4 (+ "-vertical" / "-square") and renders/<scenario>-v<N>.json (RenderRecord incl. plan +
+//  overrides); measures the music track (ffprobe) and passes its length to planEdit (`musicDuration_s`)
 renderStill(opts: { plan; frame; out }): Promise<string>
 renderStills(opts: { plan; frames: Array<{ frame; out }> }): Promise<string[]>   // one browser session for all frames
 renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest }[]; template: LoadedTemplate; registry?;
                                  outDir?; cacheDir? }): Promise<RenderedPreview[]>   // L2.7 (see §2.3)
 buildComponentPreview(opts): { spec: ComponentPreviewSpec; at; screen?; components }   // pure
 previewTemplate(opts: { template; out_dir }): Promise<string[]>   // later (Studio theme editor)
-exportRender(opts: { project; render; formats: ExportFormat[] }): Promise<ExportResult>
-//  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'gif_preview'
+exportRender(opts: { project; render /* id | path | latest */; formats?: ExportFormat[]; out?; gif?: {start_s?,
+                     duration_s?}; concurrency?; signal?; onProgress? }): Promise<ExportResult>   // L2.8
+//  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'square_1x1' | 'gif_preview' → <project>/exports/<render-id>/
+//  + manifest.json. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),
+//  GIF (480 px, 12 fps, palette, 15 s around the first marker else the first 15 s). Re-rendered from the run through
+//  the planner (same theme and overrides): vertical, square, and 4K from a non-4K master (capture upscaled, warning).
+generateTestTrack(out, { seconds? }): Promise<string>   // procedural sine-chord AAC track for tests / demos (ffmpeg)
 listRenders(project): Promise<RenderRecord[]>
 ```
 
@@ -253,16 +274,40 @@ listRenders(project): Promise<RenderRecord[]>
   component's default), anchored on `overlay.bbox` (else `overlay.point`) mapped through layout + camera.
 - Provenance: every clip segment lists `steps` (output frame spans per scenario step) and the plan keeps markers and a
   time map — used by review, the Studio timeline and frame comments.
-- Output: 1920×1080 × scale (capture scale 2 ⇒ 4K); vertical 1080×1920 uses `geometry_vertical` and a crop following a
-  smoothed cursor/target track.
+- Output: 1920×1080 × scale (capture scale 2 ⇒ 4K; a scale above the capture's is a warning: the capture is
+  upscaled); vertical 1080×1920 / square 1080×1080 use `geometry_vertical` / `geometry_square`. When the screen rect's
+  aspect differs from the capture's, `PlanLayout.crop` is the region of the capture with that aspect (narrowed so the
+  capture shows at ≥ `REFRAME_MIN_SCALE` = 0.9 design px per CSS px) and `ClipSegment.reframe` its centre per frame
+  (L2.8, camera.ts `reframeTrack`): the region of interest = the cursor box (+ where it goes in the next 0.4 s), the
+  active step target from 0.5 s before the step (look-ahead), hard boxes (each click's target from 0.35 s before to
+  0.5 s after the click — widgets: every `data.clicks` entry —, overlay anchors while shown) — their union while it
+  fits; a dead zone (15 % inset) and re-centring; critically damped zero-phase smoothing (two first-order lags of
+  τ = 0.2 s forward and backward); then `corridorSmooth`: the closest path inside the per-frame corridor where the
+  cursor box and the hard boxes are in view, as a banded QP (Σ d² + 2L² Σ (Δd)² + L⁴ Σ (Δ²x)², L = 0.3 s: a critically
+  damped repair — no ringing, no wrong-way move — solved with ADMM); finally inside the capture. Per run: never across
+  a cut. `viewOf` / `mapSourceRect` give the visible region / map overlays through it.
+- Theme default zoom (R-ED-22, L2.8): `motion.default_zoom` > 1 with style_bias balanced / motion → in each scene
+  without its own camera hint, one zoom (min(default_zoom, max_zoom)) on the first marked step's target (camera bbox,
+  else target bbox, else overlay anchor, else point), eased in over min(4 s, half the room) from that step's output
+  start with the theme `zoom_ease`, eased out over min(1.6 s, a quarter of the room) so the scene's last frame is at
+  1×; no zoom when the room is too short (< 1.5 s in, < 0.8 s out: note). `ZoomSpan.source = 'theme'`. Real → static
+  (note when default_zoom is set).
+- Music (R-ED-17, L2.8): `PlanMusic {volume (0.6), duck (0.5), duck_ramp_s (0.5), fadeIn_s 1, fadeOut_s 2, loop
+  (true), crossfade_s 1, duration_s?, plays?}`; `plays` (when the caller measured the track): one play trimmed by the
+  video (longer track or loop false) or loops each starting `crossfade_s` before the previous ends. Volume at frame f
+  (`musicVolumeAt`): volume × smoothstep fades × (1 − (1 − duck) × on-clip), on-clip eased (smoothstep) over
+  `duck_ramp_s` around each clip; each play × an equal-power seam gain (`musicPlayGain`).
 
 ### 2.2 Composition & rendering
-`DemoVideo` / `DemoVertical` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
+`DemoVideo` / `DemoVertical` / `DemoSquare` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
 background, one Sequence per segment with its transition component (or, without one, its plain fade envelope), the
 segment component, for clips the layout component with `screen` = the capture frame `srcFrames[f]` under the camera
 transform and `rects` = the clip's PlanLayout in output px, the caption component (cues, `area` = the layout's
 caption rect, `rects` = the layout's rects) and overlays (anchor mapped per frame with `mapSourceRect`, `rects`), the brand mark (theme logo + wordmark in the layout's `brandmark` rect — layouts do not draw it),
-optional music bed. Interstitials receive the previous clip's last frame (layout + capture + brand mark) as `screen`.
+optional music bed (one `Html5Audio` per planned play, volume = bed volume × seam gain; without plays the element
+loops itself). Interstitials receive the previous clip's last frame (layout + capture + brand mark) as `screen`. The
+capture `OffthreadVideo` is drawn with `object-fit: fill` in a box of the visible region's aspect scaled to the capture's
+(a reframe crop is never letterboxed).
 Transitions render twice: a crossfade over the overlap of the two segments (both see transition frames [0, n)), a dip
 without overlap (frames [0, ⌊n/2⌋) at the end of the outgoing segment, [⌊n/2⌋, n) at the start of the incoming one).
 The capture frame is an `OffthreadVideo` inside a `Sequence` shifted to that frame — not `<Freeze
@@ -331,6 +376,13 @@ Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `late
   trimming cannot), `loading-scene-start` (the screen changes during the opening still), `empty-segment`,
   `caption-not-visible`, `caption-overlaps-brandmark`, `camera-jump`.
 - **Output** is written to `review/<id>.tmp-*` and swapped in, so a review never mixes pages of two runs.
+- **L2.8**: clicks are placed one by one (widgets: every `data.clicks` entry, with the box it clicked); reframed
+  variants: `target-cut` (error: the reframe cuts a clicked target that fits in the view), `cursor-outside-view` at
+  clicks (error, "vertical reframe"), `cursor-outside-reframe` (warning: the cursor leaves the crop on any frame),
+  `reframe-jump` (warning: a move > 6 % of the crop width in one frame or a jolt > 1.5 % per frame², rules
+  `reframe_max_step` / `reframe_max_accel`); theme zooms are not counted against `max_zooms` but checked per scene:
+  `theme-zoom-count` (> 1 in a scene), `theme-zoom-cut` (not back to 1× when the scene ends), `theme-zoom-real`
+  (style_bias real); caption widths use the kit `captionMaxLines` of the variant.
 
 ## 4. Frame comments (data model now, UI in phase 4, MCP tools in phase 3)
 

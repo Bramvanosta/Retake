@@ -86,14 +86,15 @@ describe('studio usage, schema and later phases', () => {
   });
 
   it('says when later-phase commands arrive', async () => {
-    const r = await studio('export', 'demo', 'good', '--whatever');
+    const r = await studio('mcp');
     expect(r.code).toBe(EXIT.failure);
-    expect(r.err).toContain('available in phase 2');
-    expect(r.err).toContain('render, still, review');
-    expect((await studio('mcp')).err).toContain('available in phase 3');
-    // render (L2.4) and review (L2.6) are real commands: an unknown option is a usage error.
+    expect(r.err).toContain('available in phase 3');
+    expect(r.err).toContain('render, still, review, export');
+    // render (L2.4), review (L2.6) and export (L2.8) are real commands: an unknown option is a usage error.
     expect((await studio('render', 'demo', 'good', '--whatever')).code).toBe(EXIT.usage);
     expect((await studio('review', 'demo', 'latest', '--whatever')).code).toBe(EXIT.usage);
+    expect((await studio('export', 'demo', 'latest', '--whatever')).code).toBe(EXIT.usage);
+    expect((await studio('export', 'demo', 'latest', '--formats', 'mp4_1080p,avi')).code).toBe(EXIT.usage);
   });
 
   it('reports hook sources that do not exist', async () => {

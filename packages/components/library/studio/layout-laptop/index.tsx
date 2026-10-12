@@ -18,8 +18,27 @@ function parts(sw: number) {
  * The default rects (design px × unit) — ONLY used outside a plan (unit tests): in a plan the composition passes
  * `rects`, the manifest geometry evaluated by the planner. Mirrors component.yaml (the library test checks it).
  */
-export function defaultRects(params: Pick<Params, 'width'>, variant: 'landscape' | 'vertical', unit: number, aspect = 16 / 9): LayoutRects {
+export function defaultRects(params: Pick<Params, 'width'>, variant: 'landscape' | 'vertical' | 'square', unit: number, aspect = 16 / 9): LayoutRects {
   const s = (v: number) => v * unit;
+  if (variant === 'square') {
+    const sw = 820;
+    const { bz, chin, hinge, deck } = parts(sw);
+    const h = Math.min(Math.round(sw / aspect), 600);
+    const w = Math.min(sw, Math.round(600 * aspect));
+    const lw = w + 2 * bz;
+    const ov = Math.round(lw * 0.075);
+    const bw = lw + 2 * ov;
+    const dh = bz + h + chin + hinge + deck;
+    const x = Math.round((1080 - bw) / 2);
+    const y = Math.round((1000 - dh - 184) / 2);
+    return {
+      frame: { x: s(x), y: s(y), w: s(bw), h: s(dh) },
+      screen: { x: s(x + ov + bz), y: s(y + bz), w: s(w), h: s(h) },
+      caption: { x: s(40), y: s(y + dh + 24), w: s(1000), h: s(160) },
+      brandmark: { x: s(700), y: s(1010), w: s(340), h: s(40) },
+      radius: s(Math.round(sw * 0.008)),
+    };
+  }
   const vertical = variant === 'vertical';
   const sw = vertical ? 880 : params.width;
   const { bz, chin, hinge, deck } = parts(sw);
@@ -51,7 +70,7 @@ export function defaultRects(params: Pick<Params, 'width'>, variant: 'landscape'
 export default function LayoutLaptop({ theme, params, unit, variant, screen, rects }: ComponentProps<Params>) {
   const u = unit;
   const r = rects ?? defaultRects(params, variant, u);
-  const sw = variant === 'vertical' ? 880 : params.width;
+  const sw = variant === 'vertical' ? 880 : variant === 'square' ? 820 : params.width;
   const p = parts(sw);
   const bz = p.bz * u;
   const chin = p.chin * u;

@@ -38,7 +38,7 @@ interface RenderOpts {
   theme?: ThemeTokens;
   at?: number;
   unit?: number;
-  variant?: 'landscape' | 'vertical';
+  variant?: 'landscape' | 'vertical' | 'square';
   extra?: Partial<ComponentProps>;
   params?: Record<string, unknown>;
 }
@@ -47,7 +47,8 @@ interface RenderOpts {
 function render(kind: ComponentKind, opts: RenderOpts = {}): string {
   const m = manifests[kind];
   const unit = opts.unit ?? 1;
-  const vertical = opts.variant === 'vertical';
+  const variant = opts.variant ?? 'landscape';
+  const size = { landscape: [1920, 1080], vertical: [1080, 1920], square: [1080, 1080] }[variant];
   const fps = 30;
   frame.current = opts.at ?? 45;
   const props: ComponentProps = {
@@ -55,11 +56,11 @@ function render(kind: ComponentKind, opts: RenderOpts = {}): string {
     slots: { ...(m.preview?.slots ?? {}) },
     params: applyParamDefaults(m.params as never, { ...(m.preview?.params ?? {}), ...(opts.params ?? {}) }),
     unit,
-    width: (vertical ? 1080 : 1920) * unit,
-    height: (vertical ? 1920 : 1080) * unit,
+    width: size[0] * unit,
+    height: size[1] * unit,
     fps,
     durationInFrames: Math.round((m.duration?.default ?? 4) * fps),
-    variant: vertical ? 'vertical' : 'landscape',
+    variant,
     ...opts.extra,
   };
   return renderToString(createElement(components[kind], props));
@@ -71,7 +72,7 @@ describe('scaffolds render with any theme (R-CMP-05)', () => {
   it('every kind renders in both themes, both variants and across its duration', () => {
     for (const kind of COMPONENT_KINDS) {
       for (const theme of [LIGHT, DARK]) {
-        for (const variant of ['landscape', 'vertical'] as const) {
+        for (const variant of ['landscape', 'vertical', 'square'] as const) {
           for (const at of [0, 10, 45, 200]) {
             expect(() => render(kind, { theme, variant, at }), `${kind} ${theme.name} ${variant} ${at}`).not.toThrow();
           }
@@ -151,11 +152,13 @@ describe('scaffold behaviour', () => {
     expect(preview).not.toContain('>A</div>');
     const withScreen = render('layout', { extra: { screen: createElement('video', { src: 'capture.mp4' }) } });
     expect(withScreen).toContain('<video src="capture.mp4">');
-    expect(render('layout', { variant: 'vertical' })).toContain('left:40px;top:600px;width:1000px;height:563px');
+    expect(render('layout', { variant: 'vertical' })).toContain('left:40px;top:224px;width:1000px;height:1240px');
+    expect(render('layout', { variant: 'square' })).toContain('left:40px;top:40px;width:1000px;height:750px');
     expect(manifests.layout.geometry?.brandmark).toEqual({ x: 1810, y: 1020, w: 80, h: 30 });
     // The TSX geometry is the manifest's.
     expect(manifests.layout.geometry?.screen).toEqual({ x: 180, y: 54, w: 1560, h: 878 });
-    expect(manifests.layout.geometry_vertical?.screen).toEqual({ x: 40, y: 600, w: 1000, h: 563 });
+    expect(manifests.layout.geometry_vertical?.screen).toEqual({ x: 40, y: 224, w: 1000, h: 1240 });
+    expect(manifests.layout.geometry_square?.screen).toEqual({ x: 40, y: 40, w: 1000, h: 750 });
   });
 
   it('overlay: a pill next to the anchor (above when there is room, else below), a lower third without one', () => {

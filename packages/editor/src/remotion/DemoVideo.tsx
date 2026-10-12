@@ -13,7 +13,7 @@ import type { ComponentProps, ThemeTokens } from '@demo-studio/components';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, PlanSegment, ResolvedComponent } from '../plan-types.js';
 import { mapSourceRect, viewOf } from '../layout.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, envelopeAt, layoutRects, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './frames.js';
+import { brandmarkRect, envelopeAt, layoutRects, musicPlayGain, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 
@@ -50,7 +50,8 @@ function CaptureFrame({ plan, srcFrame }: { plan: EditPlan; srcFrame: number }) 
   const t = (srcFrame / plan.source.fps) * plan.fps;
   return (
     <Sequence from={current - t} layout="none" name="capture">
-      <OffthreadVideo src={plan.source.url} muted style={{ width: '100%', height: '100%', display: 'block' }} />
+      {/* objectFit fill: the box is the visible region (the reframe crop) scaled to the capture's aspect, never letterboxed. */}
+      <OffthreadVideo src={plan.source.url} muted style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill' }} />
     </Sequence>
   );
 }
@@ -248,15 +249,28 @@ function SegmentView({ plan, index }: { plan: EditPlan; index: number }) {
 
 // ── Music ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The music bed: the planned plays of the track (one trimmed play, or loops whose seams crossfade), each with the bed
+ * volume (fades, ducking under footage) × its seam gain. Without a measured track length the element loops itself.
+ */
 function MusicBed({ plan }: { plan: EditPlan }) {
   const m = plan.music;
   if (!m) return null;
-  return <Html5Audio src={m.url} loop volume={(f: number) => musicVolumeAt(plan, f)} />;
+  if (!m.plays || m.plays.length === 0) return <Html5Audio src={m.url} loop={m.loop} volume={(f: number) => musicVolumeAt(plan, f)} />;
+  return (
+    <>
+      {m.plays.map((p, i) => (
+        <Sequence key={`music-${i}`} from={p.from} durationInFrames={p.frames} layout="none" name={`music ${i + 1}`}>
+          <Html5Audio src={m.url} volume={(f: number) => Math.round(musicVolumeAt(plan, p.from + f) * musicPlayGain(p, f) * 1e4) / 1e4} />
+        </Sequence>
+      ))}
+    </>
+  );
 }
 
 // ── The composition ───────────────────────────────────────────────────────────
 
-/** Renders `plan` (landscape or vertical: the plan says which; DemoVertical only checks it is vertical). */
+/** Renders `plan` (landscape, vertical or square: the plan says which; DemoVertical / DemoSquare only check it). */
 export function DemoVideo({ plan }: DemoVideoProps) {
   if (!plan) throw new Error('DemoVideo needs a plan (inputProps: { plan })');
   const ready = useThemeFonts(plan.brand.tokens.font_faces);

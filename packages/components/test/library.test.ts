@@ -81,9 +81,14 @@ beforeAll(async () => {
   return () => cleanup();
 });
 
-function render(id: string, opts: { theme?: ThemeTokens; at?: number; unit?: number; vertical?: boolean; params?: Record<string, unknown>; extra?: Partial<ComponentProps> } = {}): string {
+type Variant = 'landscape' | 'vertical' | 'square';
+const SIZES: Record<Variant, [number, number]> = { landscape: [1920, 1080], vertical: [1080, 1920], square: [1080, 1080] };
+const GEOMETRY_OF = { landscape: 'geometry', vertical: 'geometry_vertical', square: 'geometry_square' } as const;
+
+function render(id: string, opts: { theme?: ThemeTokens; at?: number; unit?: number; vertical?: boolean; variant?: Variant; params?: Record<string, unknown>; extra?: Partial<ComponentProps> } = {}): string {
   const m = manifests[id];
   const unit = opts.unit ?? 1;
+  const variant: Variant = opts.variant ?? (opts.vertical ? 'vertical' : 'landscape');
   const fps = 30;
   frame.current = opts.at ?? 45;
   const props: ComponentProps = {
@@ -91,11 +96,11 @@ function render(id: string, opts: { theme?: ThemeTokens; at?: number; unit?: num
     slots: { ...(m.preview?.slots ?? {}) },
     params: applyParamDefaults(m.params as never, opts.params ?? {}),
     unit,
-    width: (opts.vertical ? 1080 : 1920) * unit,
-    height: (opts.vertical ? 1920 : 1080) * unit,
+    width: SIZES[variant][0] * unit,
+    height: SIZES[variant][1] * unit,
     fps,
     durationInFrames: Math.round((m.duration?.default ?? 4) * fps),
-    variant: opts.vertical ? 'vertical' : 'landscape',
+    variant,
     ...opts.extra,
   };
   return renderToString(createElement(impls[id], props));
@@ -157,9 +162,9 @@ describe('built-in library renders with any theme', () => {
   it('every component renders in both themes, both variants and across its duration, deterministically', () => {
     for (const id of IDS) {
       for (const theme of [LIGHT, DARK]) {
-        for (const vertical of [false, true]) {
+        for (const variant of ['landscape', 'vertical', 'square'] as const) {
           for (const at of [0, 12, 45, 200]) {
-            expect(() => render(id, { theme, vertical, at }), `${id} ${theme.name} ${vertical} ${at}`).not.toThrow();
+            expect(() => render(id, { theme, variant, at }), `${id} ${theme.name} ${variant} ${at}`).not.toThrow();
           }
         }
       }
@@ -187,10 +192,11 @@ describe('built-in library renders with any theme', () => {
       const m = manifests[id];
       const defaults = paramDefaults(m.params as never);
       const fallback = modules[id].defaultRects as Fallback;
-      for (const vertical of [false, true]) {
+      for (const variant of ['landscape', 'vertical', 'square'] as const) {
+        const spec = m[GEOMETRY_OF[variant]]!;
+        expect(spec, `${id} declares ${GEOMETRY_OF[variant]}`).toBeDefined();
         for (const aspect of aspects) {
-          const g = evalLayoutGeometry(vertical ? m.geometry_vertical! : m.geometry!, defaults, { aspect });
-          const variant = vertical ? 'vertical' : 'landscape';
+          const g = evalLayoutGeometry(spec, defaults, { aspect });
           const r = id === 'studio/layout-raw' ? fallback(variant, 1) : id === 'studio/layout-card' ? fallback(defaults, variant, 1) : fallback(defaults, variant, 1, aspect);
           if (id === 'studio/layout-raw' || (id === 'studio/layout-card' && aspect !== 16 / 9)) continue; // aspect-free fallbacks
           const where = `${id} ${variant} ${aspect.toFixed(3)}`;
@@ -203,8 +209,8 @@ describe('built-in library renders with any theme', () => {
         }
         // Without rects (no plan) a layout draws its fallback rects: a phone / tablet capture for the devices.
         const fallbackAspect = id === 'studio/layout-phone' ? 390 / 844 : id === 'studio/layout-tablet' ? 820 / 1180 : 16 / 9;
-        const g = evalLayoutGeometry(vertical ? m.geometry_vertical! : m.geometry!, defaults, { aspect: fallbackAspect });
-        const html = render(id, { vertical, extra: { screen: marker } });
+        const g = evalLayoutGeometry(spec, defaults, { aspect: fallbackAspect });
+        const html = render(id, { variant, extra: { screen: marker } });
         expect(html, id).toContain('<i id="capture"></i>');
         expect(html, id).not.toContain('>A</div>'); // no brand mark monogram
         const s = g.screen;
@@ -215,20 +221,28 @@ describe('built-in library renders with any theme', () => {
           expect(g.screen.y, id).toBe(g.chrome!.y + g.chrome!.h);
           expect(html, id).toContain(`left:0;top:${g.chrome!.h}px;width:${s.w}px;height:${s.h}px`);
         } else if (id === 'studio/layout-card') {
-          expect(html, `${id} ${vertical}`).toContain(rectCss(g.frame!));
+          expect(html, `${id} ${variant}`).toContain(rectCss(g.frame!));
         } else if (id === 'studio/layout-phone') {
           // The display glass = the capture area with the status bar above it.
           const bar = s.y - g.frame!.y - (s.x - g.frame!.x);
           expect(bar, id).toBeGreaterThan(40);
-          expect(html, `${id} ${vertical}`).toContain(rectCss({ x: s.x, y: s.y - bar, w: s.w, h: s.h + bar }));
+          expect(html, `${id} ${variant}`).toContain(rectCss({ x: s.x, y: s.y - bar, w: s.w, h: s.h + bar }));
         } else {
-          expect(html, `${id} ${vertical}`).toContain(rectCss(s));
+          expect(html, `${id} ${variant}`).toContain(rectCss(s));
         }
-        // Everything inside the design space.
-        const space = vertical ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 };
-        for (const rect of [g.frame, g.screen, g.caption, g.brandmark]) {
-          if (!rect) continue;
-          expect(rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= space.w && rect.y + rect.h <= space.h, `${id} ${vertical} ${JSON.stringify(rect)}`).toBe(true);
+        // Everything inside the design space, and the caption / brand mark never over the device or card.
+        const space = { w: SIZES[variant][0], h: SIZES[variant][1] };
+        for (const aspect of aspects) {
+          const ga = evalLayoutGeometry(spec, defaults, { aspect });
+          for (const rect of [ga.frame, ga.screen, ga.caption, ga.brandmark]) {
+            if (!rect) continue;
+            expect(rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= space.w && rect.y + rect.h <= space.h, `${id} ${variant} ${aspect.toFixed(2)} ${JSON.stringify(rect)}`).toBe(true);
+          }
+          const body = ga.frame ?? ga.screen;
+          const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+          if (id !== 'studio/layout-raw') {
+            for (const r of [ga.caption, ga.brandmark]) if (r) expect(overlaps(r, body), `${id} ${variant} ${aspect.toFixed(2)} ${JSON.stringify(r)} over ${JSON.stringify(body)}`).toBe(false);
+          }
         }
       }
     }

@@ -11,6 +11,7 @@ import {
   progress,
   readableOn,
   roundTo,
+  formatMetrics,
 } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
@@ -32,12 +33,12 @@ function fade(frame: number, fps: number, delay: number, duration: number, dista
  * and a tracking settle on the title) — or, with logo_only, the logo and the wordmark on one row fading (and, livelier,
  * settling) in.
  */
-export default function IntroMinimal({ theme, slots, params, unit, width, height, fps }: ComponentProps<Params>) {
+export default function IntroMinimal({ theme, slots, params, unit, width, height, fps, variant }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit;
+  const { u, inset } = formatMetrics(variant, unit);
   const bias = biasMotion(theme.style_bias);
   const center = params.align !== 'left';
-  const margin = 160 * u;
+  const margin = inset(160);
   const column = Math.min(width - 2 * margin, 1500 * u);
   const bg = backgroundSample(theme);
   const { dark, light } = darkLight(theme);

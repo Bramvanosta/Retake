@@ -41,11 +41,14 @@ geometry:
   caption: {x: cx, y: y + bar + h + 12, w: cw, h: 110}
   brandmark: {x: "max(x + w - 320, cx + cw + 20)", y: y + bar + h + 47, w: 320, h: 40}
   radius: radius
+# Vertical and square: the window is as tall as the format allows; a wider capture is reframed (the page area shows
+# the region of the capture with its aspect, following the cursor and the targets).
 geometry_vertical:
   vars:
     bar: 52 + 34 * tabs
-    h: min(round(1000 / aspect), 1100)
-    w: min(1000, round(1100 * aspect))
+    a: min(aspect, 0.8)
+    h: min(round(1000 / a), 1240 - bar)
+    w: min(1000, round((1240 - bar) * a))
     x: round((1080 - w) / 2)
     y: round((1688 - bar - h) / 2)
   frame: {x: x, y: y, w: w, h: bar + h}
@@ -54,6 +57,20 @@ geometry_vertical:
   caption: {x: 40, y: y + bar + h + 12, w: 1000, h: 220}
   brandmark: {x: 700, y: 1840, w: 340, h: 40}
   radius: radius
-variants: [landscape, vertical]
+geometry_square:
+  vars:
+    bar: 52 + 34 * tabs
+    a: min(aspect, 1.32)
+    h: min(round(1000 / a), 760 - bar)
+    w: min(1000, round((760 - bar) * a))
+    x: round((1080 - w) / 2)
+    y: round((1000 - bar - h - 172) / 2)
+  frame: {x: x, y: y, w: w, h: bar + h}
+  chrome: {x: x, y: y, w: w, h: bar}
+  screen: {x: x, y: y + bar, w: w, h: h}
+  caption: {x: 40, y: y + bar + h + 12, w: 1000, h: 160}
+  brandmark: {x: 700, y: 1010, w: 340, h: 40}
+  radius: radius
+variants: [landscape, vertical, square]
 preview:
   at: [1]

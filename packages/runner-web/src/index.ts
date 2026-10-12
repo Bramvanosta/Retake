@@ -4,7 +4,7 @@
  */
 export { runScenario } from './run.js';
 export type { RunOptions } from './run.js';
-export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS } from './session.js';
+export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, scaleArgs } from './session.js';
 export type { SessionOptions } from './session.js';
 export { encodeFrames, cfrSchedule } from './encode.js';
 export type { EncodeOptions } from './encode.js';

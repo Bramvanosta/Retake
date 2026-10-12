@@ -3,8 +3,9 @@ import { Background } from '@demo-studio/components/kit';
 import type { ComponentProps, LayoutRects } from '@demo-studio/components/kit';
 
 /** The default rects (design px × unit) — only outside a plan (unit tests); mirrors component.yaml. */
-export function defaultRects(variant: 'landscape' | 'vertical', unit: number): LayoutRects {
+export function defaultRects(variant: 'landscape' | 'vertical' | 'square', unit: number): LayoutRects {
   const s = (v: number) => v * unit;
+  if (variant === 'square') return { screen: { x: 0, y: 0, w: s(1080), h: s(1080) }, frame: { x: 0, y: 0, w: s(1080), h: s(1080) }, caption: { x: s(60), y: s(820), w: s(960), h: s(200) }, radius: 0 };
   if (variant === 'vertical') return { screen: { x: 0, y: 0, w: s(1080), h: s(1920) }, frame: { x: 0, y: 0, w: s(1080), h: s(1920) }, caption: { x: s(60), y: s(1560), w: s(960), h: s(220) }, radius: 0 };
   return { screen: { x: 0, y: 0, w: s(1920), h: s(1080) }, frame: { x: 0, y: 0, w: s(1920), h: s(1080) }, caption: { x: s(260), y: s(890), w: s(1400), h: s(150) }, radius: 0 };
 }

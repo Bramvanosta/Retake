@@ -1,10 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TimelineSchema } from '@demo-studio/core';
 import type { RunRecord, Scenario, TimelineEvent } from '@demo-studio/core';
-import { runScenario } from '../src/index.js';
+import { runScenario, scaleArgs } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { DOC_PAGE, DROP_PAGE, DRY_PAGE, SCROLL_PAGE, STRATEGY_PAGE, TABS_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
@@ -119,6 +120,33 @@ describe('new_tab', () => {
     const afterSwitch = lines.filter((f) => f.t > ev[4].t_end).length;
     expect(afterSwitch).toBeGreaterThan(3);
     expect(existsSync(rec.capture!)).toBe(true);
+  });
+});
+
+describe('device scale 2 (4K-class captures, L2.8)', () => {
+  it('scaleArgs forces the browser scale factor for headless scale ≠ 1 only', () => {
+    expect(scaleArgs(2, false)).toEqual(['--force-device-scale-factor=2']);
+    expect(scaleArgs(1, false)).toEqual([]);
+    expect(scaleArgs(2, true)).toEqual([]);
+    expect(scaleArgs(2, false, ['--force-device-scale-factor=3'])).toEqual([]);
+  });
+
+  it('captures real 2× frames: the screencast frames and capture.mp4 are width·2 × height·2', async () => {
+    const project = makeProject(dir, { app: server.url }, { width: 640, height: 360 });
+    const rec = await runScenario({
+      project,
+      scenario: makeScenario('scale2', { pacing: FAST, capture: { scale: 2 }, scenes: [{ id: 'doc', open: '/doc.html', steps: [{ hold: 0.6 }] }] }),
+      mode: 'capture',
+      runId: `scale2-${Date.now()}`,
+    });
+    expect(rec.error?.message).toBeUndefined();
+    expect(rec.status).toBe('succeeded');
+    const tl = await readTimeline(rec.timeline!);
+    expect(tl.capture).toMatchObject({ width: 640, height: 360, scale: 2 });
+    expect(tl.capture.frames).toBeGreaterThan(3);
+    const size = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', rec.capture!], { encoding: 'utf8' }).trim();
+    expect(size).toBe('1280,720');
+    expect(tl.warnings.filter((w) => /screencast frames stay/.test(w))).toEqual([]);
   });
 });
 

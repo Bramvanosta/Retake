@@ -52,6 +52,21 @@ export const DEFAULT_BROWSER_ARGS = [
   '--no-default-browser-check',
 ];
 
+/**
+ * Launch flags for a capture at device scale `scale` (L2.8, measured in docs/HANDOFF.md): the CDP screencast of
+ * headless Chromium (new headless and the headless shell alike) sends frames at the window's physical size, which
+ * stays at CSS size whatever `deviceScaleFactor` the page emulates — `Emulation.setDeviceMetricsOverride` on the
+ * recorder's session and `Page.captureScreenshot` give CSS-size images too. Forcing the browser's own device scale
+ * factor makes the compositor surface `scale`× larger, so a 1920×1080 viewport at scale 2 is captured as real
+ * 3840×2160 frames (text rasterised at 2×, not upscaled). Not used for headed windows (the display's own scale
+ * applies) nor when the project already passes the flag.
+ */
+export function scaleArgs(scale: number, headed: boolean | undefined, extra: readonly string[] = []): string[] {
+  if (headed || !(scale > 0) || scale === 1) return [];
+  if (extra.some((a) => a.startsWith('--force-device-scale-factor'))) return [];
+  return [`--force-device-scale-factor=${scale}`];
+}
+
 interface StorageStateFile {
   cookies?: Parameters<BrowserContext['addCookies']>[0];
   origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }> }>;
@@ -256,7 +271,7 @@ export class BrowserSession {
         locale: b.locale,
         timezoneId: b.timezone,
         colorScheme: b.color_scheme,
-        args: [...DEFAULT_BROWSER_ARGS, ...(b.args ?? [])],
+        args: [...DEFAULT_BROWSER_ARGS, ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
         acceptDownloads: true,
         handleSIGINT: false,
         handleSIGTERM: false,

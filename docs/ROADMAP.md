@@ -33,8 +33,8 @@ requirements of a lot with their gaps.
 | L2.5 | Reference-look components (intro, outro, card layout, caption, clock, crossfade) | M | **done** |
 | L2.6 | Review package + `studio review` | M | **done** |
 | L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | **done** |
-| L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | next |
-| L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | todo |
+| L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | **done** |
+| L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | next |
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | todo |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
 | L2.12 | Phase 2 acceptance (two videos, clean review, theme/component switch) | S | todo |
@@ -276,6 +276,29 @@ requirements of a lot with their gaps.
 - **Scope:** vertical 9:16 and square 1:1 with smoothed reframing on the cursor/targets, 4K from scale-2 captures,
   music bed with ducking, export formats mp4_1080p / mp4_4k / webm / vertical_9x16 / square / gif_preview,
   `studio export`; theme `default_zoom` for balanced/motion styles (R-ED-17/20/21/22, R-EXP-*, R-CLI2-03).
+- **Done:** **square** variant (`geometry_square` manifest key + JSON schema, `variants: [landscape, vertical, square]`,
+  `DemoSquare`, `--square`) next to vertical; every layout + the layout scaffold declare both formats (card / browser as
+  tall as the format allows, a wider capture reframed to 4:5 / ≈ 4:3; devices keep their proportions; captions below or
+  beside); **real reframing** (`camera.ts reframeTrack`): cursor (+ 0.4 s ahead) and step targets (0.5 s look-ahead),
+  hard boxes for every click (widgets: each `data.clicks`) and overlay anchors, dead zone + re-centring, a calm start on
+  the first step, critically damped zero-phase smoothing, then `corridorSmooth` (banded QP, critically damped repair:
+  no ringing) so the cursor and the clicked target are never cut; crop ≥ 0.9 design px per CSS px; per run (never across
+  a cut); the composition draws the crop (`object-fit: fill`), overlays map through it. Full-frame components use the
+  kit `formatMetrics` (type ×1.2 in vertical) and captions wrap (`captionMaxLines`); caption-overlay bands go below the
+  card in vertical / square. **4K**: the CDP screencast of headless Chromium (new and shell) and `captureScreenshot`
+  stay at CSS size at deviceScaleFactor 2 (also with Emulation on the recorder session); `--force-device-scale-factor`
+  at launch gives real 3840×2160 frames — kept (`scaleArgs`), measured ≈ 9.5–16 fps at 4K vs ≈ 45–58 fps at 1080p
+  (captureScreenshot fallback: 5.6 fps), 2–3 fps under a backdrop-blur dialog; 4K render of a 1080p capture works
+  with an upscaling warning. **Music bed**: `music: {file, volume, duck, loop}` / `--music`, planned plays (trim, or
+  loops with equal-power 1 s seams; the track measured by renderVideo), smoothstep fades and ducking (× 0.5 under
+  footage, base volume on intro/outro/cards), procedural test track `generateTestTrack`. **Export**: `exportRender` /
+  `studio export` → `exports/<render-id>/` + manifest.json (1080p copy/scale, 4K copy/re-render, WebM VP9+Opus, GIF
+  480 px 12 fps palette around the first marker, vertical / square re-rendered). **Theme default zoom** (R-ED-22,
+  decision applied; the motion starter sets 1.12). Review: widget clicks one by one, `target-cut`,
+  `cursor-outside-reframe`, `reframe-jump`, theme-zoom checks, a moving still compared on the capture. Previews
+  regenerated. Tests: reframe.test.ts, planner-motion-music.test.ts, export-real.test.ts, review checks, runner scale-2
+  capture, CLI export. Fixture renders quote-v9-vertical, quote-v10-square (motion theme), catalogue-v4 (music) and
+  its six exports, frames inspected and reviewed (HANDOFF).
 
 ### L2.9 — Mails, notifications & documents (L)
 - **Scope:** project `mailbox` (Mailpit or HTTP), `wait_for_email` capturing the message and an image of its HTML;

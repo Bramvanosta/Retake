@@ -73,6 +73,10 @@ export interface ReviewRules {
   diff_change_share: number;
   /** Seconds around a click (before, after) that a transition must not cover. */
   click_window_s: [number, number];
+  /** Reframed variants (vertical, square): largest move of the crop between two frames, share of the crop width. */
+  reframe_max_step: number;
+  /** …and largest change of that move between two frames (a jolt), share of the crop width. */
+  reframe_max_accel: number;
 }
 
 export const DEFAULT_RULES: Readonly<ReviewRules> = Object.freeze({
@@ -98,6 +102,8 @@ export const DEFAULT_RULES: Readonly<ReviewRules> = Object.freeze({
   long_wait_s: 3,
   diff_change_share: 0.01,
   click_window_s: [0.2, 0.4] as [number, number],
+  reframe_max_step: 0.06,
+  reframe_max_accel: 0.015,
 });
 
 export interface ReviewOptions {

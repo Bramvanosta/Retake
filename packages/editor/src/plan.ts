@@ -16,11 +16,11 @@ import type {
   TimelineVideo,
   TransitionKind,
 } from '@demo-studio/core';
-import { evalLayoutGeometry, fontFileFace, themeTokens } from '@demo-studio/components';
+import { GEOMETRY_KEYS, evalLayoutGeometry, fontFileFace, themeTokens } from '@demo-studio/components';
 import type { CaptionCue, ComponentRegistry, LayoutGeometry, SlotContext } from '@demo-studio/components';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase, clampView, isStatic, reframeTrack } from './camera.js';
-import type { ZoomMove } from './camera.js';
-import { FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from './layout.js';
+import type { ReframeTarget, ZoomMove } from './camera.js';
+import { DESIGN_SPACES, FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from './layout.js';
 import { PLAN_ASSET_SCHEME } from './plan-types.js';
 import type {
   CameraFrame,
@@ -62,6 +62,8 @@ export interface PlanEditInput {
   /** Optional extra context: used for the edit info of older timelines without a `video` block. */
   scenario?: Scenario;
   overrides?: EditOverrides;
+  /** Length (s) of the music track when the caller measured it (the planner does no I/O): its loops are then planned. */
+  musicDuration_s?: number;
 }
 
 /** The input cannot be planned (dry-run timeline, no capture…). */
@@ -72,13 +74,29 @@ export class PlanError extends Error {
   }
 }
 
-/** Defaults of a music bed (base volume, multiplier under footage, fades). */
-export const MUSIC_DEFAULTS = { volume: 0.6, duck: 0.5, fadeIn_s: 1, fadeOut_s: 2 } as const;
+/** Defaults of a music bed (base volume, multiplier under footage and its ramp, fades, loop seams). */
+export const MUSIC_DEFAULTS = { volume: 0.6, duck: 0.5, duck_ramp_s: 0.5, fadeIn_s: 1, fadeOut_s: 2, loop: true, crossfade_s: 1 } as const;
 /** Two scenes are contiguous in the capture when the second starts within this many seconds of the first's end. */
 export const CONTIGUOUS_GAP_S = 0.1;
 
-const LANDSCAPE = { width: 1920, height: 1080 };
-const VERTICAL = { width: 1080, height: 1920 };
+/**
+ * The theme default zoom (motion.default_zoom, style_bias balanced / motion — R-ED-22): a very slow zoom-in on the first
+ * marked step's target of a scene, held, and eased back out before the scene ends.
+ */
+export const DEFAULT_ZOOM = {
+  /** Ease-in length (output s): as slow as the scene allows, up to this. */
+  in_max_s: 4,
+  /** Shortest ease-in that still reads as a slow zoom; a scene with less room gets none (a note says so). */
+  in_min_s: 1.5,
+  /** Ease-out back to the full view, ending with the scene's own frames (its last frame is at 1×). */
+  out_s: 1.6,
+  out_min_s: 0.8,
+  /** Share of the room left after the mark that the ease-in may take. */
+  in_share: 0.5,
+} as const;
+
+/** Seconds around a click during which the clicked target must stay fully in view of a reframed variant. */
+export const REFRAME_CLICK_WINDOW_S = { before: 0.35, after: 0.5 } as const;
 
 interface ClipEntry {
   type: 'clip';
@@ -142,7 +160,11 @@ export function planEdit(input: PlanEditInput): EditPlan {
 
   // ── Output format ────────────────────────────────────────────────────────────
   const srcFps = cap.fps;
-  const variant: PlanVariant = ov.variant ?? 'landscape';
+  let variant: PlanVariant = ov.variant ?? 'landscape';
+  if (!(variant in DESIGN_SPACES)) {
+    warnings.add(`overrides.variant "${String(variant)}" ignored: use landscape, vertical or square`);
+    variant = 'landscape';
+  }
   let outFps = srcFps;
   if (ov.fps !== undefined) {
     if (ov.fps > 0 && ov.fps <= 120) outFps = ov.fps;
@@ -153,13 +175,20 @@ export function planEdit(input: PlanEditInput): EditPlan {
     if (ov.scale > 0 && ov.scale <= 4) scale = ov.scale;
     else warnings.add(`overrides.scale ${ov.scale} ignored: use a factor in (0, 4]`);
   }
-  const design = variant === 'landscape' ? LANDSCAPE : VERTICAL;
+  const design = DESIGN_SPACES[variant];
   const width = Math.round(design.width * scale);
   const height = Math.round(design.height * scale);
   const unit = width / design.width;
   const cssW = cap.width;
   const cssH = cap.height;
   const srcFrameCount = Math.max(1, Math.round(cap.duration * srcFps));
+  const capScale = cap.scale > 0 ? cap.scale : 1;
+  if (scale > capScale + 1e-6) {
+    warnings.add(
+      `the capture is ${Math.round(cssW * capScale)}×${Math.round(cssH * capScale)} px (scale ${capScale}): it is upscaled in this ${width}×${height} output ` +
+        `(×${round(scale / capScale, 2)}; everything else is drawn at full resolution) — capture at scale ${round(scale, 2)} for a crisp result`,
+    );
+  }
   const fr = (s: number) => Math.max(1, Math.round(s * outFps));
 
   // ── Edit info, theme, assets ─────────────────────────────────────────────────
@@ -297,12 +326,62 @@ export function planEdit(input: PlanEditInput): EditPlan {
 
   // ── Camera (per run) ──────────────────────────────────────────────────────────
   const maxZoom = t.motion.max_zoom;
+  // Theme default zoom (R-ED-22, decided 2026-10-11): only with style_bias balanced / motion; `real` keeps a static
+  // camera. At most one per scene, on the first marked step that has a target, never across a cut or a join.
+  const dz = t.motion.default_zoom;
+  let defaultZoom: number | null = null;
+  if (typeof dz === 'number' && dz > 1) {
+    if (t.style_bias === 'real') notes.add(`motion.default_zoom ${dz} not used: style_bias "real" keeps a static camera (zooms only from step camera hints)`);
+    else if (ov.camera === false) notes.add(`motion.default_zoom ${dz} not used (overrides.camera = false)`);
+    else {
+      defaultZoom = Math.min(dz, maxZoom);
+      if (dz > maxZoom) notes.add(`motion.default_zoom ${dz} clamped to the theme max_zoom ${maxZoom}`);
+    }
+  }
+  const themeZoom = (e: ClipEntry, ci: number, run: RunTiming): ZoomMove | null => {
+    if (defaultZoom === null) return null;
+    const marked = e.events.filter((ev) => ev.step >= 0 && ev.mark);
+    for (const ev of marked) {
+      const box = ev.camera?.bbox ?? ev.target?.bbox ?? ev.overlay?.bbox;
+      const point = box ? centre(box) : ev.point ?? ev.overlay?.point;
+      if (!point) continue;
+      const range = run.clipRanges[ci];
+      const start = Math.max(range.k0, outFrameAt(run, ev.t_start));
+      const room = range.k1 - start;
+      const outFrames = Math.min(DEFAULT_ZOOM.out_s * outFps, room * 0.25);
+      const inFrames = Math.min(DEFAULT_ZOOM.in_max_s * outFps, room * DEFAULT_ZOOM.in_share);
+      if (inFrames < DEFAULT_ZOOM.in_min_s * outFps || outFrames < DEFAULT_ZOOM.out_min_s * outFps) {
+        notes.add(`"${e.scene.id}": no theme zoom on the mark "${ev.mark}" (step ${ev.step}): ${secs(room / outFps)} left in the scene, too short for a slow zoom`);
+        return null;
+      }
+      notes.add(`"${e.scene.id}": theme zoom ${defaultZoom}× on the mark "${ev.mark}" (step ${ev.step}), in over ${secs(inFrames / outFps)}, out before the scene ends`);
+      return {
+        scene: e.scene.id,
+        step: ev.step,
+        zoom: defaultZoom,
+        requested: typeof dz === 'number' ? dz : defaultZoom,
+        focus: { x: round(point.x, 2), y: round(point.y, 2) },
+        start,
+        frames: round(inFrames, 3),
+        outAt: round(range.k1 - 1 - outFrames, 3),
+        outFrames: round(outFrames, 3),
+        ease: t.motion.zoom_ease,
+        source: 'theme',
+      };
+    }
+    return null;
+  };
   const camByRun = new Map<RunTiming, { track: CameraFrame[]; moves: ZoomMove[] }>();
   let hintCount = 0;
   for (const runEntries of runs) {
     const { run } = runOf.get(runEntries[0])!;
     const moves: ZoomMove[] = [];
     runEntries.forEach((e, ci) => {
+      const hinted = e.events.some((ev) => ev.camera && ev.step >= 0);
+      if (!hinted && defaultZoom !== null && ov.camera !== false) {
+        const mv = themeZoom(e, ci, run);
+        if (mv) moves.push(mv);
+      }
       for (const ev of e.events) {
         if (!ev.camera || ev.step < 0) continue;
         hintCount++;
@@ -318,7 +397,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
         const until = ev.camera.until ?? 'scene_end';
         const outAt =
           until === 'step_end' ? outFrameAt(run, stepEnd(ev)) : until === 'scene_end' ? run.clipRanges[ci].k1 : start + frames + until * outFps;
-        moves.push({ scene: e.scene.id, step: ev.step, zoom, requested, focus: { x: round(focus.x, 2), y: round(focus.y, 2) }, start, frames, outAt, ease: hintEase(ev.camera, t.motion.zoom_ease) });
+        moves.push({ scene: e.scene.id, step: ev.step, zoom, requested, focus: { x: round(focus.x, 2), y: round(focus.y, 2) }, start, frames, outAt, ease: hintEase(ev.camera, t.motion.zoom_ease), source: 'hint' });
       }
     });
     camByRun.set(run, { track: cameraTrack(moves, run.src.length, cssW, cssH), moves });
@@ -342,7 +421,8 @@ export function planEdit(input: PlanEditInput): EditPlan {
   };
   const layoutOf = (rc: ResolvedComponent | null, frameSpec: FrameSpec, where: string): PlanLayout => {
     const manifest = resolver.manifest(rc);
-    const spec = variant === 'landscape' ? manifest?.geometry : manifest?.geometry_vertical;
+    const geometryKey = GEOMETRY_KEYS[variant];
+    const spec = manifest?.[geometryKey];
     const radius = typeof rc?.params.radius === 'number' ? rc.params.radius : undefined;
     if (spec && rc) {
       // The geometry follows the params of this use (and the capture aspect): e.g. a theme `width` moves the card and
@@ -360,7 +440,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
       }
     }
     const raw = frameSpec === 'raw' || rc?.id.endsWith('layout-raw');
-    if (rc && !rc.missing) warnings.add(`${where}: layout ${rc.id} declares no ${variant === 'landscape' ? 'geometry' : 'geometry_vertical'}: default geometry used`);
+    if (rc && !rc.missing) warnings.add(`${where}: layout ${rc.id} declares no ${GEOMETRY_KEYS[variant]}: default geometry used`);
     return planLayout((raw ? RAW_GEOMETRY : FALLBACK_GEOMETRY)[variant], { variant, unit, cssWidth: cssW, cssHeight: cssH, radius, fallback: true });
   };
   const mainLayoutComponent = resolver.resolve('layout', layoutChain(undefined), 'video layout') ?? null;
@@ -497,10 +577,11 @@ export function planEdit(input: PlanEditInput): EditPlan {
       heldFrames: 0,
     };
     let reframe: Array<[number, number]> | undefined;
-    if (variant === 'vertical' && layout.crop) {
+    if (variant !== 'landscape' && layout.crop) {
       let track = reframeByRun.get(r.run);
       if (!track) {
-        track = reframeTrack({ times: r.run.p.map((p) => p / srcFps), camera: cam.track, cursor: timeline.cursor, crop: layout.crop, css: { w: cssW, h: cssH }, outFps });
+        const targets = r.entries.flatMap((x) => reframeTargets(x.events));
+        track = reframeTrack({ times: r.run.p.map((p) => p / srcFps), camera: cam.track, cursor: timeline.cursor, crop: layout.crop, css: { w: cssW, h: cssH }, outFps, targets });
         reframeByRun.set(r.run, track);
       }
       reframe = track.slice(range.k0, range.k1);
@@ -701,12 +782,13 @@ export function planEdit(input: PlanEditInput): EditPlan {
         from: m.start - k0,
         in_frames: round(m.frames),
         out_at: round(Math.max(m.outAt, m.start + m.frames) - k0),
-        out_frames: round(m.frames),
+        out_frames: round(m.outFrames ?? m.frames),
         zoom: m.zoom,
         focus: m.focus,
         view: { x: round(vx, 2), y: round(vy, 2) },
       };
       if (m.requested !== m.zoom) z.requested_zoom = m.requested;
+      if (m.source === 'theme') z.source = 'theme';
       return z;
     });
     if (seg.camera && isStatic(seg.camera)) seg.camera = null;
@@ -744,24 +826,32 @@ export function planEdit(input: PlanEditInput): EditPlan {
   if (wordmarkUrl) brand.wordmark = { url: wordmarkUrl };
 
   let music: PlanMusic | undefined;
-  let musicSpec = video.music;
-  if (ov.music === false) {
-    if (musicSpec) notes.add('music disabled (overrides.music = false)');
-    musicSpec = undefined;
-  } else if (typeof ov.music === 'string') {
-    musicSpec = { ...(musicSpec ?? {}), file: ov.music };
-    notes.add(`music: ${ov.music} (overrides.music)`);
-  }
+  if (ov.music === false && video.music) notes.add('music disabled (overrides.music = false)');
+  else if (typeof ov.music === 'string') notes.add(`music: ${ov.music} (overrides.music)`);
+  const musicSpec = musicSpecOf(video, ov);
   if (musicSpec) {
-    const file = isAbsolute(musicSpec.file) ? musicSpec.file : join(project.dir, musicSpec.file);
+    const file = musicFile(musicSpec, project);
     music = {
       url: asset('music', file),
       file,
       volume: musicSpec.volume ?? MUSIC_DEFAULTS.volume,
       duck: musicSpec.duck ?? MUSIC_DEFAULTS.duck,
+      duck_ramp_s: MUSIC_DEFAULTS.duck_ramp_s,
       fadeIn_s: MUSIC_DEFAULTS.fadeIn_s,
       fadeOut_s: MUSIC_DEFAULTS.fadeOut_s,
+      loop: musicSpec.loop ?? MUSIC_DEFAULTS.loop,
+      crossfade_s: MUSIC_DEFAULTS.crossfade_s,
     };
+    const L = input.musicDuration_s;
+    if (L !== undefined && L > 0) {
+      music.duration_s = round(L, 3);
+      music.plays = musicPlays(L, durationInFrames, outFps, music.loop, music.crossfade_s);
+      const total = secs(durationInFrames / outFps);
+      if (L * outFps >= durationInFrames) notes.add(`music: the ${secs(L)} track is trimmed to the video (${total}), faded out over ${secs(music.fadeOut_s)}`);
+      else if (!music.loop) notes.add(`music: the ${secs(L)} track plays once (loop: false); the rest of the ${total} video has no music`);
+      else notes.add(`music: the ${secs(L)} track loops ${music.plays.length}× over ${total} (seams crossfaded over ${secs(music.crossfade_s)})`);
+    }
+    notes.add(`music: volume ${music.volume} on the intro, outro and cards, ×${music.duck} under footage`);
   }
 
   const plan: EditPlan = {
@@ -815,6 +905,69 @@ export function planEdit(input: PlanEditInput): EditPlan {
     seg.heldFrames += frames;
     seg.durationInFrames += frames;
   }
+}
+
+/** The music bed of an edit: the scenario's (timeline `video.music`), replaced by `overrides.music` (a file) or removed (`false`). */
+export function musicSpecOf(video: Pick<TimelineVideo, 'music'> | undefined, ov: Pick<EditOverrides, 'music'> = {}): TimelineVideo['music'] | undefined {
+  if (ov.music === false) return undefined;
+  if (typeof ov.music === 'string') return { ...(video?.music ?? {}), file: ov.music };
+  return video?.music;
+}
+
+/** Absolute path of a music bed file (relative paths are relative to the project). */
+export function musicFile(spec: { file: string }, project: Pick<LoadedProject, 'dir'>): string {
+  return isAbsolute(spec.file) ? spec.file : join(project.dir, spec.file);
+}
+
+/**
+ * The plays of a music track of `L` seconds over a video of `total` output frames: one play when the track covers the
+ * video or `loop` is false (trimmed by the video's end), else back-to-back loops overlapping by `crossfade_s` (each
+ * fades out while the next fades in — equal-power curves in the composition). Frames are output frames.
+ */
+export function musicPlays(L: number, total: number, fps: number, loop: boolean, crossfadeS: number): Array<{ from: number; frames: number; fadeIn: number; fadeOut: number }> {
+  const len = Math.max(1, Math.floor(L * fps));
+  if (len >= total || !loop) return [{ from: 0, frames: Math.min(len, total), fadeIn: 0, fadeOut: 0 }];
+  const xf = Math.max(0, Math.min(Math.round(crossfadeS * fps), Math.floor(len / 3)));
+  const out: Array<{ from: number; frames: number; fadeIn: number; fadeOut: number }> = [];
+  for (let from = 0; from < total; from += len - xf) {
+    const frames = Math.min(len, total - from);
+    out.push({ from, frames, fadeIn: from > 0 ? xf : 0, fadeOut: 0 });
+    if (from + len >= total) break;
+  }
+  for (let i = 0; i < out.length - 1; i++) out[i].fadeOut = xf;
+  return out;
+}
+
+type ClickData = { bbox?: { x: number; y: number; w: number; h: number }; t_click?: number };
+
+/**
+ * What the reframe of a vertical / square clip keeps in view (camera.ts `reframeTrack`): each step's target over the
+ * step (soft), each click's target around the click (hard: never cut — widgets list every click of a select / date
+ * pick in `data.clicks`), camera targets (soft) and overlay anchors while the overlay shows (hard).
+ */
+export function reframeTargets(events: readonly TimelineEvent[]): ReframeTarget[] {
+  const out: ReframeTarget[] = [];
+  const W = REFRAME_CLICK_WINDOW_S;
+  for (const ev of events) {
+    if (ev.step < 0) continue;
+    const label = `${ev.scene} step ${ev.step}`;
+    const end = stepEnd(ev);
+    const box = ev.target?.bbox;
+    if (box && box.w > 0 && box.h > 0) out.push({ t0: ev.t_start, t1: end, box: { ...box }, label });
+    const data = ev.data as { clicks?: ClickData[] } | undefined;
+    const clicks = Array.isArray(data?.clicks) ? data!.clicks.filter((c) => c.bbox && typeof c.t_click === 'number') : [];
+    let prev = ev.t_start;
+    for (const c of clicks) {
+      out.push({ t0: prev, t1: Math.min(end, c.t_click! + W.after), box: { ...c.bbox! }, label: `${label} click` });
+      out.push({ t0: c.t_click! - W.before, t1: c.t_click! + W.after, box: { ...c.bbox! }, hard: true, label: `${label} click` });
+      prev = c.t_click!;
+    }
+    if (clicks.length === 0 && box && ev.t_click !== undefined) out.push({ t0: ev.t_click - W.before, t1: ev.t_click + W.after, box: { ...box }, hard: true, label: `${label} click` });
+    if (ev.camera?.bbox) out.push({ t0: ev.t_start, t1: end, box: { ...ev.camera.bbox }, label: `${label} camera` });
+    const o = ev.overlay;
+    if (o?.bbox) out.push({ t0: ev.t_end, t1: ev.t_end + (o.duration ?? 2.5), box: { ...o.bbox }, hard: true, label: `${label} overlay` });
+  }
+  return out;
 }
 
 function captionText(c: { kicker?: string; text: string }): { kicker?: string; text: string } {
