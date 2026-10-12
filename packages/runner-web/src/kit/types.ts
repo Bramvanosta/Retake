@@ -182,8 +182,11 @@ export interface KitApi {
   blankPoint(near: PointSpec): PointSpec | null;
   /** Alias of `ghost` (DESIGN §3.2 name). */
   dragGhost: KitGhostApi;
-  /** Neutral scene-start point at the right-centre of the viewport (not on an interactive element). */
-  restPoint(): PointSpec;
+  /**
+   * Neutral scene-start point (not on an interactive element): at the right-centre of the viewport, or near its centre
+   * (`centre`: a page idle in a multi-page scene — a picture-in-picture inset sits in a corner, never there).
+   */
+  restPoint(where?: 'side' | 'centre'): PointSpec;
   /**
    * Neutral scene-start point near `box` (the scene's first pointer target) whose drawn cursor never covers it,
    * inside the viewport, preferably over a non-interactive spot; `restPoint()` when no candidate fits.

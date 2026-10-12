@@ -117,7 +117,7 @@ describe('generated bundle sources', () => {
       }
     };
     visit(root);
-    expect(COMPOSITION_DEPS).toEqual(['layout', 'util', 'plan-types']);
+    expect(COMPOSITION_DEPS).toEqual(['layout', 'util', 'plan-types', 'panes']);
     // The Node side names the compositions the root registers.
     const rootSrc = readFileSync(root, 'utf8');
     expect(rootSrc).toContain(`landscape: '${COMPOSITION_IDS.landscape}'`);

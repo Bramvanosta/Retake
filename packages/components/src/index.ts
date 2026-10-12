@@ -36,6 +36,7 @@ export {
   expressionIdentifiers,
   geometryIsDynamic,
   geometryScope,
+  isMultiPaneGeometry,
   parseGeometryExpression,
 } from './geometry.js';
 export { ANCHOR_BUILTINS, ANCHOR_KEYS, anchorScope, evalAnchor, oneHotName, paramEnums } from './geometry.js';

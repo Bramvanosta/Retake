@@ -1026,12 +1026,13 @@ export function demoKit(config: KitConfig): void {
     return plan('blank', pool[0].x, pool[0].y);
   }
 
-  function restPoint(): PointSpec {
+  function restPoint(where: 'side' | 'centre' = 'side'): PointSpec {
     const W = window.innerWidth;
     const H = window.innerHeight;
-    const cands: Array<[number, number]> = [
-      [0.8, 0.5], [0.84, 0.44], [0.76, 0.58], [0.88, 0.52], [0.72, 0.46], [0.82, 0.66], [0.9, 0.36], [0.66, 0.62],
-    ];
+    const cands: Array<[number, number]> =
+      where === 'centre'
+        ? [[0.5, 0.5], [0.5, 0.42], [0.44, 0.5], [0.56, 0.5], [0.5, 0.58], [0.42, 0.42], [0.58, 0.42], [0.42, 0.58], [0.58, 0.58]]
+        : [[0.8, 0.5], [0.84, 0.44], [0.76, 0.58], [0.88, 0.52], [0.72, 0.46], [0.82, 0.66], [0.9, 0.36], [0.66, 0.62]];
     for (const [fx, fy] of cands) {
       const x = Math.round(W * fx);
       const y = Math.round(H * fy);
@@ -1041,7 +1042,7 @@ export function demoKit(config: KitConfig): void {
       if (cur === 'pointer' || cur === 'text') continue;
       return { x, y };
     }
-    return { x: Math.round(W * 0.8), y: Math.round(H * 0.5) };
+    return where === 'centre' ? { x: Math.round(W * 0.5), y: Math.round(H * 0.5) } : { x: Math.round(W * 0.8), y: Math.round(H * 0.5) };
   }
 
   /** Box covered by the drawn cursor when its hotspot is at (x, y): the arrow extends right and down. */

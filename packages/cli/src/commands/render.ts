@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, loadProjectTemplate, readJson } from '@demo-studio/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, readJson } from '@demo-studio/core';
 import type { Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, planInputFiles, renderStill, renderVideo, runScenario } from '@demo-studio/editor';
@@ -56,8 +56,8 @@ export function variantOption(opts: { vertical?: boolean; square?: boolean }): E
 }
 
 function checkFrameSpec(frame: string | undefined): void {
-  if (frame !== undefined && !(frame in FRAME_STYLE_LAYOUTS) && !COMPONENT_ID_RE.test(frame)) {
-    throw new UsageError(`--frame "${frame}": use ${Object.keys(FRAME_STYLE_LAYOUTS).join(', ')} or a layout component id (namespace/name)`);
+  if (frame !== undefined && !(frame in FRAME_STYLE_LAYOUTS) && !(frame in MULTI_PAGE_LAYOUTS) && !COMPONENT_ID_RE.test(frame)) {
+    throw new UsageError(`--frame "${frame}": use ${[...Object.keys(FRAME_STYLE_LAYOUTS), ...Object.keys(MULTI_PAGE_LAYOUTS)].join(', ')} or a layout component id (namespace/name)`);
   }
 }
 

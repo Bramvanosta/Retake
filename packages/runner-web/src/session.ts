@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
-import type { BrowserContext, Page } from 'playwright-core';
+import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import type { BrowserConfig } from '@demo-studio/core';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
@@ -179,8 +179,8 @@ export class KitClient {
   outsidePlan(near: PointSpec, avoid: number[]): Promise<OutsidePlan | null> {
     return this.call('outsidePlan', near, avoid);
   }
-  restPoint(): Promise<PointSpec> {
-    return this.call('restPoint');
+  restPoint(where?: 'side' | 'centre'): Promise<PointSpec> {
+    return where ? this.call('restPoint', where) : this.call('restPoint');
   }
   restNear(box: BBox): Promise<RestPlan> {
     return this.call('restNear', box);
@@ -270,6 +270,8 @@ export class BrowserSession {
   private readonly spare: Page[] = [];
   private activeKey: string | null = null;
   private closed = false;
+  /** Pages with their own viewport (multi-page scenes, L2.11): the CDP session that keeps it, for the whole run. */
+  private readonly emulations = new Map<Page, { session: CDPSession; key: string; ua?: string }>();
   /** Called for every web notification a page of the session shows (set by the runner). */
   onNotification: ((page: Page, n: NotificationPayload) => void) | null = null;
 
@@ -421,6 +423,46 @@ export class BrowserSession {
     return { promise, cancel: () => done(null) };
   }
 
+  /**
+   * Give one page its own viewport (a page of a multi-page scene filmed at mobile or tablet size, L2.11): device
+   * metrics (+ mobile emulation, touch and a mobile user agent) on a CDP session kept open for the whole run — the
+   * override lives as long as the session that set it (measured: detaching it brings the page back to the window
+   * size), and the recorders' own sessions only re-assert the same metrics. Re-applied only when the viewport changes.
+   */
+  async emulate(page: Page, vp: { width: number; height: number; mobile?: boolean; touch?: boolean }): Promise<void> {
+    const scale = this.options.scale;
+    const key = `${vp.width}x${vp.height}@${scale}${vp.mobile ? 'm' : ''}${vp.touch ? 't' : ''}`;
+    let e = this.emulations.get(page);
+    if (e?.key === key) return;
+    if (!e) {
+      e = { session: await this.context.newCDPSession(page), key: '' };
+      this.emulations.set(page, e);
+      page.on('close', () => this.emulations.delete(page));
+    }
+    e.key = key;
+    const s = e.session;
+    await s.send('Emulation.setDeviceMetricsOverride', {
+      width: vp.width,
+      height: vp.height,
+      deviceScaleFactor: scale,
+      mobile: vp.mobile ?? false,
+      screenWidth: vp.width,
+      screenHeight: vp.height,
+    });
+    await s.send('Emulation.setTouchEmulationEnabled', vp.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
+    if (vp.mobile) {
+      e.ua ??= await page.evaluate(() => navigator.userAgent).catch(() => undefined);
+      if (e.ua) await s.send('Emulation.setUserAgentOverride', { userAgent: mobileUserAgent(e.ua) }).catch(() => undefined);
+    } else if (e.ua) {
+      await s.send('Emulation.setUserAgentOverride', { userAgent: e.ua }).catch(() => undefined);
+    }
+  }
+
+  /** Whether a page has its own viewport (`emulate`). */
+  emulated(page: Page): boolean {
+    return this.emulations.has(page);
+  }
+
   async newPage(id: string): Promise<Page> {
     const page = await this.context.newPage();
     this.register(id, page);
@@ -433,6 +475,16 @@ export class BrowserSession {
     await this.context.close().catch(() => undefined);
     if (this.tempProfile) await rm(this.tempProfile, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * A mobile user agent derived from the browser's own (same engine and version): the platform token becomes an Android
+ * phone and "Mobile" is added, so sites that pick their layout from the user agent serve the phone one.
+ */
+export function mobileUserAgent(ua: string): string {
+  let out = ua.replace(/\([^)]*\)/, '(Linux; Android 14; K)');
+  if (!/\bMobile\b/.test(out)) out = out.replace(/ Safari\//, ' Mobile Safari/');
+  return out;
 }
 
 async function applyStorageState(context: BrowserContext, file: string): Promise<void> {

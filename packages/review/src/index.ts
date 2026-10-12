@@ -17,13 +17,16 @@ export {
   checkTextSlots,
   checkTransitionsOnClicks,
   checkTutorial,
+  checkOverlayCover,
+  COVER_SHARE,
+  STALE_TARGET_S,
   fitCaption,
   locate,
   planFontFiles,
   segmentDurations,
 } from './checks.js';
 export type { CheckContext } from './checks.js';
-export { captionOverDuring, checkPixels, overlayDuring, sourceFramesAtStarts, stillFromSource, stillPair, stillSourceFrames, viewMoves } from './pixel-checks.js';
+export { captionOverDuring, checkPixels, overlayDuring, sourceFramesAtStarts, sourceKey, sourceTrack, stillFromSource, stillPair, stillSourceFrames, viewMoves } from './pixel-checks.js';
 export type { FrameAnalysis, PixelCheckInput } from './pixel-checks.js';
 export { diffFindings, diffRecords, framePairs } from './diff.js';
 export { extractFrames, probeVideo } from './ffmpeg.js';

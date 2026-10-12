@@ -3,7 +3,7 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join } from 'node:path';
-import { COMPONENT_KINDS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, applyTutorial, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
+import { COMPONENT_KINDS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, applyTutorial, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
 import type {
   ComponentKind,
   FrameSpec,
@@ -14,10 +14,12 @@ import type {
   TimelineArtefact,
   TimelineEvent,
   TimelineScene,
+  TimelineScenePage,
+  TimelineTrack,
   TimelineVideo,
   TransitionKind,
 } from '@demo-studio/core';
-import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, paramEnums, parseCsv, themeTokens } from '@demo-studio/components';
+import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, isMultiPaneGeometry, paramEnums, parseCsv, themeTokens } from '@demo-studio/components';
 import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, PictureMedia, SlotContext } from '@demo-studio/components';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase, clampView, isStatic, reframeTrack } from './camera.js';
 import type { ReframeTarget, ZoomMove } from './camera.js';
@@ -33,9 +35,12 @@ import type {
   OutroSegment,
   OverlayUse,
   PlanBrand,
+  PlanInset,
   PlanLayout,
   PlanMusic,
+  PlanPane,
   PlanSegment,
+  PlanSource,
   PlanTransition,
   PlanVariant,
   ResolvedComponent,
@@ -50,7 +55,9 @@ import type { Candidate } from './resolve.js';
 import { DEFAULT_IDLE_THRESHOLD_S, outFrameAt, planRunTiming } from './timing.js';
 import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
-import { planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
+import { INSET_GROW, cornerOf, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
+import { captionBandOver, staysInInset } from './remotion/frames.js';
+import { planBadgeNumbers, planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 import type { TutorialResolve } from './tutorial.js';
 import type { PlanTutorial } from './plan-types.js';
 
@@ -122,6 +129,9 @@ export const DEFAULT_ZOOM = {
   in_share: 0.5,
 } as const;
 
+/** Overlays keep a step's targets clear from this many capture seconds before the step starts (the next click). */
+export const CLEAR_LOOKAHEAD_S = 1.2;
+
 /** Seconds around a click during which the clicked target must stay fully in view of a reframed variant. */
 export const REFRAME_CLICK_WINDOW_S = { before: 0.35, after: 0.5 } as const;
 
@@ -129,6 +139,8 @@ interface ClipEntry {
   type: 'clip';
   scene: TimelineScene;
   events: TimelineEvent[];
+  /** Multi-page scene (L2.11): its pages, each recorded on its own track. */
+  pages?: TimelineScenePage[];
   /** Source seconds shown [s0, s1) and frames [A, B). */
   s0: number;
   s1: number;
@@ -158,6 +170,16 @@ interface Draft {
     reframe?: Array<[number, number]>;
     moves: ZoomMove[];
   };
+}
+
+/** The URL a page's track shows at capture time `t` (its last URL segment starting at or before `t`). */
+function trackUrlAt(track: TimelineTrack, t: number): string | undefined {
+  let url: string | undefined;
+  for (const p of track.pages) {
+    if (p.t_start <= t + 1e-6) url = p.url ?? url;
+    else break;
+  }
+  return url ?? track.pages[0]?.url;
 }
 
 function pageAt(timeline: Timeline, t: number): { id: string; url?: string } | undefined {
@@ -239,6 +261,39 @@ export function planEdit(input: PlanEditInput): EditPlan {
     return url;
   };
   const captureUrl = asset('capture', input.captureFile);
+  // Per-page tracks of multi-page scenes (L2.11): every one CFR on the capture's frame grid.
+  const trackDir = input.runDir ?? dirname(input.captureFile);
+  const trackSources: Record<string, PlanSource> = {};
+  const timelineTracks = new Map<string, TimelineTrack>((timeline.tracks ?? []).map((tr) => [tr.id, tr]));
+  for (const tr of timeline.tracks ?? []) {
+    const file = join(trackDir, tr.file);
+    const name = `track-${tr.id.replace(/[^A-Za-z0-9_-]+/g, '-')}`;
+    trackSources[tr.id] = {
+      url: asset(name, file),
+      file,
+      width: Math.round(tr.width * tr.scale),
+      height: Math.round(tr.height * tr.scale),
+      cssWidth: tr.width,
+      cssHeight: tr.height,
+      scale: tr.scale,
+      fps: tr.fps,
+      frames: srcFrameCount,
+      ...(tr.mobile ? { mobile: true } : {}),
+    };
+  }
+  const mainSource: PlanSource = {
+    url: captureUrl,
+    file: input.captureFile,
+    width: Math.round(cssW * cap.scale),
+    height: Math.round(cssH * cap.scale),
+    cssWidth: cssW,
+    cssHeight: cssH,
+    scale: cap.scale,
+    fps: srcFps,
+    frames: srcFrameCount,
+  };
+  /** What the pane mapping helpers need of the plan (they are shared with the composition and the review). */
+  const planShape = { tracks: trackSources, source: mainSource, variant, fps: outFps, width, height, unit };
   const logoUrl = asset('logo', template.assets.logo);
   const wordmarkUrl = template.assets.wordmark ? asset('wordmark', template.assets.wordmark) : undefined;
   const displayUrl = asset('font-display', template.assets.display);
@@ -326,6 +381,15 @@ export function planEdit(input: PlanEditInput): EditPlan {
     }
     let t: number | undefined;
     let label = '';
+    // Multi-page scenes (L2.11): a scene start / end or a mark shows the frame of that page's own track.
+    let src: PlanSource = mainSource;
+    if (ref.kind === 'scene') {
+      const pg = timeline.scenes.find((x) => x.id === ref.scene && x.kind === 'scene')?.pages?.[0];
+      if (pg && trackSources[pg.track]) src = trackSources[pg.track];
+    } else if (ref.kind === 'mark') {
+      const page = timeline.markers.find((m) => m.name === ref.name)?.page;
+      if (page && trackSources[page]) src = trackSources[page];
+    }
     if (ref.kind === 'time') {
       t = ref.t;
       label = `${ref.t} s of the capture`;
@@ -350,7 +414,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
       }
     }
     if (t === undefined) return undefined;
-    return { kind: 'picture', name: slot, url: captureUrl, width: Math.round(cssW * capScale), height: Math.round(cssH * capScale), video: { time_s: captureFrameTime(t) }, label };
+    return { kind: 'picture', name: slot, url: src.url, width: src.width, height: src.height, video: { time_s: captureFrameTime(t) }, label };
   };
   const mediaOf = (manifest: ComponentManifest, slots: Record<string, string | undefined>, where: string): Record<string, MediaValue> | undefined => {
     let out: Record<string, MediaValue> | undefined;
@@ -461,11 +525,18 @@ export function planEdit(input: PlanEditInput): EditPlan {
     const B = Math.min(srcFrameCount, Math.ceil(s1 * srcFps - 1e-6));
     const prev = entries[entries.length - 1];
     let joined = false;
+    const pages = scene.pages && scene.pages.length > 0 ? scene.pages : undefined;
+    if (pages) {
+      const missing = pages.filter((pg) => !trackSources[pg.track]);
+      if (missing.length > 0) warnings.add(`scene "${scene.id}": no track for page${missing.length > 1 ? 's' : ''} ${missing.map((m) => `"${m.id}"`).join(', ')} in the run: shown from the main capture`);
+    }
     if (prev && prev.type === 'clip' && !open) {
       const gap = s0 - prev.s1;
+      // Single-page scenes: the same page of the main capture; multi-page scenes: the same pages (their tracks).
+      const samePages = pages || prev.pages ? (pages ?? []).map((p) => p.id).join('|') === (prev.pages ?? []).map((p) => p.id).join('|') : undefined;
       const pagePrev = pageAt(timeline, Math.max(prev.s0, prev.s1 - 1e-3))?.id ?? prev.scene.page;
       const pageNext = pageAt(timeline, s0)?.id ?? scene.page;
-      if (gap <= CONTIGUOUS_GAP_S && gap >= -CONTIGUOUS_GAP_S && pagePrev === pageNext) {
+      if (gap <= CONTIGUOUS_GAP_S && gap >= -CONTIGUOUS_GAP_S && (samePages ?? pagePrev === pageNext)) {
         joined = true;
         A = prev.B;
         notes.add(`"${scene.id}" continues "${prev.scene.id}" on the same page: joined without a transition (the camera continues)`);
@@ -486,7 +557,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     }
     if (!(speed > 0)) speed = 1;
     if (open) notes.add(`"${scene.id}": page load ${secs(open.t_start)}–${secs(s0)} of the capture is not shown`);
-    entries.push({ type: 'clip', scene, events, s0, s1, A, B, joined, speed });
+    entries.push({ type: 'clip', scene, events, s0, s1, A, B, joined, speed, ...(pages && pages.every((pg) => trackSources[pg.track]) ? { pages } : {}) });
   }
   for (const id of Object.keys(ov.speeds ?? {})) {
     if (!timeline.scenes.some((s) => s.id === id && s.kind === 'scene')) warnings.add(`overrides.speeds["${id}"]: no captured scene "${id}" in this run`);
@@ -576,25 +647,29 @@ export function planEdit(input: PlanEditInput): EditPlan {
     }
     return null;
   };
-  const camByRun = new Map<RunTiming, { track: CameraFrame[]; moves: ZoomMove[] }>();
+  type RunCamera = { track: CameraFrame[]; moves: ZoomMove[] };
+  // Multi-page runs (L2.11): one camera per page (its own steps' hints and theme zoom, on its own page size).
+  const camByRun = new Map<RunTiming, RunCamera & { pages?: Map<string, RunCamera> }>();
   let hintCount = 0;
-  for (const runEntries of runs) {
-    const { run } = runOf.get(runEntries[0])!;
+  const runCamera = (runEntries: ClipEntry[], run: RunTiming, page: string | undefined, cursor: Timeline['cursor'], W: number, H: number): RunCamera => {
     const moves: ZoomMove[] = [];
     runEntries.forEach((e, ci) => {
+      const evs = page === undefined ? e.events : e.events.filter((ev) => ev.page === page);
       const hinted = e.events.some((ev) => ev.camera && ev.step >= 0);
-      if (!hinted && defaultZoom !== null && ov.camera !== false) {
-        const mv = themeZoom(e, ci, run);
+      // The theme zoom of a multi-page scene goes to the page of its first marked step (at most one per scene).
+      const firstMarked = e.events.find((ev) => ev.step >= 0 && ev.mark && (ev.camera?.bbox ?? ev.target?.bbox ?? ev.overlay?.bbox ?? ev.point ?? ev.overlay?.point));
+      if (!hinted && defaultZoom !== null && ov.camera !== false && (page === undefined || firstMarked?.page === page)) {
+        const mv = themeZoom({ ...e, events: evs }, ci, run);
         if (mv) moves.push(mv);
       }
-      for (const ev of e.events) {
+      for (const ev of evs) {
         if (!ev.camera || ev.step < 0) continue;
         hintCount++;
         if (ov.camera === false) continue;
         const requested = ev.camera.zoom;
         const zoom = clamp(requested, 1, maxZoom);
         if (requested > maxZoom) notes.add(`"${e.scene.id}" step ${ev.step}: zoom ${requested} clamped to the theme max_zoom ${maxZoom}`);
-        const focus = ev.camera.bbox ? centre(ev.camera.bbox) : ev.camera.point ? { ...ev.camera.point } : (cursorAt(timeline.cursor, ev.t_end, false) ?? { x: cssW / 2, y: cssH / 2 });
+        const focus = ev.camera.bbox ? centre(ev.camera.bbox) : ev.camera.point ? { ...ev.camera.point } : (cursorAt(cursor, ev.t_end, false) ?? { x: W / 2, y: H / 2 });
         const start = outFrameAt(run, ev.t_start);
         if (start >= run.clipRanges[ci].k1) continue;
         const stepFrames = Math.max(0, outFrameAt(run, ev.t_end) - start);
@@ -605,7 +680,19 @@ export function planEdit(input: PlanEditInput): EditPlan {
         moves.push({ scene: e.scene.id, step: ev.step, zoom, requested, focus: { x: round(focus.x, 2), y: round(focus.y, 2) }, start, frames, outAt, ease: hintEase(ev.camera, t.motion.zoom_ease), source: 'hint' });
       }
     });
-    camByRun.set(run, { track: cameraTrack(moves, run.src.length, cssW, cssH), moves });
+    return { track: cameraTrack(moves, run.src.length, W, H), moves };
+  };
+  for (const runEntries of runs) {
+    const { run } = runOf.get(runEntries[0])!;
+    const pages = runEntries[0].pages;
+    if (pages) {
+      const per = new Map<string, RunCamera>();
+      for (const pg of pages) {
+        const tr = timelineTracks.get(pg.track)!;
+        per.set(pg.id, runCamera(runEntries, run, pg.id, tr.cursor, tr.width, tr.height));
+      }
+      camByRun.set(run, { track: cameraTrack([], run.src.length, cssW, cssH), moves: [...per.values()].flatMap((c) => c.moves), pages: per });
+    } else camByRun.set(run, runCamera(runEntries, run, undefined, timeline.cursor, cssW, cssH));
   }
   if (ov.camera === false && hintCount > 0) notes.add(`camera disabled (overrides.camera = false): ${hintCount} zoom hint${hintCount === 1 ? '' : 's'} ignored`);
 
@@ -654,6 +741,106 @@ export function planEdit(input: PlanEditInput): EditPlan {
   // ── Drafts ────────────────────────────────────────────────────────────────────
   const drafts: Draft[] = [];
   const reframeByRun = new Map<RunTiming, Array<[number, number]>>();
+  const paneReframeByRun = new Map<string, Array<[number, number]>>();
+  let runKeys = 0;
+  const runKey = new Map<RunTiming, number>();
+
+  /**
+   * The panes of a multi-page clip (L2.11): the layout's geometry evaluated with both pages' aspects, each page's
+   * output rect (split: top-aligned in its pane; picture in picture: the main page in `screen`, the other in `inset`),
+   * its camera (its own steps' zooms; none in an inset), its reframe in vertical / square, its URLs.
+   */
+  function planPanes(e: ClipEntry, rc: ResolvedComponent, where: string, r: { run: RunTiming; entries: ClipEntry[] }, range: { k0: number; k1: number }): { layout: PlanLayout; panes: PlanPane[]; inset?: PlanInset } | null {
+    const pages = e.pages!;
+    const manifest = resolver.manifest(rc);
+    const spec = manifest?.[GEOMETRY_KEYS[variant]] ?? manifest?.geometry;
+    if (!spec || !isMultiPaneGeometry(spec)) {
+      warnings.add(`${where}: layout ${rc.id} shows one page: the scene's ${pages.length} pages cannot be placed (the first one is shown)`);
+      return null;
+    }
+    const css = (pg: TimelineScenePage) => trackSources[pg.track];
+    const aspectOf = (pg: TimelineScenePage) => css(pg).cssWidth / css(pg).cssHeight;
+    // Picture in picture: the main page is the landscape one when the first page is a portrait one (a phone).
+    let ordered = [...pages];
+    const isPip = spec.inset !== undefined;
+    if (isPip && ordered.length === 2 && aspectOf(ordered[0]) < 1 && aspectOf(ordered[1]) >= 1) {
+      ordered = [ordered[1], ordered[0]];
+      notes.add(`${where}: "${ordered[0].id}" is the main page, "${ordered[1].id}" (narrower) the inset`);
+    }
+    let g: LayoutGeometry;
+    try {
+      g = evalLayoutGeometry(spec, rc.params, { aspect: aspectOf(ordered[0]), aspect2: aspectOf(ordered[1] ?? ordered[0]) });
+    } catch (err) {
+      warnings.add(`${where}: layout ${rc.id}: ${(err as Error).message}`);
+      return null;
+    }
+    const outside = geometryOutside(g, variant);
+    if (outside.length > 0) warnings.add(`${where}: layout ${rc.id}: ${outside.join(', ')} leave${outside.length === 1 ? 's' : ''} the frame`);
+    const radius = g.radius ?? (typeof rc.params.radius === 'number' ? rc.params.radius : 0);
+    const s = (x: { x: number; y: number; w: number; h: number }) => ({ x: round(x.x * unit, 3), y: round(x.y * unit, 3), w: round(x.w * unit, 3), h: round(x.h * unit, 3) });
+    const layout: PlanLayout = { capture: s(g.screen), card: s(g.screen), radius: round(radius * unit, 3) };
+    if (g.caption) layout.caption = s(g.caption);
+    if (g.brandmark) layout.brandmark = s(g.brandmark);
+    const rects = isPip ? [g.screen, g.inset!] : g.panes!;
+    if (!runKey.has(r.run)) runKey.set(r.run, runKeys++);
+    const camRun = camByRun.get(r.run)!;
+    const panes: PlanPane[] = [];
+    ordered.forEach((pg, i) => {
+      const src = css(pg);
+      const rect = rects[i];
+      if (!rect) return;
+      const inset = isPip && i === 1;
+      const paneLayout = planPaneLayout(rect, { variant, unit, cssWidth: src.cssWidth, cssHeight: src.cssHeight, radius: inset ? Math.min(radius, 22) : radius, top: !isPip });
+      if (inset) {
+        // The inset is drawn at its rect exactly (its aspect is the page's): the planner moves it between corners.
+        paneLayout.capture = s(rect);
+        paneLayout.card = s(rect);
+        delete paneLayout.crop;
+      }
+      const pc = camRun.pages?.get(pg.id);
+      let camera: CameraFrame[] | null = pc ? pc.track.slice(range.k0, range.k1) : null;
+      const moves = pc ? pc.moves.filter((m) => m.scene === e.scene.id) : [];
+      if (inset && moves.length > 0) {
+        notes.add(`${where}: no zoom in the inset page "${pg.id}" (${moves.length} zoom${moves.length > 1 ? 's' : ''} ignored)`);
+        camera = null;
+      }
+      const pane: PlanPane = { page: pg.id, track: pg.track, layout: paneLayout, camera, urls: [], zooms: [] };
+      if (pg.label !== undefined) pane.label = pg.label;
+      if (inset) pane.inset = true;
+      if (!inset) {
+        pane.zooms = moves.map((m): ZoomSpan => {
+          const [vx, vy] = clampView(m.zoom, m.focus.x, m.focus.y, src.cssWidth, src.cssHeight);
+          const z: ZoomSpan = { scene: m.scene, step: m.step, from: m.start - range.k0, in_frames: round(m.frames), out_at: round(Math.max(m.outAt, m.start + m.frames) - range.k0), out_frames: round(m.outFrames ?? m.frames), zoom: m.zoom, focus: m.focus, view: { x: round(vx, 2), y: round(vy, 2) } };
+          if (m.requested !== m.zoom) z.requested_zoom = m.requested;
+          if (m.source === 'theme') z.source = 'theme';
+          return z;
+        });
+      }
+      if (paneLayout.crop) {
+        const key = `${runKey.get(r.run)}:${pg.id}`;
+        let track = paneReframeByRun.get(key);
+        if (!track) {
+          const tl = timelineTracks.get(pg.track)!;
+          const evsOf = (x: ClipEntry) => x.events.filter((ev) => ev.page === pg.id);
+          const targets = r.entries.flatMap((x) => [...reframeTargets(evsOf(x)), ...(tutorialOn ? tutorialReframeTargets(evsOf(x), (ev) => stateOf(x.scene, ev)) : [])]);
+          const camTrack = pc?.track ?? cameraTrack([], r.run.src.length, src.cssWidth, src.cssHeight);
+          // A scene where this page only rests (the other page acts) lets its view settle on the page's content.
+          const settle = r.entries.slice(1).filter((x) => !x.events.some((ev) => ev.step >= 0 && ev.status !== 'skipped' && ev.page === pg.id)).map((x) => x.s0);
+          track = reframeTrack({ times: r.run.p.map((p) => p / srcFps), camera: camTrack, cursor: tl.cursor, crop: paneLayout.crop, css: { w: src.cssWidth, h: src.cssHeight }, outFps, targets, settle });
+          paneReframeByRun.set(key, track);
+        }
+        pane.reframe = track.slice(range.k0, range.k1);
+      }
+      panes.push(pane);
+    });
+    let inset: PlanInset | undefined;
+    if (isPip && panes.length === 2) {
+      const emphasis = rc.params.emphasis;
+      const grow = emphasis === 'none' ? 1 : emphasis === 'grow' || t.style_bias !== 'real' ? INSET_GROW : 1;
+      inset = { pane: 1, track: [{ at: 0, corner: cornerOf(panes[0].layout.capture, panes[1].layout.capture), rect: { ...panes[1].layout.capture } }], grow };
+    }
+    return { layout, panes, ...(inset ? { inset } : {}) };
+  }
   const base = (id: string, durationInFrames: number, component: ResolvedComponent) => ({
     id,
     from: 0,
@@ -749,12 +936,33 @@ export function planEdit(input: PlanEditInput): EditPlan {
     }
     const where = `scene "${id}"`;
     const frameSpec: FrameSpec = ov.frame ?? e.scene.frame ?? videoFrame;
-    const layoutRc =
+    let layoutRc =
       e.scene.frame === undefined && ov.components?.[id] === undefined
         ? mainLayoutComponent
         : resolver.resolve('layout', layoutChain(e.scene.frame, id), where);
+    // L2.11: a multi-page scene needs a layout that shows several pages, a single-page scene one that shows one.
+    const multiPane = (rc: ResolvedComponent | null | undefined) => {
+      const m = resolver.manifest(rc);
+      return isMultiPaneGeometry(m?.[GEOMETRY_KEYS[variant]] ?? m?.geometry);
+    };
+    const pageCss = (pg: TimelineScenePage) => trackSources[pg.track] ?? { cssWidth: cssW, cssHeight: cssH };
+    if (e.pages && !multiPane(layoutRc)) {
+      const aspects = e.pages.map((pg) => pageCss(pg).cssWidth / pageCss(pg).cssHeight);
+      const kind = aspects.some((a) => a < 0.9) && aspects.some((a) => a >= 1.2) ? 'pip' : 'split';
+      const auto = resolver.resolve('layout', [resolver.multiPageCandidate(kind, 'builtin-default', 'the multi-page default')], where);
+      if (auto) {
+        notes.add(`${where} films ${e.pages.length} pages: ${auto.id}${layoutRc ? ` (${layoutRc.id} shows one page)` : ''}`);
+        layoutRc = auto;
+      }
+    } else if (!e.pages && multiPane(layoutRc)) {
+      const single = resolver.resolve('layout', [resolver.themeCandidate('layout'), resolver.builtinCandidate('layout')].filter((c) => c.ref !== null), where);
+      const msg = `${where} films one page: ${layoutRc!.id} shows several, ${single?.id ?? 'the built-in layout'} used`;
+      if (e.scene.frame !== undefined) warnings.add(msg);
+      else notes.add(msg);
+      layoutRc = single;
+    }
     const layoutComponent = layoutRc ?? resolver.resolve('layout', [resolver.builtinCandidate('layout')], where)!;
-    const layout = layoutRc === mainLayoutComponent ? mainLayout : layoutOf(layoutComponent, frameSpec, where);
+    let layout = layoutRc === mainLayoutComponent && !multiPane(layoutRc) ? mainLayout : layoutOf(layoutComponent, frameSpec, where);
     const captionRc = captionsOn
       ? resolver.resolve('caption', [...kindOverride('caption'), ...themeAndBuiltin('caption')], where, {
           ctx: { ...slotBase, scene: { caption: e.scene.caption } },
@@ -782,7 +990,21 @@ export function planEdit(input: PlanEditInput): EditPlan {
       heldFrames: 0,
     };
     let reframe: Array<[number, number]> | undefined;
-    if (variant !== 'landscape' && layout.crop) {
+    if (e.pages) {
+      const mp = planPanes(e, layoutComponent, where, r, range);
+      if (mp) {
+        layout = mp.layout;
+        seg.layout = layout;
+        seg.panes = mp.panes;
+        if (mp.inset) seg.inset = mp.inset;
+        // A caption band drawn over the screen would straddle both pages of a split (and hide what they act on):
+        // it goes to the layout's caption area, below the pages. A picture in picture keeps it over its main page.
+        if (!mp.inset && captionRc && captionRc.params.position === 'over') {
+          seg.caption = { ...captionRc, params: { ...captionRc.params, position: 'area' } };
+          notes.add(`${where}: the caption band goes below the pages (over the screen it would straddle both)`);
+        }
+      }
+    } else if (variant !== 'landscape' && layout.crop) {
       let track = reframeByRun.get(r.run);
       if (!track) {
         const targets = r.entries.flatMap((x) => [...reframeTargets(x.events), ...(tutorialOn ? tutorialReframeTargets(x.events, (ev) => stateOf(x.scene, ev)) : [])]);
@@ -943,28 +1165,63 @@ export function planEdit(input: PlanEditInput): EditPlan {
       if (o.bbox) use.anchor = { bbox: { ...o.bbox } };
       else if (o.point) use.anchor = { point: { ...o.point } };
       else notes.add(`${where}: no anchor recorded — the overlay places itself`);
+      // Multi-page clip: the overlay belongs to the page the step acted on.
+      const pi = paneIndexOf(seg, ev.page);
+      if (pi >= 0) use.pane = pi;
       seg.overlays.push(use);
     }
 
     // Tutorial overlays (L2.10): the spotlight is drawn over the capture, under everything else; badges, loupe and key
     // caps under the scenario's own step overlays.
     if (tutorialOn) {
-      const uses = planClipTutorial({
-        scene: entry.scene,
-        events: entry.events,
-        rel,
-        n,
-        duration: seg.durationInFrames,
-        fps: outFps,
-        css: { w: cssW, h: cssH },
-        stateOf: (ev) => stateOf(entry.scene, ev),
-        resolve: tutorialResolve,
-        counter: videoBadges,
-        durationOf: (rc) => resolver.manifest(rc)?.duration?.default,
-        out: tutorial,
-        segmentFrom: F,
+      // A multi-page clip plans each page's overlays on its own page (its events, its size) — in that page's pane.
+      const groups = seg.panes
+        ? seg.panes.map((p, i) => ({ pane: i, events: entry.events.filter((ev) => ev.step < 0 || ev.page === p.page), css: { w: paneSource(planShape, p).cssWidth, h: paneSource(planShape, p).cssHeight } }))
+        : [{ pane: -1, events: entry.events, css: { w: cssW, h: cssH } }];
+      // Badges are numbered once over the whole clip, in time order (steps may go back and forth between pages).
+      const badgeNumbers = planBadgeNumbers(entry.events, (ev) => stateOf(entry.scene, ev), videoBadges);
+      const uses = groups.flatMap((gr) => {
+        const list = planClipTutorial({
+          scene: entry.scene,
+          events: gr.events,
+          rel,
+          n,
+          duration: seg.durationInFrames,
+          fps: outFps,
+          css: gr.css,
+          stateOf: (ev) => stateOf(entry.scene, ev),
+          resolve: tutorialResolve,
+          counter: videoBadges,
+          badgeNumbers,
+          durationOf: (rc) => resolver.manifest(rc)?.duration?.default,
+          out: tutorial,
+          segmentFrom: F,
+        });
+        if (gr.pane >= 0) for (const u of list) u.pane = gr.pane;
+        return list;
       });
       seg.overlays = [...uses.filter((u) => u.layer === 'screen'), ...uses.filter((u) => u.layer !== 'screen'), ...seg.overlays];
+    }
+
+    // Overlays keep clear of what the viewer is about to look at (L2.11 polish): the targets of the step they belong to
+    // and of the next click step(s) — key caps take the other row, a lens or a badge another side.
+    const clipSteps = entry.events.filter((ev) => ev.step >= 0 && ev.status !== 'skipped');
+    for (const use of seg.overlays) {
+      if (!use.tutorial || use.tutorial === 'spotlight') continue;
+      const page = use.pane !== undefined ? seg.panes?.[use.pane]?.page : undefined;
+      // An inset page's key caps or lens are drawn over the main page: its targets count too (mapped through its pane).
+      const over = use.pane !== undefined && seg.inset?.pane === use.pane && !staysInInset(use) ? 0 : undefined;
+      const end = use.from + use.durationInFrames;
+      const clear: NonNullable<OverlayUse['clear']> = [];
+      for (const ev of clipSteps) {
+        const other = page !== undefined && ev.page !== page;
+        if (other && (over === undefined || ev.page !== seg.panes![over].page)) continue;
+        const a = rel(ev.t_start - CLEAR_LOOKAHEAD_S);
+        const b = rel(stepEnd(ev)) + 1;
+        if (b <= use.from || a >= end) continue;
+        for (const box of stepBoxes(ev)) clear.push({ from: Math.max(0, a - use.from), to: Math.min(use.durationInFrames, b - use.from), bbox: { ...box }, ...(other ? { pane: over } : {}) });
+      }
+      if (clear.length > 0) use.clear = clear;
     }
 
     // Provenance: which step produced each output frame (held frames belong to the last step).
@@ -979,11 +1236,71 @@ export function planEdit(input: PlanEditInput): EditPlan {
     });
     seg.steps = steps;
 
-    // URLs (browser chrome) along the clip.
-    seg.srcFrames.forEach((f, k) => {
-      const url = pageAt(timeline, f / srcFps)?.url ?? entry.scene.url;
-      if (url && seg.urls[seg.urls.length - 1]?.url !== url) seg.urls.push({ frame: k, url });
-    });
+    // URLs (browser chrome) along the clip: of the main capture, or of each page's track.
+    if (seg.panes) {
+      for (const pane of seg.panes) {
+        const tr = timelineTracks.get(pane.track);
+        const scenePage = entry.pages?.find((p) => p.id === pane.page);
+        seg.srcFrames.forEach((f, k) => {
+          const url = (tr ? trackUrlAt(tr, f / srcFps) : undefined) ?? scenePage?.url;
+          if (url && pane.urls[pane.urls.length - 1]?.url !== url) pane.urls.push({ frame: k, url });
+        });
+      }
+    } else {
+      seg.srcFrames.forEach((f, k) => {
+        const url = pageAt(timeline, f / srcFps)?.url ?? entry.scene.url;
+        if (url && seg.urls[seg.urls.length - 1]?.url !== url) seg.urls.push({ frame: k, url });
+      });
+    }
+
+    // Multi-page clips (L2.11): the acting page over time, and where a picture-in-picture inset sits.
+    if (seg.panes) {
+      const paneOf = (page: string | undefined) => paneIndexOf(seg, page);
+      const stepsOn = entry.events.filter((ev) => ev.step >= 0 && ev.status !== 'skipped');
+      const still = entry.events.find((ev) => ev.action === 'scene_still');
+      // A clip joined to the previous one (same pages, no cut) continues its acting page and its inset corner.
+      const prevSeg = drafts[i - 1]?.seg;
+      const continued = entry.joined && prevSeg?.kind === 'clip' && prevSeg.panes?.map((p) => p.page).join('|') === seg.panes.map((p) => p.page).join('|') ? prevSeg : undefined;
+      const prevActing = continued?.acting?.[continued.acting.length - 1]?.pane;
+      // The page of the opening still (= of the first step) acts from the clip's start, a joined clip included.
+      const opening = paneOf(still?.page ?? stepsOn[0]?.page);
+      const first = opening >= 0 ? opening : (prevActing ?? 0);
+      seg.acting = planActing(stepsOn, paneOf, rel, outFps, first, prevActing);
+      if (seg.inset) {
+        const main = seg.panes[0];
+        const insetPane = seg.panes[seg.inset.pane];
+        const corners = insetCornerRects(main.layout.capture, insetPane.layout.capture);
+        const band = captionBandOver(planShape, seg);
+        const planned = planInsetTrack({
+          steps: stepsOn,
+          mainPage: main.page,
+          insetPage: insetPane.page,
+          rel,
+          n,
+          fps: outFps,
+          mapMain: (f, box) => mapPaneRect(planShape, seg, 0, f, box),
+          corners,
+          preferred: seg.inset.track[0].corner,
+          grow: seg.inset.grow,
+          ...(band ? { avoid: [band] } : {}),
+          clearance: 14 * unit,
+          ...(continued?.inset ? { initial: continued.inset.track[continued.inset.track.length - 1].corner } : {}),
+        });
+        seg.inset.track = planned.track;
+        if (band && seg.inset.grow > 1) {
+          let g = growClearOf(planned.track, seg.inset.grow, [band], 8 * unit);
+          if (g - 1 < 0.04) g = 1; // a growth that would not read
+          if (g < seg.inset.grow) {
+            notes.add(`scene "${entry.scene.id}": the inset ${g === 1 ? 'does not grow' : `grows ×${g} (not ×${seg.inset.grow})`} while its page acts: it keeps clear of the caption band`);
+            seg.inset.grow = g;
+          }
+        }
+        if (planned.reasons?.length) {
+          seg.inset.reasons = planned.reasons;
+          notes.add(`scene "${entry.scene.id}": inset ${planned.reasons.join('; ')}`);
+        }
+      }
+    }
 
     // Speeds, trims, zooms, time map.
     const r = srcFps / outFps;
@@ -1033,6 +1350,10 @@ export function planEdit(input: PlanEditInput): EditPlan {
       return z;
     });
     if (seg.camera && isStatic(seg.camera)) seg.camera = null;
+    if (seg.panes) {
+      seg.zooms = seg.panes.flatMap((p) => p.zooms);
+      for (const p of seg.panes) if (p.camera && isStatic(p.camera)) p.camera = null;
+    }
 
     for (const mk of timeline.markers) {
       if (mk.scene !== entry.scene.id) continue;
@@ -1157,17 +1478,8 @@ export function planEdit(input: PlanEditInput): EditPlan {
     frame: videoFrame,
     brand,
     layout: mainLayout,
-    source: {
-      url: captureUrl,
-      file: input.captureFile,
-      width: Math.round(cssW * cap.scale),
-      height: Math.round(cssH * cap.scale),
-      cssWidth: cssW,
-      cssHeight: cssH,
-      scale: cap.scale,
-      fps: srcFps,
-      frames: srcFrameCount,
-    },
+    source: mainSource,
+    ...(Object.keys(trackSources).length > 0 ? { tracks: trackSources } : {}),
     segments,
     captions,
     markers,
@@ -1193,6 +1505,16 @@ export function planEdit(input: PlanEditInput): EditPlan {
       if (d.clip.reframe) {
         const rf = d.clip.reframe[d.clip.reframe.length - 1];
         for (let k = 0; k < frames; k++) d.clip.reframe.push(rf);
+      }
+    }
+    for (const p of seg.panes ?? []) {
+      if (p.camera) {
+        const c = p.camera[p.camera.length - 1];
+        for (let k = 0; k < frames; k++) p.camera.push(c);
+      }
+      if (p.reframe) {
+        const rf = p.reframe[p.reframe.length - 1];
+        for (let k = 0; k < frames; k++) p.reframe.push(rf);
       }
     }
     seg.heldFrames += frames;

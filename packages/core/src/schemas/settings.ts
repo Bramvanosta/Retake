@@ -40,6 +40,7 @@ export const PacingSchema = z
     ),
     popup_timeout_ms: millis().describe('How long the last click strategy waits for an expected popup before reporting it missing.'),
     type_cps: z.number().gt(0).describe('Typing speed, characters per second (9–24).'),
+    page_switch_ms: millis().describe('Multi-page scenes: pause before a step that acts on another page than the previous step (its cursor then glides from where it rests).'),
     scroll_duration: positiveSeconds().describe('Smooth scroll duration in seconds (1.5–2).'),
     scroll_offset: z.number().describe('Default scroll offset with a target (−140 ⇒ the target ends 140 px below the top).'),
     jitter: z.number().min(0).max(0.5).describe('Deterministic ±fraction jitter applied to durations (0 = none).'),

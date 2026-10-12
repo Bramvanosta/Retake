@@ -11,13 +11,12 @@ import {
   liftToContrast,
   mixColors,
   nightTone,
-  parseShortcut,
   progress,
   readableOn,
   roundTo,
   safeAreaRect,
   shortcutPlateBox,
-  shortcutPlateMetrics,
+  shortcutPlateLayout,
   withAlpha,
 } from '@demo-studio/components/kit';
 import type { ComponentProps, KeyPlatform } from '@demo-studio/components/kit';
@@ -42,9 +41,11 @@ function depth(frame: number, at: number, hold: number): number {
  */
 export default function OverlayShortcut({ theme, slots, params, unit, width, height, fps, durationInFrames, rects, moment, variant, avoid }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const caps = parseShortcut(slots.keys ?? '', params.platform);
-  if (caps.length === 0) return null;
-  const m = shortcutPlateMetrics(params.size, unit, variant);
+  const times = Math.max(1, Math.min(99, Number.parseInt(slots.times ?? '1', 10) || 1));
+  // Measured by the kit (the composition and the review place the plate with the same numbers).
+  const plateLayout = shortcutPlateLayout({ keys: slots.keys ?? '', ...(slots.label ? { label: slots.label } : {}), times, platform: params.platform, size: params.size, unit, variant, fontFamily: theme.fonts.body });
+  if (plateLayout.caps.length === 0) return null;
+  const m = plateLayout.metrics;
   const u = m.u;
   const bias = biasMotion(theme.style_bias);
   const { dark, light } = darkLight(theme);
@@ -58,26 +59,10 @@ export default function OverlayShortcut({ theme, slots, params, unit, width, hei
   const { capH, pad, gap } = m;
   const radius = capH * 0.2;
   const press = moment ?? Math.round(0.3 * fps);
-  const times = Math.max(1, Math.min(99, Number.parseInt(slots.times ?? '1', 10) || 1));
   const repeat = Math.max(2, Math.round(REPEAT_S * fps));
-  const pc = params.platform !== 'mac';
-
-  // Cap sizes: a symbol or a letter is square; a word is as wide as its text.
+  const { pc, plus, plusW, label, countLabel, capsW, labelW, W, H } = plateLayout;
+  const layouts = plateLayout.caps;
   const font = theme.fonts.body;
-  const layouts = caps.map((c) => {
-    const word = c.glyph ? null : capTextLayout({ text: c.label, width: 600 * u, maxFontSize: capH * (c.label.length > 1 ? 0.34 : 0.44), minFontSize: capH * 0.2, maxLines: 1, lineHeight: 1.1, fontFamily: font, fontWeight: 600 });
-    const w = c.glyph || !c.wide ? capH : Math.max(capH, (word?.width ?? 0) + capH * 0.6);
-    return { cap: c, word, w };
-  });
-  const plus = pc ? capTextLayout({ text: '+', width: 200, maxFontSize: capH * 0.36, minFontSize: capH * 0.2, maxLines: 1, fontFamily: font, fontWeight: 500 }) : null;
-  const plusW = plus ? plus.width + gap * 2 : gap;
-  const label = slots.label ? capTextLayout({ text: slots.label, width: 520 * u, maxFontSize: capH * 0.32, minFontSize: capH * 0.2, maxLines: 1, lineHeight: 1.1, fontFamily: font, fontWeight: 500 }) : null;
-  const countLabel = times > 1 ? capTextLayout({ text: `× ${times}`, width: 200 * u, maxFontSize: capH * 0.3, minFontSize: capH * 0.18, maxLines: 1, fontFamily: font, fontWeight: 600 }) : null;
-  const capsW = layouts.reduce((s, l) => s + l.w, 0) + (layouts.length - 1) * (pc ? plusW : gap);
-  const labelW = label ? label.width + capH * 0.4 : 0;
-  const countW = countLabel ? countLabel.width + capH * 0.5 + gap : 0;
-  const W = capsW + labelW + countW + 2 * pad;
-  const H = m.height;
 
   const inset = m.inset;
   const screen = rects?.screen;

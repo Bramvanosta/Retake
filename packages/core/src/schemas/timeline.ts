@@ -16,6 +16,17 @@ import {
 const t = () => z.number().min(0).describe('Capture time in seconds.');
 const CaptionObject = z.strictObject({ kicker: z.string().optional(), text: z.string() });
 
+const ViewportObject = z.strictObject({
+  width: z.number().int().gt(0),
+  height: z.number().int().gt(0),
+  mobile: z.boolean().optional(),
+  touch: z.boolean().optional(),
+  preset: z.enum(['desktop', 'laptop', 'tablet', 'mobile']).optional(),
+});
+
+const PageSegmentSchema = z.strictObject({ id: nonEmpty(), t_start: t(), t_end: t(), url: z.string().optional() });
+const CursorSampleSchema = z.strictObject({ t: t(), x: z.number(), y: z.number(), visible: z.boolean(), down: z.boolean().optional() });
+
 const TimelineSceneSchema = z.strictObject({
   id: nonEmpty(),
   index: z.number().int().min(0),
@@ -49,8 +60,40 @@ const TimelineSceneSchema = z.strictObject({
     })
     .optional(),
   tutorial: TutorialSwitchSchema.optional(),
+  pages: z
+    .array(
+      z.strictObject({
+        id: nonEmpty(),
+        page: z.string().optional(),
+        label: z.string().optional(),
+        viewport: ViewportObject,
+        url: z.string().optional(),
+        track: nonEmpty(),
+      }),
+    )
+    .describe('Multi-page scene: the pages filmed at the same time, each on its own track.')
+    .optional(),
   status: z.enum(['ok', 'failed', 'skipped', 'partial']),
 });
+
+const TimelineTrackSchema = z
+  .strictObject({
+    id: nonEmpty(),
+    file: z.string().describe('CFR video relative to the run directory (capture-<page>.mp4).'),
+    frames_file: z.string(),
+    width: z.number().int().gt(0),
+    height: z.number().int().gt(0),
+    scale: z.number().gt(0),
+    mobile: z.boolean().optional(),
+    touch: z.boolean().optional(),
+    preset: z.enum(['desktop', 'laptop', 'tablet', 'mobile']).optional(),
+    fps: z.number().gt(0),
+    frames: z.number().int().min(0),
+    recording: z.array(z.strictObject({ t_start: t(), t_end: t() })),
+    pages: z.array(PageSegmentSchema),
+    cursor: z.array(CursorSampleSchema),
+  })
+  .describe('A page recorded on its own track (multi-page scenes), on the capture clock.');
 
 const IntroOutroBase = { component: z.string().optional(), params: ComponentParamsSchema.optional(), duration: z.number().optional() };
 
@@ -199,13 +242,12 @@ export const TimelineSchema = z
     video: TimelineVideoSchema.optional(),
     scenes: z.array(TimelineSceneSchema),
     events: z.array(TimelineEventSchema),
-    markers: z.array(z.strictObject({ name: nonEmpty(), t: t(), scene: nonEmpty(), step: z.number().int() })),
-    pages: z.array(z.strictObject({ id: nonEmpty(), t_start: t(), t_end: t(), url: z.string().optional() })),
-    cursor: z.array(
-      z.strictObject({ t: t(), x: z.number(), y: z.number(), visible: z.boolean(), down: z.boolean().optional() }),
-    ),
+    markers: z.array(z.strictObject({ name: nonEmpty(), t: t(), scene: nonEmpty(), step: z.number().int(), page: z.string().optional() })),
+    pages: z.array(PageSegmentSchema),
+    cursor: z.array(CursorSampleSchema),
     idle: z.array(z.strictObject({ t_start: t(), t_end: t() })),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
+    tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
     warnings: z.array(z.string()),
   })
   .meta({

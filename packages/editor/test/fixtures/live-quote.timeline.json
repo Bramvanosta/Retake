@@ -1,0 +1,2833 @@
+{
+  "version": 1,
+  "run_id": "20261012-073840-live-quote",
+  "project": "northfield-fixture",
+  "scenario": "live-quote",
+  "created_at": "2026-10-12T07:38:40.898Z",
+  "mode": "capture",
+  "capture": {
+    "file": "capture.mp4",
+    "width": 1440,
+    "height": 900,
+    "scale": 1,
+    "fps": 30,
+    "duration": 38.415,
+    "t0_wall": 1791790721290,
+    "frames": 495
+  },
+  "video": {
+    "title": {
+      "kicker": "Both sides",
+      "text": "From request to proposal in real time"
+    },
+    "outro": {
+      "tagline": "Cafés and roasters, on the same page."
+    },
+    "frame": "split",
+    "template": "editorial",
+    "tutorial": {
+      "steps": true
+    }
+  },
+  "scenes": [
+    {
+      "id": "request",
+      "index": 0,
+      "kind": "scene",
+      "t_start": 0.001,
+      "t_end": 13.826,
+      "page": "buyer",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "buyer",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "buyer",
+          "page": "shop",
+          "label": "Café · shop"
+        },
+        {
+          "id": "supplier",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4401/quotes",
+          "track": "supplier",
+          "page": "console",
+          "label": "Roaster · console"
+        }
+      ],
+      "caption": {
+        "kicker": "The café",
+        "text": "Asks for a quote on a coffee: quantity, bag size, grind."
+      },
+      "url": "http://localhost:4402/products/selowa-ridge",
+      "t_actions": 3.467
+    },
+    {
+      "id": "delivery",
+      "index": 1,
+      "kind": "scene",
+      "t_start": 13.826,
+      "t_end": 24.496,
+      "page": "buyer",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "buyer",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "buyer",
+          "page": "shop",
+          "label": "Café · shop"
+        },
+        {
+          "id": "supplier",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4401/quotes",
+          "track": "supplier",
+          "page": "console",
+          "label": "Roaster · console"
+        }
+      ],
+      "caption": {
+        "kicker": "The café",
+        "text": "Picks a delivery window and sends the request."
+      },
+      "url": "http://localhost:4402/products/selowa-ridge",
+      "t_actions": 15.445
+    },
+    {
+      "id": "arrives",
+      "index": 2,
+      "kind": "scene",
+      "t_start": 24.496,
+      "t_end": 31.179,
+      "page": "buyer",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "buyer",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "buyer",
+          "page": "shop",
+          "label": "Café · shop"
+        },
+        {
+          "id": "supplier",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4401/quotes",
+          "track": "supplier",
+          "page": "console",
+          "label": "Roaster · console"
+        }
+      ],
+      "caption": {
+        "kicker": "The roaster",
+        "text": "Sees the request arrive, live, and sends a proposal."
+      },
+      "url": "http://localhost:4402/products/selowa-ridge",
+      "t_actions": 26.112
+    },
+    {
+      "id": "proposal",
+      "index": 3,
+      "kind": "scene",
+      "t_start": 31.18,
+      "t_end": 38.415,
+      "page": "buyer",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "buyer",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "buyer",
+          "page": "shop",
+          "label": "Café · shop"
+        },
+        {
+          "id": "supplier",
+          "viewport": {
+            "width": 1440,
+            "height": 900,
+            "mobile": false,
+            "touch": false,
+            "preset": "laptop"
+          },
+          "url": "http://localhost:4401/quotes",
+          "track": "supplier",
+          "page": "console",
+          "label": "Roaster · console"
+        }
+      ],
+      "caption": {
+        "kicker": "The café",
+        "text": "Gets the proposal a second later."
+      },
+      "url": "http://localhost:4402/products/selowa-ridge",
+      "t_actions": 32.813
+    }
+  ],
+  "events": [
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.128,
+      "t_end": 0.81,
+      "page": "buyer",
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/products/selowa-ridge"
+      },
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.81,
+      "t_end": 1.488,
+      "page": "supplier",
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4401/quotes"
+      },
+      "url": "http://localhost:4401/quotes"
+    },
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 1.868,
+      "t_end": 3.467,
+      "page": "buyer",
+      "status": "ok",
+      "point": {
+        "x": 995,
+        "y": 843
+      },
+      "data": {
+        "cursor": {
+          "buyer": {
+            "mode": "auto",
+            "how": "teleport",
+            "to": {
+              "x": 995,
+              "y": 843
+            },
+            "anchor": "button \"Request a quote\"",
+            "side": "below-right"
+          },
+          "supplier": {
+            "mode": "auto",
+            "how": "teleport",
+            "to": {
+              "x": 720,
+              "y": 450
+            },
+            "side": "idle"
+          }
+        }
+      }
+    },
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": 0,
+      "action": "click",
+      "t_start": 3.468,
+      "t_end": 5.197,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Request a quote\"",
+        "bbox": {
+          "x": 750,
+          "y": 753.42,
+          "w": 189.02,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 845,
+        "y": 776
+      },
+      "t_click": 4.173,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": 1,
+      "action": "click",
+      "t_start": 5.198,
+      "t_end": 6.859,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Increase\"",
+        "bbox": {
+          "x": 670,
+          "y": 322.5,
+          "w": 40,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 690,
+        "y": 342
+      },
+      "t_click": 6.374,
+      "strategy": "real",
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": 2,
+      "action": "select",
+      "t_start": 6.859,
+      "t_end": 10.764,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Choose a size\"",
+        "bbox": {
+          "x": 729,
+          "y": 321.5,
+          "w": 302,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 880,
+        "y": 342
+      },
+      "t_click": 8.14,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "5 kg",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 880,
+              "y": 342
+            },
+            "t_click": 8.14,
+            "desc": "combobox \"Choose a size\"",
+            "bbox": {
+              "x": 729,
+              "y": 321.5,
+              "w": 302,
+              "h": 40
+            },
+            "popup_ms": 131
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 880,
+              "y": 429
+            },
+            "t_click": 10.291,
+            "desc": "option \"5 kg\"",
+            "bbox": {
+              "x": 736,
+              "y": 411,
+              "w": 288,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "request",
+      "scene_index": 0,
+      "step": 3,
+      "action": "select",
+      "t_start": 10.764,
+      "t_end": 13.825,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Choose a grind\"",
+        "bbox": {
+          "x": 409,
+          "y": 406,
+          "w": 302,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 560,
+        "y": 426
+      },
+      "t_click": 11.757,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "Whole bean",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 560,
+              "y": 426
+            },
+            "t_click": 11.757,
+            "desc": "combobox \"Choose a grind\"",
+            "bbox": {
+              "x": 409,
+              "y": 406,
+              "w": 302,
+              "h": 40
+            },
+            "popup_ms": 116
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 560,
+              "y": 477
+            },
+            "t_click": 13.332,
+            "desc": "option \"Whole bean\"",
+            "bbox": {
+              "x": 416,
+              "y": 459,
+              "w": 288,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 13.845,
+      "t_end": 15.445,
+      "page": "buyer",
+      "status": "ok",
+      "point": {
+        "x": 1087,
+        "y": 575
+      },
+      "data": {
+        "cursor": {
+          "buyer": {
+            "mode": "auto",
+            "how": "glide",
+            "to": {
+              "x": 1087,
+              "y": 575
+            },
+            "from": {
+              "x": 560,
+              "y": 477
+            },
+            "anchor": "button \"Delivery window\"",
+            "side": "below-right",
+            "move_ms": 509
+          },
+          "supplier": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 720,
+              "y": 450
+            },
+            "from": {
+              "x": 720,
+              "y": 450
+            }
+          }
+        }
+      }
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": 0,
+      "action": "click",
+      "t_start": 15.446,
+      "t_end": 17.488,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Delivery window\"",
+        "bbox": {
+          "x": 409,
+          "y": 490.5,
+          "w": 622,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 720,
+        "y": 511
+      },
+      "t_click": 16.557,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": 1,
+      "action": "click",
+      "t_start": 17.488,
+      "t_end": 19.039,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Next month\"",
+        "bbox": {
+          "x": 998,
+          "y": 115,
+          "w": 34,
+          "h": 34
+        }
+      },
+      "point": {
+        "x": 1015,
+        "y": 132
+      },
+      "t_click": 18.578,
+      "strategy": "real",
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": 2,
+      "action": "click",
+      "t_start": 19.04,
+      "t_end": 20.889,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Sunday, 10 January 2027\"",
+        "bbox": {
+          "x": 987.56,
+          "y": 664,
+          "w": 40.42,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1008,
+        "y": 683
+      },
+      "t_click": 20.399,
+      "strategy": "real",
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": 3,
+      "action": "click",
+      "t_start": 20.89,
+      "t_end": 22.467,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Sunday, 24 January 2027\"",
+        "bbox": {
+          "x": 987.56,
+          "y": 334,
+          "w": 40.42,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 1008,
+        "y": 353
+      },
+      "t_click": 22.029,
+      "strategy": "real",
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": 4,
+      "action": "click",
+      "t_start": 22.468,
+      "t_end": 24.488,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Send request\"",
+        "bbox": {
+          "x": 883.94,
+          "y": 704,
+          "w": 147.06,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 957,
+        "y": 723
+      },
+      "t_click": 23.551,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": -1,
+      "action": "notification",
+      "t_start": 24.174,
+      "t_end": 24.174,
+      "status": "ok",
+      "page": "supplier",
+      "url": "http://localhost:4401/quotes",
+      "data": {
+        "name": "quote-request",
+        "index": 1,
+        "title": "New quote request",
+        "body": "Demo Café asks for Selowa Ridge · 2 × 5 kg",
+        "tag": "quote-request",
+        "artefact": "artefacts/notifications/quote-request.json",
+        "via": "Notification"
+      }
+    },
+    {
+      "scene": "delivery",
+      "scene_index": 1,
+      "step": 5,
+      "action": "wait_for",
+      "t_start": 24.489,
+      "t_end": 24.495,
+      "status": "ok",
+      "data": {
+        "waited_ms": 6
+      },
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "arrives",
+      "scene_index": 2,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 24.512,
+      "t_end": 26.112,
+      "page": "supplier",
+      "status": "ok",
+      "point": {
+        "x": 720,
+        "y": 450
+      },
+      "data": {
+        "cursor": {
+          "buyer": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 957,
+              "y": 723
+            },
+            "from": {
+              "x": 957,
+              "y": 723
+            }
+          },
+          "supplier": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 720,
+              "y": 450
+            },
+            "from": {
+              "x": 720,
+              "y": 450
+            },
+            "anchor": "button \"Send proposal\""
+          }
+        }
+      }
+    },
+    {
+      "scene": "arrives",
+      "scene_index": 2,
+      "step": 0,
+      "action": "wait_for",
+      "t_start": 26.112,
+      "t_end": 26.116,
+      "status": "ok",
+      "mark": "request-arrived",
+      "data": {
+        "waited_ms": 4
+      },
+      "page": "supplier",
+      "url": "http://localhost:4401/quotes"
+    },
+    {
+      "scene": "arrives",
+      "scene_index": 2,
+      "step": 1,
+      "action": "click",
+      "t_start": 26.117,
+      "t_end": 27.868,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Send proposal\"",
+        "bbox": {
+          "x": 1262.77,
+          "y": 232.34,
+          "w": 116.23,
+          "h": 32
+        }
+      },
+      "point": {
+        "x": 1321,
+        "y": 248
+      },
+      "t_click": 26.971,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "supplier",
+      "url": "http://localhost:4401/quotes"
+    },
+    {
+      "scene": "arrives",
+      "scene_index": 2,
+      "step": 2,
+      "action": "click",
+      "t_start": 27.869,
+      "t_end": 29.958,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Send proposal\"",
+        "bbox": {
+          "x": 815.83,
+          "y": 523,
+          "w": 155.17,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 893,
+        "y": 542
+      },
+      "t_click": 28.987,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "supplier",
+      "url": "http://localhost:4401/quotes"
+    },
+    {
+      "scene": "arrives",
+      "scene_index": 2,
+      "step": 3,
+      "action": "wait_for",
+      "t_start": 29.959,
+      "t_end": 29.968,
+      "status": "ok",
+      "data": {
+        "waited_ms": 9
+      },
+      "page": "supplier",
+      "url": "http://localhost:4401/quotes"
+    },
+    {
+      "scene": "arrives",
+      "scene_index": 2,
+      "step": 4,
+      "action": "hold",
+      "t_start": 29.968,
+      "t_end": 31.176,
+      "status": "ok",
+      "hold": {
+        "t_start": 29.968,
+        "t_end": 31.176
+      },
+      "page": "supplier",
+      "url": "http://localhost:4401/quotes"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 3,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 31.212,
+      "t_end": 32.813,
+      "page": "buyer",
+      "status": "ok",
+      "point": {
+        "x": 957,
+        "y": 723
+      },
+      "data": {
+        "cursor": {
+          "buyer": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 957,
+              "y": 723
+            },
+            "from": {
+              "x": 957,
+              "y": 723
+            },
+            "anchor": "button \"Notifications, 1 unread\""
+          },
+          "supplier": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 893,
+              "y": 542
+            },
+            "from": {
+              "x": 893,
+              "y": 542
+            }
+          }
+        }
+      }
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 3,
+      "step": 0,
+      "action": "click",
+      "t_start": 32.813,
+      "t_end": 34.615,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Notifications, 1 unread\"",
+        "bbox": {
+          "x": 1120.56,
+          "y": 15,
+          "w": 42,
+          "h": 42
+        }
+      },
+      "point": {
+        "x": 1142,
+        "y": 36
+      },
+      "t_click": 33.716,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "buyer",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 3,
+      "step": 1,
+      "action": "click",
+      "t_start": 34.615,
+      "t_end": 36.805,
+      "status": "ok",
+      "target": {
+        "desc": "button \"New proposal from Northfield RoastersSelowa Ridge…\"",
+        "bbox": {
+          "x": 754,
+          "y": 129,
+          "w": 408,
+          "h": 92.5
+        }
+      },
+      "point": {
+        "x": 958,
+        "y": 175
+      },
+      "t_click": 35.304,
+      "strategy": "real",
+      "data": {
+        "navigation": {
+          "kind": "url",
+          "url": "http://localhost:4402/quotes/1043"
+        }
+      },
+      "page": "buyer",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 3,
+      "step": 2,
+      "action": "wait_for",
+      "t_start": 36.805,
+      "t_end": 36.815,
+      "status": "ok",
+      "mark": "proposal",
+      "data": {
+        "waited_ms": 9
+      },
+      "page": "buyer",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "proposal",
+      "scene_index": 3,
+      "step": 3,
+      "action": "hold",
+      "t_start": 36.815,
+      "t_end": 38.415,
+      "status": "ok",
+      "hold": {
+        "t_start": 36.815,
+        "t_end": 38.415
+      },
+      "page": "buyer",
+      "url": "http://localhost:4402/quotes/1043"
+    }
+  ],
+  "markers": [
+    {
+      "name": "request-arrived",
+      "t": 26.112,
+      "scene": "arrives",
+      "step": 0,
+      "page": "supplier"
+    },
+    {
+      "name": "proposal",
+      "t": 36.805,
+      "scene": "proposal",
+      "step": 2,
+      "page": "buyer"
+    }
+  ],
+  "pages": [],
+  "cursor": [],
+  "idle": [
+    {
+      "t_start": 1.901,
+      "t_end": 3.55
+    },
+    {
+      "t_start": 24.595,
+      "t_end": 26.197
+    },
+    {
+      "t_start": 31.528,
+      "t_end": 32.903
+    },
+    {
+      "t_start": 36.035,
+      "t_end": 38.415
+    }
+  ],
+  "artefacts": [
+    {
+      "kind": "notification",
+      "name": "quote-request",
+      "t": 24.174,
+      "scene": "delivery",
+      "step": 4,
+      "file": "artefacts/notifications/quote-request.json",
+      "index": 1,
+      "title": "New quote request",
+      "body": "Demo Café asks for Selowa Ridge · 2 × 5 kg",
+      "tag": "quote-request",
+      "icon_url": "http://localhost:4401/app-icon.svg",
+      "origin": "http://localhost:4401",
+      "page": "supplier",
+      "via": "Notification",
+      "time": "2026-10-12T07:39:05.457Z",
+      "icon": {
+        "file": "artefacts/notifications/quote-request-icon.png",
+        "width": 192,
+        "height": 192
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "id": "buyer",
+      "file": "capture-buyer.mp4",
+      "frames_file": "frames-buyer.jsonl",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "preset": "laptop",
+      "fps": 30,
+      "frames": 495,
+      "recording": [
+        {
+          "t_start": 0.026,
+          "t_end": 38.415
+        }
+      ],
+      "pages": [
+        {
+          "id": "buyer",
+          "t_start": 0.026,
+          "t_end": 35.425,
+          "url": "http://localhost:4402/products/selowa-ridge"
+        },
+        {
+          "id": "buyer",
+          "t_start": 35.425,
+          "t_end": 38.415,
+          "url": "http://localhost:4402/quotes/1043"
+        }
+      ],
+      "cursor": [
+        {
+          "t": 1.51,
+          "x": 995,
+          "y": 843,
+          "visible": true
+        },
+        {
+          "t": 3.532,
+          "x": 994,
+          "y": 843,
+          "visible": true
+        },
+        {
+          "t": 3.56,
+          "x": 993,
+          "y": 842,
+          "visible": true
+        },
+        {
+          "t": 3.584,
+          "x": 992,
+          "y": 841,
+          "visible": true
+        },
+        {
+          "t": 3.6,
+          "x": 989,
+          "y": 838,
+          "visible": true
+        },
+        {
+          "t": 3.616,
+          "x": 986,
+          "y": 836,
+          "visible": true
+        },
+        {
+          "t": 3.635,
+          "x": 981,
+          "y": 832,
+          "visible": true
+        },
+        {
+          "t": 3.654,
+          "x": 975,
+          "y": 827,
+          "visible": true
+        },
+        {
+          "t": 3.672,
+          "x": 966,
+          "y": 821,
+          "visible": true
+        },
+        {
+          "t": 3.692,
+          "x": 956,
+          "y": 815,
+          "visible": true
+        },
+        {
+          "t": 3.716,
+          "x": 942,
+          "y": 806,
+          "visible": true
+        },
+        {
+          "t": 3.732,
+          "x": 921,
+          "y": 796,
+          "visible": true
+        },
+        {
+          "t": 3.757,
+          "x": 907,
+          "y": 790,
+          "visible": true
+        },
+        {
+          "t": 3.783,
+          "x": 888,
+          "y": 785,
+          "visible": true
+        },
+        {
+          "t": 3.802,
+          "x": 873,
+          "y": 781,
+          "visible": true
+        },
+        {
+          "t": 3.819,
+          "x": 864,
+          "y": 779,
+          "visible": true
+        },
+        {
+          "t": 3.831,
+          "x": 858,
+          "y": 778,
+          "visible": true
+        },
+        {
+          "t": 3.85,
+          "x": 853,
+          "y": 777,
+          "visible": true
+        },
+        {
+          "t": 3.867,
+          "x": 850,
+          "y": 777,
+          "visible": true
+        },
+        {
+          "t": 3.884,
+          "x": 848,
+          "y": 776,
+          "visible": true
+        },
+        {
+          "t": 3.9,
+          "x": 846,
+          "y": 776,
+          "visible": true
+        },
+        {
+          "t": 3.919,
+          "x": 845,
+          "y": 776,
+          "visible": true
+        },
+        {
+          "t": 4.178,
+          "x": 845,
+          "y": 776,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 4.401,
+          "x": 845,
+          "y": 776,
+          "visible": true
+        },
+        {
+          "t": 5.242,
+          "x": 845,
+          "y": 775,
+          "visible": true
+        },
+        {
+          "t": 5.324,
+          "x": 844,
+          "y": 774,
+          "visible": true
+        },
+        {
+          "t": 5.412,
+          "x": 839,
+          "y": 766,
+          "visible": true
+        },
+        {
+          "t": 5.484,
+          "x": 827,
+          "y": 749,
+          "visible": true
+        },
+        {
+          "t": 5.552,
+          "x": 807,
+          "y": 718,
+          "visible": true
+        },
+        {
+          "t": 5.623,
+          "x": 778,
+          "y": 670,
+          "visible": true
+        },
+        {
+          "t": 5.697,
+          "x": 743,
+          "y": 597,
+          "visible": true
+        },
+        {
+          "t": 5.777,
+          "x": 714,
+          "y": 508,
+          "visible": true
+        },
+        {
+          "t": 5.847,
+          "x": 701,
+          "y": 439,
+          "visible": true
+        },
+        {
+          "t": 5.909,
+          "x": 695,
+          "y": 392,
+          "visible": true
+        },
+        {
+          "t": 5.972,
+          "x": 692,
+          "y": 363,
+          "visible": true
+        },
+        {
+          "t": 6.037,
+          "x": 691,
+          "y": 348,
+          "visible": true
+        },
+        {
+          "t": 6.101,
+          "x": 690,
+          "y": 343,
+          "visible": true
+        },
+        {
+          "t": 6.168,
+          "x": 690,
+          "y": 342,
+          "visible": true
+        },
+        {
+          "t": 6.387,
+          "x": 690,
+          "y": 342,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 6.481,
+          "x": 690,
+          "y": 342,
+          "visible": true
+        },
+        {
+          "t": 6.993,
+          "x": 691,
+          "y": 342,
+          "visible": true
+        },
+        {
+          "t": 7.072,
+          "x": 694,
+          "y": 343,
+          "visible": true
+        },
+        {
+          "t": 7.181,
+          "x": 701,
+          "y": 345,
+          "visible": true
+        },
+        {
+          "t": 7.264,
+          "x": 714,
+          "y": 348,
+          "visible": true
+        },
+        {
+          "t": 7.347,
+          "x": 735,
+          "y": 352,
+          "visible": true
+        },
+        {
+          "t": 7.427,
+          "x": 764,
+          "y": 356,
+          "visible": true
+        },
+        {
+          "t": 7.502,
+          "x": 802,
+          "y": 357,
+          "visible": true
+        },
+        {
+          "t": 7.569,
+          "x": 832,
+          "y": 353,
+          "visible": true
+        },
+        {
+          "t": 7.645,
+          "x": 853,
+          "y": 348,
+          "visible": true
+        },
+        {
+          "t": 7.712,
+          "x": 867,
+          "y": 345,
+          "visible": true
+        },
+        {
+          "t": 7.785,
+          "x": 875,
+          "y": 343,
+          "visible": true
+        },
+        {
+          "t": 7.857,
+          "x": 879,
+          "y": 342,
+          "visible": true
+        },
+        {
+          "t": 7.923,
+          "x": 880,
+          "y": 342,
+          "visible": true
+        },
+        {
+          "t": 8.17,
+          "x": 880,
+          "y": 342,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 8.267,
+          "x": 880,
+          "y": 342,
+          "visible": true
+        },
+        {
+          "t": 9.211,
+          "x": 880,
+          "y": 343,
+          "visible": true
+        },
+        {
+          "t": 9.301,
+          "x": 880,
+          "y": 344,
+          "visible": true
+        },
+        {
+          "t": 9.376,
+          "x": 881,
+          "y": 347,
+          "visible": true
+        },
+        {
+          "t": 9.448,
+          "x": 883,
+          "y": 353,
+          "visible": true
+        },
+        {
+          "t": 9.526,
+          "x": 885,
+          "y": 362,
+          "visible": true
+        },
+        {
+          "t": 9.6,
+          "x": 886,
+          "y": 375,
+          "visible": true
+        },
+        {
+          "t": 9.672,
+          "x": 887,
+          "y": 392,
+          "visible": true
+        },
+        {
+          "t": 9.743,
+          "x": 885,
+          "y": 406,
+          "visible": true
+        },
+        {
+          "t": 9.822,
+          "x": 883,
+          "y": 416,
+          "visible": true
+        },
+        {
+          "t": 9.9,
+          "x": 882,
+          "y": 423,
+          "visible": true
+        },
+        {
+          "t": 9.97,
+          "x": 881,
+          "y": 426,
+          "visible": true
+        },
+        {
+          "t": 10.035,
+          "x": 880,
+          "y": 428,
+          "visible": true
+        },
+        {
+          "t": 10.103,
+          "x": 880,
+          "y": 429,
+          "visible": true
+        },
+        {
+          "t": 10.295,
+          "x": 880,
+          "y": 429,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 10.4,
+          "x": 880,
+          "y": 429,
+          "visible": true
+        },
+        {
+          "t": 10.861,
+          "x": 879,
+          "y": 429,
+          "visible": true
+        },
+        {
+          "t": 10.931,
+          "x": 875,
+          "y": 430,
+          "visible": true
+        },
+        {
+          "t": 11.004,
+          "x": 864,
+          "y": 433,
+          "visible": true
+        },
+        {
+          "t": 11.067,
+          "x": 843,
+          "y": 438,
+          "visible": true
+        },
+        {
+          "t": 11.136,
+          "x": 807,
+          "y": 445,
+          "visible": true
+        },
+        {
+          "t": 11.187,
+          "x": 753,
+          "y": 452,
+          "visible": true
+        },
+        {
+          "t": 11.249,
+          "x": 684,
+          "y": 451,
+          "visible": true
+        },
+        {
+          "t": 11.304,
+          "x": 631,
+          "y": 443,
+          "visible": true
+        },
+        {
+          "t": 11.366,
+          "x": 596,
+          "y": 435,
+          "visible": true
+        },
+        {
+          "t": 11.433,
+          "x": 575,
+          "y": 430,
+          "visible": true
+        },
+        {
+          "t": 11.502,
+          "x": 564,
+          "y": 427,
+          "visible": true
+        },
+        {
+          "t": 11.563,
+          "x": 560,
+          "y": 426,
+          "visible": true
+        },
+        {
+          "t": 11.773,
+          "x": 560,
+          "y": 426,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 11.87,
+          "x": 560,
+          "y": 426,
+          "visible": true
+        },
+        {
+          "t": 12.773,
+          "x": 560,
+          "y": 427,
+          "visible": true
+        },
+        {
+          "t": 12.864,
+          "x": 561,
+          "y": 429,
+          "visible": true
+        },
+        {
+          "t": 12.936,
+          "x": 563,
+          "y": 439,
+          "visible": true
+        },
+        {
+          "t": 13.01,
+          "x": 564,
+          "y": 460,
+          "visible": true
+        },
+        {
+          "t": 13.084,
+          "x": 561,
+          "y": 473,
+          "visible": true
+        },
+        {
+          "t": 13.153,
+          "x": 560,
+          "y": 477,
+          "visible": true
+        },
+        {
+          "t": 13.336,
+          "x": 560,
+          "y": 477,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 13.444,
+          "x": 560,
+          "y": 477,
+          "visible": true
+        },
+        {
+          "t": 14.184,
+          "x": 561,
+          "y": 477,
+          "visible": true
+        },
+        {
+          "t": 14.269,
+          "x": 562,
+          "y": 478,
+          "visible": true
+        },
+        {
+          "t": 14.334,
+          "x": 569,
+          "y": 481,
+          "visible": true
+        },
+        {
+          "t": 14.408,
+          "x": 584,
+          "y": 488,
+          "visible": true
+        },
+        {
+          "t": 14.491,
+          "x": 611,
+          "y": 500,
+          "visible": true
+        },
+        {
+          "t": 14.498,
+          "x": 653,
+          "y": 518,
+          "visible": true
+        },
+        {
+          "t": 14.575,
+          "x": 682,
+          "y": 530,
+          "visible": true
+        },
+        {
+          "t": 14.65,
+          "x": 755,
+          "y": 554,
+          "visible": true
+        },
+        {
+          "t": 14.739,
+          "x": 851,
+          "y": 574,
+          "visible": true
+        },
+        {
+          "t": 14.845,
+          "x": 934,
+          "y": 580,
+          "visible": true
+        },
+        {
+          "t": 14.914,
+          "x": 996,
+          "y": 580,
+          "visible": true
+        },
+        {
+          "t": 14.985,
+          "x": 1038,
+          "y": 578,
+          "visible": true
+        },
+        {
+          "t": 15.06,
+          "x": 1065,
+          "y": 576,
+          "visible": true
+        },
+        {
+          "t": 15.128,
+          "x": 1080,
+          "y": 575,
+          "visible": true
+        },
+        {
+          "t": 15.206,
+          "x": 1086,
+          "y": 575,
+          "visible": true
+        },
+        {
+          "t": 15.276,
+          "x": 1087,
+          "y": 575,
+          "visible": true
+        },
+        {
+          "t": 15.489,
+          "x": 1086,
+          "y": 575,
+          "visible": true
+        },
+        {
+          "t": 15.564,
+          "x": 1085,
+          "y": 574,
+          "visible": true
+        },
+        {
+          "t": 15.635,
+          "x": 1077,
+          "y": 571,
+          "visible": true
+        },
+        {
+          "t": 15.706,
+          "x": 1060,
+          "y": 563,
+          "visible": true
+        },
+        {
+          "t": 15.782,
+          "x": 1028,
+          "y": 550,
+          "visible": true
+        },
+        {
+          "t": 15.852,
+          "x": 979,
+          "y": 531,
+          "visible": true
+        },
+        {
+          "t": 15.936,
+          "x": 906,
+          "y": 513,
+          "visible": true
+        },
+        {
+          "t": 16.013,
+          "x": 833,
+          "y": 506,
+          "visible": true
+        },
+        {
+          "t": 16.092,
+          "x": 781,
+          "y": 507,
+          "visible": true
+        },
+        {
+          "t": 16.156,
+          "x": 748,
+          "y": 509,
+          "visible": true
+        },
+        {
+          "t": 16.224,
+          "x": 730,
+          "y": 510,
+          "visible": true
+        },
+        {
+          "t": 16.293,
+          "x": 722,
+          "y": 511,
+          "visible": true
+        },
+        {
+          "t": 16.36,
+          "x": 720,
+          "y": 511,
+          "visible": true
+        },
+        {
+          "t": 16.563,
+          "x": 720,
+          "y": 511,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 16.683,
+          "x": 720,
+          "y": 511,
+          "visible": true
+        },
+        {
+          "t": 17.533,
+          "x": 721,
+          "y": 510,
+          "visible": true
+        },
+        {
+          "t": 17.601,
+          "x": 722,
+          "y": 509,
+          "visible": true
+        },
+        {
+          "t": 17.671,
+          "x": 731,
+          "y": 502,
+          "visible": true
+        },
+        {
+          "t": 17.736,
+          "x": 751,
+          "y": 486,
+          "visible": true
+        },
+        {
+          "t": 17.804,
+          "x": 786,
+          "y": 458,
+          "visible": true
+        },
+        {
+          "t": 17.878,
+          "x": 838,
+          "y": 412,
+          "visible": true
+        },
+        {
+          "t": 17.949,
+          "x": 903,
+          "y": 338,
+          "visible": true
+        },
+        {
+          "t": 18.019,
+          "x": 954,
+          "y": 259,
+          "visible": true
+        },
+        {
+          "t": 18.092,
+          "x": 984,
+          "y": 201,
+          "visible": true
+        },
+        {
+          "t": 18.159,
+          "x": 1001,
+          "y": 164,
+          "visible": true
+        },
+        {
+          "t": 18.233,
+          "x": 1010,
+          "y": 143,
+          "visible": true
+        },
+        {
+          "t": 18.299,
+          "x": 1014,
+          "y": 134,
+          "visible": true
+        },
+        {
+          "t": 18.374,
+          "x": 1015,
+          "y": 132,
+          "visible": true
+        },
+        {
+          "t": 18.586,
+          "x": 1015,
+          "y": 132,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 18.691,
+          "x": 1015,
+          "y": 132,
+          "visible": true
+        },
+        {
+          "t": 19.152,
+          "x": 1015,
+          "y": 133,
+          "visible": true
+        },
+        {
+          "t": 19.283,
+          "x": 1014,
+          "y": 138,
+          "visible": true
+        },
+        {
+          "t": 19.357,
+          "x": 1010,
+          "y": 150,
+          "visible": true
+        },
+        {
+          "t": 19.425,
+          "x": 1004,
+          "y": 175,
+          "visible": true
+        },
+        {
+          "t": 19.489,
+          "x": 994,
+          "y": 215,
+          "visible": true
+        },
+        {
+          "t": 19.561,
+          "x": 981,
+          "y": 275,
+          "visible": true
+        },
+        {
+          "t": 19.629,
+          "x": 970,
+          "y": 358,
+          "visible": true
+        },
+        {
+          "t": 19.713,
+          "x": 969,
+          "y": 461,
+          "visible": true
+        },
+        {
+          "t": 19.781,
+          "x": 978,
+          "y": 543,
+          "visible": true
+        },
+        {
+          "t": 19.844,
+          "x": 989,
+          "y": 602,
+          "visible": true
+        },
+        {
+          "t": 19.915,
+          "x": 998,
+          "y": 642,
+          "visible": true
+        },
+        {
+          "t": 19.985,
+          "x": 1004,
+          "y": 666,
+          "visible": true
+        },
+        {
+          "t": 20.059,
+          "x": 1007,
+          "y": 678,
+          "visible": true
+        },
+        {
+          "t": 20.125,
+          "x": 1008,
+          "y": 682,
+          "visible": true
+        },
+        {
+          "t": 20.193,
+          "x": 1008,
+          "y": 683,
+          "visible": true
+        },
+        {
+          "t": 20.426,
+          "x": 1008,
+          "y": 683,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 20.533,
+          "x": 1008,
+          "y": 683,
+          "visible": true
+        },
+        {
+          "t": 20.972,
+          "x": 1008,
+          "y": 682,
+          "visible": true
+        },
+        {
+          "t": 21.041,
+          "x": 1009,
+          "y": 678,
+          "visible": true
+        },
+        {
+          "t": 21.108,
+          "x": 1012,
+          "y": 668,
+          "visible": true
+        },
+        {
+          "t": 21.172,
+          "x": 1017,
+          "y": 648,
+          "visible": true
+        },
+        {
+          "t": 21.238,
+          "x": 1023,
+          "y": 618,
+          "visible": true
+        },
+        {
+          "t": 21.311,
+          "x": 1031,
+          "y": 573,
+          "visible": true
+        },
+        {
+          "t": 21.376,
+          "x": 1034,
+          "y": 511,
+          "visible": true
+        },
+        {
+          "t": 21.446,
+          "x": 1029,
+          "y": 453,
+          "visible": true
+        },
+        {
+          "t": 21.51,
+          "x": 1022,
+          "y": 411,
+          "visible": true
+        },
+        {
+          "t": 21.569,
+          "x": 1015,
+          "y": 383,
+          "visible": true
+        },
+        {
+          "t": 21.626,
+          "x": 1011,
+          "y": 366,
+          "visible": true
+        },
+        {
+          "t": 21.688,
+          "x": 1009,
+          "y": 357,
+          "visible": true
+        },
+        {
+          "t": 21.752,
+          "x": 1008,
+          "y": 354,
+          "visible": true
+        },
+        {
+          "t": 21.813,
+          "x": 1008,
+          "y": 353,
+          "visible": true
+        },
+        {
+          "t": 22.036,
+          "x": 1008,
+          "y": 353,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 22.135,
+          "x": 1008,
+          "y": 353,
+          "visible": true
+        },
+        {
+          "t": 22.53,
+          "x": 1008,
+          "y": 354,
+          "visible": true
+        },
+        {
+          "t": 22.599,
+          "x": 1008,
+          "y": 356,
+          "visible": true
+        },
+        {
+          "t": 22.664,
+          "x": 1009,
+          "y": 364,
+          "visible": true
+        },
+        {
+          "t": 22.731,
+          "x": 1011,
+          "y": 383,
+          "visible": true
+        },
+        {
+          "t": 22.803,
+          "x": 1014,
+          "y": 416,
+          "visible": true
+        },
+        {
+          "t": 22.868,
+          "x": 1017,
+          "y": 467,
+          "visible": true
+        },
+        {
+          "t": 22.878,
+          "x": 1013,
+          "y": 538,
+          "visible": true
+        },
+        {
+          "t": 22.926,
+          "x": 1006,
+          "y": 578,
+          "visible": true
+        },
+        {
+          "t": 22.987,
+          "x": 989,
+          "y": 638,
+          "visible": true
+        },
+        {
+          "t": 23.058,
+          "x": 975,
+          "y": 678,
+          "visible": true
+        },
+        {
+          "t": 23.134,
+          "x": 965,
+          "y": 703,
+          "visible": true
+        },
+        {
+          "t": 23.206,
+          "x": 960,
+          "y": 717,
+          "visible": true
+        },
+        {
+          "t": 23.272,
+          "x": 957,
+          "y": 722,
+          "visible": true
+        },
+        {
+          "t": 23.339,
+          "x": 957,
+          "y": 723,
+          "visible": true
+        },
+        {
+          "t": 23.555,
+          "x": 957,
+          "y": 723,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 23.661,
+          "x": 957,
+          "y": 723,
+          "visible": true
+        },
+        {
+          "t": 32.873,
+          "x": 957,
+          "y": 722,
+          "visible": true
+        },
+        {
+          "t": 32.907,
+          "x": 957,
+          "y": 720,
+          "visible": true
+        },
+        {
+          "t": 32.931,
+          "x": 957,
+          "y": 717,
+          "visible": true
+        },
+        {
+          "t": 32.956,
+          "x": 957,
+          "y": 710,
+          "visible": true
+        },
+        {
+          "t": 32.973,
+          "x": 957,
+          "y": 699,
+          "visible": true
+        },
+        {
+          "t": 32.992,
+          "x": 958,
+          "y": 689,
+          "visible": true
+        },
+        {
+          "t": 33.015,
+          "x": 958,
+          "y": 674,
+          "visible": true
+        },
+        {
+          "t": 33.032,
+          "x": 958,
+          "y": 651,
+          "visible": true
+        },
+        {
+          "t": 33.052,
+          "x": 959,
+          "y": 631,
+          "visible": true
+        },
+        {
+          "t": 33.069,
+          "x": 960,
+          "y": 602,
+          "visible": true
+        },
+        {
+          "t": 33.096,
+          "x": 962,
+          "y": 574,
+          "visible": true
+        },
+        {
+          "t": 33.116,
+          "x": 966,
+          "y": 520,
+          "visible": true
+        },
+        {
+          "t": 33.127,
+          "x": 972,
+          "y": 473,
+          "visible": true
+        },
+        {
+          "t": 33.148,
+          "x": 979,
+          "y": 432,
+          "visible": true
+        },
+        {
+          "t": 33.181,
+          "x": 989,
+          "y": 385,
+          "visible": true
+        },
+        {
+          "t": 33.193,
+          "x": 1018,
+          "y": 290,
+          "visible": true
+        },
+        {
+          "t": 33.209,
+          "x": 1034,
+          "y": 250,
+          "visible": true
+        },
+        {
+          "t": 33.227,
+          "x": 1049,
+          "y": 215,
+          "visible": true
+        },
+        {
+          "t": 33.246,
+          "x": 1063,
+          "y": 184,
+          "visible": true
+        },
+        {
+          "t": 33.27,
+          "x": 1077,
+          "y": 157,
+          "visible": true
+        },
+        {
+          "t": 33.29,
+          "x": 1092,
+          "y": 127,
+          "visible": true
+        },
+        {
+          "t": 33.312,
+          "x": 1104,
+          "y": 104,
+          "visible": true
+        },
+        {
+          "t": 33.328,
+          "x": 1115,
+          "y": 84,
+          "visible": true
+        },
+        {
+          "t": 33.348,
+          "x": 1122,
+          "y": 72,
+          "visible": true
+        },
+        {
+          "t": 33.363,
+          "x": 1129,
+          "y": 60,
+          "visible": true
+        },
+        {
+          "t": 33.378,
+          "x": 1133,
+          "y": 53,
+          "visible": true
+        },
+        {
+          "t": 33.396,
+          "x": 1136,
+          "y": 47,
+          "visible": true
+        },
+        {
+          "t": 33.416,
+          "x": 1138,
+          "y": 43,
+          "visible": true
+        },
+        {
+          "t": 33.442,
+          "x": 1140,
+          "y": 39,
+          "visible": true
+        },
+        {
+          "t": 33.449,
+          "x": 1142,
+          "y": 37,
+          "visible": true
+        },
+        {
+          "t": 33.468,
+          "x": 1142,
+          "y": 36,
+          "visible": true
+        },
+        {
+          "t": 33.723,
+          "x": 1142,
+          "y": 36,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 33.842,
+          "x": 1142,
+          "y": 36,
+          "visible": true
+        },
+        {
+          "t": 34.675,
+          "x": 1141,
+          "y": 37,
+          "visible": true
+        },
+        {
+          "t": 34.698,
+          "x": 1139,
+          "y": 37,
+          "visible": true
+        },
+        {
+          "t": 34.72,
+          "x": 1135,
+          "y": 39,
+          "visible": true
+        },
+        {
+          "t": 34.742,
+          "x": 1130,
+          "y": 41,
+          "visible": true
+        },
+        {
+          "t": 34.76,
+          "x": 1121,
+          "y": 45,
+          "visible": true
+        },
+        {
+          "t": 34.782,
+          "x": 1110,
+          "y": 50,
+          "visible": true
+        },
+        {
+          "t": 34.802,
+          "x": 1092,
+          "y": 58,
+          "visible": true
+        },
+        {
+          "t": 34.816,
+          "x": 1072,
+          "y": 69,
+          "visible": true
+        },
+        {
+          "t": 34.83,
+          "x": 1053,
+          "y": 81,
+          "visible": true
+        },
+        {
+          "t": 34.852,
+          "x": 1033,
+          "y": 95,
+          "visible": true
+        },
+        {
+          "t": 34.873,
+          "x": 1013,
+          "y": 113,
+          "visible": true
+        },
+        {
+          "t": 34.896,
+          "x": 996,
+          "y": 130,
+          "visible": true
+        },
+        {
+          "t": 34.917,
+          "x": 982,
+          "y": 146,
+          "visible": true
+        },
+        {
+          "t": 34.935,
+          "x": 972,
+          "y": 157,
+          "visible": true
+        },
+        {
+          "t": 34.952,
+          "x": 967,
+          "y": 164,
+          "visible": true
+        },
+        {
+          "t": 34.971,
+          "x": 963,
+          "y": 169,
+          "visible": true
+        },
+        {
+          "t": 35.004,
+          "x": 960,
+          "y": 172,
+          "visible": true
+        },
+        {
+          "t": 35.053,
+          "x": 958,
+          "y": 175,
+          "visible": true
+        },
+        {
+          "t": 35.308,
+          "x": 958,
+          "y": 175,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 35.424,
+          "x": 958,
+          "y": 175,
+          "visible": true
+        }
+      ]
+    },
+    {
+      "id": "supplier",
+      "file": "capture-supplier.mp4",
+      "frames_file": "frames-supplier.jsonl",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "preset": "laptop",
+      "fps": 30,
+      "frames": 120,
+      "recording": [
+        {
+          "t_start": 0.116,
+          "t_end": 38.415
+        }
+      ],
+      "pages": [
+        {
+          "id": "supplier",
+          "t_start": 0.116,
+          "t_end": 38.415,
+          "url": "http://localhost:4401/quotes"
+        }
+      ],
+      "cursor": [
+        {
+          "t": 1.538,
+          "x": 720,
+          "y": 450,
+          "visible": true
+        },
+        {
+          "t": 26.182,
+          "x": 721,
+          "y": 449,
+          "visible": true
+        },
+        {
+          "t": 26.202,
+          "x": 723,
+          "y": 448,
+          "visible": true
+        },
+        {
+          "t": 26.218,
+          "x": 726,
+          "y": 446,
+          "visible": true
+        },
+        {
+          "t": 26.234,
+          "x": 729,
+          "y": 444,
+          "visible": true
+        },
+        {
+          "t": 26.248,
+          "x": 735,
+          "y": 440,
+          "visible": true
+        },
+        {
+          "t": 26.263,
+          "x": 742,
+          "y": 436,
+          "visible": true
+        },
+        {
+          "t": 26.278,
+          "x": 751,
+          "y": 430,
+          "visible": true
+        },
+        {
+          "t": 26.295,
+          "x": 763,
+          "y": 423,
+          "visible": true
+        },
+        {
+          "t": 26.312,
+          "x": 777,
+          "y": 413,
+          "visible": true
+        },
+        {
+          "t": 26.33,
+          "x": 795,
+          "y": 403,
+          "visible": true
+        },
+        {
+          "t": 26.346,
+          "x": 818,
+          "y": 389,
+          "visible": true
+        },
+        {
+          "t": 26.362,
+          "x": 842,
+          "y": 375,
+          "visible": true
+        },
+        {
+          "t": 26.38,
+          "x": 870,
+          "y": 360,
+          "visible": true
+        },
+        {
+          "t": 26.398,
+          "x": 903,
+          "y": 343,
+          "visible": true
+        },
+        {
+          "t": 26.414,
+          "x": 942,
+          "y": 325,
+          "visible": true
+        },
+        {
+          "t": 26.432,
+          "x": 985,
+          "y": 308,
+          "visible": true
+        },
+        {
+          "t": 26.453,
+          "x": 1034,
+          "y": 291,
+          "visible": true
+        },
+        {
+          "t": 26.469,
+          "x": 1079,
+          "y": 280,
+          "visible": true
+        },
+        {
+          "t": 26.486,
+          "x": 1117,
+          "y": 272,
+          "visible": true
+        },
+        {
+          "t": 26.517,
+          "x": 1152,
+          "y": 266,
+          "visible": true
+        },
+        {
+          "t": 26.534,
+          "x": 1208,
+          "y": 258,
+          "visible": true
+        },
+        {
+          "t": 26.552,
+          "x": 1233,
+          "y": 255,
+          "visible": true
+        },
+        {
+          "t": 26.568,
+          "x": 1255,
+          "y": 253,
+          "visible": true
+        },
+        {
+          "t": 26.58,
+          "x": 1271,
+          "y": 252,
+          "visible": true
+        },
+        {
+          "t": 26.6,
+          "x": 1286,
+          "y": 251,
+          "visible": true
+        },
+        {
+          "t": 26.623,
+          "x": 1296,
+          "y": 250,
+          "visible": true
+        },
+        {
+          "t": 26.64,
+          "x": 1306,
+          "y": 249,
+          "visible": true
+        },
+        {
+          "t": 26.654,
+          "x": 1312,
+          "y": 249,
+          "visible": true
+        },
+        {
+          "t": 26.667,
+          "x": 1316,
+          "y": 248,
+          "visible": true
+        },
+        {
+          "t": 26.684,
+          "x": 1319,
+          "y": 248,
+          "visible": true
+        },
+        {
+          "t": 26.7,
+          "x": 1320,
+          "y": 248,
+          "visible": true
+        },
+        {
+          "t": 26.726,
+          "x": 1321,
+          "y": 248,
+          "visible": true
+        },
+        {
+          "t": 26.976,
+          "x": 1321,
+          "y": 248,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 27.096,
+          "x": 1321,
+          "y": 248,
+          "visible": true
+        },
+        {
+          "t": 27.956,
+          "x": 1320,
+          "y": 249,
+          "visible": true
+        },
+        {
+          "t": 28.01,
+          "x": 1316,
+          "y": 254,
+          "visible": true
+        },
+        {
+          "t": 28.077,
+          "x": 1304,
+          "y": 267,
+          "visible": true
+        },
+        {
+          "t": 28.145,
+          "x": 1281,
+          "y": 293,
+          "visible": true
+        },
+        {
+          "t": 28.206,
+          "x": 1242,
+          "y": 334,
+          "visible": true
+        },
+        {
+          "t": 28.268,
+          "x": 1180,
+          "y": 391,
+          "visible": true
+        },
+        {
+          "t": 28.345,
+          "x": 1091,
+          "y": 455,
+          "visible": true
+        },
+        {
+          "t": 28.408,
+          "x": 1012,
+          "y": 495,
+          "visible": true
+        },
+        {
+          "t": 28.488,
+          "x": 956,
+          "y": 518,
+          "visible": true
+        },
+        {
+          "t": 28.584,
+          "x": 921,
+          "y": 532,
+          "visible": true
+        },
+        {
+          "t": 28.668,
+          "x": 902,
+          "y": 539,
+          "visible": true
+        },
+        {
+          "t": 28.675,
+          "x": 894,
+          "y": 542,
+          "visible": true
+        },
+        {
+          "t": 28.762,
+          "x": 893,
+          "y": 542,
+          "visible": true
+        },
+        {
+          "t": 28.992,
+          "x": 893,
+          "y": 542,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 29.093,
+          "x": 893,
+          "y": 542,
+          "visible": true
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "page buyer: 11 of 14 cursor moves were captured below 18 fps (lowest 9 fps at 4.2 s): several pages share the machine and render slowly",
+    "page supplier: 1 of 2 cursor moves were captured below 18 fps (lowest 13 fps at 28.0 s): several pages share the machine and render slowly"
+  ]
+}

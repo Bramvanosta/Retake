@@ -72,9 +72,12 @@ describe('geometry expressions', () => {
   });
 
   it('scope: numeric params as they are, booleans as 1 / 0, others left out; aspect built in (16:9 by default)', () => {
-    expect(geometryScope({ width: 1400, framed: false, tone: 'dark', list: [1] })).toEqual({ width: 1400, framed: 0, aspect: 16 / 9 });
+    expect(geometryScope({ width: 1400, framed: false, tone: 'dark', list: [1] })).toEqual({ width: 1400, framed: 0, aspect: 16 / 9, aspect2: 16 / 9 });
     expect(geometryScope({}, 1.6).aspect).toBe(1.6);
     expect(geometryScope({}, Number.NaN).aspect).toBe(16 / 9);
+    // L2.11: `aspect2` is the second page's aspect (multi-page layouts), the first one's when there is none.
+    expect(geometryScope({}, 1.6, 390 / 844).aspect2).toBe(390 / 844);
+    expect(geometryScope({}, 1.6).aspect2).toBe(1.6);
   });
 
   it('evalLayoutGeometry: vars in order, every rect and the radius; static geometries pass through', () => {

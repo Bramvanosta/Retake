@@ -28,10 +28,13 @@ export interface FrameAnalysis {
 
 export interface PixelCheckInput {
   analyses: Map<number, FrameAnalysis>;
-  /** Capture frames analysed (index → whole-frame stats); undefined when the capture is not available. */
-  sources?: Map<number, RegionStats>;
+  /**
+   * Capture frames analysed (`sourceKey` → whole-frame stats): of the main capture, or of a page's own track (multi-page
+   * clips, L2.11); undefined when the capture is not available.
+   */
+  sources?: Map<string, RegionStats>;
   /** Signatures of capture frames (whole frame): the opening-still check of a clip whose view moves (a reframe, a zoom). */
-  sourceSigs?: Map<number, Float32Array>;
+  sourceSigs?: Map<string, Float32Array>;
   /** Frames sampled per segment for its sheet (2 fps). */
   sceneSamples: Map<string, number[]>;
   /** Seconds between two scene samples. */
@@ -40,13 +43,26 @@ export interface PixelCheckInput {
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
+/** The video a capture frame of a clip comes from: `main` (plan.source), or a page's track (its first page by default). */
+export function sourceTrack(clip: Pick<ClipSegment, 'panes'>, pane = 0): string {
+  return clip.panes?.[pane]?.track ?? 'main';
+}
+
+/** Key of a capture frame in `PixelCheckInput.sources`: `<track>:<frame>`. */
+export function sourceKey(clip: Pick<ClipSegment, 'panes'>, frame: number, pane = 0): string {
+  return `${sourceTrack(clip, pane)}:${frame}`;
+}
+
 /** The capture frames the pixel checks want to look at (clip starts), before any rendered frame is analysed. */
-export function sourceFramesAtStarts(spans: SegmentSpan[]): number[] {
-  const out: number[] = [];
+export function sourceFramesAtStarts(spans: SegmentSpan[]): string[] {
+  const out: string[] = [];
   for (const s of spans) {
     if (!isClip(s.segment)) continue;
-    out.push(s.segment.srcFrames[0] ?? 0);
-    out.push(s.segment.srcFrames[Math.min(s.segment.srcFrames.length - 1, s.clearFrom - s.from)] ?? 0);
+    const clip = s.segment;
+    for (let p = 0; p < Math.max(1, clip.panes?.length ?? 0); p++) {
+      out.push(sourceKey(clip, clip.srcFrames[0] ?? 0, p));
+      out.push(sourceKey(clip, clip.srcFrames[Math.min(clip.srcFrames.length - 1, s.clearFrom - s.from)] ?? 0, p));
+    }
   }
   return out;
 }
@@ -83,16 +99,19 @@ export function captionOverDuring(clip: ClipSegment, a: number, b: number): bool
  * a caption over the screen does (its entrance animation).
  */
 export function stillFromSource(plan: Pick<EditPlan, 'source' | 'variant'>, clip: ClipSegment, a: number, b: number): boolean {
+  // A multi-page clip (L2.11) compares each page on its own track (the acting emphasis may change the rendered frames).
+  if (clip.panes) return true;
   return viewMoves(plan, clip, a, b) || overlayDuring(clip, a, b) || captionOverDuring(clip, a, b);
 }
 
-/** The capture frames shown at the still pair of a clip compared on its capture frames (`stillFromSource`). */
-export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, spans: SegmentSpan[], fps: number): number[] {
-  const out: number[] = [];
+/** The capture frames shown at the still pair of a clip compared on its capture frames (`stillFromSource`), keyed. */
+export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, spans: SegmentSpan[], fps: number): string[] {
+  const out: string[] = [];
   for (const s of spans) {
     const pair = stillPair(s, fps);
     if (!pair || !isClip(s.segment) || !stillFromSource(plan, s.segment, pair[0], pair[1])) continue;
-    out.push(s.segment.srcFrames[pair[0] - s.from], s.segment.srcFrames[pair[1] - s.from]);
+    const clip = s.segment;
+    for (let p = 0; p < Math.max(1, clip.panes?.length ?? 0); p++) out.push(sourceKey(clip, clip.srcFrames[pair[0] - s.from], p), sourceKey(clip, clip.srcFrames[pair[1] - s.from], p));
   }
   return out;
 }
@@ -170,7 +189,7 @@ export function waitingStretches(ctx: Pick<CheckContext, 'plan' | 'timeline'>, s
 function describeSource(input: PixelCheckInput, clip: ClipSegment, frame: number, rules: CheckContext['rules']): string {
   if (!input.sources) return '';
   const src = clip.srcFrames[Math.max(0, Math.min(clip.srcFrames.length - 1, frame - clip.from))];
-  const st = input.sources.get(src);
+  const st = input.sources.get(sourceKey(clip, src));
   if (!st) return '';
   return uniformity(st, rules) ? ` — capture frame ${src} is ${uniformity(st, rules) === 'blank' ? 'blank' : 'almost empty'} too (an empty or loading page was captured)` : ` — capture frame ${src} is not: the screen was not drawn, or the camera shows an empty area`;
 }
@@ -185,7 +204,7 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
     if (isClip(seg)) {
       // Scene start: the first capture frame shown, and the first fully visible rendered frame.
       const src0 = seg.srcFrames[0];
-      const srcStats = input.sources?.get(src0);
+      const srcStats = input.sources?.get(sourceKey(seg, src0));
       const kindSrc = srcStats ? uniformity(srcStats, rules) : undefined;
       const first = input.analyses.get(span.clearFrom);
       const kindOut = first?.screen ? uniformity(first.screen, rules) : undefined;
@@ -212,10 +231,15 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
         const moving = stillFromSource(plan, seg, pair[0], pair[1]);
         const srcA = seg.srcFrames[pair[0] - seg.from];
         const srcB = seg.srcFrames[pair[1] - seg.from];
-        const a = moving ? input.sourceSigs?.get(srcA) : input.analyses.get(pair[0])?.screenSig;
-        const b = moving ? input.sourceSigs?.get(srcB) : input.analyses.get(pair[1])?.screenSig;
-        if (a && b) {
-          const d = compareSignatures(a, b);
+        // Each page of a multi-page clip on its own track: the largest change counts.
+        let changed: number | undefined;
+        for (let p = 0; p < Math.max(1, seg.panes?.length ?? 0); p++) {
+          const a = moving ? input.sourceSigs?.get(sourceKey(seg, srcA, p)) : input.analyses.get(pair[0])?.screenSig;
+          const b = moving ? input.sourceSigs?.get(sourceKey(seg, srcB, p)) : input.analyses.get(pair[1])?.screenSig;
+          if (a && b) changed = Math.max(changed ?? 0, compareSignatures(a, b).changed);
+        }
+        if (changed !== undefined) {
+          const d = { changed };
           if (d.changed > rules.still_change_share) {
             out.push({
               severity: 'warning',

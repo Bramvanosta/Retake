@@ -48,7 +48,7 @@ describe('tutorial overlays in the review', () => {
   it('the fixture signup passes: every target in view, landscape and vertical', async () => {
     for (const variant of ['landscape', 'vertical'] as const) {
       const ctx = await ctxOf(load('signup-tutorial'), { variant });
-      expect(ctx.plan.tutorial?.uses).toMatchObject({ spotlight: 2, steps: 3, loupe: 2, shortcuts: 4, progress: 1 });
+      expect(ctx.plan.tutorial?.uses).toMatchObject({ spotlight: 3, steps: 3, loupe: 2, shortcuts: 4, progress: 1 });
       expect(checkTutorial(ctx)).toEqual([]);
     }
   });
@@ -60,6 +60,19 @@ describe('tutorial overlays in the review', () => {
     const f = checkTutorial(ctx).filter((x) => x.code === 'tutorial-skipped');
     expect(f.map((x) => x.message)).toContain('signup step 5: no steps overlay — no clicked target box was recorded');
     expect(f.every((x) => x.severity === 'warning' && x.at?.scene === 'signup')).toBe(true);
+  });
+
+  it('a spotlight or a badge that stays on its target after the page navigated away is reported', async () => {
+    const ctx = await ctxOf(load('signup-tutorial'));
+    const clip = ctx.plan.segments.find((s) => s.kind === 'clip' && s.overlays.some((o) => o.tutorial === 'steps' && s.urls.some((u) => u.frame > o.from && u.frame < o.from + o.durationInFrames))) as ClipSegment | undefined;
+    expect(clip, 'a badge whose click navigates').toBeDefined();
+    const badge = clip!.overlays.find((o) => o.tutorial === 'steps' && clip!.urls.some((u) => u.frame > o.from && u.frame < o.from + o.durationInFrames))!;
+    // The planner ends it with the page (≈ 0.45 s after the click): clean. Kept 2 s longer, it rings a spot that is gone.
+    expect(checkTutorial(ctx).filter((x) => x.code === 'tutorial-stale-target')).toEqual([]);
+    badge.durationInFrames += 2 * ctx.plan.fps;
+    const f = checkTutorial(ctx).filter((x) => x.code === 'tutorial-stale-target');
+    expect(f).toHaveLength(1);
+    expect(f[0].message).toMatch(new RegExp(`^${clip!.id} step ${badge.step}: the step badge stays \\d\\.\\d s on its target after the page went to http`));
   });
 
   it('a target pushed out of the frame is reported', async () => {
@@ -80,7 +93,7 @@ describe('tutorial overlays in the review', () => {
     expect(viewMoves(ctx.plan, clip, pair[0], pair[1])).toBe(false);
     expect(overlayDuring(clip, pair[0], pair[1])).toBe(true);
     expect(stillFromSource(ctx.plan, clip, pair[0], pair[1])).toBe(true);
-    expect(stillSourceFrames(ctx.plan, ctx.spans, ctx.plan.fps)).toEqual(expect.arrayContaining([clip.srcFrames[pair[0] - clip.from], clip.srcFrames[pair[1] - clip.from]]));
+    expect(stillSourceFrames(ctx.plan, ctx.spans, ctx.plan.fps)).toEqual(expect.arrayContaining([`main:${clip.srcFrames[pair[0] - clip.from]}`, `main:${clip.srcFrames[pair[1] - clip.from]}`]));
     // Without tutorial overlays the rendered frames are compared, as before.
     const off = await ctxOf(load('signup-tutorial'), { tutorial: false });
     const offSpan = off.spans.find((s) => s.segment.id === 'signup')!;

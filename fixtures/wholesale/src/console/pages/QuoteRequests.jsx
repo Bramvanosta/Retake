@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, useApi } from '../../shared/api.js';
+import { api, useApi, useLiveList } from '../../shared/api.js';
 import { COUNTRY_CODES, CoffeeArt, Flag } from '../../shared/art.jsx';
 import { Modal } from '../../shared/dialog.jsx';
 import { dayTime, eur, range } from '../../shared/format.js';
@@ -115,6 +115,8 @@ export function QuoteRequestsPage() {
   const products = useApi('/api/products?status=all');
   const [filter, setFilter] = useState('requested');
   const [proposing, setProposing] = useState(null);
+  // Live (L2.11 fixture): a request a café sends while the page is open arrives within a second, highlighted.
+  const fresh = useLiveList(reload, data);
   const quotes = data ?? [];
   const shown = filter === 'all' ? quotes : quotes.filter((q) => q.status === filter);
   const priceOf = (q) => (products.data ?? []).find((p) => p.slug === q.product_slug)?.prices[q.bag_size];
@@ -160,8 +162,11 @@ export function QuoteRequestsPage() {
                   </tr>
                 ))
               : shown.map((q) => (
-                  <tr key={q.id}>
-                    <td className="cell-title tabular">{q.reference}</td>
+                  <tr key={q.id} className={fresh.has(q.id) ? 'row-new' : undefined}>
+                    <td className="cell-title tabular">
+                      {q.reference}
+                      {fresh.has(q.id) ? <span className="new-pill">New</span> : null}
+                    </td>
                     <td>
                       <div className="row gap-8">
                         <Flag code={COUNTRY_CODES[q.buyer_country]} />

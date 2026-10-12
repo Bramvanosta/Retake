@@ -15,7 +15,7 @@ import { renderToString } from 'react-dom/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadTemplate, resolveThemeComponents } from '@demo-studio/core';
 import type { Template } from '@demo-studio/core';
-import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@demo-studio/components';
+import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, isMultiPaneGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@demo-studio/components';
 import type { ComponentManifest, ComponentProps, ComponentRegistry, LayoutRects, ThemeTokens } from '@demo-studio/components';
 import { DARK, LIGHT, tempDir } from './helpers.js';
 
@@ -70,6 +70,9 @@ const IDS = [
   'studio/card-testimonial',
   'studio/card-cta',
   'studio/card-chart',
+  // L2.11: two pages at once.
+  'studio/layout-split',
+  'studio/layout-pip',
 ];
 
 /** The reference-look components (docs/reference/look.md), final since L2.5. */
@@ -208,7 +211,7 @@ describe('built-in library renders with any theme', () => {
     const marker = createElement('i', { id: 'capture' });
     type Fallback = (...a: unknown[]) => LayoutRects;
     const aspects = [16 / 9, 16 / 10, 4 / 3, 390 / 844, 820 / 1180, 1180 / 820, 1];
-    for (const id of IDS.filter((x) => manifests[x].kind === 'layout')) {
+    for (const id of IDS.filter((x) => manifests[x].kind === 'layout' && !isMultiPaneGeometry(manifests[x].geometry))) {
       const m = manifests[id];
       const defaults = paramDefaults(m.params as never);
       const fallback = modules[id].defaultRects as Fallback;
@@ -266,6 +269,68 @@ describe('built-in library renders with any theme', () => {
         }
       }
     }
+  });
+
+  it('multi-page layouts (L2.11): panes / inset in every format, clear of the caption and the brand mark; drawn at the planner\'s rects', () => {
+    const overlaps = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const inside = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
+    const pairs: Array<[number, number]> = [[1.6, 1.6], [16 / 9, 390 / 844], [1440 / 900, 820 / 1180], [390 / 844, 390 / 844]];
+    for (const id of ['studio/layout-split', 'studio/layout-pip']) {
+      const m = manifests[id];
+      expect(isMultiPaneGeometry(m.geometry), id).toBe(true);
+      const defaults = paramDefaults(m.params as never);
+      for (const variant of ['landscape', 'vertical', 'square'] as const) {
+        const spec = m[GEOMETRY_OF[variant]]!;
+        const space = { x: 0, y: 0, w: SIZES[variant][0], h: SIZES[variant][1] };
+        for (const [aspect, aspect2] of pairs) {
+          const g = evalLayoutGeometry(spec, defaults, { aspect, aspect2 });
+          const where = `${id} ${variant} ${aspect.toFixed(2)}/${aspect2.toFixed(2)}`;
+          const boxes = id === 'studio/layout-split' ? g.panes! : [g.screen, g.inset!];
+          expect(boxes, where).toHaveLength(2);
+          for (const b of [...boxes, g.caption!, g.brandmark!]) expect(inside(b, space), `${where} ${JSON.stringify(b)}`).toBe(true);
+          for (const b of boxes) for (const r of [g.caption!, g.brandmark!]) expect(overlaps(b, r), `${where}: ${JSON.stringify(r)} over ${JSON.stringify(b)}`).toBe(false);
+          if (id === 'studio/layout-split') expect(overlaps(boxes[0], boxes[1]), where).toBe(false);
+          else expect(inside(g.inset!, g.screen), `${where}: the inset over the main page`).toBe(true);
+        }
+      }
+      // Two pages of the same aspect: the split's panes are the same size; the PiP inset keeps the second page's aspect.
+      const split = evalLayoutGeometry(manifests['studio/layout-split'].geometry!, paramDefaults(manifests['studio/layout-split'].params as never), { aspect: 1.6, aspect2: 1.6 });
+      expect(split.panes!.map((p) => [p.w, p.h])).toEqual([[896, 560], [896, 560]]);
+      const pip = evalLayoutGeometry(manifests['studio/layout-pip'].geometry!, paramDefaults(manifests['studio/layout-pip'].params as never), { aspect: 16 / 9, aspect2: 390 / 844 });
+      expect(pip.screen).toEqual({ x: 180, y: 40, w: 1560, h: 878 });
+      expect(pip.inset).toEqual({ x: 1420, y: 267, w: 284, h: 615 });
+    }
+    // Drawn at the planner's rects (`rects.panes`), one screen per pane; the labels above the split's panes, the acting
+    // one in the accent colour; a mobile inset inside a phone.
+    const a = createElement('i', { id: 'page-a' });
+    const b = createElement('i', { id: 'page-b' });
+    const panes = [
+      { page: 'buyer', label: 'Buyer', screen: { x: 48, y: 221, w: 896, h: 560 }, frame: { x: 48, y: 221, w: 896, h: 560 }, radius: 14, acting: 1 },
+      { page: 'supplier', label: 'Supplier', screen: { x: 976, y: 221, w: 896, h: 560 }, frame: { x: 976, y: 221, w: 896, h: 560 }, radius: 14, acting: 0 },
+    ];
+    const html = render('studio/layout-split', { extra: { screens: [a, b], rects: { screen: panes[0].screen, panes } as LayoutRects } });
+    expect(html).toContain('<i id="page-a"></i>');
+    expect(html).toContain('<i id="page-b"></i>');
+    expect(html).toContain(rectCss(panes[0].frame));
+    expect(html).toContain(rectCss(panes[1].frame));
+    expect(html).toContain('BUYER');
+    expect(html).toContain('SUPPLIER');
+    expect(render('studio/layout-split', { params: { labels: false }, extra: { screens: [a, b], rects: { screen: panes[0].screen, panes } as LayoutRects } })).not.toContain('BUYER');
+    // The acting page changes: its label takes the accent; the idle page is dimmed (balanced / motion themes only).
+    const swapped = render('studio/layout-split', { extra: { screens: [a, b], rects: { screen: panes[0].screen, panes: panes.map((p) => ({ ...p, acting: 1 - p.acting })) } as LayoutRects } });
+    expect(swapped).not.toBe(html);
+    const pipPanes = [
+      { page: 'desk', screen: { x: 180, y: 40, w: 1560, h: 878 }, frame: { x: 180, y: 40, w: 1560, h: 878 }, radius: 18, acting: 0 },
+      { page: 'phone', screen: { x: 1420, y: 267, w: 284, h: 615 }, frame: { x: 1420, y: 267, w: 284, h: 615 }, radius: 34, acting: 1, inset: true, mobile: true },
+    ];
+    const pipHtml = render('studio/layout-pip', { extra: { screens: [a, b], rects: { screen: pipPanes[0].screen, panes: pipPanes } as LayoutRects } });
+    expect(pipHtml).toContain('<i id="page-a"></i>');
+    expect(pipHtml).toContain('<i id="page-b"></i>');
+    expect(pipHtml).toContain(rectCss(pipPanes[1].screen)); // the phone's display = the inset page
+    expect(pipHtml).toContain(rectCss(pipPanes[0].frame));
+    // Without a plan they draw their default panes (two skeleton pages).
+    expect(render('studio/layout-split')).toContain(rectCss({ x: 48, y: 221, w: 896, h: 560 }));
+    expect(render('studio/layout-pip')).toContain(rectCss({ x: 1420, y: 267, w: 284, h: 615 }));
   });
 
   it('device and window layouts: the screen keeps the capture aspect (letterboxed beyond the device range); captions fit below or beside', () => {

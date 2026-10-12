@@ -20,7 +20,7 @@ import type { ComponentKind, LocatedIssue } from '@demo-studio/core';
 import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
 import { ANCHOR_KEYS, GEOMETRY_BUILTINS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';
-import type { AnchorSpec, ComponentIssue, ComponentManifest, LayoutGeometry, LayoutGeometrySpec } from './types.js';
+import type { AnchorSpec, ComponentIssue, ComponentManifest, LayoutGeometry, LayoutGeometrySpec, Rect1920 } from './types.js';
 
 export const MANIFEST_FILE = 'component.yaml';
 export const DEFAULT_ENTRY = 'index.tsx';
@@ -139,6 +139,15 @@ export const LayoutGeometrySchema = z
     caption: RectSchema.describe('Caption area used by the caption component.').optional(),
     brandmark: RectSchema.describe('Brand mark area.').optional(),
     radius: GeometryValueSchema.describe('Corner radius of the screen/frame, in design px (≥ 0).').optional(),
+    panes: z
+      .array(RectSchema)
+      .min(2)
+      .max(2)
+      .describe('Multi-page layouts (split screen): the screen of each page of a multi-page scene; `screen` is their area. Expressions may use `aspect2` (the second page).')
+      .optional(),
+    inset: RectSchema.describe(
+      "Picture in picture: the second page's screen over `screen` (the first page's) at its default corner; the planner moves it between the corners of `screen`.",
+    ).optional(),
   })
   .meta({
     id: 'LayoutGeometry',
@@ -223,6 +232,12 @@ export const ComponentManifestFileSchema = z
           .enum(['desktop', 'tablet', 'phone'])
           .describe('Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop).')
           .optional(),
+        screens: z
+          .array(z.enum(['desktop', 'tablet', 'phone']))
+          .min(2)
+          .max(2)
+          .describe('Multi-page layouts (L2.11): the sample screen of each page (e.g. [desktop, phone] for picture in picture).')
+          .optional(),
         target: z
           .enum(['button', 'field'])
           .describe("What an overlay preview points at on the sample screen: a button (default) or a text field (its region is the overlay's `screen`, as for a typing loupe).")
@@ -281,9 +296,9 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
   };
   for (const [name, v] of Object.entries(g.vars ?? {})) {
     check(['vars', name], v);
-    if (name === 'aspect') {
+    if (name === 'aspect' || name === 'aspect2') {
       syntaxOk = false;
-      out.push(locatedIssue('error', [key, 'vars', name], '"aspect" is built in (the capture width / height)'));
+      out.push(locatedIssue('error', [key, 'vars', name], `"${name}" is built in (the ${name === 'aspect' ? 'capture' : 'second page'}'s width / height)`));
     } else if (paramTypes.has(name)) {
       // A var may not shadow a param (it would silently change what the name means).
       syntaxOk = false;
@@ -296,6 +311,14 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
     if (r) for (const k of ['x', 'y', 'w', 'h'] as const) check([name, k], r[k]);
   }
   check(['radius'], g.radius);
+  (g.panes ?? []).forEach((r, i) => {
+    for (const k of ['x', 'y', 'w', 'h'] as const) check(['panes', i, k], r[k]);
+  });
+  if (g.inset) for (const k of ['x', 'y', 'w', 'h'] as const) check(['inset', k], g.inset[k]);
+  if (g.panes && g.inset) {
+    syntaxOk = false;
+    out.push(locatedIssue('error', [key, 'inset'], 'a layout shows its pages side by side (`panes`) or one over the other (`inset`), not both'));
+  }
   if (!syntaxOk) return;
   let e: LayoutGeometry;
   try {
@@ -327,6 +350,11 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
     }
   }
   if (e.radius !== undefined && e.radius < 0) out.push(locatedIssue('error', [key, 'radius'], `must be ≥ 0, is ${e.radius}${withDefaults}`));
+  const extra: Array<{ path: Array<string | number>; r: Rect1920 }> = [...(e.panes ?? []).map((r, i) => ({ path: ['panes', i], r })), ...(e.inset ? [{ path: ['inset'], r: e.inset }] : [])];
+  for (const { path, r } of extra) {
+    if (r.w <= 0 || r.h <= 0) out.push(locatedIssue('error', [key, ...path], `must have a size > 0, is ${r.w}×${r.h}${withDefaults}`));
+    else if (!rectInside(r, space)) out.push(locatedIssue('error', [key, ...path], `rect {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}}${withDefaults} leaves the ${space.width}×${space.height} design space`));
+  }
 }
 
 /** An anchor's expressions only name numeric params, one-hot string values, vars and aspect; with the defaults it lies in the design space. */

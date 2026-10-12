@@ -326,6 +326,71 @@
           "tutorial": {
             "$ref": "#/$defs/Tutorial"
           },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "page": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "viewport": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "height": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "mobile": {
+                      "type": "boolean"
+                    },
+                    "touch": {
+                      "type": "boolean"
+                    },
+                    "preset": {
+                      "type": "string",
+                      "enum": [
+                        "desktop",
+                        "laptop",
+                        "tablet",
+                        "mobile"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "width",
+                    "height"
+                  ],
+                  "additionalProperties": false
+                },
+                "url": {
+                  "type": "string"
+                },
+                "track": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "viewport",
+                "track"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Multi-page scene: the pages filmed at the same time, each on its own track."
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -639,6 +704,9 @@
           },
           "step": {
             "type": "integer"
+          },
+          "page": {
+            "type": "string"
           }
         },
         "required": [
@@ -1082,6 +1150,162 @@
       },
       "description": "Emails, documents, web notifications and texts captured by the run."
     },
+    "tracks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file": {
+            "type": "string",
+            "description": "CFR video relative to the run directory (capture-<page>.mp4)."
+          },
+          "frames_file": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "height": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "scale": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "mobile": {
+            "type": "boolean"
+          },
+          "touch": {
+            "type": "boolean"
+          },
+          "preset": {
+            "type": "string",
+            "enum": [
+              "desktop",
+              "laptop",
+              "tablet",
+              "mobile"
+            ]
+          },
+          "fps": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "frames": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recording": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "t_start": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "t_end": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                }
+              },
+              "required": [
+                "t_start",
+                "t_end"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "t_start": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "t_end": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "t_start",
+                "t_end"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cursor": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "t": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "down": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "t",
+                "x",
+                "y",
+                "visible"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "file",
+          "frames_file",
+          "width",
+          "height",
+          "scale",
+          "fps",
+          "frames",
+          "recording",
+          "pages",
+          "cursor"
+        ],
+        "additionalProperties": false,
+        "description": "A page recorded on its own track (multi-page scenes), on the capture clock."
+      },
+      "description": "Multi-page scenes: one track per page, on the capture clock."
+    },
     "warnings": {
       "type": "array",
       "items": {
@@ -1125,11 +1349,19 @@
         },
         {
           "type": "string",
+          "enum": [
+            "split",
+            "pip"
+          ],
+          "description": "Layout of a multi-page scene: split (side by side, stacked in vertical) or pip (picture in picture)."
+        },
+        {
+          "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
           "description": "A layout component id \"namespace/name\", e.g. studio/layout-card or a workspace layout."
         }
       ],
-      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), split or pip for a multi-page scene (studio/layout-split, studio/layout-pip), or a layout component id \"namespace/name\"."
     },
     "Tutorial": {
       "anyOf": [

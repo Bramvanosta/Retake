@@ -1,0 +1,2437 @@
+{
+  "version": 1,
+  "run_id": "20261012-080444-phone-and-desktop",
+  "project": "northfield-fixture",
+  "scenario": "phone-and-desktop",
+  "created_at": "2026-10-12T08:04:44.548Z",
+  "mode": "capture",
+  "capture": {
+    "file": "capture.mp4",
+    "width": 1920,
+    "height": 1080,
+    "scale": 1,
+    "fps": 30,
+    "duration": 27.939,
+    "t0_wall": 1791792284952,
+    "frames": 118
+  },
+  "video": {
+    "title": {
+      "kicker": "Any screen",
+      "text": "Start on the phone, continue at the desk"
+    },
+    "outro": {
+      "tagline": "One account, every screen."
+    },
+    "frame": "pip",
+    "template": "editorial",
+    "tutorial": {
+      "steps": true
+    }
+  },
+  "scenes": [
+    {
+      "id": "phone",
+      "index": 0,
+      "kind": "scene",
+      "t_start": 0.002,
+      "t_end": 12.243,
+      "page": "desk",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "desk",
+          "viewport": {
+            "width": 1920,
+            "height": 1080,
+            "mobile": false,
+            "touch": false,
+            "preset": "desktop"
+          },
+          "url": "http://localhost:4402/quotes",
+          "track": "desk",
+          "page": "shop",
+          "label": "Desktop"
+        },
+        {
+          "id": "phone",
+          "viewport": {
+            "width": 390,
+            "height": 844,
+            "mobile": true,
+            "touch": true,
+            "preset": "mobile"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "phone",
+          "page": "shop",
+          "label": "Phone"
+        }
+      ],
+      "caption": {
+        "kicker": "On the phone",
+        "text": "Find a coffee and ask for a quote in a few taps."
+      },
+      "url": "http://localhost:4402/quotes",
+      "t_actions": 3.404
+    },
+    {
+      "id": "send",
+      "index": 1,
+      "kind": "scene",
+      "t_start": 12.243,
+      "t_end": 21.643,
+      "page": "desk",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "desk",
+          "viewport": {
+            "width": 1920,
+            "height": 1080,
+            "mobile": false,
+            "touch": false,
+            "preset": "desktop"
+          },
+          "url": "http://localhost:4402/quotes",
+          "track": "desk",
+          "page": "shop",
+          "label": "Desktop"
+        },
+        {
+          "id": "phone",
+          "viewport": {
+            "width": 390,
+            "height": 844,
+            "mobile": true,
+            "touch": true,
+            "preset": "mobile"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "phone",
+          "page": "shop",
+          "label": "Phone"
+        }
+      ],
+      "caption": {
+        "kicker": "On the phone",
+        "text": "Choose the delivery window and send."
+      },
+      "url": "http://localhost:4402/quotes",
+      "t_actions": 13.878
+    },
+    {
+      "id": "desk",
+      "index": 2,
+      "kind": "scene",
+      "t_start": 21.643,
+      "t_end": 27.939,
+      "page": "desk",
+      "status": "ok",
+      "pages": [
+        {
+          "id": "desk",
+          "viewport": {
+            "width": 1920,
+            "height": 1080,
+            "mobile": false,
+            "touch": false,
+            "preset": "desktop"
+          },
+          "url": "http://localhost:4402/quotes",
+          "track": "desk",
+          "page": "shop",
+          "label": "Desktop"
+        },
+        {
+          "id": "phone",
+          "viewport": {
+            "width": 390,
+            "height": 844,
+            "mobile": true,
+            "touch": true,
+            "preset": "mobile"
+          },
+          "url": "http://localhost:4402/products/selowa-ridge",
+          "track": "phone",
+          "page": "shop",
+          "label": "Phone"
+        }
+      ],
+      "caption": {
+        "kicker": "At the desk",
+        "text": "The request is already in your quotes, live."
+      },
+      "url": "http://localhost:4402/quotes",
+      "t_actions": 23.269
+    }
+  ],
+  "events": [
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.114,
+      "t_end": 0.791,
+      "page": "desk",
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/quotes"
+      },
+      "url": "http://localhost:4402/quotes"
+    },
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.791,
+      "t_end": 1.408,
+      "page": "phone",
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/products/selowa-ridge"
+      },
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 1.805,
+      "t_end": 3.404,
+      "page": "phone",
+      "status": "ok",
+      "point": {
+        "x": 312,
+        "y": 422
+      },
+      "data": {
+        "cursor": {
+          "desk": {
+            "mode": "auto",
+            "how": "teleport",
+            "to": {
+              "x": 960,
+              "y": 540
+            },
+            "side": "idle"
+          },
+          "phone": {
+            "mode": "auto",
+            "how": "teleport",
+            "to": {
+              "x": 312,
+              "y": 422
+            },
+            "side": "fallback"
+          }
+        }
+      }
+    },
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": 0,
+      "action": "click",
+      "t_start": 3.406,
+      "t_end": 5.943,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Request a quote\"",
+        "bbox": {
+          "x": 16,
+          "y": 331.77,
+          "w": 237.89,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 135,
+        "y": 355
+      },
+      "t_click": 5.033,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": 1,
+      "action": "click",
+      "t_start": 5.944,
+      "t_end": 7.042,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Increase\"",
+        "bbox": {
+          "x": 148,
+          "y": 379.75,
+          "w": 40,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 168,
+        "y": 399
+      },
+      "t_click": 6.554,
+      "strategy": "real",
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": 2,
+      "action": "select",
+      "t_start": 7.042,
+      "t_end": 9.723,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Choose a size\"",
+        "bbox": {
+          "x": 201,
+          "y": 378.75,
+          "w": 170,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 286,
+        "y": 399
+      },
+      "t_click": 7.737,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "5 kg",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 286,
+              "y": 399
+            },
+            "t_click": 7.737,
+            "desc": "combobox \"Choose a size\"",
+            "bbox": {
+              "x": 201,
+              "y": 378.75,
+              "w": 170,
+              "h": 40
+            },
+            "popup_ms": 126
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 287,
+              "y": 486
+            },
+            "t_click": 9.25,
+            "desc": "option \"5 kg\"",
+            "bbox": {
+              "x": 208,
+              "y": 468,
+              "w": 158.73,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "phone",
+      "scene_index": 0,
+      "step": 3,
+      "action": "select",
+      "t_start": 9.723,
+      "t_end": 12.242,
+      "status": "ok",
+      "target": {
+        "desc": "combobox \"Choose a grind\"",
+        "bbox": {
+          "x": 19,
+          "y": 457.25,
+          "w": 170,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 104,
+        "y": 477
+      },
+      "t_click": 10.416,
+      "strategy": "real",
+      "popup_opened": true,
+      "data": {
+        "option": "Whole bean",
+        "clicks": [
+          {
+            "role": "trigger",
+            "strategy": "real",
+            "popup_opened": true,
+            "point": {
+              "x": 104,
+              "y": 477
+            },
+            "t_click": 10.416,
+            "desc": "combobox \"Choose a grind\"",
+            "bbox": {
+              "x": 19,
+              "y": 457.25,
+              "w": 170,
+              "h": 40
+            },
+            "popup_ms": 120
+          },
+          {
+            "role": "option",
+            "strategy": "real",
+            "popup_opened": false,
+            "point": {
+              "x": 104,
+              "y": 528
+            },
+            "t_click": 11.772,
+            "desc": "option \"Whole bean\"",
+            "bbox": {
+              "x": 26,
+              "y": 510,
+              "w": 156,
+              "h": 36
+            }
+          }
+        ]
+      },
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 12.278,
+      "t_end": 13.878,
+      "page": "phone",
+      "status": "ok",
+      "point": {
+        "x": 231,
+        "y": 642
+      },
+      "data": {
+        "cursor": {
+          "desk": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 960,
+              "y": 540
+            },
+            "from": {
+              "x": 960,
+              "y": 540
+            }
+          },
+          "phone": {
+            "mode": "auto",
+            "how": "glide",
+            "to": {
+              "x": 231,
+              "y": 642
+            },
+            "from": {
+              "x": 104,
+              "y": 528
+            },
+            "anchor": "button \"Delivery window\"",
+            "side": "below",
+            "move_ms": 447
+          }
+        }
+      }
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 0,
+      "action": "click",
+      "t_start": 13.878,
+      "t_end": 15.487,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Delivery window\"",
+        "bbox": {
+          "x": 19,
+          "y": 537.75,
+          "w": 352,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 195,
+        "y": 558
+      },
+      "t_click": 14.538,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 1,
+      "action": "click",
+      "t_start": 15.488,
+      "t_end": 16.564,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Next month\"",
+        "bbox": {
+          "x": 333,
+          "y": 152.36,
+          "w": 34,
+          "h": 34
+        }
+      },
+      "point": {
+        "x": 350,
+        "y": 169
+      },
+      "t_click": 16.116,
+      "strategy": "real",
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 2,
+      "action": "click",
+      "t_start": 16.566,
+      "t_end": 17.724,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Monday, 14 December 2026\"",
+        "bbox": {
+          "x": 27,
+          "y": 336.36,
+          "w": 48,
+          "h": 36
+        }
+      },
+      "point": {
+        "x": 51,
+        "y": 354
+      },
+      "t_click": 17.26,
+      "strategy": "real",
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 3,
+      "action": "click",
+      "t_start": 17.724,
+      "t_end": 18.86,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Wednesday, 23 December 2026\"",
+        "bbox": {
+          "x": 123,
+          "y": 386.36,
+          "w": 48,
+          "h": 36
+        }
+      },
+      "point": {
+        "x": 147,
+        "y": 404
+      },
+      "t_click": 18.396,
+      "strategy": "real",
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 4,
+      "action": "click",
+      "t_start": 18.86,
+      "t_end": 20.424,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Send request\"",
+        "bbox": {
+          "x": 200,
+          "y": 787,
+          "w": 171,
+          "h": 38
+        }
+      },
+      "point": {
+        "x": 286,
+        "y": 806
+      },
+      "t_click": 19.548,
+      "strategy": "real",
+      "popup_opened": true,
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 5,
+      "action": "wait_for",
+      "t_start": 20.425,
+      "t_end": 20.441,
+      "status": "ok",
+      "data": {
+        "waited_ms": 15
+      },
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "send",
+      "scene_index": 1,
+      "step": 6,
+      "action": "hold",
+      "t_start": 20.441,
+      "t_end": 21.642,
+      "status": "ok",
+      "hold": {
+        "t_start": 20.441,
+        "t_end": 21.642
+      },
+      "page": "phone",
+      "url": "http://localhost:4402/products/selowa-ridge"
+    },
+    {
+      "scene": "desk",
+      "scene_index": 2,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 21.669,
+      "t_end": 23.269,
+      "page": "desk",
+      "status": "ok",
+      "point": {
+        "x": 960,
+        "y": 540
+      },
+      "data": {
+        "cursor": {
+          "desk": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 960,
+              "y": 540
+            },
+            "from": {
+              "x": 960,
+              "y": 540
+            },
+            "anchor": "link \"Q-1043NewSelowa RidgeQuantity2 × 5 kgDelivery win…\""
+          },
+          "phone": {
+            "mode": "auto",
+            "how": "keep",
+            "to": {
+              "x": 286,
+              "y": 806
+            },
+            "from": {
+              "x": 286,
+              "y": 806
+            }
+          }
+        }
+      }
+    },
+    {
+      "scene": "desk",
+      "scene_index": 2,
+      "step": 0,
+      "action": "wait_for",
+      "t_start": 23.269,
+      "t_end": 23.273,
+      "status": "ok",
+      "mark": "synced",
+      "data": {
+        "waited_ms": 4
+      },
+      "page": "desk",
+      "url": "http://localhost:4402/quotes"
+    },
+    {
+      "scene": "desk",
+      "scene_index": 2,
+      "step": 1,
+      "action": "hover",
+      "t_start": 23.274,
+      "t_end": 24.689,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Q-1043NewSelowa RidgeQuantity2 × 5 kgDelivery win…\"",
+        "bbox": {
+          "x": 289,
+          "y": 194.09,
+          "w": 1342,
+          "h": 97
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 243
+      },
+      "page": "desk",
+      "url": "http://localhost:4402/quotes"
+    },
+    {
+      "scene": "desk",
+      "scene_index": 2,
+      "step": 2,
+      "action": "click",
+      "t_start": 24.69,
+      "t_end": 26.334,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Q-1043NewSelowa RidgeQuantity2 × 5 kgDelivery win…\"",
+        "bbox": {
+          "x": 289,
+          "y": 194.09,
+          "w": 1342,
+          "h": 97
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 243
+      },
+      "t_click": 24.835,
+      "strategy": "real",
+      "data": {
+        "navigation": {
+          "kind": "url",
+          "url": "http://localhost:4402/quotes/1043"
+        }
+      },
+      "page": "desk",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "desk",
+      "scene_index": 2,
+      "step": 3,
+      "action": "wait_for",
+      "t_start": 26.334,
+      "t_end": 26.338,
+      "status": "ok",
+      "data": {
+        "waited_ms": 4
+      },
+      "page": "desk",
+      "url": "http://localhost:4402/quotes/1043"
+    },
+    {
+      "scene": "desk",
+      "scene_index": 2,
+      "step": 4,
+      "action": "hold",
+      "t_start": 26.338,
+      "t_end": 27.939,
+      "status": "ok",
+      "hold": {
+        "t_start": 26.338,
+        "t_end": 27.939
+      },
+      "page": "desk",
+      "url": "http://localhost:4402/quotes/1043"
+    }
+  ],
+  "markers": [
+    {
+      "name": "synced",
+      "t": 23.269,
+      "scene": "desk",
+      "step": 0,
+      "page": "desk"
+    }
+  ],
+  "pages": [],
+  "cursor": [],
+  "idle": [
+    {
+      "t_start": 1.51,
+      "t_end": 3.478
+    },
+    {
+      "t_start": 13.048,
+      "t_end": 13.983
+    },
+    {
+      "t_start": 20.79,
+      "t_end": 21.694
+    },
+    {
+      "t_start": 21.754,
+      "t_end": 23.351
+    },
+    {
+      "t_start": 25.455,
+      "t_end": 27.939
+    }
+  ],
+  "tracks": [
+    {
+      "id": "desk",
+      "file": "capture-desk.mp4",
+      "frames_file": "frames-desk.jsonl",
+      "width": 1920,
+      "height": 1080,
+      "scale": 1,
+      "preset": "desktop",
+      "fps": 30,
+      "frames": 118,
+      "recording": [
+        {
+          "t_start": 0.012,
+          "t_end": 27.939
+        }
+      ],
+      "pages": [
+        {
+          "id": "desk",
+          "t_start": 0.012,
+          "t_end": 24.948,
+          "url": "http://localhost:4402/quotes"
+        },
+        {
+          "id": "desk",
+          "t_start": 24.948,
+          "t_end": 27.939,
+          "url": "http://localhost:4402/quotes/1043"
+        }
+      ],
+      "cursor": [
+        {
+          "t": 1.425,
+          "x": 960,
+          "y": 540,
+          "visible": true
+        },
+        {
+          "t": 23.321,
+          "x": 960,
+          "y": 539,
+          "visible": true
+        },
+        {
+          "t": 23.358,
+          "x": 960,
+          "y": 538,
+          "visible": true
+        },
+        {
+          "t": 23.386,
+          "x": 958,
+          "y": 533,
+          "visible": true
+        },
+        {
+          "t": 23.419,
+          "x": 956,
+          "y": 523,
+          "visible": true
+        },
+        {
+          "t": 23.454,
+          "x": 950,
+          "y": 501,
+          "visible": true
+        },
+        {
+          "t": 23.493,
+          "x": 943,
+          "y": 465,
+          "visible": true
+        },
+        {
+          "t": 23.529,
+          "x": 937,
+          "y": 413,
+          "visible": true
+        },
+        {
+          "t": 23.564,
+          "x": 938,
+          "y": 351,
+          "visible": true
+        },
+        {
+          "t": 23.597,
+          "x": 946,
+          "y": 304,
+          "visible": true
+        },
+        {
+          "t": 23.643,
+          "x": 952,
+          "y": 274,
+          "visible": true
+        },
+        {
+          "t": 23.667,
+          "x": 957,
+          "y": 256,
+          "visible": true
+        },
+        {
+          "t": 23.693,
+          "x": 959,
+          "y": 248,
+          "visible": true
+        },
+        {
+          "t": 23.726,
+          "x": 960,
+          "y": 244,
+          "visible": true
+        },
+        {
+          "t": 23.751,
+          "x": 960,
+          "y": 243,
+          "visible": true
+        },
+        {
+          "t": 24.848,
+          "x": 960,
+          "y": 243,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 24.958,
+          "x": 960,
+          "y": 243,
+          "visible": true
+        }
+      ]
+    },
+    {
+      "id": "phone",
+      "file": "capture-phone.mp4",
+      "frames_file": "frames-phone.jsonl",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "mobile": true,
+      "touch": true,
+      "preset": "mobile",
+      "fps": 30,
+      "frames": 595,
+      "recording": [
+        {
+          "t_start": 0.106,
+          "t_end": 27.939
+        }
+      ],
+      "pages": [
+        {
+          "id": "phone",
+          "t_start": 0.106,
+          "t_end": 27.939,
+          "url": "http://localhost:4402/products/selowa-ridge"
+        }
+      ],
+      "cursor": [
+        {
+          "t": 1.475,
+          "x": 312,
+          "y": 422,
+          "visible": true
+        },
+        {
+          "t": 4.4,
+          "x": 311,
+          "y": 422,
+          "visible": true
+        },
+        {
+          "t": 4.416,
+          "x": 310,
+          "y": 422,
+          "visible": true
+        },
+        {
+          "t": 4.431,
+          "x": 308,
+          "y": 422,
+          "visible": true
+        },
+        {
+          "t": 4.447,
+          "x": 305,
+          "y": 421,
+          "visible": true
+        },
+        {
+          "t": 4.463,
+          "x": 301,
+          "y": 421,
+          "visible": true
+        },
+        {
+          "t": 4.48,
+          "x": 296,
+          "y": 420,
+          "visible": true
+        },
+        {
+          "t": 4.495,
+          "x": 289,
+          "y": 419,
+          "visible": true
+        },
+        {
+          "t": 4.511,
+          "x": 280,
+          "y": 418,
+          "visible": true
+        },
+        {
+          "t": 4.528,
+          "x": 270,
+          "y": 416,
+          "visible": true
+        },
+        {
+          "t": 4.547,
+          "x": 257,
+          "y": 414,
+          "visible": true
+        },
+        {
+          "t": 4.56,
+          "x": 243,
+          "y": 411,
+          "visible": true
+        },
+        {
+          "t": 4.576,
+          "x": 227,
+          "y": 406,
+          "visible": true
+        },
+        {
+          "t": 4.594,
+          "x": 209,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 4.608,
+          "x": 194,
+          "y": 392,
+          "visible": true
+        },
+        {
+          "t": 4.624,
+          "x": 181,
+          "y": 385,
+          "visible": true
+        },
+        {
+          "t": 4.64,
+          "x": 170,
+          "y": 379,
+          "visible": true
+        },
+        {
+          "t": 4.658,
+          "x": 161,
+          "y": 373,
+          "visible": true
+        },
+        {
+          "t": 4.672,
+          "x": 154,
+          "y": 368,
+          "visible": true
+        },
+        {
+          "t": 4.688,
+          "x": 149,
+          "y": 364,
+          "visible": true
+        },
+        {
+          "t": 4.704,
+          "x": 144,
+          "y": 361,
+          "visible": true
+        },
+        {
+          "t": 4.721,
+          "x": 141,
+          "y": 359,
+          "visible": true
+        },
+        {
+          "t": 4.739,
+          "x": 138,
+          "y": 357,
+          "visible": true
+        },
+        {
+          "t": 4.754,
+          "x": 137,
+          "y": 356,
+          "visible": true
+        },
+        {
+          "t": 4.772,
+          "x": 136,
+          "y": 355,
+          "visible": true
+        },
+        {
+          "t": 4.787,
+          "x": 135,
+          "y": 355,
+          "visible": true
+        },
+        {
+          "t": 5.039,
+          "x": 135,
+          "y": 355,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 5.2,
+          "x": 135,
+          "y": 355,
+          "visible": true
+        },
+        {
+          "t": 5.99,
+          "x": 135,
+          "y": 356,
+          "visible": true
+        },
+        {
+          "t": 6.012,
+          "x": 136,
+          "y": 357,
+          "visible": true
+        },
+        {
+          "t": 6.032,
+          "x": 137,
+          "y": 359,
+          "visible": true
+        },
+        {
+          "t": 6.058,
+          "x": 139,
+          "y": 363,
+          "visible": true
+        },
+        {
+          "t": 6.073,
+          "x": 144,
+          "y": 373,
+          "visible": true
+        },
+        {
+          "t": 6.1,
+          "x": 150,
+          "y": 382,
+          "visible": true
+        },
+        {
+          "t": 6.126,
+          "x": 159,
+          "y": 391,
+          "visible": true
+        },
+        {
+          "t": 6.146,
+          "x": 165,
+          "y": 396,
+          "visible": true
+        },
+        {
+          "t": 6.384,
+          "x": 167,
+          "y": 398,
+          "visible": true
+        },
+        {
+          "t": 6.416,
+          "x": 168,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 6.568,
+          "x": 168,
+          "y": 399,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 6.663,
+          "x": 168,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 7.121,
+          "x": 169,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 7.144,
+          "x": 170,
+          "y": 400,
+          "visible": true
+        },
+        {
+          "t": 7.167,
+          "x": 172,
+          "y": 400,
+          "visible": true
+        },
+        {
+          "t": 7.188,
+          "x": 174,
+          "y": 401,
+          "visible": true
+        },
+        {
+          "t": 7.21,
+          "x": 178,
+          "y": 402,
+          "visible": true
+        },
+        {
+          "t": 7.235,
+          "x": 184,
+          "y": 403,
+          "visible": true
+        },
+        {
+          "t": 7.254,
+          "x": 193,
+          "y": 405,
+          "visible": true
+        },
+        {
+          "t": 7.28,
+          "x": 202,
+          "y": 406,
+          "visible": true
+        },
+        {
+          "t": 7.307,
+          "x": 217,
+          "y": 408,
+          "visible": true
+        },
+        {
+          "t": 7.329,
+          "x": 236,
+          "y": 408,
+          "visible": true
+        },
+        {
+          "t": 7.348,
+          "x": 249,
+          "y": 407,
+          "visible": true
+        },
+        {
+          "t": 7.36,
+          "x": 258,
+          "y": 405,
+          "visible": true
+        },
+        {
+          "t": 7.382,
+          "x": 265,
+          "y": 404,
+          "visible": true
+        },
+        {
+          "t": 7.402,
+          "x": 271,
+          "y": 403,
+          "visible": true
+        },
+        {
+          "t": 7.426,
+          "x": 276,
+          "y": 402,
+          "visible": true
+        },
+        {
+          "t": 7.445,
+          "x": 280,
+          "y": 400,
+          "visible": true
+        },
+        {
+          "t": 7.466,
+          "x": 283,
+          "y": 400,
+          "visible": true
+        },
+        {
+          "t": 7.489,
+          "x": 285,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 7.509,
+          "x": 286,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 7.767,
+          "x": 286,
+          "y": 399,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 7.86,
+          "x": 286,
+          "y": 399,
+          "visible": true
+        },
+        {
+          "t": 8.695,
+          "x": 286,
+          "y": 400,
+          "visible": true
+        },
+        {
+          "t": 8.714,
+          "x": 287,
+          "y": 401,
+          "visible": true
+        },
+        {
+          "t": 8.734,
+          "x": 287,
+          "y": 403,
+          "visible": true
+        },
+        {
+          "t": 8.755,
+          "x": 288,
+          "y": 405,
+          "visible": true
+        },
+        {
+          "t": 8.78,
+          "x": 288,
+          "y": 408,
+          "visible": true
+        },
+        {
+          "t": 8.801,
+          "x": 290,
+          "y": 414,
+          "visible": true
+        },
+        {
+          "t": 8.823,
+          "x": 291,
+          "y": 421,
+          "visible": true
+        },
+        {
+          "t": 8.843,
+          "x": 293,
+          "y": 431,
+          "visible": true
+        },
+        {
+          "t": 8.862,
+          "x": 293,
+          "y": 441,
+          "visible": true
+        },
+        {
+          "t": 8.883,
+          "x": 293,
+          "y": 452,
+          "visible": true
+        },
+        {
+          "t": 8.903,
+          "x": 292,
+          "y": 461,
+          "visible": true
+        },
+        {
+          "t": 8.925,
+          "x": 291,
+          "y": 468,
+          "visible": true
+        },
+        {
+          "t": 8.948,
+          "x": 290,
+          "y": 475,
+          "visible": true
+        },
+        {
+          "t": 8.965,
+          "x": 289,
+          "y": 479,
+          "visible": true
+        },
+        {
+          "t": 8.986,
+          "x": 288,
+          "y": 482,
+          "visible": true
+        },
+        {
+          "t": 9.004,
+          "x": 287,
+          "y": 484,
+          "visible": true
+        },
+        {
+          "t": 9.025,
+          "x": 287,
+          "y": 485,
+          "visible": true
+        },
+        {
+          "t": 9.052,
+          "x": 287,
+          "y": 486,
+          "visible": true
+        },
+        {
+          "t": 9.255,
+          "x": 287,
+          "y": 486,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 9.363,
+          "x": 287,
+          "y": 486,
+          "visible": true
+        },
+        {
+          "t": 9.805,
+          "x": 286,
+          "y": 486,
+          "visible": true
+        },
+        {
+          "t": 9.817,
+          "x": 284,
+          "y": 485,
+          "visible": true
+        },
+        {
+          "t": 9.829,
+          "x": 282,
+          "y": 484,
+          "visible": true
+        },
+        {
+          "t": 9.843,
+          "x": 278,
+          "y": 483,
+          "visible": true
+        },
+        {
+          "t": 9.883,
+          "x": 273,
+          "y": 482,
+          "visible": true
+        },
+        {
+          "t": 9.904,
+          "x": 262,
+          "y": 479,
+          "visible": true
+        },
+        {
+          "t": 9.925,
+          "x": 250,
+          "y": 475,
+          "visible": true
+        },
+        {
+          "t": 9.945,
+          "x": 235,
+          "y": 472,
+          "visible": true
+        },
+        {
+          "t": 9.97,
+          "x": 218,
+          "y": 469,
+          "visible": true
+        },
+        {
+          "t": 9.988,
+          "x": 191,
+          "y": 467,
+          "visible": true
+        },
+        {
+          "t": 9.993,
+          "x": 172,
+          "y": 467,
+          "visible": true
+        },
+        {
+          "t": 10.011,
+          "x": 158,
+          "y": 468,
+          "visible": true
+        },
+        {
+          "t": 10.03,
+          "x": 146,
+          "y": 469,
+          "visible": true
+        },
+        {
+          "t": 10.051,
+          "x": 136,
+          "y": 471,
+          "visible": true
+        },
+        {
+          "t": 10.07,
+          "x": 127,
+          "y": 473,
+          "visible": true
+        },
+        {
+          "t": 10.09,
+          "x": 119,
+          "y": 474,
+          "visible": true
+        },
+        {
+          "t": 10.107,
+          "x": 113,
+          "y": 475,
+          "visible": true
+        },
+        {
+          "t": 10.125,
+          "x": 110,
+          "y": 476,
+          "visible": true
+        },
+        {
+          "t": 10.14,
+          "x": 107,
+          "y": 476,
+          "visible": true
+        },
+        {
+          "t": 10.157,
+          "x": 105,
+          "y": 477,
+          "visible": true
+        },
+        {
+          "t": 10.191,
+          "x": 104,
+          "y": 477,
+          "visible": true
+        },
+        {
+          "t": 10.439,
+          "x": 104,
+          "y": 477,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 10.532,
+          "x": 104,
+          "y": 477,
+          "visible": true
+        },
+        {
+          "t": 11.392,
+          "x": 104,
+          "y": 478,
+          "visible": true
+        },
+        {
+          "t": 11.42,
+          "x": 103,
+          "y": 480,
+          "visible": true
+        },
+        {
+          "t": 11.444,
+          "x": 102,
+          "y": 483,
+          "visible": true
+        },
+        {
+          "t": 11.466,
+          "x": 101,
+          "y": 493,
+          "visible": true
+        },
+        {
+          "t": 11.509,
+          "x": 100,
+          "y": 506,
+          "visible": true
+        },
+        {
+          "t": 11.532,
+          "x": 102,
+          "y": 521,
+          "visible": true
+        },
+        {
+          "t": 11.553,
+          "x": 103,
+          "y": 526,
+          "visible": true
+        },
+        {
+          "t": 11.576,
+          "x": 104,
+          "y": 528,
+          "visible": true
+        },
+        {
+          "t": 11.777,
+          "x": 104,
+          "y": 528,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 11.886,
+          "x": 104,
+          "y": 528,
+          "visible": true
+        },
+        {
+          "t": 12.633,
+          "x": 105,
+          "y": 529,
+          "visible": true
+        },
+        {
+          "t": 12.656,
+          "x": 105,
+          "y": 530,
+          "visible": true
+        },
+        {
+          "t": 12.678,
+          "x": 106,
+          "y": 532,
+          "visible": true
+        },
+        {
+          "t": 12.705,
+          "x": 108,
+          "y": 534,
+          "visible": true
+        },
+        {
+          "t": 12.728,
+          "x": 113,
+          "y": 541,
+          "visible": true
+        },
+        {
+          "t": 12.753,
+          "x": 119,
+          "y": 549,
+          "visible": true
+        },
+        {
+          "t": 12.778,
+          "x": 128,
+          "y": 562,
+          "visible": true
+        },
+        {
+          "t": 12.793,
+          "x": 140,
+          "y": 577,
+          "visible": true
+        },
+        {
+          "t": 12.812,
+          "x": 152,
+          "y": 589,
+          "visible": true
+        },
+        {
+          "t": 12.83,
+          "x": 166,
+          "y": 602,
+          "visible": true
+        },
+        {
+          "t": 12.849,
+          "x": 180,
+          "y": 613,
+          "visible": true
+        },
+        {
+          "t": 12.869,
+          "x": 193,
+          "y": 621,
+          "visible": true
+        },
+        {
+          "t": 12.89,
+          "x": 204,
+          "y": 628,
+          "visible": true
+        },
+        {
+          "t": 12.906,
+          "x": 213,
+          "y": 633,
+          "visible": true
+        },
+        {
+          "t": 12.924,
+          "x": 219,
+          "y": 636,
+          "visible": true
+        },
+        {
+          "t": 12.941,
+          "x": 224,
+          "y": 638,
+          "visible": true
+        },
+        {
+          "t": 12.959,
+          "x": 227,
+          "y": 640,
+          "visible": true
+        },
+        {
+          "t": 12.986,
+          "x": 229,
+          "y": 641,
+          "visible": true
+        },
+        {
+          "t": 13.008,
+          "x": 231,
+          "y": 642,
+          "visible": true
+        },
+        {
+          "t": 13.956,
+          "x": 230,
+          "y": 641,
+          "visible": true
+        },
+        {
+          "t": 13.985,
+          "x": 229,
+          "y": 640,
+          "visible": true
+        },
+        {
+          "t": 14.005,
+          "x": 228,
+          "y": 639,
+          "visible": true
+        },
+        {
+          "t": 14.03,
+          "x": 226,
+          "y": 636,
+          "visible": true
+        },
+        {
+          "t": 14.062,
+          "x": 223,
+          "y": 631,
+          "visible": true
+        },
+        {
+          "t": 14.083,
+          "x": 217,
+          "y": 622,
+          "visible": true
+        },
+        {
+          "t": 14.106,
+          "x": 212,
+          "y": 614,
+          "visible": true
+        },
+        {
+          "t": 14.129,
+          "x": 206,
+          "y": 602,
+          "visible": true
+        },
+        {
+          "t": 14.156,
+          "x": 201,
+          "y": 589,
+          "visible": true
+        },
+        {
+          "t": 14.18,
+          "x": 199,
+          "y": 578,
+          "visible": true
+        },
+        {
+          "t": 14.202,
+          "x": 197,
+          "y": 571,
+          "visible": true
+        },
+        {
+          "t": 14.226,
+          "x": 196,
+          "y": 566,
+          "visible": true
+        },
+        {
+          "t": 14.241,
+          "x": 196,
+          "y": 562,
+          "visible": true
+        },
+        {
+          "t": 14.263,
+          "x": 195,
+          "y": 560,
+          "visible": true
+        },
+        {
+          "t": 14.277,
+          "x": 195,
+          "y": 559,
+          "visible": true
+        },
+        {
+          "t": 14.298,
+          "x": 195,
+          "y": 558,
+          "visible": true
+        },
+        {
+          "t": 14.544,
+          "x": 195,
+          "y": 558,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 14.669,
+          "x": 195,
+          "y": 558,
+          "visible": true
+        },
+        {
+          "t": 15.533,
+          "x": 195,
+          "y": 557,
+          "visible": true
+        },
+        {
+          "t": 15.559,
+          "x": 197,
+          "y": 555,
+          "visible": true
+        },
+        {
+          "t": 15.587,
+          "x": 199,
+          "y": 552,
+          "visible": true
+        },
+        {
+          "t": 15.607,
+          "x": 205,
+          "y": 544,
+          "visible": true
+        },
+        {
+          "t": 15.633,
+          "x": 213,
+          "y": 533,
+          "visible": true
+        },
+        {
+          "t": 15.658,
+          "x": 229,
+          "y": 510,
+          "visible": true
+        },
+        {
+          "t": 15.677,
+          "x": 249,
+          "y": 480,
+          "visible": true
+        },
+        {
+          "t": 15.702,
+          "x": 270,
+          "y": 446,
+          "visible": true
+        },
+        {
+          "t": 15.709,
+          "x": 297,
+          "y": 392,
+          "visible": true
+        },
+        {
+          "t": 15.731,
+          "x": 314,
+          "y": 348,
+          "visible": true
+        },
+        {
+          "t": 15.75,
+          "x": 325,
+          "y": 310,
+          "visible": true
+        },
+        {
+          "t": 15.772,
+          "x": 333,
+          "y": 277,
+          "visible": true
+        },
+        {
+          "t": 15.794,
+          "x": 340,
+          "y": 240,
+          "visible": true
+        },
+        {
+          "t": 15.812,
+          "x": 344,
+          "y": 213,
+          "visible": true
+        },
+        {
+          "t": 15.833,
+          "x": 346,
+          "y": 197,
+          "visible": true
+        },
+        {
+          "t": 15.852,
+          "x": 348,
+          "y": 184,
+          "visible": true
+        },
+        {
+          "t": 15.857,
+          "x": 349,
+          "y": 176,
+          "visible": true
+        },
+        {
+          "t": 15.876,
+          "x": 350,
+          "y": 172,
+          "visible": true
+        },
+        {
+          "t": 15.905,
+          "x": 350,
+          "y": 170,
+          "visible": true
+        },
+        {
+          "t": 15.921,
+          "x": 350,
+          "y": 169,
+          "visible": true
+        },
+        {
+          "t": 16.123,
+          "x": 350,
+          "y": 169,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 16.222,
+          "x": 350,
+          "y": 169,
+          "visible": true
+        },
+        {
+          "t": 16.635,
+          "x": 349,
+          "y": 169,
+          "visible": true
+        },
+        {
+          "t": 16.655,
+          "x": 347,
+          "y": 170,
+          "visible": true
+        },
+        {
+          "t": 16.674,
+          "x": 343,
+          "y": 171,
+          "visible": true
+        },
+        {
+          "t": 16.696,
+          "x": 338,
+          "y": 173,
+          "visible": true
+        },
+        {
+          "t": 16.718,
+          "x": 331,
+          "y": 175,
+          "visible": true
+        },
+        {
+          "t": 16.739,
+          "x": 317,
+          "y": 180,
+          "visible": true
+        },
+        {
+          "t": 16.761,
+          "x": 299,
+          "y": 186,
+          "visible": true
+        },
+        {
+          "t": 16.781,
+          "x": 275,
+          "y": 195,
+          "visible": true
+        },
+        {
+          "t": 16.801,
+          "x": 247,
+          "y": 206,
+          "visible": true
+        },
+        {
+          "t": 16.822,
+          "x": 216,
+          "y": 221,
+          "visible": true
+        },
+        {
+          "t": 16.842,
+          "x": 177,
+          "y": 243,
+          "visible": true
+        },
+        {
+          "t": 16.866,
+          "x": 146,
+          "y": 265,
+          "visible": true
+        },
+        {
+          "t": 16.893,
+          "x": 116,
+          "y": 290,
+          "visible": true
+        },
+        {
+          "t": 16.912,
+          "x": 91,
+          "y": 313,
+          "visible": true
+        },
+        {
+          "t": 16.928,
+          "x": 78,
+          "y": 326,
+          "visible": true
+        },
+        {
+          "t": 16.945,
+          "x": 70,
+          "y": 334,
+          "visible": true
+        },
+        {
+          "t": 16.963,
+          "x": 63,
+          "y": 341,
+          "visible": true
+        },
+        {
+          "t": 16.978,
+          "x": 58,
+          "y": 347,
+          "visible": true
+        },
+        {
+          "t": 16.999,
+          "x": 55,
+          "y": 350,
+          "visible": true
+        },
+        {
+          "t": 17.022,
+          "x": 53,
+          "y": 352,
+          "visible": true
+        },
+        {
+          "t": 17.045,
+          "x": 51,
+          "y": 354,
+          "visible": true
+        },
+        {
+          "t": 17.265,
+          "x": 51,
+          "y": 354,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 17.371,
+          "x": 51,
+          "y": 354,
+          "visible": true
+        },
+        {
+          "t": 17.806,
+          "x": 52,
+          "y": 354,
+          "visible": true
+        },
+        {
+          "t": 17.828,
+          "x": 53,
+          "y": 355,
+          "visible": true
+        },
+        {
+          "t": 17.848,
+          "x": 54,
+          "y": 357,
+          "visible": true
+        },
+        {
+          "t": 17.866,
+          "x": 57,
+          "y": 360,
+          "visible": true
+        },
+        {
+          "t": 17.885,
+          "x": 61,
+          "y": 363,
+          "visible": true
+        },
+        {
+          "t": 17.908,
+          "x": 66,
+          "y": 367,
+          "visible": true
+        },
+        {
+          "t": 17.921,
+          "x": 74,
+          "y": 373,
+          "visible": true
+        },
+        {
+          "t": 17.942,
+          "x": 82,
+          "y": 379,
+          "visible": true
+        },
+        {
+          "t": 17.973,
+          "x": 92,
+          "y": 385,
+          "visible": true
+        },
+        {
+          "t": 17.995,
+          "x": 112,
+          "y": 394,
+          "visible": true
+        },
+        {
+          "t": 18.012,
+          "x": 123,
+          "y": 398,
+          "visible": true
+        },
+        {
+          "t": 18.034,
+          "x": 129,
+          "y": 400,
+          "visible": true
+        },
+        {
+          "t": 18.053,
+          "x": 136,
+          "y": 401,
+          "visible": true
+        },
+        {
+          "t": 18.075,
+          "x": 141,
+          "y": 402,
+          "visible": true
+        },
+        {
+          "t": 18.094,
+          "x": 144,
+          "y": 403,
+          "visible": true
+        },
+        {
+          "t": 18.114,
+          "x": 146,
+          "y": 404,
+          "visible": true
+        },
+        {
+          "t": 18.138,
+          "x": 147,
+          "y": 404,
+          "visible": true
+        },
+        {
+          "t": 18.401,
+          "x": 147,
+          "y": 404,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 18.506,
+          "x": 147,
+          "y": 404,
+          "visible": true
+        },
+        {
+          "t": 18.911,
+          "x": 147,
+          "y": 405,
+          "visible": true
+        },
+        {
+          "t": 18.929,
+          "x": 148,
+          "y": 406,
+          "visible": true
+        },
+        {
+          "t": 18.942,
+          "x": 150,
+          "y": 409,
+          "visible": true
+        },
+        {
+          "t": 18.959,
+          "x": 153,
+          "y": 413,
+          "visible": true
+        },
+        {
+          "t": 18.979,
+          "x": 157,
+          "y": 420,
+          "visible": true
+        },
+        {
+          "t": 18.991,
+          "x": 163,
+          "y": 429,
+          "visible": true
+        },
+        {
+          "t": 19.007,
+          "x": 171,
+          "y": 441,
+          "visible": true
+        },
+        {
+          "t": 19.023,
+          "x": 180,
+          "y": 456,
+          "visible": true
+        },
+        {
+          "t": 19.043,
+          "x": 192,
+          "y": 475,
+          "visible": true
+        },
+        {
+          "t": 19.062,
+          "x": 206,
+          "y": 500,
+          "visible": true
+        },
+        {
+          "t": 19.077,
+          "x": 222,
+          "y": 530,
+          "visible": true
+        },
+        {
+          "t": 19.093,
+          "x": 237,
+          "y": 563,
+          "visible": true
+        },
+        {
+          "t": 19.106,
+          "x": 253,
+          "y": 608,
+          "visible": true
+        },
+        {
+          "t": 19.122,
+          "x": 264,
+          "y": 648,
+          "visible": true
+        },
+        {
+          "t": 19.14,
+          "x": 271,
+          "y": 681,
+          "visible": true
+        },
+        {
+          "t": 19.154,
+          "x": 276,
+          "y": 712,
+          "visible": true
+        },
+        {
+          "t": 19.175,
+          "x": 279,
+          "y": 736,
+          "visible": true
+        },
+        {
+          "t": 19.188,
+          "x": 281,
+          "y": 755,
+          "visible": true
+        },
+        {
+          "t": 19.204,
+          "x": 283,
+          "y": 771,
+          "visible": true
+        },
+        {
+          "t": 19.221,
+          "x": 284,
+          "y": 783,
+          "visible": true
+        },
+        {
+          "t": 19.238,
+          "x": 285,
+          "y": 792,
+          "visible": true
+        },
+        {
+          "t": 19.255,
+          "x": 285,
+          "y": 799,
+          "visible": true
+        },
+        {
+          "t": 19.271,
+          "x": 286,
+          "y": 803,
+          "visible": true
+        },
+        {
+          "t": 19.287,
+          "x": 286,
+          "y": 805,
+          "visible": true
+        },
+        {
+          "t": 19.305,
+          "x": 286,
+          "y": 806,
+          "visible": true
+        },
+        {
+          "t": 19.553,
+          "x": 286,
+          "y": 806,
+          "visible": true,
+          "down": true
+        },
+        {
+          "t": 19.666,
+          "x": 286,
+          "y": 806,
+          "visible": true
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "page phone: 1 of 12 cursor moves were captured below 18 fps (lowest 18 fps at 6.0 s): several pages share the machine and render slowly"
+  ]
+}

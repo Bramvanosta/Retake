@@ -231,7 +231,7 @@ default_env: staging
 auth:                          # never passwords; global, or keyed by environment name
   profile: ~/.demo-studio/profiles/acme-staging
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → real 3840×2160 frames from a 1080p viewport (4K)
-frame: card                    # raw | card | browser | laptop | phone | tablet, or a layout component id
+frame: card                    # raw | card | browser | laptop | phone | tablet (| split | pip: multi-page scenes), or a layout component id
 template: default              # a name in the workspace templates, or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
 allow_hosts: [api.staging.example.com]                    # extra hosts hooks may call
@@ -260,6 +260,7 @@ Run `studio schema project` for the full schema (also in `packages/core/schema/`
 | `hover_ms`, `press_ms` | 200, 90 | Hover before pressing; mousedown → mouseup |
 | `after_click_ms`, `after_popup_ms` | 350, 800 | Pause after a click; after a click that opened a menu/popover/dialog |
 | `after_navigation_ms` | 1500 | Minimum time between a click that changed the page (document navigation or new URL) and the next step |
+| `page_switch_ms` | 500 | Multi-page scenes: the pause when the next step acts on another page than the previous one (the eye moves), before that page's cursor glides |
 | `popup_fallback_ms` | 300 | How long a click gets to show that an expected popup opened (`aria-expanded="true"` or a new popup, polled every 40 ms) before the next strategy (DOM click, then pointer sequence) is tried |
 | `popup_timeout_ms` | 700 | How long the last strategy waits for the popup before the step reports it missing |
 | `type_cps` | 14 | Typing speed (search fields are capped at 10) |
@@ -399,7 +400,7 @@ scenes:
 
 | Key | Where | Value |
 |---|---|---|
-| `frame` | project, scenario, scene | `raw`, `card`, `browser`, `laptop`, `phone`, `tablet` (= `studio/layout-<style>`) or a layout component id; default `card` (project) |
+| `frame` | project, scenario, scene | `raw`, `card`, `browser`, `laptop`, `phone`, `tablet` (= `studio/layout-<style>`), `split`, `pip` (multi-page scenes: `studio/layout-split`, `studio/layout-pip`, see [several pages at once](#several-pages-at-once)) or a layout component id; default `card` (project) |
 | `intro` / `outro` | scenario | `false`, or `{component, params, duration}` (+ `tagline`, `url` for the outro) |
 | `interstitial` | scene entry | `{text, kicker, duration, component, params}` |
 | `card` | scene entry | `{component, params, slots, duration, transition}`; needs `component` or `slots.title` (the theme's card component shows a title) |
@@ -536,6 +537,7 @@ template fields use, plus a tablet layout — every one theme-driven, in the fam
 | `studio/layout-phone` | layout | iPhone-style phone (status bar, Dynamic Island, side buttons) for mobile captures, the caption beside it; `height`, `finish`, `island`, `status_bar` |
 | `studio/layout-tablet` | layout | iPad-style tablet: upright with the caption beside it for portrait captures, lying with the caption below for landscape ones; `height`, `width`, `finish` |
 | `studio/layout-raw` | layout | the capture edge to edge, the caption over its bottom |
+| `studio/layout-split` · `studio/layout-pip` | layout | two pages of a multi-page scene side by side (stacked in vertical) with their labels · the main page with the other floating over a corner (a phone around a mobile page) — see [several pages at once](#several-pages-at-once) |
 | `studio/caption-below` · `studio/caption-overlay` | caption | rule + kicker + line under the card (reference) · a translucent band over the capture (`position: over \| area`) |
 | `studio/overlay-callout` · `studio/overlay-lower-third` | overlay | a ring on the target + a pill pointing at it, never off-screen · a paper lower third inside the capture |
 | `studio/transition-crossfade` · `studio/transition-fade-black` | transition | crossfade (reference) · dip through black or the theme's night tone |
@@ -833,10 +835,10 @@ scenes:
 
 | Switch | Component | What it draws |
 |---|---|---|
-| `shortcuts` | `studio/overlay-shortcut` | key caps of every `press` step (and the Enter of `type: {enter: true}`) at the bottom of the capture (above a caption band drawn over it — the overlays receive it as `avoid`), going down on the **real key press** (the planner starts the overlay 0.3 s before it and hands the press frame as `moment`); macOS symbols ⌘ ⌥ ⇧ ⌃ ↩ ⇥ drawn as line glyphs, or `params: {platform: windows \| linux}` → Ctrl / Alt / Shift words; `press: {times: 3}` → a "× 3" chip |
-| `spotlight` | `studio/overlay-spotlight` | dims the capture (theme night tone) except a soft rounded cut-out around the step's target, mapped through layout, camera and reframe; `steps` (= `true`): every step with a target (click, type, select, pick, menu, hover, drag, drop_file, download) over the step — a click ends it soon after the click, one overlay per run of steps whose cut-out **glides** from target to target; `clicks`: around each click only. Drawn under the caption and the other overlays |
-| `steps` | `studio/overlay-steps` | numbered badges (1, 2, 3… per scene, `params: {numbering: video}` across the video) beside each clicked target, never over it (left, above, right or below, inside the capture), popping as the cursor arrives, a ring pulsing at the click, ~1 s after it |
-| `loupe` | `studio/overlay-loupe` | during `type` steps, a magnified **live** view of the field — the capture region around it rendered again at the capture's own resolution (crisp), at least 1.5 design px per CSS px so it reads in vertical / square — beside the field with a pointer (clear of a caption band over the screen and of the key caps' row; a lens gliding over several fields keeps one side of them); consecutive fields (type, Tab, type) are one lens gliding from field to field. A `type` without `into` uses the focused field the runner measured |
+| `shortcuts` | `studio/overlay-shortcut` | key caps of every `press` step (and the Enter of `type: {enter: true}`) at the bottom of the capture (above a caption band drawn over it — the overlays receive it as `avoid`; in the top row when the bottom one would cover the current or next click target), going down on the **real key press** (the planner starts the overlay 0.3 s before it and hands the press frame as `moment`); macOS symbols ⌘ ⌥ ⇧ ⌃ ↩ ⇥ drawn as line glyphs, or `params: {platform: windows \| linux}` → Ctrl / Alt / Shift words; `press: {times: 3}` → a "× 3" chip |
+| `spotlight` | `studio/overlay-spotlight` | dims the capture (theme night tone) except a soft rounded cut-out around the step's target, mapped through layout, camera and reframe; `steps` (= `true`): every step with a target (click, type, select, pick, menu, hover, drag, drop_file, download) over the step — a click ends it soon after the click, one overlay per run of steps whose cut-out **glides** from target to target (a click that takes the page to another URL ends the run: the next step's spotlight comes in on the new page); `clicks`: around each click only. Drawn under the caption and the other overlays |
+| `steps` | `studio/overlay-steps` | numbered badges (1, 2, 3… per scene, `params: {numbering: video}` across the video) beside each clicked target, never over it nor over the next click target (left, above, right or below, inside the capture), popping as the cursor arrives, a ring pulsing at the click, ~1 s after it |
+| `loupe` | `studio/overlay-loupe` | during `type` steps, a magnified **live** view of the field — the capture region around it rendered again at the capture's own resolution (crisp), at least 1.5 design px per CSS px so it reads in vertical / square — beside the field with a pointer (clear of a caption band over the screen and of the key caps' row; a lens gliding over several fields keeps one side of them); consecutive fields (type, Tab, type) are one lens moving from field to field — it cross-fades the two fields instead of panning over what lies between them. A `type` without `into` uses the focused field the runner measured |
 | `progress` | `studio/overlay-progress` | a thin chapter bar across the top of the frame over everything between the intro and the outro; `scenes` (= `true`): every scene and card is a chapter, `cards`: each card opens one; the current chapter fills in the accent (`params: {position: bottom, labels: true}`). Scenario level only |
 
 Each switch is `true`, `false`, a mode (`spotlight: clicks`, `progress: cards`) or `{component?, params?}` (another
@@ -845,7 +847,12 @@ switches into the timeline (`video.tutorial`, `scene.tutorial`, `event.tutorial`
 every overlay on over the scenario's switches and `--no-tutorial` removes them (`overrides.tutorial`), and
 `overrides.components["tutorial-shortcuts" | "tutorial-spotlight" | …]` swaps one component. What cannot be shown — a
 spotlight or a badge on a step whose target box was not recorded, a loupe without a field — is a plan warning and a
-`tutorial-skipped` review warning; a target the zoom or the reframe cuts is `tutorial-target-cut`.
+`tutorial-skipped` review warning; a target the zoom or the reframe cuts is `tutorial-target-cut`; a spotlight or a
+badge still on its target more than 0.6 s after its page went to another URL is `tutorial-stale-target` (a badge
+leaves with the page after a click that navigates). Key caps, badges
+and the loupe keep clear of the current step's target and of the next click targets (the planner hands their output
+boxes in `avoid`, `kind: target`); when one still covers a click target of the current or next step, the review says
+`overlay-covers-target`. In a multi-page scene each overlay belongs to the pane of its event's page.
 
 **Story cards** tell the product's story between the scenes (cards take no capture time):
 
@@ -883,6 +890,99 @@ and image files against the project; the run records texts as `artefacts/texts/<
 sizes — `planInputFiles`) and the planner turns them into `props.media` (`TextMedia`, `PictureMedia` — a capture frame
 is the capture video frozen at its time —, `TableMedia`). A name the run did not capture is a plan warning and a
 `media-missing` review warning.
+
+## Several pages at once
+
+A scene can film **two pages at the same time** — the buyer's shop and the supplier's console, the same account on a
+desktop and on a phone — on one clock, each page with its own recording, viewport and cursor. The video shows them
+side by side (`studio/layout-split`) or one over the other (`studio/layout-pip`), both playing from the same source
+time: an action on one page is visible on the other as it happens.
+
+```yaml
+frame: split                                   # or pip; a single-pane frame picks split / pip from the pages' shapes
+scenes:
+  - id: request
+    pages:                                     # a map: page id → where it opens and how it is filmed
+      buyer: {open: "shop:/products/selowa-ridge", viewport: laptop, label: Café · shop}
+      supplier: {open: "console:/quotes", viewport: laptop, label: Roaster · console}
+    steps:
+      - click: {role: button, name: Request a quote}   # acts on the first page (buyer)…
+      - on: supplier                                   # …unless the step says which one
+        wait_for: {text: New}
+  - id: proposal
+    pages: [buyer, supplier]                   # a list: the pages of an earlier scene go on (same viewport, label)
+    steps:
+      - on: supplier
+        click: {text: Send proposal, in: {row: New}}
+
+# Lists can also declare pages: the same environment page twice, one of them on a phone.
+pages:
+  - {id: desk, page: shop, open: /quotes, label: Desktop}
+  - {id: phone, page: shop, open: /products/selowa-ridge, viewport: mobile, label: Phone}
+```
+
+| Key | Where | Value |
+|---|---|---|
+| `pages` | scene | a map `id → {page?, open?, viewport?, label?, cursor?}` (`null`: an earlier declaration as it was) or a list of ids (pages an earlier scene declared, else environment pages) and `{id?, page?, open?, viewport?, label?, cursor?}`. Two pages per scene |
+| `page` | page | the environment page it starts from (`environments.<env>.<page>`); default the id, or the `x:` of `open: "x:/path"` |
+| `open` | page | `"/path"` (on `page`), `"<env page>:/path"` or an absolute URL; omitted for a page an earlier scene already opened |
+| `viewport` | page | `desktop` (the capture size, the default), `laptop` 1440×900, `tablet` 820×1180 (mobile, touch), `mobile` 390×844 (mobile, touch, mobile user agent), or `{width, height, mobile?, touch?}`; a page keeps one viewport for the whole run |
+| `label` | page | shown above its pane by `studio/layout-split` |
+| `cursor` | page | that page's scene-start cursor (as a scene's `cursor`) |
+| `on` | step | the page the step acts on (default the scene's first page); only inside a multi-page scene |
+
+Validation is positioned (line:column): unknown page ids (with a suggestion), `on:` outside a multi-page scene or
+naming a page the scene does not film, a scene with `page` / `open` and `pages`, more or fewer than two pages,
+duplicate ids, unknown viewport presets, `new_tab` / `switch_page` inside a multi-page scene, a page id asked at
+another viewport than the one it was first filmed at, and a single-page scene that would film a page whose viewport is
+not the capture size (its `page`, a `switch_page` / `open` to it, or — without `page` — the first page of the
+multi-page scene before it); a page filmed for the first time without `open` is a warning.
+
+**Capture.** The runner opens every page of the scene, emulates its viewport (Chrome DevTools device metrics, touch
+and a mobile user agent for `mobile` / `tablet`) and records **one screencast per page**, all on the run's clock; each
+is encoded on the shared constant-frame-rate grid as `capture-<page>.mp4` (`frames-<page>/`, `frames-<page>.jsonl`) —
+same frame count as `capture.mp4`, so one source frame index addresses every track. A page records only while a scene
+films it (it holds its last frame otherwise); single-page scenes record `capture.mp4` exactly as before. Each page has
+its **own in-page cursor**: only the acting page's moves; when a step acts on the other page, the runner pauses
+`pacing.page_switch_ms` (the eye moves) and that page's cursor glides from where it rests — no cursor ever jumps. A
+page with no step of its own in a scene rests its cursor near its centre (a PiP inset sits in a corner: a cursor
+resting there would come out from under it). A relative `open` step on a page id resolves against the environment
+page that id was declared on, base path included, like the page's own `open`. The
+timeline lists the scene's pages (`scenes[].pages`: id, environment page, label, viewport, URL, track), one track per
+page (`tracks[]`: file, size, viewport, recorded spans, URL segments, its cursor samples) and tags every event and
+marker with its `page`. A single-page scene after a multi-page one continues on its first page (a page with a phone
+viewport cannot be filmed by a single-page scene).
+
+**Layouts.**
+
+| id | what it draws (params) |
+|---|---|
+| `studio/layout-split` | the two pages side by side — stacked top / bottom in vertical, narrow side by side in square (a page wider than its pane is reframed around what it acts on) — each in a rounded card with the reference shadow, or a compact browser window with the page's real URL (`chrome`, on for themes whose layout is a browser window); each page's label above it, the acting page's in the accent colour; the caption below the pair. `margin`, `gap`, `radius`, `shadow`, `chrome`, `labels`, `emphasis: auto \| none \| dim` (auto: the idle page dims a little for balanced / motion themes) |
+| `studio/layout-pip` | the main page in a card (or browser window), the other page floating over one of its corners — inside a phone drawn in CSS when it is a mobile page, else a smaller card. The planner picks the corner so the inset **never covers what the main page acts on now or next** (it glides to another corner, at most every 1.2 s, never while its own page acts: a corner the next main-page step needs is reached once the inset's step is over), and keeps it clear of a caption band over the screen; with `emphasis: auto \| grow` (auto: balanced / motion themes) the inset grows ×1.18 while its page acts — less, or not at all, when growing would reach a caption band over the screen (a plan note says so). `width`, `radius`, `shadow`, `chrome`, `inset_height`, `inset_width`, `margin` |
+
+The main page of a PiP is the landscape one (the first page when both are). A scene filmed on two pages with a
+single-pane frame (`card`, `browser`…) gets split when the pages have the same shape, else PiP (a plan note says so);
+`split` / `pip` asked for single-page scenes falls back to the theme's layout. Each pane has its own camera (the theme's
+zoom and the steps' zooms, on their page), reframe and URL; captions, cards, intro and outro are unchanged — except
+that a caption band drawn over the screen (`studio/caption-overlay`, `position: over`) goes to the layout's caption
+area below a split, where it does not straddle both pages (a plan note says so); the tutorial overlays sit on the pane
+of their event's page (an inset's spotlight and step badges stay inside the inset; its key caps and lens, too large
+for it, use the main page's room and keep clear of the main page's current and next targets too), the step badges of
+a scene are numbered in time order over both pages, and the main page's overlays pass under a PiP inset (clipped
+around it). The acting page (label accent, dimmed idle page, grown inset) is the page of the scene's opening still from
+the clip's start — a clip joined to the previous one eases from that clip's acting page.
+Layout geometry for multi-page layouts declares `panes:` (two rects) or `inset:` beside `screen`, with `aspect2` (the
+second page's aspect) next to `aspect` in the expressions — see `packages/components/library/studio/layout-*/component.yaml`.
+Contiguous multi-page scenes with the same pages are joined like same-page scenes (the camera and the inset go on).
+
+**Review.** Clicks are placed on their page's pane; the cursor, reframe and tutorial checks run per pane; the still
+and freeze comparisons read each page's own track; `overlay-covers-target` warns when key caps, a badge, the loupe or
+the PiP inset (bezel included) covers a click target of the current or next step.
+
+The fixture shows both: `projects/northfield-fixture/scenarios/live-quote.yaml` (the café's shop sends a quote request,
+the roaster's console — a live list polling every second — shows it arrive, the roaster sends a proposal, the café's
+bell — the shop polls its notifications every second — rings with it a second later; `split`) and `phone-and-desktop.yaml` (the request sent from a phone shows up in the desktop's quote list;
+`pip`).
 
 ## Editing: the edit plan
 
@@ -1049,9 +1149,13 @@ The reframe track (`ClipSegment.reframe`, `camera.ts reframeTrack`):
 - **what must be seen**: the cursor (its arrow and ripple), where it goes in the next 0.4 s, the active step's target
   from 0.5 s before the step starts (look-ahead), every click's target around the click (widgets: each click of a
   select or a date pick) and overlay anchors while the overlay shows — their union while it fits, else the clicked
-  target and the cursor;
+  target and the cursor; a target wider than the view (a whole table row) counts by its **leading part** (where its
+  text starts: the row's id and label), as much of it as fits with the cursor;
 - **no jitter**: the target centre only moves when that region leaves the view inset by 15 % (dead zone), then
-  re-centres;
+  re-centres — except for a cursor resting alone once its step is over (a closing hold), which is only brought back
+  inside; a run starts framed on its first step's region as far toward the page's top-left (its heading) as that
+  region allows, and the idle page of a multi-page scene settles the same way at the start of a scene where it only
+  rests;
 - **critically damped smoothing** (two first-order lags forward and backward: no lag, no overshoot, moves start a
   little before they are needed), then the smoothest critically damped repair that keeps the cursor and the clicked
   target inside the view (a banded quadratic programme: never a cut target, never the cursor out of frame, no
@@ -1139,7 +1243,7 @@ not clean; `--json` prints the result. The checks:
 | Blank, near-uniform or loading screens inside the layout's screen rect (2 fps samples, transitions excluded), at scene starts (rendered frame and capture frame), a screen still changing during the opening still (compared on the capture frames when the view moves or something is drawn over the page: an overlay such as a spotlight, a caption over the screen), waiting on an unchanging screen for 3 s or more (wait steps and the time after an action until the next step; holds are deliberate) | `blank-screen` (error from 1 s), `near-uniform-screen`, `blank-scene-start` (error), `loading-scene-start`, `long-wait`, `empty-segment` (a card that draws nothing) |
 | Captions: shown on another scene, overlapping in time, too long for their area (the kit's `fitText` with the theme caption style and the theme's real font files: shrunk below 85 % of the theme size = warning, cut with "…" = error), under the brand mark, not visible in the caption area, missing | `caption-scene-mismatch`, `caption-overlap`, `caption-too-long`, `caption-truncated`, `caption-shrunk` (info), `caption-overlaps-brandmark`, `caption-not-visible`, `caption-missing` |
 | Text slots longer than their component's `max_chars` (titles, kickers, taglines, callouts, captions) or required and empty | `text-slot-overflow`, `text-slot-empty` |
-| Cursor at every click of the capture: off screen, hidden, outside the zoomed view (at the click and 0.4 s later), target partly outside the view | `cursor-offscreen`, `cursor-hidden`, `cursor-outside-view` (error), `target-outside-view` |
+| Cursor at every click of the capture: off screen, hidden, outside the zoomed view (at the click and 0.4 s later), target partly outside the view (info when a reframed target larger than the view shows its leading part and the click) | `cursor-offscreen`, `cursor-hidden`, `cursor-outside-view` (error), `target-outside-view` |
 | Camera: more zooms than the reference look's one very slow zoom per video, zooms faster / stronger than "very slow", clamped zooms, a zoom reset at a same-page join, camera jumps | `zoom-count` (warning), `zoom-not-slow`, `zoom-clamped` (info), `zoom-reset`, `camera-jump` |
 | A transition (or fade) over a click and its ripple | `transition-on-click` (warning) |
 | The render itself: failed status, duration or size different from the plan, missing components (stand-ins), plan warnings | `render-failed`, `duration-mismatch`, `size-mismatch`, `component-missing`, `plan-warning` |
@@ -1201,6 +1305,7 @@ A profile can be used by one browser at a time: close the login window before ru
 | `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet), updated live |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
+| `capture-<page>.mp4`, `frames-<page>/`, `frames-<page>.jsonl` | multi-page scenes: one recording per page on the same frame grid as `capture.mp4` (listed in `timeline.json` `tracks`) |
 | `screenshots/` | dry-run screenshots, `screenshot` steps, error screenshots and DOM snippets |
 | `hooks-journal.json` | executed hooks and their rollbacks |
 | `scenario.yaml` | snapshot of the scenario that ran |
@@ -1240,7 +1345,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition) done; tutorial overlays & story cards next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) done; L2.12 next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

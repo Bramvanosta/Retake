@@ -3,6 +3,9 @@ import { basename, dirname, join } from 'node:path';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { normalizeStep, resolveStepRef } from '../steps.js';
+import { isDesktopViewport, resolveViewport, scenePageEntries, splitPageOpen } from '../pages.js';
+import type { ResolvedViewport } from '../pages.js';
+import { DEFAULT_CAPTURE, MAX_SCENE_PAGES } from '../types.js';
 import { isPoint } from '../targets.js';
 import { BADGE_ACTIONS, IMAGE_FILE_EXTENSIONS, LOUPE_ACTIONS, SHORTCUT_ACTIONS, SPOTLIGHT_ACTIONS, isImagePath, parseFrameRef, tutorialFeaturesNamed } from '../tutorial.js';
 import type { TutorialLevel } from '../tutorial.js';
@@ -65,6 +68,11 @@ class ScenarioChecker {
   private readonly stepIds = new Map<string, IssuePath>();
   private readonly marks = new Map<string, IssuePath>();
   private readonly tabIds = new Set<string>();
+  /** Page ids declared by the `pages` of multi-page scenes so far (a later scene may continue on them), with their environment page. */
+  private readonly scenePageIds = new Set<string>();
+  private readonly scenePageEnv = new Map<string, string>();
+  /** The viewport each page id of a (captured) multi-page scene was first declared with, and where. */
+  private readonly scenePageViewport = new Map<string, { viewport: ResolvedViewport; path: IssuePath }>();
   private readonly switches: Array<{ to: string; path: IssuePath }> = [];
   /** Artefacts declared by wait_for_email / download / capture_text (`as`), per kind. */
   private readonly artefacts = { email: new Map<string, IssuePath>(), document: new Map<string, IssuePath>(), text: new Map<string, IssuePath>() };
@@ -170,9 +178,19 @@ class ScenarioChecker {
       if (entry.skip !== true) capturable++;
       this.tutorial(entry.tutorial, [...p, 'tutorial'], 'scene');
 
+      if (entry.pages !== undefined) {
+        const first = this.multiPageScene(entry, p, visited);
+        if (first !== undefined && entry.skip !== true) current = first;
+        return;
+      }
+
       const page = typeof entry.page === 'string' ? entry.page : current;
-      if (typeof entry.page === 'string' && this.pages && !Object.hasOwn(this.pages, entry.page)) {
+      if (typeof entry.page === 'string' && this.pages && !Object.hasOwn(this.pages, entry.page) && !this.scenePageIds.has(entry.page)) {
         this.unknownPage(entry.page, [...p, 'page']);
+      }
+      if (entry.skip !== true) {
+        if (typeof entry.page === 'string') this.singlePageViewport(entry.page, [...p, 'page'], 'this scene films');
+        else this.singlePageViewport(current, p, 'this scene has no `page`: it continues on');
       }
       const steps = Array.isArray(entry.steps) ? entry.steps : [];
       const pageKey = page ?? '(default page)';
@@ -190,8 +208,19 @@ class ScenarioChecker {
         const sp: IssuePath = [...p, 'steps', j];
         if (this.ctx.broken(sp)) return;
         const step = normalizeStep(raw, j);
+        if (step.on !== undefined) {
+          this.ctx.error([...sp, 'on'], '`on:` names the page a step acts on in a multi-page scene (a scene with `pages`): this scene films one page');
+        }
         this.step(step, sp);
         if (step.action === 'open') visited.add((step.args as { page?: string }).page ?? pageKey);
+        if (entry.skip !== true && step.action === 'switch_page') {
+          const arg = isObj(raw) ? raw.switch_page : undefined;
+          const to = (step.args as { to?: unknown }).to;
+          if (typeof to === 'string') this.singlePageViewport(to, isObj(arg) ? [...sp, 'switch_page', 'to'] : [...sp, 'switch_page'], '`switch_page` goes to');
+        }
+        if (entry.skip !== true && step.action === 'open' && typeof (step.args as { page?: unknown }).page === 'string') {
+          this.singlePageViewport((step.args as { page: string }).page, [...sp, 'open', 'page'], '`open` goes to');
+        }
       });
     });
 
@@ -201,6 +230,86 @@ class ScenarioChecker {
     for (const [id, path] of this.stepIds) {
       if (sceneIds.has(id)) this.ctx.warning([...path, 'id'], `step id "${id}" is also a scene id: --until "${id}" refers to the step`);
     }
+  }
+
+  /**
+   * A multi-page scene (L2.11): its `pages` (2, unique ids, environment pages, `open` forms, viewports), no scene-level
+   * `page` / `open`, steps acting on one of its pages (`on:`), no tab switching inside it. Returns its first page id.
+   */
+  private multiPageScene(entry: Record<string, unknown>, p: IssuePath, visited: Set<string>): string | undefined {
+    const pp: IssuePath = [...p, 'pages'];
+    for (const key of ['page', 'open'] as const) {
+      if (entry[key] !== undefined) {
+        this.ctx.error([...p, key], `a multi-page scene declares its pages in \`pages\`: remove \`${key}\` (${key === 'open' ? 'give each page its own `open`' : 'each page names its environment page'})`);
+      }
+    }
+    if (entry.cursor !== undefined) this.ctx.warning([...p, 'cursor'], 'a multi-page scene places each cursor from its page: use `pages.<id>.cursor` (ignored here)');
+    if (this.ctx.broken(pp)) return undefined;
+    const entries = scenePageEntries(entry.pages as never);
+    if (entries.length < 2) this.ctx.error(pp, `a multi-page scene films at least 2 pages (it has ${entries.length}); use \`page\` and \`open\` for one page`);
+    else if (entries.length > MAX_SCENE_PAGES) {
+      this.ctx.error(pp, `a scene films at most ${MAX_SCENE_PAGES} pages at the same time (it has ${entries.length}): split screen and picture in picture show two`);
+    }
+    const envKeys = Object.keys(this.pages ?? {});
+    const ids = new Map<string, IssuePath>();
+    for (const e of entries) {
+      const ep: IssuePath = [...p, ...e.path];
+      const prev = ids.get(e.id);
+      if (prev) {
+        this.ctx.error(ep, `duplicate page id "${e.id}" in this scene (already used at ${formatPath(prev)})` + (e.derived ? ': give the page an `id`' : ''));
+        continue;
+      }
+      ids.set(e.id, ep);
+      const s = e.spec;
+      const plain = Array.isArray(entry.pages) && typeof (entry.pages as unknown[])[e.path[1] as number] === 'string';
+      if (plain && this.pages && !Object.hasOwn(this.pages, e.id) && !this.scenePageIds.has(e.id)) {
+        const known = [...envKeys, ...this.scenePageIds];
+        this.ctx.error(ep, `unknown page "${e.id}": neither a page of environment "${this.envName}" nor a page an earlier scene films${suggestion(e.id, known)} (available: ${known.join(', ') || 'none'})`);
+        continue;
+      }
+      if (this.pages && typeof s.page === 'string' && !Object.hasOwn(this.pages, s.page)) {
+        this.unknownPage(s.page, [...ep, 'page']);
+      }
+      let envPage: string | undefined = typeof s.page === 'string' ? s.page : (this.scenePageEnv.get(e.id) ?? (envKeys.includes(e.id) ? e.id : undefined));
+      if (typeof s.open === 'string') {
+        const split = splitPageOpen(s.open, envKeys);
+        const prefix = /^([A-Za-z_][A-Za-z0-9_-]*):/.exec(s.open)?.[1];
+        if (split) {
+          if (typeof s.page === 'string' && s.page !== split.page) this.ctx.error([...ep, 'open'], `\`open: ${s.open}\` names page "${split.page}" but \`page\` is "${s.page}"`);
+          envPage = split.page;
+        } else if (prefix !== undefined && this.pages && !/^(https?|file|about|data|chrome)$/i.test(prefix)) {
+          this.ctx.error([...ep, 'open'], `"${prefix}:" in \`open: ${s.open}\` is not a page of environment "${this.envName}"${suggestion(prefix, envKeys)} (available: ${envKeys.join(', ') || 'none'})`);
+        } else if (prefix === undefined && envPage === undefined && this.pages) {
+          this.ctx.error([...ep, 'open'], `\`open: ${s.open}\` is relative but page "${e.id}" names no environment page: add \`page: <${envKeys.join(' | ') || 'page'}>\` or write \`<page>:${s.open}\``);
+        }
+        visited.add(e.id);
+      } else if (!visited.has(e.id) && !this.scenePageIds.has(e.id) && entry.skip !== true) {
+        this.ctx.warning(ep, `page "${e.id}" is filmed for the first time but has no \`open\`: it starts blank`);
+      }
+      if (s.cursor !== undefined) this.sceneCursor({ cursor: s.cursor }, ep, false);
+      if (envPage !== undefined) this.scenePageEnv.set(e.id, envPage);
+      if (entry.skip !== true) this.pageViewport(e.id, s.viewport, ep);
+    }
+    for (const id of ids.keys()) this.scenePageIds.add(id);
+    const known = [...ids.keys()];
+    const steps = Array.isArray(entry.steps) ? entry.steps : [];
+    if (Array.isArray(entry.steps) && steps.length === 0) this.ctx.warning([...p, 'steps'], 'scene has no steps');
+    steps.forEach((raw, j) => {
+      const sp: IssuePath = [...p, 'steps', j];
+      if (this.ctx.broken(sp)) return;
+      const step = normalizeStep(raw, j);
+      if (step.on !== undefined && !ids.has(step.on)) {
+        this.ctx.error([...sp, 'on'], `unknown page "${step.on}": this scene films ${known.map((k) => `"${k}"`).join(' and ')}${suggestion(step.on, known)}`);
+      }
+      if (step.action === 'new_tab' || step.action === 'switch_page') {
+        this.ctx.error([...sp, step.action], `${step.action} is not available in a multi-page scene: declare every page in \`pages\` and act on one with \`on:\``);
+      }
+      if (step.action === 'open' && (step.args as { page?: string }).page !== undefined) {
+        this.ctx.error([...sp, 'open', 'page'], '`open.page` is not available in a multi-page scene: `open` navigates the page of the step (`on:`)');
+      }
+      this.step(step, sp);
+    });
+    return entries[0]?.id;
   }
 
   /** `card:` — something to show: a component, or the `title` slot of the theme's card component. */
@@ -324,6 +433,52 @@ class ScenarioChecker {
     }
   }
 
+  /** The capture size: scenario capture over project capture over the defaults. */
+  private captureSize(): { width: number; height: number } {
+    return this.viewport() ?? { width: DEFAULT_CAPTURE.width, height: DEFAULT_CAPTURE.height };
+  }
+
+  /**
+   * A page of a multi-page scene keeps one viewport for the whole run: the first declaration sets it (a later one that
+   * says nothing continues it), another size or mobile emulation for the same id is an error.
+   */
+  private pageViewport(id: string, spec: unknown, ep: IssuePath): void {
+    let vp: ResolvedViewport;
+    try {
+      vp = resolveViewport(spec as never, this.captureSize());
+    } catch {
+      return; // an unknown preset is reported by the schema
+    }
+    const known = this.scenePageViewport.get(id);
+    if (!known) {
+      this.scenePageViewport.set(id, { viewport: vp, path: spec === undefined ? ep : [...ep, 'viewport'] });
+      return;
+    }
+    if (spec === undefined) return;
+    const k = known.viewport;
+    if (k.width !== vp.width || k.height !== vp.height || k.mobile !== vp.mobile) {
+      this.ctx.error(
+        [...ep, 'viewport'],
+        `page "${id}" is filmed at ${k.width}×${k.height}${k.mobile ? ' (mobile)' : ''} since ${formatPath(known.path)} and is asked at ${vp.width}×${vp.height}${vp.mobile ? ' (mobile)' : ''} here: ` +
+          'a page keeps one viewport for the whole run (give the other viewport its own page id)',
+      );
+    }
+  }
+
+  /** A single-page scene films the capture size: the page it films must not be a mobile or other-size page of `pages`. */
+  private singlePageViewport(id: string | undefined, path: IssuePath, how: string): void {
+    const d = id !== undefined ? this.scenePageViewport.get(id) : undefined;
+    if (!d) return;
+    const cap = this.captureSize();
+    if (isDesktopViewport(d.viewport, cap)) return;
+    const v = d.viewport;
+    this.ctx.error(
+      path,
+      `${how} page "${id}", filmed at ${v.width}×${v.height}${v.mobile ? ' (mobile)' : ''} since ${formatPath(d.path)}: a single-page scene films the capture size (${cap.width}×${cap.height}) — ` +
+        'film that page in a multi-page scene (`pages`), or name an environment page with `page:`',
+    );
+  }
+
   /** Capture viewport (scenario capture over project capture) when known. */
   private viewport(): { width: number; height: number } | undefined {
     const cap = isObj(this.s.capture) ? this.s.capture : {};
@@ -421,7 +576,7 @@ class ScenarioChecker {
     this.checkFrameRefs();
     this.tutorial(this.s.tutorial, ['tutorial'], 'scenario');
     if (this.pages && this.switches.length > 0) {
-      const known = new Set([...Object.keys(this.pages), ...STATIC_PAGE_IDS, ...this.tabIds]);
+      const known = new Set([...Object.keys(this.pages), ...STATIC_PAGE_IDS, ...this.tabIds, ...this.scenePageIds]);
       for (const { to, path } of this.switches) {
         if (!known.has(to) && !/^tab\d+$/.test(to)) {
           this.ctx.warning(path, `switch_page target "${to}" is not a page key, a new_tab \`as\` id, "main" or "previous"${suggestion(to, [...known])}`);

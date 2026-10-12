@@ -29,6 +29,47 @@ export const SceneCursorSchema = z
       "'keep' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is \"auto\".",
   });
 
+export const ViewportSchema = z
+  .union([
+    z.enum(['desktop', 'laptop', 'tablet', 'mobile']),
+    z.strictObject({
+      width: z.number().int().min(200).max(7680).describe('Viewport width in CSS px.'),
+      height: z.number().int().min(200).max(4320).describe('Viewport height in CSS px.'),
+      mobile: z.boolean().describe('Emulate a mobile device (meta viewport, overlay scrollbars).').optional(),
+      touch: z.boolean().describe('Emulate a touch screen (default: as `mobile`).').optional(),
+    }),
+  ])
+  .meta({
+    id: 'Viewport',
+    description: 'A page viewport: desktop (the capture size), laptop (1440×900), tablet (820×1180), mobile (390×844) or {width, height, mobile?, touch?}.',
+  });
+
+const scenePageShape = {
+  page: keyString('page')
+    .describe('Environment page key whose base URL a relative `open` resolves against (default: the page id when it is one, else the key before ":" in `open`).')
+    .optional(),
+  open: nonEmpty()
+    .describe('Opened at the scene start: a path, "<environment page>:<path>" (e.g. shop:/products) or a URL. Omit to continue the page as it is.')
+    .optional(),
+  viewport: ViewportSchema.optional(),
+  label: nonEmpty().describe('Name a layout may show next to the page ("Buyer").').optional(),
+  cursor: SceneCursorSchema.optional(),
+};
+
+export const ScenePageSchema = z.strictObject(scenePageShape).meta({ id: 'ScenePage', description: 'One page of a multi-page scene.' });
+
+export const ScenePagesSchema = z
+  .union([
+    z.record(keyString('page id'), ScenePageSchema.nullable()),
+    z.array(z.union([keyString('page'), z.strictObject({ id: keyString('page id').optional(), ...scenePageShape })])),
+  ])
+  .meta({
+    id: 'ScenePages',
+    description:
+      'Pages filmed at the same time (instead of `page` / `open`): a map page id → {page?, open?, viewport?, label?, cursor?}, or a list of ' +
+      'environment page keys / {id?, page, open?, viewport?…} (default id: the page key, plus "-<preset>" for another viewport than desktop).',
+  });
+
 export const SceneSchema = z
   .strictObject({
     id: slugString('scene id').describe('Unique, slug-like scene id.'),
@@ -37,13 +78,14 @@ export const SceneSchema = z
       .describe("Environment page key (e.g. console, shop). Default: the previous scene's page, else the first key.")
       .optional(),
     open: nonEmpty().describe("Path or URL opened at scene start. Omit to continue from the previous scene's state.").optional(),
+    pages: ScenePagesSchema.optional(),
     steps: z.array(StepSchema).describe('Actions, in order.'),
     speed: speedSchema().describe('Edit-time speed for the whole scene, in (0, 8].').optional(),
     still: seconds().describe('Seconds of stillness at scene start (default pacing.scene_start_still).').optional(),
     cursor: SceneCursorSchema.optional(),
     transition: SceneTransitionSchema.describe('Transition INTO this scene: crossfade, cut, fade-black or a transition component (default: the theme\'s).').optional(),
     frame: FrameSpecSchema.describe(
-      'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
+      'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet, split / pip (multi-page scenes) or a layout component id "namespace/name".',
     ).optional(),
     tutorial: TutorialSwitchSchema.describe("Tutorial overlays of this scene's steps, over the scenario's (progress is scenario-only).").optional(),
     irreversible: z.boolean().describe('Every step is irreversible (dry-run stops the scene at its first step).').optional(),

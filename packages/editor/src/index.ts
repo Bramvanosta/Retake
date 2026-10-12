@@ -5,13 +5,13 @@
  * §2. The compositions themselves (src/remotion, React) are only loaded by the render bundle.
  */
 export * from './plan-types.js';
-export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
+export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
 export type { PlanEditInput, PlanInputFile } from './plan.js';
-export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
+export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 export { imageFileSize, planFileRefs, planInputFiles } from './inputs.js';
 export { DEFAULT_IDLE_THRESHOLD_S, IDLE_KEEP_S, MARK_WINDOW_S, SPEED_RAMP_S, planRunTiming, protectedSpans, outFrameAt } from './timing.js';
 export type { MapPiece, ProtectedSpan, RunTiming, RunTimingInput } from './timing.js';
-export { MIN_ZOOM_EASE_S, REFRAME, cameraTrack, clampView, corridorSmooth, dampedSmooth, hintEase, reframeTrack } from './camera.js';
+export { MIN_ZOOM_EASE_S, REFRAME, cameraTrack, clampView, corridorSmooth, dampedSmooth, hintEase, leadingPart, reframeTrack } from './camera.js';
 export type { ReframeTarget, ZoomMove } from './camera.js';
 export { DESIGN_SPACES, FALLBACK_GEOMETRY, RAW_GEOMETRY, REFRAME_MIN_SCALE, fitRect, mapSourceRect, planLayout, viewOf } from './layout.js';
 export type { SourceView } from './layout.js';
@@ -55,7 +55,35 @@ export {
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
-export { brandmarkRect, captionBandOver, envelopeAt, layoutRects, loupePlacement, overlayAvoid, shortcutRow, musicPlayGain, musicVolumeAt, srcFrameAt, trackBoxAt, transitionWindows, urlAt } from './remotion/frames.js';
+export { brandmarkRect, captionBandOver, drawnOverlayBox, envelopeAt, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayRects, overlayTargets, plateOf, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
+export {
+  ACTING_EASE_S,
+  ACTING_LEAD_S,
+  INSET_GLIDE_S,
+  INSET_GROW,
+  INSET_LEAD_S,
+  INSET_MIN_HOLD_S,
+  TARGET_FOCUS_HALF,
+  actingWeights,
+  cornerOf,
+  fitTop,
+  focusBox,
+  growRect,
+  insetCornerRects,
+  insetRectAt,
+  layoutPaneRectsAt,
+  mapPaneRect,
+  paneCaptureAt,
+  paneIndexOf,
+  paneSource,
+  paneUrlAt,
+  paneViewOf,
+  planActing,
+  planInsetTrack,
+  planPaneLayout,
+  stepBoxes,
+} from './panes.js';
+export type { InsetPlanInput } from './panes.js';
 export type { TransitionWindow } from './remotion/frames.js';
 export { buildComponentPreview, loadPreviewSamples } from './preview.js';
 export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';

@@ -146,3 +146,39 @@ export function clearOf(box: Box, avoid: readonly Box[] | undefined, opts: { dir
   }
   return opts.bounds ? clampInto(b, opts.bounds) : b;
 }
+
+/** Sides a numbered step badge tries, per `placement` (studio/overlay-steps). */
+export const STEP_BADGE_ORDER: Readonly<Record<'auto' | 'left' | 'right' | 'above' | 'below', readonly Side[]>> = {
+  auto: ['left', 'above-left', 'above', 'right', 'below-left', 'below', 'above-right', 'below-right'],
+  left: ['left', 'above-left', 'below-left', 'right'],
+  right: ['right', 'above-right', 'below-right', 'left'],
+  above: ['above', 'above-left', 'above-right', 'below'],
+  below: ['below', 'below-left', 'below-right', 'above'],
+};
+
+/**
+ * Where studio/overlay-steps draws its badge (output px): `size` design px (× 1.1 outside landscape) beside the target
+ * (`anchor`; a point is a 2 × 2 box), inside the capture (`screen`, else the safe area), clear of `avoid`. Shared by the
+ * component and the review.
+ */
+export function stepBadgeBox(o: {
+  anchor?: Box;
+  screen?: Box;
+  width: number;
+  height: number;
+  unit: number;
+  variant: 'landscape' | 'vertical' | 'square';
+  size: number;
+  placement: keyof typeof STEP_BADGE_ORDER;
+  avoid?: readonly Box[];
+}): Box & { side: Side; fits: boolean; d: number; u: number } {
+  const u = o.unit * (o.variant === 'landscape' ? 1 : 1.1);
+  const d = o.size * u;
+  const inset = 10 * u;
+  const s = o.screen;
+  const bounds = s ? { x: s.x + inset, y: s.y + inset, w: s.w - 2 * inset, h: s.h - 2 * inset } : safeAreaRect(o.width, o.height, 0.03);
+  const a = o.anchor;
+  const target = a && a.w > 0 ? a : a ? { x: a.x - 1, y: a.y - 1, w: 2, h: 2 } : { x: bounds.x + d, y: bounds.y + d, w: 1, h: 1 };
+  const place = placeBeside({ target, w: d, h: d, bounds, gap: 10 * u, order: STEP_BADGE_ORDER[o.placement] ?? STEP_BADGE_ORDER.auto, ...(o.avoid ? { avoid: o.avoid } : {}) });
+  return { ...place, d, u };
+}

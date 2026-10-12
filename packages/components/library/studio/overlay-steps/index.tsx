@@ -1,16 +1,8 @@
 import { useCurrentFrame } from 'remotion';
-import { CapText, biasMotion, capTextLayout, clamp, darkLight, fadeOut, nightTone, placeBeside, progress, readableOn, roundTo, safeAreaRect, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps, Side } from '@demo-studio/components/kit';
+import { CapText, biasMotion, capTextLayout, clamp, darkLight, fadeOut, nightTone, progress, readableOn, roundTo, stepBadgeBox, withAlpha } from '@demo-studio/components/kit';
+import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { size: number; placement: 'auto' | 'left' | 'right' | 'above' | 'below'; tone: 'accent' | 'dark'; numbering: 'scene' | 'video'; pulse: boolean };
-
-const ORDER: Record<Params['placement'], Side[]> = {
-  auto: ['left', 'above-left', 'above', 'right', 'below-left', 'below', 'above-right', 'below-right'],
-  left: ['left', 'above-left', 'below-left', 'right'],
-  right: ['right', 'above-right', 'below-right', 'left'],
-  above: ['above', 'above-left', 'above-right', 'below'],
-  below: ['below', 'below-left', 'below-right', 'above'],
-};
 
 /**
  * A numbered badge beside the clicked target (`anchor`, output px), placed by the kit's `placeBeside` inside the
@@ -19,17 +11,13 @@ const ORDER: Record<Params['placement'], Side[]> = {
  */
 export default function OverlaySteps({ theme, slots, params, unit, width, height, fps, durationInFrames, anchor, rects, moment, variant, avoid }: ComponentProps<Params>) {
   const frame = useCurrentFrame();
-  const u = unit * (variant === 'landscape' ? 1 : 1.1);
   const bias = biasMotion(theme.style_bias);
-  const d = params.size * u;
+  // Placed by the kit (the review measures the same box): beside the target, inside the capture, clear of `avoid`.
+  const place = stepBadgeBox({ ...(anchor ? { anchor } : {}), ...(rects?.screen ? { screen: rects.screen } : {}), width, height, unit, variant, size: params.size, placement: params.placement, ...(avoid ? { avoid } : {}) });
+  const { d, u } = place;
   const fill = params.tone === 'dark' ? nightTone(theme) : theme.colors.accent;
   const { dark, light } = darkLight(theme);
   const ink = readableOn(fill, light, readableOn(fill, theme.colors.paper, dark, 3), 3);
-  const inset = 10 * u;
-  const screen = rects?.screen;
-  const bounds = screen ? { x: screen.x + inset, y: screen.y + inset, w: screen.w - 2 * inset, h: screen.h - 2 * inset } : safeAreaRect(width, height, 0.03);
-  const target = anchor && anchor.w > 0 ? anchor : anchor ? { x: anchor.x - 1, y: anchor.y - 1, w: 2, h: 2 } : { x: bounds.x + d, y: bounds.y + d, w: 1, h: 1 };
-  const place = placeBeside({ target, w: d, h: d, bounds, gap: 10 * u, order: ORDER[params.placement], ...(avoid ? { avoid } : {}) });
   // The badge pops as the overlay starts (the cursor reaching the target); the ring pulses at the click (`moment`).
   const at = (moment ?? 0) / fps;
   const pop = progress(frame, fps, { duration: 0.32 * bias.pace, ease: [0.34, 1.56, 0.64, 1] });

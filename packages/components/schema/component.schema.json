@@ -184,6 +184,20 @@
           ],
           "description": "Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop)."
         },
+        "screens": {
+          "minItems": 2,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "desktop",
+              "tablet",
+              "phone"
+            ]
+          },
+          "description": "Multi-page layouts (L2.11): the sample screen of each page (e.g. [desktop, phone] for picture in picture)."
+        },
         "target": {
           "type": "string",
           "enum": [
@@ -332,6 +346,19 @@
         "radius": {
           "description": "Corner radius of the screen/frame, in design px (≥ 0).",
           "$ref": "#/$defs/GeometryValue"
+        },
+        "panes": {
+          "minItems": 2,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Rect"
+          },
+          "description": "Multi-page layouts (split screen): the screen of each page of a multi-page scene; `screen` is their area. Expressions may use `aspect2` (the second page)."
+        },
+        "inset": {
+          "description": "Picture in picture: the second page's screen over `screen` (the first page's) at its default corner; the planner moves it between the corners of `screen`.",
+          "$ref": "#/$defs/Rect"
         }
       },
       "required": [

@@ -114,7 +114,7 @@ export async function dropFile(ctx: StepContext, args: DropFileArgs): Promise<Ac
   let input: Resolved | null = null;
   if (args.input !== undefined) input = await resolveTarget(ctx, args.input, { includeHidden: true, scroll: false });
 
-  const start = entryPoint(args.from ?? 'right', zone.point, rt.capture.width, rt.capture.height);
+  const start = entryPoint(args.from ?? 'right', zone.point, rt.viewport.width, rt.viewport.height);
   // The hand fetches the file at the edge of the screen: an eased move out (never a visible jump), then back in
   // carrying the file chip.
   if (pointer.known && pointer.visible) await pointer.moveTo(start, { jitter: ctx.jitter });

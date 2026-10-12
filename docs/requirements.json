@@ -3113,7 +3113,7 @@
    "source": "SPEC §9",
    "requirement": "Vertical 9:16 variant is produced by re-framing on the cursor/target bbox.",
    "status": "done",
-   "evidence": "Vertical 9:16 reframing: layouts' geometry_vertical (card / browser 4:5 when the capture is wider), PlanLayout.crop (≥ 0.9 design px per CSS px), ClipSegment.reframe from camera.ts reframeTrack (cursor + look-ahead, step targets with 0.5 s look-ahead, hard click targets and overlay anchors, dead zone, critically damped zero-phase smoothing, critically damped QP repair `corridorSmooth`, inside the capture, per run); DemoVertical draws the crop (object-fit fill). Tests packages/editor/test/reframe.test.ts (synthetic + the real catalogue/quote timelines: every click target and the cursor in view, step ≤ 3.5 %, accel ≤ 1.2 % of the crop), planner-rules 'plans the vertical variant…', review checks (target-cut, cursor-outside-reframe, reframe-jump). Fixture renders quote-v9-vertical (review clean) and the exported catalogue-v4-vertical, frames inspected at every click.",
+   "evidence": "Vertical 9:16 reframing: layouts' geometry_vertical (card / browser 4:5 when the capture is wider), PlanLayout.crop (≥ 0.9 design px per CSS px), ClipSegment.reframe from camera.ts reframeTrack (cursor + look-ahead, step targets with 0.5 s look-ahead, hard click targets and overlay anchors, dead zone, critically damped zero-phase smoothing, critically damped QP repair `corridorSmooth`, inside the capture, per run); DemoVertical draws the crop (object-fit fill). Tests packages/editor/test/reframe.test.ts (synthetic + the real catalogue/quote timelines: every click target and the cursor in view, step ≤ 3.5 %, accel ≤ 1.2 % of the crop), planner-rules 'plans the vertical variant…', review checks (target-cut, cursor-outside-reframe, reframe-jump). Fixture renders quote-v9-vertical (review clean) and the exported catalogue-v4-vertical, frames inspected at every click. L2.11 review fixes: a target wider than the view counts by its leading part (camera.ts leadingPart: a table row by its id and label, with the click); a run starts framed toward the page's top-left as far as its first step's region allows; a cursor resting alone after its step is only brought back inside the dead zone (no half-view pan in a closing hold); an idle pane of a multi-page scene settles the same way at the start of a scene where it only rests (reframe tests; phone-and-desktop-v11-vertical, live-quote-v9-vertical).",
    "gap": "",
    "phase": "2",
    "lot": "L2.8"
@@ -5463,7 +5463,7 @@
    "source": "decision (user, 2026-10-11)",
    "requirement": "Spotlight overlay: everything dims except the step target bbox (per step or per scene option).",
    "status": "done",
-   "evidence": "`studio/overlay-spotlight` (SVG mask: the capture dimmed with the theme night tone, a soft rounded blurred cut-out, optional ring), drawn on the `screen` layer (under caption, brand mark and the other overlays). Planner: `spotlight: steps` (= true) → one overlay per run of targeted steps (click, type, select, pick, menu, hover, drag, drop_file, download) whose cut-out glides from target to target (`track`, smoothstep over 0.45 s, editor frames.ts trackBoxAt), a click ends it 0.45 s after the click; `spotlight: clicks` → around each click only; per scene or per step via the switches. The box is mapped per frame through layout, camera and reframe (mapSourceRect); the vertical / square reframe keeps the tutorial targets in view. Review: `tutorial-target-cut` when the cut-out leaves the visible capture, and the opening still is compared on capture frames while an overlay comes in. Tests editor planner-tutorial.test.ts (track, clicks mode, layer order), review tutorial.test.ts. Fixture `signup` renders (editorial landscape, vertical, motion) looked at; reviews clean.",
+   "evidence": "`studio/overlay-spotlight` (SVG mask: the capture dimmed with the theme night tone, a soft rounded blurred cut-out, optional ring), drawn on the `screen` layer (under caption, brand mark and the other overlays). Planner: `spotlight: steps` (= true) → one overlay per run of targeted steps (click, type, select, pick, menu, hover, drag, drop_file, download) whose cut-out glides from target to target (`track`, smoothstep over 0.45 s, editor frames.ts trackBoxAt), a click ends it 0.45 s after the click; `spotlight: clicks` → around each click only; per scene or per step via the switches. The box is mapped per frame through layout, camera and reframe (mapSourceRect); the vertical / square reframe keeps the tutorial targets in view. Review: `tutorial-target-cut` when the cut-out leaves the visible capture, and the opening still is compared on capture frames while an overlay comes in. Tests editor planner-tutorial.test.ts (track, clicks mode, layer order), review tutorial.test.ts. Fixture `signup` renders (editorial landscape, vertical, motion) looked at; reviews clean. L2.11 review fix: a click that takes the page to another URL ends the spotlight run (stepNavigates) — the next step's spotlight comes in on the new page instead of a ring on the gone card for 1.4 s (signup-v14, motion, review clean: the ring fades ≤ 0.45 s after the click); review check `tutorial-stale-target` (spotlight or badge still on its target > 0.6 s after a URL change).",
    "gap": "",
    "phase": "2",
    "lot": "L2.10"
@@ -5473,7 +5473,7 @@
    "source": "decision (user, 2026-10-11)",
    "requirement": "Numbered step badges next to clicked targets (1, 2, 3…), automatic from the timeline when enabled.",
    "status": "done",
-   "evidence": "`studio/overlay-steps`: a numbered badge placed beside the clicked target, never over it (kit place.ts placeBeside: left, above, right or below, inside the capture), popping as the cursor arrives (0.45 s before the click), ring pulse at the click (`moment`), gone 1.1 s after; numbering per scene (default) or per video (`params.numbering: video`). Automatic from the timeline's clicks (target bbox) when `steps` is on; a click without a recorded target box is skipped with a plan warning and a `tutorial-skipped` review warning. Tests components library-l210.test.ts (placeBeside), editor planner-tutorial.test.ts (numbering, skipped), review tutorial.test.ts. Fixture `signup`: badges 1, 2 on the form and 1 on the search result (frames looked at in landscape and vertical).",
+   "evidence": "`studio/overlay-steps`: a numbered badge placed beside the clicked target, never over it (kit place.ts placeBeside: left, above, right or below, inside the capture), popping as the cursor arrives (0.45 s before the click), ring pulse at the click (`moment`), gone 1.1 s after; numbering per scene (default) or per video (`params.numbering: video`). Automatic from the timeline's clicks (target bbox) when `steps` is on; a click without a recorded target box is skipped with a plan warning and a `tutorial-skipped` review warning. Tests components library-l210.test.ts (placeBeside), editor planner-tutorial.test.ts (numbering, skipped), review tutorial.test.ts. Fixture `signup`: badges 1, 2 on the form and 1 on the search result (frames looked at in landscape and vertical). L2.11 review fix: after a click that navigates, the badge leaves with the page (0.45 s after the click instead of 1.1 s); in a multi-page scene badges are numbered in time order over both pages.",
    "gap": "",
    "phase": "2",
    "lot": "L2.10"
@@ -5562,8 +5562,8 @@
    "id": "R-MPC-01",
    "source": "decision (user, 2026-10-11)",
    "requirement": "The runner records two pages at the same time (two screencasts, independent viewports such as desktop + mobile) on one clock, with a track per page in the timeline.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "Runner (runtime enterPages / leavePages / act, scenes.ts runPagesScene): every page of a multi-page scene is recorded at the same time — one CDP screencast per page (ScreencastRecorder, frames-<page>/), all on the run's CaptureClock, each encoded on the shared CFR grid (same end time and fps as capture.mp4) as capture-<page>.mp4; independent viewports through a persistent CDP Emulation.setDeviceMetricsOverride session per page (presets desktop / laptop 1440×900 / tablet / mobile 390×844 with touch and a mobile UA); the main capture pauses during multi-page scenes, single-page scenes unchanged. Timeline `tracks[]` (TrackBuilder: file, size, viewport, recording spans, URL segments, cursor samples), `scenes[].pages`, `events[].page`, `markers[].page`; idle = frames of every track. Tests runner-web multipage.test.ts (two pages, one 360×560 mobile+touch emulated: same frame count on both tracks and capture.mp4, pages report their width / touch, events tagged; viewport errors), core multipage.test.ts. Fixture runs 20261012-073840-live-quote (split) and 20261012-080444-phone-and-desktop (pip): buyer 1440×900 + supplier 1440×900, desk 1920×1080 + phone 390×844 (touch, mobile UA), every track the same frame count. Capture fps per page measured (see HANDOFF). Review fixes: a relative `open` step on a page id of `pages` resolves against the environment page it was declared on, base path kept (runtime.resolveUrl; runner test 'base path').",
    "gap": "",
    "phase": "2",
    "lot": "L2.11"
@@ -5572,8 +5572,8 @@
    "id": "R-MPC-02",
    "source": "decision (user, 2026-10-11)",
    "requirement": "studio/layout-split: two captures side by side, planned and rendered in sync.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "studio/layout-split (component.yaml geometry `panes` + `screen`, landscape side by side, vertical stacked, square narrow side by side; cards or compact browser windows with real URLs, labels with the acting page in the accent, idle-page dim via `emphasis`; theme-driven; preview committed). Planner (editor panes.ts / plan.ts): `plan.tracks`, clip `panes` (per-pane fit, camera, reframe, URLs), one `srcFrames` for every pane (same source time), `acting`; composition passes `rects.panes` + one CaptureScreen per pane. Tests components library.test.ts (multi-page layouts), editor planner-panes.test.ts, review multipage.test.ts. Fixture live-quote: the café's request appears in the roaster's live list ≈ 0.7 s after the click, visible in the other pane while the café acts (frames compared). Renders after the review fixes (runs 20261012-073840-live-quote, 20261012-080444-phone-and-desktop): live-quote-v7 (editorial), live-quote-v8 (motion: browser windows with real URLs, idle page dimmed, caption band below the pair), live-quote-v9-vertical (stacked, each pane reframed, the idle pane settled on its page's heading); phone-and-desktop-v9 (editorial), phone-and-desktop-v10 (motion: the phone does not grow — growing would reach the caption band —, main-page overlays clipped around it), phone-and-desktop-v11-vertical (the clicked row shown by its id, 'New' pill and coffee; the closing hold on the detail page's title). Reviews: only the video-length warning (32–42 s videos, short on purpose); the vertical pip's 1342 px row is now an info (its leading part and the click are shown). Review fixes: the acting page (label accent, idle-page dim) is the page of the scene's opening still from the clip's start — measured on live-quote-v8: the café pane brightens within 0.37 s of the proposal scene's start (was ≈ 1.3 s late).",
    "gap": "",
    "phase": "2",
    "lot": "L2.11"
@@ -5582,8 +5582,8 @@
    "id": "R-MPC-03",
    "source": "decision (user, 2026-10-11)",
    "requirement": "studio/layout-pip: a phone capture over the desktop capture (picture in picture).",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "studio/layout-pip (geometry `screen` + `inset`; the inset page in a CSS phone when mobile, else a card; grows ×1.18 while its page acts with `emphasis` auto/grow; main page dims a little). Planner planInsetTrack: the corner never covers the main page's current or next target (stepBoxes + focusBox, clearance, caption band soft), glides 0.9 s before the step, ≥ 1.2 s between moves, never while its page acts; continuity across joined clips; the landscape page is the main one. Review `overlay-covers-target` for the inset (bezel included). Tests editor planner-panes.test.ts (inset never over a main-page target, editorial and motion, vertical inside the main page), review multipage.test.ts (synthetic inset over the clicked row → warning). Fixture phone-and-desktop: the request sent from the phone shows up in the desktop's live list. Renders after the review fixes (runs 20261012-073840-live-quote, 20261012-080444-phone-and-desktop): live-quote-v7 (editorial), live-quote-v8 (motion: browser windows with real URLs, idle page dimmed, caption band below the pair), live-quote-v9-vertical (stacked, each pane reframed, the idle pane settled on its page's heading); phone-and-desktop-v9 (editorial), phone-and-desktop-v10 (motion: the phone does not grow — growing would reach the caption band —, main-page overlays clipped around it), phone-and-desktop-v11-vertical (the clicked row shown by its id, 'New' pill and coffee; the closing hold on the detail page's title). Reviews: only the video-length warning (32–42 s videos, short on purpose); the vertical pip's 1342 px row is now an info (its leading part and the click are shown). Review fixes: a corner the next main-page step needs is reached once the inset's own step is over (planner test); ties go to the corner the next steps leave free; `growClearOf` keeps the grown inset off a caption band over the screen (planner test, plan note); the phone's step badges stay inside the phone (planner test with drawnOverlayBox).",
    "gap": "",
    "phase": "2",
    "lot": "L2.11"
@@ -5592,8 +5592,58 @@
    "id": "R-MPC-04",
    "source": "decision (user, 2026-10-11)",
    "requirement": "Scenario syntax for parallel pages (scene pages: [a, b] and step `on: <page>`), validated.",
-   "status": "todo",
-   "evidence": "",
+   "status": "done",
+   "evidence": "Scenario syntax: scene `pages:` (map id → {page?, open?, viewport?, label?, cursor?} | null, or a list of ids / objects continuing earlier declarations), viewport presets (desktop, laptop, tablet, mobile or {width, height, mobile?, touch?}), step `on: <page>` (default the first page); core pages.ts resolveScenePages / scenePageEntries / splitPageOpen; JSON schemas regenerated; positioned checks (unknown page ids with suggestions, `on:` outside a multi-page scene or naming another page, page/open beside pages, not exactly two pages, duplicate ids, unknown `x:` prefixes, first-time page without open, new_tab / switch_page inside). Tests core multipage.test.ts, project.test.ts, phase2.test.ts; README 'Several pages at once'. Review fixes: validation also reports, with their position, what the runner would refuse mid-capture — a page id asked at another viewport than its first one, and a single-page scene filming a page whose viewport is not the capture size (its `page`, a `switch_page` / `open` to it, or the implicit continuation on the first page of the multi-page scene before it); core multipage.test.ts.",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-MPC-05",
+   "source": "L2.11 brief (2026-10-12)",
+   "requirement": "Each page of a multi-page scene has its own in-page cursor: only the acting page's cursor moves; switching the acting page pauses briefly and the next page's cursor glides from where it rests (no teleport).",
+   "status": "done",
+   "evidence": "Runtime: one Pointer per page (PointerHost.sample → the page's track cursor; Pointer.adopt continues from the kit's cursor state or another pointer); scene-start cursor placed per page from its own steps; `pacing.page_switch_ms` (500) before the first step on the other page; planner `acting` (pane per frame, ACTING_LEAD_S before the step, eased weights) drives label accent / dim / inset growth. Tests runner-web multipage.test.ts ('one cursor per page'), editor planner-panes.test.ts (acting follows the steps). Frames looked at at every acting switch of the fixture renders: the idle cursor rests, visible, the acting one glides. Review fixes: a page with no step of its own in a scene rests its cursor near its centre (kit restPoint('centre')), so the main page's cursor never comes out from under a PiP inset (phone-and-desktop: desk cursor at 960×540, visible through the phone scenes); the acting page is the opening still's page from the clip's start (planner test).",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-MPC-06",
+   "source": "L2.11 brief (2026-10-12)",
+   "requirement": "Multi-page layouts follow the theme and the format: per-pane camera / zoom / reframe, captions, cards and brand mark unchanged, vertical and square variants, theme-driven look (chrome for browser themes, emphasis by style_bias), committed previews.",
+   "status": "done",
+   "evidence": "Planner: per-page cameras (theme zoom on the page of the first marked step), per-pane reframe in vertical / square (crop with the pane's aspect), theme-dressed split / pip (radius, shadow, chrome from the theme's layout), automatic split / pip for a single-pane frame, fallback for single-page scenes. Previews of studio/layout-split and studio/layout-pip committed (looked at). Tests editor planner-panes.test.ts (vertical stacking, square side by side, pip inside main), components library.test.ts. Renders after the review fixes (runs 20261012-073840-live-quote, 20261012-080444-phone-and-desktop): live-quote-v7 (editorial), live-quote-v8 (motion: browser windows with real URLs, idle page dimmed, caption band below the pair), live-quote-v9-vertical (stacked, each pane reframed, the idle pane settled on its page's heading); phone-and-desktop-v9 (editorial), phone-and-desktop-v10 (motion: the phone does not grow — growing would reach the caption band —, main-page overlays clipped around it), phone-and-desktop-v11-vertical (the clicked row shown by its id, 'New' pill and coffee; the closing hold on the detail page's title). Reviews: only the video-length warning (32–42 s videos, short on purpose); the vertical pip's 1342 px row is now an info (its leading part and the click are shown).",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-MPC-07",
+   "source": "L2.11 brief (2026-10-12)",
+   "requirement": "Tutorial overlays (spotlight, step badges, loupe, key caps) are placed on the pane of their event's page in a multi-page scene.",
+   "status": "done",
+   "evidence": "OverlayUse.pane; tutorial planned per pane with a shared per-scene counter; composition overlayRects / mapUseRect / CaptureScreen per pane (an inset page's free-standing overlays use the main page's room); review per-pane tutorial-target-cut (inset at its current corner). Tests editor planner-panes.test.ts (badges inside their page's pane, numbering per scene), review multipage.test.ts. Fixture scenarios with `tutorial: {steps: true}`: badges beside the supplier's clicks in the right pane and beside the phone's taps over the phone (frames looked at). Review fixes: step badges are numbered once per clip in time order over both pages (planBadgeNumbers; planner test with steps alternating pages, scene and video numbering); an inset's badges stay inside the inset (staysInInset), its key caps and lens keep clear of the main page's current and next targets too (`clear` entries with `pane`; planner test).",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-TUT-06",
+   "source": "L2.11 brief (2026-10-12)",
+   "requirement": "Tutorial overlays keep clear of the current step's target and the next click targets (key caps take the other row when needed); the review warns when key caps, a badge, the loupe or a picture-in-picture inset covers a click target of the current or next step.",
+   "status": "done",
+   "evidence": "Planner OverlayUse.clear (current target + click targets of the next CLEAR_LOOKAHEAD_S = 1.2 s) → composition adds their output boxes to `avoid` (kind 'target'); kit stepBadgeBox / shortcutPlateLayout shared by component, composition (drawnOverlayBox, shortcutSlot) and review; review check `overlay-covers-target` (COVER_SHARE 15 %). Tests editor planner-tutorial.test.ts (the second Tab's caps go to the top row: the bottom row would cover Create account), review multipage.test.ts (caps without clearing → warning; PiP inset over a target → warning; fixtures clean). Re-render signup motion (signup-v13, review clean). Review fixes: an inset page's key caps / lens, drawn over the main page, keep clear of the main page's targets (planner-panes test).",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.11"
+  },
+  {
+   "id": "R-TUT-07",
+   "source": "L2.11 brief (2026-10-12)",
+   "requirement": "The loupe moving from field to field does not pan over the content between them (it holds and cross-fades the two fields).",
+   "status": "done",
+   "evidence": "Composition OverlayView: two CaptureScreen layers on fixed regions (trackKeysAt: previous and current keyed box) cross-faded over the glide instead of one region panning; the lens box still glides. Re-render signup motion (signup-v13, review clean): frames of the Tab glides looked at.",
    "gap": "",
    "phase": "2",
    "lot": "L2.11"

@@ -162,6 +162,19 @@ export interface OverlayUse {
   moment?: number;
   /** A capture region (source CSS px) the composition renders as the component's `screen` (the typing loupe). */
   region?: BBox;
+  /**
+   * Multi-page clips (L2.11): the pane of the page the step acted on — anchor, track, region and `rects.screen` are that
+   * page's (source CSS px of its track; the spotlight dims only that page).
+   */
+  pane?: number;
+  /**
+   * What the overlay must not cover while it shows (L2.11 polish): the targets of the step it belongs to and of the next
+   * click step(s), in SOURCE CSS px of its page, over frames [from, to) relative to the overlay. The composition maps
+   * them per frame and adds them to `avoid` (kind `target`): key caps take another slot, a lens or a badge another side.
+   * `pane`: a box of another page than the overlay's (an inset page's key caps or lens are drawn over the main page,
+   * whose targets they keep clear of too), mapped through that pane.
+   */
+  clear?: Array<{ from: number; to: number; bbox: BBox; pane?: number }>;
 }
 
 /** The video-wide chapter progress bar (L2.10): drawn over every segment between the intro and the outro. */
@@ -308,6 +321,85 @@ export interface ClipSegment extends SegmentBase {
   zooms: ZoomSpan[];
   /** Number of trailing frames that repeat the last source frame (outgoing side of a crossfade / fade). */
   heldFrames: number;
+  /**
+   * Multi-page scene (L2.11): its pages in the layout's order, each from its own track. Every track is CFR on the
+   * capture clock, so `srcFrames` indexes all of them: the panes play from the same source time.
+   */
+  panes?: PlanPane[];
+  /** The acting page over the clip: pane index from relative frame `frame` on (only its cursor moves). */
+  acting?: Array<{ frame: number; pane: number }>;
+  /** Picture in picture: the floating page and its corners over time. */
+  inset?: PlanInset;
+}
+
+// ── Multi-page clips (L2.11) ─────────────────────────────────────────────────
+
+/** A recorded video the plan shows: the main capture (`plan.source`) or a page's own track (`plan.tracks`). */
+export interface PlanSource {
+  /** Filled at render time (asset server URL). */
+  url: string;
+  /** Absolute path of the video. */
+  file: string;
+  /** Video pixels. */
+  width: number;
+  height: number;
+  /** CSS pixels (viewport) and device scale factor. */
+  cssWidth: number;
+  cssHeight: number;
+  scale: number;
+  fps: number;
+  frames: number;
+  /** Mobile emulation (a phone or tablet viewport). */
+  mobile?: boolean;
+}
+
+/** Where one page of a multi-page clip is drawn (output px; the inset of a picture in picture moves: see `ClipSegment.inset`). */
+export interface PlanPaneLayout {
+  /** Where the page's capture pixels go (fitted to its aspect inside the layout's pane rect). */
+  capture: Rect;
+  /** The card / device outline (the capture, plus the browser bar when the layout draws one). */
+  card: Rect;
+  /** Browser bar above the capture (layouts with `chrome`). */
+  chrome?: Rect;
+  /** Corner radius in output px. */
+  radius: number;
+  /** Vertical and square variants: the capture region (source CSS px) with the pane's aspect, when it differs (reframed). */
+  crop?: { w: number; h: number };
+}
+
+/** One page of a multi-page clip: its track, geometry and camera (frames relative to the segment). */
+export interface PlanPane {
+  /** Page id (the key of the scene's `pages`). */
+  page: string;
+  /** Key of `plan.tracks`. */
+  track: string;
+  label?: string;
+  layout: PlanPaneLayout;
+  /** Per-output-frame camera of this page (zooms of its steps), or null when static. */
+  camera: CameraFrame[] | null;
+  /** Vertical / square: the crop centre per output frame when the pane reframes the page. */
+  reframe?: Array<[cx: number, cy: number]>;
+  /** URL of the page from relative frame `frame` on (a browser bar shows it). */
+  urls: Array<{ frame: number; url: string }>;
+  zooms: ZoomSpan[];
+  /** The page is the floating inset of a picture in picture. */
+  inset?: boolean;
+}
+
+/** The corners an inset may take (picture in picture). */
+export type InsetCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+/**
+ * The floating page of a picture in picture: from relative frame `at` on, the inset sits in `corner` (rect `rect`,
+ * output px; the composition glides between rects over `INSET_GLIDE_S`), `grow` = how much larger it is drawn while its
+ * page acts (1 = not at all; theme emphasis), anchored on its corner.
+ */
+export interface PlanInset {
+  pane: number;
+  track: Array<{ at: number; corner: InsetCorner; rect: Rect }>;
+  grow: number;
+  /** Why each corner was chosen (review, debugging). */
+  reasons?: string[];
 }
 
 export type PlanSegment = IntroSegment | OutroSegment | CardSegment | ClipSegment;
@@ -374,6 +466,8 @@ export interface EditPlan {
     fps: number;
     frames: number;
   };
+  /** Per-page tracks of multi-page scenes (L2.11), by key (`PlanPane.track`); every one on the capture's frame grid. */
+  tracks?: Record<string, PlanSource>;
   segments: PlanSegment[];
   captions: CaptionCue[];
   markers: Array<{ name: string; frame: number; scene: string }>;

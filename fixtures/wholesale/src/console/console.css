@@ -1184,3 +1184,29 @@ tr[data-status='paused'] .chip {
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
+
+/* Live quote list (L2.11): a request that arrives while the page is open. */
+.table tr.row-new td {
+  animation: row-new 6s ease-out both;
+}
+.table tr.row-new td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+@keyframes row-new {
+  0% { background: var(--accent-soft); opacity: 0; transform: translateY(-6px); }
+  8% { opacity: 1; transform: none; }
+  60% { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+.new-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}

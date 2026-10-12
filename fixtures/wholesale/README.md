@@ -61,7 +61,8 @@ Chromium's `page.pdf` (playwright-core, launched on the first request and kept) 
 quote state; the older HTML viewer page stays at `/quotes/<id>/pdf`), `/signup` (open a café account: café name, your
 name, work email → "Check your inbox"; the server sends a **confirmation email** to the fixture mailbox),
 `/signup/confirm?token=…` (the email's link; `token=latest` confirms the most recent sign-up — a convenience for
-scenarios).
+scenarios). While a shop page is open, its quote list and its notifications bell poll every second: a proposal the
+console sends shows on the bell (unread badge, the bell rings) about a second later.
 
 **Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,

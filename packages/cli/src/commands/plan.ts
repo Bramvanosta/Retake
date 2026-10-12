@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, loadProjectTemplate, parseScenario, readJson, runIdMatchesScenario, writeJson } from '@demo-studio/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, parseScenario, readJson, runIdMatchesScenario, writeJson } from '@demo-studio/core';
 import type { LoadedProject, Scenario, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import { planEdit, planInputFiles, summarizePlan } from '@demo-studio/editor';
@@ -91,8 +91,8 @@ async function runScenario(dir: string): Promise<Scenario | undefined> {
  * their components, durations, speeds, trims, zooms, captions, notes and warnings — or as JSON (`--json`, `--out`).
  */
 export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: string, runArg: string, opts: PlanCommandOptions): Promise<ExitCode> {
-  if (opts.frame !== undefined && !(opts.frame in FRAME_STYLE_LAYOUTS) && !COMPONENT_ID_RE.test(opts.frame)) {
-    throw new UsageError(`--frame "${opts.frame}": use ${Object.keys(FRAME_STYLE_LAYOUTS).join(', ')} or a layout component id (namespace/name)`);
+  if (opts.frame !== undefined && !(opts.frame in FRAME_STYLE_LAYOUTS) && !(opts.frame in MULTI_PAGE_LAYOUTS) && !COMPONENT_ID_RE.test(opts.frame)) {
+    throw new UsageError(`--frame "${opts.frame}": use ${[...Object.keys(FRAME_STYLE_LAYOUTS), ...Object.keys(MULTI_PAGE_LAYOUTS)].join(', ')} or a layout component id (namespace/name)`);
   }
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);

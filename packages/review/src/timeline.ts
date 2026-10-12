@@ -5,7 +5,7 @@
  */
 import type { Timeline } from '@demo-studio/core';
 import type { EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
-import { mapSourceRect } from '@demo-studio/editor';
+import { mapPaneRect, mapSourceRect, paneIndexOf } from '@demo-studio/editor';
 import { isClip, meanSpeed, outputFrameOf, round, segmentSpans, transitionSpans } from './spans.js';
 
 export interface OutputComponent {
@@ -34,6 +34,9 @@ export interface OutputClick {
   bbox?: { x: number; y: number; w: number; h: number };
   /** Index of the click within its step (widgets click more than once: trigger, option…). */
   click?: number;
+  /** Multi-page clips (L2.11): the page the step acted on and its pane in the clip (the point is in that page's px). */
+  page?: string;
+  pane?: number;
 }
 
 export interface OutputTimeline {
@@ -81,9 +84,12 @@ function component(c: ResolvedComponent): OutputComponent {
   return out;
 }
 
-/** Cursor position at capture time `t` (linear between samples less than 0.15 s apart, else the last sample). */
-export function cursorAt(timeline: Pick<Timeline, 'cursor'>, t: number): { x: number; y: number; visible: boolean } | undefined {
-  const c = timeline.cursor;
+/**
+ * Cursor position at capture time `t` (linear between samples less than 0.15 s apart, else the last sample) — of the
+ * main capture, or of page `page`'s own track (multi-page scenes, L2.11).
+ */
+export function cursorAt(timeline: Pick<Timeline, 'cursor' | 'tracks'>, t: number, page?: string): { x: number; y: number; visible: boolean } | undefined {
+  const c = page !== undefined ? (timeline.tracks?.find((tr) => tr.id === page)?.cursor ?? timeline.cursor) : timeline.cursor;
   if (!c.length) return undefined;
   let i = -1;
   for (let k = 0; k < c.length && c[k].t <= t; k++) i = k;
@@ -117,13 +123,20 @@ export function outputClicks(plan: EditPlan, timeline: Timeline | undefined): Ou
         const rel = outputFrameOf(clip, Math.round(m.t * fps));
         if (rel === undefined || rel >= clip.durationInFrames - clip.heldFrames) continue;
         const frame = clip.from + rel;
-        const cur = m.point ?? cursorAt(timeline, m.t);
+        // Multi-page clips: the page the step acted on, its own cursor and its pane.
+        const pane = paneIndexOf(clip, ev.page);
+        const page = pane >= 0 ? ev.page : undefined;
+        const cur = m.point ?? cursorAt(timeline, m.t, page);
         const click: OutputClick = { scene: ev.scene, step: ev.step, action: ev.action, segment: clip.id, frame, time: round(frame / plan.fps, 3) };
         if (ev.id) click.step_id = ev.id;
         if (moments.length > 1) click.click = i;
+        if (page !== undefined) {
+          click.page = page;
+          click.pane = pane;
+        }
         if (cur) {
           click.point = { x: round(cur.x), y: round(cur.y) };
-          const r = mapSourceRect(plan, clip, rel, { x: cur.x, y: cur.y });
+          const r = pane >= 0 ? mapPaneRect(plan, clip, pane, rel, { x: cur.x, y: cur.y }) : mapSourceRect(plan, clip, rel, { x: cur.x, y: cur.y });
           click.screen = { x: r.x, y: r.y };
         }
         if (m.desc) click.target = m.desc;

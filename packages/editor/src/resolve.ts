@@ -5,8 +5,8 @@
  * reported and the next one is tried; when none resolves, the use keeps the most specific id marked `missing` (the
  * renderer draws a stand-in of the kind). Slots are filled with `fillSlots` (given values, then `default_from`).
  */
-import { FRAME_STYLE_LAYOUTS, normalizeComponentRef, resolveThemeComponents } from '@demo-studio/core';
-import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, SceneTransition, TransitionKind } from '@demo-studio/core';
+import { FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, normalizeComponentRef, resolveThemeComponents } from '@demo-studio/core';
+import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, MultiPageFrame, SceneTransition, TransitionKind } from '@demo-studio/core';
 import { fillSlots } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, MediaValue, ResolvedComponentRef, SlotContext } from '@demo-studio/components';
 import type { ResolvedComponent } from './plan-types.js';
@@ -112,6 +112,7 @@ export class ComponentResolver {
    * the theme's frame style, else the built-in layout of that style (card: with the theme's width/radius/shadow).
    */
   frameCandidate(spec: FrameSpec, source: ResolvedComponent['source'], label: string): Candidate {
+    if (spec === 'split' || spec === 'pip') return this.multiPageCandidate(spec, source, label);
     if (!isFrameStyle(spec)) return { ref: spec, source, label };
     const t = this.template.template;
     if (spec === t.frame.style) {
@@ -123,6 +124,28 @@ export class ComponentResolver {
     const id = FRAME_STYLE_LAYOUTS[spec];
     const params = spec === 'card' ? { width: t.frame.width, radius: t.frame.radius, shadow: t.frame.shadow } : {};
     return { ref: { id, params }, source, label: `${label} (frame "${spec}")` };
+  }
+
+  /**
+   * A multi-page layout (L2.11) dressed by the theme: its card radius and shadow, a browser bar on each page when the
+   * theme frames captures in a browser window (studio/layout-browser), the theme's card width for the main page of a
+   * picture in picture.
+   */
+  multiPageCandidate(kind: MultiPageFrame, source: ResolvedComponent['source'], label: string): Candidate {
+    const t = this.template.template;
+    const themeLayout = this.theme.layout;
+    const tp = themeLayout?.params ?? {};
+    const browser = themeLayout?.id === 'studio/layout-browser' || themeLayout?.id === 'studio/layout-laptop';
+    const params: Record<string, unknown> = {
+      radius: typeof tp.radius === 'number' ? tp.radius : t.frame.radius,
+      shadow: typeof tp.shadow === 'string' ? tp.shadow : t.frame.shadow,
+      chrome: browser,
+    };
+    if (kind === 'pip') {
+      const width = typeof tp.width === 'number' ? tp.width : t.frame.width;
+      if (width >= 800 && width <= 1920) params.width = width;
+    }
+    return { ref: { id: MULTI_PAGE_LAYOUTS[kind], params }, source, label: `${label} (frame "${kind}"${browser ? ', browser windows like the theme' : ''})` };
   }
 
   /**

@@ -30,6 +30,7 @@ const COMMON_KEYS: ReadonlyArray<keyof StepCommon> = [
   'camera',
   'overlay',
   'tutorial',
+  'on',
   'mark',
   'timeout',
   'optional',

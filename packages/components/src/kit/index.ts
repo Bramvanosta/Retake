@@ -19,12 +19,14 @@ export * from './keys.js';
 export * from './icons.js';
 export * from './picture.js';
 export * from './place.js';
+export * from './panes.js';
 export type {
   ComponentProps,
   ThemeTokens,
   ThemeTextStyle,
   CaptionCue,
   LayoutRects,
+  LayoutPaneRects,
   MediaValue,
   MediaImage,
   EmailMedia,

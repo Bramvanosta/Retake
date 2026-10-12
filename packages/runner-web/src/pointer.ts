@@ -14,6 +14,8 @@ export interface PointerHost {
   scale: number;
   /** Clock of the motion loop (tests inject a fake one to simulate a loaded machine): default wall clock + sleep. */
   clock?: { now(): number; sleep(ms: number, signal?: AbortSignal): Promise<void> };
+  /** Where cursor samples go (default: the timeline's cursor — a page's own track in a multi-page scene, L2.11). */
+  sample?: (s: { x: number; y: number; visible: boolean; down?: boolean }) => void;
 }
 
 export type MouseButton = 'left' | 'right' | 'middle';
@@ -47,7 +49,19 @@ export class Pointer {
   }
 
   private sample(): void {
-    this.host.timeline.sampleCursor({ x: this.x, y: this.y, visible: this.visible, down: this.down });
+    const s = { x: this.x, y: this.y, visible: this.visible, down: this.down };
+    if (this.host.sample) this.host.sample(s);
+    else this.host.timeline.sampleCursor(s);
+  }
+
+  /** Take over the position and visibility of another pointer on the same page (no move: the page already shows it there). */
+  adopt(o: { x: number; y: number; known: boolean; visible: boolean }): void {
+    if (!o.known) return;
+    this.x = o.x;
+    this.y = o.y;
+    this.known = true;
+    this.visible = o.visible;
+    this.sample();
   }
 
   /** Jump without animation (scene start, page switch, file-drag entry point). */

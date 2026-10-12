@@ -1,9 +1,10 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
   isCaptureScene,
   listSteps,
+  scenePageEntries,
   newRunId,
   resolveEnvironment,
   resolveStepRef,
@@ -217,13 +218,16 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record });
     }
 
-    const firstScene = sc.scenes.filter(isCaptureScene).find((s) => !s.skip);
-    const firstPage = firstScene?.page ?? Object.keys(env.pages)[0];
-    if (!firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
+    const captured = sc.scenes.filter(isCaptureScene).filter((s) => !s.skip);
+    const firstScene = captured[0];
+    const firstPage = firstScene?.pages !== undefined ? undefined : (firstScene?.page ?? Object.keys(env.pages)[0]);
+    if (firstScene?.pages === undefined && !firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
     // Capture time 0: right before the first page is shown and the screencast starts.
     clock.t0Wall = wallNow();
-    await rt.activate(firstPage);
-    if (mode === 'capture') {
+    // A scenario whose first scene films several pages starts with their tracks (the main capture starts with the
+    // first single-page scene, if any).
+    if (firstPage) await rt.activate(firstPage);
+    if (mode === 'capture' && captured.some((s) => s.pages === undefined)) {
       recorder = new ScreencastRecorder({
         framesDir,
         indexFile: join(dir, 'frames.jsonl'),
@@ -235,7 +239,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         clock,
         onError: (m) => timeline.warn(m),
       });
-      await recorder.start(rt.page);
+      if (firstPage) await recorder.start(rt.page);
+      else await recorder.prepare();
       rt.recorder = recorder;
     }
     await runScenes(rt, {
@@ -250,6 +255,16 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     failure = e;
   } finally {
     endT = clock.now();
+    if (rt) {
+      for (const [id, t] of rt.tracks) {
+        if (!t.recorder) continue;
+        try {
+          t.builder.frames = (await t.recorder.stop()).length;
+        } catch (e) {
+          log('error', `stopping the recorder of page ${id} failed: ${errorMessage(e)}`);
+        }
+      }
+    }
     if (recorder) {
       try {
         frames = await recorder.stop();
@@ -292,7 +307,31 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   }
 
   const cancelled = failure !== null && isCancelled(failure);
-  if (mode === 'capture' && !cancelled && failure === null && frames.length === 0) {
+  // Per-page tracks of multi-page scenes (L2.11): their frames, encoded on the same CFR grid as capture.mp4.
+  const trackFrames = new Map<string, FrameIndexEntry[]>();
+  if (rt && mode === 'capture') {
+    for (const [id, t] of rt.tracks) {
+      if (!t.recorder) continue;
+      const list = [...t.recorder.frames].sort((a, b) => a.t - b.t);
+      trackFrames.set(id, list);
+      t.builder.frames = list.length;
+      const st = t.recorder.stats();
+      if (st.write_errors) timeline.warn(`page ${id}: ${st.write_errors} frames could not be written`);
+      const minFps = Math.min(capture.fps, 30) * 0.6;
+      const motion = motionCapture(list.map((f) => f.t), t.builder.cursor, minFps);
+      if (motion.slow > 0 && motion.worst) {
+        const message =
+          `page ${id}: ${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
+          `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s): several pages share the machine and render slowly`;
+        timeline.warn(message);
+        log('warn', message);
+      }
+    }
+  }
+  const allTrackFrames = [...trackFrames.values()].flat();
+  // A scenario made only of multi-page scenes has no main capture of its own: capture.mp4 is its first page's track.
+  const mainFromTrack = mode === 'capture' && frames.length === 0 && allTrackFrames.length > 0 ? [...trackFrames.keys()].find((k) => trackFrames.get(k)!.length > 0) : undefined;
+  if (mode === 'capture' && !cancelled && failure === null && frames.length === 0 && !mainFromTrack) {
     // A capture without a single frame is a failed capture, never a "succeeded" run without capture.mp4.
     const why = timeline.warnings.find((w) => w.startsWith('screencast frames stay'));
     failure = new EncodeError(`the capture recorded no frame${why ? ` (${why}: every frame was dropped)` : ''}`);
@@ -318,12 +357,49 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       failure ??= e;
     }
   }
+  if (rt && mode === 'capture' && !cancelled) {
+    for (const [id, t] of rt.tracks) {
+      const list = trackFrames.get(id) ?? [];
+      if (list.length === 0) {
+        timeline.warn(`page ${id}: its track recorded no frame`);
+        continue;
+      }
+      const tframes = join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, ''));
+      const out = join(dir, t.builder.info.file);
+      emit({ type: 'encode', status: 'start', message: `page ${id}: ${list.length} frames → ${out}` });
+      try {
+        await encodeFrames(tframes, list, out, {
+          fps: capture.fps,
+          crf: capture.crf,
+          endT,
+          width: t.viewport.width * capture.scale,
+          height: t.viewport.height * capture.scale,
+          jpeg: capture.format === 'jpeg',
+          ffmpeg: opts.ffmpeg,
+        });
+        emit({ type: 'encode', status: 'done', message: out });
+        if (!capture.keep_frames) await rm(tframes, { recursive: true, force: true });
+        if (mainFromTrack === id) {
+          await copyFile(out, join(dir, 'capture.mp4'));
+          record.capture = join(dir, 'capture.mp4');
+          frames = list;
+          log('info', `every scene films several pages: capture.mp4 is the track of page "${id}"`);
+        }
+      } catch (e) {
+        emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
+        failure ??= e;
+      }
+    }
+  }
 
   const tl = timeline.build({
     file: record.capture ? 'capture.mp4' : '',
     duration: endT,
     frames: frames.length,
     frameTimes: frames.map((f) => f.t),
+    ...(allTrackFrames.length ? { idleFrameTimes: [...(mainFromTrack ? [] : frames), ...allTrackFrames].map((f) => f.t) } : {}),
+    // capture.mp4 copied from a page's track has that page's size.
+    ...(mainFromTrack && rt?.tracks.get(mainFromTrack) ? { size: { width: rt.tracks.get(mainFromTrack)!.viewport.width, height: rt.tracks.get(mainFromTrack)!.viewport.height } } : {}),
   });
   const timelineFile = join(dir, 'timeline.json');
   try {

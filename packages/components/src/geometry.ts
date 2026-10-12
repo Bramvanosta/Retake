@@ -20,8 +20,11 @@ import type { AnchorSpec, LayoutGeometry, LayoutGeometrySpec, Rect1920 } from '.
 
 export type GeometryValue = number | string;
 
-/** Built-in identifiers of geometry expressions. */
-export const GEOMETRY_BUILTINS = ['aspect'] as const;
+/**
+ * Built-in identifiers of geometry expressions: `aspect` (the capture's width / height — the first page's in a
+ * multi-page scene) and `aspect2` (the second page's, L2.11; equal to `aspect` for a single page).
+ */
+export const GEOMETRY_BUILTINS = ['aspect', 'aspect2'] as const;
 /** Functions of geometry expressions. */
 export const GEOMETRY_FUNCTIONS = ['min', 'max', 'round', 'floor', 'ceil', 'abs'] as const;
 /** Default capture aspect (previews, validation). */
@@ -228,13 +231,14 @@ export function evalGeometryValue(value: GeometryValue, scope: Readonly<Record<s
 }
 
 /** The numeric scope of params: numbers as they are, booleans as 1 / 0 (strings, arrays… are not usable). */
-export function geometryScope(params: Readonly<Record<string, unknown>>, aspect = DEFAULT_CAPTURE_ASPECT): Record<string, number> {
+export function geometryScope(params: Readonly<Record<string, unknown>>, aspect = DEFAULT_CAPTURE_ASPECT, aspect2?: number): Record<string, number> {
   const scope: Record<string, number> = {};
   for (const [k, v] of Object.entries(params)) {
     if (typeof v === 'number' && Number.isFinite(v)) scope[k] = v;
     else if (typeof v === 'boolean') scope[k] = v ? 1 : 0;
   }
   scope.aspect = aspect > 0 && Number.isFinite(aspect) ? aspect : DEFAULT_CAPTURE_ASPECT;
+  scope.aspect2 = aspect2 !== undefined && aspect2 > 0 && Number.isFinite(aspect2) ? aspect2 : scope.aspect;
   return scope;
 }
 
@@ -244,8 +248,8 @@ const RECT_KEYS = ['screen', 'frame', 'chrome', 'caption', 'brandmark'] as const
  * The geometry of a layout for the given params and capture aspect: every expression evaluated (design px). Throws
  * GeometryExpressionError (with the offending key in its message) when an expression cannot be evaluated.
  */
-export function evalLayoutGeometry(spec: LayoutGeometrySpec, params: Readonly<Record<string, unknown>> = {}, opts: { aspect?: number } = {}): LayoutGeometry {
-  const scope = geometryScope(params, opts.aspect);
+export function evalLayoutGeometry(spec: LayoutGeometrySpec, params: Readonly<Record<string, unknown>> = {}, opts: { aspect?: number; aspect2?: number } = {}): LayoutGeometry {
+  const scope = geometryScope(params, opts.aspect, opts.aspect2);
   const at = (path: string, v: GeometryValue) => {
     try {
       return evalGeometryValue(v, scope);
@@ -268,7 +272,14 @@ export function evalLayoutGeometry(spec: LayoutGeometrySpec, params: Readonly<Re
     if (r) out[name] = rect(name, r);
   }
   if (spec.radius !== undefined) out.radius = at('radius', spec.radius);
+  if (spec.panes) out.panes = spec.panes.map((r, i) => rect(`panes[${i}]`, r));
+  if (spec.inset) out.inset = rect('inset', spec.inset);
   return out;
+}
+
+/** Whether a layout geometry shows several pages (split screen `panes`, or a picture-in-picture `inset`) — L2.11. */
+export function isMultiPaneGeometry(g: Pick<LayoutGeometrySpec, 'panes' | 'inset'> | undefined): boolean {
+  return !!g && ((g.panes?.length ?? 0) >= 2 || g.inset !== undefined);
 }
 
 /** True when the geometry declares an expression anywhere (it depends on params or on the capture aspect). */
@@ -278,6 +289,7 @@ export function geometryIsDynamic(spec: LayoutGeometrySpec): boolean {
     const r = spec[name];
     if (r) values.push(r.x, r.y, r.w, r.h);
   }
+  for (const r of [...(spec.panes ?? []), ...(spec.inset ? [spec.inset] : [])]) values.push(r.x, r.y, r.w, r.h);
   if (spec.radius !== undefined) values.push(spec.radius);
   return values.some((v) => typeof v === 'string');
 }

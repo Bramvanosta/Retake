@@ -96,7 +96,15 @@ function SampleRegion({ scene, region }: { scene: PreviewScene; region: { x: num
 function Scene({ spec, scene, caption }: { spec: ComponentPreviewSpec; scene: PreviewScene; caption: boolean }) {
   return (
     <AbsoluteFill>
-      <UseOf use={scene.layout} spec={spec} extra={{ screen: <SampleScreen scene={scene} />, rects: scene.rects, ...(scene.url ? { url: scene.url } : {}) }} />
+      <UseOf
+        use={scene.layout}
+        spec={spec}
+        extra={
+          scene.screens
+            ? { screens: scene.screens.map((sc, i) => <Img key={i} src={sc.url} style={{ ...fill, width: '100%', height: '100%', display: 'block' }} />), rects: scene.rects }
+            : { screen: <SampleScreen scene={scene} />, rects: scene.rects, ...(scene.url ? { url: scene.url } : {}) }
+        }
+      />
       <Brandmark spec={spec} scene={scene} />
       {caption && scene.caption ? (
         <UseOf use={scene.caption} spec={spec} extra={{ cues: scene.caption.cues, rects: scene.rects, ...(scene.rects.caption ? { area: scene.rects.caption } : {}) }} />

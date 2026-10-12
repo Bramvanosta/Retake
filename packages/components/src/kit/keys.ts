@@ -4,6 +4,8 @@
  * or Ctrl / Alt / Shift words). Pure (no React).
  */
 
+import { capTextLayout } from './metrics.js';
+import type { CapTextLayout } from './metrics.js';
 import { clearOf } from './place.js';
 import type { Box } from './place.js';
 
@@ -153,4 +155,57 @@ export function shortcutPlateMetrics(size: number, unit: number, variant: 'lands
 export function shortcutPlateBox(o: { bounds: Box; w: number; h: number; position: 'bottom' | 'top'; avoid?: readonly Box[]; gap: number }): Box {
   const start = { x: o.bounds.x + (o.bounds.w - o.w) / 2, y: o.position === 'top' ? o.bounds.y : o.bounds.y + o.bounds.h - o.h, w: o.w, h: o.h };
   return clearOf(start, o.avoid, { dir: o.position === 'top' ? 'down' : 'up', gap: o.gap, bounds: o.bounds });
+}
+
+/** A cap of the plate with its word layout (null for a glyph) and width (output px). */
+export interface PlateCap {
+  cap: KeyCap;
+  word: CapTextLayout | null;
+  w: number;
+}
+
+/** The measured content of a key-cap plate: its caps, separators, label and "× N" chip, and its size (output px). */
+export interface ShortcutPlateLayout {
+  caps: PlateCap[];
+  plus: CapTextLayout | null;
+  plusW: number;
+  label: CapTextLayout | null;
+  countLabel: CapTextLayout | null;
+  capsW: number;
+  labelW: number;
+  countW: number;
+  /** The plate's size. */
+  W: number;
+  H: number;
+  metrics: ReturnType<typeof shortcutPlateMetrics>;
+  /** Ctrl / Alt words with "+" separators (Windows, Linux) rather than macOS glyphs. */
+  pc: boolean;
+  times: number;
+}
+
+/**
+ * The plate of studio/overlay-shortcut measured (caps, separators, label, count chip): the component draws it, the
+ * composition and the review place it with the same numbers (`shortcutPlateBox`).
+ */
+export function shortcutPlateLayout(o: { keys: string; label?: string; times?: number; platform: KeyPlatform; size: number; unit: number; variant: 'landscape' | 'vertical' | 'square'; fontFamily: string }): ShortcutPlateLayout {
+  const caps = parseShortcut(o.keys, o.platform);
+  const m = shortcutPlateMetrics(o.size, o.unit, o.variant);
+  const u = m.u;
+  const { capH, pad, gap } = m;
+  const times = Math.max(1, Math.min(99, o.times ?? 1));
+  const pc = o.platform !== 'mac';
+  const font = o.fontFamily;
+  const layouts = caps.map((c): PlateCap => {
+    const word = c.glyph ? null : capTextLayout({ text: c.label, width: 600 * u, maxFontSize: capH * (c.label.length > 1 ? 0.34 : 0.44), minFontSize: capH * 0.2, maxLines: 1, lineHeight: 1.1, fontFamily: font, fontWeight: 600 });
+    const w = c.glyph || !c.wide ? capH : Math.max(capH, (word?.width ?? 0) + capH * 0.6);
+    return { cap: c, word, w };
+  });
+  const plus = pc ? capTextLayout({ text: '+', width: 200, maxFontSize: capH * 0.36, minFontSize: capH * 0.2, maxLines: 1, fontFamily: font, fontWeight: 500 }) : null;
+  const plusW = plus ? plus.width + gap * 2 : gap;
+  const label = o.label ? capTextLayout({ text: o.label, width: 520 * u, maxFontSize: capH * 0.32, minFontSize: capH * 0.2, maxLines: 1, lineHeight: 1.1, fontFamily: font, fontWeight: 500 }) : null;
+  const countLabel = times > 1 ? capTextLayout({ text: `× ${times}`, width: 200 * u, maxFontSize: capH * 0.3, minFontSize: capH * 0.18, maxLines: 1, fontFamily: font, fontWeight: 600 }) : null;
+  const capsW = layouts.reduce((acc, l) => acc + l.w, 0) + Math.max(0, layouts.length - 1) * (pc ? plusW : gap);
+  const labelW = label ? label.width + capH * 0.4 : 0;
+  const countW = countLabel ? countLabel.width + capH * 0.5 + gap : 0;
+  return { caps: layouts, plus, plusW, label, countLabel, capsW, labelW, countW, W: capsW + labelW + countW + 2 * pad, H: m.height, metrics: m, pc, times };
 }

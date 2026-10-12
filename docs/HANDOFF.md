@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.10. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.11. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -292,31 +292,93 @@ automatically with themeable components, and let Claude operate everything throu
   components. `SYSTEM_COLORS.white` / `.black` (mask, QR plate and modules, last-resort ink) keep the sources free of
   colour literals (test-guarded). 757 tests: 751 pass, 6 Postgres tests skipped (full suite run twice, green both
   times).
-- **Requirements:** 598 tracked; 386 done, 50 partial, 147 todo, 15 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.10 all done (L2.10: R-TUT-01…05, R-STO-01…06). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
+- **L2.11 done** (multi-page capture: split screen & picture in picture): **core** scene `pages:` (map `id →
+  {page?, open?, viewport?, label?, cursor?} | null`, or a list of ids continuing earlier declarations / objects),
+  `open: "<env page>:/path"`, viewport presets (`desktop` = capture size, `laptop` 1440×900, `tablet` 820×1180,
+  `mobile` 390×844 with touch + mobile UA, or `{width, height, mobile?, touch?}`), step `on: <page>`, `pacing.
+  page_switch_ms` (500), `frame: split | pip`; `pages.ts` (`resolveScenePages`, `scenePageEntries`, `splitPageOpen`,
+  `stepPageOf`), positioned checks (unknown pages with suggestions, `on:` outside / unknown, page/open beside pages, not
+  two pages, duplicates, new_tab / switch_page inside, a page id asked at another viewport, a single-page scene filming
+  a page whose viewport is not the capture size — explicit, via switch_page / open, or by continuation), timeline
+  `tracks[]`, `scenes[].pages`, `events[].page`, `markers[].page`; schemas regenerated. **Runner** (`runtime.enterPages / leavePages / act`, `scenes.ts
+  runPagesScene`): one screencast + `TrackBuilder` per page id for the whole run, on the shared clock, encoded on the
+  CFR grid of `capture.mp4` as `capture-<page>.mp4` (same frame count); viewport by a persistent CDP emulation session
+  per page (detaching reverts it); one `Pointer` per page (only the acting one moves; switch = `page_switch_ms` pause
+  then a glide from its rest; a page with no step of its own in the scene rests near its centre — never under a PiP
+  inset); the main recorder pauses during multi-page scenes (not created when every scene is multi-page: `capture.mp4`
+  is then a copy of the first track); a mobile page in a single-page scene or a page whose viewport changes is a
+  StepError (also caught by the validation now); `rt.resolveUrl` resolves a page id of `pages` against the environment
+  page it was declared on (base path kept). **Planner** (`editor/src/panes.ts`): `plan.tracks`, clip `panes` (fit
+  top-aligned in the layout's panes, per-page camera / reframe / URLs) on one `srcFrames`, `acting` (the opening still's page from
+  the clip's start; a joined clip eases from the previous one's), PiP `inset` (`planInsetTrack`: corners kept off the
+  main page's current and next targets — `stepBoxes`: `focusBox` ±180×110 CSS px around the acted point + the
+  `leadingBox` of a wide target, clearance, caption band soft —, glides `INSET_LEAD_S` before, ≥ `INSET_MIN_HOLD_S`
+  apart, never while its page acts (a corner the next main-page step needs is reached after the inset's step; ties go
+  to the corner the next steps leave free), continues across joined clips; grows ×1.18 while its page acts with
+  emphasis — `growClearOf` lowers it, to 1 under 1.04, so it never reaches a caption band over the screen), automatic
+  split / pip for a single-pane frame, fallback for single-page scenes, theme-dressed (radius, shadow, chrome), geometry keys `panes` /
+  `inset` and the `aspect2` variable; tutorial per pane (`OverlayUse.pane`; badges numbered once per clip in time order
+  over both pages, `planBadgeNumbers`; an inset's spotlight and badges stay inside it, `staysInInset`, its caps / lens
+  use the main page's room and keep clear of its targets — `clear[].pane`); a caption band
+  over the screen goes below a split (note); story-card frames of a page read its track. **Composition**: one
+  `CaptureScreen` per pane (`source`), `rects.panes` (`layoutPaneRectsAt`, eased acting weights), overlays mapped per
+  pane, main-page overlays clipped around the inset (`insetHole`). **Components** `studio/layout-split`,
+  `studio/layout-pip` (kit `panes.tsx`: `WindowBar`, `PaneLabel`, `InsetCard`, `InsetPhone`, `insetPhoneEdge`),
+  previews committed; manifest `preview.screens`. **Polish carried over from L2.10**: `OverlayUse.clear` (current
+  target + click targets of the next `CLEAR_LOOKAHEAD_S` 1.2 s) → `avoid` (`kind: 'target'`), key caps take the other row
+  (`shortcutSlot`), kit `stepBadgeBox` / `shortcutPlateLayout` shared with the review (`drawnOverlayBox`), the loupe
+  cross-fades two fixed regions instead of panning (`trackKeysAt`). **Review**: clicks per pane (`OutputClick.page /
+  pane`, `cursorAt(…, page)`), cursor / reframe / tutorial checks per pane, capture-frame keys `<track>:<frame>`,
+  `overlay-covers-target` (caps, badge, loupe, PiP inset over > 15 % of a click target of the current / next step),
+  `tutorial-stale-target` (a spotlight or badge still on its target > 0.6 s after its page changed URL; the planner
+  ends a spotlight run and a badge after a click that navigates, `stepNavigates`), `target-outside-view` is an info
+  when a reframed target larger than the view shows its leading part and the click. **Reframe** (all vertical /
+  square plans): a wide target counts by its leading part (`leadingPart`), a run starts framed toward the page's
+  top-left, a cursor resting alone after its step is only brought back inside the dead zone, an idle pane settles on
+  its page's heading at the start of a scene where it only rests (`reframeTrack({settle})`). **Fixture**: live lists
+  (`useLiveList`, 1 s poll, "New" pill) in the console's quote requests and the shop's quotes, and the shop's
+  notifications bell polls every second (unread badge + ring a second after the console's proposal); scenarios
+  `live-quote` (split, step badges) and `phone-and-desktop` (pip, step badges; the send scene holds 1.2 s so the
+  request reaches the desk's list before the desk's opening still). Bundle hash covers
+  `COMPOSITION_DEPS` = layout, util, plan-types, panes. Tests: core multipage.test.ts, runner-web multipage.test.ts,
+  editor planner-panes.test.ts (frozen timelines `live-quote.timeline.json` = run 20261012-073840-live-quote,
+  `phone-and-desktop.timeline.json` = run 20261012-080444-phone-and-desktop), review multipage.test.ts, components
+  library.test.ts (multi-page layouts); review-fix tests in the same files plus editor reframe.test.ts (leading part,
+  leading start, settle), planner-tutorial.test.ts (navigation ends the spotlight run and the badge), review
+  tutorial.test.ts (`tutorial-stale-target`); counts now 39 built-in components. 792 tests: 786 pass, 6 Postgres
+  tests skipped (full suite run twice after the review fixes, green both times). No dependency added.
+- **Requirements:** 603 tracked; 395 done, 50 partial, 143 todo, 15 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.11 all done (L2.10: R-TUT-01…05, R-STO-01…06; L2.11: R-MPC-01…07,
+  R-TUT-06…07). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
   (2560×1440 still untested).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
   (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
   and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9) + tutorial
-  overlays & story cards (L2.10).
+  overlays & story cards (L2.10) + multi-page capture, split screen & picture in picture (L2.11).
   `packages/mcp` is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.11 — Multi-page capture: split screen & picture in picture** (M): the runner records two pages on one clock
-(e.g. supplier + buyer, or desktop + mobile viewport); timeline tracks per page; scenario syntax for parallel pages;
-layouts `studio/layout-split` and `studio/layout-pip` planned and rendered in sync (R-MPC-*). Then L2.12 (bring your
-own media & motion), L2.13 (raw capture export), L2.14 (phase 2 acceptance + Mac handoff); after phase 2 the work
+**L2.12 — Bring your own media & motion** (M): any segment can be a user video/image file; transparent overlay videos
+(ProRes 4444 / WebM alpha); Lottie component (card/overlay); "bring your own motion" docs (files, Lottie, custom
+Remotion components, output of any Claude motion skill) (R-OWN-*). Templates are never mandatory. Then L2.13 (raw
+capture export), L2.14 (phase 2 acceptance + Mac handoff); after phase 2 the work
 moves to a local session on the user's Mac starting with L1.5 (see ROADMAP).
 
 Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote
 (before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup (L2.9),
-20261012-034207-signup (L2.10: tutorial overlays), 20261012-034247-highlights (L2.10: story cards), 20261011-222856-mobile-quote,
+20261012-034207-signup (L2.10: tutorial overlays), 20261012-034247-highlights (L2.10: story cards),
+20261012-073840-live-quote and 20261012-080444-phone-and-desktop (L2.11: two pages on one clock), 20261011-222856-mobile-quote,
 and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario). Captures need the fixture server
 (`node fixtures/wholesale/server.mjs`; stop it with `kill <pid>` — `pkill -f` with its path also matches the shell
 that runs it):
 ```
 node packages/cli/dist/bin.js run northfield-fixture signup              # mail, phone cards, tap-open, tutorial overlays (≈ 45 s)
 node packages/cli/dist/bin.js run northfield-fixture highlights          # capture_text + every story card (≈ 46 s)
+node packages/cli/dist/bin.js run northfield-fixture live-quote          # shop + console at once (split, ≈ 1 m 15 s)
+node packages/cli/dist/bin.js run northfield-fixture phone-and-desktop   # desktop + phone at once (pip, ≈ 50 s)
+node packages/cli/dist/bin.js render northfield-fixture live-quote --theme motion --review
+node packages/cli/dist/bin.js render northfield-fixture phone-and-desktop --vertical --review
+node packages/cli/dist/bin.js still northfield-fixture live-quote --square --frame 880
 node packages/cli/dist/bin.js render northfield-fixture signup && node packages/cli/dist/bin.js review northfield-fixture signup-v12
 node packages/cli/dist/bin.js render northfield-fixture signup --no-tutorial   # the same video without the overlays
 node packages/cli/dist/bin.js render northfield-fixture highlights --theme motion
@@ -409,22 +471,60 @@ with its QR (sampled from the frame: version 3, 29 × 29 modules, 9.1 px each at
 encoder). Previews of the 11 new components looked at (re-rendered after the last kit edits: byte-identical).
 Render times here: signup 1080p ≈ 2 m 40 s, vertical ≈ 3 m 20 s, highlights ≈ 2 m 10 s.
 
-Notes for L2.11:
-- Tutorial overlays assume one capture per clip: `mapSourceRect(plan, clip, frame, box)` maps source CSS px through
-  the clip's single layout capture rect + camera + reframe; the spotlight dims `rects.screen`; the loupe's `region`
-  renders `CaptureScreen` of the clip's one capture video. With two pages, events need their page and each mapping /
-  region / spotlight must use that page's rect and video (spotlight: dim only the page of the step).
-- Story cards that show capture frames (`PictureMedia.video.time_s`, `frame` slots) point at the clip capture file:
-  a second page needs its own file in the plan (asset) and `start:` / `end:` / `mark:` refs resolved per page.
-- `trackBoxAt` / `TRACK_GLIDE_S` (a box gliding between keyed boxes) can drive a picture-in-picture window move.
-- Overlays get `avoid` (output px) for a caption band over the screen (`overlayAvoid`): a split layout with captions
-  over each half would extend that list.
-- Review: the opening still is compared on capture frames when the view moves, an overlay is on or a caption over
-  the screen is on (`stillFromSource`); with two pages, compare each page's capture.
+Renders of L2.11 after the code and video review fixes, reviewed with `studio review` and looked at frame by frame
+(ffmpeg frames at every click of each page, every acting-page switch and both hand-offs; the café's bell cropped at
+10 fps; pane luminance measured across the switches): run **20261012-073840-live-quote** — **live-quote-v7**
+(editorial, 42.33 s): the two pages side by side with their labels, the roaster's label takes the accent within
+0.3 s of its scene's start (the new Q-1043 row with its "New" pill already in its list), badges on each page's pane;
+the roaster sends the proposal (output 29.93 s) and the café's bell shows its unread badge 0.8 s later and rings —
+both hand-offs live; **live-quote-v8** (motion, 42.10 s): idle page dimmed, measured — the café pane brightens within
+0.37 s of the proposal scene's start (was ≈ 1.3 s late); **live-quote-v9-vertical** (stacked): the idle roaster pane
+shows its page from the top-left ("Quote requests" and its subtitle whole, was cut mid-word), pans right only for the
+Send-proposal click and settles back at the café's scene. Run **20261012-080444-phone-and-desktop** —
+**phone-and-desktop-v9** (editorial, 31.93 s): the desk's cursor rests visible at the centre of the desk page through
+the phone scenes (was hidden under the phone, coming out of it), the phone's badges 1–5 inside the phone, the request
+arrives in the desk's list during the send scene's hold (live, behind the phone) and the desk scene opens on a still
+list; **phone-and-desktop-v10** (motion, 31.70 s): the phone does not grow (growing would reach the caption band; plan
+note), the band clear of the phone, the desk dimmed while the phone acts and bright from its scene's start;
+**phone-and-desktop-v11-vertical**: the clicked row framed by its leading part (Q-1043, "New", Selowa Ridge) with the
+click, and the closing hold on the detail page's title (was the right half of the page). **signup-v14** (motion,
+45.97 s, run 20261012-034207-signup; review clean): after the click on the search result the spotlight ring and badge
+fade within 0.45 s of the click (were 1.4 s on the gone card), the next spotlight comes in on Request a quote. Reviews:
+only the `video-length` warning (32–42 s videos, short on purpose); in the vertical pip the 1342 px row is an info
+(`target-outside-view`: its leading part and the click are shown). A first pd capture (20261012-073952, renders
+phone-and-desktop-v6/v7/v8-vertical) had the request arrive during the desk's opening still (`loading-scene-start`)
+→ the scenario's send scene holds 1.2 s. Superseded: live-quote-v1…v6, phone-and-desktop-v1…v8, signup-v13.
+Capture fps per page (the runner's own measure, cursor moves below 18 fps): live-quote buyer 11 of 14 (lowest 9 fps,
+the request dialog's backdrop blur), supplier 1 of 2 (lowest 13); phone-and-desktop phone 1 of 12 (lowest 18), desk
+none. General capture speed stays L1.3. Render times: ≈ 3 m per 1080p video (42 s), vertical ≈ 3 m 30 s, pip ≈ 2 m 30 s.
+
+Notes for L2.12:
+- A segment's video is a `PlanSource` (`plan.source`, `plan.tracks[key]`): `CaptureScreen` takes a `source`, the asset
+  server serves `ds-asset:` files — a user video segment can be one more `PlanSource` (+ its own time map instead of
+  `srcFrames` of the capture).
+- The composition bundle's hash covers `COMPOSITION_DEPS` (editor files the composition imports besides
+  `remotion/`): add any new module the composition imports (a Lottie player…), or a stale bundle is reused.
+- `ClipSegment` stays capture-based; multi-page clips add `panes` / `acting` / `inset`. Overlays carry `pane`;
+  `overlayRects` / `mapUseRect` / `useScreen` route them (`staysInInset`: an inset's spotlight and badges stay in it,
+  its other free-standing overlays use the main page's room — decide for a new overlay kind, e.g. a Lottie callout).
+  An overlay video with alpha drawn over a PiP main page should be clipped around the inset like the others
+  (`insetHole`); a `clear` entry may carry the `pane` its box belongs to.
+- The reframe changed for every vertical / square plan (leading part of wide targets, leading-edge start, no pan for a
+  resting cursor, `settle` for idle panes): earlier vertical / square renders of other scenarios (quote-v9-vertical,
+  signup-v8-vertical, catalogue exports) would frame differently if re-rendered — not re-rendered here.
+- Known limits: two pages per scene (`MAX_SCENE_PAGES`); a step badge outlives a target that disappears right after
+  its click without a URL change (a closing dialog) by ≈ 1 s (after a navigating click it leaves with the page, the
+  spotlight fades within 0.45 s); "leading" means top-left (left-to-right pages); in a stacked vertical split a click
+  at a page's far right still cuts the page's left edge (the crop keeps ≥ 0.9 design px per CSS px) — the idle pane
+  settles back afterwards; a motion PiP whose caption band is over the screen does not grow its inset (no room); the
+  caption band in a split's caption area is centred in that area (not the frame); an idle page's cursor rests near its
+  centre whatever the layout; renders killed mid-way leave `renders/.<id>.lock` (removed by hand once here).
+- The fixture's shop polls its notifications every second now (the bell rings live): a scenario that expects the bell
+  to change only on reload (none here) would see it earlier.
+
+Carried over (from L2.10 notes, still true):
 - `capture_text` reads the kit's `visibleText` (innerText, whitespace collapsed): inline children without spaces come
   out joined (the fixture's total reads "€465.00incl. VAT"; the pattern picks the value).
-- The runner records a `type` without `into` against the focused field (kit `focused()`), and `type` / `press` timing
-  in `data` — reusable for per-page events.
 - Preview samples: `scripts/preview-frame-samples.mjs` (needs the fixture running) writes the before/after sample
   frames; `preview/samples.json` has a sample `field` box (manifest `preview.target: field`).
 - Dependencies added by L2.10: `qrcode@1.5.4` as a devDependency of components (tests only; the encoder is the kit's).
@@ -434,7 +534,8 @@ Notes for L2.11:
   `preview.json.source_hash` does not cover the kit (`components preview --all` after a kit change that alters a
   look); still open from L2.8: caption bands over a reframed capture with `layout-raw`, the reframe release jolt
   (≈ 1 %/frame², under the 1.5 % threshold), 4K export ≈ 4× the 1080p time, the interstitial caption fade.
-- The fixture videos are ≈ 45–48 s: `video-length` info (the reference look targets 60–120 s, 25 % tolerance).
+- The fixture videos are ≈ 45–48 s: `video-length` info (the reference look targets 60–120 s, 25 % tolerance); the
+  L2.11 ones (31–44 s) get the `video-length` warning — short on purpose (brief: < 60 s each).
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

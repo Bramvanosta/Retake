@@ -71,6 +71,11 @@ export interface ClipTutorialInput {
   resolve: TutorialResolve;
   /** Running badge number (numbering: video) — the caller keeps it across clips. */
   counter: { video: number };
+  /**
+   * The badge numbers given beforehand (`planBadgeNumbers`): a multi-page scene plans each page on its own, but its
+   * badges are numbered once, in time order over every page. Absent: numbered here, in this call's step order.
+   */
+  badgeNumbers?: ReadonlyMap<TimelineEvent, BadgeNumber>;
   /** Manifest default duration of a resolved component, seconds. */
   durationOf: (rc: ResolvedComponent) => number | undefined;
   out: PlanTutorial;
@@ -101,6 +106,37 @@ function clicksTarget(ev: TimelineEvent): boolean {
 }
 
 const goodBox = (b: BBox | undefined): b is BBox => !!b && b.w > 0 && b.h > 0;
+
+/** A step badge's numbers: in its scene and in the video. */
+export interface BadgeNumber {
+  scene: number;
+  video: number;
+}
+
+/** The target box a step's badge sits beside (its target, else its first click's), with that click; null: no badge. */
+function badgeTarget(ev: TimelineEvent): { box: BBox; click: Click } | null {
+  if (!clicksTarget(ev)) return null;
+  const click = eventClicks(ev)[0];
+  const box = goodBox(ev.target?.bbox) ? ev.target!.bbox! : click?.bbox;
+  return goodBox(box) && click ? { box, click } : null;
+}
+
+/**
+ * The numbers of a clip's step badges, given in time order over all its events (a multi-page scene: every page's
+ * steps — the runner runs them one after the other), the video counter carried on. Same rules as `planClipTutorial`.
+ */
+export function planBadgeNumbers(events: readonly TimelineEvent[], stateOf: (ev: TimelineEvent) => ResolvedTutorial, counter: { video: number }): Map<TimelineEvent, BadgeNumber> {
+  const out = new Map<TimelineEvent, BadgeNumber>();
+  const steps = events.filter((e) => e.step >= 0 && e.status !== 'skipped').sort((a, b) => (badgeTarget(a)?.click.t ?? a.t_start) - (badgeTarget(b)?.click.t ?? b.t_start) || a.t_start - b.t_start);
+  let n = 0;
+  for (const ev of steps) {
+    if (!stateOf(ev).steps.on || !badgeTarget(ev)) continue;
+    n++;
+    counter.video++;
+    out.set(ev, { scene: n, video: counter.video });
+  }
+  return out;
+}
 
 /** The effective switches of each event of a run: scenario (or the render override) → scene → step. */
 export function tutorialStateOf(video: TutorialSwitch | undefined, override: TutorialSwitch | undefined): (scene: TimelineScene, ev?: TimelineEvent) => ResolvedTutorial {
@@ -136,6 +172,25 @@ export function loupeRegion(field: BBox, css: { w: number; h: number }): BBox {
   const x = Math.min(Math.max(0, field.x - padX), css.w - w);
   const y = Math.min(Math.max(0, field.y - padY), css.h - h);
   return { x: round(x, 2), y: round(y, 2), w: round(w, 2), h: round(h, 2) };
+}
+
+/**
+ * Whether a step changed its page's URL (a click that navigates): its URL at the end differs from the one the events
+ * before it on the same page last recorded. What it pointed at is then gone.
+ */
+export function stepNavigates(ev: TimelineEvent, events: readonly TimelineEvent[]): boolean {
+  if (ev.url === undefined) return false;
+  let before: string | undefined;
+  for (const e of events) {
+    if (e === ev) break;
+    if (e.url !== undefined && (e.page === undefined || ev.page === undefined || e.page === ev.page)) before = e.url;
+  }
+  return before !== undefined && before !== ev.url;
+}
+
+/** A step whose click took its page to another URL: what it clicked is gone. */
+function clicksAway(ev: TimelineEvent, events: readonly TimelineEvent[]): boolean {
+  return ev.action !== 'type' && ev.action !== 'hover' && eventClicks(ev).length > 0 && stepNavigates(ev, events);
 }
 
 /** The tutorial overlays of one clip (spotlight first: it is drawn under the others). */
@@ -184,7 +239,11 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
   for (const w of wins) {
     const last = runs[runs.length - 1];
     const prev = last?.[last.length - 1];
-    if (prev && w.t0 - prev.t1 <= T.spotlight_join_s && JSON.stringify(prev.state) === JSON.stringify(w.state)) last.push(w);
+    // A click that navigated ends its run: the hole must not stay on a target of the page that is gone (it fades out
+    // after the click; the next step's spotlight fades in on the new page). Typing + Enter keeps it (a search field
+    // usually stays where it was).
+    const gone = prev !== undefined && prev.ev !== w.ev && clicksAway(prev.ev, events);
+    if (prev && !gone && w.t0 - prev.t1 <= T.spotlight_join_s && JSON.stringify(prev.state) === JSON.stringify(w.state)) last.push(w);
     else runs.push([w]);
   }
   for (const run of runs) {
@@ -204,7 +263,7 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
   }
 
   // ── Numbered badges next to clicked targets ──────────────────────────────────────────────────────────────────
-  let sceneNumber = 0;
+  const numbers = input.badgeNumbers ?? planBadgeNumbers(steps, input.stateOf, input.counter);
   for (const ev of steps) {
     const st = input.stateOf(ev).steps;
     if (!st.on) continue;
@@ -212,16 +271,15 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
       if (ev.tutorial !== undefined && typeof ev.tutorial === 'object' && ev.tutorial.steps) skip(input, 'steps', ev, `a ${ev.action} step clicks no target`);
       continue;
     }
-    const click = eventClicks(ev)[0];
-    const box = goodBox(ev.target?.bbox) ? ev.target!.bbox! : click?.bbox;
-    if (!goodBox(box) || !click) {
+    const bt = badgeTarget(ev);
+    const num = numbers.get(ev);
+    if (!bt || !num) {
       skip(input, 'steps', ev, 'no clicked target box was recorded');
       continue;
     }
-    sceneNumber++;
-    input.counter.video++;
+    const { box, click } = bt;
     const numbering = st.params.numbering === 'video' ? 'video' : 'scene';
-    const number = numbering === 'video' ? input.counter.video : sceneNumber;
+    const number = numbering === 'video' ? num.video : num.scene;
     const at = rel(click.t);
     if (at >= n) continue;
     // From when the cursor arrives (never before the step starts) to a little after the click.
@@ -229,8 +287,10 @@ export function planClipTutorial(input: ClipTutorialInput): OverlayUse[] {
     const rc = input.resolve('steps', st, { number: String(number) }, where(ev, 'badge'));
     if (!rc) continue;
     // The resolved component may number by video even when the scenario did not say so (its own default).
-    if (rc.params.numbering === 'video' && numbering !== 'video') rc.slots.number = String(input.counter.video);
-    const frames = Math.min(at - from + fr(T.badge_after_s, fps), input.duration - from);
+    if (rc.params.numbering === 'video' && numbering !== 'video') rc.slots.number = String(num.video);
+    // After a click that navigates, the badge leaves with the page (as the spotlight does).
+    const after = clicksAway(ev, events) ? T.spotlight_after_click_s : T.badge_after_s;
+    const frames = Math.min(at - from + fr(after, fps), input.duration - from);
     out.steps.push({ component: rc, from, durationInFrames: Math.max(1, frames), scene, step: ev.step, anchor: { bbox: { ...box } }, tutorial: 'steps', moment: at - from });
     count(input, 'steps');
   }

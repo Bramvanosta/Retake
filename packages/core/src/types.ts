@@ -388,6 +388,11 @@ export interface StepCommon {
    * `tutorial: {spotlight: false}`; `false` = none on this step. `progress` is a video-wide switch (scenario only).
    */
   tutorial?: TutorialSwitch;
+  /**
+   * Multi-page scenes (L2.11): the page this step acts on — a key of the scene's `pages` (default: the scene's first
+   * page). Only that page's cursor moves; the others rest where they are.
+   */
+  on?: string;
   /** Free-form note (ignored). */
   note?: string;
 }
@@ -562,10 +567,76 @@ export type NormalizedArgs = NormalizedArgsMap;
 export type FrameStyle = 'raw' | 'card' | 'browser' | 'laptop' | 'phone' | 'tablet';
 
 /**
- * How a capture is framed: a FrameStyle (`card` ⇒ studio/layout-card, `browser` ⇒ studio/layout-browser…) or the id of
- * a layout component ("namespace/name").
+ * Layouts of a multi-page scene (L2.11): `split` ⇒ studio/layout-split (the pages side by side, stacked in vertical),
+ * `pip` ⇒ studio/layout-pip (one page over the other, picture in picture).
  */
-export type FrameSpec = FrameStyle | ComponentId;
+export type MultiPageFrame = 'split' | 'pip';
+
+/**
+ * How a capture is framed: a FrameStyle (`card` ⇒ studio/layout-card, `browser` ⇒ studio/layout-browser…), a
+ * multi-page frame (`split`, `pip`) or the id of a layout component ("namespace/name").
+ */
+export type FrameSpec = FrameStyle | MultiPageFrame | ComponentId;
+
+/** The built-in layout component of each multi-page frame (L2.11). */
+export const MULTI_PAGE_LAYOUTS: Readonly<Record<MultiPageFrame, ComponentId>> = {
+  split: 'studio/layout-split',
+  pip: 'studio/layout-pip',
+};
+
+// ── Multi-page scenes (L2.11) ────────────────────────────────────────────────
+
+/** Viewport presets of a page filmed in a multi-page scene; `desktop` is the capture size of the project. */
+export type ViewportPreset = 'desktop' | 'laptop' | 'tablet' | 'mobile';
+
+/** A page viewport in CSS px; `mobile` emulates a mobile device (meta viewport, overlay scrollbars), `touch` a touch screen. */
+export interface ViewportSpec {
+  width: number;
+  height: number;
+  mobile?: boolean;
+  touch?: boolean;
+}
+
+/** The fixed presets (`desktop` = the capture size: `capture.width × capture.height`). */
+export const VIEWPORT_PRESETS: Readonly<Record<Exclude<ViewportPreset, 'desktop'>, ViewportSpec>> = {
+  laptop: { width: 1440, height: 900 },
+  tablet: { width: 820, height: 1180, mobile: true, touch: true },
+  mobile: { width: 390, height: 844, mobile: true, touch: true },
+};
+
+export const VIEWPORT_PRESET_NAMES: readonly ViewportPreset[] = ['desktop', 'laptop', 'tablet', 'mobile'];
+
+/** Most pages a scene films at the same time (the built-in layouts show two: split screen, picture in picture). */
+export const MAX_SCENE_PAGES = 2;
+
+/**
+ * One page of a multi-page scene (scene key `pages`). All its pages are recorded at the same time, each on its own
+ * track; a step acts on one of them (`on:`).
+ */
+export interface ScenePageSpec {
+  /**
+   * Environment page key whose base URL a relative `open` resolves against. Default: the page id when it is an
+   * environment key, else the key before ":" in `open` (`open: shop:/products`).
+   */
+  page?: string;
+  /**
+   * Opened at the scene start: a path (relative to the environment page), `<env page>:<path>` or an absolute URL.
+   * Omit to continue the page as an earlier scene left it.
+   */
+  open?: string;
+  /** A preset (desktop, laptop, tablet, mobile) or `{width, height, mobile?, touch?}` (default: desktop). */
+  viewport?: ViewportPreset | ViewportSpec;
+  /** Name a layout may show next to the page ("Buyer", "Supplier"). */
+  label?: string;
+  /** Where this page's cursor rests at the scene start (default 'auto'). */
+  cursor?: SceneCursor;
+}
+
+/**
+ * `pages:` of a scene: a map page id → page, or a list of environment page keys / `{id?, page, open?, viewport?…}`
+ * (default id: the environment key, plus `-<preset>` for a viewport other than desktop: `shop-mobile`).
+ */
+export type ScenePages = Record<string, ScenePageSpec | null> | Array<string | (ScenePageSpec & { id?: string })>;
 
 /** The built-in layout component each FrameStyle stands for. */
 export const FRAME_STYLE_LAYOUTS: Readonly<Record<FrameStyle, ComponentId>> = {
@@ -604,6 +675,11 @@ export interface Scene {
   page?: string;
   /** Path or URL opened at scene start. Omit to continue from the previous scene's state. */
   open?: string;
+  /**
+   * Multi-page scene (L2.11): the pages filmed at the same time on one clock (instead of `page` / `open`), e.g. a buyer
+   * and a supplier, or one site on desktop and mobile. Steps act on the first page unless they say `on: <page>`.
+   */
+  pages?: ScenePages;
   steps: Step[];
   /** Edit-time speed for the whole scene. */
   speed?: number;
@@ -874,6 +950,11 @@ export interface Pacing {
   jitter: number;
   /** After navigation: wait for network idle up to this many ms. */
   settle_ms: number;
+  /**
+   * Multi-page scenes (L2.11): pause when a step acts on another page than the previous step, before that page's cursor
+   * starts to move (the viewer's eye moves to the other page; no cursor ever jumps).
+   */
+  page_switch_ms: number;
 }
 
 export const DEFAULT_PACING: Pacing = {
@@ -897,6 +978,7 @@ export const DEFAULT_PACING: Pacing = {
   scroll_offset: -140,
   jitter: 0.08,
   settle_ms: 3000,
+  page_switch_ms: 500,
 };
 
 export interface AuthConfig {
@@ -1049,7 +1131,57 @@ export interface TimelineScene {
   card?: CardSpec;
   /** Scene-level tutorial switches as written (the scenario's are in `Timeline.video.tutorial`). */
   tutorial?: TutorialSwitch;
+  /**
+   * Multi-page scene (L2.11): the pages filmed at the same time, in the scenario's order; each one is recorded on its
+   * own track (`Timeline.tracks`). Absent for a single-page scene (recorded in `capture`).
+   */
+  pages?: TimelineScenePage[];
   status: 'ok' | 'failed' | 'skipped' | 'partial';
+}
+
+/** A page of a multi-page scene as the run filmed it (L2.11). */
+export interface TimelineScenePage {
+  /** Page id (the key of the scene's `pages`). */
+  id: string;
+  /** Environment page key its URLs resolve against, when it has one. */
+  page?: string;
+  label?: string;
+  /** Viewport in CSS px (`preset` when it came from one). */
+  viewport: ViewportSpec & { preset?: ViewportPreset };
+  /** URL at the end of the scene's still. */
+  url?: string;
+  /** Id of the track holding its video (`Timeline.tracks`). */
+  track: string;
+}
+
+/**
+ * A page recorded on its own (L2.11): every page of a multi-page scene gets one, on the same clock as `capture`
+ * (frame n of every track is capture time n / fps: one frame grid). Outside the scenes that film it, a track holds its
+ * last frame.
+ */
+export interface TimelineTrack {
+  /** The page id. */
+  id: string;
+  /** CFR video, relative to the run directory (`capture-<id>.mp4`). */
+  file: string;
+  /** Frame index of the screencast (one {file, t} per line), relative to the run directory. */
+  frames_file: string;
+  /** Viewport in CSS px, device scale factor, mobile emulation. */
+  width: number;
+  height: number;
+  scale: number;
+  mobile?: boolean;
+  touch?: boolean;
+  preset?: ViewportPreset;
+  fps: number;
+  /** Screencast frames received. */
+  frames: number;
+  /** Capture-time intervals during which the page was recorded. */
+  recording: Array<{ t_start: number; t_end: number }>;
+  /** URL segments of the page while recorded (the browser chrome of a layout shows them). */
+  pages: TimelinePageSegment[];
+  /** This page's in-page cursor (each page has its own; only the acting page's moves). */
+  cursor: CursorSample[];
 }
 
 /** Step `overlay` as recorded by the runner: the spec plus the target measured at the END of the step. */
@@ -1130,6 +1262,8 @@ export interface TimelineMarker {
   t: number;
   scene: string;
   step: number;
+  /** Multi-page scenes: the page the marked step acts on. */
+  page?: string;
 }
 
 export interface TimelinePageSegment {
@@ -1275,15 +1409,25 @@ export interface Timeline {
   scenes: TimelineScene[];
   events: TimelineEvent[];
   markers: TimelineMarker[];
+  /** URL segments of `capture` (the recorded page of single-page scenes; per-page tracks keep their own). */
   pages: TimelinePageSegment[];
+  /** The cursor of `capture` (per-page tracks keep their own: `tracks[].cursor`). */
   cursor: CursorSample[];
-  /** Intervals where the screen did not change at all (no screencast frame) for ≥ 0.5 s. */
+  /**
+   * Intervals where the screen did not change at all (no screencast frame) for ≥ 0.5 s — of any recorded page: with
+   * tracks, a frame of any of them counts.
+   */
   idle: Array<{ t_start: number; t_end: number }>;
   /**
    * Emails, documents and web notifications (L2.9) and texts (`capture_text`, L2.10) captured by the run; files are
    * relative to the run directory.
    */
   artefacts?: TimelineArtefact[];
+  /**
+   * Multi-page scenes (L2.11): one track per page they film, recorded at the same time as each other on the capture
+   * clock. Absent when every scene films one page (`capture` holds everything).
+   */
+  tracks?: TimelineTrack[];
   warnings: string[];
 }
 

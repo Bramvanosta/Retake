@@ -81,7 +81,7 @@ export function compositionFiles(): { root: string; files: string[] } {
 }
 
 /** Modules outside src/remotion that the composition imports (relative to src/, without extension). */
-export const COMPOSITION_DEPS = ['layout', 'util', 'plan-types'] as const;
+export const COMPOSITION_DEPS = ['layout', 'util', 'plan-types', 'panes'] as const;
 
 /** The kit folder (source when present, else built) and the files hashed for it. */
 function kitFiles(): { entry: string; files: string[] } {

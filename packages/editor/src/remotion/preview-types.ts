@@ -31,6 +31,8 @@ export interface PreviewScene {
   rects: LayoutRects;
   /** The sample screen image (served URL) and its pixel size. */
   screen: { url: string; width: number; height: number };
+  /** Multi-page layouts (L2.11): one sample screen per page (`rects.panes` places them). */
+  screens?: Array<{ url: string; width: number; height: number }>;
   /** Address shown by a browser layout. */
   url?: string;
   caption?: PreviewUse & { cues: CaptionCue[] };

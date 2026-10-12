@@ -1,6 +1,8 @@
 import type {
   CaptureSettings,
   CursorSample,
+  TimelineTrack,
+  ViewportPreset,
   RunMode,
   Timeline,
   TimelineEvent,
@@ -91,6 +93,100 @@ export function motionCapture(frameTimes: readonly number[], cursor: readonly Cu
   return out;
 }
 
+/** Append a cursor sample unless it repeats the last one (same place, visibility and button). */
+export function pushCursorSample(list: CursorSample[], s: Omit<CursorSample, 't'> & { t: number }): void {
+  const last = list[list.length - 1];
+  if (last && last.x === s.x && last.y === s.y && last.visible === s.visible && !!last.down === !!s.down) return;
+  const sample: CursorSample = { t: s.t, x: s.x, y: s.y, visible: s.visible };
+  if (s.down) sample.down = true;
+  list.push(sample);
+}
+
+/**
+ * The track of one page of multi-page scenes (L2.11): its video, viewport, the intervals it was recorded, its URL
+ * segments and its own cursor, on the capture clock.
+ */
+export class TrackBuilder {
+  readonly recording: Array<{ t_start: number; t_end: number }> = [];
+  readonly pages: TimelinePageSegment[] = [];
+  readonly cursor: CursorSample[] = [];
+  frames = 0;
+  private since: number | null = null;
+
+  constructor(
+    readonly info: Pick<TimelineTrack, 'id' | 'file' | 'frames_file' | 'width' | 'height' | 'scale' | 'fps'> & { mobile?: boolean; touch?: boolean; preset?: ViewportPreset },
+    private readonly clock: CaptureClock,
+  ) {}
+
+  get recordingNow(): boolean {
+    return this.since !== null;
+  }
+
+  start(url?: string): void {
+    if (this.since !== null) return;
+    this.since = this.clock.now();
+    this.pageSegment(url);
+  }
+
+  stop(): void {
+    if (this.since === null) return;
+    const t = this.clock.now();
+    this.recording.push({ t_start: this.since, t_end: t });
+    const cur = this.pages[this.pages.length - 1];
+    if (cur && cur.t_start >= this.since - 1e-6) cur.t_end = t;
+    this.since = null;
+  }
+
+  sampleCursor(s: Omit<CursorSample, 't'> & { t?: number }): void {
+    pushCursorSample(this.cursor, { ...s, t: s.t ?? this.clock.now() });
+  }
+
+  /** A URL segment while recording (a navigation of the page). */
+  pageSegment(url: string | undefined): void {
+    if (this.since === null) return;
+    const t = this.clock.now();
+    const cur = this.pages[this.pages.length - 1];
+    const inPeriod = cur !== undefined && cur.t_start >= this.since - 1e-6;
+    if (inPeriod && cur.url === url) return;
+    // A fresh tab's about:blank is never shown: its first navigation owns the segment.
+    if (inPeriod && cur.url === 'about:blank' && url !== undefined) {
+      cur.url = url;
+      return;
+    }
+    if (inPeriod) {
+      cur.t_end = t;
+      if (cur.t_start === t) this.pages.pop();
+    }
+    this.pages.push({ id: this.info.id, t_start: t, t_end: t, ...(url !== undefined ? { url } : {}) });
+  }
+
+  build(end: number): TimelineTrack {
+    if (this.since !== null) {
+      this.recording.push({ t_start: this.since, t_end: end });
+      const cur = this.pages[this.pages.length - 1];
+      if (cur && cur.t_start >= this.since - 1e-6) cur.t_end = Math.max(cur.t_end, end);
+      this.since = null;
+    }
+    const out: TimelineTrack = {
+      id: this.info.id,
+      file: this.info.file,
+      frames_file: this.info.frames_file,
+      width: this.info.width,
+      height: this.info.height,
+      scale: this.info.scale,
+      ...(this.info.mobile ? { mobile: true } : {}),
+      ...(this.info.touch ? { touch: true } : {}),
+      ...(this.info.preset ? { preset: this.info.preset } : {}),
+      fps: this.info.fps,
+      frames: this.frames,
+      recording: this.recording,
+      pages: this.pages,
+      cursor: this.cursor,
+    };
+    return out;
+  }
+}
+
 export interface TimelineMeta {
   run_id: string;
   project: string;
@@ -112,6 +208,8 @@ export class TimelineBuilder {
   readonly createdAt = new Date().toISOString();
   /** Captured emails, documents and notifications (the run's ArtefactStore items). */
   artefacts: TimelineArtefact[] = [];
+  /** Per-page tracks of multi-page scenes (L2.11), in the order they were first recorded. */
+  readonly tracks: TrackBuilder[] = [];
 
   constructor(
     public readonly meta: TimelineMeta,
@@ -127,12 +225,7 @@ export class TimelineBuilder {
   }
 
   sampleCursor(s: Omit<CursorSample, 't'> & { t?: number }): void {
-    const t = s.t ?? this.now();
-    const last = this.cursor[this.cursor.length - 1];
-    if (last && last.x === s.x && last.y === s.y && last.visible === s.visible && !!last.down === !!s.down) return;
-    const sample: CursorSample = { t, x: s.x, y: s.y, visible: s.visible };
-    if (s.down) sample.down = true;
-    this.cursor.push(sample);
+    pushCursorSample(this.cursor, { ...s, t: s.t ?? this.now() });
   }
 
   /** Close the current page segment and open a new one (page switch or main-frame navigation). */
@@ -165,7 +258,11 @@ export class TimelineBuilder {
     this.markers.push(m);
   }
 
-  build(capture: { file: string; duration: number; frames: number; frameTimes: number[] }): Timeline {
+  /**
+   * `frameTimes`: the frames of the main capture (single-page scenes); `idleFrameTimes` (default: the same) the frames
+   * of every recorded page — the screen is idle only when none of them changed.
+   */
+  build(capture: { file: string; duration: number; frames: number; frameTimes: number[]; idleFrameTimes?: number[]; size?: { width: number; height: number } }): Timeline {
     const end = round3(capture.duration);
     const last = this.pages[this.pages.length - 1];
     if (last) last.t_end = Math.max(last.t_end, end);
@@ -178,8 +275,8 @@ export class TimelineBuilder {
       mode: this.meta.mode,
       capture: {
         file: capture.file,
-        width: this.meta.capture.width,
-        height: this.meta.capture.height,
+        width: capture.size?.width ?? this.meta.capture.width,
+        height: capture.size?.height ?? this.meta.capture.height,
         scale: this.meta.capture.scale,
         fps: this.meta.capture.fps,
         duration: end,
@@ -192,8 +289,9 @@ export class TimelineBuilder {
       markers: this.markers,
       pages: this.pages,
       cursor: this.cursor,
-      idle: this.meta.mode === 'capture' ? computeIdle(capture.frameTimes, end) : [],
+      idle: this.meta.mode === 'capture' ? computeIdle(capture.idleFrameTimes ?? capture.frameTimes, end) : [],
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
+      ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),
       warnings: this.warnings,
     };
   }

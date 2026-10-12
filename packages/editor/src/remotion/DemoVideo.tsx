@@ -12,10 +12,12 @@ import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } f
 import { Logo, Wordmark, backgroundCss } from '@demo-studio/components/kit';
 import type { ComponentProps, ThemeTokens } from '@demo-studio/components';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, PlanSegment, ResolvedComponent } from '../plan-types.js';
-import { mapSourceRect, viewOf } from '../layout.js';
+import { viewOf } from '../layout.js';
 import type { SourceView } from '../layout.js';
+import { layoutPaneRectsAt, paneSource, paneViewOf } from '../panes.js';
+import type { PlanSource } from '../plan-types.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, envelopeAt, layoutRects, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, srcFrameAt, trackBoxAt, transitionWindows, urlAt } from './frames.js';
+import { brandmarkRect, envelopeAt, insetHole, layoutRects, mapUseRect, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 
@@ -48,13 +50,14 @@ function Use(props: { rc: ResolvedComponent; plan: EditPlan; durationInFrames: n
  * frame index beyond the video's length (a clip taken late in a long capture, an interstitial backdrop near the end)
  * would silently show the wrong frame. A Sequence offset moves the media time without moving the timeline.
  */
-function CaptureFrame({ plan, srcFrame }: { plan: EditPlan; srcFrame: number }) {
+function CaptureFrame({ plan, srcFrame, source }: { plan: EditPlan; srcFrame: number; source?: PlanSource }) {
   const current = useCurrentFrame();
-  const t = (srcFrame / plan.source.fps) * plan.fps;
+  const src = source ?? plan.source;
+  const t = (srcFrame / src.fps) * plan.fps;
   return (
     <Sequence from={current - t} layout="none" name="capture">
       {/* objectFit fill: the box is the visible region (the reframe crop) scaled to the capture's aspect, never letterboxed. */}
-      <OffthreadVideo src={plan.source.url} muted style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill' }} />
+      <OffthreadVideo src={src.url} muted style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill' }} />
     </Sequence>
   );
 }
@@ -64,13 +67,19 @@ function CaptureFrame({ plan, srcFrame }: { plan: EditPlan; srcFrame: number }) 
  * ratio, the source frame of this output frame scaled and moved by the camera. `frame` = the clip frame to show
  * (default: the current one).
  */
-function CaptureScreen({ plan, clip, frame, region }: { plan: EditPlan; clip: ClipSegment; frame?: number; region?: { x: number; y: number; w: number; h: number } }) {
+function CaptureScreen({ plan, clip, frame, region, pane, fit }: { plan: EditPlan; clip: ClipSegment; frame?: number; region?: { x: number; y: number; w: number; h: number }; pane?: number; fit?: 'contain' | 'cover' }) {
   const current = useCurrentFrame();
   const f = Math.max(0, Math.min(clip.durationInFrames - 1, frame ?? current));
+  // Multi-page clips (L2.11): a page's own track, view and size.
+  const source = pane !== undefined && clip.panes?.[pane] ? paneSource(plan, clip.panes[pane]) : plan.source;
   // A fixed source region (the typing loupe) instead of the camera's view.
-  const view: SourceView = region ? { cx: region.x + region.w / 2, cy: region.y + region.h / 2, w: region.w, h: region.h } : viewOf(plan, clip, f);
-  const W = plan.source.cssWidth;
-  const H = plan.source.cssHeight;
+  const view: SourceView = region
+    ? { cx: region.x + region.w / 2, cy: region.y + region.h / 2, w: region.w, h: region.h }
+    : pane !== undefined && clip.panes?.[pane]
+      ? paneViewOf(plan, clip, pane, f)
+      : viewOf(plan, clip, f);
+  const W = source.cssWidth;
+  const H = source.cssHeight;
   const aspect = view.w / view.h;
   const sx = W / view.w;
   const sy = H / view.h;
@@ -83,8 +92,9 @@ function CaptureScreen({ plan, clip, frame, region }: { plan: EditPlan; clip: Cl
           position: 'absolute',
           left: '50%',
           top: '50%',
-          width: `min(100cqw, calc(100cqh * ${aspect}))`,
-          height: `min(100cqh, calc(100cqw / ${aspect}))`,
+          // contain: the region whole (letterboxed); cover: the box filled (a loupe cross-fading two regions).
+          width: fit === 'cover' ? `max(100cqw, calc(100cqh * ${aspect}))` : `min(100cqw, calc(100cqh * ${aspect}))`,
+          height: fit === 'cover' ? `max(100cqh, calc(100cqw / ${aspect}))` : `min(100cqh, calc(100cqw / ${aspect}))`,
           transform: 'translate(-50%, -50%)',
           overflow: 'hidden',
         }}
@@ -100,7 +110,7 @@ function CaptureScreen({ plan, clip, frame, region }: { plan: EditPlan; clip: Cl
             transform: sx === 1 && sy === 1 && tx === 0 && ty === 0 ? undefined : `translate(${tx}%, ${ty}%) scale(${sx}, ${sy})`,
           }}
         >
-          <CaptureFrame plan={plan} srcFrame={srcFrameAt(clip, f)} />
+          <CaptureFrame plan={plan} srcFrame={srcFrameAt(clip, f)} source={source} />
         </div>
       </div>
     </div>
@@ -137,25 +147,50 @@ function Brandmark({ plan, clip }: { plan: EditPlan; clip: ClipSegment }) {
 function OverlayView({ plan, clip, use }: { plan: EditPlan; clip: ClipSegment; use: OverlayUse }) {
   const local = useCurrentFrame();
   const f = use.from + local;
-  // The anchor of this frame (a track glides from box to box), mapped through layout + camera + reframe.
+  // The anchor of this frame (a track glides from box to box), mapped through layout (or the page's pane) + camera + reframe.
   const a = trackBoxAt(use, local, plan.fps);
-  const anchor = a ? mapSourceRect(plan, clip, f, a) : undefined;
-  const extra: Partial<ComponentProps> = { rects: layoutRects(clip.layout), ...(anchor ? { anchor } : {}) };
+  const anchor = a ? mapUseRect(plan, clip, use, f, a) : undefined;
+  const extra: Partial<ComponentProps> = { rects: overlayRects(plan, clip, use, f), ...(anchor ? { anchor } : {}) };
   if (use.moment !== undefined) extra.moment = use.moment;
-  // A caption band over the screen (caption-overlay), the key caps' row: the overlay keeps clear of them.
-  const avoid = useMemo(() => overlayAvoid(plan, clip, use), [plan, clip, use]);
+  // A caption band over the screen, the key caps' row, the targets of the current and next steps: kept clear.
+  // Key caps choose their row (bottom / top) once, from those targets; a lens or a badge keeps them clear frame by frame.
+  const caps = use.component.id === 'studio/overlay-shortcut';
+  const staticAvoid = useMemo(() => overlayAvoid(plan, clip, use), [plan, clip, use]);
+  const avoid = caps ? staticAvoid : [...staticAvoid, ...overlayTargets(plan, clip, use, local)];
   if (avoid.length > 0) extra.avoid = avoid;
+  const slot = useMemo(() => (caps ? shortcutSlot(plan, clip, use) : undefined), [caps, plan, clip, use]);
   // A loupe gliding from field to field keeps one side of them.
-  const side = useMemo(() => (use.tutorial === 'loupe' ? loupePlacement(plan, clip, use, avoid) : undefined), [plan, clip, use, avoid]);
-  const rc = side ? { ...use.component, params: { ...use.component.params, placement: side } } : use.component;
+  const side = useMemo(() => (use.tutorial === 'loupe' ? loupePlacement(plan, clip, use, staticAvoid) : undefined), [plan, clip, use, staticAvoid]);
+  const rc = side
+    ? { ...use.component, params: { ...use.component.params, placement: side } }
+    : slot && slot !== use.component.params.position
+      ? { ...use.component, params: { ...use.component.params, position: slot } }
+      : use.component;
   if (use.region) {
     // A live capture region (the typing loupe): the component places a box of the region's aspect, `screen` fills it.
-    // With a track, the region is the track's box of this frame (the lens glides from field to field).
+    // Gliding to the next field, the lens box glides while its content cross-fades from one field to the other — it
+    // never pans over what lies between them.
+    const keys = use.track ? trackKeysAt(use, local, plan.fps) : undefined;
     const region = use.track && a ? a : use.region;
     extra.region = { ...region };
-    extra.screen = <CaptureScreen plan={plan} clip={clip} frame={f} region={region} />;
+    if (keys?.prev && keys.t < 1) {
+      const fadeIn = Math.min(1, Math.max(0, (keys.t - 0.2) / 0.6));
+      extra.screen = (
+        <AbsoluteFill>
+          <AbsoluteFill style={{ opacity: 1 - fadeIn }}>
+            <CaptureScreen plan={plan} clip={clip} frame={f} region={keys.prev} pane={use.pane} fit="cover" />
+          </AbsoluteFill>
+          <AbsoluteFill style={{ opacity: fadeIn }}>
+            <CaptureScreen plan={plan} clip={clip} frame={f} region={keys.cur} pane={use.pane} fit="cover" />
+          </AbsoluteFill>
+        </AbsoluteFill>
+      );
+    } else extra.screen = <CaptureScreen plan={plan} clip={clip} frame={f} region={keys?.cur ?? region} pane={use.pane} />;
   }
-  return <Use rc={rc} plan={plan} durationInFrames={use.componentFrames ?? use.durationInFrames} extra={extra} />;
+  const body = <Use rc={rc} plan={plan} durationInFrames={use.componentFrames ?? use.durationInFrames} extra={extra} />;
+  // Picture in picture: the inset floats above the main page and everything drawn on it (a badge's ring, a spotlight).
+  const hole = insetHole(plan, clip, use, f);
+  return hole ? <AbsoluteFill style={{ clipPath: hole }}>{body}</AbsoluteFill> : body;
 }
 
 function Overlays({ plan, clip, layer }: { plan: EditPlan; clip: ClipSegment; layer: 'screen' | 'top' }) {
@@ -180,14 +215,17 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
   const current = useCurrentFrame();
   const still = stillAt !== undefined;
   const f = stillAt ?? current;
+  // Multi-page clips (L2.11): every page from its own track, all at the same source frame; the layout gets one screen
+  // per page and each page's rects of this frame (an inset glides between corners and grows while its page acts).
+  const layoutExtra: Partial<ComponentProps> = clip.panes
+    ? {
+        screens: clip.panes.map((_, i) => <CaptureScreen key={i} plan={plan} clip={clip} frame={stillAt} pane={i} />),
+        rects: { ...layoutRects(clip.layout), panes: layoutPaneRectsAt(plan, clip, f) },
+      }
+    : { screen: <CaptureScreen plan={plan} clip={clip} frame={stillAt} />, url: urlAt(clip, f), rects: layoutRects(clip.layout) };
   return (
     <AbsoluteFill>
-      <Use
-        rc={clip.component}
-        plan={plan}
-        durationInFrames={clip.durationInFrames}
-        extra={{ screen: <CaptureScreen plan={plan} clip={clip} frame={stillAt} />, url: urlAt(clip, f), rects: layoutRects(clip.layout) }}
-      />
+      <Use rc={clip.component} plan={plan} durationInFrames={clip.durationInFrames} extra={layoutExtra} />
       {!still ? <Overlays plan={plan} clip={clip} layer="screen" /> : null}
       <Brandmark plan={plan} clip={clip} />
       {!still && clip.caption && clip.cues.length > 0 ? (

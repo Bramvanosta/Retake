@@ -6,7 +6,8 @@
 import type { Timeline } from '@demo-studio/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
-import { brandmarkRect, mapSourceRect, trackBoxAt, viewOf } from '@demo-studio/editor';
+import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, paneCaptureAt, paneSource, paneViewOf, trackBoxAt, viewOf } from '@demo-studio/editor';
+import { insetPhoneEdge } from '@demo-studio/components/kit';
 import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
@@ -392,12 +393,17 @@ const inside = (p: { x: number; y: number }, v: { cx: number; cy: number; w: num
 export function checkCursor(ctx: CheckContext): Finding[] {
   const out: Finding[] = [];
   const { plan } = ctx;
-  const W = plan.source.cssWidth;
-  const H = plan.source.cssHeight;
   const ripple = Math.round(0.4 * plan.fps);
   for (const c of ctx.clicks) {
     const clip = plan.segments.find((s): s is ClipSegment => s.id === c.segment && isClip(s));
     if (!clip || !c.point) continue;
+    // Multi-page clips (L2.11): the page's own size, view and reframe.
+    const pane = c.pane !== undefined && clip.panes?.[c.pane] ? c.pane : undefined;
+    const src = pane !== undefined ? paneSource(plan, clip.panes![pane]) : plan.source;
+    const W = src.cssWidth;
+    const H = src.cssHeight;
+    const viewAt = (f: number) => (pane !== undefined ? paneViewOf(plan, clip, pane, f) : viewOf(plan, clip, f));
+    const crop = pane !== undefined ? clip.panes![pane].layout.crop : clip.layout.crop;
     const rel = c.frame - clip.from;
     const at = locate(ctx, c.frame, { scene: c.scene, step: c.step });
     const what = `the ${c.action} of step ${c.step_id ?? c.step} in "${c.scene}"`;
@@ -407,12 +413,12 @@ export function checkCursor(ctx: CheckContext): Finding[] {
     }
     const ev = ctx.timeline?.events.find((e) => e.scene === c.scene && e.step === c.step && e.t_click !== undefined);
     if (ctx.timeline && ev?.t_click !== undefined) {
-      const cur = cursorAt(ctx.timeline, ev.t_click);
+      const cur = cursorAt(ctx.timeline, ev.t_click, c.page);
       if (cur && !cur.visible) out.push(finding('warning', 'cursor-hidden', `${what} happens while the cursor is hidden`, at));
     }
-    const reframed = plan.variant !== 'landscape' && !!clip.layout.crop && (clip.layout.crop.w < W - 0.5 || clip.layout.crop.h < H - 0.5);
+    const reframed = plan.variant !== 'landscape' && !!crop && (crop.w < W - 0.5 || crop.h < H - 0.5);
     for (const f of [rel, Math.min(clip.durationInFrames - 1, rel + ripple)]) {
-      const view = viewOf(plan, clip, f);
+      const view = viewAt(f);
       const zoomed = view.w < W - 0.5 || view.h < H - 0.5;
       const viewName = reframed ? `${plan.variant} reframe` : `zoomed view (${(W / view.w).toFixed(2)}×)`;
       if (!inside(c.point, view, Math.min(view.w, view.h) * 0.01)) {
@@ -441,6 +447,9 @@ export function checkCursor(ctx: CheckContext): Finding[] {
         if (!corners.every((p) => inside(p, view, -0.5))) {
           if (reframed && fits) {
             out.push(finding('error', 'target-cut', `${what}: the ${plan.variant} reframe cuts its target (${c.target ?? ev?.target?.desc ?? 'element'})`, at));
+          } else if (reframed && inside(corners[0], view, -0.5)) {
+            // Wider (taller) than the view: its leading part — where its text starts — and the click are what can be shown.
+            out.push(finding('info', 'target-outside-view', `${what}: its target (${c.target ?? ev?.target?.desc ?? 'element'}) is larger than the ${viewName}: its leading part and the click are shown`, at));
           } else {
             out.push(finding('warning', 'target-outside-view', `${what}: its target (${c.target ?? ev?.target?.desc ?? 'element'}) is partly outside the ${viewName}`, at));
           }
@@ -518,11 +527,19 @@ export function checkCamera(ctx: CheckContext): Finding[] {
       );
     }
   }
-  // Reframed variants: the crop glides (no jump, no jolt) and the cursor never leaves it.
+  // Reframed variants: the crop glides (no jump, no jolt) and the cursor never leaves it (each page of a multi-page clip).
+  type Reframed = { clip: ClipSegment; rf: Array<[number, number]>; crop: { w: number; h: number }; page?: string; view: (f: number) => { cx: number; cy: number; w: number; h: number }; name: string };
+  const reframes: Reframed[] = [];
   for (const clip of clips) {
-    const rf = clip.reframe;
-    const crop = clip.layout.crop;
-    if (plan.variant === 'landscape' || !rf || !crop) continue;
+    if (clip.panes) {
+      clip.panes.forEach((p, i) => {
+        if (p.reframe && p.layout.crop) reframes.push({ clip, rf: p.reframe, crop: p.layout.crop, page: p.page, view: (f) => paneViewOf(plan, clip, i, f), name: `"${clip.scene}" (page ${p.page})` });
+      });
+    } else if (clip.reframe && clip.layout.crop) reframes.push({ clip, rf: clip.reframe, crop: clip.layout.crop, view: (f) => viewOf(plan, clip, f), name: `"${clip.scene}"` });
+  }
+  for (const r of reframes) {
+    const { clip, rf, crop } = r;
+    if (plan.variant === 'landscape') continue;
     const n = rf.length - clip.heldFrames;
     let jumped = false;
     for (let f = 1; f < n && !jumped; f++) {
@@ -534,7 +551,7 @@ export function checkCamera(ctx: CheckContext): Finding[] {
           finding(
             'warning',
             'reframe-jump',
-            `the ${plan.variant} reframe of "${clip.scene}" ${step > rules.reframe_max_step * crop.w ? `moves ${Math.round(step)} px in one frame` : `jolts (${accel.toFixed(1)} px/frame²)`} (crop ${Math.round(crop.w)} px wide)`,
+            `the ${plan.variant} reframe of ${r.name} ${step > rules.reframe_max_step * crop.w ? `moves ${Math.round(step)} px in one frame` : `jolts (${accel.toFixed(1)} px/frame²)`} (crop ${Math.round(crop.w)} px wide)`,
             locate(ctx, clip.from + f),
           ),
         );
@@ -543,11 +560,17 @@ export function checkCamera(ctx: CheckContext): Finding[] {
     if (!ctx.timeline) continue;
     for (let f = 0; f < n; f++) {
       const t = (clip.srcFrames[f] ?? 0) / plan.source.fps;
-      const cur = cursorAt(ctx.timeline, t);
+      const cur = cursorAt(ctx.timeline, t, r.page);
       if (!cur || !cur.visible) continue;
-      const view = viewOf(plan, clip, f);
+      // A page's resting cursor may leave its reframe (the other page acts): only the acting page's counts.
+      if (r.page !== undefined && clip.acting && clip.panes) {
+        let acting = clip.acting[0].pane;
+        for (const a of clip.acting) if (a.frame <= f) acting = a.pane;
+        if (clip.panes[acting]?.page !== r.page) continue;
+      }
+      const view = r.view(f);
       if (!inside(cur, view, 0)) {
-        out.push(finding('warning', 'cursor-outside-reframe', `the cursor (${Math.round(cur.x)}, ${Math.round(cur.y)}) leaves the ${plan.variant} reframe of "${clip.scene}"`, locate(ctx, clip.from + f)));
+        out.push(finding('warning', 'cursor-outside-reframe', `the cursor (${Math.round(cur.x)}, ${Math.round(cur.y)}) leaves the ${plan.variant} reframe of ${r.name}`, locate(ctx, clip.from + f)));
         break;
       }
     }
@@ -589,12 +612,98 @@ export function checkTransitionsOnClicks(ctx: CheckContext): Finding[] {
   return out;
 }
 
+// ── Overlays over click targets (L2.11 polish) ────────────────────────────────
+
+/** Overlays the review measures (their drawn box comes from the components' own kit functions). */
+const COVER_OVERLAYS: Record<string, string> = {
+  'studio/overlay-shortcut': 'key caps',
+  'studio/overlay-steps': 'step badge',
+  'studio/overlay-loupe': 'typing loupe',
+};
+
+/** Share of a target's box an overlay may cover before it counts as covering it. */
+export const COVER_SHARE = 0.15;
+
+const overlapArea = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
+  Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+
+/**
+ * `overlay-covers-target` (warning): an overlay drawn over the capture — the key caps, a step badge, the typing lens, a
+ * picture-in-picture inset — covers (more than COVER_SHARE of) the target a click of the current or the next step lands
+ * on (from 0.3 s before the overlay's frame to CLEAR_LOOKAHEAD_S after it). Targets count around the clicked point
+ * (`focusBox`: a whole table row counts where the cursor clicks it).
+ */
+export function checkOverlayCover(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const { plan } = ctx;
+  const fps = plan.fps;
+  const before = Math.round(0.3 * fps);
+  const ahead = Math.round(CLEAR_LOOKAHEAD_S * fps);
+  const stepEvery = Math.max(1, Math.round(0.2 * fps));
+  for (const clip of plan.segments) {
+    if (!isClip(clip)) continue;
+    const clicks = ctx.clicks.filter((c) => c.segment === clip.id && c.bbox && c.bbox.w > 0 && c.bbox.h > 0);
+    if (clicks.length === 0) continue;
+    const targetAt = (c: (typeof clicks)[number], rel: number) => {
+      const box = focusBox(c.bbox!, c.point);
+      return c.pane !== undefined && clip.panes?.[c.pane] ? mapPaneRect(plan, clip, c.pane, rel, box) : mapSourceRect(plan, clip, rel, box);
+    };
+    const what = (c: (typeof clicks)[number]) => `the ${c.action} of step ${c.step_id ?? c.step}${c.page ? ` on page ${c.page}` : ''} (${c.target ?? 'its target'})`;
+    for (const o of clip.overlays) {
+      const name = COVER_OVERLAYS[o.component.id];
+      if (!name) continue;
+      let reported = false;
+      for (let local = 0; local < o.durationInFrames && !reported; local += stepEvery) {
+        const rel = o.from + local;
+        if (rel >= clip.durationInFrames) break;
+        const f = clip.from + rel;
+        const box = drawnOverlayBox(plan, clip, o, local);
+        if (!box) break;
+        for (const c of clicks) {
+          if (c.frame < f - before || c.frame > f + ahead) continue;
+          const t = targetAt(c, rel);
+          if (overlapArea(box, t) > COVER_SHARE * t.w * t.h) {
+            out.push(finding('warning', 'overlay-covers-target', `${clip.id}: the ${name} of step ${o.step} covers ${what(c)} at ${timecode(f / fps)}`, locate(ctx, f, { scene: c.scene, step: c.step })));
+            reported = true;
+            break;
+          }
+        }
+      }
+    }
+    const inset = clip.inset;
+    if (!inset || !clip.panes) continue;
+    const mobile = paneSource(plan, clip.panes[inset.pane]).mobile === true;
+    for (const c of clicks) {
+      if (c.pane === inset.pane) continue;
+      for (const df of [-Math.round(0.35 * fps), 0]) {
+        const rel = c.frame - clip.from + df;
+        if (rel < 0 || rel >= clip.durationInFrames) continue;
+        const r = insetRectAt(clip, rel, fps);
+        if (!r) continue;
+        const e = mobile ? insetPhoneEdge(r.h) : 4 * plan.unit;
+        const drawn = { x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e };
+        const t = targetAt(c, rel);
+        if (overlapArea(drawn, t) > COVER_SHARE * t.w * t.h) {
+          out.push(finding('warning', 'overlay-covers-target', `${clip.id}: the picture-in-picture inset (page ${clip.panes[inset.pane].page}) covers ${what(c)}`, locate(ctx, clip.from + rel, { scene: c.scene, step: c.step })));
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // ── Tutorial overlays and story-card media (L2.10) ─────────────────────────────
+
+/** How long a spotlight or a step badge may stay on its target's box after its page changed URL (seconds). */
+export const STALE_TARGET_S = 0.6;
 
 /**
  * Tutorial overlays and data-driven cards:
  *  - `tutorial-skipped` (warning): an overlay the switches ask for could not be shown (a spotlight or a step badge
  *    without a recorded target box, a loupe without a field, a shortcut without its key) — the plan lists them;
+ *  - `tutorial-stale-target` (warning): a spotlight or a step badge stays on the box of its target more than
+ *    STALE_TARGET_S after its page changed URL (a click that navigated): it rings a spot of a page that is gone;
  *  - `tutorial-target-cut` (warning): the target of a spotlight, a badge or a loupe lies outside the visible capture
  *    (zoom, reframe) while the overlay shows;
  *  - `media-missing` (warning): a card / overlay names data (a captured text, a frame, a CSV, an email…) that the plan
@@ -608,6 +717,35 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
   }
   for (const s of plan.segments) {
     if (!isClip(s)) continue;
+    for (const o of s.overlays) {
+      if (o.tutorial !== 'spotlight' && o.tutorial !== 'steps') continue;
+      const urls = o.pane !== undefined && s.panes?.[o.pane] ? s.panes[o.pane].urls : s.urls;
+      const urlAt = (f: number) => {
+        let u: string | undefined;
+        for (const x of urls) if (x.frame <= f) u = x.url;
+        return u;
+      };
+      const keys = o.track && o.track.length > 0 ? o.track.map((k) => k.at) : [0];
+      for (let i = 0; i < keys.length; i++) {
+        const a = o.from + keys[i];
+        const b = Math.min(o.from + (keys[i + 1] ?? o.durationInFrames), s.durationInFrames);
+        const before = urlAt(a);
+        const change = urls.find((x) => x.frame > a && x.frame < b && x.url !== before);
+        if (!change || (b - change.frame) / plan.fps <= STALE_TARGET_S) continue;
+        out.push(
+          finding(
+            'warning',
+            'tutorial-stale-target',
+            `${s.id} step ${o.step}: the ${o.tutorial === 'steps' ? 'step badge' : 'spotlight'} stays ${fmtS((b - change.frame) / plan.fps)} on its target after the page went to ${change.url}`,
+            locate(ctx, s.from + change.frame),
+          ),
+        );
+        break;
+      }
+    }
+  }
+  for (const s of plan.segments) {
+    if (!isClip(s)) continue;
     const cap = s.layout.capture;
     for (const o of s.overlays) {
       if (!o.tutorial || o.tutorial === 'shortcuts' || !o.anchor?.bbox) continue;
@@ -617,10 +755,12 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
         const f = o.from + k;
         if (f >= s.durationInFrames) continue;
         const box = trackBoxAt(o, k, plan.fps) ?? o.anchor.bbox;
-        const r = mapSourceRect(plan, s, f, box);
+        const r = mapUseRect(plan, s, o, f, box);
         const cx = r.x + r.w / 2;
         const cy = r.y + r.h / 2;
-        if (cx < cap.x || cx > cap.x + cap.w || cy < cap.y || cy > cap.y + cap.h) {
+        // A multi-page clip: inside the page's own pane (a picture-in-picture inset where it is at that frame).
+        const area = o.pane !== undefined && s.panes?.[o.pane] ? paneCaptureAt(s, o.pane, f, plan.fps) : cap;
+        if (cx < area.x || cx > area.x + area.w || cy < area.y || cy > area.y + area.h) {
           out.push(finding('warning', 'tutorial-target-cut', `${s.id} step ${o.step}: the ${o.tutorial} target is outside the visible capture (zoom or reframe)`, locate(ctx, s.from + f)));
           break;
         }

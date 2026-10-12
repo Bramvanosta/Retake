@@ -642,11 +642,19 @@
         },
         {
           "type": "string",
+          "enum": [
+            "split",
+            "pip"
+          ],
+          "description": "Layout of a multi-page scene: split (side by side, stacked in vertical) or pip (picture in picture)."
+        },
+        {
+          "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
           "description": "A layout component id \"namespace/name\", e.g. studio/layout-card or a workspace layout."
         }
       ],
-      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), split or pip for a multi-page scene (studio/layout-split, studio/layout-pip), or a layout component id \"namespace/name\"."
     },
     "PacingOverrides": {
       "type": "object",
@@ -730,6 +738,11 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Typing speed, characters per second (9–24)."
+        },
+        "page_switch_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Multi-page scenes: pause before a step that acts on another page than the previous step (its cursor then glides from where it rests)."
         },
         "scroll_duration": {
           "type": "number",
@@ -974,6 +987,9 @@
           "minLength": 1,
           "description": "Path or URL opened at scene start. Omit to continue from the previous scene's state."
         },
+        "pages": {
+          "$ref": "#/$defs/ScenePages"
+        },
         "steps": {
           "type": "array",
           "items": {
@@ -1000,7 +1016,7 @@
           "$ref": "#/$defs/SceneTransition"
         },
         "frame": {
-          "description": "Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id \"namespace/name\".",
+          "description": "Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet, split / pip (multi-page scenes) or a layout component id \"namespace/name\".",
           "$ref": "#/$defs/Frame"
         },
         "tutorial": {
@@ -1053,6 +1069,303 @@
         }
       ],
       "description": "Caption text, or {kicker, text}."
+    },
+    "ScenePages": {
+      "anyOf": [
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ScenePage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+                  },
+                  "page": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                    "description": "Environment page key whose base URL a relative `open` resolves against (default: the page id when it is one, else the key before \":\" in `open`)."
+                  },
+                  "open": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Opened at the scene start: a path, \"<environment page>:<path>\" (e.g. shop:/products) or a URL. Omit to continue the page as it is."
+                  },
+                  "viewport": {
+                    "$ref": "#/$defs/Viewport"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Name a layout may show next to the page (\"Buyer\")."
+                  },
+                  "cursor": {
+                    "$ref": "#/$defs/SceneCursor"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      ],
+      "description": "Pages filmed at the same time (instead of `page` / `open`): a map page id → {page?, open?, viewport?, label?, cursor?}, or a list of environment page keys / {id?, page, open?, viewport?…} (default id: the page key, plus \"-<preset>\" for another viewport than desktop)."
+    },
+    "ScenePage": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "description": "Environment page key whose base URL a relative `open` resolves against (default: the page id when it is one, else the key before \":\" in `open`)."
+        },
+        "open": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opened at the scene start: a path, \"<environment page>:<path>\" (e.g. shop:/products) or a URL. Omit to continue the page as it is."
+        },
+        "viewport": {
+          "$ref": "#/$defs/Viewport"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name a layout may show next to the page (\"Buyer\")."
+        },
+        "cursor": {
+          "$ref": "#/$defs/SceneCursor"
+        }
+      },
+      "additionalProperties": false,
+      "description": "One page of a multi-page scene."
+    },
+    "Viewport": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "desktop",
+            "laptop",
+            "tablet",
+            "mobile"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 200,
+              "maximum": 7680,
+              "description": "Viewport width in CSS px."
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 200,
+              "maximum": 4320,
+              "description": "Viewport height in CSS px."
+            },
+            "mobile": {
+              "type": "boolean",
+              "description": "Emulate a mobile device (meta viewport, overlay scrollbars)."
+            },
+            "touch": {
+              "type": "boolean",
+              "description": "Emulate a touch screen (default: as `mobile`)."
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "A page viewport: desktop (the capture size), laptop (1440×900), tablet (820×1180), mobile (390×844) or {width, height, mobile?, touch?}."
+    },
+    "SceneCursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "auto",
+            "keep"
+          ]
+        },
+        {
+          "$ref": "#/$defs/Point"
+        },
+        {
+          "$ref": "#/$defs/TargetSpec"
+        }
+      ],
+      "description": "Where the cursor rests at the scene start: 'auto' (default: a neutral point near the first pointer target, never on it), 'keep' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is \"auto\"."
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "Viewport x in CSS px."
+        },
+        "y": {
+          "type": "number",
+          "description": "Viewport y in CSS px."
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "Absolute viewport point in CSS px."
+    },
+    "TargetSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Visible text (\"Save\"), a CSS selector string (\"#id\", \".class\", \"[attr]\", \"a > b\") or a target object."
+    },
+    "TargetObject": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ],
+          "description": "Element whose text contains ALL these strings; the innermost such element wins."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accessible name, used together with `role`."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Form control whose label text matches."
+        },
+        "aria": {
+          "type": "string",
+          "minLength": 1,
+          "description": "aria-label value (exact first, then substring)."
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "placeholder attribute."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Raw CSS selector."
+        },
+        "testid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "data-testid value."
+        },
+        "in": {
+          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+          "$ref": "#/$defs/ScopeSpec"
+        },
+        "nth": {
+          "type": "integer",
+          "description": "0-based index among visible matches (negative = from the end)."
+        },
+        "last_visible": {
+          "type": "boolean",
+          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Disable the substring fallback of text/name/aria/label."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Element locator. Combine keys to narrow the match (e.g. {text: Save, in: dialog})."
+    },
+    "ScopeSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "dialog",
+            "menu",
+            "listbox",
+            "popover",
+            "page"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "row": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text contained in the row."
+            }
+          },
+          "required": [
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: \"text\"} or a target object."
     },
     "Step": {
       "anyOf": [
@@ -1125,6 +1438,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -1201,6 +1519,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1275,6 +1598,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -1437,6 +1765,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1531,6 +1864,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1620,6 +1958,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -1711,6 +2054,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -1828,6 +2176,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1933,6 +2286,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -2049,6 +2407,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2141,6 +2504,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -2256,6 +2624,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2323,6 +2696,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -2433,6 +2811,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2495,6 +2878,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -2620,6 +3008,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2708,6 +3101,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -2804,6 +3202,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2892,6 +3295,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -2984,6 +3392,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3072,6 +3485,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3157,6 +3575,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -3261,6 +3684,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3359,6 +3787,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3446,6 +3879,11 @@
             "tutorial": {
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
             },
             "mark": {
               "type": "string",
@@ -3535,6 +3973,11 @@
               "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
               "$ref": "#/$defs/Tutorial"
             },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3566,7 +4009,7 @@
           "description": "Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`)."
         }
       ],
-      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, mark, timeout, optional, irreversible, note)."
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, on, mark, timeout, optional, irreversible, note)."
     },
     "CameraHint": {
       "type": "object",
@@ -3625,149 +4068,6 @@
       ],
       "additionalProperties": false,
       "description": "Edit-time camera move keyed to this step. The camera is static otherwise."
-    },
-    "Point": {
-      "type": "object",
-      "properties": {
-        "x": {
-          "type": "number",
-          "description": "Viewport x in CSS px."
-        },
-        "y": {
-          "type": "number",
-          "description": "Viewport y in CSS px."
-        }
-      },
-      "required": [
-        "x",
-        "y"
-      ],
-      "additionalProperties": false,
-      "description": "Absolute viewport point in CSS px."
-    },
-    "TargetSpec": {
-      "anyOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "$ref": "#/$defs/TargetObject"
-        }
-      ],
-      "description": "Visible text (\"Save\"), a CSS selector string (\"#id\", \".class\", \"[attr]\", \"a > b\") or a target object."
-    },
-    "TargetObject": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
-        },
-        "contains": {
-          "anyOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "minItems": 1,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "minLength": 1
-              }
-            }
-          ],
-          "description": "Element whose text contains ALL these strings; the innermost such element wins."
-        },
-        "role": {
-          "type": "string",
-          "minLength": 1,
-          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Accessible name, used together with `role`."
-        },
-        "label": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Form control whose label text matches."
-        },
-        "aria": {
-          "type": "string",
-          "minLength": 1,
-          "description": "aria-label value (exact first, then substring)."
-        },
-        "placeholder": {
-          "type": "string",
-          "minLength": 1,
-          "description": "placeholder attribute."
-        },
-        "css": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Raw CSS selector."
-        },
-        "testid": {
-          "type": "string",
-          "minLength": 1,
-          "description": "data-testid value."
-        },
-        "in": {
-          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
-          "$ref": "#/$defs/ScopeSpec"
-        },
-        "nth": {
-          "type": "integer",
-          "description": "0-based index among visible matches (negative = from the end)."
-        },
-        "last_visible": {
-          "type": "boolean",
-          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
-        },
-        "exact": {
-          "type": "boolean",
-          "description": "Disable the substring fallback of text/name/aria/label."
-        }
-      },
-      "additionalProperties": false,
-      "description": "Element locator. Combine keys to narrow the match (e.g. {text: Save, in: dialog})."
-    },
-    "ScopeSpec": {
-      "anyOf": [
-        {
-          "type": "string",
-          "enum": [
-            "dialog",
-            "menu",
-            "listbox",
-            "popover",
-            "page"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "row": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Text contained in the row."
-            }
-          },
-          "required": [
-            "row"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "$ref": "#/$defs/TargetObject"
-        }
-      ],
-      "description": "Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: \"text\"} or a target object."
     },
     "Ease": {
       "anyOf": [
@@ -3990,24 +4290,6 @@
       },
       "additionalProperties": false,
       "description": "Target + click options."
-    },
-    "SceneCursor": {
-      "anyOf": [
-        {
-          "type": "string",
-          "enum": [
-            "auto",
-            "keep"
-          ]
-        },
-        {
-          "$ref": "#/$defs/Point"
-        },
-        {
-          "$ref": "#/$defs/TargetSpec"
-        }
-      ],
-      "description": "Where the cursor rests at the scene start: 'auto' (default: a neutral point near the first pointer target, never on it), 'keep' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is \"auto\"."
     },
     "SceneTransition": {
       "anyOf": [

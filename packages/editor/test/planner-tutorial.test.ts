@@ -16,12 +16,14 @@ import {
   loupePlacement,
   overlayAvoid,
   shortcutRow,
+  shortcutSlot,
   loupeRegion,
   mapSourceRect,
   planComponentIds,
   planEdit,
   planFileRefs,
   planInputFiles,
+  stepNavigates,
   trackBoxAt,
   imageFileSize,
 } from '@demo-studio/editor';
@@ -33,6 +35,12 @@ const RUN = '/virtual/runs/r';
 const csv = 'month,quote requests,accepted\nJun,42,19\nJul,51,24\n';
 const load = (name: string) => JSON.parse(readFileSync(join(FIXTURES, `${name}.timeline.json`), 'utf8')) as Timeline;
 let registry: ComponentRegistry;
+
+/** The clip frame showing capture time `t` (s). */
+const frameOf = (p: EditPlan, c: ClipSegment, t: number) => {
+  const i = c.srcFrames.findIndex((s) => s >= Math.round(t * p.fps));
+  return i < 0 ? c.srcFrames.length - 1 : i;
+};
 
 async function plan(timeline: Timeline, overrides: EditOverrides = {}, files?: Record<string, PlanInputFile>): Promise<EditPlan> {
   return planEdit({ timeline, template: await template('editorial'), project: await fixtureProject(), registry, captureFile: `${RUN}/capture.mp4`, overrides, ...(files ? { files } : {}) });
@@ -90,6 +98,25 @@ describe('tutorial overlays from the timeline (signup)', () => {
     const clickSpan = clip.steps.find((st) => st.step === 5)!;
     expect(s[0].from + s[0].durationInFrames).toBeLessThanOrEqual(clickSpan.to);
     expect(s[0].from + s[0].durationInFrames).toBeGreaterThan(clickSpan.from);
+  });
+
+  it('a step that navigates ends the spotlight run and its badge leaves with the page (no ring on a page that is gone)', async () => {
+    const p = await plan(load('signup-tutorial'));
+    const w = clipOf(p, 'welcome');
+    const t = load('signup-tutorial');
+    const evs = t.events.filter((e) => e.scene === 'welcome');
+    const click = evs.find((e) => e.action === 'click' && e.step >= 0)!;
+    expect(stepNavigates(click, evs), 'the result card opens the product page').toBe(true);
+    const spots = uses(w, 'spotlight');
+    // The run of the card ends after its click; the next step's spotlight starts on the new page.
+    const onCard = spots.find((o) => o.step <= click.step && o.from + o.durationInFrames > frameOf(p, w, click.t_click!))!;
+    const end = onCard.from + onCard.durationInFrames;
+    expect(end).toBeLessThanOrEqual(frameOf(p, w, click.t_click! + 0.45) + 1);
+    expect(onCard.track?.some((k) => k.at > frameOf(p, w, click.t_click!) - onCard.from) ?? false).toBe(false);
+    const next = spots.find((o) => o.step > click.step)!;
+    expect(next.from).toBeGreaterThanOrEqual(end);
+    const badge = uses(w, 'steps').find((o) => o.step === click.step)!;
+    expect(badge.from + badge.durationInFrames).toBeLessThanOrEqual(frameOf(p, w, click.t_click! + 0.45) + 1);
   });
 
   it('numbered badges on the clicked steps, per scene (R-TUT-03)', async () => {
@@ -152,7 +179,7 @@ describe('tutorial overlays from the timeline (signup)', () => {
     // chapters = cards
     const cards = await plan(load('signup-tutorial'), { tutorial: { progress: 'cards' } });
     expect(cards.tutorial?.progress?.chapters.map((c) => c.id)).toEqual(['signup', 'inbox', 'lockscreen', 'badge']);
-    expect(p.tutorial?.uses).toEqual({ spotlight: 2, steps: 3, loupe: 2, shortcuts: 4, progress: 1 });
+    expect(p.tutorial?.uses).toEqual({ spotlight: 3, steps: 3, loupe: 2, shortcuts: 4, progress: 1 });
   });
 
   it('switches: render override, scene and step levels, component swaps', async () => {
@@ -192,8 +219,14 @@ describe('tutorial overlays from the timeline (signup)', () => {
     const [loupe] = uses(signup, 'loupe');
     const row = shortcutRow(motion, signup, uses(signup, 'shortcuts')[0])!;
     expect(row.y + row.h).toBeLessThanOrEqual(band.y);
+    // L2.11: the second Tab's caps would cover the next click target (the submit button, just above the band): they
+    // take the top row of the capture instead, and the loupe keeps clear of both rows.
+    const caps = uses(signup, 'shortcuts');
+    expect(caps.map((o) => shortcutSlot(motion, signup, o))).toEqual(['bottom', 'top']);
+    const top = shortcutRow(motion, signup, caps[1])!;
+    expect(top.y).toBeLessThan(signup.layout.capture.y + 40);
     const avoid = overlayAvoid(motion, signup, loupe);
-    expect(avoid).toEqual([band, row]);
+    expect(avoid).toEqual([band, row, top]);
     expect(loupePlacement(motion, signup, loupe, avoid)).toBe('above');
     // The editorial caption sits under the card: the caps stay at the bottom of the capture, the loupe below the fields.
     const editorial = await plan(t);

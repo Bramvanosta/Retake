@@ -1,4 +1,4 @@
-import { useApi } from '../../shared/api.js';
+import { useApi, useLiveList } from '../../shared/api.js';
 import { CoffeeArt } from '../../shared/art.jsx';
 import { dayTime, eur, range } from '../../shared/format.js';
 import { Icon } from '../../shared/icons.jsx';
@@ -7,7 +7,9 @@ import { session, today } from '../../shared/session.js';
 import { EmptyState, PageHeader, Skeleton, StatusBadge } from '../../shared/ui.jsx';
 
 export function QuotesPage() {
-  const { data } = useApi(`/api/quotes?buyer=${session.buyer.id}`);
+  const { data, reload } = useApi(`/api/quotes?buyer=${session.buyer.id}`);
+  // Live (L2.11 fixture): a request sent from another device shows up within a second, highlighted.
+  const fresh = useLiveList(reload, data);
   return (
     <>
       <PageHeader title="Quotes" description="Your quote requests and the roasters’ proposals." />
@@ -22,10 +24,13 @@ export function QuotesPage() {
           </EmptyState>
         ) : (
           data.map((q) => (
-            <Link key={q.id} to={`/quotes/${q.id}`} className="quote-row" data-quote={q.id}>
+            <Link key={q.id} to={`/quotes/${q.id}`} className={fresh.has(q.id) ? 'quote-row row-new' : 'quote-row'} data-quote={q.id}>
               <CoffeeArt palette={q.product?.palette} seed={q.product_slug} beansCount={0} variant="crop" />
               <div>
-                <div className="k">{q.reference}</div>
+                <div className="k">
+                  {q.reference}
+                  {fresh.has(q.id) ? <span className="new-pill">New</span> : null}
+                </div>
                 <div className="q-name">{q.product?.name}</div>
               </div>
               <div>

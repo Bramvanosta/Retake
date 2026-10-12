@@ -112,8 +112,8 @@ async function findAnchor(rt: Runtime, scene: Scene, waitMs: number): Promise<An
       const dy = await predictedScroll(rt, first.scrolls).catch(() => null);
       if (dy === null) return null;
       const box = { ...a.box, y: a.box.y - dy };
-      const W = rt.capture.width;
-      const H = rt.capture.height;
+      const W = rt.viewport.width;
+      const H = rt.viewport.height;
       // Only an anchor that will be on screen when its step starts is useful.
       if (box.x + box.w <= 0 || box.y + box.h <= 0 || box.x >= W || box.y >= H) return null;
       return { desc: a.desc, box };
@@ -133,11 +133,11 @@ export function cursorCovers(p: PointSpec, box: BBox, size = 26, clear = COVER_C
 }
 
 function insideViewport(rt: Runtime, p: PointSpec): boolean {
-  return p.x >= 0 && p.y >= 0 && p.x <= rt.capture.width && p.y <= rt.capture.height;
+  return p.x >= 0 && p.y >= 0 && p.x <= rt.viewport.width && p.y <= rt.viewport.height;
 }
 
 function clampToViewport(rt: Runtime, p: PointSpec): PointSpec {
-  return { x: clamp(Math.round(p.x), 4, rt.capture.width - 4), y: clamp(Math.round(p.y), 4, rt.capture.height - 4) };
+  return { x: clamp(Math.round(p.x), 4, rt.viewport.width - 4), y: clamp(Math.round(p.y), 4, rt.viewport.height - 4) };
 }
 
 /**
@@ -148,8 +148,11 @@ function clampToViewport(rt: Runtime, p: PointSpec): PointSpec {
 export async function placeSceneCursor(
   rt: Runtime,
   scene: Scene,
-  opts: { loading: boolean; stillMs: number; jitter: Jitter },
+  opts: { loading: boolean; stillMs: number; jitter: Jitter; idle?: boolean },
 ): Promise<{ record: SceneCursorRecord; glide: (() => Promise<void>) | null }> {
+  // A page with no step of its own in a multi-page scene rests near its centre: a picture-in-picture inset sits in a
+  // corner of the main page, and its cursor must not come out from under it when that page starts acting.
+  const where = opts.idle ? 'centre' : 'side';
   const spec: SceneCursor = scene.cursor ?? 'auto';
   const { pointer, kit } = rt;
   const from = pointer.known ? pointer.pos() : undefined;
@@ -180,8 +183,8 @@ export async function placeSceneCursor(
         to = { x: plan.x, y: plan.y };
         side = plan.side;
       } else if (opts.loading || !from) {
-        to = await kit.restPoint();
-        side = 'fallback';
+        to = await kit.restPoint(where);
+        side = opts.idle ? 'idle' : 'fallback';
       }
     }
   } catch (e) {
@@ -195,7 +198,7 @@ export async function placeSceneCursor(
   if (side) record.side = side;
   if (!to || (from && distance(from, to) < 1)) {
     if (!pointer.known) {
-      const p = await kit.restPoint();
+      const p = await kit.restPoint(where);
       await pointer.teleport(p);
       record.to = pointer.pos();
       record.how = 'teleport';

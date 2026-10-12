@@ -12,13 +12,13 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
-import { captionRegion, checkCamera, checkCaptions, checkCursor, checkDurations, checkLongScenes, checkRender, checkTextSlots, checkTransitionsOnClicks, checkTutorial, planFontFiles, segmentDurations } from './checks.js';
+import { captionRegion, checkCamera, checkCaptions, checkCursor, checkDurations, checkLongScenes, checkRender, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
 import { ReviewError, findPrevious, findRender, openProject, renderTimeline, reviewsDir } from './load.js';
-import { checkPixels, sourceFramesAtStarts, stillPair, stillSourceFrames } from './pixel-checks.js';
+import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
 import { compareSignatures, regionStats, signature, uniformity } from './pixels.js';
@@ -172,30 +172,43 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       notes.push({ severity: 'warning', code: 'frames-missing', message: `${missingFrames.length} of the ${wanted.size} frames sampled could not be decoded (the video ends at ${probed.duration_s.toFixed(2)} s?)` });
     }
 
-    // ── Pass 2: the capture behind the clips (scene starts, blank suspects) ──
-    let sources: Map<number, RegionStats> | undefined;
-    let sourceSigs: Map<number, Float32Array> | undefined;
+    // ── Pass 2: the capture behind the clips (scene starts, blank suspects) — the main capture and the pages' tracks ──
+    let sources: Map<string, RegionStats> | undefined;
+    let sourceSigs: Map<string, Float32Array> | undefined;
     const captureFile = plan.source.file;
     if (captureFile && existsSync(captureFile)) {
       progress({ stage: 'capture' });
       const want = new Set(sourceFramesAtStarts(spans));
       const sigWanted = new Set(stillSourceFrames(plan, spans, F));
-      for (const f of sigWanted) want.add(f);
+      for (const k of sigWanted) want.add(k);
       for (const [f, a] of analyses) {
         const span = spanAt(spans, f);
         if (!span || !isClip(span.segment) || !a.screen || !uniformity(a.screen, rules)) continue;
-        want.add(span.segment.srcFrames[Math.min(span.segment.srcFrames.length - 1, f - span.segment.from)] ?? 0);
+        want.add(sourceKey(span.segment, span.segment.srcFrames[Math.min(span.segment.srcFrames.length - 1, f - span.segment.from)] ?? 0));
       }
-      const cw = Math.min(640, plan.source.width);
-      const ch = Math.max(2, Math.round((cw * plan.source.height) / plan.source.width / 2) * 2);
+      // Group the wanted frames by video: `main` (plan.source) or a page's track.
+      const byTrack = new Map<string, number[]>();
+      for (const k of want) {
+        const i = k.lastIndexOf(':');
+        const track = k.slice(0, i);
+        if (!byTrack.has(track)) byTrack.set(track, []);
+        byTrack.get(track)!.push(Number(k.slice(i + 1)));
+      }
       sources = new Map();
       sourceSigs = new Map();
       try {
-        const info = await probeVideo(captureFile);
-        await extractFrames(captureFile, [...want], { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height }, (f, img: RgbImage) => {
-          sources!.set(f, regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: 2 }));
-          if (sigWanted.has(f)) sourceSigs!.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }, 64, 36));
-        });
+        for (const [track, frames] of byTrack) {
+          const src = track === 'main' ? plan.source : plan.tracks?.[track];
+          if (!src || !existsSync(src.file)) continue;
+          const cw = Math.min(640, src.width);
+          const ch = Math.max(2, Math.round((cw * src.height) / src.width / 2) * 2);
+          const info = await probeVideo(src.file);
+          await extractFrames(src.file, frames, { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height }, (f, img: RgbImage) => {
+            const key = `${track}:${f}`;
+            sources!.set(key, regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: 2 }));
+            if (sigWanted.has(key)) sourceSigs!.set(key, signature(img, { x: 0, y: 0, w: img.width, h: img.height }, 64, 36));
+          });
+        }
       } catch (e) {
         sources = undefined;
         sourceSigs = undefined;
@@ -273,6 +286,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       ...checkCamera(ctx),
       ...checkTransitionsOnClicks(ctx),
       ...checkTutorial(ctx),
+      ...checkOverlayCover(ctx),
       ...checkPixels(ctx, { analyses, sources, sourceSigs, sceneSamples, sampleSpacing_s: 0.5 }),
       ...(diff ? diffFindings(diff) : []),
     ]);

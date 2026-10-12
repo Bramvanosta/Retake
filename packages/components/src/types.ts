@@ -92,6 +92,17 @@ export interface LayoutGeometrySpec {
   caption?: RectSpec1920;
   brandmark?: RectSpec1920;
   radius?: number | string;
+  /**
+   * Multi-page layouts (L2.11): one screen per page of a multi-page scene, side by side (studio/layout-split) — the
+   * capture of page i is fitted inside `panes[i]`; `screen` is the area of the panes. Expressions may use `aspect` (page
+   * 1) and `aspect2` (page 2).
+   */
+  panes?: RectSpec1920[];
+  /**
+   * Picture in picture (L2.11): the second page's screen floating over `screen` (the first page's), at its default
+   * corner; the planner moves it to another corner of `screen` (same margins) so it never covers what the pages act on.
+   */
+  inset?: RectSpec1920;
 }
 
 /**
@@ -109,6 +120,10 @@ export interface LayoutGeometry {
   caption?: Rect1920;
   brandmark?: Rect1920;
   radius?: number;
+  /** Multi-page layouts: the screen of each page (split screen). */
+  panes?: Rect1920[];
+  /** Picture in picture: the second page's screen over `screen`, at its default corner. */
+  inset?: Rect1920;
 }
 
 /**
@@ -161,7 +176,15 @@ export interface ComponentManifest {
    * Sample values used to render previews with any theme: slots, params, the seconds at which stills are taken (the
    * committed preview.png shows the last one) and the sample screen layouts show (default desktop).
    */
-  preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[]; screen?: 'desktop' | 'tablet' | 'phone'; target?: 'button' | 'field' };
+  preview?: {
+    slots?: Record<string, string>;
+    params?: Record<string, unknown>;
+    at?: number[];
+    screen?: 'desktop' | 'tablet' | 'phone';
+    /** Multi-page layouts (L2.11): the sample screen of each page. */
+    screens?: Array<'desktop' | 'tablet' | 'phone'>;
+    target?: 'button' | 'field';
+  };
 }
 
 /** A font file the host composition registers (`@font-face`) under a theme font family. */
@@ -302,6 +325,32 @@ export interface ProgressChapter {
   to: number;
 }
 
+/**
+ * One page of a multi-page clip as a layout draws it (L2.11, `LayoutRects.panes`), output px at the current frame (the
+ * inset of a picture in picture glides between corners and grows while its page acts).
+ */
+export interface LayoutPaneRects {
+  /** Page id. */
+  page: string;
+  /** The page's label (scenario `pages.<id>.label`), when it has one. */
+  label?: string;
+  /** Where the page's capture goes. */
+  screen: { x: number; y: number; w: number; h: number };
+  /** The card / device outline around it (with the browser bar when there is one). */
+  frame: { x: number; y: number; w: number; h: number };
+  /** Browser bar above the capture. */
+  chrome?: { x: number; y: number; w: number; h: number };
+  radius: number;
+  /** 1 while this page acts, 0 while the other one does (eased in between): layouts may emphasise it. */
+  acting: number;
+  /** The floating page of a picture in picture. */
+  inset?: boolean;
+  /** A phone or tablet viewport (mobile emulation): layouts may draw a device around it. */
+  mobile?: boolean;
+  /** The page's URL at this frame (browser bar). */
+  url?: string;
+}
+
 /** A layout's evaluated rects in output px (`ComponentProps.rects`). */
 export interface LayoutRects {
   /** Where the capture pixels go (the capture fitted to its aspect ratio). */
@@ -318,6 +367,11 @@ export interface LayoutRects {
   caption?: { x: number; y: number; w: number; h: number };
   brandmark?: { x: number; y: number; w: number; h: number };
   radius: number;
+  /**
+   * Multi-page layouts (L2.11): each page's rects at this frame, in the layout's order (`screens[i]` is page i's
+   * capture). Caption and overlay components get them too; an overlay of a page gets that page's capture as `screen`.
+   */
+  panes?: LayoutPaneRects[];
 }
 
 /** Props received by every component implementation (default export of its entry). */
@@ -341,6 +395,8 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
    * React types).
    */
   screen?: unknown;
+  /** Multi-page layouts (L2.11): the capture of each page (React nodes), in the order of `rects.panes`. */
+  screens?: unknown[];
   /** layout with chrome: the URL to show. */
   url?: string;
   /**
@@ -388,7 +444,7 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
    * overlay: boxes (output px) already drawn over the capture while the overlay shows — the caption band of a caption
    * over the screen (studio/caption-overlay) — that a free-standing overlay (key caps, a loupe) keeps clear of (L2.10).
    */
-  avoid?: Array<{ x: number; y: number; w: number; h: number }>;
+  avoid?: Array<{ x: number; y: number; w: number; h: number; kind?: 'band' | 'target' }>;
   /**
    * transition: the component renders twice — once around the outgoing segment ('exiting') and once around the
    * incoming one ('entering', drawn on top); progress = frame / durationInFrames. A crossfade overlaps the two

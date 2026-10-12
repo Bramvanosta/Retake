@@ -58,6 +58,9 @@ export const stepCommonShape = {
   tutorial: TutorialSwitchSchema.describe(
     "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
   ).optional(),
+  on: keyString('page id')
+    .describe("Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page).")
+    .optional(),
   mark: slugString('mark').describe('Named marker (editor: speed 1 around it; review: key frame).').optional(),
   timeout: positiveSeconds().describe('Seconds before the step fails (default 15).').optional(),
   optional: z.boolean().describe('A failure is logged but does not abort the run.').optional(),

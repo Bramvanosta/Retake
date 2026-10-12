@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# One account, two screens (L2.11): the same shop filmed on a desktop and on a phone (mobile viewport preset: 390 × 844,
+# touch, mobile emulation) at the same time, the phone shown over the desktop (studio/layout-pip). The café requests a
+# quote from the phone; the desktop's quote list (live) shows it a second later.
+video: phone-and-desktop
+title: {kicker: Any screen, text: "Start on the phone, continue at the desk"}
+outro: {tagline: "One account, every screen."}
+frame: pip
+# Numbered step badges beside each tap / click, on the page's own pane (the phone's badges inside the phone).
+tutorial: {steps: true}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: phone
+    caption: {kicker: On the phone, text: "Find a coffee and ask for a quote in a few taps."}
+    pages:
+      - {id: desk, page: shop, open: /quotes, label: Desktop}
+      - {id: phone, page: shop, open: /products/selowa-ridge, viewport: mobile, label: Phone}
+    steps:
+      - on: phone
+        click: {role: button, name: Request a quote}
+      - on: phone
+        click: {aria: Increase, in: dialog}
+      - on: phone
+        select: {field: Bag size, option: 5 kg}
+      - on: phone
+        select: {field: Grind, option: Whole bean}
+
+  - id: send
+    caption: {kicker: On the phone, text: "Choose the delivery window and send."}
+    pages: [desk, phone]
+    steps:
+      - on: phone
+        click: {label: Delivery window}
+      - on: phone
+        click: {aria: Next month}
+      - on: phone
+        click: {aria: "14 December 2026"}
+      - on: phone
+        click: {aria: "23 December 2026"}
+      - on: phone
+        click: {text: Send request, in: dialog}
+      - on: phone
+        wait_for: {text: Quote request sent}
+      # The desk's list polls every second: the request arrives here, live behind the phone, and the desk's scene
+      # opens on a still list (its opening still stays still).
+      - on: phone
+        hold: 1.2
+
+  - id: desk
+    caption: {kicker: At the desk, text: "The request is already in your quotes, live."}
+    pages: [desk, phone]
+    steps:
+      - wait_for: {text: New}
+        mark: synced
+      - hover: {text: New, ms: 900}
+      - click: {css: ".quote-row.row-new"}
+      - wait_for: {text: Delivery window}
+      - hold: 1.6

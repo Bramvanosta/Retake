@@ -1616,3 +1616,28 @@
 .signup-card > .btn {
   align-self: flex-start;
 }
+
+/* Live quote list (L2.11): a request sent from another device. */
+.quote-row.row-new {
+  animation: quote-row-new 6s ease-out both;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+@keyframes quote-row-new {
+  0% { background: var(--accent-soft); opacity: 0; transform: translateY(-6px); }
+  8% { opacity: 1; transform: none; }
+  60% { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+.new-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+  text-transform: none;
+}

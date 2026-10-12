@@ -46,8 +46,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | **done** |
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | **done** |
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | **done** |
-| L2.11 | Multi-page capture: split screen & picture in picture | M | next |
-| L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | todo |
+| L2.11 | Multi-page capture: split screen & picture in picture | M | **done** |
+| L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | next |
 | L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | todo |
 | L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | todo |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
@@ -383,6 +383,32 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - **Scope:** the runner records two pages on one clock (e.g. supplier + buyer, or desktop + mobile viewport); timeline
   tracks per page; scenario syntax for parallel pages; layouts `studio/layout-split` and `studio/layout-pip` planned
   and rendered in sync (R-MPC-*).
+- **Done:** scenario `pages:` (map or list; environment pages, `open: "page:/path"`, viewport presets desktop / laptop /
+  tablet / mobile or `{width, height, mobile?, touch?}`, labels, per-page `cursor`) and step `on: <page>`, validated
+  with positions (core `pages.ts`, checks, schemas). Runner: every page of the scene recorded at the same time — one
+  CDP screencast per page on the run's clock, each encoded on the shared CFR grid as `capture-<page>.mp4` (same frame
+  count as `capture.mp4`); viewports emulated per page (persistent CDP session: device metrics, touch, mobile UA); one
+  in-page cursor per page (only the acting page's moves; `pacing.page_switch_ms` pause, then a glide — no teleport);
+  timeline `tracks[]`, `scenes[].pages`, `events[].page`; single-page scenes unchanged. Planner (`panes.ts`):
+  `plan.tracks`, clip `panes` (per-pane fit, camera, reframe, URLs) on one time map, `acting`, PiP `inset` track
+  (never over the main page's current or next target, glides between corners, grows while its page acts with the
+  theme's emphasis), automatic split / pip, theme-dressed layouts, layout geometry `panes` / `inset` / `aspect2`;
+  tutorial overlays on their page's pane; a caption band over the screen goes below a split; main-page overlays pass
+  under the inset. Components `studio/layout-split`, `studio/layout-pip` (+ kit `panes.tsx`), previews committed.
+  Carry-over polish: overlays keep clear of the current and next click targets (`clear` → `avoid`, caps' other row),
+  the loupe cross-fades between fields instead of panning, review `overlay-covers-target`; per-pane review checks.
+  Fixture: live list in the console and the shop's quotes (1 s poll, "New" pill), scenarios `live-quote` (split) and
+  `phone-and-desktop` (pip) with step badges. **Review fixes** (code + video review): badges numbered in time order
+  over both pages; the acting page from the scene's start; the inset glides after its own step, keeps its badges
+  inside it, its caps / lens clear of the main page's targets, never grows into a caption band; an idle page's cursor
+  rests near its centre (never under an inset); viewport mismatches validated with positions; `open` on a page id keeps
+  the environment's base path; reframe: a wide target by its leading part, a leading-edge start, no pan for a resting
+  cursor, idle panes settle on their page's heading; a click that navigates ends its spotlight run and badge (review
+  `tutorial-stale-target`); the fixture shop's bell polls (both hand-offs live). Renders (runs
+  20261012-073840-live-quote, 20261012-080444-phone-and-desktop): live-quote-v7 (editorial), v8 (motion),
+  v9-vertical; phone-and-desktop-v9 (editorial), v10 (motion), v11-vertical; signup-v14 (motion) — reviewed (only the
+  `video-length` warning; signup-v14 clean), frames at every acting switch, click, hand-off and overlay looked at
+  (HANDOFF).
 
 ### L2.12 — Bring your own media & motion (M)
 - **Scope:** any segment can be a user video/image file; transparent overlay videos (ProRes 4444 / WebM alpha); Lottie

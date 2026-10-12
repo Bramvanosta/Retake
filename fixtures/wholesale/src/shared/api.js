@@ -54,3 +54,31 @@ export function useApi(path) {
   const setData = useCallback((data) => setState((s) => ({ ...s, data: typeof data === 'function' ? data(s.data) : data })), []);
   return { ...state, reload: load, setData };
 }
+
+/**
+ * A live list (L2.11 fixture): `reload` every `ms` without a loading state; the ids that arrive after the first load
+ * are "fresh" for a few seconds (pages highlight them). Returns the Set of fresh ids.
+ */
+export function useLiveList(reload, data, ms = 1000, freshMs = 6000) {
+  const seen = useRef(null);
+  const [fresh, setFresh] = useState(() => new Set());
+  useEffect(() => {
+    const id = setInterval(() => reload(), ms);
+    return () => clearInterval(id);
+  }, [reload, ms]);
+  useEffect(() => {
+    if (!data) return undefined;
+    const ids = data.map((q) => q.id);
+    if (seen.current === null) {
+      seen.current = new Set(ids);
+      return undefined;
+    }
+    const added = ids.filter((id) => !seen.current.has(id));
+    for (const id of ids) seen.current.add(id);
+    if (added.length === 0) return undefined;
+    setFresh((f) => new Set([...f, ...added]));
+    const timer = setTimeout(() => setFresh((f) => new Set([...f].filter((id) => !added.includes(id)))), freshMs);
+    return () => clearTimeout(timer);
+  }, [data, freshMs]);
+  return fresh;
+}

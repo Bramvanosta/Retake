@@ -137,6 +137,30 @@ export const REFRAME = {
 
 type Box = { x: number; y: number; w: number; h: number };
 
+/**
+ * The part of `b` the view can show next to `roi` (what it already shows) when `b` is larger than the view: its
+ * leading part (left / top: where a row's or a card's text starts), as much of it as fits in the view with `roi`.
+ * `b` itself when it fits; null when nothing of it fits.
+ */
+export function leadingPart(b: Box, view: { w: number; h: number }, roi: Box | null, margin: number): Box | null {
+  const W = view.w - 2 * margin;
+  const H = view.h - 2 * margin;
+  if (b.w <= W && b.h <= H) return b;
+  const axis = (b0: number, len: number, r0: number | undefined, rLen: number, size: number): [number, number] | null => {
+    if (len <= size && r0 === undefined) return [b0, len];
+    let p0 = b0;
+    let p1 = Math.min(b0 + len, b0 + size);
+    if (r0 !== undefined) {
+      p0 = Math.max(b0, r0 + rLen - size);
+      p1 = Math.min(b0 + len, Math.min(r0, p0) + size);
+    }
+    return p1 - p0 > 0.5 ? [p0, p1 - p0] : null;
+  };
+  const x = axis(b.x, b.w, roi?.x, roi?.w ?? 0, W);
+  const y = axis(b.y, b.h, roi?.y, roi?.h ?? 0, H);
+  return x && y ? { x: x[0], y: y[0], w: x[1], h: y[1] } : null;
+}
+
 function union(a: Box, b: Box): Box {
   const x = Math.min(a.x, b.x);
   const y = Math.min(a.y, b.y);
@@ -267,10 +291,12 @@ function shiftInto(a: number, len: number, lo: number, hi: number): number {
  *
  * 1. What must be seen at each frame: the cursor (its arrow + ripple box, while visible), the active step's target
  *    (from `look_ahead_s` before the step starts to its end) and the overlay anchors; their union when it fits in the
- *    view, else the hard boxes, else the cursor alone (the view then follows the cursor towards the target). While
- *    the camera zooms, its focus is kept in view too.
+ *    view, else the hard boxes, else the cursor alone (the view then follows the cursor towards the target). A box
+ *    larger than the view counts by its leading part (`leadingPart`: a table row by its id and label). While the
+ *    camera zooms, its focus is kept in view too.
  * 2. Dead zone: the target centre only moves when that region leaves the view inset by `dead_zone`; it then moves by
- *    the smallest shift that brings it back, plus half the slack (no re-targeting for small motions: no jitter).
+ *    the smallest shift that brings it back, plus half the slack (no re-targeting for small motions: no jitter). It
+ *    starts framed on the first step's region, as far toward the page's leading edge (left, top) as that allows.
  * 3. Critically damped smoothing without lag (`dampedSmooth`): moves are smooth S curves that start a little before
  *    the need (look-ahead) and never overshoot.
  * 4. Constraints: the cursor and the hard boxes (the clicked target around its click, overlay anchors while shown)
@@ -287,6 +313,12 @@ export function reframeTrack(opts: {
   css: { w: number; h: number };
   outFps: number;
   targets?: readonly ReframeTarget[];
+  /**
+   * Capture times where the view settles toward the page's leading edge (left, top) when nothing is acted on then — the
+   * start of a scene where the page only rests (the idle page of a multi-page scene): it shows the page's content
+   * around its resting cursor instead of holding on where its last action was.
+   */
+  settle?: readonly number[];
 }): Array<[number, number]> {
   const { times, camera, cursor, crop, css } = opts;
   const n = times.length;
@@ -320,11 +352,17 @@ export function reframeTrack(opts: {
 
   // 1–2. Target signal with a dead zone.
   const activeAt = (k: number) => targets.filter((g) => times[k] >= g.t0 - (g.hard ? 0 : R.look_ahead_s) && times[k] < g.t1);
-  /** What should be seen at frame k: hard boxes first, then the cursor (and where it goes), then soft targets. */
+  /**
+   * What should be seen at frame k: hard boxes first, then the cursor (and where it goes), then soft targets — a
+   * target wider than the view by its leading part, as far as it fits with the rest.
+   */
   const roiAt = (k: number, active: ReframeTarget[], hk: Box[], cb: Box | null): Box | null => {
     const v = viewAt(k);
     let roi: Box | null = null;
-    const add = (b: Box) => {
+    // A box larger than the view counts by its leading part (a whole table row: where its text starts).
+    const add = (box: Box) => {
+      const b = leadingPart(box, v, roi, R.margin);
+      if (!b) return;
       if (!roi) {
         if (fits(b, v)) roi = { ...b };
         return;
@@ -345,10 +383,12 @@ export function reframeTrack(opts: {
   const wantX: number[] = [];
   const wantY: number[] = [];
   // A calm start: the first frames are framed on what the first step needs (its target with the resting cursor), so
-  // the view does not travel during the scene's opening still; without a target soon, on the cursor.
+  // the view does not travel during the scene's opening still; without a target soon, on the cursor. The view holds as
+  // far toward the page's leading edge (left, top: its heading, where text starts) as that region allows.
   const c0 = cursorAt(cursor, times[0]);
   let ax = c0 && c0.visible ? c0.x : css.w / 2;
   let ay = c0 && c0.visible ? c0.y : css.h / 2;
+  let start: Box | null = cursorBox(0);
   const kFirst = times.findIndex((t, k) => t - times[0] <= R.calm_start_s && activeAt(k).length > 0);
   if (kFirst >= 0) {
     const act = activeAt(kFirst);
@@ -356,13 +396,22 @@ export function reframeTrack(opts: {
     if (roi) {
       ax = roi.x + roi.w / 2;
       ay = roi.y + roi.h / 2;
+      start = roi;
     }
   }
   {
     const v = viewAt(0);
+    if (start && fits(start, v)) {
+      // Inside the dead zone: the first frames do not re-target right away.
+      ax = Math.min(ax, start.x + start.w + v.w * R.dead_zone - v.w / 2);
+      ay = Math.min(ay, start.y + start.h + v.h * R.dead_zone - v.h / 2);
+    }
     ax = clamp(ax, v.w / 2, css.w - v.w / 2);
     ay = clamp(ay, v.h / 2, css.h - v.h / 2);
   }
+  const settle = [...(opts.settle ?? [])].sort((a, b) => a - b);
+  let si = 0;
+  let settling = false;
   for (let k = 0; k < n; k++) {
     const v = viewAt(k);
     const cb = cursorBox(k);
@@ -371,14 +420,27 @@ export function reframeTrack(opts: {
     const hk = active.filter((g) => g.hard && fits(g.box, v)).map((g) => g.box);
     hard.push(hk);
     const roi = roiAt(k, active, hk, cb);
-    if (roi) {
+    while (si < settle.length && settle[si] <= times[k]) {
+      si++;
+      settling = true;
+    }
+    // A settle waits for the previous step's targets to end (they may last into the scene).
+    if (settling && roi && active.length === 0 && fits(roi, v)) {
+      settling = false;
+      ax = clamp(Math.min(ax, roi.x + roi.w + v.w * R.dead_zone - v.w / 2), v.w / 2, css.w - v.w / 2);
+      ay = clamp(Math.min(ay, roi.y + roi.h + v.h * R.dead_zone - v.h / 2), v.h / 2, css.h - v.h / 2);
+    } else if (roi) {
       const r: Box = roi;
       const ix = v.w * R.dead_zone;
       const iy = v.h * R.dead_zone;
       const sx = shiftInto(r.x, r.w, ax - v.w / 2 + ix, ax + v.w / 2 - ix);
       const sy = shiftInto(r.y, r.h, ay - v.h / 2 + iy, ay + v.h / 2 - iy);
-      if (sx !== 0) ax += sx + Math.sign(sx) * Math.max(0, (v.w - 2 * ix - r.w) / 2);
-      if (sy !== 0) ay += sy + Math.sign(sy) * Math.max(0, (v.h - 2 * iy - r.h) / 2);
+      // Half the slack goes ahead of what moves; a cursor resting alone (its step's targets over: a closing hold) is
+      // only brought back inside — no pan across the page for a few pixels.
+      const resting = active.length === 0 && cb !== null && r.w === cb.w && r.h === cb.h && cursorAhead(k).every((b) => Math.abs(b.x - cb.x) < 1 && Math.abs(b.y - cb.y) < 1);
+      const slack = resting ? 0 : 1;
+      if (sx !== 0) ax += sx + slack * Math.sign(sx) * Math.max(0, (v.w - 2 * ix - r.w) / 2);
+      if (sy !== 0) ay += sy + slack * Math.sign(sy) * Math.max(0, (v.h - 2 * iy - r.h) / 2);
       ax = clamp(ax, v.w / 2, css.w - v.w / 2);
       ay = clamp(ay, v.h / 2, css.h - v.h / 2);
     }

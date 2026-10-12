@@ -250,11 +250,19 @@
         },
         {
           "type": "string",
+          "enum": [
+            "split",
+            "pip"
+          ],
+          "description": "Layout of a multi-page scene: split (side by side, stacked in vertical) or pip (picture in picture)."
+        },
+        {
+          "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
           "description": "A layout component id \"namespace/name\", e.g. studio/layout-card or a workspace layout."
         }
       ],
-      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+      "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), split or pip for a multi-page scene (studio/layout-split, studio/layout-pip), or a layout component id \"namespace/name\"."
     },
     "PacingOverrides": {
       "type": "object",
@@ -338,6 +346,11 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Typing speed, characters per second (9–24)."
+        },
+        "page_switch_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Multi-page scenes: pause before a step that acts on another page than the previous step (its cursor then glides from where it rests)."
         },
         "scroll_duration": {
           "type": "number",

@@ -22,6 +22,8 @@ export interface RecorderOptions {
   width: number;
   height: number;
   scale: number;
+  /** Emulate a mobile device on the recorder's session (a page filmed at a mobile viewport, L2.11). */
+  mobile?: boolean;
   clock: CaptureClock;
   onError?: (message: string) => void;
 }
@@ -55,9 +57,15 @@ export class ScreencastRecorder {
   }
 
   async start(page: Page): Promise<void> {
+    await this.prepare();
+    await this.attach(page);
+  }
+
+  /** Create the frame folder and index without recording yet (the first `switchTo` starts). */
+  async prepare(): Promise<void> {
+    if (this.index) return;
     await mkdir(this.opts.framesDir, { recursive: true });
     this.index = createWriteStream(this.opts.indexFile, { flags: 'a' });
-    await this.attach(page);
   }
 
   /**
@@ -67,7 +75,7 @@ export class ScreencastRecorder {
   private emulate(session: CDPSession): Promise<unknown> {
     const { width, height, scale } = this.opts;
     return session
-      .send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false, screenWidth: width, screenHeight: height })
+      .send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: this.opts.mobile ?? false, screenWidth: width, screenHeight: height })
       .catch(() => undefined);
   }
 
@@ -140,11 +148,20 @@ export class ScreencastRecorder {
     await s.detach().catch(() => undefined);
   }
 
-  /** Record another page from now on (new tab, page switch). */
+  /** Record another page from now on (new tab, page switch), or resume after `pause()`. */
   async switchTo(page: Page): Promise<void> {
     if (this.stopped || page === this.page) return;
     await this.detach();
     await this.attach(page);
+  }
+
+  /**
+   * Stop recording for a while (L2.11: the main capture while a multi-page scene records its pages on their own
+   * tracks, a page's track between the scenes that film it): no frame arrives, so the encoder holds the last one.
+   */
+  async pause(): Promise<void> {
+    if (this.stopped) return;
+    await this.detach();
   }
 
   /** Stop capturing and wait for every pending frame write. Returns the frames sorted by time. */

@@ -12,8 +12,11 @@ import {
   applyParamDefaults,
   evalLayoutGeometry,
   fillSlots,
+  isMultiPaneGeometry,
   previewMoment,
 } from '@demo-studio/components';
+import type { LayoutPaneRects } from '@demo-studio/components';
+import { planPaneLayout } from './panes.js';
 import { MEDIA_SLOT_TYPES } from '@demo-studio/components';
 import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, MediaValue, ResolvedComponentRef, ThemeTokens } from '@demo-studio/components';
 import { FALLBACK_GEOMETRY, planLayout } from './layout.js';
@@ -229,8 +232,59 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
 
   const spec: ComponentPreviewSpec = { width, height, fps, durationInFrames: main.durationInFrames, frame: 0, theme: tokens, main };
   let screen: PreviewScreenName | undefined = screenName;
+  /**
+   * A multi-page layout (L2.11) with one sample screen per page (`preview.screens`, default desktop + desktop): the
+   * geometry evaluated with both samples' aspects, each page placed as the planner places it (split: top-aligned in its
+   * pane; picture in picture: the main page, the inset at its default corner); the first page acts.
+   */
+  const multiScene = (): PreviewScene | undefined => {
+    const geo = m.geometry;
+    if (m.kind !== 'layout' || !geo || !isMultiPaneGeometry(geo)) return undefined;
+    const names = (m.preview?.screens ?? ['desktop', 'desktop']) as PreviewScreenName[];
+    const smp = names.map((n) => samples[n]);
+    const params = main.params;
+    const g = evalLayoutGeometry(geo, params, { aspect: smp[0].width / smp[0].height, aspect2: smp[1].width / smp[1].height });
+    const radius = g.radius ?? (typeof params.radius === 'number' ? params.radius : 0);
+    const pip = geo.inset !== undefined;
+    const rectsOf = pip ? [g.screen, g.inset!] : g.panes!;
+    const labels = ['Café · shop', 'Roaster · console'];
+    const panes: LayoutPaneRects[] = smp.map((sm, i) => {
+      const inset = pip && i === 1;
+      const pl = planPaneLayout(rectsOf[i], { variant: 'landscape', unit, cssWidth: sm.width, cssHeight: sm.height, radius: inset ? Math.min(radius, 22) : radius, top: !pip });
+      const r = inset ? { x: rectsOf[i].x * unit, y: rectsOf[i].y * unit, w: rectsOf[i].w * unit, h: rectsOf[i].h * unit } : pl.capture;
+      return {
+        page: `page${i + 1}`,
+        ...(pip ? {} : { label: labels[i] }),
+        screen: r,
+        frame: inset ? r : pl.card,
+        radius: pl.radius,
+        acting: i === 0 ? 1 : 0,
+        ...(inset ? { inset: true } : {}),
+        ...(names[i] === 'phone' ? { mobile: true } : {}),
+        url: sm.url,
+      };
+    });
+    const s = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x * unit, y: r.y * unit, w: r.w * unit, h: r.h * unit });
+    const rects = { screen: s(g.screen), frame: s(g.screen), radius: radius * unit, panes, ...(g.caption ? { caption: s(g.caption) } : {}), ...(g.brandmark ? { brandmark: s(g.brandmark) } : {}) };
+    const bm = brandmarkRect({ width, height }, rects.brandmark, t.brandmark?.position ?? 'bottom-right');
+    const out: PreviewScene = {
+      layout: { ...main },
+      rects,
+      screen: { url: opts.sampleUrl(smp[0].file), width: smp[0].width, height: smp[0].height },
+      screens: smp.map((sm) => ({ url: opts.sampleUrl(sm.file), width: sm.width, height: sm.height })),
+      url: smp[0].url,
+    };
+    if (bm) out.brandmark = { rect: bm.rect, align: bm.align, size: tokens.brandmark?.size ?? t.brandmark?.size ?? 30, opacity: tokens.brandmark?.opacity ?? 1 };
+    return out;
+  };
+
   switch (m.kind) {
     case 'layout': {
+      const multi = multiScene();
+      if (multi) {
+        spec.scene = { ...multi, caption: captionUse(contextOf('caption', 'studio/caption-below')) };
+        break;
+      }
       // A layout whose caption area lies over the capture (full frame) is shown with the overlay caption, its pair.
       const probe = scene(target.id, m, main.params);
       const cap = probe.rects.caption;

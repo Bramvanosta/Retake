@@ -40,6 +40,8 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/layout-phone | layout | iPhone-style mockup for narrow captures (status bar + Dynamic Island, caption beside it) |
 | studio/layout-tablet | layout | iPad-style mockup: portrait (caption beside) or landscape (caption below), following the capture |
 | studio/layout-raw | layout | capture fills the frame, caption over its bottom |
+| studio/layout-split | layout | two pages of a multi-page scene side by side (stacked in vertical, narrow side by side in square), each in a card or a compact browser window (`chrome`) with its label (acting page's in the accent), caption below the pair; idle page dimmed with `emphasis` (L2.11). Geometry: `panes` (2 rects) + `screen` (their union) |
+| studio/layout-pip | layout | the main page in a card / browser window, the other floating over a corner — inside a CSS phone when it is a mobile page, else a smaller card; the planner moves it between corners, grows it while its page acts (`emphasis`) (L2.11). Geometry: `screen` (main) + `inset` (default corner: bottom right) |
 | studio/caption-below | caption | accent rule + uppercase kicker + display line, crossfade/rise between cues (reference look) |
 | studio/caption-overlay | caption | translucent band over the capture (for raw/motion and the browser layout) |
 | studio/overlay-callout | overlay | ring on the target + a pill with a pointer toward it, never off-screen |
@@ -53,7 +55,7 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/overlay-shortcut | overlay | key caps of a `press` (or the Enter of a `type`), going down at the real press; macOS glyphs or Ctrl / Alt words; "× N" chip (L2.10, tutorial) |
 | studio/overlay-spotlight | overlay | the capture dimmed except a soft rounded cut-out gliding from target to target; drawn on the screen layer (L2.10, tutorial) |
 | studio/overlay-steps | overlay | numbered badge beside the clicked target, ring pulse at the click (L2.10, tutorial) |
-| studio/overlay-loupe | overlay | lens over a typed field, rendered from the capture region itself, gliding from field to field (L2.10, tutorial) |
+| studio/overlay-loupe | overlay | lens over a typed field, rendered from the capture region itself, moving from field to field (L2.10, tutorial; L2.11: the composition cross-fades the two fields' regions instead of panning over what lies between them) |
 | studio/overlay-progress | overlay | thin chapter bar over the whole video between intro and outro (L2.10, tutorial) |
 | studio/card-figure | card | key figure counting up, value written as given or captured by `capture_text` (L2.10) |
 | studio/card-features | card | 3–5 features with icons appearing one by one (L2.10) |
@@ -285,6 +287,70 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   passed as `PlanEditInput.files`: `planEdit` stays pure.
 - **Review**: `tutorial-skipped`, `tutorial-target-cut`, `media-missing`; the opening-still comparison switches to the
   capture frames when an overlay or a caption over the screen is on during the still.
+
+### 1.8 Several pages at once (L2.11)
+- **Scenario** (core `pages.ts`, `Scene.pages`, `StepCommon.on`, `VIEWPORT_PRESETS`): a scene films 2 pages
+  (`MAX_SCENE_PAGES`) — a map `id → {page?, open?, viewport?, label?, cursor?} | null` or a list of ids / objects;
+  `resolveScenePages(scene, {capture, envPages, known})` gives `{id, page?, open?: {url, absolute}, viewport:
+  ViewportSpec & {preset?}, label?, cursor?}` per page, inheriting page / viewport / label from an earlier declaration
+  (`known`). Presets: `desktop` = capture size, `laptop` 1440×900, `tablet` 820×1180 (mobile, touch), `mobile` 390×844
+  (mobile, touch). `on:` names the page of a step (default the first). Checks (`checks/scenario.ts`) are positioned;
+  they also catch what the runner would refuse mid-capture: a page id asked at another viewport than its first one,
+  and a single-page scene filming a page whose viewport is not the capture size (`page:`, `switch_page` / `open` to
+  it, or the implicit continuation on the first page of the multi-page scene before it).
+- **Runner** (`runtime.enterPages / leavePages / act`): one `ScreencastRecorder` and one `TrackBuilder` per page id
+  for the whole run (a page keeps its viewport: changing it is a StepError); the main recorder pauses during
+  multi-page scenes (and is not created when every scene is multi-page: `capture.mp4` is then a copy of the first
+  track). A page without a step of its own in a scene rests its cursor near its centre (`kit.restPoint('centre')`: a
+  PiP inset sits in a corner). `rt.resolveUrl` resolves a page id of `pages` against the environment page it was
+  declared on (base path kept, like its `open`). Viewports: a persistent CDP session per page with `Emulation.setDeviceMetricsOverride` (+ touch, mobile UA);
+  detaching it would revert the page to the window size. One `Pointer` per page (`PointerHost.sample` feeds the
+  page's track cursor; `Pointer.adopt` continues from another pointer's state); `rt.pointer` / `rt.viewport` are the
+  acting page's. Every track is encoded with the main capture's end time and fps (`cfrSchedule`) → the same frame grid.
+  Timeline: `scenes[].pages` (`TimelineScenePage`), `tracks[]` (`TimelineTrack`: file, frames_file, size, viewport,
+  recording spans, URL segments, cursor), `events[].page`, `markers[].page`; idle intervals = frames of every track.
+- **Planner** (`editor/src/panes.ts`, `plan.ts`): `EditPlan.tracks` (key → `PlanSource`); a multi-page clip has
+  `panes` (page, track, label, `layout: {capture, card, chrome?, radius, crop?}` fitted top-aligned in the layout's
+  pane, per-pane `camera`, `reframe`, `urls`, `zooms`), `acting` (pane per relative frame: the page of the scene's
+  opening still from frame 0 — the runner makes it the first step's page, acting without a switch pause; a clip joined
+  to the previous one eases from that clip's acting pane at frame 1 —, then switching `ACTING_LEAD_S` before each step
+  on the other page) and, for PiP, `inset` (`{pane, track: [{at, corner, rect}], grow}` from `planInsetTrack`: for
+  each step the main page's boxes of this step and of the next one — `stepBoxes`: narrowed by `focusBox` to ±180×110
+  CSS px around the acted point, plus the `leadingBox` of a wide target — must stay uncovered; the inset glides to the
+  nearest free corner (ties: the one the steps of the next `INSET_MIN_HOLD_S` leave free) `INSET_LEAD_S` before the
+  step, never within `INSET_MIN_HOLD_S` of its last move nor while its own page acts — a corner the next main-page step
+  needs is reached after the inset's own step; a caption band over the screen is a soft cost, and `growClearOf` lowers
+  `grow` (to 1 under 1.04) so the grown inset never reaches it). One `srcFrames` for the clip: every
+  pane plays the same source frame. Layout choice: a multi-page scene with a single-pane layout → split when both
+  pages have the same shape, else pip (note); split / pip on a single-page scene → theme / built-in layout. PiP main
+  page = the landscape one. Geometry expressions get `aspect2` (second page) beside `aspect`; `panes` / `inset` are
+  new geometry keys (`evalLayoutGeometry`, `isMultiPaneGeometry`). The theme's zoom applies on the page of the first
+  marked step only; an inset never zooms.
+- **Composition**: `layoutPaneRectsAt` → `rects.panes` (`LayoutPaneRects`: page, label, screen, frame, chrome?,
+  radius, acting weight 0..1 eased over `ACTING_EASE_S`, inset?, mobile?, url) and `screens` (one `<CaptureScreen>`
+  per pane, each on its track) for the layout; overlays carry `pane` and are mapped through that pane
+  (`mapUseRect` / `mapPaneRect`, `overlayRects`; an inset's spotlight and step badges stay inside it, `staysInInset`;
+  its key caps and lens use the main pane's room); step badges are numbered once per clip in time order over every
+  page (`planBadgeNumbers`) though each page's overlays are planned on their own; the main
+  page's overlays are clipped around a PiP inset (`insetHole`: even-odd clip-path, edge included). A caption band over
+  the screen (`position: over`) moves to the layout's caption area for a split (planner, with a note).
+- **Overlays clear of targets** (all layouts): tutorial overlays get `clear` (the current step's target and the click
+  targets of the next `CLEAR_LOOKAHEAD_S` = 1.2 s, source px with their time; an inset's caps and lens, drawn over the
+  main page, also get the main page's, with `pane: 0`) → the composition adds their output
+  boxes to `avoid` (`kind: 'target'`); key caps take the other row (`shortcutSlot`) when theirs would cover one; the
+  loupe's gliding lens cross-fades two fixed regions (`trackKeysAt`) instead of panning. `drawnOverlayBox` gives the
+  box the kit draws (caps `shortcutPlateLayout`, badge `stepBadgeBox`, lens `loupeLens`) — shared with the review.
+- **Review**: `OutputClick.page / pane`, `cursorAt(timeline, t, page)`, cursor / reframe / tutorial checks per pane,
+  capture-frame keys `<track>:<frame>` for the still and freeze comparisons, and `overlay-covers-target` (warning):
+  caps, badge, loupe or the PiP inset (bezel included) over more than `COVER_SHARE` = 15 % of a click target from
+  0.3 s before to `CLEAR_LOOKAHEAD_S` after; `tutorial-stale-target` (warning, all scenes): a spotlight or a step
+  badge still on its target `STALE_TARGET_S` = 0.6 s after its page changed URL (the planner ends a spotlight run and
+  a badge after a click that navigates, `stepNavigates`).
+- **Reframe (vertical / square)**: a box wider than the view counts by its leading part (`leadingPart`); a run starts
+  framed toward the page's top-left as far as its first step's region allows (inside the dead zone); a cursor resting
+  alone after its step is only brought back inside the dead zone (no half-slack pan); `reframeTrack({settle})`: at the
+  start of a scene where a pane's page only rests, its view settles the same way (once the previous step's targets
+  are over).
 
 ## 2. Editor (`packages/editor`)
 

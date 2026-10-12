@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Both sides at once (L2.11): the café's shop and the roaster's console filmed at the same time on one clock, shown
+# side by side (studio/layout-split). The café sends a quote request; the roaster's live list shows it arrive within a
+# second (the console polls), the roaster sends a proposal, and a second later the café's notification bell rings with
+# it (the shop polls its notifications too) — both hand-offs happen live, on screen.
+#
+# Both pages are filmed at the laptop preset (1440 × 900): side by side, each is shown at about 0.65× — readable.
+# Steps act on the first page (buyer) unless they say `on: supplier`; only the acting page's cursor moves.
+video: live-quote
+title: {kicker: Both sides, text: From request to proposal in real time}
+outro: {tagline: "Cafés and roasters, on the same page."}
+frame: split
+# Numbered step badges beside each click, on the pane of the page clicked (numbering per scene).
+tutorial: {steps: true}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: request
+    caption: {kicker: The café, text: "Asks for a quote on a coffee: quantity, bag size, grind."}
+    pages:
+      buyer: {open: "shop:/products/selowa-ridge", viewport: laptop, label: Café · shop}
+      supplier: {open: "console:/quotes", viewport: laptop, label: Roaster · console}
+    steps:
+      - click: {role: button, name: Request a quote}
+      - click: {aria: Increase, in: dialog}
+      - select: {field: Bag size, option: 5 kg}
+      - select: {field: Grind, option: Whole bean}
+
+  # Same pages, same layout: contiguous scenes are joined (only the caption changes).
+  - id: delivery
+    caption: {kicker: The café, text: "Picks a delivery window and sends the request."}
+    pages: [buyer, supplier]
+    steps:
+      - click: {label: Delivery window}
+      - click: {aria: Next month}
+      - click: {aria: "10 January 2027"}
+      - click: {aria: "24 January 2027"}
+      - click: {text: Send request, in: dialog}
+      - wait_for: {text: Quote request sent}
+
+  - id: arrives
+    caption: {kicker: The roaster, text: "Sees the request arrive, live, and sends a proposal."}
+    pages: [buyer, supplier]
+    steps:
+      - on: supplier
+        wait_for: {text: New}
+        mark: request-arrived
+      - on: supplier
+        click: {text: Send proposal, in: {row: New}}
+      - on: supplier
+        click: {text: Send proposal, in: dialog}
+      - on: supplier
+        wait_for: {text: Proposal sent}
+      # Let the dialog close and the row leave the list before the café's scene starts (its opening still stays still).
+      - on: supplier
+        hold: 1.2
+
+  - id: proposal
+    caption: {kicker: The café, text: "Gets the proposal a second later."}
+    pages: [buyer, supplier]
+    steps:
+      - click: {aria: Notifications}
+      - click: {text: New proposal from Northfield Roasters}
+      - wait_for: {target: {testid: proposal-total}}
+        mark: proposal
+      - hold: 1.6

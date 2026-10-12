@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describeTarget, interpolate, isCard, isInterstitial, isPoint, normalizeStep, normalizeTarget, sceneId } from '@demo-studio/core';
+import { describeTarget, interpolate, isCard, isInterstitial, isPoint, normalizeStep, normalizeTarget, resolvePageUrl, resolveScenePages, sceneId } from '@demo-studio/core';
 import type {
   CameraHint,
   CaptionSpec,
@@ -236,7 +236,8 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   if (step.id !== undefined) ev.id = step.id;
   if (step.mark !== undefined) {
     ev.mark = step.mark;
-    rt.timeline.addMarker({ name: step.mark, t: ev.t_start, scene: scene.id, step: step.index });
+    const page = rt.scenePanes.length > 0 ? rt.activeId : null;
+    rt.timeline.addMarker({ name: step.mark, t: ev.t_start, scene: scene.id, step: step.index, ...(page ? { page } : {}) });
   }
   const cap = caption(step.caption);
   if (cap) ev.caption = cap;
@@ -343,6 +344,13 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       continue;
     }
     opts.emit({ type: 'scene_start', scene: id, index: si });
+    if (scene.pages !== undefined) {
+      const stop = await runPagesScene(rt, opts, scene, si, id);
+      // A next single-page scene without `page` continues on this scene's first page.
+      pageKey = rt.timeline.scenes[rt.timeline.scenes.length - 1]?.page ?? pageKey;
+      if (stop) return;
+      continue;
+    }
     pageKey = scene.page ?? pageKey ?? envKeys[0] ?? null;
     if (!pageKey) throw new StepError(`scene ${id}: environment "${rt.env.name}" declares no pages`);
     if (!(pageKey in rt.env.pages) && !rt.session.has(pageKey)) {
@@ -429,5 +437,148 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     } finally {
       ts.t_end = rt.now();
     }
+  }
+}
+
+/**
+ * A multi-page scene (L2.11): its pages are opened and recorded at the same time, each on its own track (one clock);
+ * each page's cursor is placed (teleported while its page loads, else glided during the still); then the steps run on
+ * the page they name (`on:`, default the first page). When a step acts on another page than the previous one, the
+ * runner pauses `pacing.page_switch_ms` and that page's cursor glides from where it rests — the other cursor stays
+ * still, visible. Returns true when the run stops here (--until).
+ */
+async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, si: number, id: string): Promise<boolean> {
+  let pages;
+  try {
+    pages = resolveScenePages(scene, { capture: rt.capture, envPages: Object.keys(rt.env.pages), known: (pid) => rt.declaredPages.get(pid) });
+  } catch (e) {
+    throw new StepError(errorMessage(e));
+  }
+  if (pages.length < 2) throw new StepError(`scene ${id}: a multi-page scene films at least 2 pages`);
+  for (const pg of pages) {
+    if (pg.page !== undefined && !(pg.page in rt.env.pages)) {
+      throw new StepError(`scene ${id}: unknown page "${pg.page}" (environment ${rt.env.name}: ${Object.keys(rt.env.pages).join(', ')})`);
+    }
+  }
+  const fresh = new Set(pages.filter((pg) => !rt.session.has(pg.id)).map((pg) => pg.id));
+  const ts: TimelineScene = { id, index: si, kind: 'scene', t_start: rt.now(), t_end: rt.now(), page: pages[0].id, status: 'ok', pages: [] };
+  rt.current = { scene: id, scene_index: si, step: -1 };
+  const cap = caption(scene.caption);
+  if (cap) ts.caption = cap;
+  if (scene.speed !== undefined) ts.speed = scene.speed;
+  if (scene.transition !== undefined) ts.transition = scene.transition;
+  if (scene.frame !== undefined) ts.frame = scene.frame;
+  if (scene.tutorial !== undefined) ts.tutorial = structuredClone(scene.tutorial);
+  rt.timeline.addScene(ts);
+  try {
+    await rt.enterPages(pages);
+    const panes = new Map(rt.scenePanes.map((p) => [p.id, p]));
+    // Open every page (the loads are cut by the editor: the clip starts at the still).
+    const opened = new Set<string>();
+    for (const pg of pages) {
+      const pane = panes.get(pg.id)!;
+      if (pg.open) {
+        const ev: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_open', t_start: rt.now(), t_end: rt.now(), page: pg.id, status: 'ok' };
+        rt.timeline.addEvent(ev);
+        const raw = interpolate(pg.open.url, rt.template);
+        const url = pg.open.absolute || pg.page === undefined ? raw : resolvePageUrl(rt.env.pages[pg.page], raw);
+        ev.target = { desc: url };
+        await navigate(rt, pane.page, url);
+        await pane.pointer.syncPage();
+        ev.t_end = rt.now();
+        ev.url = pane.page.url();
+        opened.add(pg.id);
+      } else if (fresh.has(pg.id)) {
+        rt.warn(`scene ${id}: page "${pg.id}" starts blank (give it \`open\`)`);
+      }
+    }
+    // Each page's cursor: next to that page's first target (its own steps), never on it.
+    const stillS = scene.still ?? rt.pacing.scene_start_still;
+    const glides: Array<{ id: string; glide: () => Promise<void> }> = [];
+    const records: Record<string, unknown> = {};
+    for (const pg of pages) {
+      await rt.act(pg.id);
+      const own = (scene.steps ?? []).filter((raw) => ((raw as { on?: string }).on ?? pages[0].id) === pg.id);
+      const placed = await placeSceneCursor(rt, { id, steps: own, ...(pg.cursor !== undefined ? { cursor: pg.cursor } : {}) }, {
+        loading: opened.has(pg.id) || fresh.has(pg.id),
+        idle: own.length === 0,
+        stillMs: stillS * 1000,
+        jitter: new Jitter(`${opts.scenarioName}:${scene.id}:${pg.id}:cursor`, rt.pacing.jitter),
+      });
+      records[pg.id] = placed.record;
+      if (placed.glide) glides.push({ id: pg.id, glide: placed.glide });
+    }
+    if (Object.values(records).some((r) => (r as { how: string }).how === 'teleport')) {
+      await rt.sleep(TELEPORT_SETTLE_MS);
+      for (const pg of pages) await rt.painted(panes.get(pg.id)!.page);
+    }
+    // The page of the first step acts from the start (no switch pause before it).
+    const firstRaw = (scene.steps ?? [])[0] as { on?: string } | undefined;
+    const firstActing = firstRaw?.on !== undefined && pages.some((p) => p.id === firstRaw.on) ? firstRaw.on : pages[0].id;
+    await rt.act(firstActing);
+    for (const pg of pages) {
+      const pane = panes.get(pg.id)!;
+      const entry: NonNullable<TimelineScene['pages']>[number] = { id: pg.id, viewport: { ...pg.viewport }, url: pane.page.url(), track: pg.id };
+      if (pg.page !== undefined) entry.page = pg.page;
+      if (pg.label !== undefined) entry.label = pg.label;
+      ts.pages!.push(entry);
+    }
+    ts.url = panes.get(pages[0].id)!.page.url();
+    const still: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_still', t_start: rt.now(), t_end: rt.now(), page: firstActing, status: 'ok' };
+    rt.timeline.addEvent(still);
+    const stillStart = wallNow();
+    // A continuing page glides to its rest point during the still, one page after the other (only one cursor moves).
+    for (const g of glides) {
+      await rt.act(g.id);
+      await g.glide();
+    }
+    await rt.act(firstActing);
+    const left = stillStart + stillS * 1000 - wallNow();
+    if (left > 0) await rt.sleep(left);
+    still.t_end = rt.now();
+    still.point = rt.pointer.pos();
+    still.data = { cursor: records };
+    ts.t_actions = still.t_end;
+
+    const steps = scene.steps ?? [];
+    let acting = firstActing;
+    for (let i = 0; i < steps.length; i++) {
+      const step = normalizeStep(steps[i], i);
+      const on = step.on ?? pages[0].id;
+      if (!pages.some((p) => p.id === on)) throw new StepError(`scene ${id}, step ${i}: unknown page "${on}" (this scene films ${pages.map((p) => p.id).join(', ')})`);
+      if (on !== acting) {
+        // The eye moves to the other page: a short pause, then that page's cursor glides from where it rests.
+        await rt.sleep(rt.pacing.page_switch_ms);
+        await rt.act(on);
+        acting = on;
+      }
+      const outcome = await runStep(rt, opts, scene, si, step);
+      const isUntil = opts.until !== null && opts.until.sceneIndex === si && opts.until.stepIndex === i;
+      if (outcome === 'stop-scene') {
+        ts.status = 'partial';
+        if (!opts.record.stopped_at) opts.record.stopped_at = { scene: id, step: i, reason: 'irreversible' };
+        rt.log('info', `dry-run: scene ${id} stops at irreversible step ${i}; the next scene continues`);
+        for (let j = i + 1; j < steps.length; j++) {
+          const s = normalizeStep(steps[j], j);
+          const t = rt.now();
+          rt.timeline.addEvent({ scene: id, scene_index: si, step: j, action: s.action, t_start: t, t_end: t, page: s.on ?? pages[0].id, status: 'skipped' });
+        }
+        break;
+      }
+      if (isUntil) {
+        opts.record.stopped_at = { scene: id, step: i, reason: 'until' };
+        return true;
+      }
+    }
+    if (opts.until !== null && opts.until.sceneIndex === si) {
+      opts.record.stopped_at ??= { scene: id, step: opts.until.stepIndex, reason: 'until' };
+      return true;
+    }
+    return false;
+  } catch (e) {
+    ts.status = isCancelled(e) ? 'partial' : 'failed';
+    throw e;
+  } finally {
+    ts.t_end = rt.now();
   }
 }

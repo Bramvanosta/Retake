@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Timeline } from '@demo-studio/core';
-import { REFRAME, corridorSmooth, dampedSmooth, planEdit, reframeTargets, reframeTrack, viewOf } from '@demo-studio/editor';
+import { REFRAME, corridorSmooth, dampedSmooth, leadingPart, planEdit, reframeTargets, reframeTrack, viewOf } from '@demo-studio/editor';
 import type { CameraFrame, ClipSegment, EditPlan, ReframeTarget } from '@demo-studio/editor';
 import { clips, fixtureProject, realTimeline, studioWorkspace, template } from './helpers.js';
 import type { Workspace } from './helpers.js';
@@ -126,6 +126,56 @@ describe('reframeTrack (synthetic)', () => {
     const z = reframeTrack({ times, camera: cam, cursor: [{ t: 0, x: 1600, y: 300, visible: true }], crop: CROP, css: CSS, outFps: FPS });
     const v = { cx: z[80][0], w: CROP.w / 1.3 };
     expect(Math.abs(1600 - v.cx)).toBeLessThanOrEqual(v.w / 2);
+  });
+
+  it('a target wider than the view counts by its leading part: a table row clicked in its middle shows its id and label', () => {
+    // A 1342 px row clicked at its centre (960): the 864 px crop cannot show it whole; it shows where the row starts
+    // (x 289: its id, a "New" pill, the coffee's name) along with the cursor.
+    const cursor: Array<[number, number, number]> = [[0, 960, 600], [1, 960, 600], [1.6, 960, 243], [5, 960, 243]];
+    const row = { x: 289, y: 194, w: 1342, h: 97 };
+    const rf = track(cursor, 5, [
+      { t0: 1, t1: 4, box: row },
+      { t0: 2.65, t1: 3.5, box: row, hard: true },
+    ]);
+    for (const t of [3, 3.4]) {
+      const x0 = rf[Math.round(t * FPS)][0] - CROP.w / 2;
+      expect(x0, `${t} s`).toBeLessThanOrEqual(289);
+      expect(x0 + CROP.w, `${t} s`).toBeGreaterThanOrEqual(960 + REFRAME.cursor_box.right);
+    }
+    // Once the row's step is over, the cursor resting alone at the edge of the dead zone is only brought back inside:
+    // the view does not pan half its width across the page that just opened.
+    const held = rf.slice(Math.round(3.4 * FPS)).map((r) => r[0]);
+    expect(Math.max(...held) - Math.min(...held)).toBeLessThan(20);
+    expect(leadingPart(row, CROP, null, REFRAME.margin)).toEqual({ x: 289, y: 194, w: 840, h: 97 });
+    expect(leadingPart({ x: 10, y: 10, w: 100, h: 50 }, CROP, null, REFRAME.margin)).toEqual({ x: 10, y: 10, w: 100, h: 50 });
+  });
+
+  it('starts framed toward the page’s leading edge (its heading in view)', () => {
+    // The first step's region (a button with the resting cursor) fits the view anywhere between the page's left edge
+    // and its own left: the view starts as far left (and up) as it allows — the page's heading in view.
+    const cursor: Array<[number, number, number]> = [[0, 700, 300], [6, 700, 300]];
+    const square = { w: 1111, h: 833 };
+    const rf = track(cursor, 3, [{ t0: 0.5, t1: 2, box: { x: 600, y: 260, w: 140, h: 44 } }], square);
+    expect(rf[0][0]).toBeCloseTo(square.w / 2, 0);
+    expect(rf[0][1]).toBeCloseTo(square.h / 2, 0);
+  });
+
+  it('settles toward the leading edge where the page only rests (an idle pane of a multi-page scene)', () => {
+    // The page clicks a button at the right, then rests (the other page acts from 3 s): its view leaves the button
+    // and settles on the page's content around the resting cursor.
+    const cursor: Array<[number, number, number]> = [[0, 1500, 500], [6, 1500, 500]];
+    const click: ReframeTarget = { t0: 0.5, t1: 2, box: { x: 1450, y: 480, w: 140, h: 40 }, hard: true };
+    const times = Array.from({ length: 6 * FPS }, (_, k) => k / FPS);
+    const run = (settle?: number[]) =>
+      reframeTrack({ times, camera: times.map(() => still), cursor: cursor.map(([t, x, y]) => ({ t, x, y, visible: true })), crop: CROP, css: CSS, outFps: FPS, targets: [click], ...(settle ? { settle } : {}) });
+    const held = run();
+    const settled = run([3]);
+    expect(held[5 * FPS][0]).toBeCloseTo(held[2 * FPS][0], 0);
+    // As far left as the resting cursor allows inside the dead zone (its arrow box at the inset's right edge).
+    const c = settled[5 * FPS][0];
+    expect(c).toBeCloseTo(1500 + REFRAME.cursor_box.right + CROP.w * REFRAME.dead_zone - CROP.w / 2, 0);
+    expect(c).toBeLessThan(held[5 * FPS][0] - 20);
+    expect(settled[2 * FPS][0]).toBeCloseTo(held[2 * FPS][0], 0);
   });
 
   it('tunables are documented values', () => {

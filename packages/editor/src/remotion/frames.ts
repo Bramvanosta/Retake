@@ -3,9 +3,10 @@
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
 import type { ComponentKind } from '@demo-studio/core';
-import { captionBandBox, loupeLens, shortcutPlateBox, shortcutPlateMetrics } from '@demo-studio/components/kit';
+import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@demo-studio/components/kit';
 import type { LoupePlacement } from '@demo-studio/components/kit';
 import { mapSourceRect } from '../layout.js';
+import { insetRectAt, layoutPaneRectsAt, mapPaneRect, paneCaptureAt, paneSource } from '../panes.js';
 import type { LayoutRects } from '@demo-studio/components';
 import type { ClipSegment, EditPlan, OverlayUse, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
 import { clamp } from '../util.js';
@@ -185,6 +186,64 @@ export function standInParams(kind: ComponentKind, transitionKind?: 'crossfade' 
 export const TRACK_GLIDE_S = 0.45;
 
 /**
+ * A source rect of an overlay's page (CSS px) in output px at clip frame `f`: through its pane (multi-page clips,
+ * L2.11) or the clip's layout, camera and reframe.
+ */
+export function mapUseRect(
+  plan: Pick<EditPlan, 'source' | 'tracks' | 'variant' | 'fps'>,
+  clip: ClipSegment,
+  use: Pick<OverlayUse, 'pane'>,
+  f: number,
+  rect: { x: number; y: number; w?: number; h?: number },
+): Rect {
+  if (use.pane !== undefined && clip.panes?.[use.pane]) return mapPaneRect(plan, clip, use.pane, f, rect);
+  return mapSourceRect(plan, clip, f, rect);
+}
+
+/**
+ * Does an overlay of a picture-in-picture inset's page stay inside the inset (L2.11)? Its spotlight (the `screen`
+ * layer) and its step badges (small, beside a target of that page: never half over the inset's edge) do; its other
+ * free-standing overlays — key caps, the typing lens, a step's own overlay — are too large for it and are placed in the
+ * main page's area.
+ */
+export function staysInInset(use: Pick<OverlayUse, 'layer' | 'tutorial'>): boolean {
+  return use.layer === 'screen' || use.tutorial === 'steps';
+}
+
+/**
+ * The rects an overlay places itself in (`ComponentProps.rects`): the clip layout's, with — for an overlay of a page of
+ * a multi-page clip — `screen` = that page's capture (a spotlight dims only that page; key caps sit at its bottom). An
+ * inset page's free-standing overlays (key caps, lens) use the main page's area: the inset is too small for them
+ * (`staysInInset`).
+ */
+export function overlayRects(plan: Pick<EditPlan, 'source' | 'tracks' | 'fps'>, clip: ClipSegment, use: Pick<OverlayUse, 'pane' | 'layer' | 'tutorial'>, f: number): LayoutRects {
+  const base = layoutRects(clip.layout);
+  if (use.pane === undefined || !clip.panes?.[use.pane]) return base;
+  const pane = clip.panes[use.pane];
+  const cap = paneCaptureAt(clip, use.pane, f, plan.fps);
+  const inset = clip.inset?.pane === use.pane;
+  const screen = inset && !staysInInset(use) ? clip.panes[0].layout.capture : cap;
+  return { ...base, screen: { ...screen }, frame: { ...(inset ? cap : pane.layout.card) }, radius: pane.layout.radius, panes: layoutPaneRectsAt(plan, clip, f) };
+}
+
+/**
+ * The two keyed boxes of a track around frame `local` and how far the glide between them is (0..1, smoothstep): a
+ * loupe gliding to the next field cross-fades the two fields instead of panning over what lies between them.
+ */
+export function trackKeysAt(use: Pick<OverlayUse, 'track'>, local: number, fps: number): { prev?: Rect; cur: Rect; t: number } | undefined {
+  const track = use.track;
+  if (!track || track.length === 0) return undefined;
+  let k = 0;
+  for (let i = 0; i < track.length; i++) if (track[i].at <= local) k = i;
+  const cur = { ...track[k].bbox };
+  if (k === 0) return { cur, t: 1 };
+  const glide = Math.max(1, TRACK_GLIDE_S * fps);
+  const x = clamp((local - track[k].at) / glide, 0, 1);
+  if (x >= 1) return { cur, t: 1 };
+  return { prev: { ...track[k - 1].bbox }, cur, t: x * x * (3 - 2 * x) };
+}
+
+/**
  * The anchor box (source CSS px) of an overlay at frame `local` (relative to the overlay): its track's box, gliding
  * from the previous one over `TRACK_GLIDE_S` after each change (smoothstep); else its static anchor.
  */
@@ -226,17 +285,94 @@ export function captionBandOver(plan: Pick<EditPlan, 'width' | 'height' | 'unit'
  * The row the built-in key caps (studio/overlay-shortcut) take in a clip, full width, output px: the bottom (or top) of
  * the capture, above a caption band over the screen when one is on during them.
  */
-export function shortcutRow(plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>, clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout'>, use: Pick<OverlayUse, 'component' | 'from' | 'durationInFrames'>): Rect | undefined {
+export function shortcutRow(
+  plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>,
+  clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout' | 'panes' | 'inset'>,
+  use: Pick<OverlayUse, 'component' | 'from' | 'durationInFrames' | 'pane' | 'layer'>,
+): Rect | undefined {
   if (use.component.id !== 'studio/overlay-shortcut') return undefined;
   const p = use.component.params;
   const m = shortcutPlateMetrics(typeof p.size === 'number' ? p.size : 62, plan.unit, plan.variant ?? 'landscape');
-  const screen = clip.layout.capture;
+  const screen = useScreen(clip, use);
   const bounds = { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset };
   const band = captionBandOver(plan, clip);
   const bandOn = band && clip.cues.some((c) => c.from < use.from + use.durationInFrames && c.to > use.from);
-  const row = shortcutPlateBox({ bounds, w: bounds.w, h: m.height, position: p.position === 'top' ? 'top' : 'bottom', ...(bandOn ? { avoid: [band] } : {}), gap: m.clearance });
+  const position = 'brand' in plan && 'source' in plan ? shortcutSlot(plan as EditPlan, clip as ClipSegment, use as OverlayUse) : p.position === 'top' ? 'top' : 'bottom';
+  const row = shortcutPlateBox({ bounds, w: bounds.w, h: m.height, position, ...(bandOn ? { avoid: [band] } : {}), gap: m.clearance });
   const pad = 8 * plan.unit;
   return { x: row.x, y: row.y - pad, w: row.w, h: row.h + 2 * pad };
+}
+
+const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+
+/**
+ * Where the key caps of an overlay-shortcut use go (L2.11 polish): their preferred row (`position`, default bottom),
+ * above a caption band over the screen — unless the plate would then cover a target of the current or next step
+ * (`OverlayUse.clear`): the other row, when it covers none (else the one covering least).
+ */
+export function shortcutSlot(plan: EditPlan, clip: ClipSegment, use: OverlayUse): 'top' | 'bottom' {
+  const p = use.component.params;
+  const preferred: 'top' | 'bottom' = p.position === 'top' ? 'top' : 'bottom';
+  if (use.component.id !== 'studio/overlay-shortcut' || !use.clear || use.clear.length === 0) return preferred;
+  const lay = plateOf(plan, use);
+  const m = lay.metrics;
+  const screen = useScreen(clip, use);
+  const bounds = screen.w > lay.W + 2 * m.inset ? { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset } : safeAreaRect(plan.width, plan.height, 0.04);
+  const band = captionBandOver(plan, clip);
+  const bandOn = band && clip.cues.some((c) => c.from < use.from + use.durationInFrames && c.to > use.from);
+  const targets = use.clear.map((c) => mapUseRect(plan, clip, c.pane !== undefined ? { pane: c.pane } : use, use.from + clamp(c.from, 0, Math.max(0, use.durationInFrames - 1)), c.bbox));
+  let best: { pos: 'top' | 'bottom'; cost: number } | undefined;
+  for (const pos of [preferred, preferred === 'top' ? 'bottom' : 'top'] as const) {
+    const box = shortcutPlateBox({ bounds, w: lay.W, h: lay.H, position: pos, ...(bandOn ? { avoid: [band] } : {}), gap: m.clearance });
+    const cost = targets.reduce((sum, t) => sum + overlap(box, t), 0);
+    if (cost === 0) return pos;
+    if (!best || cost < best.cost) best = { pos, cost };
+  }
+  return best!.pos;
+}
+
+/** The measured key-cap plate of an overlay-shortcut use (kit `shortcutPlateLayout`, the component's own numbers). */
+export function plateOf(plan: Pick<EditPlan, 'unit' | 'variant' | 'brand'>, use: Pick<OverlayUse, 'component'>): ReturnType<typeof shortcutPlateLayout> {
+  const p = use.component.params;
+  const slots = use.component.slots;
+  return shortcutPlateLayout({
+    keys: slots.keys ?? '',
+    ...(slots.label ? { label: slots.label } : {}),
+    times: Math.max(1, Number.parseInt(slots.times ?? '1', 10) || 1),
+    platform: p.platform === 'windows' || p.platform === 'linux' ? p.platform : 'mac',
+    size: typeof p.size === 'number' ? p.size : 62,
+    unit: plan.unit,
+    variant: plan.variant ?? 'landscape',
+    fontFamily: plan.brand.tokens.fonts.body,
+  });
+}
+
+/**
+ * The capture area an overlay places itself in, at rest (no inset glide): its page's pane in a multi-page clip (an
+ * inset page's free-standing overlays: the main page's), else the clip's capture.
+ */
+export function useScreen(clip: Pick<ClipSegment, 'layout' | 'panes' | 'inset'>, use: Pick<OverlayUse, 'pane' | 'layer' | 'tutorial'>): Rect {
+  if (use.pane === undefined || !clip.panes?.[use.pane]) return clip.layout.capture;
+  if (clip.inset?.pane === use.pane && !staysInInset(use)) return clip.panes[0].layout.capture;
+  return clip.panes[use.pane].layout.capture;
+}
+
+/**
+ * The targets an overlay keeps clear of at frame `local` of the overlay (`OverlayUse.clear`: the current step's and the
+ * next click steps' targets), in output px, `kind: 'target'` (added to `ComponentProps.avoid`).
+ */
+export function overlayTargets(
+  plan: Pick<EditPlan, 'source' | 'tracks' | 'variant' | 'fps'>,
+  clip: ClipSegment,
+  use: Pick<OverlayUse, 'clear' | 'pane' | 'from'>,
+  local: number,
+): Array<Rect & { kind: 'target' }> {
+  const out: Array<Rect & { kind: 'target' }> = [];
+  for (const c of use.clear ?? []) {
+    if (local < c.from || local >= c.to) continue;
+    out.push({ ...mapUseRect(plan, clip, c.pane !== undefined ? { pane: c.pane } : use, use.from + local, c.bbox), kind: 'target' });
+  }
+  return out;
 }
 
 /**
@@ -246,7 +382,7 @@ export function shortcutRow(plan: Pick<EditPlan, 'width' | 'height' | 'unit' | '
  */
 export function overlayAvoid(
   plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>,
-  clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout' | 'overlays'>,
+  clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout' | 'overlays' | 'panes' | 'inset'>,
   use: Pick<OverlayUse, 'from' | 'durationInFrames'> & Partial<Pick<OverlayUse, 'tutorial'>>,
 ): Rect[] {
   const out: Rect[] = [];
@@ -308,4 +444,57 @@ export function loupePlacement(
       return side;
   }
   return undefined;
+}
+
+/**
+ * The box (output px) a free-standing tutorial overlay draws at frame `local` of the overlay — the key-cap plate, a
+ * step badge, the typing lens — computed with the components' own kit functions and the inputs the composition hands
+ * them (rects, anchor, avoid, placement). The review checks it against the click targets (`overlay-covers-target`).
+ * Undefined for other overlays.
+ */
+export function drawnOverlayBox(plan: EditPlan, clip: ClipSegment, use: OverlayUse, local: number): Rect | undefined {
+  const f = use.from + local;
+  const rects = overlayRects(plan, clip, use, f);
+  const staticAvoid = overlayAvoid(plan, clip, use);
+  const variant = plan.variant ?? 'landscape';
+  const p = use.component.params;
+  if (use.component.id === 'studio/overlay-shortcut') {
+    const lay = plateOf(plan, use);
+    const m = lay.metrics;
+    const screen = rects.screen;
+    const bounds = screen && screen.w > lay.W + 2 * m.inset ? { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset } : safeAreaRect(plan.width, plan.height, 0.04);
+    const box = shortcutPlateBox({ bounds, w: lay.W, h: lay.H, position: shortcutSlot(plan, clip, use), ...(staticAvoid.length ? { avoid: staticAvoid } : {}), gap: m.clearance });
+    return { x: box.x, y: box.y, w: box.w, h: box.h };
+  }
+  const a = trackBoxAt(use, local, plan.fps);
+  const anchor = a ? mapUseRect(plan, clip, use, f, a) : undefined;
+  const avoid = [...staticAvoid, ...overlayTargets(plan, clip, use, local)];
+  if (use.component.id === 'studio/overlay-steps') {
+    const placement = p.placement === 'left' || p.placement === 'right' || p.placement === 'above' || p.placement === 'below' ? p.placement : 'auto';
+    const b = stepBadgeBox({ ...(anchor ? { anchor } : {}), screen: rects.screen, width: plan.width, height: plan.height, unit: plan.unit, variant, size: typeof p.size === 'number' ? p.size : 44, placement, ...(avoid.length ? { avoid } : {}) });
+    return { x: b.x, y: b.y, w: b.w, h: b.h };
+  }
+  if (use.component.id === 'studio/overlay-loupe' && use.region && anchor) {
+    const region = use.track && a ? a : use.region;
+    const side = loupePlacement(plan, clip, use, staticAvoid);
+    const placement = side ?? (p.placement === 'below' || p.placement === 'above' ? p.placement : 'auto');
+    const lens = loupeLens({ anchor, region, screen: rects.screen, width: plan.width, height: plan.height, unit: plan.unit, variant, zoom: typeof p.zoom === 'number' ? p.zoom : 2, maxWidth: typeof p.max_width === 'number' ? p.max_width : 900, placement, avoid });
+    return { x: lens.box.x, y: lens.box.y, w: lens.box.w, h: lens.box.h };
+  }
+  return undefined;
+}
+
+/**
+ * The clip-path that keeps an overlay of a picture in picture's main page off the inset (its card or phone, edge
+ * included) at clip frame `f`: the whole frame minus the inset (even-odd). Undefined for other overlays.
+ */
+export function insetHole(plan: Pick<EditPlan, 'tracks' | 'source' | 'fps' | 'unit' | 'width' | 'height'>, clip: Pick<ClipSegment, 'inset' | 'panes' | 'acting'>, use: Pick<OverlayUse, 'pane'>, f: number): string | undefined {
+  const inset = clip.inset;
+  if (!inset || !clip.panes || use.pane === undefined || use.pane === inset.pane) return undefined;
+  const r = insetRectAt(clip, f, plan.fps);
+  if (!r) return undefined;
+  const e = paneSource(plan, clip.panes[inset.pane]).mobile ? insetPhoneEdge(r.h) : 4 * plan.unit;
+  const n = (v: number) => Math.round(v * 100) / 100;
+  const [x, y, w, h] = [n(r.x - e), n(r.y - e), n(r.w + 2 * e), n(r.h + 2 * e)];
+  return `path(evenodd, 'M0 0H${plan.width}V${plan.height}H0Z M${x} ${y}h${w}v${h}h${-w}Z')`;
 }
