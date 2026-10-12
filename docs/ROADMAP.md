@@ -17,6 +17,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   which starts with L1.5 (macOS verification, decides L1.3), then L1.6–L1.8 and phase 3.
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
+- **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
+  is a future topic, parked in `docs/BACKLOG.md`; voice-over is an evolution there too (the MVP keeps a silent track).
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data. The market
   docs (`docs/COMPETITION.md`, `docs/BACKLOG.md`) name third-party products for analysis only.
 - Every lot that adds or changes a component regenerates its committed `preview.png` (`studio components preview`).
