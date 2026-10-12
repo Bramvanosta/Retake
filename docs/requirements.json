@@ -5787,6 +5787,126 @@
    "gap": "",
    "phase": "V2",
    "lot": "L6"
+  },
+  {
+   "id": "R-ENV-01",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Environment pages accept {url, display}: the runner navigates the real URL; timeline keeps both; browser layout, review and captions show only the display URL (never localhost in a video).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.7"
+  },
+  {
+   "id": "R-ENV-02",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Environment flags `production: true` and `access: read-only | read-write` (read-only by default in production).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.7"
+  },
+  {
+   "id": "R-ENV-03",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Read-only enforcement by request interception in the browser context: mutating requests (POST/PUT/PATCH/DELETE, GraphQL mutations) to the environment hosts are blocked except allow-listed patterns; a blocked request either fails or is answered by a configured mock so the flow continues on screen.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.7"
+  },
+  {
+   "id": "R-ENV-04",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Writing hooks are refused on read-only environments; writing in production needs `access: read-write` in the project AND `--allow-writes` at run time (explicit confirmation in the Studio app); run.json/timeline record the access mode and review shows it.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.7"
+  },
+  {
+   "id": "R-ENV-05",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Frozen clock option (project/scenario `clock: <ISO datetime>`, Playwright clock API) so dates and times shown by the product are identical on every take.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.7"
+  },
+  {
+   "id": "R-SBX-01",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Sandbox manifest `sandbox.yaml` (versioned): provider docker-compose | process, services with url/display/health/page, seed steps, reset strategy (reseed | snapshot), demo accounts bound to personas, mailbox.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.8"
+  },
+  {
+   "id": "R-SBX-02",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "`studio sandbox init` scaffolds a docker-compose template (app service placeholders, Postgres, Mailpit), the manifest, a seed folder and a README.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.8"
+  },
+  {
+   "id": "R-SBX-03",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "`studio sandbox up | down | reset | status | logs`; health checks with clear errors; the sandbox is exposed as an environment (page keys, display URLs).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.8"
+  },
+  {
+   "id": "R-SBX-04",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "`studio run --sandbox`: up if needed, health checks, reset to the seed, then capture — every take starts from the same state.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.8"
+  },
+  {
+   "id": "R-SBX-05",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Snapshot reset: a database snapshot taken after seeding is restored before each take (faster than reseeding), with a documented Postgres recipe.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.8"
+  },
+  {
+   "id": "R-SBX-06",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "The fixture product ships as a sandbox example (process provider tested here; docker-compose version with Dockerfile and Mailpit, verified when a Docker daemon is available, else on the Mac).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.8"
+  },
+  {
+   "id": "R-SBX-07",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "MCP tools sandbox_up / sandbox_reset / sandbox_status.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "3",
+   "lot": "L3.1"
   }
  ]
 }

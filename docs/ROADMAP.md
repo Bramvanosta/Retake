@@ -28,6 +28,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
 | L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
+| L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | todo |
+| L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
@@ -122,6 +124,22 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   onboarding in `studio new` (R-AUTH-01..08).
 - **Acceptance:** fixture gets a sign-in (two personas: supplier, buyer); an expired session is caught by the preflight;
   a run lands on login → explicit error; concurrent runs on one persona work.
+
+### L1.7 — Display URLs, read-only & production safety, frozen clock (M) — after L1.6
+- **Scope:** environment pages `{url, display}` (never localhost on screen); `production` + `access: read-only |
+  read-write`; read-only enforced by request interception (block or mock mutating requests to the environment hosts,
+  allow-list); writing hooks refused; writes in production need project opt-in + `--allow-writes`; access mode recorded
+  and shown by review; frozen clock option (R-ENV-01..05).
+- **Acceptance:** fixture run in read-only shows the flow with mocked writes and no data change on the server; the
+  browser layout shows the display URL; two takes with a frozen clock show identical dates.
+
+### L1.8 — Sandbox mode (L) — after L1.7, before L3.1
+- **Scope:** `sandbox.yaml` manifest (docker-compose | process), `studio sandbox init|up|down|reset|status|logs`,
+  health checks, seed and snapshot reset, demo accounts bound to personas (automated login), mailbox, sandbox exposed
+  as an environment with display URLs, `studio run --sandbox`; the fixture shipped as a sandbox example
+  (R-SBX-01..06).
+- **Acceptance:** two consecutive `studio run --sandbox` takes produce the same data on screen; docker-compose path
+  verified where a Docker daemon is available (else on the Mac).
 
 ### L2.1 — Phase-2 contracts in core (S)
 - **Scope:** template `brand` + `components` map with legacy mapping (R-THM-01..03); scenario additions — intro/outro/

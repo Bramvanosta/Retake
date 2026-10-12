@@ -8,13 +8,13 @@ Lots are described in `docs/ROADMAP.md`.
 
 | Phase | Total | done | partial | todo | n/a-here |
 |---|---|---|---|---|---|
-| 1 | 253 | 189 | 44 | 13 | 7 |
+| 1 | 264 | 189 | 44 | 24 | 7 |
 | 2 | 211 | 186 | 1 | 24 | 0 |
-| 3 | 59 | 0 | 0 | 59 | 0 |
+| 3 | 60 | 0 | 0 | 60 | 0 |
 | 4 | 34 | 0 | 0 | 34 | 0 |
 | 5 | 10 | 0 | 0 | 2 | 8 |
 | V2 | 11 | 0 | 5 | 6 | 0 |
-| **all** | 578 | 375 | 50 | 138 | 15 |
+| **all** | 590 | 375 | 50 | 150 | 15 |
 
 ## Phase 1
 
@@ -273,6 +273,17 @@ Lots are described in `docs/ROADMAP.md`.
 | R-AUTH-06 | `studio login <project> [--env] [--persona]` signs in one persona (headed browser on its profile) and saves a storage-state snapshot; `studio auth status [--project]` lists personas with valid/expired/never and last check time. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
 | R-AUTH-07 | Each run uses a copy of the session (storage state or profile snapshot) so concurrent runs never lock or corrupt the signed-in profile. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
 | R-AUTH-08 | Onboarding: `studio new` asks for environments and personas and offers to sign in each one; docs explain the flow. <br><sub>decision (user, 2026-10-11)</sub> | todo | L1.6 |  |
+| R-ENV-01 | Environment pages accept {url, display}: the runner navigates the real URL; timeline keeps both; browser layout, review and captions show only the display URL (never localhost in a video). <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.7 |  |
+| R-ENV-02 | Environment flags `production: true` and `access: read-only \| read-write` (read-only by default in production). <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.7 |  |
+| R-ENV-03 | Read-only enforcement by request interception in the browser context: mutating requests (POST/PUT/PATCH/DELETE, GraphQL mutations) to the environment hosts are blocked except allow-listed patterns; a blocked request either fails or is answered by a configured mock so the flow continues on screen. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.7 |  |
+| R-ENV-04 | Writing hooks are refused on read-only environments; writing in production needs `access: read-write` in the project AND `--allow-writes` at run time (explicit confirmation in the Studio app); run.json/timeline record the access mode and review shows it. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.7 |  |
+| R-ENV-05 | Frozen clock option (project/scenario `clock: <ISO datetime>`, Playwright clock API) so dates and times shown by the product are identical on every take. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.7 |  |
+| R-SBX-01 | Sandbox manifest `sandbox.yaml` (versioned): provider docker-compose \| process, services with url/display/health/page, seed steps, reset strategy (reseed \| snapshot), demo accounts bound to personas, mailbox. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.8 |  |
+| R-SBX-02 | `studio sandbox init` scaffolds a docker-compose template (app service placeholders, Postgres, Mailpit), the manifest, a seed folder and a README. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.8 |  |
+| R-SBX-03 | `studio sandbox up \| down \| reset \| status \| logs`; health checks with clear errors; the sandbox is exposed as an environment (page keys, display URLs). <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.8 |  |
+| R-SBX-04 | `studio run --sandbox`: up if needed, health checks, reset to the seed, then capture — every take starts from the same state. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.8 |  |
+| R-SBX-05 | Snapshot reset: a database snapshot taken after seeding is restored before each take (faster than reseeding), with a documented Postgres recipe. <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.8 |  |
+| R-SBX-06 | The fixture product ships as a sandbox example (process provider tested here; docker-compose version with Dockerfile and Mailpit, verified when a Docker daemon is available, else on the Mac). <br><sub>decision (user, 2026-10-12)</sub> | todo | L1.8 |  |
 
 ## Phase 2
 
@@ -553,6 +564,7 @@ Lots are described in `docs/ROADMAP.md`.
 | R-ARC-03 | Media storage abstraction for artefacts (local paths now, object storage later), content-hashed where useful. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.1 |  |
 | R-ARC-04 | Frame comments stored one file per thread (<project>/comments/<scenario>/<thread-id>.json) to avoid conflicts. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.6 |  |
 | R-ARC-05 | SQLite index under <workspace>/.demo-studio/ (runs, renders, jobs, search) rebuilt from files; files stay the source of truth. <br><sub>decision (user, 2026-10-12) — docs/ARCHITECTURE.md</sub> | todo | L3.1 |  |
+| R-SBX-07 | MCP tools sandbox_up / sandbox_reset / sandbox_status. <br><sub>decision (user, 2026-10-12)</sub> | todo | L3.1 |  |
 
 ## Phase 4
 
