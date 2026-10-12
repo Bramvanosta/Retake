@@ -107,6 +107,8 @@ export function describeStep(step: NormalizedStep): string {
     }
     case 'download':
       return `${td} → ${a.as}`;
+    case 'capture_text':
+      return `${describeTarget(a.target as TargetSpec)}${a.pattern ? ` ${String(a.pattern)}` : ''} → ${a.as}`;
     case 'cursor':
       return `${a.mode}${a.to ? ` ${isPoint(a.to) ? `(${(a.to as { x: number }).x}, ${(a.to as { y: number }).y})` : describeTarget(a.to as TargetSpec)}` : ''}`;
     default:
@@ -239,6 +241,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   const cap = caption(step.caption);
   if (cap) ev.caption = cap;
   if (step.speed !== undefined) ev.speed = step.speed;
+  if (step.tutorial !== undefined) ev.tutorial = structuredClone(step.tutorial);
   rt.timeline.addEvent(ev);
 
   const started = performance.now();
@@ -355,6 +358,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     if (scene.speed !== undefined) ts.speed = scene.speed;
     if (scene.transition !== undefined) ts.transition = scene.transition;
     if (scene.frame !== undefined) ts.frame = scene.frame;
+    if (scene.tutorial !== undefined) ts.tutorial = structuredClone(scene.tutorial);
     rt.timeline.addScene(ts);
     try {
       if (scene.open !== undefined) {

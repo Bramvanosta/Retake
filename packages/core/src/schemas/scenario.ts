@@ -9,6 +9,7 @@ import {
   SlotsSchema,
   TargetSpecSchema,
   SceneTransitionSchema,
+  TutorialSwitchSchema,
   componentIdSchema,
   keyString,
   nonEmpty,
@@ -44,6 +45,7 @@ export const SceneSchema = z
     frame: FrameSpecSchema.describe(
       'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
     ).optional(),
+    tutorial: TutorialSwitchSchema.describe("Tutorial overlays of this scene's steps, over the scenario's (progress is scenario-only).").optional(),
     irreversible: z.boolean().describe('Every step is irreversible (dry-run stops the scene at its first step).').optional(),
     skip: z.boolean().describe('Skip this scene entirely.').optional(),
     note: z.string().optional(),
@@ -170,6 +172,9 @@ export const ScenarioSchema = z
         loop: z.boolean().describe('Loop a track shorter than the video (default true, crossfaded seams); false: play it once.').optional(),
       })
       .optional(),
+    tutorial: TutorialSwitchSchema.describe(
+      'Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.',
+    ).optional(),
     scenes: z.array(SceneEntrySchema).min(1).describe('Scenes, cards and interstitials, in order.'),
   })
   .meta({ id: 'Scenario', title: 'Demo Studio scenario', description: 'A product video: hooks, scenes and steps.' });

@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, loadProjectTemplate, readJson } from '@demo-studio/core';
 import type { Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
-import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, renderStill, renderVideo, runScenario } from '@demo-studio/editor';
+import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, planInputFiles, renderStill, renderVideo, runScenario } from '@demo-studio/editor';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -27,6 +27,8 @@ export interface RenderCommandOptions {
   /** commander: --no-intro / --no-outro set these to false. */
   intro?: boolean;
   outro?: boolean;
+  /** commander: --tutorial (true) / --no-tutorial (false): every tutorial overlay on, or none (L2.10). */
+  tutorial?: boolean;
   out?: string;
   concurrency?: string;
   json?: boolean;
@@ -154,6 +156,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   else if (typeof opts.music === 'string') overrides.music = existsSync(resolve(opts.music)) ? resolve(opts.music) : opts.music;
   if (opts.intro === false) overrides.intro = false;
   if (opts.outro === false) overrides.outro = false;
+  if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
   const { signal, dispose } = abortOnSigint(ui);
   try {
@@ -230,6 +233,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
     scenario: await runScenario(run.dir),
     overrides,
+    files: await planInputFiles(timeline, project),
   });
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out

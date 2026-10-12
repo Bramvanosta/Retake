@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.9. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.10. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -247,30 +247,77 @@ automatically with themeable components, and let Claude operate everything throu
   layout, media rendering, page selection, grouping, badge, tap-open, dark theme and all formats), editor
   planner-artefacts.test.ts (frozen timelines `signup.timeline.json`, `quote-artefacts.timeline.json`). 671 tests:
   665 pass, 6 Postgres tests skipped (full suite run twice, green both times).
-- **Requirements:** 572 tracked; 375 done, 50 partial, 132 todo, 15 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.8 all done. L2.9: all 13 done (R-MAIL-01…04, R-DOC-01…03,
-  R-NTF-01…06). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
+- **L2.10 done** (tutorial overlays & story cards): **core** `tutorial` switches on the scenario, a scene or a step
+  (`true` / `false` / a mode — `spotlight: steps | clicks`, `progress: scenes | cards` — / `{component?, params?}`;
+  `resolveTutorial`: most specific wins; `progress` is scenario-only, a warning elsewhere; a step switch that cannot
+  apply to its action is a warning), `TUTORIAL_FEATURES` / `TUTORIAL_COMPONENTS`, `parseFrameRef` (`mark:` / name,
+  `start:` / `end:` scene, `12.5s`, image file), action `capture_text: {target, as, pattern?}` → `text` artefact
+  (checks: target, regex, duplicate `as`), slot checks for `capture:` (capture_text names), `before:` / `after:`
+  (marks, scenes, files), `data:` (.csv / .tsv) and image slots (`logo`, `avatar`, `image`). **Runner**: switches
+  copied into the timeline (`video.tutorial`, `scene.tutorial`, `event.tutorial` — the editor never reads the
+  scenario); `capture_text` polls the kit's `visibleText` until the pattern matches → `artefacts/texts/<as>.json`;
+  `type` records `data: {chars, cps, t_type, t_typed, t_enter?}` and, without `into`, the focused field (kit
+  `focused()`) as its target; `press` records `{key, times}`. **Planner** (`packages/editor/src/tutorial.ts`, pure,
+  `TUTORIAL_TIMING`): shortcut caps per `press` and per Enter of `type`, starting 0.3 s before the real press
+  (`moment`), trimmed by the next; spotlight = one overlay per run of targeted steps on the `screen` layer whose box
+  glides (`OverlayUse.track`, `trackBoxAt`, smoothstep over `TRACK_GLIDE_S` 0.45 s), a click ends it 0.45 s later;
+  badges beside clicked targets (per scene or video); one loupe per run of typed fields, gliding, `OverlayUse.region`
+  rendered from the capture itself; `plan.tutorial = {uses, skipped, progress}` (chapter bar between intro and
+  outro); tutorial targets join the reframe targets; skipped → plan warning. Story-card media: `frame` → `PictureMedia`
+  (capture frozen at the time, or an image file as plan asset), `data` → `TableMedia` (`parseCsv`), `capture` →
+  `TextMedia`; project files read before planning by `planInputFiles` (CSV text, image sizes; wired in render, still
+  and `studio plan`); `planComponentIds` includes the progress component. **Composition**: screen layer drawn before
+  the brand mark and caption, `moment` / `region` / `chapters` props, the progress bar at the top level, `avoid`
+  (the caption band of a caption over the screen; for the loupe and badges also the key caps' row — `overlayAvoid`,
+  `shortcutRow`, kit `shortcutPlateBox`) and one side for a loupe gliding over several fields (`loupePlacement`, kit
+  `loupeLens`). **Components**
+  (kit `keys.ts`, `figures.ts`, `qr.ts`, `icons.tsx`, `picture.tsx`, `place.ts`; slot types `capture`, `frame`,
+  `data`; manifest `preview.target: button | field`): `studio/overlay-shortcut`, `overlay-spotlight`, `overlay-steps`,
+  `overlay-loupe`, `overlay-progress`, `card-figure`, `card-features`, `card-before-after`, `card-testimonial`,
+  `card-cta` (QR from the kit's encoder — byte mode, v1–40, L/M/Q/H — equal module for module to the `qrcode`
+  package, a devDependency of components used by the tests only), `card-chart`; previews committed (sample frames
+  `preview/frame-before.jpg` / `frame-after.jpg` from `scripts/preview-frame-samples.mjs`, sample field box).
+  **Review**: `tutorial-skipped`, `tutorial-target-cut` (box centre outside the visible capture at the overlay's start,
+  middle, end), `media-missing` (capture / frame / data slots that did not resolve); the opening-still check compares
+  capture frames when an overlay or a caption over the screen comes in during the still (it flagged the spotlight fade
+  and the motion theme's caption entrance). **CLI**: `render --tutorial | --no-tutorial`. **Fixture**: shop search
+  focus shortcut (⌘K / Ctrl+K or "/", `⌘K` hint); `signup` with every tutorial overlay (Tab between fields, a `type`
+  without `into`, ⌘K → type Selowa ↵ → result); new `highlights` (coffees, quotes with `capture_text` of the proposal
+  total + `mark: proposal-open`, then figure, before/after, features, chart from `data/quotes-per-month.csv`,
+  testimonial, CTA cards). Tests: core tutorial.test.ts, runner tutorial.test.ts, components qr.test.ts +
+  library-l210.test.ts, editor planner-tutorial.test.ts (frozen timelines `signup-tutorial.timeline.json`,
+  `highlights.timeline.json`), review tutorial.test.ts; library / registry / previews / CLI counts now 37 built-in
+  components. `SYSTEM_COLORS.white` / `.black` (mask, QR plate and modules, last-resort ink) keep the sources free of
+  colour literals (test-guarded). 757 tests: 751 pass, 6 Postgres tests skipped (full suite run twice, green both
+  times).
+- **Requirements:** 598 tracked; 386 done, 50 partial, 147 todo, 15 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.10 all done (L2.10: R-TUT-01…05, R-STO-01…06). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
   (2560×1440 still untested).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
   (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
-  and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9).
+  and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9) + tutorial
+  overlays & story cards (L2.10).
   `packages/mcp` is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.10 — Tutorial overlays & story cards** (L): automatic overlays from the timeline — keyboard shortcut (for `press`
-steps), spotlight, numbered steps, typing loupe, chapter progress bar — and cards — key figure (animated counter;
-`capture_text` action), feature list, before/after wipe, testimonial, final CTA with QR code, animated chart from
-data/CSV (R-TUT-*, R-STO-*) — unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness — now also 4K
-and dialogs, see notes —, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
+**L2.11 — Multi-page capture: split screen & picture in picture** (M): the runner records two pages on one clock
+(e.g. supplier + buyer, or desktop + mobile viewport); timeline tracks per page; scenario syntax for parallel pages;
+layouts `studio/layout-split` and `studio/layout-pip` planned and rendered in sync (R-MPC-*). Then L2.12 (bring your
+own media & motion), L2.13 (raw capture export), L2.14 (phase 2 acceptance + Mac handoff); after phase 2 the work
+moves to a local session on the user's Mac starting with L1.5 (see ROADMAP).
 
 Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote
-(before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup, 20261011-222856-mobile-quote,
+(before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup (L2.9),
+20261012-034207-signup (L2.10: tutorial overlays), 20261012-034247-highlights (L2.10: story cards), 20261011-222856-mobile-quote,
 and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario). Captures need the fixture server
 (`node fixtures/wholesale/server.mjs`; stop it with `kill <pid>` — `pkill -f` with its path also matches the shell
 that runs it):
 ```
-node packages/cli/dist/bin.js run northfield-fixture signup              # mail, phone cards, tap-open (≈ 45 s)
-node packages/cli/dist/bin.js render northfield-fixture signup && node packages/cli/dist/bin.js review northfield-fixture signup-v4
+node packages/cli/dist/bin.js run northfield-fixture signup              # mail, phone cards, tap-open, tutorial overlays (≈ 45 s)
+node packages/cli/dist/bin.js run northfield-fixture highlights          # capture_text + every story card (≈ 46 s)
+node packages/cli/dist/bin.js render northfield-fixture signup && node packages/cli/dist/bin.js review northfield-fixture signup-v12
+node packages/cli/dist/bin.js render northfield-fixture signup --no-tutorial   # the same video without the overlays
+node packages/cli/dist/bin.js render northfield-fixture highlights --theme motion
 node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
 node packages/cli/dist/bin.js render northfield-fixture quote --vertical # 1080×1920, reframed → quote-v<N>-vertical.mp4
 node packages/cli/dist/bin.js render northfield-fixture quote --square --theme motion   # 1080×1080 + theme zoom
@@ -340,35 +387,52 @@ last source edits) and variant sheets (windows / ios-banner / android / in-app, 
 lock-screen motion) looked at. Earlier: signup-v1…v3 (35.8 / 41.6 s: `video-length` warning), quote-v11 (PDF footer
 over the signature), quote-v12 (request scene 34.1 s: `long-scene` warning) — fixed by the changes above.
 
-Notes for L2.10:
-- New data-driven cards (key figure with `capture_text`, chart from data) can follow the artefact pattern: the action
-  records an entry in `timeline.artefacts` (files relative to the run), a slot type in core `ARTEFACT_SLOTS` +
-  components `SlotType` / manifest enum (regenerate both JSON schemas), checks of unknown names in
-  `checks/scenario.ts checkArtefactRefs`, and the planner's `mediaOf` turns it into a serialisable `props.media`.
-- Overlays tied to a timeline moment: a notification overlay starts at the artefact time when it falls inside the
-  clip (plan.ts, with a plan note); shortcut overlays for `press` steps can reuse that (event `t`). A tap-open anchor
-  comes from an overlay still showing in the last `ANCHOR_OVERLAY_WINDOW_S` (1 s) of the outgoing clip, else its card.
-- Anchored effects (spotlight, loupe) can reuse the manifest anchor expressions (`evalAnchor`, builtins `frame_*`,
-  `screen_*`, one-hot enum params) that tap-open uses; `SceneTransition` already accepts component ids.
-- CTA + QR: no QR encoder in the workspace yet (the lead allows a tiny one only if truly needed); pdfjs-dist is the only
-  dependency L2.9 added (pnpm override `@napi-rs/canvas: "-"`: its optional native canvas is not needed in Chromium).
-- Capture speed varies with the machine: today, under the quote dialog (backdrop blur), one `mouse.move` round trip
-  takes ≈ 105–115 ms with the kit's cursor overlay vs ≈ 34 ms without it (measured with a bare Playwright script: the
-  notification patch, the binding and the permission change nothing), ≈ 67 ms per tick in yesterday's runs; the glide
-  pauses instead of jumping (MAX_TICK_ADVANCE_MS), so dialog-heavy scenes get longer (request scene 24.7 → 34 s).
-  The quote scenario's request scene was split (`request` + `delivery`); the root cause belongs to L1.3.
-- `mail-view` shows the captured `date` (the real capture time, UTC) unless the `date` slot stages one.
-- Components drawn over the capture (notification banners) are not known to the reframe; `place: auto` anchors macOS /
-  Windows banners to the frame and phone styles to the screen. The new components declare vertical and square
-  (library-l29 renders them in every format), but the fixture renders of L2.9 are landscape only — check a vertical /
-  square signup in L2.12.
-- `download` of a file that is neither a PDF nor an image keeps the file with a warning (no pages to show).
-- Previews: `preview.json.source_hash` covers the manifest, the entry and its relative imports — not the kit. A kit
-  change that alters a look needs `components preview --all` (not `--stale`). Media samples for previews are committed
-  (`scripts/preview-media-samples.mjs`, needs the fixture running), so previews never need a live app.
-- Still open from L2.8: caption bands over a reframed capture with `layout-raw`; the release from the capture's edge is
-  the worst reframe jolt (≈ 1 % of the crop width per frame², under the 1.5 % review threshold); 4K export ≈ 4× the
-  1080p time; the reference fades the clip caption during the interstitial dim, ours has already left.
+Renders of L2.10, reviewed with `studio review` and looked at frame by frame (ffmpeg frames at every overlay's start,
+moment and glide, contact sheets): runs 20261012-034207-signup and 20261012-034247-highlights. **signup-v7**
+(editorial, 45.47 s; review clean, 3 info): spotlight on Café name gliding to Your name, Work email and Create account,
+badges 1 and 2, the loupe gliding from field to field (Tab between them shows ⇥ caps), ⌘K then the lens on the search
+field and ↩, badge 1 on the Selowa Ridge result, the chapter bar at the top. **signup-v8-vertical** (45.47 s; clean,
+1 info): the same reframed; the typed email reads in the lens; between two fields the lens glides for 0.45 s and shows
+the label in between (accepted). **signup-v9** (motion, 45.97 s): the key caps sat over the caption band of
+caption-overlay → overlays now receive `avoid`; **signup-v10**: the caps moved above the band but then covered the
+lens → the loupe also avoids the caps' row and keeps one side for its whole glide; **signup-v11** (motion, 45.97 s;
+clean, 3 info): caps above the band, the lens above the fields, nothing overlapping; **signup-v12** (editorial again
+after these changes, 45.47 s; clean): unchanged look (caps at the bottom of the capture, lens below the fields).
+After these renders only test-guard fixes touched the components (colour literals → `SYSTEM_COLORS.white/black`, the
+spotlight and progress fades read `style_bias`: ×1.1 in motion); previews re-rendered, identical to the eye.
+**highlights-v1** (editorial, 45.80 s; clean, 1 info) and **highlights-v2** (motion, dark night tone, 47.97 s; clean
+after the still fix, 13 info): €465.00 counted up from the proposal, the before/after wipe from the quotes list to the
+open proposal, four features staggered, the bar chart with Nov in the accent, the testimonial with initials, the CTA
+with its QR (sampled from the frame: version 3, 29 × 29 modules, 9.1 px each at 1080p, 0 modules different from the
+encoder). Previews of the 11 new components looked at (re-rendered after the last kit edits: byte-identical).
+Render times here: signup 1080p ≈ 2 m 40 s, vertical ≈ 3 m 20 s, highlights ≈ 2 m 10 s.
+
+Notes for L2.11:
+- Tutorial overlays assume one capture per clip: `mapSourceRect(plan, clip, frame, box)` maps source CSS px through
+  the clip's single layout capture rect + camera + reframe; the spotlight dims `rects.screen`; the loupe's `region`
+  renders `CaptureScreen` of the clip's one capture video. With two pages, events need their page and each mapping /
+  region / spotlight must use that page's rect and video (spotlight: dim only the page of the step).
+- Story cards that show capture frames (`PictureMedia.video.time_s`, `frame` slots) point at the clip capture file:
+  a second page needs its own file in the plan (asset) and `start:` / `end:` / `mark:` refs resolved per page.
+- `trackBoxAt` / `TRACK_GLIDE_S` (a box gliding between keyed boxes) can drive a picture-in-picture window move.
+- Overlays get `avoid` (output px) for a caption band over the screen (`overlayAvoid`): a split layout with captions
+  over each half would extend that list.
+- Review: the opening still is compared on capture frames when the view moves, an overlay is on or a caption over
+  the screen is on (`stillFromSource`); with two pages, compare each page's capture.
+- `capture_text` reads the kit's `visibleText` (innerText, whitespace collapsed): inline children without spaces come
+  out joined (the fixture's total reads "€465.00incl. VAT"; the pattern picks the value).
+- The runner records a `type` without `into` against the focused field (kit `focused()`), and `type` / `press` timing
+  in `data` — reusable for per-page events.
+- Preview samples: `scripts/preview-frame-samples.mjs` (needs the fixture running) writes the before/after sample
+  frames; `preview/samples.json` has a sample `field` box (manifest `preview.target: field`).
+- Dependencies added by L2.10: `qrcode@1.5.4` as a devDependency of components (tests only; the encoder is the kit's).
+- Carried over: capture under dialogs is slow (backdrop blur; L1.3); `download` of a file that is neither a PDF nor an
+  image keeps the file with a warning; `mail-view` shows the captured `date` unless the
+  slot stages one; components drawn over the capture (notification banners) are not known to the reframe;
+  `preview.json.source_hash` does not cover the kit (`components preview --all` after a kit change that alters a
+  look); still open from L2.8: caption bands over a reframed capture with `layout-raw`, the reframe release jolt
+  (≈ 1 %/frame², under the 1.5 % threshold), 4K export ≈ 4× the 1080p time, the interstitial caption fade.
+- The fixture videos are ≈ 45–48 s: `video-length` info (the reference look targets 60–120 s, 25 % tolerance).
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

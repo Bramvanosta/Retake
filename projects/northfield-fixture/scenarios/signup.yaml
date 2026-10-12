@@ -1,10 +1,13 @@
 # yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
 # A café opens an account: the sign-up form, the confirmation email captured from the test mailbox (the fixture's
 # Mailpit-compatible API) shown as a mail notification and in a mail client card, the same email arriving on a phone
-# lock screen, the app badge counting up, and a tap that opens the confirmed account.
+# lock screen, the app badge counting up, and a tap that opens the confirmed account — then ⌘K search to the first
+# product. A tutorial: the tutorial overlays follow the timeline (key caps of every key press, a spotlight on each
+# step's target, numbered badges on the clicks, a loupe on the fields being typed, a chapter progress bar).
 video: signup
 title: {kicker: For cafés, text: Open your café account in a minute}
 outro: {tagline: "From sign-up to first quote, in one place."}
+tutorial: {shortcuts: true, spotlight: steps, steps: true, loupe: true, progress: scenes}
 
 setup:
   - name: reset
@@ -21,8 +24,11 @@ scenes:
     open: /signup
     steps:
       - type: {into: {label: Café name}, text: Café Lumen, cps: 10}
-      - type: {into: {label: Your name}, text: Noa Brandt, cps: 10}
-      - type: {into: {label: Work email}, text: noa@cafe-lumen.example, cps: 16}
+      # Tab to the next field: the key caps show ⇥, the loupe and the spotlight follow the focused field.
+      - press: Tab
+      - type: {text: Noa Brandt, cps: 10}
+      - press: Tab
+      - type: {text: noa@cafe-lumen.example, cps: 16}
       - click: {text: Create account}
       - wait_for: {text: Check your inbox}
       # The confirmation email, captured from the mailbox; a mail notification slides in when it lands.
@@ -50,14 +56,14 @@ scenes:
         notifications:
           - {app: Northfield, title: Almost there, body: "Confirm your email to request your first quote."}
       slots: {email: welcome, kicker: On the go, title: "Every step reaches you, on any device."}
-      duration: 5.5
+      duration: 6
     id: lockscreen
 
   - card:
       component: studio/phone-home-badge
       params: {from: 0, to: 2, layout: left}
       slots: {kicker: Notifications, title: "Proposals and deliveries, the moment they happen."}
-      duration: 4.5
+      duration: 5
     id: badge
 
   # Tap the app icon: the confirmed account opens.
@@ -68,15 +74,17 @@ scenes:
     transition: studio/transition-tap-open
     steps:
       - wait_for: {text: Browse coffees}
-      - hover: {text: Browse coffees, ms: 900}
         hold: 0.8
-      - click: {text: Browse coffees}
-        caption: {kicker: Ready to order, text: "This season's lots, with prices for every bag size."}
+      # ⌘K: the shop's search shortcut (key caps on the real key press), then the search typed in the loupe.
+      - press: Meta+K
+        caption: {kicker: Search, text: "⌘K finds any coffee, origin or producer."}
+      - type: {text: Selowa, cps: 8, enter: true}
       - wait_for: {text: Selowa Ridge}
+        caption: {kicker: Ready to order, text: "This season's lots, with prices for every bag size."}
       - hover: {text: Selowa Ridge, ms: 900}
-        hold: 1.2
+        hold: 0.8
       - click: {text: Selowa Ridge}
         caption: {kicker: First quote, text: "Ask the roaster for a quote in a few clicks."}
       - wait_for: {target: {role: button, name: Request a quote}}
       - hover: {role: button, name: Request a quote, ms: 900}
-        hold: 2.2
+        hold: 3

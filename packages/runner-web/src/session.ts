@@ -221,6 +221,14 @@ export class KitClient {
   info(ref: string): Promise<ElementInfo | null> {
     return this.call('info', ref);
   }
+  /** The element's rendered text (innerText, a field's value), whitespace collapsed (capture_text). */
+  visibleText(ref: string): Promise<string> {
+    return this.call('visibleText', ref);
+  }
+  /** The focused element (type steps without `into`: the field typed into). */
+  focused(): Promise<{ desc: string; bbox: BBox } | null> {
+    return this.call('focused');
+  }
   cursorSet(x: number, y: number, show?: boolean): Promise<void> {
     return this.call('cursor.set', x, y, show);
   }

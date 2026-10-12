@@ -15,6 +15,7 @@ import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core'
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import { musicFile, musicSpecOf, planEdit } from '../plan.js';
+import { planInputFiles } from '../inputs.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
@@ -391,7 +392,8 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     const probe = await probeMedia(file);
     if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
   }
-  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, overrides, musicDuration_s });
+  const files = await planInputFiles(timeline, project);
+  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, overrides, musicDuration_s, files });
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
 

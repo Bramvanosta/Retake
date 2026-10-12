@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# The final call to action (R-STO-05) in the family of the outro: kicker, display title, an optional line of text, a
+# button in the theme accent and the URL under it; beside them (under them in vertical) a QR code of the URL — or of
+# `qr` when it differs, e.g. a link with tracking — generated locally by the kit's encoder (no network), dark modules
+# on a light card so phones read it whatever the theme. The button pops in and pulses once; paper or night tone.
+id: studio/card-cta
+version: 1.0.0
+kind: card
+name: Call to action
+description: Final call to action — kicker, title, text, an accent button with the URL under it and a locally generated QR code — on the theme background or night tone.
+tags: [card, story, cta, qr]
+slots:
+  title: {type: text, required: true, max_chars: 60, description: The call to action.}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
+  text: {type: text, max_chars: 140, description: Optional supporting line.}
+  button: {type: text, max_chars: 32, description: 'Button text (default "Get started").'}
+  url: {type: url, max_chars: 60, default_from: theme.brand.url, description: The address shown under the button (default — the theme's brand url).}
+  qr: {type: url, max_chars: 300, description: What the QR code opens (default — the url; "https://" is added when it has no scheme).}
+  qr_label: {type: text, max_chars: 40, description: 'Line under the QR code (default "Scan to open").'}
+params:
+  type: object
+  properties:
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone with light type."}
+    show_qr: {type: boolean, default: true, description: Show the QR code.}
+    qr_level: {type: string, enum: [L, M, Q, H], default: M, description: "QR error correction (H survives the most damage, makes a denser code)."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, brand.url, style_bias]
+duration: {default: 4.5, min: 2, max: 15}
+variants: [landscape, vertical, square]
+preview:
+  slots: {kicker: Ready when you are, title: Open your café account today, text: Request your first quote in minutes — no card needed., button: Create an account, url: shop.northfield.example/signup}
+  at: [2.4]

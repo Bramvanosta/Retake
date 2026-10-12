@@ -87,11 +87,13 @@ const nonEmpty = () => z.string().min(1);
 export const SlotSpecSchema = z
   .strictObject({
     type: z
-      .enum(['text', 'image', 'url', 'color', 'screen', 'email', 'document', 'notification'])
+      .enum(['text', 'image', 'url', 'color', 'screen', 'email', 'document', 'notification', 'capture', 'frame', 'data'])
       .describe(
-        'text, image (URL), url (shown as text), color (CSS), screen (the capture, layouts only), or a run artefact the ' +
-          'scenario names: email (a wait_for_email `as`), document (a download `as` or a project file), notification ' +
-          '(a captured web notification: its name or 1-based index) — the component receives it as `props.media[<slot>]`.',
+        'text, image (a URL, or an image file of the project), url (shown as text), color (CSS), screen (the capture, ' +
+          'layouts only), or data the scenario names: email (a wait_for_email `as`), document (a download `as` or a ' +
+          'project file), notification (a captured web notification: its name or 1-based index), capture (a ' +
+          'capture_text `as`), frame (a frame of the capture — a mark, start:/end:<scene>, 12.5s — or an image file), ' +
+          'data (a CSV / TSV file of the project) — the component receives it as `props.media[<slot>]`.',
       ),
     description: z.string().describe('What the slot shows (for the UI and Claude).').optional(),
     required: z.boolean().describe('The component cannot render without it (default false).').optional(),
@@ -220,6 +222,10 @@ export const ComponentManifestFileSchema = z
         screen: z
           .enum(['desktop', 'tablet', 'phone'])
           .describe('Sample screen shown in the preview (layouts, captions, overlays, transitions; default desktop).')
+          .optional(),
+        target: z
+          .enum(['button', 'field'])
+          .describe("What an overlay preview points at on the sample screen: a button (default) or a text field (its region is the overlay's `screen`, as for a typing loupe).")
           .optional(),
       })
       .describe('Sample values used to render previews with any theme.')

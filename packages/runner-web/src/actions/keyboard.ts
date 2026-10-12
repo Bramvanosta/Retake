@@ -26,14 +26,19 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
     await kb.press('Backspace');
     await rt.sleep(ctx.jitter.ms(160));
   }
+  // Without `into`: the focused field, measured before typing (the tutorial loupe and spotlight follow it).
+  const focused = run ? null : await rt.kit.focused().catch(() => null);
   const cps = args.cps ?? rt.pacing.type_cps;
   const t_type = rt.now();
   const chars = [...args.text];
   await typeText(ctx, args.text, cps);
+  const t_typed = rt.now();
+  let t_enter: number | undefined;
   if (args.enter) {
     await rt.sleep(ctx.jitter.ms(250));
     const nav = watchNavigation(rt.page);
     try {
+      t_enter = rt.now();
       await kb.press('Enter');
       await rt.sleep(ctx.jitter.ms(rt.pacing.after_click_ms));
       await nav.settle(ctx);
@@ -41,13 +46,15 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
       nav.stop();
     }
   }
-  const out: ActionResult = { data: { chars: chars.length, cps } };
+  // Typing span (capture s): the loupe of tutorial videos shows the field from t_type to t_typed; t_enter = the Enter key.
+  const out: ActionResult = { data: { chars: chars.length, cps, t_type, t_typed, ...(t_enter !== undefined ? { t_enter } : {}) } };
   if (run) {
     out.target = { desc: run.resolved.desc, bbox: run.resolved.bbox };
     out.point = run.point;
     out.t_click = run.t_click;
   } else {
     out.t_click = t_type;
+    if (focused) out.target = { desc: focused.desc, bbox: focused.bbox };
   }
   return out;
 }

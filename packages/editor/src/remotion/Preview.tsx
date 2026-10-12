@@ -71,6 +71,27 @@ function SampleScreen({ scene }: { scene: PreviewScene }) {
   return <Img src={scene.screen.url} style={{ ...fill, width: '100%', height: '100%', display: 'block' }} />;
 }
 
+/** A region of the sample screen (sample px) filling its parent box: the `screen` of a loupe preview. */
+function SampleRegion({ scene, region }: { scene: PreviewScene; region: { x: number; y: number; w: number; h: number } }) {
+  const W = scene.screen.width;
+  const H = scene.screen.height;
+  return (
+    <div style={{ ...fill, overflow: 'hidden' }}>
+      <Img
+        src={scene.screen.url}
+        style={{
+          position: 'absolute',
+          left: `${(-region.x / region.w) * 100}%`,
+          top: `${(-region.y / region.h) * 100}%`,
+          width: `${(W / region.w) * 100}%`,
+          height: `${(H / region.h) * 100}%`,
+          display: 'block',
+        }}
+      />
+    </div>
+  );
+}
+
 /** A clip-like scene: layout (sample screen), brand mark, and optionally the caption. */
 function Scene({ spec, scene, caption }: { spec: ComponentPreviewSpec; scene: PreviewScene; caption: boolean }) {
   return (
@@ -102,13 +123,21 @@ function Body({ spec }: { spec: ComponentPreviewSpec }) {
       return scene ? <Scene spec={spec} scene={scene} caption /> : <UseOf use={main} spec={spec} />;
     case 'caption':
       return scene ? <Scene spec={spec} scene={scene} caption /> : <UseOf use={main} spec={spec} />;
-    case 'overlay':
+    case 'overlay': {
+      const extra: Partial<ComponentProps> = { ...(spec.anchor ? { anchor: spec.anchor } : {}), ...(scene ? { rects: scene.rects } : {}) };
+      if (spec.moment !== undefined) extra.moment = spec.moment;
+      if (spec.chapters) extra.chapters = spec.chapters;
+      if (spec.region && scene) {
+        extra.region = spec.region;
+        extra.screen = <SampleRegion scene={scene} region={spec.region} />;
+      }
       return (
         <AbsoluteFill>
           {scene ? <Scene spec={spec} scene={scene} caption /> : null}
-          <UseOf use={main} spec={spec} extra={{ ...(spec.anchor ? { anchor: spec.anchor } : {}), ...(scene ? { rects: scene.rects } : {}) }} />
+          <UseOf use={main} spec={spec} extra={extra} />
         </AbsoluteFill>
       );
+    }
     case 'interstitial':
       return <UseOf use={main} spec={spec} extra={scene ? { screen: <Scene spec={spec} scene={scene} caption={false} /> } : {}} />;
     case 'transition': {

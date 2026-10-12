@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A before / after card (R-STO-03): two pictures of the same screen in one rounded card — frames of the capture (a mark:
+# the screen once the marked step is done; start:/end:<scene>; a capture time such as 12.5s) or image files of the
+# project — the "after" wiping over the "before" behind a divider with a round handle, a label chip on each side.
+# Kicker and display title above (the theme's type), the card shadow of the reference layout; paper or night tone.
+id: studio/card-before-after
+version: 1.0.0
+kind: card
+name: Before / after
+description: Two frames of the capture (by mark, scene start/end or time) or two images in one card, the after wiping over the before behind a divider, with labels and a title.
+tags: [card, story, comparison, before-after]
+slots:
+  before: {type: frame, required: true, description: "The first picture: a mark, start:<scene>, end:<scene>, a capture time (12.5s) or an image file."}
+  after: {type: frame, required: true, description: The second picture (same forms).}
+  title: {type: text, max_chars: 60, description: The card title.}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
+  before_label: {type: text, max_chars: 20, description: 'Label of the first picture (default "Before").'}
+  after_label: {type: text, max_chars: 20, description: 'Label of the second picture (default "After").'}
+params:
+  type: object
+  properties:
+    wipe_at: {type: number, minimum: 0, maximum: 10, default: 1.1, description: Seconds before the wipe starts.}
+    wipe: {type: number, minimum: 0.2, maximum: 6, default: 1.6, description: Seconds the wipe takes.}
+    direction: {type: string, enum: [left-to-right, right-to-left, top-to-bottom], default: left-to-right, description: Where the after comes from.}
+    end_at: {type: number, minimum: 0.3, maximum: 1, default: 1, description: "Where the divider stops (1: the after fills the card; 0.5: half and half)."}
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 4.5, min: 2, max: 15}
+variants: [landscape, vertical, square]
+preview:
+  slots: {before: sample, after: sample, kicker: Sign-up, title: From an empty form to a sent confirmation}
+  at: [1.7]

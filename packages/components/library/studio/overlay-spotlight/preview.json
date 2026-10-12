@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/overlay-spotlight",
+  "version": "1.0.0",
+  "kind": "overlay",
+  "theme": "editorial",
+  "at": 1.2,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "a5c4e78f77760268",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

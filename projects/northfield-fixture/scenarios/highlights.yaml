@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# A season recap made of story cards around one short capture: the accepted proposal's total read on the page
+# (capture_text) and counted up in a key-figure card, the quotes list before / after opening it, the features, a chart
+# from a CSV file of the project, a testimonial and a closing call to action with a QR code. Every name and figure is
+# fictional (the Northfield fixture).
+video: highlights
+title: {kicker: Season recap, text: "A season of quotes, in a minute"}
+outro: {tagline: "From quote to cup, in one place."}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: coffees
+    caption: {kicker: This season, text: "Every lot of the season, priced for every bag size."}
+    page: shop
+    open: /coffees
+    steps:
+      - hover: {text: Selowa Ridge, ms: 900}
+      - hover: {text: Mountfern AA, ms: 900}
+        hold: 1.2
+
+  - id: quotes
+    caption: {kicker: Quotes, text: "Every request and every proposal, in one list."}
+    open: /quotes
+    steps:
+      - hover: {text: Mountfern AA, ms: 700}
+      - click: {text: Mountfern AA}
+        caption: {kicker: Proposal, text: "The roaster's proposal, VAT and delivery included."}
+      - wait_for: {target: {testid: proposal-total}}
+      # The total as the page shows it ("€465.00 incl. VAT" → "€465.00"): the key-figure card counts up to it.
+      - capture_text: {target: {testid: proposal-total}, as: total, pattern: "/(€\\s?[\\d.,]+)/"}
+        mark: proposal-open
+      - hold: 1.8
+
+  - card:
+      component: studio/card-figure
+      slots: {capture: total, kicker: Accepted proposal, label: "for 10 kg of Mountfern AA, delivered", text: "Read from the proposal itself: the card counts up to the real total."}
+      duration: 4.6
+    id: figure
+
+  - card:
+      component: studio/card-before-after
+      slots: {before: start:quotes, after: proposal-open, kicker: One click, title: From the list to the full proposal, before_label: Quotes, after_label: Proposal}
+      duration: 4.8
+    id: before-after
+
+  - card:
+      component: studio/card-features
+      slots: {kicker: Why cafés switch, title: Everything a quote needs}
+      params:
+        items:
+          - {title: Prices for every bag size, text: "The roaster's price list follows each café.", icon: tag}
+          - {title: Delivery windows that fit, text: "Dates picked on the roaster's real calendar.", icon: calendar}
+          - {title: Proposals in hours, text: Notified the moment a reply lands., icon: bell}
+          - {title: One PDF for the books, text: Every accepted quote as a document., icon: document}
+      duration: 5.4
+    id: features
+
+  - card:
+      component: studio/card-chart
+      slots: {kicker: This season, title: Quote requests per month, data: data/quotes-per-month.csv, note: "Fictional figures of the Northfield fixture."}
+      params: {y: quote requests}
+      duration: 4.8
+    id: chart
+
+  - card:
+      component: studio/card-testimonial
+      slots:
+        quote: We used to chase three roasters by email. Now every quote, delivery date and invoice lives in one place.
+        name: Ilse Varnström
+        role: Head barista
+        company: Café Tallmora
+      duration: 5.4
+    id: testimonial
+
+  - card:
+      component: studio/card-cta
+      slots:
+        kicker: Ready when you are
+        title: Open your café account today
+        text: Request your first quote in minutes — no card needed.
+        button: Create an account
+        url: shop.northfield.example/signup
+      duration: 5.2
+    id: cta

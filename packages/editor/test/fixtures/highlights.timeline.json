@@ -1,0 +1,887 @@
+{
+  "version": 1,
+  "run_id": "20261012-034247-highlights",
+  "project": "northfield-fixture",
+  "scenario": "highlights",
+  "created_at": "2026-10-12T03:42:47.703Z",
+  "mode": "capture",
+  "capture": {
+    "file": "capture.mp4",
+    "width": 1920,
+    "height": 1080,
+    "scale": 1,
+    "fps": 30,
+    "duration": 13.92,
+    "t0_wall": 1791776568084,
+    "frames": 125
+  },
+  "video": {
+    "title": {
+      "kicker": "Season recap",
+      "text": "A season of quotes, in a minute"
+    },
+    "outro": {
+      "tagline": "From quote to cup, in one place."
+    },
+    "frame": "card",
+    "template": "editorial"
+  },
+  "scenes": [
+    {
+      "id": "coffees",
+      "index": 0,
+      "kind": "scene",
+      "t_start": 0.01,
+      "t_end": 6.555,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "This season",
+        "text": "Every lot of the season, priced for every bag size."
+      },
+      "url": "http://localhost:4402/coffees",
+      "t_actions": 2.584
+    },
+    {
+      "id": "quotes",
+      "index": 1,
+      "kind": "scene",
+      "t_start": 6.556,
+      "t_end": 13.92,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "Quotes",
+        "text": "Every request and every proposal, in one list."
+      },
+      "url": "http://localhost:4402/quotes",
+      "t_actions": 9.1
+    },
+    {
+      "id": "figure",
+      "index": 2,
+      "kind": "card",
+      "t_start": 13.92,
+      "t_end": 13.92,
+      "card": {
+        "component": "studio/card-figure",
+        "slots": {
+          "capture": "total",
+          "kicker": "Accepted proposal",
+          "label": "for 10 kg of Mountfern AA, delivered",
+          "text": "Read from the proposal itself: the card counts up to the real total."
+        },
+        "duration": 4.6
+      },
+      "status": "ok"
+    },
+    {
+      "id": "before-after",
+      "index": 3,
+      "kind": "card",
+      "t_start": 13.92,
+      "t_end": 13.92,
+      "card": {
+        "component": "studio/card-before-after",
+        "slots": {
+          "before": "start:quotes",
+          "after": "proposal-open",
+          "kicker": "One click",
+          "title": "From the list to the full proposal",
+          "before_label": "Quotes",
+          "after_label": "Proposal"
+        },
+        "duration": 4.8
+      },
+      "status": "ok"
+    },
+    {
+      "id": "features",
+      "index": 4,
+      "kind": "card",
+      "t_start": 13.92,
+      "t_end": 13.92,
+      "card": {
+        "component": "studio/card-features",
+        "slots": {
+          "kicker": "Why cafés switch",
+          "title": "Everything a quote needs"
+        },
+        "params": {
+          "items": [
+            {
+              "title": "Prices for every bag size",
+              "text": "The roaster's price list follows each café.",
+              "icon": "tag"
+            },
+            {
+              "title": "Delivery windows that fit",
+              "text": "Dates picked on the roaster's real calendar.",
+              "icon": "calendar"
+            },
+            {
+              "title": "Proposals in hours",
+              "text": "Notified the moment a reply lands.",
+              "icon": "bell"
+            },
+            {
+              "title": "One PDF for the books",
+              "text": "Every accepted quote as a document.",
+              "icon": "document"
+            }
+          ]
+        },
+        "duration": 5.4
+      },
+      "status": "ok"
+    },
+    {
+      "id": "chart",
+      "index": 5,
+      "kind": "card",
+      "t_start": 13.92,
+      "t_end": 13.92,
+      "card": {
+        "component": "studio/card-chart",
+        "slots": {
+          "kicker": "This season",
+          "title": "Quote requests per month",
+          "data": "data/quotes-per-month.csv",
+          "note": "Fictional figures of the Northfield fixture."
+        },
+        "params": {
+          "y": "quote requests"
+        },
+        "duration": 4.8
+      },
+      "status": "ok"
+    },
+    {
+      "id": "testimonial",
+      "index": 6,
+      "kind": "card",
+      "t_start": 13.92,
+      "t_end": 13.92,
+      "card": {
+        "component": "studio/card-testimonial",
+        "slots": {
+          "quote": "We used to chase three roasters by email. Now every quote, delivery date and invoice lives in one place.",
+          "name": "Ilse Varnström",
+          "role": "Head barista",
+          "company": "Café Tallmora"
+        },
+        "duration": 5.4
+      },
+      "status": "ok"
+    },
+    {
+      "id": "cta",
+      "index": 7,
+      "kind": "card",
+      "t_start": 13.92,
+      "t_end": 13.92,
+      "card": {
+        "component": "studio/card-cta",
+        "slots": {
+          "kicker": "Ready when you are",
+          "title": "Open your café account today",
+          "text": "Request your first quote in minutes — no card needed.",
+          "button": "Create an account",
+          "url": "shop.northfield.example/signup"
+        },
+        "duration": 5.2
+      },
+      "status": "ok"
+    }
+  ],
+  "events": [
+    {
+      "scene": "coffees",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.01,
+      "t_end": 0.643,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/coffees"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/coffees"
+    },
+    {
+      "scene": "coffees",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 0.985,
+      "t_end": 2.584,
+      "status": "ok",
+      "point": {
+        "x": 1346,
+        "y": 183
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1346,
+            "y": 183
+          },
+          "anchor": "link \"Top 10 · Ethiopia 2026Ethiopia · Gedeo, Yirgachef…\"",
+          "side": "above-right"
+        }
+      }
+    },
+    {
+      "scene": "coffees",
+      "scene_index": 0,
+      "step": 0,
+      "action": "hover",
+      "t_start": 2.585,
+      "t_end": 3.995,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Top 10 · Ethiopia 2026Ethiopia · Gedeo, Yirgachef…\"",
+        "bbox": {
+          "x": 973,
+          "y": 255.09,
+          "w": 316.5,
+          "h": 353.56
+        }
+      },
+      "point": {
+        "x": 1131,
+        "y": 432
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/coffees"
+    },
+    {
+      "scene": "coffees",
+      "scene_index": 0,
+      "step": 1,
+      "action": "hover",
+      "t_start": 3.996,
+      "t_end": 5.354,
+      "status": "ok",
+      "target": {
+        "desc": "link \"New harvestKenya · NyeriMountfern AABlackcurrant …\"",
+        "bbox": {
+          "x": 630.5,
+          "y": 255.09,
+          "w": 316.5,
+          "h": 353.56
+        }
+      },
+      "point": {
+        "x": 789,
+        "y": 432
+      },
+      "hold": {
+        "t_start": 5.354,
+        "t_end": 6.555
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/coffees"
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 6.556,
+      "t_end": 7.151,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/quotes"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes"
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 7.501,
+      "t_end": 9.1,
+      "status": "ok",
+      "point": {
+        "x": 1687,
+        "y": 432
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1687,
+            "y": 432
+          },
+          "from": {
+            "x": 789,
+            "y": 432
+          },
+          "anchor": "link \"Q-1039Mountfern AAQuantity2 × 5 kgDelivery window…\"",
+          "side": "below-right"
+        }
+      }
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": 0,
+      "action": "hover",
+      "t_start": 9.101,
+      "t_end": 10.47,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Q-1039Mountfern AAQuantity2 × 5 kgDelivery window…\"",
+        "bbox": {
+          "x": 289,
+          "y": 291.09,
+          "w": 1342,
+          "h": 97
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 340
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes"
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": 1,
+      "action": "click",
+      "t_start": 10.471,
+      "t_end": 12.104,
+      "status": "ok",
+      "caption": {
+        "kicker": "Proposal",
+        "text": "The roaster's proposal, VAT and delivery included."
+      },
+      "target": {
+        "desc": "link \"Q-1039Mountfern AAQuantity2 × 5 kgDelivery window…\"",
+        "bbox": {
+          "x": 289,
+          "y": 291.09,
+          "w": 1342,
+          "h": 97
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 340
+      },
+      "t_click": 10.603,
+      "strategy": "real",
+      "data": {
+        "navigation": {
+          "kind": "url",
+          "url": "http://localhost:4402/quotes/1039"
+        }
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1039"
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": 2,
+      "action": "wait_for",
+      "t_start": 12.104,
+      "t_end": 12.109,
+      "status": "ok",
+      "data": {
+        "waited_ms": 4
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1039"
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": 3,
+      "action": "capture_text",
+      "t_start": 12.109,
+      "t_end": 12.118,
+      "status": "ok",
+      "mark": "proposal-open",
+      "target": {
+        "desc": "span \"€465.00incl. VAT\"",
+        "bbox": {
+          "x": 1397.52,
+          "y": 530,
+          "w": 209.48,
+          "h": 57
+        }
+      },
+      "data": {
+        "artefact": "text",
+        "name": "total",
+        "file": "artefacts/texts/total.json",
+        "value": "€465.00"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1039"
+    },
+    {
+      "scene": "quotes",
+      "scene_index": 1,
+      "step": 4,
+      "action": "hold",
+      "t_start": 12.119,
+      "t_end": 13.919,
+      "status": "ok",
+      "hold": {
+        "t_start": 12.119,
+        "t_end": 13.919
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/quotes/1039"
+    }
+  ],
+  "markers": [
+    {
+      "name": "proposal-open",
+      "t": 12.109,
+      "scene": "quotes",
+      "step": 3
+    }
+  ],
+  "pages": [
+    {
+      "id": "shop",
+      "t_start": 0.002,
+      "t_end": 6.569,
+      "url": "http://localhost:4402/coffees"
+    },
+    {
+      "id": "shop",
+      "t_start": 6.569,
+      "t_end": 10.731,
+      "url": "http://localhost:4402/quotes"
+    },
+    {
+      "id": "shop",
+      "t_start": 10.731,
+      "t_end": 13.92,
+      "url": "http://localhost:4402/quotes/1039"
+    }
+  ],
+  "cursor": [
+    {
+      "t": 0.666,
+      "x": 1346,
+      "y": 183,
+      "visible": true
+    },
+    {
+      "t": 2.632,
+      "x": 1346,
+      "y": 184,
+      "visible": true
+    },
+    {
+      "t": 2.647,
+      "x": 1345,
+      "y": 185,
+      "visible": true
+    },
+    {
+      "t": 2.667,
+      "x": 1344,
+      "y": 188,
+      "visible": true
+    },
+    {
+      "t": 2.692,
+      "x": 1341,
+      "y": 192,
+      "visible": true
+    },
+    {
+      "t": 2.712,
+      "x": 1338,
+      "y": 199,
+      "visible": true
+    },
+    {
+      "t": 2.733,
+      "x": 1333,
+      "y": 208,
+      "visible": true
+    },
+    {
+      "t": 2.761,
+      "x": 1325,
+      "y": 224,
+      "visible": true
+    },
+    {
+      "t": 2.782,
+      "x": 1308,
+      "y": 255,
+      "visible": true
+    },
+    {
+      "t": 2.827,
+      "x": 1290,
+      "y": 283,
+      "visible": true
+    },
+    {
+      "t": 2.865,
+      "x": 1247,
+      "y": 338,
+      "visible": true
+    },
+    {
+      "t": 2.883,
+      "x": 1202,
+      "y": 379,
+      "visible": true
+    },
+    {
+      "t": 2.915,
+      "x": 1183,
+      "y": 395,
+      "visible": true
+    },
+    {
+      "t": 2.949,
+      "x": 1157,
+      "y": 414,
+      "visible": true
+    },
+    {
+      "t": 2.988,
+      "x": 1141,
+      "y": 425,
+      "visible": true
+    },
+    {
+      "t": 3.036,
+      "x": 1133,
+      "y": 430,
+      "visible": true
+    },
+    {
+      "t": 3.067,
+      "x": 1131,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 4.04,
+      "x": 1130,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 4.075,
+      "x": 1129,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 4.106,
+      "x": 1125,
+      "y": 431,
+      "visible": true
+    },
+    {
+      "t": 4.142,
+      "x": 1114,
+      "y": 428,
+      "visible": true
+    },
+    {
+      "t": 4.165,
+      "x": 1090,
+      "y": 422,
+      "visible": true
+    },
+    {
+      "t": 4.199,
+      "x": 1065,
+      "y": 416,
+      "visible": true
+    },
+    {
+      "t": 4.225,
+      "x": 1013,
+      "y": 408,
+      "visible": true
+    },
+    {
+      "t": 4.253,
+      "x": 956,
+      "y": 405,
+      "visible": true
+    },
+    {
+      "t": 4.283,
+      "x": 898,
+      "y": 409,
+      "visible": true
+    },
+    {
+      "t": 4.319,
+      "x": 854,
+      "y": 417,
+      "visible": true
+    },
+    {
+      "t": 4.349,
+      "x": 820,
+      "y": 424,
+      "visible": true
+    },
+    {
+      "t": 4.374,
+      "x": 803,
+      "y": 429,
+      "visible": true
+    },
+    {
+      "t": 4.409,
+      "x": 794,
+      "y": 431,
+      "visible": true
+    },
+    {
+      "t": 4.433,
+      "x": 790,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 4.463,
+      "x": 789,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 7.18,
+      "x": 1687,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 9.161,
+      "x": 1686,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 9.19,
+      "x": 1684,
+      "y": 432,
+      "visible": true
+    },
+    {
+      "t": 9.215,
+      "x": 1681,
+      "y": 433,
+      "visible": true
+    },
+    {
+      "t": 9.242,
+      "x": 1673,
+      "y": 434,
+      "visible": true
+    },
+    {
+      "t": 9.268,
+      "x": 1660,
+      "y": 435,
+      "visible": true
+    },
+    {
+      "t": 9.291,
+      "x": 1641,
+      "y": 438,
+      "visible": true
+    },
+    {
+      "t": 9.317,
+      "x": 1618,
+      "y": 440,
+      "visible": true
+    },
+    {
+      "t": 9.353,
+      "x": 1584,
+      "y": 444,
+      "visible": true
+    },
+    {
+      "t": 9.368,
+      "x": 1527,
+      "y": 449,
+      "visible": true
+    },
+    {
+      "t": 9.389,
+      "x": 1493,
+      "y": 450,
+      "visible": true
+    },
+    {
+      "t": 9.402,
+      "x": 1446,
+      "y": 452,
+      "visible": true
+    },
+    {
+      "t": 9.422,
+      "x": 1403,
+      "y": 451,
+      "visible": true
+    },
+    {
+      "t": 9.451,
+      "x": 1349,
+      "y": 448,
+      "visible": true
+    },
+    {
+      "t": 9.474,
+      "x": 1258,
+      "y": 435,
+      "visible": true
+    },
+    {
+      "t": 9.523,
+      "x": 1193,
+      "y": 420,
+      "visible": true
+    },
+    {
+      "t": 9.533,
+      "x": 1119,
+      "y": 399,
+      "visible": true
+    },
+    {
+      "t": 9.562,
+      "x": 1090,
+      "y": 389,
+      "visible": true
+    },
+    {
+      "t": 9.59,
+      "x": 1055,
+      "y": 376,
+      "visible": true
+    },
+    {
+      "t": 9.613,
+      "x": 1022,
+      "y": 364,
+      "visible": true
+    },
+    {
+      "t": 9.639,
+      "x": 1000,
+      "y": 356,
+      "visible": true
+    },
+    {
+      "t": 9.668,
+      "x": 984,
+      "y": 349,
+      "visible": true
+    },
+    {
+      "t": 9.691,
+      "x": 971,
+      "y": 344,
+      "visible": true
+    },
+    {
+      "t": 9.712,
+      "x": 965,
+      "y": 342,
+      "visible": true
+    },
+    {
+      "t": 9.736,
+      "x": 962,
+      "y": 341,
+      "visible": true
+    },
+    {
+      "t": 9.756,
+      "x": 960,
+      "y": 340,
+      "visible": true
+    },
+    {
+      "t": 10.607,
+      "x": 960,
+      "y": 340,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 10.724,
+      "x": 960,
+      "y": 340,
+      "visible": true
+    }
+  ],
+  "idle": [
+    {
+      "t_start": 0.721,
+      "t_end": 2.659
+    },
+    {
+      "t_start": 3.329,
+      "t_end": 4.068
+    },
+    {
+      "t_start": 4.773,
+      "t_end": 6.596
+    },
+    {
+      "t_start": 7.342,
+      "t_end": 9.183
+    },
+    {
+      "t_start": 9.793,
+      "t_end": 10.635
+    },
+    {
+      "t_start": 11.309,
+      "t_end": 13.92
+    }
+  ],
+  "artefacts": [
+    {
+      "kind": "text",
+      "name": "total",
+      "t": 12.117,
+      "scene": "quotes",
+      "step": 3,
+      "file": "artefacts/texts/total.json",
+      "value": "€465.00",
+      "text": "€465.00incl. VAT",
+      "target": "span \"€465.00incl. VAT\"",
+      "bbox": {
+        "x": 1397.52,
+        "y": 530,
+        "w": 209.48,
+        "h": 57
+      },
+      "pattern": "/(€\\s?[\\d.,]+)/"
+    }
+  ],
+  "warnings": []
+}

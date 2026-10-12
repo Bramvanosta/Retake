@@ -39,8 +39,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | **done** |
 | L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | **done** |
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | **done** |
-| L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | next |
-| L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
+| L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | **done** |
+| L2.11 | Multi-page capture: split screen & picture in picture | M | next |
 | L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | todo |
 | L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | todo |
 | L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | todo |
@@ -353,6 +353,25 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   chapter progress bar — and cards — key figure (animated counter; `capture_text` action), feature list, before/after
   wipe, testimonial, final CTA with QR code, animated chart from data/CSV (R-TUT-*, R-STO-*).
 - **Acceptance:** each enabled on the fixture videos and reviewed in both themes.
+- **Done:** core `tutorial` switches on scenario / scene / step (`true`, `false`, a mode, `{component?, params?}`; most
+  specific wins; `progress` scenario-only), copied by the runner into the timeline (the editor never reads the
+  scenario); action `capture_text: {target, as, pattern?}` → `text` artefact; runner records `type` timing + the
+  focused field of a `type` without `into`, `press` keys. Planner (editor `tutorial.ts`, pure, `TUTORIAL_TIMING`):
+  shortcut caps on the real key press, a spotlight per run of steps gliding from target to target (screen layer, under
+  caption and overlays), badges beside clicked targets, one loupe gliding from field to field (rendered from the
+  capture itself, ≥ 1.5 px per CSS px), a chapter bar between intro and outro; reframe keeps tutorial targets in view;
+  what cannot be shown → plan warning + review `tutorial-skipped`. Story-card slot types `capture`, `frame` (mark,
+  scene start / end, time, image file), `data` (CSV / TSV) and image files, read before planning (`planInputFiles`)
+  and resolved into `media`. Components (kit `keys`, `figures`, `qr`, `icons`, `picture`, `place`):
+  `studio/overlay-shortcut`, `overlay-spotlight`, `overlay-steps`, `overlay-loupe`, `overlay-progress`, `card-figure`,
+  `card-features`, `card-before-after`, `card-testimonial`, `card-cta` (local QR encoder, module-for-module equal to
+  the `qrcode` package, dev-only), `card-chart` — previews committed. Review: `tutorial-skipped`,
+  `tutorial-target-cut`, `media-missing`; the opening still is compared on capture frames under an overlay or a caption
+  over the screen. CLI `render --tutorial | --no-tutorial`. Fixture: `signup` with every tutorial overlay (⌘K search
+  added to the shop), new `highlights` (every story card, `capture_text` of the proposal total, a CSV). Renders
+  signup-v7 / v12 (editorial), signup-v8-vertical, signup-v11 (motion; v9–v10 had the key caps over the caption band,
+  then over the lens → overlays get `avoid`, the loupe keeps one side), highlights-v1 (editorial), highlights-v2
+  (motion): reviews clean, frames of every overlay and card looked at (HANDOFF).
 
 ### L2.11 — Multi-page capture: split screen & picture in picture (M)
 - **Scope:** the runner records two pages on one clock (e.g. supplier + buyer, or desktop + mobile viewport); timeline

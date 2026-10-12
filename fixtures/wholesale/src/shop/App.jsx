@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Popover from '@radix-ui/react-popover';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Flag } from '../shared/art.jsx';
 import { dayTime } from '../shared/format.js';
 import { Icon, LogoMark } from '../shared/icons.jsx';
@@ -145,8 +145,26 @@ function NavLink({ to, children, match }) {
   );
 }
 
+/** ⌘K / Ctrl+K focuses the search field (a keyboard shortcut for tutorial videos), "/" too when no field has focus. */
+function useSearchShortcut(ref) {
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = e.target instanceof HTMLElement && (e.target.matches('input, textarea, select') || e.target.isContentEditable);
+      if (((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        ref.current?.focus();
+        ref.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ref]);
+}
+
 function Header() {
   const [q, setQ] = useState('');
+  const searchRef = useRef(null);
+  useSearchShortcut(searchRef);
   return (
     <header className="shop-header">
       <div className="shop-header-inner">
@@ -172,7 +190,12 @@ function Header() {
           }}
         >
           <Icon name="search" size={17} />
-          <input className="input" type="search" placeholder="Search coffees, origins, producers" aria-label="Search coffees" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input ref={searchRef} className="input" type="search" placeholder="Search coffees, origins, producers" aria-label="Search coffees" value={q} onChange={(e) => setQ(e.target.value)} />
+          {q ? null : (
+            <span className="input-trailing" aria-hidden="true">
+              <kbd className="kbd">⌘K</kbd>
+            </span>
+          )}
         </form>
         <div className="header-actions">
           <Bell />

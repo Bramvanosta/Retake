@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/card-features",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 3.4,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "6b5152a2f158cc5e",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

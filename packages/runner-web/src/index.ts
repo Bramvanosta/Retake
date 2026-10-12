@@ -27,6 +27,6 @@ export { ArtefactStore, artefactSlug, previewText, htmlText, sniffMime, extensio
 export { ArtefactRenderer, sandboxedEmail, EMAIL_WIDTH, EMAIL_SCALE, PDF_SCALE, ICON_SIZE } from './artefacts/render.js';
 export { MailboxClient, mailMatches, parseAddress, parseAddressList, formatAddress, inlineCids } from './artefacts/mailbox.js';
 export type { MailAddress, MailMessage, MailSummary } from './artefacts/mailbox.js';
-export { ARTEFACT_TIMEOUT_S } from './actions/artefacts.js';
+export { ARTEFACT_TIMEOUT_S, captureValue, textPattern } from './actions/artefacts.js';
 export { NOTIFICATION_BINDING, launchTarget } from './session.js';
 export type { NotificationPayload } from './session.js';

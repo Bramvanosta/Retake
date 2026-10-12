@@ -7,7 +7,7 @@
  *   PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node scripts/preview-samples.mjs
  */
 import { createRequire } from 'node:module';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +21,7 @@ const SHOWN = 'https://shop.northfield.example';
 
 const SAMPLES = [
   // name, CSS viewport, device scale (output px = viewport × scale), page, anchor (overlay previews point at it)
-  { name: 'desktop', width: 1600, height: 900, scale: 0.8, path: '/products/selowa-ridge', anchor: { role: 'button', name: 'Request a quote' } },
+  { name: 'desktop', width: 1600, height: 900, scale: 0.8, path: '/products/selowa-ridge', anchor: { role: 'button', name: 'Request a quote' }, field: { role: 'searchbox', name: 'Search coffees' } },
   { name: 'tablet', width: 820, height: 1180, scale: 1, path: '/', anchor: { role: 'link', name: 'Browse coffees' } },
   { name: 'phone', width: 390, height: 844, scale: 1, path: '/', anchor: { role: 'link', name: 'Browse coffees' } },
 ];
@@ -36,6 +36,7 @@ try {
     await page.goto(SHOP + s.path, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
     const box = await page.getByRole(s.anchor.role, { name: s.anchor.name }).first().boundingBox();
+    const field = s.field ? await page.getByRole(s.field.role, { name: s.field.name }).first().boundingBox() : null;
     const file = `screen-${s.name}.jpg`;
     await page.screenshot({ path: join(OUT, file), type: 'jpeg', quality: 82 });
     const r = (v) => Math.round(v * s.scale);
@@ -45,11 +46,16 @@ try {
       height: Math.round(s.height * s.scale),
       url: SHOWN + s.path,
       anchor: box ? { x: r(box.x), y: r(box.y), w: r(box.width), h: r(box.height) } : undefined,
+      // A text field (loupe previews magnify it).
+      ...(field ? { field: { x: r(field.x), y: r(field.y), w: r(field.width), h: r(field.height) } } : {}),
     };
     await ctx.close();
   }
 } finally {
   await browser.close();
 }
+// The media block (scripts/preview-media-samples.mjs, scripts/preview-frame-samples.mjs) is kept.
+const previous = JSON.parse(await readFile(join(OUT, 'samples.json'), 'utf8').catch(() => '{}'));
+if (previous.media) meta.media = previous.media;
 await writeFile(join(OUT, 'samples.json'), `${JSON.stringify(meta, null, 2)}\n`);
 console.log(JSON.stringify(meta, null, 2));

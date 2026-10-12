@@ -3,7 +3,7 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join } from 'node:path';
-import { COMPONENT_KINDS, timelineVideo } from '@demo-studio/core';
+import { COMPONENT_KINDS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, applyTutorial, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
 import type {
   ComponentKind,
   FrameSpec,
@@ -17,8 +17,8 @@ import type {
   TimelineVideo,
   TransitionKind,
 } from '@demo-studio/core';
-import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, paramEnums, themeTokens } from '@demo-studio/components';
-import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, SlotContext } from '@demo-studio/components';
+import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, paramEnums, parseCsv, themeTokens } from '@demo-studio/components';
+import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, PictureMedia, SlotContext } from '@demo-studio/components';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase, clampView, isStatic, reframeTrack } from './camera.js';
 import type { ReframeTarget, ZoomMove } from './camera.js';
 import { DESIGN_SPACES, FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from './layout.js';
@@ -50,6 +50,9 @@ import type { Candidate } from './resolve.js';
 import { DEFAULT_IDLE_THRESHOLD_S, outFrameAt, planRunTiming } from './timing.js';
 import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
+import { planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
+import type { TutorialResolve } from './tutorial.js';
+import type { PlanTutorial } from './plan-types.js';
 
 /** Input of `planEdit` (DESIGN-phase2 §2). */
 export interface PlanEditInput {
@@ -67,6 +70,24 @@ export interface PlanEditInput {
   musicDuration_s?: number;
   /** The run directory (artefact files of timeline.artefacts are relative to it); default: the capture file's folder. */
   runDir?: string;
+  /**
+   * Project files the planner reads (it does no I/O), by their path as written in the scenario: the text of `data:`
+   * CSV files, the pixel size of image files. `planInputFiles(timeline, project)` (./inputs.ts) reads them.
+   */
+  files?: Record<string, PlanInputFile>;
+}
+
+/** A project file read for the planner (`PlanEditInput.files`). */
+export interface PlanInputFile {
+  /** Absolute path. */
+  file: string;
+  /** Text files (CSV / TSV). */
+  text?: string;
+  /** Images. */
+  width?: number;
+  height?: number;
+  /** The file does not exist or could not be read. */
+  missing?: boolean;
 }
 
 /** Seconds before the end of a clip during which an overlay still counts as "showing" for a tap-open anchor. */
@@ -229,7 +250,8 @@ export function planEdit(input: PlanEditInput): EditPlan {
   const artefacts: TimelineArtefact[] = timeline.artefacts ?? [];
   const findArtefact = (type: ArtefactSlotType, value: string): TimelineArtefact | undefined => {
     const v = value.trim();
-    const own = artefacts.filter((a) => a.kind === type);
+    const kind = type === 'capture' ? 'text' : type;
+    const own = artefacts.filter((a) => a.kind === kind);
     const byName = own.find((a) => a.name === v);
     if (byName || type !== 'notification' || !/^\d+$/.test(v)) return byName;
     return own.find((a) => a.kind === 'notification' && a.index === Number(v));
@@ -258,6 +280,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
         pages: a.pages.map((p, i) => ({ ...img(`artefact-document-${slugOf(a.name)}-p${i + 1}`, p), number: i + 1, width_pt: p.width_pt, height_pt: p.height_pt })),
       };
     }
+    if (a.kind === 'text') return { kind: 'text', name: a.name, value: a.value, text: a.text };
     let app = a.origin;
     try {
       app = new URL(a.origin).host || a.origin;
@@ -275,19 +298,101 @@ export function planEdit(input: PlanEditInput): EditPlan {
       ...(a.icon ? { icon: img(`artefact-notification-${slugOf(a.name)}-icon`, a.icon) } : {}),
     };
   };
+  // L2.10: frames of the capture (before/after cards), project images and CSV tables.
+  const projectFile = (rel: string): string => (isAbsolute(rel) ? rel : join(project.dir, rel));
+  const captureFrameTime = (t: number): number => {
+    const k = clamp(Math.round(t * cap.fps), 0, Math.max(0, srcFrameCount - 1));
+    return round(k / cap.fps, 4);
+  };
+  const sceneStart = (sceneId: string): number | undefined => {
+    const sc = timeline.scenes.find((x) => x.id === sceneId && x.kind === 'scene');
+    if (!sc) return undefined;
+    const evs = timeline.events.filter((e) => e.scene === sc.id && e.scene_index === sc.index);
+    const still = evs.find((e) => e.action === 'scene_still');
+    const open = evs.find((e) => e.action === 'scene_open');
+    return (still ? still.t_start : open ? open.t_end : sc.t_start) + 0.05;
+  };
+  const frameMedia = (slot: string, value: string, where: string): PictureMedia | undefined => {
+    const ref = parseFrameRef(value);
+    if (!ref) {
+      warnings.add(`${where}: "${value}" is not a frame (a mark, start:/end:<scene>, 12.5s or an image file)`);
+      return undefined;
+    }
+    if (ref.kind === 'file') {
+      const f = input.files?.[ref.path];
+      if (f?.missing) warnings.add(`${where}: image ${ref.path} not found`);
+      const url = asset(`image-${slugOf(ref.path)}`, f?.file ?? projectFile(ref.path));
+      return { kind: 'picture', name: slot, url, ...(f?.width && f.height ? { width: f.width, height: f.height } : {}), label: ref.path };
+    }
+    let t: number | undefined;
+    let label = '';
+    if (ref.kind === 'time') {
+      t = ref.t;
+      label = `${ref.t} s of the capture`;
+      if (t > cap.duration) warnings.add(`${where}: ${value} is past the end of the capture (${secs(cap.duration)})`);
+    } else if (ref.kind === 'scene') {
+      const sc = timeline.scenes.find((x) => x.id === ref.scene && x.kind === 'scene');
+      if (sc) t = ref.at === 'start' ? sceneStart(sc.id) : sc.t_end - 1 / cap.fps;
+      label = `${ref.at === 'start' ? 'start' : 'end'} of scene ${ref.scene}`;
+      if (t === undefined) warnings.add(`${where}: scene "${ref.scene}" was not captured by run ${timeline.run_id}`);
+    } else {
+      const mk = timeline.markers.find((m) => m.name === ref.name);
+      label = `mark ${ref.name}`;
+      if (!mk) warnings.add(`${where}: mark "${ref.name}" is not in run ${timeline.run_id} (marks: ${timeline.markers.map((m) => m.name).join(', ') || 'none'})`);
+      else {
+        // The screen once the marked step is done: within its hold, else just after it (still inside its scene).
+        const ev = timeline.events.find((e) => e.scene === mk.scene && e.step === mk.step);
+        const sc = timeline.scenes.find((x) => x.id === mk.scene && x.kind === 'scene');
+        const end = sc ? sc.t_end - 1 / cap.fps : cap.duration;
+        if (!ev) t = mk.t;
+        else if (ev.hold && ev.hold.t_end > ev.hold.t_start) t = Math.min(ev.hold.t_start + Math.min(0.8, (ev.hold.t_end - ev.hold.t_start) / 2), end);
+        else t = Math.min(ev.t_end + 0.25, end);
+      }
+    }
+    if (t === undefined) return undefined;
+    return { kind: 'picture', name: slot, url: captureUrl, width: Math.round(cssW * capScale), height: Math.round(cssH * capScale), video: { time_s: captureFrameTime(t) }, label };
+  };
   const mediaOf = (manifest: ComponentManifest, slots: Record<string, string | undefined>, where: string): Record<string, MediaValue> | undefined => {
     let out: Record<string, MediaValue> | undefined;
     for (const [slot, spec] of Object.entries(manifest.slots)) {
-      if (!(ARTEFACT_SLOT_TYPES as readonly string[]).includes(spec.type)) continue;
       const value = slots[slot];
       if (value === undefined || value.trim() === '') continue;
+      if (spec.type === 'image') {
+        // An image file of the project: served by the renderer, the slot holds its URL.
+        const v = value.trim();
+        if (!/^(https?:|data:|ds-asset:)/.test(v)) {
+          const f = input.files?.[v];
+          if (f?.missing) warnings.add(`${where}: image ${v} not found`);
+          slots[slot] = asset(`image-${slugOf(v)}`, f?.file ?? projectFile(v));
+        }
+        continue;
+      }
+      if (spec.type === 'frame') {
+        const m = frameMedia(slot, value, where);
+        if (m) (out ??= {})[slot] = m;
+        continue;
+      }
+      if (spec.type === 'data') {
+        const v = value.trim();
+        const f = input.files?.[v];
+        if (!f || f.text === undefined) {
+          warnings.add(`${where}: data file ${v} ${f?.missing ? 'not found' : 'was not read (the caller passes `files`, see planInputFiles)'}`);
+          continue;
+        }
+        const table = parseCsv(f.text);
+        if (table.columns.length === 0) warnings.add(`${where}: data file ${v} is empty`);
+        (out ??= {})[slot] = { kind: 'table', name: v, columns: table.columns, rows: table.rows };
+        continue;
+      }
+      if (!(ARTEFACT_SLOT_TYPES as readonly string[]).includes(spec.type)) continue;
       const type = spec.type as ArtefactSlotType;
       const a = findArtefact(type, value);
       if (!a) {
-        const names = artefacts.filter((x) => x.kind === type).map((x) => (x.kind === 'notification' ? `${x.name} (#${x.index})` : x.name));
+        const kind = type === 'capture' ? 'text' : type;
+        const names = artefacts.filter((x) => x.kind === kind).map((x) => (x.kind === 'notification' ? `${x.name} (#${x.index})` : x.name));
         warnings.add(
           `${where}: ${type} "${value}" was not captured by run ${timeline.run_id}` +
-            (names.length ? ` (captured: ${names.join(', ')})` : ` (the run captured no ${type})`) +
+            (names.length ? ` (captured: ${names.join(', ')})` : ` (the run captured no ${type === 'capture' ? 'text' : type})`) +
             ' — the component shows its scenario values only',
         );
         continue;
@@ -313,9 +418,26 @@ export function planEdit(input: PlanEditInput): EditPlan {
     scenario: { title: video.title, outro: video.outro === false ? false : outro ? { tagline: outro.tagline, url: outro.url } : undefined },
   };
 
+  // ── Tutorial overlays (L2.10): switches scenario → scene → step, the render override over the scenario's ───────
+  const stateOf = tutorialStateOf(video.tutorial, ov.tutorial);
+  const tutorialOn = tutorialRequested(timeline, ov.tutorial);
+  if (ov.tutorial === false && tutorialRequested(timeline, undefined)) notes.add('tutorial overlays disabled (overrides.tutorial = false)');
+  const tutorial: PlanTutorial = { uses: {}, skipped: [] };
+  const tutorialResolve: TutorialResolve = (feature, state, slots, where) => {
+    const chain: Candidate[] = [];
+    const key = `tutorial-${feature}`;
+    if (overrideRefs[key] !== undefined) chain.push({ ref: overrideRefs[key], source: 'override', label: `overrides.components["${key}"]` });
+    const builtin = TUTORIAL_COMPONENTS[feature];
+    const custom = state.component !== builtin || Object.keys(state.params).length > 0;
+    chain.push({ ref: { id: state.component, params: state.params }, source: custom ? 'scenario' : 'builtin-default', label: `the tutorial ${feature}` });
+    if (state.component !== builtin) chain.push({ ref: builtin, source: 'builtin-default', label: 'the built-in default' });
+    return resolver.resolve('overlay', chain, where, { explicit: slots, ctx: slotBase });
+  };
+  const videoBadges = { video: 0 };
+
   // ── Entries: scenes, cards, interstitials in scenario order ──────────────────
   const entries: Entry[] = [];
-  const knownIds = new Set<string>(['intro', 'outro']);
+  const knownIds = new Set<string>(['intro', 'outro', ...TUTORIAL_FEATURES.map((f) => `tutorial-${f}`)]);
   for (const scene of timeline.scenes) {
     knownIds.add(scene.id);
     if (scene.status === 'skipped') {
@@ -663,7 +785,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     if (variant !== 'landscape' && layout.crop) {
       let track = reframeByRun.get(r.run);
       if (!track) {
-        const targets = r.entries.flatMap((x) => reframeTargets(x.events));
+        const targets = r.entries.flatMap((x) => [...reframeTargets(x.events), ...(tutorialOn ? tutorialReframeTargets(x.events, (ev) => stateOf(x.scene, ev)) : [])]);
         track = reframeTrack({ times: r.run.p.map((p) => p / srcFps), camera: cam.track, cursor: timeline.cursor, crop: layout.crop, css: { w: cssW, h: cssH }, outFps, targets });
         reframeByRun.set(r.run, track);
       }
@@ -824,6 +946,27 @@ export function planEdit(input: PlanEditInput): EditPlan {
       seg.overlays.push(use);
     }
 
+    // Tutorial overlays (L2.10): the spotlight is drawn over the capture, under everything else; badges, loupe and key
+    // caps under the scenario's own step overlays.
+    if (tutorialOn) {
+      const uses = planClipTutorial({
+        scene: entry.scene,
+        events: entry.events,
+        rel,
+        n,
+        duration: seg.durationInFrames,
+        fps: outFps,
+        css: { w: cssW, h: cssH },
+        stateOf: (ev) => stateOf(entry.scene, ev),
+        resolve: tutorialResolve,
+        counter: videoBadges,
+        durationOf: (rc) => resolver.manifest(rc)?.duration?.default,
+        out: tutorial,
+        segmentFrom: F,
+      });
+      seg.overlays = [...uses.filter((u) => u.layer === 'screen'), ...uses.filter((u) => u.layer !== 'screen'), ...seg.overlays];
+    }
+
     // Provenance: which step produced each output frame (held frames belong to the last step).
     const steps: StepSpan[] = [];
     const evs = entry.events;
@@ -935,6 +1078,22 @@ export function planEdit(input: PlanEditInput): EditPlan {
   });
 
   const segments = drafts.map((d) => d.seg);
+  // The chapter progress bar (a scenario-level switch).
+  const progressState = applyTutorial(applyTutorial(tutorialOff(), video.tutorial, 'scenario'), ov.tutorial === false ? false : ov.tutorial, 'scenario').progress;
+  if (progressState.on) {
+    const p = planProgress({ segments, timeline, state: progressState, resolve: tutorialResolve });
+    if (p) {
+      tutorial.progress = p;
+      tutorial.uses.progress = 1;
+      notes.add(`progress bar: ${p.chapters.length} chapters (${p.mode}) over ${secs(p.durationInFrames / outFps)}`);
+    }
+  }
+  const tutorialUsed = Object.keys(tutorial.uses).length > 0 || tutorial.skipped.length > 0;
+  if (tutorialUsed) {
+    const parts = Object.entries(tutorial.uses).map(([k, v]) => `${k} ${v}`);
+    if (parts.length) notes.add(`tutorial overlays: ${parts.join(', ')}`);
+    for (const sk of tutorial.skipped) warnings.add(`scene "${sk.scene}" step ${sk.step}: no ${sk.feature} — ${sk.reason}`);
+  }
   const totalSeconds = durationInFrames / outFps;
   notes.add(`${segments.length} segments, ${secs(totalSeconds)} at ${outFps} fps`);
 
@@ -1019,6 +1178,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     warnings: warnings.items,
   };
   if (music) plan.music = music;
+  if (tutorialUsed) plan.tutorial = tutorial;
   resolver.flush();
   plan.warnings = warnings.items;
   return plan;

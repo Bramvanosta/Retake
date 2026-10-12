@@ -4,7 +4,7 @@
  * (../render/preview.ts). Every URL is already served (asset server).
  */
 import type { ComponentKind } from '@demo-studio/core';
-import type { CaptionCue, LayoutRects, MediaValue, ThemeTokens } from '@demo-studio/components';
+import type { CaptionCue, LayoutRects, MediaValue, ProgressChapter, ThemeTokens } from '@demo-studio/components';
 
 export interface PreviewRect {
   x: number;
@@ -54,4 +54,10 @@ export interface ComponentPreviewSpec {
   transitionKind?: 'crossfade' | 'fade-black';
   /** overlay previews: the target box in output px; transition previews: the box the transition opens from. */
   anchor?: PreviewRect;
+  /** overlay previews: the frame of the moment shown (a key press, a click) — `ComponentProps.moment`. */
+  moment?: number;
+  /** overlay previews with a capture region (a loupe): the region of the sample screen, in sample px. */
+  region?: PreviewRect;
+  /** overlay previews: sample chapters (a progress bar). */
+  chapters?: ProgressChapter[];
 }

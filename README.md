@@ -131,7 +131,8 @@ studio components create <namespace/name> --kind K [--description D] [--name N] 
 studio components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
 studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
 studio render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
-              [--music FILE|--no-music] [--no-intro] [--no-outro] [--out FILE] [--concurrency N] [--review] [--json]
+              [--music FILE|--no-music] [--tutorial|--no-tutorial] [--no-intro] [--no-outro] [--out FILE] [--concurrency N]
+              [--review] [--json]
 studio still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json]
 studio export <project> <render-id|file|latest> [--formats LIST|all] [--scenario S] [--out DIR] [--gif-start S]
               [--concurrency N] [--json]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
@@ -357,11 +358,13 @@ Every step has exactly one action; shorthand forms are shown first.
 | `cursor` | `cursor: hide` · `{move: {x: 1500, y: 540}, duration: 0.8}` · `{set: {x: 0, y: 0}}` | Show, hide, move or teleport the cursor |
 | `wait_for_email` | `wait_for_email: {to: noa@cafe.example, subject: Confirm, timeout: 20, as: welcome}` | Wait for a new message in the project's test mailbox and capture it (artefact `email: welcome`) — see [Mails, documents and notifications](#mails-documents-and-notifications) |
 | `download` | `download: {click: {text: Download quote PDF}, as: quote, timeout: 30}` | Real click, then capture the file it produces — a download, or a document opened in a new tab (fetched with the session) — as artefact `document: quote`; PDFs are rasterised page by page |
+| `capture_text` | `capture_text: {target: {testid: proposal-total}, as: total, pattern: "/(€\\s?[\\d.,]+)/"}` | Read the element's visible text (a field's value) — or the part the pattern's first group selects — as artefact `capture: total` for a key-figure card; polled until the pattern matches (up to the step timeout); no cursor move — see [Tutorial overlays and story cards](#tutorial-overlays-and-story-cards) |
 
 **Step modifiers** (on any step): `id` (for `--until` and references), `caption`, `speed` (edit-time),
 `hold` (seconds still after the step), `mark` (named marker), `camera` (zoom hint:
 `{zoom: 1.3, target: {text: Awards}, ease: slow, duration: 1.2, until: scene_end}`), `overlay` (an overlay component
-over the clip: `{component, slots, params, duration, target}`, see below), `timeout` (seconds, default 15),
+over the clip: `{component, slots, params, duration, target}`, see below), `tutorial` (this step's tutorial overlays,
+e.g. `{spotlight: false}` or `false`, see [Tutorial overlays](#tutorial-overlays-and-story-cards)), `timeout` (seconds, default 15),
 `optional` (a failure does not abort), `irreversible` (never executed in dry runs), `note`. The runner measures the
 `camera` and `overlay` targets at the **end** of the step — after a `scroll`, the box is where the element ended up.
 
@@ -668,8 +671,14 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 | `<Background>`, `<Logo>`, `<Wordmark>`, `<SafeArea>` | theme background; logo image (monogram of the brand without one); wordmark at a VISUAL height: the image that tall, or the brand name in the display font at height × `WORDMARK_TEXT_SCALE` (1.3) with its baseline on the bottom edge; title-safe box |
 | `backgroundCss`, `backgroundSample`, `isDarkBackground`, `cssFontFamily`, `textStyleCss`, `withAlpha`, `mixColors`, `darkLight`, `nightTone`, `contrastRatio`, `readableOn`, `safeAreaRect`, `scaleRect`, `roundTo` | CSS from tokens, colour helpers (a representative background colour, mixes, the night tone `colors.dark` or the darker of text / paper), rects |
 | `biasMotion(style_bias)` | `{travel, settle, tracking, pace}`: how much livelier than the reference a component may move (`real` = 1, 0, 0, 1) |
-| `cardShadow`, `deviceTones`, `SYSTEM_COLORS`, `addressParts`, `captionBandBox` | frames around a capture: the reference soft shadow tinted with the theme; device metals and glass derived from the theme (`dark` / `light` finish); the classic window-control colours (system UI, not brand); a URL split for an address bar; where an overlay caption band goes (shared with the review) |
+| `cardShadow`, `deviceTones`, `SYSTEM_COLORS`, `addressParts`, `captionBandBox` | frames around a capture: the reference soft shadow tinted with the theme; device metals and glass derived from the theme (`dark` / `light` finish); the classic window-control colours (system UI, not brand) and pure white / black for masks and QR codes; a URL split for an address bar; where an overlay caption band goes (shared with the review) |
 | `formatMetrics(variant, unit)`, `FORMAT_SCALE`, `captionMaxLines(variant, max, width)` | laying out for the output format: full-frame components (intros, outros, cards, interstitials) take `u` (type ×1.2 in vertical, ×1.05 in square) and `inset(m)` (side margins halved in the 1080-wide formats); caption lines may wrap to 2 lines in vertical / square, 3 in a narrow column (shared with the review) |
+| `parseShortcut(keys, platform)`, `shortcutText`, `KEY_GLYPHS` | key caps of a Playwright key combination: macOS symbols as line glyphs (⌘ ⌥ ⇧ ⌃ ↩ ⇥ ⌫ arrows) in the conventional order, or Windows / Linux words |
+| `parseFigure`, `formatFigure`, `figureAt`, `parseNumber` | figures as written ("€1,240.50", "12,5 %"): prefix, suffix, separators, decimals; a counter's text at a progress, ending on the exact text |
+| `qrEncode(text, {level, version, mask})`, `qrMatrix`, `qrPath` | a dependency-free QR Code encoder (byte mode, versions 1–40, L/M/Q/H, penalty-scored masks) and an SVG path of its modules |
+| `<Icon name>`, `ICON_NAMES` | the built-in line icon set of feature lists |
+| `<Picture media>`, `pictureAspect` | a `PictureMedia`: an image, or a frame of the capture video frozen at its time |
+| `placeBeside({target, w, h, bounds, gap, order})` | a box beside a target, inside bounds, never over it (badges, the loupe) |
 
 ### Creating, checking and previewing components
 
@@ -805,6 +814,76 @@ outgoing segment's anchor — or that of an overlay still showing at the end of 
 transition (`PlanTransition.anchor`, `props.anchor`): the lock screen's newest notification, the home screen's app icon,
 a notification banner. Without one, `studio/transition-tap-open` opens from the centre.
 
+## Tutorial overlays and story cards
+
+**Tutorial overlays** are drawn automatically from the timeline — no extra step in the scenario, just switches:
+
+```yaml
+tutorial: {shortcuts: true, spotlight: steps, steps: true, loupe: true, progress: scenes}   # scenario (or `true`: all on)
+scenes:
+  - id: signup
+    tutorial: {loupe: false}             # a scene overrides the scenario's switches (`false`: none in this scene)
+    steps:
+      - type: {into: {label: Café name}, text: Café Lumen}
+      - press: Tab                       # key caps ⇥, timed on the real key press
+      - type: {text: Noa Brandt}         # the loupe and the spotlight follow the focused field
+      - click: {text: Create account}
+        tutorial: {spotlight: false}     # a step overrides both (most specific wins)
+```
+
+| Switch | Component | What it draws |
+|---|---|---|
+| `shortcuts` | `studio/overlay-shortcut` | key caps of every `press` step (and the Enter of `type: {enter: true}`) at the bottom of the capture (above a caption band drawn over it — the overlays receive it as `avoid`), going down on the **real key press** (the planner starts the overlay 0.3 s before it and hands the press frame as `moment`); macOS symbols ⌘ ⌥ ⇧ ⌃ ↩ ⇥ drawn as line glyphs, or `params: {platform: windows \| linux}` → Ctrl / Alt / Shift words; `press: {times: 3}` → a "× 3" chip |
+| `spotlight` | `studio/overlay-spotlight` | dims the capture (theme night tone) except a soft rounded cut-out around the step's target, mapped through layout, camera and reframe; `steps` (= `true`): every step with a target (click, type, select, pick, menu, hover, drag, drop_file, download) over the step — a click ends it soon after the click, one overlay per run of steps whose cut-out **glides** from target to target; `clicks`: around each click only. Drawn under the caption and the other overlays |
+| `steps` | `studio/overlay-steps` | numbered badges (1, 2, 3… per scene, `params: {numbering: video}` across the video) beside each clicked target, never over it (left, above, right or below, inside the capture), popping as the cursor arrives, a ring pulsing at the click, ~1 s after it |
+| `loupe` | `studio/overlay-loupe` | during `type` steps, a magnified **live** view of the field — the capture region around it rendered again at the capture's own resolution (crisp), at least 1.5 design px per CSS px so it reads in vertical / square — beside the field with a pointer (clear of a caption band over the screen and of the key caps' row; a lens gliding over several fields keeps one side of them); consecutive fields (type, Tab, type) are one lens gliding from field to field. A `type` without `into` uses the focused field the runner measured |
+| `progress` | `studio/overlay-progress` | a thin chapter bar across the top of the frame over everything between the intro and the outro; `scenes` (= `true`): every scene and card is a chapter, `cards`: each card opens one; the current chapter fills in the accent (`params: {position: bottom, labels: true}`). Scenario level only |
+
+Each switch is `true`, `false`, a mode (`spotlight: clicks`, `progress: cards`) or `{component?, params?}` (another
+overlay component, params of the built-in one — `spotlight: {on: clicks, params: {dim: 0.6}}`). The runner copies the
+switches into the timeline (`video.tutorial`, `scene.tutorial`, `event.tutorial`); at render time `--tutorial` turns
+every overlay on over the scenario's switches and `--no-tutorial` removes them (`overrides.tutorial`), and
+`overrides.components["tutorial-shortcuts" | "tutorial-spotlight" | …]` swaps one component. What cannot be shown — a
+spotlight or a badge on a step whose target box was not recorded, a loupe without a field — is a plan warning and a
+`tutorial-skipped` review warning; a target the zoom or the reframe cuts is `tutorial-target-cut`.
+
+**Story cards** tell the product's story between the scenes (cards take no capture time):
+
+```yaml
+- id: proposal
+  steps:
+    - capture_text: {target: {testid: proposal-total}, as: total, pattern: "/(€\\s?[\\d.,]+)/"}
+      mark: proposal-open
+- card: {component: studio/card-figure, slots: {capture: total, kicker: Accepted proposal, label: for 10 kg, delivered}}
+- card: {component: studio/card-before-after, slots: {before: start:quotes, after: proposal-open, title: One click}}
+- card:
+    component: studio/card-features
+    slots: {kicker: Why cafés switch, title: Everything a quote needs}
+    params: {items: [{title: Prices for every bag size, icon: tag}, {title: Proposals in hours, icon: bell}, {title: One PDF, icon: document}]}
+- card: {component: studio/card-chart, slots: {title: Quote requests per month, data: data/quotes-per-month.csv}, params: {y: quote requests}}
+- card: {component: studio/card-testimonial, slots: {quote: "…", name: Ilse Varnström, role: Head barista, company: Café Tallmora, logo: assets/logo.svg}}
+- card: {component: studio/card-cta, slots: {title: Open your account today, button: Create an account, url: shop.example.com/signup}}
+```
+
+| id | what it draws (main slots / params) |
+|---|---|
+| `studio/card-figure` | kicker, a big **counter** in the display font counting up (`from`, `count` seconds) to the value written as given — `€720.00`, `1 240 bags`, `12,5 %`: prefix, suffix, separators, decimals kept, tabular digits —, accent rule, label, text. Value: slot `value`, or `capture` (a `capture_text` artefact; the captured value wins) |
+| `studio/card-features` | kicker, title and rule beside (above, in vertical / square) 3–5 items appearing one by one (`stagger`): an icon of the kit's built-in set (`check`, `bolt`, `clock`, `chart`, `trend`, `shield`, `globe`, `users`, `truck`, `receipt`, `bell`, `star`, `sparkles`, `lock`, `heart`, `leaf`, `cup`, `mail`, `search`, `calendar`, `cart`, `document`, `sliders`, `link`, `phone`, `tag`) or the item's number, title and text — `params.items: [{title, text?, icon?}]` |
+| `studio/card-before-after` | two pictures in one card, the after wiping over the before behind a divider with a handle (`wipe_at`, `wipe`, `direction`, `end_at`), labels (`before_label`, `after_label`). Slots `before` / `after` of type **frame**: `<mark>` or `mark:<mark>` (the screen once the marked step is done: within its hold, else just after it), `start:<scene>` / `end:<scene>`, a capture time `12.5s`, or an image file of the project |
+| `studio/card-testimonial` | a large quotation mark, the quote in the display font (balanced, ≤ 4 lines), rule, avatar (`avatar` image, else the initials), name, role · company, `logo` image |
+| `studio/card-cta` | kicker, title, text, an accent **button**, the `url` under it and a **QR code** of the url (or of `qr`; `https://` added when there is no scheme) generated locally by the kit's encoder (byte mode, versions 1–40, `qr_level` L/M/Q/H, tested module for module against the `qrcode` package): dark modules on white whatever the theme, so phones read it |
+| `studio/card-chart` | an animated **bar** or **line** chart (`type`) from inline `params.data: [{label, value}]` or a CSV / TSV file of the project (slot `data`; `x` / `y` name the columns, default the first and the first numeric one), the highlighted category in the accent (`highlight`, default the last), values formatted with `prefix`, `suffix`, `decimals`, the last `max_points`; a `note` line |
+
+All are theme-driven (paper or night `tone`), in the family of the title card, sized for landscape, vertical and
+square, with committed previews. Slot types behind them: `capture` (a `capture_text` `as`), `frame`, `data`, and
+`image` slots that name an image file of the project (served as a plan asset). Validation checks every `capture:`
+against the scenario's `capture_text` names, `before:` / `after:` frames against its marks, scenes and files, `data:`
+and image files against the project; the run records texts as `artefacts/texts/<as>.json` and in `timeline.artefacts`
+(`kind: text`, `value`, `text`, `target`, `bbox`); the renderer reads the project files a plan needs (CSV text, image
+sizes — `planInputFiles`) and the planner turns them into `props.media` (`TextMedia`, `PictureMedia` — a capture frame
+is the capture video frozen at its time —, `TableMedia`). A name the run did not capture is a plan warning and a
+`media-missing` review warning.
+
 ## Editing: the edit plan
 
 The editor turns a run (`capture.mp4` + `timeline.json`) into a video in two steps: `planEdit` (package
@@ -913,7 +992,8 @@ $ studio render northfield-fixture catalogue
   track: AAC silence when there is no music (checked with ffprobe after the render, added with ffmpeg if ever missing).
 - **Options**: `--theme` (another template, the scenario untouched), `--frame` (frame style or layout component id for
   every scene), `--vertical` (1080×1920) or `--square` (1080×1080), `--scale` (output size × the variant's size),
-  `--music <file>` / `--no-music` (replace or drop the scenario's music bed), `--no-intro`, `--no-outro`,
+  `--music <file>` / `--no-music` (replace or drop the scenario's music bed), `--tutorial` / `--no-tutorial` (every
+  tutorial overlay on over the scenario's switches, or none), `--no-intro`, `--no-outro`,
   `--concurrency` (frames rendered in parallel; default ¾ of the CPUs, 1–8), `--json` (the record without the plan).
 - **Stills**: `studio still <project> <scenario> --frame <n>` renders output frame n of the planned video as a PNG
   (default `renders/stills/<scenario>-f<n>.png`) — the quick way to look at one moment of an edit.
@@ -1056,7 +1136,7 @@ not clean; `--json` prints the result. The checks:
 |---|---|
 | Durations of every segment and of the video (reference look: video 1–2 min, scenes 4–25 s) | `video-length` (info a little outside, warning beyond ±25 %), `scene-length` (info), `scene-too-short` (< 2 s: warning) |
 | Scenes longer than 30 s at about 1× | `long-scene` (warning) |
-| Blank, near-uniform or loading screens inside the layout's screen rect (2 fps samples, transitions excluded), at scene starts (rendered frame and capture frame), a screen still changing during the opening still, waiting on an unchanging screen for 3 s or more (wait steps and the time after an action until the next step; holds are deliberate) | `blank-screen` (error from 1 s), `near-uniform-screen`, `blank-scene-start` (error), `loading-scene-start`, `long-wait`, `empty-segment` (a card that draws nothing) |
+| Blank, near-uniform or loading screens inside the layout's screen rect (2 fps samples, transitions excluded), at scene starts (rendered frame and capture frame), a screen still changing during the opening still (compared on the capture frames when the view moves or something is drawn over the page: an overlay such as a spotlight, a caption over the screen), waiting on an unchanging screen for 3 s or more (wait steps and the time after an action until the next step; holds are deliberate) | `blank-screen` (error from 1 s), `near-uniform-screen`, `blank-scene-start` (error), `loading-scene-start`, `long-wait`, `empty-segment` (a card that draws nothing) |
 | Captions: shown on another scene, overlapping in time, too long for their area (the kit's `fitText` with the theme caption style and the theme's real font files: shrunk below 85 % of the theme size = warning, cut with "…" = error), under the brand mark, not visible in the caption area, missing | `caption-scene-mismatch`, `caption-overlap`, `caption-too-long`, `caption-truncated`, `caption-shrunk` (info), `caption-overlaps-brandmark`, `caption-not-visible`, `caption-missing` |
 | Text slots longer than their component's `max_chars` (titles, kickers, taglines, callouts, captions) or required and empty | `text-slot-overflow`, `text-slot-empty` |
 | Cursor at every click of the capture: off screen, hidden, outside the zoomed view (at the click and 0.4 s later), target partly outside the view | `cursor-offscreen`, `cursor-hidden`, `cursor-outside-view` (error), `target-outside-view` |

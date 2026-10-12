@@ -6,14 +6,16 @@
  * from their source anchor through layout + camera, and the brand mark; the music bed. Every URL in the plan is
  * already an http URL (the renderer swapped the `ds-asset:` URLs for the asset server's).
  */
+import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } from 'remotion';
 import { Logo, Wordmark, backgroundCss } from '@demo-studio/components/kit';
 import type { ComponentProps, ThemeTokens } from '@demo-studio/components';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, PlanSegment, ResolvedComponent } from '../plan-types.js';
 import { mapSourceRect, viewOf } from '../layout.js';
+import type { SourceView } from '../layout.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, envelopeAt, layoutRects, musicPlayGain, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './frames.js';
+import { brandmarkRect, envelopeAt, layoutRects, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, srcFrameAt, trackBoxAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 
@@ -62,10 +64,11 @@ function CaptureFrame({ plan, srcFrame }: { plan: EditPlan; srcFrame: number }) 
  * ratio, the source frame of this output frame scaled and moved by the camera. `frame` = the clip frame to show
  * (default: the current one).
  */
-function CaptureScreen({ plan, clip, frame }: { plan: EditPlan; clip: ClipSegment; frame?: number }) {
+function CaptureScreen({ plan, clip, frame, region }: { plan: EditPlan; clip: ClipSegment; frame?: number; region?: { x: number; y: number; w: number; h: number } }) {
   const current = useCurrentFrame();
   const f = Math.max(0, Math.min(clip.durationInFrames - 1, frame ?? current));
-  const view = viewOf(plan, clip, f);
+  // A fixed source region (the typing loupe) instead of the camera's view.
+  const view: SourceView = region ? { cx: region.x + region.w / 2, cy: region.y + region.h / 2, w: region.w, h: region.h } : viewOf(plan, clip, f);
   const W = plan.source.cssWidth;
   const H = plan.source.cssHeight;
   const aspect = view.w / view.h;
@@ -134,9 +137,39 @@ function Brandmark({ plan, clip }: { plan: EditPlan; clip: ClipSegment }) {
 function OverlayView({ plan, clip, use }: { plan: EditPlan; clip: ClipSegment; use: OverlayUse }) {
   const local = useCurrentFrame();
   const f = use.from + local;
-  const a = use.anchor?.bbox ?? use.anchor?.point;
+  // The anchor of this frame (a track glides from box to box), mapped through layout + camera + reframe.
+  const a = trackBoxAt(use, local, plan.fps);
   const anchor = a ? mapSourceRect(plan, clip, f, a) : undefined;
-  return <Use rc={use.component} plan={plan} durationInFrames={use.componentFrames ?? use.durationInFrames} extra={{ rects: layoutRects(clip.layout), ...(anchor ? { anchor } : {}) }} />;
+  const extra: Partial<ComponentProps> = { rects: layoutRects(clip.layout), ...(anchor ? { anchor } : {}) };
+  if (use.moment !== undefined) extra.moment = use.moment;
+  // A caption band over the screen (caption-overlay), the key caps' row: the overlay keeps clear of them.
+  const avoid = useMemo(() => overlayAvoid(plan, clip, use), [plan, clip, use]);
+  if (avoid.length > 0) extra.avoid = avoid;
+  // A loupe gliding from field to field keeps one side of them.
+  const side = useMemo(() => (use.tutorial === 'loupe' ? loupePlacement(plan, clip, use, avoid) : undefined), [plan, clip, use, avoid]);
+  const rc = side ? { ...use.component, params: { ...use.component.params, placement: side } } : use.component;
+  if (use.region) {
+    // A live capture region (the typing loupe): the component places a box of the region's aspect, `screen` fills it.
+    // With a track, the region is the track's box of this frame (the lens glides from field to field).
+    const region = use.track && a ? a : use.region;
+    extra.region = { ...region };
+    extra.screen = <CaptureScreen plan={plan} clip={clip} frame={f} region={region} />;
+  }
+  return <Use rc={rc} plan={plan} durationInFrames={use.componentFrames ?? use.durationInFrames} extra={extra} />;
+}
+
+function Overlays({ plan, clip, layer }: { plan: EditPlan; clip: ClipSegment; layer: 'screen' | 'top' }) {
+  return (
+    <>
+      {clip.overlays.map((o, i) =>
+        (o.layer === 'screen') === (layer === 'screen') ? (
+          <Sequence key={`${o.scene}-${o.step}-${i}`} from={o.from} durationInFrames={o.durationInFrames} name={`overlay ${o.component.id}`}>
+            <OverlayView plan={plan} clip={clip} use={o} />
+          </Sequence>
+        ) : null,
+      )}
+    </>
+  );
 }
 
 /**
@@ -155,6 +188,7 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
         durationInFrames={clip.durationInFrames}
         extra={{ screen: <CaptureScreen plan={plan} clip={clip} frame={stillAt} />, url: urlAt(clip, f), rects: layoutRects(clip.layout) }}
       />
+      {!still ? <Overlays plan={plan} clip={clip} layer="screen" /> : null}
       <Brandmark plan={plan} clip={clip} />
       {!still && clip.caption && clip.cues.length > 0 ? (
         <Use
@@ -164,13 +198,7 @@ function ClipView({ plan, clip, stillAt }: { plan: EditPlan; clip: ClipSegment; 
           extra={{ cues: clip.cues, rects: layoutRects(clip.layout), ...(clip.layout.caption ? { area: clip.layout.caption } : {}) }}
         />
       ) : null}
-      {!still
-        ? clip.overlays.map((o, i) => (
-            <Sequence key={`${o.scene}-${o.step}-${i}`} from={o.from} durationInFrames={o.durationInFrames} name={`overlay ${o.component.id}`}>
-              <OverlayView plan={plan} clip={clip} use={o} />
-            </Sequence>
-          ))
-        : null}
+      {!still ? <Overlays plan={plan} clip={clip} layer="top" /> : null}
     </AbsoluteFill>
   );
 }
@@ -248,6 +276,19 @@ function SegmentView({ plan, index }: { plan: EditPlan; index: number }) {
   return <AbsoluteFill>{node}</AbsoluteFill>;
 }
 
+// ── Progress bar ──────────────────────────────────────────────────────────────
+
+/** The chapter progress bar (L2.10): one overlay over every segment between the intro and the outro. */
+function Progress({ plan }: { plan: EditPlan }) {
+  const p = plan.tutorial?.progress;
+  if (!p) return null;
+  return (
+    <Sequence from={p.from} durationInFrames={p.durationInFrames} name={`progress ${p.component.id}`}>
+      <Use rc={p.component} plan={plan} durationInFrames={p.durationInFrames} extra={{ chapters: p.chapters, rects: layoutRects(plan.layout) }} />
+    </Sequence>
+  );
+}
+
 // ── Music ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -284,6 +325,7 @@ export function DemoVideo({ plan }: DemoVideoProps) {
             </Sequence>
           ))
         : null}
+      {ready ? <Progress plan={plan} /> : null}
       {ready ? <MusicBed plan={plan} /> : null}
     </AbsoluteFill>
   );

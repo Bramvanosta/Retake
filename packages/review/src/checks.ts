@@ -6,7 +6,7 @@
 import type { Timeline } from '@demo-studio/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
-import { brandmarkRect, viewOf } from '@demo-studio/editor';
+import { brandmarkRect, mapSourceRect, trackBoxAt, viewOf } from '@demo-studio/editor';
 import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
@@ -585,6 +585,62 @@ export function checkTransitionsOnClicks(ctx: CheckContext): Finding[] {
         locate(ctx, c.frame, { scene: c.scene, step: c.step }),
       ),
     );
+  }
+  return out;
+}
+
+// ── Tutorial overlays and story-card media (L2.10) ─────────────────────────────
+
+/**
+ * Tutorial overlays and data-driven cards:
+ *  - `tutorial-skipped` (warning): an overlay the switches ask for could not be shown (a spotlight or a step badge
+ *    without a recorded target box, a loupe without a field, a shortcut without its key) — the plan lists them;
+ *  - `tutorial-target-cut` (warning): the target of a spotlight, a badge or a loupe lies outside the visible capture
+ *    (zoom, reframe) while the overlay shows;
+ *  - `media-missing` (warning): a card / overlay names data (a captured text, a frame, a CSV, an email…) that the plan
+ *    could not resolve — the component shows a fallback.
+ */
+export function checkTutorial(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const { plan } = ctx;
+  for (const sk of plan.tutorial?.skipped ?? []) {
+    out.push(finding('warning', 'tutorial-skipped', `${sk.scene} step ${sk.step}: no ${sk.feature} overlay — ${sk.reason}`, sk.frame !== undefined ? locate(ctx, sk.frame) : undefined));
+  }
+  for (const s of plan.segments) {
+    if (!isClip(s)) continue;
+    const cap = s.layout.capture;
+    for (const o of s.overlays) {
+      if (!o.tutorial || o.tutorial === 'shortcuts' || !o.anchor?.bbox) continue;
+      // Sample the overlay at its start, middle and end (inside the clip) with its track box of that frame.
+      const frames = [0, Math.floor(o.durationInFrames / 2), Math.max(0, o.durationInFrames - 1)];
+      for (const k of frames) {
+        const f = o.from + k;
+        if (f >= s.durationInFrames) continue;
+        const box = trackBoxAt(o, k, plan.fps) ?? o.anchor.bbox;
+        const r = mapSourceRect(plan, s, f, box);
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        if (cx < cap.x || cx > cap.x + cap.w || cy < cap.y || cy > cap.y + cap.h) {
+          out.push(finding('warning', 'tutorial-target-cut', `${s.id} step ${o.step}: the ${o.tutorial} target is outside the visible capture (zoom or reframe)`, locate(ctx, s.from + f)));
+          break;
+        }
+      }
+    }
+  }
+  const media = (c: ResolvedComponent | null | undefined, where: string, frame: number) => {
+    if (!c) return;
+    const m = manifestOf(ctx.registry, c.id);
+    if (!m) return;
+    for (const [name, spec] of Object.entries(m.slots)) {
+      if (!['email', 'document', 'notification', 'capture', 'frame', 'data'].includes(spec.type)) continue;
+      const v = c.slots[name];
+      if (v === undefined || v.trim() === '' || c.media?.[name]) continue;
+      out.push(finding('warning', 'media-missing', `${where}: ${c.id} slot "${name}" (${spec.type} "${v}") could not be resolved — the component shows a fallback`, locate(ctx, frame)));
+    }
+  };
+  for (const s of plan.segments) {
+    media(s.component, `${s.kind} ${s.id}`, s.from);
+    if (isClip(s)) for (const o of s.overlays) media(o.component, `overlay of ${s.id}`, s.from + o.from);
   }
   return out;
 }

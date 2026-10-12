@@ -33,13 +33,19 @@ export type OutputVariant = 'landscape' | 'vertical' | 'square';
 /**
  * Slot types. `email`, `document` and `notification` slots name a run artefact (L2.9): the scenario writes the
  * artefact's name (`email: welcome`, `document: quote` or a project file `assets/terms.pdf`, `notification: 1` or a
- * name) and the planner hands the component the captured data as `props.media[<slot>]`.
+ * name) and the planner hands the component the captured data as `props.media[<slot>]`. L2.10: `capture` names a text
+ * read by `capture_text` (→ `TextMedia`), `frame` a frame of the capture (a mark, `start:` / `end:` a scene, `12.5s`)
+ * or an image file (→ `PictureMedia`), `data` a CSV / TSV file of the project (→ `TableMedia`). An `image` slot may
+ * name an image file of the project: the planner serves it and the slot holds its URL.
  */
-export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen' | 'email' | 'document' | 'notification';
+export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen' | 'email' | 'document' | 'notification' | 'capture' | 'frame' | 'data';
 
 /** Slot types whose value names a run artefact (resolved into `ComponentProps.media`). */
-export const ARTEFACT_SLOT_TYPES = ['email', 'document', 'notification'] as const;
+export const ARTEFACT_SLOT_TYPES = ['email', 'document', 'notification', 'capture'] as const;
 export type ArtefactSlotType = (typeof ARTEFACT_SLOT_TYPES)[number];
+/** Every slot type the planner resolves into `ComponentProps.media`. */
+export const MEDIA_SLOT_TYPES = ['email', 'document', 'notification', 'capture', 'frame', 'data'] as const;
+export type MediaSlotType = (typeof MEDIA_SLOT_TYPES)[number];
 
 export interface SlotSpec {
   type: SlotType;
@@ -155,7 +161,7 @@ export interface ComponentManifest {
    * Sample values used to render previews with any theme: slots, params, the seconds at which stills are taken (the
    * committed preview.png shows the last one) and the sample screen layouts show (default desktop).
    */
-  preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[]; screen?: 'desktop' | 'tablet' | 'phone' };
+  preview?: { slots?: Record<string, string>; params?: Record<string, unknown>; at?: number[]; screen?: 'desktop' | 'tablet' | 'phone'; target?: 'button' | 'field' };
 }
 
 /** A font file the host composition registers (`@font-face`) under a theme font family. */
@@ -251,7 +257,50 @@ export interface NotificationMedia {
   tag?: string;
 }
 
-export type MediaValue = EmailMedia | DocumentMedia | NotificationMedia;
+/** A text read from the page by `capture_text` (L2.10). */
+export interface TextMedia {
+  kind: 'text';
+  name: string;
+  /** What to show: the part the pattern selected, else the whole text. */
+  value: string;
+  /** The element's whole text. */
+  text: string;
+}
+
+/**
+ * An image for a card (L2.10): a frame of the capture — `url` is then the capture VIDEO, shown at `video.time_s` (the
+ * kit's `<Picture>` freezes it) — or an image file of the project.
+ */
+export interface PictureMedia {
+  kind: 'picture';
+  name: string;
+  url: string;
+  /** Pixels (unknown for an image file the planner could not measure). */
+  width?: number;
+  height?: number;
+  video?: { time_s: number };
+  /** What it shows, for people: "mark import-done", "end of scene import", "assets/before.png". */
+  label: string;
+}
+
+/** A table (a CSV / TSV file of the project, L2.10): the header row and the rows, as strings. */
+export interface TableMedia {
+  kind: 'table';
+  name: string;
+  columns: string[];
+  rows: string[][];
+}
+
+export type MediaValue = EmailMedia | DocumentMedia | NotificationMedia | TextMedia | PictureMedia | TableMedia;
+
+/** A chapter of the progress bar (L2.10), in frames relative to the progress overlay. */
+export interface ProgressChapter {
+  /** Segment id (scene, card). */
+  id: string;
+  label?: string;
+  from: number;
+  to: number;
+}
 
 /** A layout's evaluated rects in output px (`ComponentProps.rects`). */
 export interface LayoutRects {
@@ -287,8 +336,9 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   variant: OutputVariant;
   /**
    * layout: the rendered capture (video + camera) to place in the screen rect. interstitial: the dimmed last frame
-   * of the previous clip, when there is one. transition: the segment this render wraps (see `direction`).
-   * A React node (typed `unknown` to keep this contract free of React types).
+   * of the previous clip, when there is one. transition: the segment this render wraps (see `direction`). overlay with a
+   * `region`: the capture region, live (a magnifier). A React node (typed `unknown` to keep this contract free of
+   * React types).
    */
   screen?: unknown;
   /** layout with chrome: the URL to show. */
@@ -317,10 +367,28 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
    */
   anchor?: { x: number; y: number; w: number; h: number };
   /**
-   * The run artefacts named by the use's `email` / `document` / `notification` slots (key = slot name), resolved by the
-   * planner (images are served URLs). Absent when the use names none or the run did not capture it.
+   * The run artefacts named by the use's `email` / `document` / `notification` / `capture` slots and the pictures and
+   * tables of its `frame` / `data` slots (key = slot name), resolved by the planner (images are served URLs). Absent when
+   * the use names none or the run did not capture it.
    */
   media?: Record<string, MediaValue>;
+  /**
+   * overlay: the frame (relative to the overlay) of the moment it shows — a key press (studio/overlay-shortcut), a click
+   * (studio/overlay-steps) — when the planner timed it on one (L2.10).
+   */
+  moment?: number;
+  /**
+   * overlay with a capture region (studio/overlay-loupe, L2.10): the rect of the capture (source CSS px) that `screen`
+   * renders — `screen` fills its parent box with exactly that region, so a box of the region's aspect shows it undistorted.
+   */
+  region?: { x: number; y: number; w: number; h: number };
+  /** The video-wide progress overlay (studio/overlay-progress, L2.10): its chapters. */
+  chapters?: ProgressChapter[];
+  /**
+   * overlay: boxes (output px) already drawn over the capture while the overlay shows — the caption band of a caption
+   * over the screen (studio/caption-overlay) — that a free-standing overlay (key caps, a loupe) keeps clear of (L2.10).
+   */
+  avoid?: Array<{ x: number; y: number; w: number; h: number }>;
   /**
    * transition: the component renders twice — once around the outgoing segment ('exiting') and once around the
    * incoming one ('entering', drawn on top); progress = frame / durationInFrames. A crossfade overlaps the two

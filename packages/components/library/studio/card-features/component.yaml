@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A feature-list card (R-STO-02) in the family of the title card: kicker, display title and accent rule on one side,
+# 3–5 items appearing one by one on the other (stacked under the title in vertical and square) — each with an icon
+# from the kit's small built-in set (check, bolt, clock, chart, trend, shield, globe, users, truck, receipt, bell,
+# star, sparkles, lock, heart, leaf, cup, mail, search, calendar, cart, document, sliders, link, phone, tag) or its
+# number, a title and an optional line of text. Icons in an accent-tinted chip; paper or night tone.
+id: studio/card-features
+version: 1.0.0
+kind: card
+name: Feature list
+description: Full-screen list of 3–5 features appearing one by one — icon (built-in set) or number, title and a line of text — beside a kicker, display title and accent rule.
+tags: [card, story, features, list]
+slots:
+  title: {type: text, required: true, max_chars: 60, description: The card title.}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
+params:
+  type: object
+  properties:
+    items:
+      type: array
+      maxItems: 5
+      default: []
+      description: The features (3 to 5 read best), in order.
+      items:
+        type: object
+        properties:
+          title: {type: string, minLength: 1, maxLength: 60, description: The feature.}
+          text: {type: string, maxLength: 120, description: One line about it.}
+          icon:
+            type: string
+            enum: [check, bolt, clock, chart, trend, shield, globe, users, truck, receipt, bell, star, sparkles, lock, heart, leaf, cup, mail, search, calendar, cart, document, sliders, link, phone, tag]
+            description: An icon of the built-in set (default — the item's number).
+        required: [title]
+    stagger: {type: number, minimum: 0.1, maximum: 2, default: 0.45, description: Seconds between two items.}
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone with light type."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 5, min: 2, max: 15}
+variants: [landscape, vertical, square]
+preview:
+  slots: {kicker: Why cafés switch, title: Everything a quote needs}
+  params:
+    items:
+      - {title: Prices for every bag size, text: The roaster's price list follows each customer., icon: tag}
+      - {title: Delivery windows that fit, text: Pick dates on the roaster's real calendar., icon: calendar}
+      - {title: Proposals in hours, text: Notified the moment a reply lands., icon: bell}
+      - {title: One PDF for the books, text: Every accepted quote as a document., icon: document}
+  at: [1.2, 3.4]

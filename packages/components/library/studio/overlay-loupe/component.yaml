@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# The typing loupe (R-TUT-04, `tutorial: {loupe: true}`): during a `type` step, a magnified, LIVE view of the field —
+# the planner hands the region around the field (source px) and the composition renders that region of the capture
+# at its own resolution as `screen` (crisp: the capture is sampled again, not the edited frame upscaled). The lens sits
+# below the field (above when there is no room), never over it, inside the capture, with a pointer and a ring on the
+# field. Magnification relative to the capture on screen, at least 1.5 design px per CSS px so it reads in vertical and
+# square too. Opens over 0.25 s, closes over its last 0.3 s.
+id: studio/overlay-loupe
+version: 1.0.0
+kind: overlay
+name: Typing loupe
+description: A magnified live view of the field being typed into, beside it with a pointer and a ring on the field; readable in vertical and square.
+tags: [overlay, tutorial, loupe, magnifier, typing]
+slots: {}
+params:
+  type: object
+  properties:
+    zoom: {type: number, minimum: 1.2, maximum: 4, default: 2, description: Magnification relative to the capture on screen.}
+    max_width: {type: number, minimum: 300, maximum: 1800, default: 900, description: Widest lens in design px.}
+    placement: {type: string, enum: [auto, below, above], default: auto, description: "Side of the field (auto: below when there is room)."}
+    ring: {type: boolean, default: false, description: "A ring on the field (off by default: the pointer shows the field; a spotlight draws its own)."}
+tokens: [colors.accent, colors.text, colors.paper, colors.dark, style_bias]
+duration: {default: 3, min: 0.5, max: 60}
+variants: [landscape, vertical, square]
+preview:
+  target: field
+  at: [1]

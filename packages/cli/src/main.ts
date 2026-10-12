@@ -131,6 +131,8 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--square', 'the square 1:1 variant (1080×1080, reframed), written as <scenario>-v<N>-square.mp4')
     .option('--music <file>', 'music bed (an audio file: path from here, else relative to the project) instead of the scenario\'s')
     .option('--no-music', 'leave the scenario\'s music bed out')
+    .option('--tutorial', 'turn every tutorial overlay on (key caps, spotlight, step badges, loupe, progress bar) over the scenario\'s switches')
+    .option('--no-tutorial', 'leave the tutorial overlays out')
     .option('--scale <n>', 'output size multiplier of 1920×1080 (default: the capture scale)')
     .option('--no-intro', 'leave the intro out')
     .option('--no-outro', 'leave the outro out')

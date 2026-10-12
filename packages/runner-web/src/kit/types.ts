@@ -203,4 +203,8 @@ export interface KitApi {
   describe(ref: string): string;
   info(ref: string): ElementInfo | null;
   textOf(ref: string): string;
+  /** The element's rendered text (innerText; a field's value), whitespace collapsed, at most 2000 characters. */
+  visibleText(ref: string): string;
+  /** The focused element (description and box), or null when nothing visible has the focus. */
+  focused(): { desc: string; bbox: BBox } | null;
 }

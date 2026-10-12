@@ -1793,6 +1793,19 @@ export function demoKit(config: KitConfig): void {
       const el = deref(id);
       return el ? short(textOf(el), 200) : '';
     },
+    focused: () => {
+      // The focused field (type steps without `into`): its description and box, when it is visible.
+      let el: Element | null = document.activeElement;
+      while (el && el.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+      if (!el || el === document.body || el === document.documentElement || !isVisible(el)) return null;
+      return { desc: describeEl(el), bbox: bboxOf(el) };
+    },
+    visibleText: (id) => {
+      const el = deref(id);
+      if (!el) return '';
+      const raw = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : el instanceof HTMLElement ? el.innerText : el.textContent;
+      return norm(raw).slice(0, 2000);
+    },
   };
   Object.defineProperty(window, '__demoStudio', { value: api, configurable: true, enumerable: false, writable: true });
 }

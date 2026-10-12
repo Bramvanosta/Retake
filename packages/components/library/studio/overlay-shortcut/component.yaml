@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# The keys of a `press` step as key caps (R-TUT-01), shown automatically by the tutorial overlays (`tutorial:
+# {shortcuts: true}`) and timed on the REAL key press: the planner starts it 0.3 s before the press and hands the
+# press frame as `moment`; the caps go down on it (modifiers first), a "× N" chip counts repeated presses. macOS caps
+# show the symbols ⌘ ⌥ ⇧ ⌃ ↩ ⇥ (drawn as line glyphs, the same with every theme font), Windows / Linux the words Ctrl,
+# Alt, Shift. A plate in the theme's night tone (or its light tone) at the bottom centre of the capture; rises in,
+# fades out over its last 0.25 s.
+id: studio/overlay-shortcut
+version: 1.0.0
+kind: overlay
+name: Keyboard shortcut
+description: Key caps of a key press (⌘ K, Ctrl + K, ↩) at the bottom of the capture, pressed on the real key press; macOS symbols or Windows / Linux words, theme tones.
+tags: [overlay, tutorial, keyboard, shortcut]
+slots:
+  keys: {type: text, required: true, max_chars: 40, description: 'The key combination in Playwright syntax ("Meta+K", "ControlOrMeta+Shift+P", "Enter").'}
+  times: {type: text, max_chars: 4, description: Number of presses (a "× N" chip when more than one).}
+  label: {type: text, max_chars: 40, description: Optional word beside the caps (what the shortcut does).}
+params:
+  type: object
+  properties:
+    platform: {type: string, enum: [mac, windows, linux], default: mac, description: "Key conventions: macOS symbols (⌘ ⌥ ⇧ ⌃) or Windows / Linux words (Ctrl, Alt, Shift)."}
+    position: {type: string, enum: [bottom, top], default: bottom, description: Where on the capture.}
+    size: {type: number, minimum: 32, maximum: 120, default: 62, description: Key cap height in design px.}
+    tone: {type: string, enum: [dark, light], default: dark, description: "dark: a night-tone plate with light caps; light: a light plate with dark caps."}
+    hints: {type: boolean, default: false, description: "macOS: the key's name under its symbol (command, shift…)."}
+tokens: [colors.accent, colors.text, colors.paper, colors.dark, fonts.body, style_bias]
+duration: {default: 1.8, min: 0.4, max: 10}
+variants: [landscape, vertical, square]
+preview:
+  slots: {keys: Meta+K, label: Search}
+  at: [0.75]

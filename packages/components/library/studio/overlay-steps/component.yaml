@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# Numbered step badges (R-TUT-03, `tutorial: {steps: true}`): a round badge with the step number pops in beside each
+# clicked target as the cursor reaches it and a ring pulses on the target at the real click (the planner times both on
+# the timeline and numbers the steps per scene — or across the video with `numbering: video`), never covering the
+# target (left, above, right or below: the first side with room inside the capture). Accent badge, light number in
+# the body font; stays ~1 s after the click (a click often changes the page), then fades out over 0.3 s.
+id: studio/overlay-steps
+version: 1.0.0
+kind: overlay
+name: Step badge
+description: A numbered badge (1, 2, 3…) popping in beside the clicked target, never covering it, with a ring pulse on the target; accent colour, persists briefly.
+tags: [overlay, tutorial, steps, badge]
+slots:
+  number: {type: text, required: true, max_chars: 3, description: The step number (the planner counts the clicked steps).}
+params:
+  type: object
+  properties:
+    size: {type: number, minimum: 24, maximum: 96, default: 44, description: Badge diameter in design px.}
+    placement: {type: string, enum: [auto, left, right, above, below], default: auto, description: "Side of the target (auto: the first of left, above, right, below with room)."}
+    tone: {type: string, enum: [accent, dark], default: accent, description: "accent: the theme accent; dark: the theme's night tone."}
+    numbering: {type: string, enum: [scene, video], default: scene, description: Count the steps per scene or across the whole video (read by the planner).}
+    pulse: {type: boolean, default: true, description: A ring pulse on the target at the click.}
+tokens: [colors.accent, colors.text, colors.paper, colors.dark, fonts.body, style_bias]
+duration: {default: 1.6, min: 0.5, max: 30}
+variants: [landscape, vertical, square]
+preview:
+  slots: {number: '2'}
+  at: [0.75]

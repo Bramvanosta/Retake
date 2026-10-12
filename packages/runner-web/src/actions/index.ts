@@ -1,7 +1,7 @@
 import { hasLocator, normalizeTarget, pickTarget } from '@demo-studio/core';
 import type { NormalizedStep, TargetSpec } from '@demo-studio/core';
 import { click, doubleClick, hover } from './click.js';
-import { download, waitForEmail } from './artefacts.js';
+import { captureText, download, waitForEmail } from './artefacts.js';
 import { drag, dropFile } from './drag.js';
 import { press, type } from './keyboard.js';
 import { cursor, emit, evalStep, notify, screenshot } from './misc.js';
@@ -40,6 +40,7 @@ export const ACTIONS: ActionTable = {
   cursor,
   wait_for_email: waitForEmail,
   download,
+  capture_text: captureText,
 };
 
 /** The element a step acts on first (hovered instead of executed for irreversible steps in dry-run). */

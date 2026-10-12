@@ -184,6 +184,9 @@
             "file"
           ],
           "additionalProperties": false
+        },
+        "tutorial": {
+          "$ref": "#/$defs/Tutorial"
         }
       },
       "additionalProperties": false,
@@ -320,6 +323,9 @@
             },
             "additionalProperties": false
           },
+          "tutorial": {
+            "$ref": "#/$defs/Tutorial"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -388,6 +394,7 @@
               "cursor",
               "wait_for_email",
               "download",
+              "capture_text",
               "scene_open",
               "scene_still",
               "notification"
@@ -570,6 +577,9 @@
               "params"
             ],
             "additionalProperties": false
+          },
+          "tutorial": {
+            "$ref": "#/$defs/Tutorial"
           },
           "page": {
             "type": "string"
@@ -1012,11 +1022,65 @@
               "time"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "text"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "t": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              },
+              "scene": {
+                "type": "string"
+              },
+              "step": {
+                "type": "integer"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relative to the run directory."
+              },
+              "value": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "bbox": {
+                "$ref": "#/$defs/BBox"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "t",
+              "file",
+              "value",
+              "text",
+              "target"
+            ],
+            "additionalProperties": false
           }
         ],
-        "description": "A captured email, document or web notification (L2.9)."
+        "description": "A captured email, document or web notification (L2.9), or a text read by capture_text (L2.10)."
       },
-      "description": "Emails, documents and web notifications captured by the run."
+      "description": "Emails, documents, web notifications and texts captured by the run."
     },
     "warnings": {
       "type": "array",
@@ -1066,6 +1130,189 @@
         }
       ],
       "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+    },
+    "Tutorial": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/TutorialSpec"
+        }
+      ],
+      "description": "Tutorial overlays: true (all on), false (all off) or the switches {shortcuts, spotlight, steps, loupe, progress}."
+    },
+    "TutorialSpec": {
+      "type": "object",
+      "properties": {
+        "shortcuts": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Key caps of `press` steps, timed on the real key press (studio/overlay-shortcut)."
+        },
+        "spotlight": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "steps",
+                "clicks"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "on": {
+                  "type": "string",
+                  "enum": [
+                    "steps",
+                    "clicks"
+                  ],
+                  "description": "steps: every step with a target, over the whole step; clicks: around each click."
+                },
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Dim the screen except the step's target (studio/overlay-spotlight): steps (= true), clicks, false or {on, component, params}."
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Numbered badges (1, 2, 3…) next to clicked targets (studio/overlay-steps)."
+        },
+        "loupe": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "A magnified view of the field during `type` steps (studio/overlay-loupe)."
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "scenes",
+                "cards"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "chapters": {
+                  "type": "string",
+                  "enum": [
+                    "scenes",
+                    "cards"
+                  ],
+                  "description": "scenes: every scene and card is a chapter; cards: each card opens a chapter."
+                },
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Chapter progress bar across the video (studio/overlay-progress), scenario level only: scenes (= true), cards, false or {chapters, component, params}."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Automatic tutorial overlays fed by the timeline; the most specific level (step → scene → scenario) wins."
     },
     "SceneTransition": {
       "anyOf": [

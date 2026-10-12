@@ -13,4 +13,25 @@ export * from './devices.js';
 export * from './elements.js';
 export * from './notifications.js';
 export * from './phone.js';
-export type { ComponentProps, ThemeTokens, ThemeTextStyle, CaptionCue, LayoutRects, MediaValue, MediaImage, EmailMedia, DocumentMedia, NotificationMedia } from '../types.js';
+export * from './figures.js';
+export * from './qr.js';
+export * from './keys.js';
+export * from './icons.js';
+export * from './picture.js';
+export * from './place.js';
+export type {
+  ComponentProps,
+  ThemeTokens,
+  ThemeTextStyle,
+  CaptionCue,
+  LayoutRects,
+  MediaValue,
+  MediaImage,
+  EmailMedia,
+  DocumentMedia,
+  NotificationMedia,
+  TextMedia,
+  PictureMedia,
+  TableMedia,
+  ProgressChapter,
+} from '../types.js';

@@ -6,7 +6,9 @@
  */
 export * from './plan-types.js';
 export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
-export type { PlanEditInput } from './plan.js';
+export type { PlanEditInput, PlanInputFile } from './plan.js';
+export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
+export { imageFileSize, planFileRefs, planInputFiles } from './inputs.js';
 export { DEFAULT_IDLE_THRESHOLD_S, IDLE_KEEP_S, MARK_WINDOW_S, SPEED_RAMP_S, planRunTiming, protectedSpans, outFrameAt } from './timing.js';
 export type { MapPiece, ProtectedSpan, RunTiming, RunTimingInput } from './timing.js';
 export { MIN_ZOOM_EASE_S, REFRAME, cameraTrack, clampView, corridorSmooth, dampedSmooth, hintEase, reframeTrack } from './camera.js';
@@ -53,7 +55,7 @@ export {
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
-export { brandmarkRect, envelopeAt, layoutRects, musicPlayGain, musicVolumeAt, srcFrameAt, transitionWindows, urlAt } from './remotion/frames.js';
+export { brandmarkRect, captionBandOver, envelopeAt, layoutRects, loupePlacement, overlayAvoid, shortcutRow, musicPlayGain, musicVolumeAt, srcFrameAt, trackBoxAt, transitionWindows, urlAt } from './remotion/frames.js';
 export type { TransitionWindow } from './remotion/frames.js';
 export { buildComponentPreview, loadPreviewSamples } from './preview.js';
 export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';

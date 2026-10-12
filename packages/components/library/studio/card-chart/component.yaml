@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# An animated chart card (R-STO-06) in the family of the title card: kicker and display title over a bar chart (bars
+# grow one after the other) or a line chart (the line draws itself, points pop, a soft area under it), values above,
+# categories below, the highlighted category (default: the last) in the accent and the others in a quiet tone. Data
+# inline (`data: [{label, value}]`) or from a CSV / TSV file of the project (`data:` slot; `x` / `y` name the columns —
+# default the first column and the first numeric one). Values formatted with prefix / suffix / decimals.
+id: studio/card-chart
+version: 1.0.0
+kind: card
+name: Chart
+description: Full-screen animated bar or line chart from inline data or a CSV file of the project, the highlighted value in the accent, with kicker, title and a source line.
+tags: [card, story, chart, data]
+slots:
+  title: {type: text, max_chars: 60, description: The card title.}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the title.}
+  data: {type: data, description: 'A CSV / TSV file of the project (header row, then one row per point).'}
+  note: {type: text, max_chars: 100, description: 'A source or footnote line under the chart.'}
+params:
+  type: object
+  properties:
+    type: {type: string, enum: [bar, line], default: bar, description: Bars or a line.}
+    data:
+      type: array
+      maxItems: 24
+      default: []
+      description: Inline points (used when no `data` file is given).
+      items:
+        type: object
+        properties:
+          label: {type: string, description: The category (x).}
+          value: {type: number, description: The value (y).}
+        required: [label, value]
+    x: {type: string, default: '', description: Column of the categories in the file (default — the first).}
+    y: {type: string, default: '', description: Column of the values in the file (default — the first numeric column).}
+    highlight: {type: string, default: '', description: 'Category drawn in the accent (default — the last; "none": none).'}
+    prefix: {type: string, default: '', description: 'Before each value ("€").'}
+    suffix: {type: string, default: '', description: 'After each value (" %", "k").'}
+    decimals: {type: number, minimum: -1, maximum: 4, default: -1, description: 'Decimals of the values (-1 — as in the data, at most 2).'}
+    max_points: {type: number, minimum: 2, maximum: 24, default: 12, description: The last N points are shown.}
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone with light type."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 5, min: 2, max: 15}
+variants: [landscape, vertical, square]
+preview:
+  slots: {kicker: First season, title: Quote requests per month, data: sample, note: Source — the shop's quote log.}
+  at: [3]

@@ -3,8 +3,11 @@
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
 import type { ComponentKind } from '@demo-studio/core';
+import { captionBandBox, loupeLens, shortcutPlateBox, shortcutPlateMetrics } from '@demo-studio/components/kit';
+import type { LoupePlacement } from '@demo-studio/components/kit';
+import { mapSourceRect } from '../layout.js';
 import type { LayoutRects } from '@demo-studio/components';
-import type { ClipSegment, EditPlan, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
+import type { ClipSegment, EditPlan, OverlayUse, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
 import { clamp } from '../util.js';
 
 /**
@@ -176,4 +179,133 @@ export type StandInKind = ComponentKind;
 export function standInParams(kind: ComponentKind, transitionKind?: 'crossfade' | 'fade-black'): Record<string, unknown> {
   if (kind === 'transition') return { through: transitionKind === 'fade-black' ? 'text' : 'none' };
   return {};
+}
+
+/** Glide of an overlay's anchor between two boxes of its track (output seconds, eased in and out). */
+export const TRACK_GLIDE_S = 0.45;
+
+/**
+ * The anchor box (source CSS px) of an overlay at frame `local` (relative to the overlay): its track's box, gliding
+ * from the previous one over `TRACK_GLIDE_S` after each change (smoothstep); else its static anchor.
+ */
+export function trackBoxAt(use: Pick<OverlayUse, 'track' | 'anchor'>, local: number, fps: number): { x: number; y: number; w: number; h: number } | undefined {
+  const track = use.track;
+  if (!track || track.length === 0) {
+    const b = use.anchor?.bbox;
+    if (b) return { ...b };
+    const p = use.anchor?.point;
+    return p ? { x: p.x, y: p.y, w: 0, h: 0 } : undefined;
+  }
+  let k = 0;
+  for (let i = 0; i < track.length; i++) if (track[i].at <= local) k = i;
+  const cur = track[k].bbox;
+  if (k === 0) return { ...cur };
+  const glide = Math.max(1, TRACK_GLIDE_S * fps);
+  const t = clamp((local - track[k].at) / glide, 0, 1);
+  if (t >= 1) return { ...cur };
+  const e = t * t * (3 - 2 * t);
+  const prev = track[k - 1].bbox;
+  const lerp = (a: number, b: number) => Math.round((a + (b - a) * e) * 100) / 100;
+  return { x: lerp(prev.x, cur.x), y: lerp(prev.y, cur.y), w: lerp(prev.w, cur.w), h: lerp(prev.h, cur.h) };
+}
+
+/**
+ * The box of a clip's caption band when the caption is drawn over the screen (`position: over`, e.g.
+ * studio/caption-overlay): the box the caption component reserves (its band grows up from the bottom of it), in output
+ * px. Undefined when the caption sits beside or below the capture, or the clip has no cue.
+ */
+export function captionBandOver(plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>, clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout'>): Rect | undefined {
+  const params = clip.caption?.params ?? {};
+  if (!clip.caption || clip.cues.length === 0 || params.position !== 'over') return undefined;
+  const maxWidth = typeof params.max_width === 'number' ? params.max_width : 1400;
+  const band = captionBandBox({ rects: { screen: clip.layout.capture }, area: clip.layout.caption, width: plan.width, height: plan.height, unit: plan.unit, position: 'over', maxWidth, variant: plan.variant });
+  return band.over ? band.box : undefined;
+}
+
+/**
+ * The row the built-in key caps (studio/overlay-shortcut) take in a clip, full width, output px: the bottom (or top) of
+ * the capture, above a caption band over the screen when one is on during them.
+ */
+export function shortcutRow(plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>, clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout'>, use: Pick<OverlayUse, 'component' | 'from' | 'durationInFrames'>): Rect | undefined {
+  if (use.component.id !== 'studio/overlay-shortcut') return undefined;
+  const p = use.component.params;
+  const m = shortcutPlateMetrics(typeof p.size === 'number' ? p.size : 62, plan.unit, plan.variant ?? 'landscape');
+  const screen = clip.layout.capture;
+  const bounds = { x: screen.x + m.inset, y: screen.y + m.inset, w: screen.w - 2 * m.inset, h: screen.h - 2 * m.inset };
+  const band = captionBandOver(plan, clip);
+  const bandOn = band && clip.cues.some((c) => c.from < use.from + use.durationInFrames && c.to > use.from);
+  const row = shortcutPlateBox({ bounds, w: bounds.w, h: m.height, position: p.position === 'top' ? 'top' : 'bottom', ...(bandOn ? { avoid: [band] } : {}), gap: m.clearance });
+  const pad = 8 * plan.unit;
+  return { x: row.x, y: row.y - pad, w: row.w, h: row.h + 2 * pad };
+}
+
+/**
+ * What an overlay keeps clear of (`ComponentProps.avoid`, output px): the caption band over the screen while one of the
+ * clip's cues is on during the overlay [from, from + durationInFrames) (frames relative to the clip); for a loupe or a
+ * step badge, also the row of the key caps showing during it.
+ */
+export function overlayAvoid(
+  plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant'>,
+  clip: Pick<ClipSegment, 'caption' | 'cues' | 'layout' | 'overlays'>,
+  use: Pick<OverlayUse, 'from' | 'durationInFrames'> & Partial<Pick<OverlayUse, 'tutorial'>>,
+): Rect[] {
+  const out: Rect[] = [];
+  const end = use.from + use.durationInFrames;
+  const band = captionBandOver(plan, clip);
+  if (band && clip.cues.some((c) => c.from < end && c.to > use.from)) out.push(band);
+  if (use.tutorial === 'loupe' || use.tutorial === 'steps') {
+    const seen = new Set<string>();
+    for (const o of clip.overlays) {
+      if (o.tutorial !== 'shortcuts' || o.from >= end || o.from + o.durationInFrames <= use.from) continue;
+      const row = shortcutRow(plan, clip, o);
+      const key = row ? `${row.x},${row.y},${row.w},${row.h}` : '';
+      if (row && !seen.has(key)) {
+        seen.add(key);
+        out.push(row);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * One side for a loupe gliding from field to field (`placement: auto`): when the fields of its track would put the lens
+ * on different sides (one near the bottom of the capture or the key caps), the side where it fits for every field —
+ * so it never jumps across a field mid-glide. Undefined: keep the component's own choice.
+ */
+export function loupePlacement(
+  plan: Pick<EditPlan, 'width' | 'height' | 'unit' | 'variant' | 'source' | 'fps'>,
+  clip: ClipSegment,
+  use: Pick<OverlayUse, 'component' | 'from' | 'durationInFrames' | 'track'>,
+  avoid: readonly Rect[],
+): LoupePlacement | undefined {
+  const p = use.component.params;
+  if ((p.placement ?? 'auto') !== 'auto' || !use.track || use.track.length < 2) return undefined;
+  const glide = Math.round(TRACK_GLIDE_S * plan.fps);
+  const lensAt = (k: { at: number; bbox: Rect }, i: number, placement: LoupePlacement) => {
+    const f = use.from + Math.min(use.durationInFrames - 1, k.at + (i === 0 ? 0 : glide));
+    return loupeLens({
+      anchor: mapSourceRect(plan, clip, f, k.bbox),
+      region: k.bbox,
+      screen: clip.layout.capture,
+      width: plan.width,
+      height: plan.height,
+      unit: plan.unit,
+      variant: plan.variant ?? 'landscape',
+      zoom: typeof p.zoom === 'number' ? p.zoom : 2,
+      maxWidth: typeof p.max_width === 'number' ? p.max_width : 900,
+      placement,
+      avoid,
+    }).box;
+  };
+  const sides = use.track.map((k, i) => lensAt(k, i, 'auto').side);
+  if (sides.every((s) => s === sides[0])) return undefined;
+  for (const side of ['below', 'above'] as const) {
+    if (use.track.every((k, i) => {
+      const b = lensAt(k, i, side);
+      return b.fits && b.side === side;
+    }))
+      return side;
+  }
+  return undefined;
 }

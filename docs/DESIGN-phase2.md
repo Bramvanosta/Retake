@@ -50,6 +50,17 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/document-pdf | card | A4 page(s) of a captured or project PDF, paper shadow, zoom / scroll / static (L2.9) |
 | studio/phone-lockscreen, studio/phone-home-badge | card | phone lock screen with notifications arriving (stacked, grouped) · home screen with the app badge counting up (L2.9) |
 | studio/transition-tap-open | transition | tap on the outgoing tap target, the next segment zooms out of it (L2.9) |
+| studio/overlay-shortcut | overlay | key caps of a `press` (or the Enter of a `type`), going down at the real press; macOS glyphs or Ctrl / Alt words; "× N" chip (L2.10, tutorial) |
+| studio/overlay-spotlight | overlay | the capture dimmed except a soft rounded cut-out gliding from target to target; drawn on the screen layer (L2.10, tutorial) |
+| studio/overlay-steps | overlay | numbered badge beside the clicked target, ring pulse at the click (L2.10, tutorial) |
+| studio/overlay-loupe | overlay | lens over a typed field, rendered from the capture region itself, gliding from field to field (L2.10, tutorial) |
+| studio/overlay-progress | overlay | thin chapter bar over the whole video between intro and outro (L2.10, tutorial) |
+| studio/card-figure | card | key figure counting up, value written as given or captured by `capture_text` (L2.10) |
+| studio/card-features | card | 3–5 features with icons appearing one by one (L2.10) |
+| studio/card-before-after | card | two frames (marks, scene starts / ends, times or image files) with a wipe and a handle (L2.10) |
+| studio/card-testimonial | card | quote, name, role · company, avatar or initials, logo (L2.10) |
+| studio/card-cta | card | final call to action: button, url and a QR code from the kit's local encoder (L2.10) |
+| studio/card-chart | card | animated bar or line chart from inline data or a CSV / TSV of the project (L2.10) |
 
 Since L2.4 every id above exists; since L2.5 the six reference-look components (intro-stack, outro-stack, layout-card,
 caption-below, interstitial-clock, transition-crossfade; tag `reference-look`, version 1.x) reproduce
@@ -250,6 +261,30 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   last overlay still showing in the outgoing clip's final second — into `PlanTransition.anchor` (output px), handed to
   the transition as `props.anchor` (studio/transition-tap-open zooms out of it). The kit's `notificationBox` and
   `phoneCardGeometry` mirror the anchors of the notification and phone components (tested equal).
+
+### 1.7 Tutorial overlays & story cards (L2.10)
+- **Switches, not steps**: `tutorial` on the scenario, a scene or a step (`true` / `false` / a mode / `{component?,
+  params?}`; core `resolveTutorial`, most specific wins; `progress` scenario-only). The runner copies them into the
+  timeline (`video.tutorial`, `scene.tutorial`, `event.tutorial`) with what the overlays need: `press` keys, `type`
+  timing (`t_type`, `t_typed`, `t_enter`) and, for a `type` without `into`, the focused field as its target.
+- **Planner** (`editor/src/tutorial.ts`, pure, `TUTORIAL_TIMING`): overlay uses with `tutorial`, `moment` (the frame
+  of the press / click, relative to the overlay), `track` (anchor boxes over time in source CSS px; the composition
+  glides between them with `trackBoxAt`), `region` (a capture region the composition renders as the component's
+  `screen`: the loupe), `layer: 'screen'` (under caption, brand mark and the other overlays: the spotlight). The
+  progress bar is one `plan.tutorial.progress` over the video with `chapters`. The composition hands overlays `avoid`
+  (output px): the caption band of a caption drawn over the screen while a cue is on (`overlayAvoid`, `captionBandOver`)
+  and, for a loupe or a badge, the row of the built-in key caps showing at the same time (`shortcutRow`, from the kit's
+  `shortcutPlateMetrics` / `shortcutPlateBox` the component uses too); key caps move above the band, the loupe and the
+  badges pick a side clear of them (kit `clearOf`, `placeBeside({avoid})`, `loupeLens`), and a loupe gliding over
+  several fields keeps one side when its fields would put it on different ones (`loupePlacement`).
+  Tutorial targets join the reframe
+  targets; what cannot be shown goes to `plan.tutorial.skipped` (plan warning, review `tutorial-skipped`).
+- **Story-card slots**: `capture` (a `capture_text` artefact → `TextMedia`), `frame` (`mark:` / `start:` / `end:` /
+  time / image file → `PictureMedia`: the capture video frozen at that time, or a plan asset), `data` (CSV / TSV →
+  `TableMedia`), image slots naming project files. Project files are read before planning (`planInputFiles`) and
+  passed as `PlanEditInput.files`: `planEdit` stays pure.
+- **Review**: `tutorial-skipped`, `tutorial-target-cut`, `media-missing`; the opening-still comparison switches to the
+  capture frames when an overlay or a caption over the screen is on during the still.
 
 ## 2. Editor (`packages/editor`)
 

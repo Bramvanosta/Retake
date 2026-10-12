@@ -24,7 +24,7 @@ afterAll(async () => {
 });
 
 describe('studio components', () => {
-  it('list: an empty workspace lists the built-in library (26 components since L2.9, each with its preview)', async () => {
+  it('list: an empty workspace lists the built-in library (37 components since L2.10, each with its preview)', async () => {
     const r = await studio('components', 'list');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.out).not.toContain('none yet');
@@ -36,7 +36,7 @@ describe('studio components', () => {
       components_dir: string;
     };
     expect(json.components.filter((c) => c.source === 'workspace')).toEqual([]);
-    expect(json.components).toHaveLength(26);
+    expect(json.components).toHaveLength(37);
     const reference = ['studio/caption-below', 'studio/interstitial-clock', 'studio/intro-stack', 'studio/layout-card', 'studio/outro-stack', 'studio/transition-crossfade'];
     for (const c of json.components) {
       expect(c.tags ?? [], c.id).not.toContain('placeholder');

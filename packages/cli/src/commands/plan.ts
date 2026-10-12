@@ -4,7 +4,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, loadProjectTemplate, parseScenario, readJson, runIdMatchesScenario, writeJson } from '@demo-studio/core';
 import type { LoadedProject, Scenario, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
-import { planEdit, summarizePlan } from '@demo-studio/editor';
+import { planEdit, planInputFiles, summarizePlan } from '@demo-studio/editor';
 import type { EditOverrides } from '@demo-studio/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import { variantOption } from './render.js';
@@ -118,6 +118,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
     scenario: await runScenario(run.dir),
     overrides,
+    files: await planInputFiles(timeline, project),
   });
   if (opts.out) {
     const out = resolve(opts.out);

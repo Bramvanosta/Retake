@@ -63,12 +63,35 @@ export function viewMoves(plan: Pick<EditPlan, 'source' | 'variant'>, clip: Clip
   return Math.abs(va.cx - vb.cx) > tol || Math.abs(va.cy - vb.cy) > tol || Math.abs(va.w - vb.w) > tol;
 }
 
-/** The capture frames shown at the still pair of a clip whose view moves (their signatures are compared instead). */
+/**
+ * An overlay of the clip (a step overlay, a tutorial overlay: a spotlight dims the whole screen) is on screen at some
+ * point between output frames `a` and `b`.
+ */
+export function overlayDuring(clip: ClipSegment, a: number, b: number): boolean {
+  return clip.overlays.some((o) => clip.from + o.from <= b && clip.from + o.from + o.durationInFrames > a);
+}
+
+/** A caption drawn over the screen (`position: over`) is on between output frames `a` and `b`. */
+export function captionOverDuring(clip: ClipSegment, a: number, b: number): boolean {
+  if (clip.caption?.params?.position !== 'over') return false;
+  return clip.cues.some((c) => clip.from + c.from <= b && clip.from + c.to > a);
+}
+
+/**
+ * The opening still of a clip is compared on its capture frames rather than on the rendered ones: the view moves (a
+ * reframe, a zoom), an overlay comes in during it (L2.10: the spotlight of the first step fades in before it starts) or
+ * a caption over the screen does (its entrance animation).
+ */
+export function stillFromSource(plan: Pick<EditPlan, 'source' | 'variant'>, clip: ClipSegment, a: number, b: number): boolean {
+  return viewMoves(plan, clip, a, b) || overlayDuring(clip, a, b) || captionOverDuring(clip, a, b);
+}
+
+/** The capture frames shown at the still pair of a clip compared on its capture frames (`stillFromSource`). */
 export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, spans: SegmentSpan[], fps: number): number[] {
   const out: number[] = [];
   for (const s of spans) {
     const pair = stillPair(s, fps);
-    if (!pair || !isClip(s.segment) || !viewMoves(plan, s.segment, pair[0], pair[1])) continue;
+    if (!pair || !isClip(s.segment) || !stillFromSource(plan, s.segment, pair[0], pair[1])) continue;
     out.push(s.segment.srcFrames[pair[0] - s.from], s.segment.srcFrames[pair[1] - s.from]);
   }
   return out;
@@ -184,8 +207,9 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
       // Opening still: nothing should change on screen (the page is loaded and the cursor rests).
       const pair = stillPair(span, fps);
       if (pair) {
-        // When the view moves during the still (a reframe, a zoom), the page itself is compared: its capture frames.
-        const moving = viewMoves(plan, seg, pair[0], pair[1]);
+        // When the view moves during the still (a reframe, a zoom) or something is drawn over the page (an overlay, a
+        // caption over the screen), the page itself is compared: its capture frames.
+        const moving = stillFromSource(plan, seg, pair[0], pair[1]);
         const srcA = seg.srcFrames[pair[0] - seg.from];
         const srcB = seg.srcFrames[pair[1] - seg.from];
         const a = moving ? input.sourceSigs?.get(srcA) : input.analyses.get(pair[0])?.screenSig;

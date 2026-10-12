@@ -10,6 +10,7 @@ import {
   SlotsSchema,
   TargetObjectSchema,
   TargetSpecSchema,
+  TutorialSwitchSchema,
   componentIdSchema,
   keyString,
   millis,
@@ -54,6 +55,9 @@ export const stepCommonShape = {
   hold: seconds().describe('Seconds of stillness AFTER the step; never trimmed by the editor.').optional(),
   camera: CameraHintSchema.optional(),
   overlay: OverlaySpecSchema.optional(),
+  tutorial: TutorialSwitchSchema.describe(
+    "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+  ).optional(),
   mark: slugString('mark').describe('Named marker (editor: speed 1 around it; review: key frame).').optional(),
   timeout: positiveSeconds().describe('Seconds before the step fails (default 15).').optional(),
   optional: z.boolean().describe('A failure is logged but does not abort the run.').optional(),
@@ -270,6 +274,14 @@ const WaitForEmailArgsSchema = z.strictObject({
   as: slugString('artefact name').describe('Artefact name, referenced by components as `email: <as>`.'),
 });
 
+const CaptureTextArgsSchema = z.strictObject({
+  target: TargetSpecSchema.describe('Element whose visible text is read.'),
+  as: slugString('artefact name').describe('Artefact name, referenced by components as `capture: <as>`.'),
+  pattern: nonEmpty()
+    .describe('Keep a part of the text: a regular expression (/…/flags or plain source); its first group, else the whole match.')
+    .optional(),
+});
+
 const DownloadArgsSchema = z.strictObject({
   click: TargetSpecSchema.describe('Link or button to click (real click).'),
   as: slugString('artefact name').describe('Artefact name, referenced by components as `document: <as>`.'),
@@ -303,6 +315,7 @@ export const ACTION_ARG_SCHEMAS = {
   cursor: CursorArgsSchema,
   wait_for_email: WaitForEmailArgsSchema,
   download: DownloadArgsSchema,
+  capture_text: CaptureTextArgsSchema,
 } satisfies { [K in ActionName]: z.ZodType<ActionArgsMap[K]> };
 
 export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
@@ -331,6 +344,7 @@ export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
   cursor: 'Show, hide, move or teleport the in-page cursor.',
   wait_for_email: "Wait for a new message in the project's test mailbox and capture it (from, to, subject, text, an image of its HTML) as an artefact.",
   download: 'Click a link or button and capture the file it produces (download, or a document opened in a new tab) as an artefact; PDFs are rasterised.',
+  capture_text: 'Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`).',
 };
 
 function stepBranch<K extends ActionName>(action: K) {

@@ -5,8 +5,8 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { BBox, FrameSpec, PointSpec, TransitionKind, Template } from '@demo-studio/core';
-import type { CaptionCue, ComponentManifest, MediaValue, ThemeTokens } from '@demo-studio/components';
+import type { BBox, FrameSpec, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@demo-studio/core';
+import type { CaptionCue, ComponentManifest, MediaValue, ProgressChapter, ThemeTokens } from '@demo-studio/components';
 
 export type { CaptionCue };
 
@@ -149,6 +149,43 @@ export interface OverlayUse {
    * the runner recorded no anchor.
    */
   anchor?: { bbox?: BBox; point?: PointSpec };
+  /** L2.10: the tutorial overlay this use is (absent: a step `overlay`). */
+  tutorial?: Exclude<TutorialFeatureName, 'progress'>;
+  /** `screen`: drawn right over the capture, under the caption, the brand mark and the other overlays (a spotlight's dim). */
+  layer?: 'screen';
+  /**
+   * The anchor along the overlay, in SOURCE CSS px, from frame `at` (relative to the overlay) on: the composition glides
+   * from one box to the next over `TRACK_GLIDE_S` (a spotlight following the steps).
+   */
+  track?: Array<{ at: number; bbox: BBox }>;
+  /** The frame (relative to the overlay) of the moment it shows: the key press, the click (`ComponentProps.moment`). */
+  moment?: number;
+  /** A capture region (source CSS px) the composition renders as the component's `screen` (the typing loupe). */
+  region?: BBox;
+}
+
+/** The video-wide chapter progress bar (L2.10): drawn over every segment between the intro and the outro. */
+export interface PlanProgress {
+  component: ResolvedComponent;
+  /** Output frames [from, from + durationInFrames). */
+  from: number;
+  durationInFrames: number;
+  /** What a chapter is: every scene and card, or each card and what follows it. */
+  mode: 'scenes' | 'cards';
+  /** Frames relative to `from`. */
+  chapters: ProgressChapter[];
+}
+
+/** Tutorial overlays of a plan (L2.10). */
+export interface PlanTutorial {
+  /** Uses per overlay (shortcuts, spotlight, steps, loupe; progress = 1 when the bar is shown). */
+  uses: Partial<Record<TutorialFeatureName, number>>;
+  /**
+   * Steps an overlay was asked for but could not be shown (a spotlight or a badge without a target box, a loupe without
+   * a field…): the review reports them. `frame` = the step's output frame in the video, when it is on screen.
+   */
+  skipped: Array<{ feature: TutorialFeatureName; scene: string; step: number; frame?: number; reason: string }>;
+  progress?: PlanProgress;
 }
 
 /** Playback speed over output frames [from, to) of a clip (relative to the segment). */
@@ -342,6 +379,8 @@ export interface EditPlan {
   markers: Array<{ name: string; frame: number; scene: string }>;
   timemap: TimeMapEntry[];
   music?: PlanMusic;
+  /** Tutorial overlays (L2.10): what was planned, what could not be shown, the progress bar. Absent when none is on. */
+  tutorial?: PlanTutorial;
   /** Every `ds-asset:` URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
   assets: Record<string, string>;
   /** Run, scenario, project and theme the plan was made from. */
@@ -381,4 +420,9 @@ export interface EditOverrides {
   /** Use another theme (template) for this render. */
   theme?: string;
   music?: string | false;
+  /**
+   * Tutorial overlays at render time (L2.10): `false` = none; `true` or switches = applied over the scenario's switches
+   * (the scenes' and steps' own switches still apply under them).
+   */
+  tutorial?: TutorialSwitch;
 }

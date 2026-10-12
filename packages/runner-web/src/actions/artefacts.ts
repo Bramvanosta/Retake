@@ -183,3 +183,48 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
     data: { artefact: 'document', name: args.as, file: a.file, file_name: fileName, mime, via: captured.via, bytes: bytes.length },
   };
 }
+
+/** A `capture_text` pattern: `/source/flags` or a plain source. */
+export function textPattern(pattern: string): RegExp {
+  const m = /^\/(.*)\/([a-z]*)$/.exec(pattern);
+  return m ? new RegExp(m[1], m[2]) : new RegExp(pattern);
+}
+
+/** What capture_text keeps of a text: the pattern's first group, else its match, else the whole text; null = no match. */
+export function captureValue(text: string, pattern?: string): string | null {
+  if (!pattern) return text;
+  const m = textPattern(pattern).exec(text);
+  if (!m) return null;
+  return (m[1] ?? m[0]).trim();
+}
+
+/**
+ * `capture_text` (L2.10, R-STO-01): read the target's rendered text (a field's value) and keep it — or the part the
+ * pattern selects — as the text artefact `as` (artefacts/texts/<as>.json), for a figure card. The text is polled until
+ * the pattern matches (a figure still loading), up to the step timeout. No cursor move: nothing to film.
+ */
+export async function captureText(ctx: StepContext, args: NormalizedArgsMap['capture_text']): Promise<ActionResult> {
+  const { rt } = ctx;
+  if (rt.artefacts.has('text', args.as)) throw new StepError(`capture_text: a text named "${args.as}" was already captured in this run`);
+  const deadline = wallNow() + ctx.timeoutMs;
+  const r = await resolveTarget(ctx, args.target);
+  let text = '';
+  let value: string | null = null;
+  for (;;) {
+    text = (await rt.kit.visibleText(r.ref)) ?? '';
+    value = text ? captureValue(text, args.pattern) : null;
+    if (value !== null && value !== '') break;
+    if (wallNow() >= deadline) {
+      throw new StepError(
+        args.pattern
+          ? `capture_text: the text of ${r.desc} does not match ${args.pattern} (text: ${JSON.stringify(text.slice(0, 160))})`
+          : `capture_text: ${r.desc} has no text`,
+      );
+    }
+    await rt.sleep(150);
+  }
+  const where = rt.current ? { scene: rt.current.scene, step: rt.current.step } : {};
+  const a = await rt.artefacts.addText(args.as, { value, text, target: r.desc, bbox: r.bbox, ...(args.pattern ? { pattern: args.pattern } : {}) }, rt.now(), where);
+  rt.log('info', `capture_text: "${value}" from ${r.desc} as ${args.as}`);
+  return { target: { desc: r.desc, bbox: r.bbox }, data: { artefact: 'text', name: args.as, file: a.file, value } };
+}

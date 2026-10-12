@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/card-testimonial",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 3.2,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "e58e89d8cfdd9f5f",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

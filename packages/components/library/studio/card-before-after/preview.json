@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/card-before-after",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 1.7,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "c3b04569ed7657a4",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

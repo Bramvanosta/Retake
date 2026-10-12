@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A key-figure card (R-STO-01) in the family of the title card: an uppercase kicker in the accent, the figure in the
+# display font counting up from `from` to its value (written as given — "€720.00", "921", "1 240 bags": prefix, suffix,
+# separators and decimals kept, tabular digits so it does not jitter), an accent rule, a label and an optional line of
+# text. The value comes from the `value` slot or from a text the run read on the page (`capture: <as>` of a
+# `capture_text` step; the captured value wins). Paper or night tone.
+id: studio/card-figure
+version: 1.0.0
+kind: card
+name: Key figure
+description: Full-screen key figure — kicker, a big animated counter (value from the scenario or captured from the page), accent rule, label and text — on the theme background or night tone.
+tags: [card, story, figure, counter]
+slots:
+  value: {type: text, max_chars: 24, description: 'The figure as it should read at the end ("€720.00", "921", "+38 %").'}
+  capture: {type: capture, description: "A text the run read with capture_text (`as`): its value is the figure."}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the figure.}
+  label: {type: text, max_chars: 60, description: 'What the figure counts, under it.'}
+  text: {type: text, max_chars: 140, description: Optional supporting line.}
+params:
+  type: object
+  properties:
+    from: {type: number, default: 0, description: Where the counter starts.}
+    count: {type: number, minimum: 0, maximum: 6, default: 1.6, description: Seconds the counter runs (0 = no counting).}
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone with light type."}
+    align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 3.5, min: 1.5, max: 12}
+variants: [landscape, vertical, square]
+preview:
+  slots: {value: '€720.00', kicker: Average order, label: per café and per month, text: Quotes accepted in the first season of the shop.}
+  at: [0.8, 2.6]

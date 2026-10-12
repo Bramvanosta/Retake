@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/overlay-progress",
+  "version": "1.0.0",
+  "kind": "overlay",
+  "theme": "editorial",
+  "at": 5.6,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "1a3196aa31777fa9",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

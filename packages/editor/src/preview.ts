@@ -14,12 +14,13 @@ import {
   fillSlots,
   previewMoment,
 } from '@demo-studio/components';
-import { ARTEFACT_SLOT_TYPES } from '@demo-studio/components';
+import { MEDIA_SLOT_TYPES } from '@demo-studio/components';
 import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, MediaValue, ResolvedComponentRef, ThemeTokens } from '@demo-studio/components';
 import { FALLBACK_GEOMETRY, planLayout } from './layout.js';
 import { brandmarkRect, layoutRects } from './remotion/frames.js';
 import type { ComponentPreviewSpec, PreviewRect, PreviewScene, PreviewUse } from './remotion/preview-types.js';
 import { transitionKindOf } from './resolve.js';
+import { loupeRegion } from './tutorial.js';
 
 export type { ComponentPreviewSpec, PreviewScene, PreviewUse } from './remotion/preview-types.js';
 
@@ -35,13 +36,30 @@ export interface PreviewSample {
   url: string;
   /** A button of the screen (overlay previews point at it), sample px. */
   anchor?: PreviewRect;
+  /** A text field of the screen (a loupe preview magnifies it), sample px. */
+  field?: PreviewRect;
 }
 
 /** Sample artefacts for previews of components with `email` / `document` slots (files absolute). */
 export interface PreviewMediaSamples {
   email?: { file: string; width: number; height: number; from: string; from_name?: string; to: string[]; subject: string; date: string; preview: string };
   document?: { file_name: string; pages: Array<{ file: string; width: number; height: number; width_pt: number; height_pt: number }> };
+  /** Two states of one screen, for `frame` slots (before / after cards). */
+  frames?: Array<{ file: string; width: number; height: number; label: string }>;
 }
+
+/** The table a preview shows for `data` slots (chart cards). */
+export const SAMPLE_TABLE = {
+  columns: ['month', 'quotes'],
+  rows: [
+    ['Jan', '42'],
+    ['Feb', '51'],
+    ['Mar', '64'],
+    ['Apr', '73'],
+    ['May', '88'],
+    ['Jun', '112'],
+  ],
+};
 
 export type PreviewSamples = Record<PreviewScreenName, PreviewSample> & { media?: PreviewMediaSamples };
 
@@ -59,6 +77,7 @@ export function loadPreviewSamples(dir = PREVIEW_SAMPLES_DIR): PreviewSamples {
     out.media = {};
     if (media.email) out.media.email = { ...media.email, file: join(dir, media.email.file) };
     if (media.document) out.media.document = { ...media.document, pages: media.document.pages.map((p) => ({ ...p, file: join(dir, p.file) })) };
+    if (media.frames) out.media.frames = media.frames.map((f) => ({ ...f, file: join(dir, f.file) }));
   }
   return out;
 }
@@ -128,12 +147,29 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
   const theme = registry.resolveTheme(t);
   const used = new Set<string>([target.id]);
 
-  /** Sample media for the artefact slots a preview fills (`email: sample`, `document: sample`, `notification: sample`). */
+  /**
+   * Sample media for the media slots a preview fills (`email: sample`, `document: sample`, `notification: sample`,
+   * `capture: …`, `before: sample`, `data: sample`).
+   */
+  let frameIndex = 0;
   const sampleMedia = (manifest: ComponentManifest, slots: Record<string, string | undefined>): Record<string, MediaValue> | undefined => {
     let out: Record<string, MediaValue> | undefined;
     for (const [name, spec] of Object.entries(manifest.slots)) {
-      if (!(ARTEFACT_SLOT_TYPES as readonly string[]).includes(spec.type) || !slots[name]) continue;
+      if (!(MEDIA_SLOT_TYPES as readonly string[]).includes(spec.type) || !slots[name]) continue;
       const m = samples.media;
+      if (spec.type === 'capture') {
+        (out ??= {})[name] = { kind: 'text', name: 'sample', value: slots[name]!, text: slots[name]! };
+        continue;
+      }
+      if (spec.type === 'frame') {
+        const f = m?.frames?.[frameIndex++ % Math.max(1, m.frames.length)];
+        if (f) (out ??= {})[name] = { kind: 'picture', name, url: opts.sampleUrl(f.file), width: f.width, height: f.height, label: f.label };
+        continue;
+      }
+      if (spec.type === 'data') {
+        (out ??= {})[name] = { kind: 'table', name: 'sample.csv', columns: [...SAMPLE_TABLE.columns], rows: SAMPLE_TABLE.rows.map((r) => [...r]) };
+        continue;
+      }
       if (spec.type === 'email' && m?.email) {
         const e = m.email;
         (out ??= {})[name] = { kind: 'email', name: 'sample', from: e.from, ...(e.from_name ? { from_name: e.from_name } : {}), to: e.to, subject: e.subject, date: e.date, preview: e.preview, image: { url: opts.sampleUrl(e.file), width: e.width, height: e.height } };
@@ -215,11 +251,17 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
       // The overlay alone over the theme's layout (a caption band over the capture would compete with it).
       spec.scene = themeScene(false);
       const cap = spec.scene.rects.screen;
-      const a = sample.anchor;
-      if (a) {
-        const k = cap.w / sample.width;
-        spec.anchor = { x: cap.x + a.x * k, y: cap.y + a.y * k, w: a.w * k, h: a.h * k };
-      }
+      const k = cap.w / sample.width;
+      const field = m.preview?.target === 'field' ? sample.field : undefined;
+      // A loupe magnifies a field: its region (the field padded, as the planner does) is the overlay's `screen`.
+      const a = field ? loupeRegion(field, { w: sample.width, h: sample.height }) : sample.anchor;
+      if (field) spec.region = a;
+      if (a) spec.anchor = { x: cap.x + a.x * k, y: cap.y + a.y * k, w: a.w * k, h: a.h * k };
+      // The moment shown (a key press, a click) and sample chapters (a progress bar), as the planner hands them.
+      spec.moment = Math.round(0.3 * fps);
+      const n = main.durationInFrames;
+      const cuts = [0, 0.22, 0.47, 0.71, 1].map((x) => Math.round(x * n));
+      spec.chapters = ['Sign up', 'Confirm', 'Browse', 'Request a quote'].map((label, i) => ({ id: `chapter-${i + 1}`, label, from: cuts[i], to: cuts[i + 1] }));
       break;
     }
     case 'interstitial':

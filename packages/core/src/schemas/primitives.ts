@@ -12,6 +12,7 @@ import type {
   ScopeSpec,
   SceneTransition,
   TargetSpec,
+  TutorialSwitch,
 } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
 
@@ -209,3 +210,54 @@ export const SceneTransitionSchema: z.ZodType<SceneTransition> = z
       'crossfade, cut or fade-black (the theme\'s transition of that kind), or a transition component: its id ' +
       '(e.g. studio/transition-tap-open) or {component, params}.',
   });
+
+// ── Tutorial overlays (L2.10) ────────────────────────────────────────────────
+
+const tutorialComponent = () =>
+  componentIdSchema('tutorial overlay component id').describe('Overlay component drawing it (default: the built-in one), "namespace/name".');
+
+/** One tutorial overlay: on / off, or {component?, params?}. */
+const TutorialFeatureSchema = z.union([
+  z.boolean(),
+  z.strictObject({ component: tutorialComponent().optional(), params: ComponentParamsSchema.optional() }),
+]);
+
+const SpotlightModeSchema = z.enum(['steps', 'clicks']);
+const ChapterModeSchema = z.enum(['scenes', 'cards']);
+
+export const TutorialSpecSchema = z
+  .strictObject({
+    shortcuts: TutorialFeatureSchema.describe('Key caps of `press` steps, timed on the real key press (studio/overlay-shortcut).').optional(),
+    spotlight: z
+      .union([
+        z.boolean(),
+        SpotlightModeSchema,
+        z.strictObject({
+          on: SpotlightModeSchema.describe('steps: every step with a target, over the whole step; clicks: around each click.').optional(),
+          component: tutorialComponent().optional(),
+          params: ComponentParamsSchema.optional(),
+        }),
+      ])
+      .describe("Dim the screen except the step's target (studio/overlay-spotlight): steps (= true), clicks, false or {on, component, params}.")
+      .optional(),
+    steps: TutorialFeatureSchema.describe('Numbered badges (1, 2, 3…) next to clicked targets (studio/overlay-steps).').optional(),
+    loupe: TutorialFeatureSchema.describe('A magnified view of the field during `type` steps (studio/overlay-loupe).').optional(),
+    progress: z
+      .union([
+        z.boolean(),
+        ChapterModeSchema,
+        z.strictObject({
+          chapters: ChapterModeSchema.describe('scenes: every scene and card is a chapter; cards: each card opens a chapter.').optional(),
+          component: tutorialComponent().optional(),
+          params: ComponentParamsSchema.optional(),
+        }),
+      ])
+      .describe('Chapter progress bar across the video (studio/overlay-progress), scenario level only: scenes (= true), cards, false or {chapters, component, params}.')
+      .optional(),
+  })
+  .meta({ id: 'TutorialSpec', description: 'Automatic tutorial overlays fed by the timeline; the most specific level (step → scene → scenario) wins.' });
+
+export const TutorialSwitchSchema: z.ZodType<TutorialSwitch> = z.union([z.boolean(), TutorialSpecSchema]).meta({
+  id: 'Tutorial',
+  description: 'Tutorial overlays: true (all on), false (all off) or the switches {shortcuts, spotlight, steps, loupe, progress}.',
+});

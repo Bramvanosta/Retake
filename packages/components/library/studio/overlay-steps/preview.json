@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/overlay-steps",
+  "version": "1.0.0",
+  "kind": "overlay",
+  "theme": "editorial",
+  "at": 0.75,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "681ff1b2d085123a",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

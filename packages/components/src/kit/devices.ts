@@ -19,6 +19,12 @@ export const SYSTEM_COLORS = {
   badge: '#ff3b30',
   /** The white of a printed page and of an email's canvas (documents, mail views) — not a theme colour. */
   page: '#ffffff',
+  /**
+   * Pure white and black — not theme colours: an SVG mask's shown / hidden parts, the plate and modules of a QR code
+   * (phones read dark on white), the last-resort light ink of `readableOn` (L2.10).
+   */
+  white: '#ffffff',
+  black: '#000000',
 } as const;
 
 export type ShadowKind = 'none' | 'soft' | 'strong';

@@ -7,7 +7,7 @@
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { ARTEFACTS_DIR, isCaptureScene, isCard, isDocumentPath, normalizeStep, writeJson } from '@demo-studio/core';
-import type { BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TimelineArtefact } from '@demo-studio/core';
+import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact } from '@demo-studio/core';
 import { errorMessage } from '../errors.js';
 import type { MailboxClient, MailMessage } from './mailbox.js';
 import { formatAddress, inlineCids } from './mailbox.js';
@@ -175,6 +175,27 @@ export class ArtefactStore {
     };
     this.items.push(a);
     if (html.trim()) this.emails.push({ artefact: a, html });
+    return a;
+  }
+
+  /** A text read by capture_text: artefacts/texts/<name>.json. */
+  async addText(name: string, v: { value: string; text: string; target: string; bbox?: BBox; pattern?: string }, t: number, where: Where): Promise<TextArtefact> {
+    const dir = await this.ensure('texts');
+    const file = join(dir, `${artefactSlug(name)}.json`);
+    await writeJson(file, { value: v.value, text: v.text, target: v.target, ...(v.bbox ? { bbox: v.bbox } : {}), ...(v.pattern ? { pattern: v.pattern } : {}) });
+    const a: TextArtefact = {
+      kind: 'text',
+      name,
+      t,
+      ...where,
+      file: this.rel(file),
+      value: v.value,
+      text: v.text,
+      target: v.target,
+      ...(v.bbox ? { bbox: { ...v.bbox } } : {}),
+      ...(v.pattern ? { pattern: v.pattern } : {}),
+    };
+    this.items.push(a);
     return a;
   }
 

@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A testimonial card (R-STO-04) in the family of the title card: a large accent quotation mark, the quote in the
+# display font (balanced lines, up to four), an accent rule, then the attribution — a round avatar (an image, or the
+# person's initials on an accent disc), the name, the role · company, and the company logo (an image of the project or a
+# URL) at the end of the row. Lines rise in one after the other; paper or night tone.
+id: studio/card-testimonial
+version: 1.0.0
+kind: card
+name: Testimonial
+description: Full-screen quote — large quotation mark, the quote in the display font, accent rule, avatar (or initials), name, role and company logo — staggered in.
+tags: [card, story, quote, testimonial]
+slots:
+  quote: {type: text, required: true, max_chars: 220, description: The quote (without quotation marks).}
+  name: {type: text, required: true, max_chars: 40, description: Who said it.}
+  role: {type: text, max_chars: 60, description: Their role.}
+  company: {type: text, max_chars: 40, description: Their company (after the role; or alone).}
+  logo: {type: image, description: The company logo (an image file of the project or a URL).}
+  avatar: {type: image, description: A photo (an image file of the project or a URL); default — the initials.}
+params:
+  type: object
+  properties:
+    tone: {type: string, enum: [paper, dark], default: paper, description: "paper: the theme background; dark: the theme's night tone with light type."}
+    align: {type: string, enum: [center, left], default: center, description: Alignment of the column.}
+    marks: {type: boolean, default: true, description: The large quotation mark.}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 5, min: 2, max: 15}
+variants: [landscape, vertical, square]
+preview:
+  slots:
+    quote: We used to chase three roasters by email. Now every quote, delivery date and invoice lives in one place.
+    name: Mira Okafor
+    role: Head barista
+    company: Café Lumen
+  at: [3.2]

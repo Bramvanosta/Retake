@@ -9,6 +9,12 @@
       "y": 603,
       "w": 151,
       "h": 37
+    },
+    "field": {
+      "x": 664,
+      "y": 13,
+      "w": 271,
+      "h": 32
     }
   },
   "tablet": {
@@ -60,6 +66,20 @@
           "height_pt": 841.92
         }
       ]
-    }
+    },
+    "frames": [
+      {
+        "file": "frame-before.jpg",
+        "width": 1280,
+        "height": 720,
+        "label": "sign-up form"
+      },
+      {
+        "file": "frame-after.jpg",
+        "width": 1280,
+        "height": 720,
+        "label": "confirmation sent"
+      }
+    ]
   }
 }

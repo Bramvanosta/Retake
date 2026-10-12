@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# The chapter progress bar of tutorial videos (R-TUT-05, scenario `tutorial: {progress: scenes | cards}`): a thin bar
+# across the top of the frame (or the bottom), one segment per chapter — every scene and card, or each card and what
+# follows it — filled in the theme accent as the video plays, the past chapters full, the coming ones a quiet track.
+# Drawn over every segment between the intro and the outro (the planner hands `chapters`); an optional label names
+# the current chapter. Fades in over 0.4 s and out over its last 0.4 s.
+id: studio/overlay-progress
+version: 1.0.0
+kind: overlay
+name: Chapter progress
+description: A thin segmented bar across the frame, one segment per chapter (scenes or cards), filling in the theme accent as the video plays; optional chapter label.
+tags: [overlay, tutorial, progress, chapters]
+slots: {}
+params:
+  type: object
+  properties:
+    position: {type: string, enum: [top, bottom], default: top, description: Edge of the frame.}
+    thickness: {type: number, minimum: 2, maximum: 16, default: 5, description: Bar height in design px.}
+    gap: {type: number, minimum: 0, maximum: 30, default: 6, description: Gap between chapters in design px.}
+    margin: {type: number, minimum: 0, maximum: 200, default: 28, description: Side margins in design px.}
+    labels: {type: boolean, default: false, description: Show the current chapter's name under the bar.}
+tokens: [colors.accent, colors.text, colors.paper, background, fonts.body, style_bias]
+duration: {default: 12, min: 1, max: 3600}
+variants: [landscape, vertical, square]
+preview:
+  params: {labels: true}
+  at: [5.6]

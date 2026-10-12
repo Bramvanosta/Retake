@@ -4,6 +4,8 @@ import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { normalizeStep, resolveStepRef } from '../steps.js';
 import { isPoint } from '../targets.js';
+import { BADGE_ACTIONS, IMAGE_FILE_EXTENSIONS, LOUPE_ACTIONS, SHORTCUT_ACTIONS, SPOTLIGHT_ACTIONS, isImagePath, parseFrameRef, tutorialFeaturesNamed } from '../tutorial.js';
+import type { TutorialLevel } from '../tutorial.js';
 import { DEFAULT_TEMPLATE } from '../template-defaults.js';
 import type { LoadedProject, NormalizedStep, Scenario, Template } from '../types.js';
 import type { LocatedIssue } from '../validation/located.js';
@@ -27,8 +29,16 @@ export interface ScenarioCheckOptions {
 
 const STATIC_PAGE_IDS = ['main', 'previous'];
 
-/** Slots whose value names a captured artefact (or, for documents, a project file). */
-export const ARTEFACT_SLOTS = ['email', 'document', 'notification'] as const;
+/** Slots whose value names a captured artefact (or, for documents, a project file); `capture` names a capture_text. */
+export const ARTEFACT_SLOTS = ['email', 'document', 'notification', 'capture'] as const;
+/** Slots whose value is a frame reference (a marker, `start:` / `end:` a scene, `<n>s`, or an image file): before/after cards. */
+export const FRAME_REF_SLOTS = ['before', 'after'] as const;
+/** Slots whose value is a data file of the project (CSV / TSV): chart cards. */
+export const DATA_FILE_SLOTS = ['data'] as const;
+/** Data files a `data:` slot accepts. */
+export const DATA_FILE_EXTENSIONS = ['.csv', '.tsv'];
+/** Slots whose value is an image: a project file (checked) or a URL. */
+export const IMAGE_FILE_SLOTS = ['logo', 'avatar', 'image'] as const;
 type ArtefactRefKind = (typeof ARTEFACT_SLOTS)[number];
 /** Project files a `document:` slot accepts (PDFs are rasterised by the run; images are shown as one page). */
 export const DOCUMENT_FILE_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg'];
@@ -56,8 +66,11 @@ class ScenarioChecker {
   private readonly marks = new Map<string, IssuePath>();
   private readonly tabIds = new Set<string>();
   private readonly switches: Array<{ to: string; path: IssuePath }> = [];
-  /** Artefacts declared by wait_for_email / download (`as`), per kind. */
-  private readonly artefacts = { email: new Map<string, IssuePath>(), document: new Map<string, IssuePath>() };
+  /** Artefacts declared by wait_for_email / download / capture_text (`as`), per kind. */
+  private readonly artefacts = { email: new Map<string, IssuePath>(), document: new Map<string, IssuePath>(), text: new Map<string, IssuePath>() };
+  /** Frame references of card / overlay slots (`before: mark:x`…), checked once every mark and scene is known. */
+  private readonly frameRefs: Array<{ value: string; path: IssuePath }> = [];
+  private readonly sceneIdSet = new Set<string>();
   /** Artefact references in card / overlay slots (`email: <name>`…), checked once every step is known. */
   private readonly artefactRefs: Array<{ kind: ArtefactRefKind; value: string; path: IssuePath }> = [];
 
@@ -124,6 +137,7 @@ class ScenarioChecker {
     // cards and interstitials, which must not collide with an explicit one).
     scenes.forEach((entry, i) => {
       if (!isObj(entry) || typeof entry.id !== 'string') return;
+      this.sceneIdSet.add(entry.id);
       const prev = sceneIds.get(entry.id);
       if (prev !== undefined) this.ctx.error(['scenes', i, 'id'], `duplicate scene id "${entry.id}" (already used by scenes[${prev}])`);
       else sceneIds.set(entry.id, i);
@@ -154,6 +168,7 @@ class ScenarioChecker {
         return;
       }
       if (entry.skip !== true) capturable++;
+      this.tutorial(entry.tutorial, [...p, 'tutorial'], 'scene');
 
       const page = typeof entry.page === 'string' ? entry.page : current;
       if (typeof entry.page === 'string' && this.pages && !Object.hasOwn(this.pages, entry.page)) {
@@ -198,15 +213,79 @@ class ScenarioChecker {
     this.slotRefs(slots, [...p, 'slots']);
   }
 
-  /** Remember the artefact references of a component use's slots (`email`, `document`, `notification`). */
+  /**
+   * Remember the artefact references of a component use's slots (`email`, `document`, `notification`, `capture`) and
+   * its frame references (`before`, `after`); check its data and image files now.
+   */
   private slotRefs(slots: Record<string, unknown>, p: IssuePath): void {
     for (const kind of ARTEFACT_SLOTS) {
       const v = slots[kind];
       if (typeof v === 'string' && v.trim() !== '') this.artefactRefs.push({ kind, value: v.trim(), path: [...p, kind] });
     }
+    for (const name of FRAME_REF_SLOTS) {
+      const v = slots[name];
+      if (typeof v === 'string' && v.trim() !== '') this.frameRefs.push({ value: v.trim(), path: [...p, name] });
+    }
+    for (const name of DATA_FILE_SLOTS) {
+      const v = slots[name];
+      if (typeof v !== 'string' || v.trim() === '') continue;
+      const ext = (/\.[A-Za-z0-9]+$/.exec(v.trim())?.[0] ?? '').toLowerCase();
+      if (!DATA_FILE_EXTENSIONS.includes(ext)) this.ctx.error([...p, name], `data "${v}": a data file must be a ${DATA_FILE_EXTENSIONS.join(' or ')} file of the project`);
+      else this.ctx.file(v.trim(), [...p, name], 'data file', 'error');
+    }
+    for (const name of IMAGE_FILE_SLOTS) {
+      const v = slots[name];
+      if (typeof v !== 'string' || v.trim() === '' || /^(https?:|data:|ds-asset:)/.test(v.trim())) continue;
+      if (!isImagePath(v)) this.ctx.error([...p, name], `${name} "${v}": an image must be a ${IMAGE_FILE_EXTENSIONS.join(', ')} file of the project or an http(s) URL`);
+      else this.ctx.file(v.trim(), [...p, name], 'image', 'error');
+    }
   }
 
-  /** Every `email:` names a wait_for_email `as`; every `document:` a download `as` or a project file; notifications: a name or an index. */
+  /** Every frame reference names a mark, a scene (`start:` / `end:`), a time (`12.5s`) or an image file of the project. */
+  private checkFrameRefs(): void {
+    for (const r of this.frameRefs) {
+      const ref = parseFrameRef(r.value);
+      if (!ref) {
+        this.ctx.error(r.path, `"${r.value}" is not a frame: use a mark name (or mark:<name>), start:<scene> / end:<scene>, a capture time such as 12.5s, or an image file`);
+        continue;
+      }
+      if (ref.kind === 'file') this.ctx.file(ref.path, r.path, 'image', 'error');
+      else if (ref.kind === 'mark' && !this.marks.has(ref.name)) {
+        const names = [...this.marks.keys()];
+        this.ctx.error(r.path, `unknown mark "${ref.name}": no step has \`mark: ${ref.name}\`${suggestion(ref.name, names)}` + (names.length ? ` (marks: ${names.join(', ')})` : ''));
+      } else if (ref.kind === 'scene' && !this.sceneIdSet.has(ref.scene)) {
+        this.ctx.error(r.path, `unknown scene "${ref.scene}"${suggestion(ref.scene, [...this.sceneIdSet])}`);
+      }
+    }
+  }
+
+  /**
+   * `tutorial:` switches: `progress` is video-wide (ignored on a scene or a step); a step that turns an overlay on
+   * explicitly should be a step that overlay can show (a press for shortcuts, a type for the loupe…).
+   */
+  private tutorial(sw: unknown, p: IssuePath, level: TutorialLevel, action?: string): void {
+    if (sw === undefined || this.ctx.broken(p)) return;
+    if (level !== 'scenario' && isObj(sw) && sw.progress !== undefined) {
+      this.ctx.warning([...p, 'progress'], '`progress` is a video-wide switch: set it on the scenario `tutorial` (ignored here)');
+    }
+    if (level !== 'step' || action === undefined || !isObj(sw)) return;
+    const on = (v: unknown) => v !== undefined && v !== false;
+    const fits: Record<string, { actions: readonly string[]; what: string }> = {
+      shortcuts: { actions: SHORTCUT_ACTIONS, what: 'shows the keys of `press` steps' },
+      loupe: { actions: LOUPE_ACTIONS, what: 'magnifies the field of `type` steps' },
+      steps: { actions: BADGE_ACTIONS, what: 'numbers steps that click a target' },
+      spotlight: { actions: SPOTLIGHT_ACTIONS, what: 'follows the target of a step' },
+    };
+    for (const f of tutorialFeaturesNamed(sw as never, 'step')) {
+      const fit = fits[f];
+      if (fit && on(sw[f]) && !fit.actions.includes(action)) this.ctx.warning([...p, f], `${f} ${fit.what}: nothing to show on this ${action} step`);
+    }
+  }
+
+  /**
+   * Every `email:` names a wait_for_email `as`; every `document:` a download `as` or a project file; notifications: a name
+   * or an index; every `capture:` a capture_text `as`.
+   */
   private checkArtefactRefs(): void {
     for (const r of this.artefactRefs) {
       if (r.kind === 'notification') {
@@ -225,9 +304,9 @@ class ScenarioChecker {
         this.ctx.file(r.value, r.path, 'document', 'error');
         continue;
       }
-      const known = this.artefacts[r.kind];
+      const known = this.artefacts[r.kind === 'capture' ? 'text' : r.kind];
       if (!known.has(r.value)) {
-        const action = r.kind === 'email' ? 'wait_for_email' : 'download';
+        const action = r.kind === 'email' ? 'wait_for_email' : r.kind === 'capture' ? 'capture_text' : 'download';
         const names = [...known.keys()];
         this.ctx.error(
           r.path,
@@ -298,6 +377,7 @@ class ScenarioChecker {
     }
     if (step.overlay?.target !== undefined) checkTarget(step.overlay.target, [...sp, 'overlay', 'target'], this.ctx);
     if (step.overlay?.slots) this.slotRefs(step.overlay.slots, [...sp, 'overlay', 'slots']);
+    if (step.tutorial !== undefined) this.tutorial(step.tutorial, [...sp, 'tutorial'], 'step', step.action);
     const facts = checkActionArgs(step, sp, this.ctx);
     if (facts.artefact) {
       const known = this.artefacts[facts.artefact.kind];
@@ -338,6 +418,8 @@ class ScenarioChecker {
 
   private misc(): void {
     this.checkArtefactRefs();
+    this.checkFrameRefs();
+    this.tutorial(this.s.tutorial, ['tutorial'], 'scenario');
     if (this.pages && this.switches.length > 0) {
       const known = new Set([...Object.keys(this.pages), ...STATIC_PAGE_IDS, ...this.tabIds]);
       for (const { to, path } of this.switches) {

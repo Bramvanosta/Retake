@@ -331,6 +331,19 @@ export interface DownloadArgs {
   timeout?: number;
 }
 
+/**
+ * `capture_text` (L2.10): read the visible text of an element (whitespace collapsed) and keep it as the run artefact
+ * `as` (artefacts/texts/<as>.json) — a figure a card shows later (`capture: <as>`), e.g. a total or a count. `pattern`
+ * keeps only a part of it: a regular expression (`/…/flags` or plain source) whose first group (else the whole match)
+ * is kept; no match fails the step.
+ */
+export interface CaptureTextArgs {
+  target: TargetSpec;
+  /** Artefact name, referenced by components (`capture: <as>`). */
+  as: string;
+  pattern?: string;
+}
+
 export type CursorArgs =
   | 'show'
   | 'hide'
@@ -370,9 +383,60 @@ export interface StepCommon {
   irreversible?: boolean;
   /** Edit-time overlay (callout, lower third, badge…) shown over this step; the runner records its target bbox. */
   overlay?: OverlaySpec;
+  /**
+   * Tutorial overlays of this step (L2.10): overrides the scene's and the scenario's switches, e.g.
+   * `tutorial: {spotlight: false}`; `false` = none on this step. `progress` is a video-wide switch (scenario only).
+   */
+  tutorial?: TutorialSwitch;
   /** Free-form note (ignored). */
   note?: string;
 }
+
+// ── Tutorial overlays (L2.10) ────────────────────────────────────────────────
+
+/**
+ * One tutorial overlay switch: on / off, or on with another component (default: the built-in one) and params, e.g.
+ * `shortcuts: {params: {platform: windows}}`.
+ */
+export type TutorialFeature = boolean | { component?: ComponentId; params?: Record<string, unknown> };
+
+/** Which steps the spotlight follows: `steps` = every step with a target, over the whole step; `clicks` = around each click. */
+export type SpotlightMode = 'steps' | 'clicks';
+/** What the progress bar counts as chapters: every scene and card, or only cards (each card opens a chapter). */
+export type ChapterMode = 'scenes' | 'cards';
+
+/**
+ * Automatic tutorial overlays fed by the timeline (L2.10). Each switch can be set on the scenario, a scene or a step;
+ * the most specific one wins. `true` on a level turns every overlay on, `false` turns them all off.
+ */
+export interface TutorialSpec {
+  /** Key caps of `press` steps, timed on the real key press (studio/overlay-shortcut). */
+  shortcuts?: TutorialFeature;
+  /** Dim the screen except the step's target (studio/overlay-spotlight); `true` = `steps`. */
+  spotlight?: TutorialFeature | SpotlightMode | { on?: SpotlightMode; component?: ComponentId; params?: Record<string, unknown> };
+  /** Numbered badges (1, 2, 3…) next to clicked targets (studio/overlay-steps). */
+  steps?: TutorialFeature;
+  /** A magnified view of the field during `type` steps (studio/overlay-loupe). */
+  loupe?: TutorialFeature;
+  /** Chapter progress bar across the video (studio/overlay-progress; scenario level only); `true` = `scenes`. */
+  progress?: TutorialFeature | ChapterMode | { chapters?: ChapterMode; component?: ComponentId; params?: Record<string, unknown> };
+}
+
+/** `tutorial:` on a scenario, a scene or a step: the switches, or `true` (all on) / `false` (all off). */
+export type TutorialSwitch = boolean | TutorialSpec;
+
+/** The tutorial overlays, in their order of drawing (the spotlight dims the screen under the others). */
+export const TUTORIAL_FEATURES = ['spotlight', 'steps', 'loupe', 'shortcuts', 'progress'] as const;
+export type TutorialFeatureName = (typeof TUTORIAL_FEATURES)[number];
+
+/** The built-in component of each tutorial overlay. */
+export const TUTORIAL_COMPONENTS: Readonly<Record<TutorialFeatureName, ComponentId>> = {
+  shortcuts: 'studio/overlay-shortcut',
+  spotlight: 'studio/overlay-spotlight',
+  steps: 'studio/overlay-steps',
+  loupe: 'studio/overlay-loupe',
+  progress: 'studio/overlay-progress',
+};
 
 /**
  * Step modifier `overlay`: a component drawn over the clip from the end of the step's action for `duration` seconds.
@@ -416,6 +480,7 @@ export interface ActionArgsMap {
   cursor: CursorArgs;
   wait_for_email: WaitForEmailArgs;
   download: DownloadArgs;
+  capture_text: CaptureTextArgs;
 }
 
 export type ActionName = keyof ActionArgsMap;
@@ -446,6 +511,7 @@ export const ACTION_NAMES: readonly ActionName[] = [
   'cursor',
   'wait_for_email',
   'download',
+  'capture_text',
 ] as const;
 
 /** A step = exactly one action key + optional common modifiers. */
@@ -489,6 +555,7 @@ export interface NormalizedArgsMap {
   cursor: { mode: 'show' | 'hide' | 'move' | 'set'; to?: TargetSpec | PointSpec; duration?: number };
   wait_for_email: WaitForEmailArgs;
   download: Omit<DownloadArgs, 'click'> & { click: TargetObject & ClickOptions };
+  capture_text: CaptureTextArgs;
 }
 export type NormalizedArgs = NormalizedArgsMap;
 
@@ -548,6 +615,8 @@ export interface Scene {
   transition?: SceneTransition;
   /** Frame of this scene: a FrameStyle or a layout component id (default: scenario frame, else project frame). */
   frame?: FrameSpec;
+  /** Tutorial overlays of this scene's steps (overrides the scenario's switches; `progress` is scenario-only). */
+  tutorial?: TutorialSwitch;
   irreversible?: boolean;
   /** Skip this scene entirely. */
   skip?: boolean;
@@ -716,6 +785,8 @@ export interface Scenario {
   template?: string;
   pacing?: Partial<Pacing>;
   music?: MusicSpec;
+  /** Automatic tutorial overlays fed by the timeline (shortcuts, spotlight, numbered steps, loupe, progress bar). */
+  tutorial?: TutorialSwitch;
   scenes: SceneEntry[];
 }
 
@@ -976,6 +1047,8 @@ export interface TimelineScene {
   frame?: FrameSpec;
   interstitial?: InterstitialSpec;
   card?: CardSpec;
+  /** Scene-level tutorial switches as written (the scenario's are in `Timeline.video.tutorial`). */
+  tutorial?: TutorialSwitch;
   status: 'ok' | 'failed' | 'skipped' | 'partial';
 }
 
@@ -1006,6 +1079,8 @@ export interface TimelineVideo {
   /** Template the run used (name or path). */
   template?: string;
   music?: MusicSpec;
+  /** Scenario-level tutorial switches as written (L2.10). */
+  tutorial?: TutorialSwitch;
 }
 
 export interface TimelineEvent {
@@ -1037,6 +1112,8 @@ export interface TimelineEvent {
   /** Camera hint; `bbox` (target) / `point` measured at the end of the step, after any scroll. */
   camera?: CameraHint & { bbox?: BBox; point?: PointSpec };
   overlay?: TimelineOverlay;
+  /** Step-level tutorial switches as written (L2.10). */
+  tutorial?: TutorialSwitch;
   page?: string;
   url?: string;
   status: 'ok' | 'skipped' | 'failed' | 'dry';
@@ -1076,7 +1153,7 @@ export interface CursorSample {
 /** Folder of a run holding the captured artefacts (emails/, documents/, notifications/). */
 export const ARTEFACTS_DIR = 'artefacts';
 
-export type ArtefactKind = 'email' | 'document' | 'notification';
+export type ArtefactKind = 'email' | 'document' | 'notification' | 'text';
 
 /** An image of an artefact (rendered email, PDF page, notification icon); `file` is relative to the run directory. */
 export interface ArtefactImage {
@@ -1157,7 +1234,22 @@ export interface NotificationArtefact extends ArtefactBase {
   time: string;
 }
 
-export type TimelineArtefact = EmailArtefact | DocumentArtefact | NotificationArtefact;
+/** A text read from the page by `capture_text` (L2.10): a figure for a card (`capture: <name>`). */
+export interface TextArtefact extends ArtefactBase {
+  kind: 'text';
+  /** artefacts/texts/<name>.json: {value, text, target, pattern?}. */
+  file: string;
+  /** What the card shows: the pattern's first group (else its match), else the whole text. */
+  value: string;
+  /** The element's visible text, whitespace collapsed. */
+  text: string;
+  /** Description of the element read, and its box at that moment (CSS px). */
+  target: string;
+  bbox?: BBox;
+  pattern?: string;
+}
+
+export type TimelineArtefact = EmailArtefact | DocumentArtefact | NotificationArtefact | TextArtefact;
 
 export interface Timeline {
   version: 1;
@@ -1187,7 +1279,10 @@ export interface Timeline {
   cursor: CursorSample[];
   /** Intervals where the screen did not change at all (no screencast frame) for ≥ 0.5 s. */
   idle: Array<{ t_start: number; t_end: number }>;
-  /** Emails, documents and web notifications captured by the run (L2.9); files are relative to the run directory. */
+  /**
+   * Emails, documents and web notifications (L2.9) and texts (`capture_text`, L2.10) captured by the run; files are
+   * relative to the run directory.
+   */
   artefacts?: TimelineArtefact[];
   warnings: string[];
 }

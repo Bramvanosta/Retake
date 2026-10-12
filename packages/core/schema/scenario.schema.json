@@ -174,6 +174,10 @@
       ],
       "additionalProperties": false
     },
+    "tutorial": {
+      "description": "Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.",
+      "$ref": "#/$defs/Tutorial"
+    },
     "scenes": {
       "minItems": 1,
       "type": "array",
@@ -751,6 +755,189 @@
       "additionalProperties": false,
       "description": "Deterministic pacing overrides (merged over the field-tested defaults)."
     },
+    "TutorialSpec": {
+      "type": "object",
+      "properties": {
+        "shortcuts": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Key caps of `press` steps, timed on the real key press (studio/overlay-shortcut)."
+        },
+        "spotlight": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "steps",
+                "clicks"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "on": {
+                  "type": "string",
+                  "enum": [
+                    "steps",
+                    "clicks"
+                  ],
+                  "description": "steps: every step with a target, over the whole step; clicks: around each click."
+                },
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Dim the screen except the step's target (studio/overlay-spotlight): steps (= true), clicks, false or {on, component, params}."
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Numbered badges (1, 2, 3…) next to clicked targets (studio/overlay-steps)."
+        },
+        "loupe": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "A magnified view of the field during `type` steps (studio/overlay-loupe)."
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "scenes",
+                "cards"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "chapters": {
+                  "type": "string",
+                  "enum": [
+                    "scenes",
+                    "cards"
+                  ],
+                  "description": "scenes: every scene and card is a chapter; cards: each card opens a chapter."
+                },
+                "component": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+                  "description": "Overlay component drawing it (default: the built-in one), \"namespace/name\"."
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {},
+                  "description": "Component params (see the component's params schema; unset params take its defaults)."
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Chapter progress bar across the video (studio/overlay-progress), scenario level only: scenes (= true), cards, false or {chapters, component, params}."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Automatic tutorial overlays fed by the timeline; the most specific level (step → scene → scenario) wins."
+    },
+    "Tutorial": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/TutorialSpec"
+        }
+      ],
+      "description": "Tutorial overlays: true (all on), false (all off) or the switches {shortcuts, spotlight, steps, loupe, progress}."
+    },
     "SceneEntry": {
       "anyOf": [
         {
@@ -815,6 +1002,10 @@
         "frame": {
           "description": "Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id \"namespace/name\".",
           "$ref": "#/$defs/Frame"
+        },
+        "tutorial": {
+          "description": "Tutorial overlays of this scene's steps, over the scenario's (progress is scenario-only).",
+          "$ref": "#/$defs/Tutorial"
         },
         "irreversible": {
           "type": "boolean",
@@ -931,6 +1122,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1002,6 +1197,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1072,6 +1271,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -1230,6 +1433,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1320,6 +1527,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1405,6 +1616,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -1492,6 +1707,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -1605,6 +1824,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1706,6 +1929,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -1818,6 +2045,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -1906,6 +2137,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -2017,6 +2252,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2080,6 +2319,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -2186,6 +2429,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2244,6 +2491,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -2365,6 +2616,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2449,6 +2704,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -2541,6 +2800,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2625,6 +2888,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -2713,6 +2980,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2797,6 +3068,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -2878,6 +3153,10 @@
             },
             "overlay": {
               "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
             },
             "mark": {
               "type": "string",
@@ -2978,6 +3257,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3072,6 +3355,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3156,6 +3443,10 @@
             "overlay": {
               "$ref": "#/$defs/Overlay"
             },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
             "mark": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
@@ -3185,9 +3476,97 @@
           "additionalProperties": false,
           "title": "download",
           "description": "Click a link or button and capture the file it produces (download, or a document opened in a new tab) as an artefact; PDFs are rasterised."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "capture_text": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "description": "Element whose visible text is read.",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "as": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  "description": "Artefact name, referenced by components as `capture: <as>`."
+                },
+                "pattern": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Keep a part of the text: a regular expression (/…/flags or plain source); its first group, else the whole match."
+                }
+              },
+              "required": [
+                "target",
+                "as"
+              ],
+              "additionalProperties": false,
+              "description": "Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`)."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "capture_text"
+          ],
+          "additionalProperties": false,
+          "title": "capture_text",
+          "description": "Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`)."
         }
       ],
-      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download) plus optional modifiers (id, caption, speed, hold, camera, overlay, mark, timeout, optional, irreversible, note)."
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, mark, timeout, optional, irreversible, note)."
     },
     "CameraHint": {
       "type": "object",

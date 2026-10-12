@@ -9,6 +9,7 @@ import {
   PointSchema,
   TargetSpecSchema,
   SceneTransitionSchema,
+  TutorialSwitchSchema,
   nonEmpty,
 } from './primitives.js';
 
@@ -47,6 +48,7 @@ const TimelineSceneSchema = z.strictObject({
       transition: SceneTransitionSchema.optional(),
     })
     .optional(),
+  tutorial: TutorialSwitchSchema.optional(),
   status: z.enum(['ok', 'failed', 'skipped', 'partial']),
 });
 
@@ -62,6 +64,7 @@ const TimelineVideoSchema = z
     frame: FrameSpecSchema.optional(),
     template: z.string().optional(),
     music: z.strictObject({ file: z.string(), volume: z.number().optional(), duck: z.number().optional(), loop: z.boolean().optional() }).optional(),
+    tutorial: TutorialSwitchSchema.optional(),
   })
   .describe("The scenario's edit info: title, intro, outro, effective frame, template, music.");
 
@@ -102,6 +105,7 @@ const TimelineEventSchema = z.strictObject({
       point: PointSchema.describe('Anchor when there is no target bbox (cursor at the end of the step).').optional(),
     })
     .optional(),
+  tutorial: TutorialSwitchSchema.optional(),
   page: z.string().optional(),
   url: z.string().optional(),
   status: z.enum(['ok', 'skipped', 'failed', 'dry']),
@@ -162,8 +166,17 @@ const TimelineArtefactSchema = z
       via: z.enum(['Notification', 'ServiceWorkerRegistration.showNotification']),
       time: z.string(),
     }),
+    z.strictObject({
+      kind: z.literal('text'),
+      ...artefactBase,
+      value: z.string(),
+      text: z.string(),
+      target: z.string(),
+      bbox: BBoxSchema.optional(),
+      pattern: z.string().optional(),
+    }),
   ])
-  .describe('A captured email, document or web notification (L2.9).');
+  .describe('A captured email, document or web notification (L2.9), or a text read by capture_text (L2.10).');
 
 export const TimelineSchema = z
   .strictObject({
@@ -192,7 +205,7 @@ export const TimelineSchema = z
       z.strictObject({ t: t(), x: z.number(), y: z.number(), visible: z.boolean(), down: z.boolean().optional() }),
     ),
     idle: z.array(z.strictObject({ t_start: t(), t_end: t() })),
-    artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents and web notifications captured by the run.').optional(),
+    artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     warnings: z.array(z.string()),
   })
   .meta({

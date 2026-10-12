@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/overlay-shortcut",
+  "version": "1.0.0",
+  "kind": "overlay",
+  "theme": "editorial",
+  "at": 0.75,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "036ef5bb4460341c",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

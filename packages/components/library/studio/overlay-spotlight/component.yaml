@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# The spotlight of tutorial videos (R-TUT-02, `tutorial: {spotlight: steps | clicks}`): the capture dims in the theme's
+# night tone except a rounded, soft-edged cut-out around the step's target — the box the runner measured, mapped
+# through layout, camera and reframe every frame. One overlay covers a run of steps: the cut-out glides from target to
+# target (the planner's anchor track), so the dim never flickers between steps. Drawn right over the capture, under the
+# caption, the brand mark and the other overlays. Fades in over 0.3 s and out over its last 0.3 s.
+id: studio/overlay-spotlight
+version: 1.0.0
+kind: overlay
+name: Spotlight
+description: Dims the capture except a soft rounded cut-out around the step's target, gliding from target to target over a run of steps; theme night tone, optional accent ring.
+tags: [overlay, tutorial, spotlight, focus]
+slots: {}
+params:
+  type: object
+  properties:
+    dim: {type: number, minimum: 0.1, maximum: 0.9, default: 0.52, description: Opacity of the dim.}
+    padding: {type: number, minimum: 0, maximum: 80, default: 12, description: Space around the target in design px.}
+    radius: {type: number, minimum: 0, maximum: 60, default: 14, description: Corner radius of the cut-out in design px.}
+    feather: {type: number, minimum: 0, maximum: 60, default: 16, description: Soft edge of the cut-out in design px.}
+    ring: {type: boolean, default: true, description: A thin accent ring around the cut-out.}
+    area: {type: string, enum: [screen, frame], default: screen, description: "What dims: the capture only (captions stay readable) or the whole frame."}
+tokens: [colors.accent, colors.text, colors.paper, colors.dark, style_bias]
+duration: {default: 2.5, min: 0.3, max: 120}
+variants: [landscape, vertical, square]
+preview:
+  at: [1.2]

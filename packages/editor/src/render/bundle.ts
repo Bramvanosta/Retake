@@ -191,6 +191,7 @@ export function planComponentIds(plan: EditPlan): string[] {
       for (const o of s.overlays) add(o.component);
     }
   }
+  add(plan.tutorial?.progress?.component);
   return [...ids].sort();
 }
 
