@@ -81,6 +81,7 @@ export async function ensureInView(ctx: StepContext, ref: string): Promise<boole
     await kit.scrollAnimate(op.container, op.top, op.left, ms);
     scrolled = true;
   }
+  if (scrolled) await ctx.rt.awaitFreshFrame();
   return scrolled;
 }
 

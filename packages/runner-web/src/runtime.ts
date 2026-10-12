@@ -31,6 +31,8 @@ import type { PendingPopup } from './actions/click.js';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface RuntimeInit {
+  /** The in-page cursor is hidden (raw export): moving it changes nothing on screen. */
+  cursorHidden?: boolean;
   session: BrowserSession;
   timeline: TimelineBuilder;
   pacing: Pacing;
@@ -45,6 +47,21 @@ export interface RuntimeInit {
   recorder: ScreencastRecorder | null;
   log: (level: LogLevel, message: string) => void;
 }
+
+/** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
+export const FRESH_FRAME_TIMEOUT_MS = 900;
+/** Frames count as flowing after this many probes in a row answered within FRESH_FRAME_QUICK_MS. */
+const FRESH_FRAME_PROBES = 3;
+const FRESH_FRAME_QUICK_MS = 50;
+const FRESH_FRAME_PROBE_GAP_MS = 40;
+/** A frame stamped up to this long before a move's dispatch may already show it (stamps vs dispatch, a few ms). */
+const CAUGHT_UP_SLACK_MS = 20;
+/**
+ * How long after an input the capture is given to show it. Stalls that ended by themselves did within ≈ 0.15–0.36 s
+ * (L1.3 Mac runs); the longer ones only ended with the next input (a mousedown), so waiting longer only adds a
+ * motionless pause.
+ */
+const STALL_GIVE_UP_MS = 450;
 
 /** A page's own track (multi-page scenes, L2.11): its timeline part and its screencast (none in a dry run). */
 export interface PageTrack {
@@ -81,6 +98,7 @@ export class Runtime {
   recorder: ScreencastRecorder | null;
   /** Captured emails, documents and web notifications (runs/<id>/artefacts/). */
   readonly artefacts: ArtefactStore;
+  readonly cursorHidden: boolean;
   /** The scene and step being executed (notifications are attributed to them). */
   current: { scene: string; scene_index: number; step: number } | null = null;
   /** The last plain click of the scene, while the popup it may open late is not ruled out (settleLatePopup). */
@@ -111,6 +129,7 @@ export class Runtime {
     this.screenshotsDir = init.screenshotsDir;
     this.template = init.template;
     this.recorder = init.recorder;
+    this.cursorHidden = init.cursorHidden === true;
     this.log = init.log;
     this.artefacts = new ArtefactStore(init.runDir, (m) => this.warn(m));
     // What each page's cursor shows (icon, press, ripple; L2.13) goes with the capture that films that page.
@@ -122,6 +141,7 @@ export class Runtime {
       pacing: this.pacing,
       signal: this.signal,
       scale: this.capture.scale,
+      beforePress: () => this.awaitCaughtUp(this.page, this.mainPointer),
     });
   }
 
@@ -159,6 +179,57 @@ export class Runtime {
       if (pane) return pane.pointer;
     }
     return this.mainPointer;
+  }
+
+  /** The recorder filming the acting page: its own track in a multi-page scene, else the main capture. */
+  get filming(): ScreencastRecorder | null {
+    if (this.scenePageIds && this.session.activeId) return this.tracks.get(this.session.activeId)?.recorder ?? null;
+    return this.recorder;
+  }
+
+  /**
+   * After a scroll, the frames showing newly exposed content can stop for 0.26–0.43 s a moment later (a Mac, L1.5): a
+   * cursor glide started meanwhile freezes, then jumps. Probe the capture with 1 px nudges of the resting cursor (back
+   * and forth) until FRESH_FRAME_PROBES of them in a row show up within FRESH_FRAME_QUICK_MS — at most
+   * FRESH_FRAME_TIMEOUT_MS, and a probe no frame answers within STALL_GIVE_UP_MS ends it — so the next glide starts on
+   * a flowing capture. A no-op without a recorder (dry run) or a drawn cursor (raw export without it: a nudge changes
+   * nothing on screen).
+   */
+  async awaitFreshFrame(): Promise<void> {
+    const rec = this.filming;
+    const pointer = this.pointer;
+    if (!rec || this.cursorHidden || !pointer.known || !pointer.visible) return;
+    const home = pointer.pos();
+    const dx = home.x + 1 < this.viewport.width ? 1 : -1;
+    const deadline = Date.now() + FRESH_FRAME_TIMEOUT_MS;
+    let quick = 0;
+    for (let i = 0; quick < FRESH_FRAME_PROBES && Date.now() < deadline; i++) {
+      const t = Date.now();
+      await pointer.moveTo({ x: home.x + (i % 2 === 0 ? dx : 0), y: home.y }, { ms: 0 });
+      if (!(await rec.waitFrameAfter(t, Math.min(STALL_GIVE_UP_MS, Math.max(0, deadline - Date.now()))))) {
+        this.log('debug', `scroll: no frame ${Date.now() - t} ms after a probe; going on (the next move resumes the capture)`);
+        break;
+      }
+      quick = Date.now() - t <= FRESH_FRAME_QUICK_MS ? quick + 1 : 0;
+      if (quick < FRESH_FRAME_PROBES) await this.sleep(FRESH_FRAME_PROBE_GAP_MS);
+    }
+    if (pointer.pos().x !== home.x) await pointer.moveTo(home, { ms: 0 });
+  }
+
+  /**
+   * Before a press: when no captured frame shows the cursor's last move yet (the capture stopped — the page rendering
+   * a hover effect, L1.3: a frame showing a move is stamped after its dispatch), wait for one until STALL_GIVE_UP_MS
+   * after that move, so the press and its ripple are filmed rather than frozen. Free when the capture keeps up.
+   */
+  async awaitCaughtUp(page: Page, pointer: Pointer): Promise<void> {
+    if (this.cursorHidden || !pointer.visible) return;
+    const moved = pointer.lastMoveAt;
+    const rec = this.recorder?.recordingPage === page ? this.recorder : [...this.tracks.values()].find((t) => t.recorder?.recordingPage === page)?.recorder;
+    if (!rec || moved === 0 || rec.lastFrameAt >= moved - CAUGHT_UP_SLACK_MS) return;
+    const left = moved + STALL_GIVE_UP_MS - Date.now();
+    if (left <= 0 || !(await rec.waitFrameAfter(moved - CAUGHT_UP_SLACK_MS, left))) {
+      this.log('debug', `press: no frame since the cursor's last move ${Date.now() - moved} ms ago; pressing (the press resumes the capture)`);
+    }
   }
 
   /** Viewport (CSS px) of the acting page: a multi-page scene's page has its own, else the capture size. */
@@ -201,7 +272,7 @@ export class Runtime {
       let pane = this.panes.get(pg.id);
       if (!pane || pane.page !== page) {
         const id = pg.id;
-        const pointer = new Pointer({
+        const pointer: Pointer = new Pointer({
           page: () => page,
           kit: () => this.session.kit(page),
           timeline: this.timeline,
@@ -209,6 +280,7 @@ export class Runtime {
           signal: this.signal,
           scale: this.capture.scale,
           sample: (s) => this.tracks.get(id)?.builder.sampleCursor(s),
+          beforePress: (): Promise<void> => this.awaitCaughtUp(page, pointer),
         });
         pane = { id, page, viewport: pg.viewport, pointer };
         this.panes.set(id, pane);

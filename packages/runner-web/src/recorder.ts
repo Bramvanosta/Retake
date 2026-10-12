@@ -49,11 +49,19 @@ export class ScreencastRecorder {
   private stopped = false;
   private sizeWarned = false;
   private dropped = 0;
+  /** Wall time (epoch ms) of the last frame kept, and who waits for a later one (waitFrameAfter). */
+  private lastFrameWall = 0;
+  private waiters: Array<{ after: number; done: (ok: boolean) => void }> = [];
 
   constructor(private readonly opts: RecorderOptions) {}
 
   get recordingPage(): Page | null {
     return this.page;
+  }
+
+  /** Paint time (epoch ms) of the last frame kept (0 before the first). */
+  get lastFrameAt(): number {
+    return this.lastFrameWall;
   }
 
   async start(page: Page): Promise<void> {
@@ -114,6 +122,11 @@ export class ScreencastRecorder {
         return;
       }
       const wall = f.metadata.timestamp !== undefined ? f.metadata.timestamp * 1000 : Date.now();
+      this.lastFrameWall = Math.max(this.lastFrameWall, wall);
+      if (this.waiters.length) {
+        for (const w of this.waiters.filter((x) => wall > x.after)) w.done(true);
+        this.waiters = this.waiters.filter((x) => wall <= x.after);
+      }
       const entry: FrameIndexEntry = { file: `${pad(++this.seq, 6)}.${ext}`, t: this.opts.clock.at(wall) };
       const write = writeFile(join(this.opts.framesDir, entry.file), data)
         .then(() => {
@@ -140,6 +153,7 @@ export class ScreencastRecorder {
   }
 
   private async detach(): Promise<void> {
+    for (const w of this.waiters.splice(0)) w.done(false);
     const s = this.session;
     this.session = null;
     this.page = null;
@@ -162,6 +176,29 @@ export class ScreencastRecorder {
   async pause(): Promise<void> {
     if (this.stopped) return;
     await this.detach();
+  }
+
+  /**
+   * Resolves true once a frame painted after `afterWall` (epoch ms) arrives, false after `timeoutMs` (or when the
+   * recorder is paused / stopped meanwhile).
+   */
+  waitFrameAfter(afterWall: number, timeoutMs: number): Promise<boolean> {
+    if (this.lastFrameWall > afterWall) return Promise.resolve(true);
+    if (this.stopped || !this.session) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const w = {
+        after: afterWall,
+        done: (ok: boolean) => {
+          clearTimeout(timer);
+          resolve(ok);
+        },
+      };
+      const timer = setTimeout(() => {
+        this.waiters = this.waiters.filter((x) => x !== w);
+        resolve(false);
+      }, timeoutMs);
+      this.waiters.push(w);
+    });
   }
 
   /** Stop capturing and wait for every pending frame write. Returns the frames sorted by time. */

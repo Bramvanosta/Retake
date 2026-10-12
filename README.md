@@ -54,7 +54,13 @@ Because the browser is headless and offscreen, a capture does not take over your
 Smooth 30 fps captures need GPU-accelerated rendering, which desktop machines provide (an Apple M4 captures ≈ 60
 frames/s while the cursor moves, blurred dialogs included). In containers without a GPU the browser renders in
 software: pages with heavy effects (for example `backdrop-filter` blur behind dialogs) are then captured at a lower
-frame rate, and the run reports it as a warning.
+frame rate, and the run reports it as a warning. The run also warns when the capture froze 150 ms or more while the
+cursor moved or a click ripple played. A known one: closing a dialog whose overlay has a `backdrop-filter` (a blur)
+can freeze the picture ≈ 0.26 s during the click ripple; `browser: {frame_rate_limit: false}` runs Chromium without
+its frame rate limiter, which avoids it at a cost (2–6× the CPU, and `requestAnimationFrame` runs at thousands of Hz
+while anything animates: an animation that steps once per frame plays too fast), so it is not the default. After a scroll the cursor waits, still, until the new content
+is painted before it moves on. A capture is smoothest on a quiet machine: heavy background work (indexing,
+updates) shows up as slower, choppier motion.
 
 ## Quick start (bundled fixture product)
 
@@ -249,7 +255,7 @@ databases:
   main: {url: "postgres://demo@db.staging.example.com/app?password={{keychain:acme/db}}"}
 vars: {customer: Northfield Roasters}
 pacing: {type_cps: 12}                                    # override field-tested pacing defaults
-browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`
+browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`; frame_rate_limit: false, see Requirements
 reset:                         # run by `studio env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
 mailbox: {provider: mailpit, url: "http://localhost:8025"}   # test mailbox read by wait_for_email (see below)
@@ -1275,7 +1281,7 @@ studio run northfield-fixture quote --raw --cursor none                         
   `wait_for_email` that really waited), the clip keeps the step that started it up to 0.3 s after its **last** press
   (a select's option click, a menu's confirm, a type's Enter or end of typing; a drag whole), or until the URL
   changed after that press, and resumes once the awaited state is painted (the wait's end + 1.5 screencast intervals
-  there, 0.05–0.3 s, then on the next screencast frame when the page was still painting) — never a step's visible
+  there, 0.2–0.3 s: new content reaches the screen up to ≈ 0.2 s after its DOM —, then on the next screencast frame when the page was still painting) — never a step's visible
   action or result, a hold, a mark or the opening still. A scene that ends on its awaited state (no `hold` after the
   wait) keeps its loading, with a note: a cut there would leave the result out of the clip. `--no-cuts` keeps the
   loading. Otherwise real time: speeds and shortened waits are the editor's job.

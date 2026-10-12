@@ -39,6 +39,7 @@ export async function scroll(ctx: StepContext, args: ScrollArgs): Promise<Action
   if (top !== Math.round(info.top)) {
     const ms = (args.duration ?? pacing.scroll_duration) * 1000;
     await kit.scrollAnimate(container, top, info.left, ms);
+    await ctx.rt.awaitFreshFrame();
   }
   const data = { container: container || 'document', from: Math.round(info.top), to: top };
   if (target) {

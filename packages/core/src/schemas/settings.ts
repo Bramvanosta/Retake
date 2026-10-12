@@ -69,5 +69,11 @@ export const BrowserConfigSchema = z
     locale: nonEmpty().optional(),
     timezone: nonEmpty().optional(),
     color_scheme: z.enum(['light', 'dark']).optional(),
+    frame_rate_limit: z
+      .boolean()
+      .describe(
+        "false: run Chromium without its frame rate limiter — no ≈ 0.26 s capture stall when a dialog with a backdrop-filter overlay closes, but requestAnimationFrame then runs at thousands of Hz while anything animates (fixed-step animations play too fast) and 2–6× the CPU. Default true.",
+      )
+      .optional(),
   })
   .meta({ id: 'BrowserConfig' }) satisfies z.ZodType<BrowserConfig>;

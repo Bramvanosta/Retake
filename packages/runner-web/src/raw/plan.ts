@@ -25,12 +25,13 @@ export const RAW_CUT = {
    */
   action_keep_s: 0.3,
   /**
-   * The clip resumes once the awaited state is painted: this long after the wait saw it in the page at least, and
-   * `paint_frames` screencast intervals there (a slowly rendered page paints a frame or so behind its DOM), at most
-   * `paint_max_s` — then on the next screencast frame when one arrived within that margin again (the page was still
-   * painting: the frame on screen may be half drawn), so the first frame after the cut is a frame painted after it.
+   * The clip resumes once the awaited state is painted: this long after the wait saw it in the page at least — new
+   * content reaches the screen up to ≈ 0.2 s after its DOM (the catalogue import: 0.16 s, measured in L1.3 with
+   * frames every few ms) —, and `paint_frames` screencast intervals there, at most `paint_max_s` — then on the next
+   * screencast frame when one arrived within that margin again (the page was still painting: the frame on screen may
+   * be half drawn), so the first frame after the cut is a frame painted after it.
    */
-  result_margin_s: 0.05,
+  result_margin_s: 0.2,
   paint_frames: 1.5,
   paint_max_s: 0.3,
   /** A cut shorter than this is not made. */

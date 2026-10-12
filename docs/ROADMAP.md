@@ -31,8 +31,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 |---|---|---|---|
 | P1 | Phase 1 — core, runner-web, hooks, CLI, fixture, starter templates | — | **done** (commit `0df4a29`) |
 | L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
-| L1.2 | Runner robustness for any site | M | todo |
-| L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **next** |
+| L1.2 | Runner robustness for any site | M | **next** |
+| L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **done** (2 partial: dialog close with a blur — an option fixes it —, hover hitches) |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
 | L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
@@ -117,6 +117,15 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   first move after them (R-ISS-11: 0.14–0.43 s frozen, then a jump of up to 329 px), every animated dialog close
   (R-ISS-12: ≈ 0.26 s, the ripple freezes then vanishes), a motion check that sees them (R-ISS-13: longest frame gap during the motion), and the renderer pause on a
   hover-in (R-ISS-02). Acceptance: catalogue and quote on the Mac with no stall over 100 ms during motion or a ripple.
+- **Done (2026-10-12):** after a scroll the resting cursor probes the capture with 1 px nudges until frames flow
+  again (no stall after a scroll left); before a press the runner waits until a captured frame shows the cursor's last
+  move; the motion check judges the motion itself and warns on stalls ≥ 150 ms (shorter hitches are noise). The
+  dialog-close stall (≈ 0.26 s when a `backdrop-filter` element goes away, Chromium's frame rate limiter on) stays by
+  default: `browser.frame_rate_limit: false` removes it but runs the page's rAF at thousands of Hz (2–6× CPU), so it
+  is an option the warning points to (R-ISS-12 partial). Acceptance with the defaults: quote and catalogue twice —
+  84 of 84 moves ≥ 24 fps, no stall in a move or after a scroll, dialog closes 186–264 ms during the ripple (warned);
+  with the option: no dialog-close stall, one 192 ms hover hitch (R-ISS-02, a documented limit). The raw export's cut
+  resume got a 0.2 s floor (new content reaches the screen up to ≈ 0.2 s after its DOM).
 
 ### L1.4 — Coverage of untested options + automated fixture acceptance (M)
 - **Goal:** every option of the scenario language is exercised by a test (R-ACT-*, R-CLK-*, R-TGT-07, R-MOD-*,

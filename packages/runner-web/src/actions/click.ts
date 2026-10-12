@@ -165,6 +165,8 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       strategy = requested;
     } else {
       t_click = await pointer.click({ button: opts.button, count: opts.count, modifiers: opts.modifiers });
+      // The press may have waited for the capture to catch up (Pointer beforePress, L1.3): time the click from it.
+      clickWall = wallNow() - (rt.now() - t_click) * 1000;
       strategy = 'real';
     }
     const afterStart = wallNow();
@@ -305,12 +307,15 @@ export async function settleLatePopup(ctx: StepContext, pending: PendingPopup, t
   const before = new Set(pending.before);
   // Popups first in each tick (a late dialog holding the target is still a popup), then stop as soon as the target
   // shows up without one: content that renders late is not a popup, and waiting on would only add dead time.
+  const popped = async () => (await kit.popupState()).some((p) => !before.has(p.id));
   const seen = await poll(
     ctx,
     async () => {
-      if ((await kit.popupState()).some((p) => !before.has(p.id))) return 'popup' as const;
+      if (await popped()) return 'popup' as const;
       const f = await kit.find(target).catch(() => null);
-      return f && f.count > 0 ? ('target' as const) : null;
+      if (!f || f.count === 0) return null;
+      // The popup may have opened between the two looks (it holds the target): look again before calling it content.
+      return (await popped()) ? ('popup' as const) : ('target' as const);
     },
     left,
     40,

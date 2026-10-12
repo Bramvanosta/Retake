@@ -40,6 +40,7 @@ import type { LogLevel } from './runtime.js';
 import { StepFailure, runScenes } from './scenes.js';
 import { BrowserSession } from './session.js';
 import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
+import type { MotionCapture } from './timeline.js';
 import { throwIfAborted, wallNow } from './util.js';
 
 export interface RunOptions {
@@ -96,6 +97,36 @@ interface HooksState {
   mod: HooksModule;
   journal: JournalLike;
   ctx: HookContextLike;
+}
+
+
+/**
+ * Run warnings about the motion a capture shows: moves below `minFps` (slow rendering) and stalls — the capture froze
+ * ≥ STALL_MIN_S (150 ms) while the cursor moved or a click ripple played (L1.3). Null (cursor hidden): nothing can be
+ * judged.
+ */
+export function motionWarnings(motion: MotionCapture | null, minFps: number, prefix: string): string[] {
+  if (!motion) return [];
+  const out: string[] = [];
+  if (motion.slow > 0 && motion.worst) {
+    out.push(
+      `${prefix}${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
+        `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s): the browser renders this page slowly ` +
+        `(software rendering without a GPU, heavy effects such as backdrop-filter blur, or several pages at once), so motion will look choppy`,
+    );
+  }
+  if (motion.stalls.length) {
+    const worst = motion.stalls.reduce((a, b) => (b.ms > a.ms ? b : a));
+    const where = motion.stalls.slice(0, 4).map((s) => `${s.t.toFixed(1)} s (${s.ms} ms, ${s.during === 'move' ? 'cursor moving' : 'click ripple'})`);
+    out.push(
+      `${prefix}the capture froze ${motion.stalls.length === 1 ? 'once' : `${motion.stalls.length} times`} while the cursor moved or a click ripple played ` +
+        `(longest ${worst.ms} ms): ${where.join(', ')}${motion.stalls.length > 4 ? ', …' : ''} — the frames show a stop, then a jump` +
+        (motion.stalls.some((s) => s.during === 'ripple')
+          ? '; a freeze during a click ripple is usually a closing dialog whose overlay has a backdrop-filter (Chromium stops drawing ≈ 0.26 s): browser.frame_rate_limit: false avoids it, see the README'
+          : ''),
+    );
+  }
+  return out;
 }
 
 /**
@@ -213,6 +244,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       screenshotsDir,
       template,
       recorder: null,
+      cursorHidden: opts.hideCursor === true,
       log,
     });
 
@@ -283,12 +315,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
         const minFps = Math.min(capture.fps, 30) * 0.6;
         // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
-        const motion = opts.hideCursor ? { moves: 0, slow: 0 } : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps);
-        if (motion.slow > 0 && motion.worst) {
-          const message =
-            `${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
-            `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s): the browser renders this page slowly ` +
-            `(software rendering without a GPU, or heavy effects such as backdrop-filter blur), so motion will look choppy`;
+        const motion = opts.hideCursor
+          ? null
+          : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps, timeline.cursorEffects, timeline.pages.map((p) => p.t_start));
+        for (const message of motionWarnings(motion, minFps, '')) {
           timeline.warn(message);
           log('warn', message);
         }
@@ -330,11 +360,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const st = t.recorder.stats();
       if (st.write_errors) timeline.warn(`page ${id}: ${st.write_errors} frames could not be written`);
       const minFps = Math.min(capture.fps, 30) * 0.6;
-      const motion = opts.hideCursor ? { moves: 0, slow: 0 } : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps);
-      if (motion.slow > 0 && motion.worst) {
-        const message =
-          `page ${id}: ${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
-          `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s): several pages share the machine and render slowly`;
+      const motion = opts.hideCursor
+        ? null
+        : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps, t.builder.cursorEffects, t.builder.pages.map((p) => p.t_start));
+      for (const message of motionWarnings(motion, minFps, `page ${id}: `)) {
         timeline.warn(message);
         log('warn', message);
       }

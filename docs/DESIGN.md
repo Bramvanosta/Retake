@@ -208,7 +208,16 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
   `page.mouse.move` at ~60 Hz; duration = clamp(move_base_ms + dist·move_ms_per_px, move_min_ms, move_max_ms) =
   clamp(0.9·d, 450, 1100) ms by default; nudges (d < nudge_px = 60) take 60–100 % of nudge_ms (150–250 ms) with a
   nudge_hover_ms hover; a zero-length move takes 0 ms. Every dispatched position is pushed to the cursor track
-  (timeline.cursor) with capture time.
+  (timeline.cursor) with capture time (dispatch time: a frame showing a move is stamped 0–6 ms after it; a page's
+  `requestAnimationFrame` time was tried in L1.3 and lands a frame late half the time). Before a press, when no
+  captured frame shows the cursor's last move yet (the capture stopped while the page rendered a hover effect), the
+  runner waits for one (until 0.45 s after that move, `Runtime.awaitCaughtUp`): the press and its ripple are filmed,
+  not frozen; a cancelled run stops there without pressing. After an
+  animated scroll (a `scroll` step or a target scrolled into view) the runner probes the
+  capture with 1 px nudges of the resting cursor until three frames in a row come back within 50 ms (≤ 0.9 s, a probe
+  no frame answers within 0.45 s ends it:
+  `Runtime.awaitFreshFrame`): the first frames of newly exposed content can stop for 0.2–0.3 s, and a glide started
+  then would freeze and jump.
 - Scene start (scene key `cursor`: `auto` | `keep` | point | target): `auto` rests next to the scene's first pointer
   target (its box after leading document scrolls is predicted) where the drawn cursor never covers it, inside the
   viewport (`kit.restNear(box, {point, ref})`: next to where the target is clicked — not the far corner of a wide
@@ -279,6 +288,15 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
   durations (VFR) → `-vf fps=<fps>,format=yuv420p -c:v libx264 -crf <crf> -preset medium -movflags +faststart`
   → `capture.mp4` (CFR). The first frame is extended back to t=0; the last frame holds until the stop time.
 - `idle` intervals: gaps between consecutive frames ≥ 0.5 s.
+- Chromium keeps its frame rate limiter by default. With it, frame production stops ≈ 0.26 s when an element with a
+  `backdrop-filter` goes away after a hover and a press (a closing dialog's overlay), measured on macOS / Metal
+  whatever the raster path. `browser.frame_rate_limit: false` (L1.3) launches it with `--disable-frame-rate-limit`:
+  no such stall, but a page's `requestAnimationFrame` then runs at thousands of Hz while anything animates (an
+  animation stepping once per frame plays too fast; 2–6× the CPU) — an option, not the default; the motion check points to it when a click ripple froze.
+- Motion check (`motionCapture`): per cursor move, the frame rate of the motion itself (first sample → last change
+  of position) — a run warning below 0.6 × min(fps, 30); and the stalls — frame gaps ≥ 150 ms (`STALL_MIN_S`) while
+  the cursor moves or a click ripple plays, except around a page change (the new page renders) and 1 px nudges — a
+  run warning listing them. Hover hitches of 100–130 ms stay under the threshold.
 - Dry-run: no recording, no encoding; one screenshot per step (`screenshots/<scene>-<NN>-<action>.png`),
   irreversible steps are hovered + screenshotted, then the rest of that scene is skipped
   (`stopped_at`), later scenes continue. `--until <ref>` stops after that step (both modes).

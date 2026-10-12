@@ -47,6 +47,22 @@ export function computeIdle(frameTimes: number[], end: number, min = 0.5): Array
 const MOVE_GAP_S = 0.25;
 /** Moves shorter than this are too short to judge the capture frame rate. */
 const MOVE_MIN_S = 0.2;
+/**
+ * A frame gap at least this long while the cursor moves or a click ripple plays is a visible freeze (≥ 4–5 frames at
+ * 30 fps). Shorter hitches (100–130 ms) remain on a Mac when the cursor enters an element with a hover effect: noise
+ * a warning would repeat on every capture (L1.3).
+ */
+export const STALL_MIN_S = 0.15;
+/** How long a click ripple animates after the press (kit: .5 s scale, .55 s fade). */
+const RIPPLE_S = 0.55;
+
+export interface CaptureStall {
+  /** Capture time (s) of the last frame before the gap. */
+  t: number;
+  /** Length of the frozen part (ms) that overlaps the motion or the ripple. */
+  ms: number;
+  during: 'move' | 'ripple';
+}
 
 export interface MotionCapture {
   /** Continuous cursor moves long enough to be judged. */
@@ -55,15 +71,35 @@ export interface MotionCapture {
   slow: number;
   /** Lowest frame rate observed during a move, and when (capture time of the move start). */
   worst?: { fps: number; t: number };
+  /** Frame gaps ≥ STALL_MIN_S while the cursor moved or a click ripple played (L1.3): the capture froze there. */
+  stalls: CaptureStall[];
 }
 
 /**
- * Frame rate the video actually shows while the cursor moves (the screen changes for sure then): the lower of the
- * screencast frames and the cursor positions dispatched per second. Moves below `minFps` look choppy; slow
- * rendering is the usual cause (no GPU, heavy effects).
+ * Frame rate the video actually shows while the cursor moves (the screen changes for sure then), on the motion
+ * itself — from a move's first sample to its last change of position, not the rest and the press before a click: the
+ * lower of the screencast frames and the cursor positions dispatched per second. Moves below `minFps` look choppy;
+ * slow rendering is the usual cause (no GPU, heavy effects). Also reports the stalls: frame gaps of STALL_MIN_S or
+ * more inside a motion or a click ripple (`effects`), which a per-move average hides — except around a page change
+ * (`pageChanges`: the new page renders) and an isolated 1 px nudge (the cursor waiting for a fresh frame).
  */
-export function motionCapture(frameTimes: readonly number[], cursor: readonly CursorSample[], minFps: number): MotionCapture {
+export function motionCapture(
+  frameTimes: readonly number[],
+  samples: readonly CursorSample[],
+  minFps: number,
+  effects: readonly CursorEffect[] = [],
+  pageChanges: readonly number[] = [],
+): MotionCapture {
   const ts = [...frameTimes].sort((a, b) => a - b);
+  // 1 px nudges (Runtime.awaitFreshFrame probing the capture while the cursor rests) are no motion: a step under 2 px
+  // that the next sample takes straight back, or that stays alone more than 30 ms (a glide moves every ≈ 16 ms).
+  const cursor = samples.filter((s, i) => {
+    const prev = samples[i - 1];
+    const next = samples[i + 1];
+    if (!prev || Math.hypot(s.x - prev.x, s.y - prev.y) >= 2) return true;
+    const back = !!next && next.x === prev.x && next.y === prev.y;
+    return !(back || !next || next.t - s.t > 0.03);
+  });
   const countIn = (a: number, b: number) => {
     let lo = 0;
     let hi = ts.length;
@@ -76,20 +112,40 @@ export function motionCapture(frameTimes: readonly number[], cursor: readonly Cu
     for (let i = lo; i < ts.length && ts[i] <= b; i++) n++;
     return n;
   };
-  const out: MotionCapture = { moves: 0, slow: 0 };
+  const out: MotionCapture = { moves: 0, slow: 0, stalls: [] };
+  const busy: Array<[number, number, CaptureStall['during']]> = [];
   let start = 0;
   for (let i = 1; i <= cursor.length; i++) {
     if (i < cursor.length && cursor[i].t - cursor[i - 1].t < MOVE_GAP_S) continue;
     const first = start;
     start = i;
+    // The motion: up to the last sample that changed the position (press / release samples repeat it).
+    let last = i - 1;
+    while (last > first && cursor[last].x === cursor[last - 1].x && cursor[last].y === cursor[last - 1].y) last--;
     const a = cursor[first]?.t;
-    const b = cursor[i - 1]?.t;
-    if (a === undefined || b === undefined || b - a < MOVE_MIN_S) continue;
+    const b = cursor[last]?.t;
+    if (a === undefined || b === undefined || b <= a) continue;
+    busy.push([a, b, 'move']);
+    if (b - a < MOVE_MIN_S) continue;
     out.moves++;
     // What the video shows is bounded by both the frames captured and the cursor positions dispatched.
-    const fps = Math.min(countIn(a, b), i - first) / (b - a);
+    const fps = Math.min(countIn(a, b), last - first + 1) / (b - a);
     if (fps < minFps) out.slow++;
     if (!out.worst || fps < out.worst.fps) out.worst = { fps: round3(fps), t: a };
+  }
+  for (const e of effects) if (e.type === 'ripple') busy.push([e.t, e.t + RIPPLE_S, 'ripple']);
+  for (let i = 1; i < ts.length; i++) {
+    const a = ts[i - 1];
+    const b = ts[i];
+    if (b - a < STALL_MIN_S) continue;
+    // A page that changes (navigation, new route) renders its new content: that wait is the product's loading.
+    if (pageChanges.some((t) => t > a - 0.3 && t < b)) continue;
+    let best: CaptureStall | undefined;
+    for (const [x, y, during] of busy) {
+      const ov = Math.min(b, y) - Math.max(a, x);
+      if (ov >= STALL_MIN_S && (!best || ov * 1000 > best.ms)) best = { t: round3(a), ms: Math.round(ov * 1000), during };
+    }
+    if (best) out.stalls.push(best);
   }
   return out;
 }

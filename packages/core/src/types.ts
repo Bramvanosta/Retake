@@ -1084,6 +1084,12 @@ export interface BrowserConfig {
   locale?: string;
   timezone?: string;
   color_scheme?: 'light' | 'dark';
+  /**
+   * false: run Chromium without its frame rate limiter (L1.3). It removes the ≈ 0.26 s capture stall after a dialog
+   * whose overlay has a backdrop-filter closes, but requestAnimationFrame then runs at thousands of Hz while anything
+   * animates (fixed-step animations play too fast) and the CPU climbs 2–6×. Default true (the limiter).
+   */
+  frame_rate_limit?: boolean;
 }
 
 /**

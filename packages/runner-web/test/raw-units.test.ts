@@ -84,9 +84,10 @@ describe('loading cuts (R-RAW-01)', () => {
 
   it('paces the resume on the capture: a slowly painted page resumes 1.5 frame intervals after the wait (≤ 0.3 s)', () => {
     const events = [ev({ step: 0, action: 'click', t_start: 3, t_end: 4, t_click: 3.5 }), ev({ step: 1, action: 'wait_for', t_start: 4, t_end: 6 })];
-    expect(loadingCuts(events, { ...still, frameInterval: () => 0.12 })[0].to).toBeCloseTo(6.18, 6);
+    expect(loadingCuts(events, { ...still, frameInterval: () => 0.16 })[0].to).toBeCloseTo(6.24, 6);
     expect(loadingCuts(events, { ...still, frameInterval: () => 1 })[0].to).toBeCloseTo(6 + RAW_CUT.paint_max_s, 6);
-    expect(loadingCuts(events, { ...still, frameInterval: () => 0.016 })[0].to).toBeCloseTo(6.05, 6);
+    // Frames every few ms (no frame rate limiter) say nothing of the paint delay: at least result_margin_s (0.2 s).
+    expect(loadingCuts(events, { ...still, frameInterval: () => 0.016 })[0].to).toBeCloseTo(6 + RAW_CUT.result_margin_s, 6);
     expect(localFrameInterval([0, 0.1, 0.2, 0.3, 0.42, 0.5], 0.25)).toBeCloseTo(0.1, 6);
     expect(localFrameInterval([0, 5], 2)).toBeUndefined();
   });
@@ -109,7 +110,7 @@ describe('loading cuts (R-RAW-01)', () => {
     expect(marked[0].from).toBe(4);
     // A marked wait ends its group: what it waited for stays, the next wait group is separate.
     const two = loadingCuts([ev({ step: 0, action: 'wait_for', t_start: 3, t_end: 5, mark: 'a' }), ev({ step: 1, action: 'wait_for', t_start: 5, t_end: 7 })], still);
-    expect(two.map((c) => [c.from, c.to])).toEqual([[3, 5.05], [5, 7.05]]);
+    expect(two.map((c) => [c.from, c.to])).toEqual([[3, 5 + RAW_CUT.result_margin_s], [5, 7 + RAW_CUT.result_margin_s]]);
     // Never into the opening still.
     expect(loadingCuts([ev({ step: 0, action: 'wait_for', t_start: 1, t_end: 4 })], still)[0].from).toBe(2);
     // A wait on another page than the press (a live hand-off) keeps the press's step whole.
@@ -164,18 +165,19 @@ describe('loading cuts (R-RAW-01)', () => {
     expect(loadingCuts(events, { stillEnd: 2, sceneEnd: 8.005, kept: (l) => kept.push(l) })).toEqual([]);
     expect(kept).toMatchObject([{ from: 6.5, wait_step: 1 }]);
     // With room for the result after it, the cut is made.
-    expect(loadingCuts(events, { stillEnd: 2, sceneEnd: 8.05 + RAW_CUT.min_tail_s }).length).toBe(1);
+    expect(loadingCuts(events, { stillEnd: 2, sceneEnd: 8 + RAW_CUT.result_margin_s + RAW_CUT.min_tail_s + 0.001 }).length).toBe(1);
   });
 
   it('resumes on a frame painted after the margin: the next screencast frame when the page was still painting', () => {
-    // The catalogue import: awaited state seen at 19.893; a half-drawn frame arrived at 19.926, the painted one at 20.051.
+    // The catalogue import: awaited state seen at 19.893; a half-drawn frame arrived at 19.926, the painted one at 20.051
+    // (0.16 s later), the next at 20.15: after the 0.2 s floor the clip resumes on the next frame painted after it.
     const events = [ev({ step: 0, action: 'drop_file', t_start: 10, t_end: 16, t_click: 15.66 }), ev({ step: 1, action: 'wait_for', t_start: 16, t_end: 19.893 }), ev({ step: 2, action: 'hold', t_start: 19.9, t_end: 21.5, hold: { t_start: 19.9, t_end: 21.5 } })];
     const frames = [19.5, 19.62, 19.72, 19.82, 19.926, 20.051, 20.15];
     const opts = { stillEnd: 2, sceneEnd: 22, frameInterval: () => 0.103, nextFrame: (_p: string | undefined, t: number) => frames.find((f) => f >= t - 1e-6) };
-    expect(loadingCuts(events, opts)[0].to).toBe(20.051);
+    expect(loadingCuts(events, opts)[0].to).toBe(20.15);
     // An idle page sends no frame: its last frame is its final picture, the resume stays at t_end + margin.
     const idle = [19.5, 19.926, 21.2];
-    expect(loadingCuts(events, { ...opts, nextFrame: (_p, t) => idle.find((f) => f >= t - 1e-6) })[0].to).toBe(20.048);
+    expect(loadingCuts(events, { ...opts, nextFrame: (_p, t) => idle.find((f) => f >= t - 1e-6) })[0].to).toBe(20.093);
   });
 });
 
@@ -249,7 +251,7 @@ describe('clip plan on real timelines (R-RAW-01)', () => {
     }) as unknown as Timeline;
 
   it('the first frame after a cut shows a frame painted after the resume, at 30 and 60 fps', () => {
-    // The catalogue import at 60 fps: the painted frame arrived 3 ms after t_end + margin (half-drawn frame before it).
+    // The catalogue import at 30 / 60 fps: the clip resumes on the first frame after t_end + the 0.2 s floor (20.151).
     const frames = [...Array.from({ length: 199 }, (_, i) => i * 0.1), 19.926, 20.051, ...Array.from({ length: 20 }, (_, i) => 20.151 + i * 0.1)];
     const tl = synthetic(
       [
@@ -265,10 +267,10 @@ describe('clip plan on real timelines (R-RAW-01)', () => {
       const plan = planRawExport(tl, { fps, frameTimes: () => frames });
       const clip = plan.clips[0];
       expect(clip.cuts.length).toBe(1);
-      expect(clip.cuts[0].to).toBe(20.051);
+      expect(clip.cuts[0].to).toBe(20.151);
       const schedule = cfrSchedule(index, 23, fps);
       const shown = schedule[gridFrameOf(clip, clip.cuts[0].at)];
-      expect(index.find((f) => f.file === shown)!.t, `${fps} fps`).toBe(20.051);
+      expect(index.find((f) => f.file === shown)!.t, `${fps} fps`).toBe(20.151);
       // The frame before the cut still shows the press, not the loading.
       expect(index.find((f) => f.file === schedule[gridFrameOf(clip, clip.cuts[0].at - 1)])!.t).toBeLessThan(16.1);
     }

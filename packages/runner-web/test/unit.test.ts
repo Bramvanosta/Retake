@@ -8,6 +8,8 @@ import {
   computeIdle,
   cfrSchedule,
   motionCapture,
+  motionWarnings,
+  frameRateArgs,
   encodeFrames,
   kitConfigFor,
   kitSource,
@@ -208,11 +210,83 @@ describe('timeline helpers', () => {
     expect(m.slow).toBe(1);
     expect(m.worst?.t).toBe(3);
     expect(m.worst?.fps).toBeCloseTo(6, 0);
-    expect(motionCapture([], [], 18)).toEqual({ moves: 0, slow: 0 });
+    expect(motionCapture([], [], 18)).toEqual({ moves: 0, slow: 0, stalls: [] });
     // A slow page also slows the dispatch of mouse moves down: 10 positions per second is choppy even at 60 fps.
     const sparse = Array.from({ length: 6 }, (_, i) => ({ t: 1 + i / 10, x: i * 40, y: 0, visible: true }));
     const dense = Array.from({ length: 31 }, (_, i) => 1 + i / 60);
     expect(motionCapture(dense, sparse, 18)).toMatchObject({ moves: 1, slow: 1 });
+  });
+
+  it('reports stalls: frame gaps ≥ 150 ms (STALL_MIN_S) while the cursor moves or a click ripple plays, not while it rests (L1.3)', () => {
+    // A 0.6 s move sampled at 60 Hz, then a rest, then a press / release at the same point and its ripple at 3.0 s.
+    const move = Array.from({ length: 37 }, (_, i) => ({ t: 1 + i / 60, x: 100 + i * 10, y: 100, visible: true }));
+    // A click right after the move (same group: < 0.25 s apart), then a second click at 3.0 s.
+    const click1 = [{ t: 1.75, x: 460, y: 100, visible: true, down: true }, { t: 1.84, x: 460, y: 100, visible: true }];
+    const press = [{ t: 3, x: 460, y: 100, visible: true, down: true }, { t: 3.09, x: 460, y: 100, visible: true }];
+    const cursor = [...move, ...click1, ...press];
+    const effects = [{ t: 3, type: 'press' as const }, { t: 3, type: 'ripple' as const }];
+    // Frames every 1/60 s during the move except a 265 ms hole at 1.2 s; none while resting (1.6–3.0 s: nothing
+    // changes); every 1/60 s during the ripple except a 260 ms hole at 3.2 s.
+    const frames = [
+      ...Array.from({ length: 13 }, (_, i) => 1 + i / 60),
+      ...Array.from({ length: 20 }, (_, i) => 1.465 + i / 60),
+      ...Array.from({ length: 12 }, (_, i) => 3 + i / 60),
+      ...Array.from({ length: 10 }, (_, i) => 3.46 + i / 60),
+    ];
+    const m = motionCapture(frames, cursor, 18, effects);
+    expect(m.stalls).toEqual([
+      { t: 1.2, ms: 265, during: 'move' },
+      { t: 3.183, ms: 277, during: 'ripple' },
+    ]);
+    // The motion is judged on its own (1.0–1.6 s: 22 frames), not with the rest and the click after it (to 1.84 s).
+    expect(m.moves).toBe(1);
+    expect(m.worst!.fps).toBeCloseTo(22 / 0.6, 0);
+    // Without the ripple effect, the second hole is idle time: nothing changes on screen then.
+    expect(motionCapture(frames, cursor, 18).stalls.map((s) => s.during)).toEqual(['move']);
+    // The run warnings say where.
+    const w = motionWarnings(m, 18, '');
+    expect(w).toHaveLength(1);
+    expect(w[0]).toMatch(/^the capture froze 2 times while the cursor moved or a click ripple played \(longest 277 ms\): 1\.2 s \(265 ms, cursor moving\), 3\.2 s \(277 ms, click ripple\)/);
+    expect(w[0]).toContain('browser.frame_rate_limit: false avoids it');
+    expect(motionWarnings(motionCapture(frames, cursor, 18), 18, '')[0]).not.toContain('frame_rate_limit');
+    expect(motionWarnings(null, 18, '')).toEqual([]);
+    // A gap while the page changes (navigation, new route) is the product's loading, not a stall.
+    expect(motionCapture(frames, cursor, 18, effects, [1.3]).stalls.map((s) => s.during)).toEqual(['ripple']);
+    // Shorter gaps (a hover hitch of 120 ms) are not reported.
+    const hitch = [...Array.from({ length: 13 }, (_, i) => 1 + i / 60), ...Array.from({ length: 20 }, (_, i) => 1.32 + i / 60)];
+    expect(motionCapture(hitch, move, 18).stalls).toEqual([]);
+  });
+
+  it('a 1 px nudge of the resting cursor is no motion (it waits for a fresh frame after a scroll)', () => {
+    // At rest at 100 since 0.5 s; nudged at 2.0 s (probing the capture), back at 2.06 s; the glide starts at 2.4 s.
+    const glide = Array.from({ length: 31 }, (_, i) => ({ t: 2.4 + i / 60, x: 100 + i * 10, y: 100, visible: true }));
+    const cursor = [
+      { t: 0.5, x: 100, y: 100, visible: true },
+      { t: 2.0, x: 101, y: 100, visible: true },
+      { t: 2.06, x: 100, y: 100, visible: true },
+      ...glide.slice(1),
+    ];
+    // No frame from 2.0 to 2.4 s (the stall the cursor waited out), then 60 fps.
+    const frames = [2.0, ...Array.from({ length: 31 }, (_, i) => 2.4 + i / 60)];
+    const m = motionCapture(frames, cursor, 18);
+    expect(m.stalls).toEqual([]);
+    expect(m.moves).toBe(1);
+    expect(m.worst!.t).toBeCloseTo(2.4 + 1 / 60, 3); // the move starts with the glide, not with the nudges
+    // The probing can end on a nudge that goes straight home (< 30 ms later), the glide starting a while after.
+    const quickBack = [
+      { t: 0.5, x: 100, y: 100, visible: true },
+      { t: 2.0, x: 101, y: 100, visible: true },
+      { t: 2.014, x: 100, y: 100, visible: true },
+      ...glide.slice(1),
+    ];
+    expect(motionCapture(frames, quickBack, 18).stalls).toEqual([]);
+  });
+
+  it('keeps Chromium\'s frame rate limiter unless the project turns it off (L1.3)', () => {
+    expect(frameRateArgs()).toEqual([]);
+    expect(frameRateArgs({ frame_rate_limit: true })).toEqual([]);
+    expect(frameRateArgs({ frame_rate_limit: false })).toEqual(['--disable-frame-rate-limit']);
+    expect(frameRateArgs({ frame_rate_limit: false, args: ['--disable-frame-rate-limit'] })).toEqual([]);
   });
 
   it('reads the pixel size of JPEG and PNG frames', async () => {

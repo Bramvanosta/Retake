@@ -158,12 +158,13 @@ describe('raw export (R-RAW-01…04)', () => {
     const clip = decode(join(bakedLayer.dir, c.file), 800, 600);
     const lay = decodeRgba(join(bakedLayer.dir, c.layer!.file), 800, 600);
     expect(lay.length).toBe(c.frames);
-    // Frames where the cursor rests (its samples did not move for 0.3 s before): the dots coincide.
+    // Frames where the cursor rests (its samples did not move for 0.3 s before — but for the 1 px probes after a
+    // scroll, L1.3): the dots coincide.
     const cursor = JSON.parse(await readFile(join(bakedLayer.dir, 'cursor', 'cursor.json'), 'utf8')) as { clips: Array<{ samples: Array<{ f: number; x: number; y: number; visible: boolean }> }> };
     const samples = cursor.clips[0].samples;
     let compared = 0;
-    for (let k = 10; k < c.frames; k += 3) {
-      const still = samples.slice(Math.max(0, k - 9), k + 1).every((s) => s.x === samples[k].x && s.y === samples[k].y && s.visible);
+    for (let k = 10; k < c.frames; k++) {
+      const still = samples.slice(Math.max(0, k - 9), k + 1).every((s) => Math.abs(s.x - samples[k].x) <= 1 && Math.abs(s.y - samples[k].y) <= 1 && s.visible);
       if (!still) continue;
       const a = magenta(clip[k], 800, 600);
       const b = magenta(lay[k], 800, 600, 4);
@@ -189,8 +190,9 @@ describe('raw export (R-RAW-01…04)', () => {
     // The manifest gives the pixel format ffprobe reads back, and its codec label names none to contradict it.
     expect(c.layer!.pix_fmt).toBe(lp.pix_fmt);
     expect(layer.manifest.settings.layer_codec).not.toMatch(/yuv/);
-    // 60 fps from the screencast's own timing: about twice the 30 fps clip, never interpolated.
-    expect(Math.abs(c.frames - 2 * none.manifest.clips[0].frames)).toBeLessThanOrEqual(2);
+    // 60 fps from the screencast's own timing: about twice the 30 fps clip, never interpolated (each of the two kept
+    // pieces around the cut rounds by ±1 at either rate, and the resume snaps to a painted frame on each rate's grid).
+    expect(Math.abs(c.frames - 2 * none.manifest.clips[0].frames)).toBeLessThanOrEqual(3);
     const lay = decodeRgba(join(layer.dir, c.layer!.file), 800, 600);
     const cursor = JSON.parse(await readFile(join(layer.dir, 'cursor', 'cursor.json'), 'utf8')) as { clips: Array<{ samples: Array<{ f: number; x: number; y: number; visible: boolean; ripples?: unknown[] }>; clicks: Array<{ f: number; x: number; y: number }> }> };
     const { samples, clicks } = cursor.clips[0];

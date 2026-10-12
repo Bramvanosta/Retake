@@ -552,8 +552,9 @@ own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawS
   — a select's option, a menu's item / confirm, a pick's close —, `t_typed`, `t_enter`; a drag, repeated keys and
   typing without `t_typed` are kept whole: their end) — or from that step's URL change after that press when it
   navigated earlier (nothing of the loading page kept; a URL rewritten while typing is no navigation) — to the last
-  wait's end + margin, margin = max(0.05 s, min(0.3 s, 1.5 × the capture's local screencast interval)), then snapped
-  to the next screencast frame of that page when one arrived within another margin (the page was still painting:
+  wait's end + margin, margin = max(0.2 s, min(0.3 s, 1.5 × the capture's local screencast interval)) — new content
+  reaches the screen up to ≈ 0.2 s after its DOM (L1.3) —, then snapped to the next screencast frame of that page
+  when one arrived within another margin (the page was still painting:
   the frame on screen may be half drawn — seen at 60 fps on the catalogue import, ≈ 8 fps under a backdrop blur; an
   idle page sends no frame, its last one is final). So the first frame after the cut is a frame painted after it, at
   any export rate. A cut must leave ≥ `min_tail_s` (0.2 s) of its scene after it: a scene that ends on its awaited

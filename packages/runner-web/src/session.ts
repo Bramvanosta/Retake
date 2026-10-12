@@ -55,6 +55,18 @@ export const DEFAULT_BROWSER_ARGS = [
 ];
 
 /**
+ * `browser.frame_rate_limit: false` launches Chromium without its frame rate limiter (L1.3). With the limiter, frame
+ * production stops ≈ 0.26 s after a dialog whose overlay has a backdrop-filter closes (measured on macOS / Metal: the
+ * click ripple freezes in the capture); without it that stall is gone, but the compositor draws back to back:
+ * requestAnimationFrame runs at thousands of Hz while anything animates (24 000 Hz with a CSS spinner on screen), so
+ * animations that advance a fixed step per frame play far too fast, and the CPU climbs 2–6×. Default: the limiter.
+ */
+export function frameRateArgs(b: Pick<BrowserConfig, 'frame_rate_limit' | 'args'> = {}): string[] {
+  if (b.frame_rate_limit !== false || b.args?.includes('--disable-frame-rate-limit')) return [];
+  return ['--disable-frame-rate-limit'];
+}
+
+/**
  * Launch flags for a capture at device scale `scale` (L2.8, measured in docs/HANDOFF.md): the CDP screencast of
  * headless Chromium (new headless and the headless shell alike) sends frames at the window's physical size, which
  * stays at CSS size whatever `deviceScaleFactor` the page emulates — `Emulation.setDeviceMetricsOverride` on the
@@ -312,7 +324,7 @@ export class BrowserSession {
         locale: b.locale,
         timezoneId: b.timezone,
         colorScheme: b.color_scheme,
-        args: [...DEFAULT_BROWSER_ARGS, ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
+        args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
         acceptDownloads: true,
         handleSIGINT: false,
         handleSIGTERM: false,

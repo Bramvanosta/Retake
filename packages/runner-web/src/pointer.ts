@@ -16,6 +16,8 @@ export interface PointerHost {
   clock?: { now(): number; sleep(ms: number, signal?: AbortSignal): Promise<void> };
   /** Where cursor samples go (default: the timeline's cursor — a page's own track in a multi-page scene, L2.11). */
   sample?: (s: { x: number; y: number; visible: boolean; down?: boolean }) => void;
+  /** Called before a press (L1.3: the runtime lets the capture catch up with the cursor's last painted position). */
+  beforePress?: () => Promise<void>;
 }
 
 export type MouseButton = 'left' | 'right' | 'middle';
@@ -41,6 +43,8 @@ export class Pointer {
   known = false;
   visible = true;
   down = false;
+  /** Wall time (epoch ms) the last move that changed the position was dispatched (0: none yet). */
+  lastMoveAt = 0;
 
   constructor(private readonly host: PointerHost) {}
 
@@ -69,6 +73,7 @@ export class Pointer {
     const x = snap(p.x, this.host.scale);
     const y = snap(p.y, this.host.scale);
     await this.host.page().mouse.move(x, y);
+    if (x !== this.x || y !== this.y) this.lastMoveAt = Date.now();
     this.x = x;
     this.y = y;
     this.known = true;
@@ -119,6 +124,7 @@ export class Pointer {
       const y = u >= 1 ? to.y : snap(p.y, this.host.scale);
       if (x !== this.x || y !== this.y) {
         await mouse.move(x, y);
+        this.lastMoveAt = Date.now();
         this.x = x;
         this.y = y;
         this.sample();
@@ -135,6 +141,8 @@ export class Pointer {
 
   /** Mouse down at the current position; returns its capture time. */
   async press(button: MouseButton = 'left', clickCount = 1): Promise<number> {
+    if (clickCount === 1) await this.host.beforePress?.();
+    throwIfAborted(this.host.signal);
     const t = this.host.timeline.now();
     await this.host.page().mouse.down({ button, clickCount });
     this.down = true;

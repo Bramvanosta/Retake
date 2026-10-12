@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot **L5.1 (fixes found by the macOS pass)**, after L1.5 — phases 1 and 2 are done;
+Last updated: 2026-10-12, end of lot **L1.3 (capture smoothness)**, after L1.5 and L5.1 — phases 1 and 2 are done;
 the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
@@ -28,7 +28,12 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.1)
+## State (after L1.3)
+- **L1.3 done (2026-10-12)**: the cursor waits for flowing frames after a scroll (stalls after scrolls gone) and
+  before a press, the motion check warns on stalls ≥ 150 ms. Two limits stay partial: closing a dialog with a blurred
+  overlay still freezes ≈ 0.26 s during the click ripple (R-ISS-12; `browser.frame_rate_limit: false` avoids it, not
+  the default: rAF at thousands of Hz, 2–6× CPU), and hover-effect hitches (100–400 ms, now and then; R-ISS-02).
+  Tests on the Mac: **896 — 889 pass, 7 skipped** (≈ 2 m 35 s). Requirements: 618 tracked — 435 done, 49 partial, 126 todo, 8 n/a-here.
 - **L5.1 done (2026-10-12)**: the CLI tells an old Node.js which version it needs, a new workspace uses the starter
   templates, one-line keychain errors (printed once), `doctor` checks ffmpeg ≥ 5.1, scene rest points next to the
   click point and inside the target's dialog, continuing scenes glide next to a far first target, late popups caught
@@ -53,8 +58,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: L1.2 (runner robustness), L1.3 (capture smoothness, narrowed by L1.5: stalls after scrolls and at
-  dialog close), L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox),
+- **Not built yet**: L1.2 (runner robustness), L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox),
   phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
@@ -104,14 +108,14 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. ~~L5.1~~ — done 2026-10-12. Chain asked by the user (2026-10-12): **L1.3** (stalls) → **L1.2** (runner
+2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12. Chain asked by the user (2026-10-12): L1.3 (stalls) → **L1.2** (runner
    robustness) → **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
    → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.3 — Capture smoothness** (narrowed by L1.5: stalls after scripted scrolls and at animated dialog close, a motion
-check that sees them), then L1.2, L1.6, L1.7, L1.8, L1.4 — see "Order of the next lots".
+**L1.2 — Runner robustness for any site** (shadow DOM and iframes, loading frames, templating and secrets everywhere,
+host policy for shell/js hooks, choreography helpers), then L1.6, L1.7, L1.8, L1.4 — see "Order of the next lots".
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -610,6 +614,41 @@ check that sees them), then L1.2, L1.6, L1.7, L1.8, L1.4 — see "Order of the n
   popup; the scene-start glide's end is recorded (`t_settled`) and the review compares the opening still from 0.3 s
   after it (`stillGlideEnd`, `stillPair(span, fps, timeline)`): no false "screen changes during the opening still".
   893 tests: 886 pass, 7 skipped (full suite green on the Mac, 2 m 43 s). No dependency added.
+- **L1.3 done** (capture smoothness on the Mac; R-ISS-01, R-ISS-11, R-ISS-13, R-ACC-02 done, R-ISS-02 and R-ISS-12
+  partial): **diagnosis** (a temporary in-recorder trace, removed: every screencast frame, page long tasks and rAF
+  gaps) — during the stalls the page had no long task, rAF ran steadily and no frame was dropped: Chromium's frame
+  production stopped. Dialog close: 263–266 ms every time an element with a `backdrop-filter` goes away (none without
+  the blur, also with animations off; unchanged by Graphite off, GPU raster off, zero-copy, partial raster, SwiftShader,
+  CALayer overlays off, `--disable-gpu-vsync`); `--disable-frame-rate-limit` removes it (a web search found related
+  backdrop-filter issues on Chrome Mac, not this one). In a standalone page it reproduces only with the kit injected
+  and a real hover / press sequence — and none of the kit's parts alone (bindings, kind detection, session save,
+  ripple, press state, move handlers, drop-shadow, will-change, top-layer popover, host size, hidden cursor) causes
+  it: the next bisect step is in R-ISS-12's gap. After a scroll: a one-time render of newly exposed content (a 0.4 s pause after the first
+  scroll removes it; later scrolls do not stall). Hover: 100–400 ms now and then as the cursor enters an element with a
+  hover effect (CheckerImaging off, raster threads, low-res tiling: no reliable change). **Decision**: the flag was the
+  default during the lot, then a review found that without the limiter a page's rAF runs at ≈ 24,000 Hz while any CSS
+  animation is on screen (2–6× CPU; animations stepping per frame play too fast) → the limiter stays, the flag is an
+  option. **Changes**: session.ts `frameRateArgs` (core `browser.frame_rate_limit: false` →
+  `--disable-frame-rate-limit`, not added twice; schema regenerated); recorder
+  `waitFrameAfter` / `lastFrameAt`; Runtime `filming`, `awaitFreshFrame` (after `scroll` and `ensureInView`: 1 px probes
+  until 3 frames in a row within 50 ms, ≤ 0.9 s, a probe unanswered for 0.45 s ends it; skipped when the cursor is
+  hidden) and `awaitCaughtUp` (Pointer `beforePress` hook + `lastMoveAt`: before a press, wait until a captured frame
+  shows the last move, at most until 0.45 s after it; a cancelled run does not press); click.ts (the late-popup
+  window counted from the press; the popup re-checked once the next target is found); timeline `motionCapture`
+  (motion-only fps, `stalls` ≥ `STALL_MIN_S` 0.15 s in a motion or a ripple, page changes and 1 px probes ignored) +
+  run.ts `motionWarnings` (a hint to `browser.frame_rate_limit` when a ripple froze); raw/plan.ts
+  `RAW_CUT.result_margin_s` 0.05 → 0.2 s (the catalogue import paints 0.16 s after its DOM). Tried and dropped: dating the cursor
+  track by the page's rAF after each move (lands a frame late half the time). Tests: unit (stalls, nudges, page
+  changes, warnings, launch args), raw-units (new margin), raw-real (60/30 fps frame tolerance 3, every resting frame
+  compared), pacing (late popup: a target found in the same tick as its dialog). Acceptance with the flag (under
+  another project's test load, load 4–24): quote 20261012-211506 / -211729, catalogue 20261012-211610 / -211826 — no
+  dialog-close stall, one 192 ms hover hitch; quote rendered (quote-v1, 60.0 s, 2 m 09 s) and reviewed clean.
+  Acceptance with the defaults: quote 20261012-221656 / -221911, catalogue 20261012-221752 / -222005 — no stall after a
+  scroll or in a move, 84 of 84 moves ≥ 24 fps (lowest 51.4), dialog closes 186–264 ms during the ripple, warned with
+  the hint (the post-scroll pauses, up to 319 ms, fall in the probes: frames differ only by the 1 px probe).
+  896 tests: 889 pass, 7 skipped (the e2e capture test now tolerates a freeze during a click ripple only, R-ISS-12). A review workflow checked the lot (fixed: the default flag, useless 0.9 s press waits,
+  the click-time skew of the late-popup window, a press after cancel, nudges counted as motion, the raw-real flakes,
+  a stale doc comment). No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -837,6 +876,16 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.3:
+- Heavy background work (another project's tests, Spotlight, updaters: load averages of 15–27 seen) slows a capture
+  (the catalogue took 1 m 37 s instead of 1 m 12 s) and its motion; the run warns when the capture froze ≥ 150 ms.
+  Capture on a quiet machine when it matters.
+- A "click ripple" freeze of ≈ 0.26 s at a dialog close is R-ISS-12 (blurred overlay going away). For a capture that
+  matters: `browser: {frame_rate_limit: false}` in the project or scenario — check the page's own animations look
+  right (rAF unthrottled) and expect 2–6× the CPU.
+- Diagnose a stall: `motionCapture` on the run's frames.jsonl + timeline.json (run warnings list them); a frame gap with
+  no page long task and steady rAF is Chromium's frame production, not the page's JavaScript.
+
 Notes from L1.5 (the Mac):
 - Runs of the pass (git-ignored, on the Mac): catalogue `20261012-181152-catalogue`, quote `20261012-181304-quote`
   (both captured while the user worked), `20261012-181929-quote` (`--headed`), `20261012-182250-quote` (`--raw --cursor

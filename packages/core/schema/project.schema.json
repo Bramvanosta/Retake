@@ -468,6 +468,10 @@
             "light",
             "dark"
           ]
+        },
+        "frame_rate_limit": {
+          "type": "boolean",
+          "description": "false: run Chromium without its frame rate limiter — no ≈ 0.26 s capture stall when a dialog with a backdrop-filter overlay closes, but requestAnimationFrame then runs at thousands of Hz while anything animates (fixed-step animations play too fast) and 2–6× the CPU. Default true."
         }
       },
       "additionalProperties": false
