@@ -17,6 +17,8 @@ automatically with themeable components, and let Claude operate everything throu
    cursor/click/typing rules), `docs/design-brief.md` + the mock-up canvas (Studio screens 1–7 and video frames in two
    themes): https://claude.ai/artifact/CEa9o9do5hr9AcLBajLRye (private to the owner).
 6. `README.md` — usage, scenario language reference, CLI.
+7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
+   start, recorder precisions for L3.4/L4.8, open decisions; `docs/COMPETITION.md` — competitive study (2026-10-12).
 
 ## State
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web

@@ -452,7 +452,8 @@ Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `late
 
 ## 4. Frame comments (data model now, UI in phase 4, MCP tools in phase 3)
 
-`<project>/comments/<scenario>.json`:
+`<project>/comments/<scenario>/<thread-id>.json` — one file per thread (ADR-1 #4), thread ids globally unique;
+replies carry their own `id` and are only appended, so concurrent edits (git, a future sync) merge cleanly:
 ```ts
 interface FrameComment {
   id: string; scenario: string; render_id: string; frame: number; time_s: number;
@@ -461,7 +462,7 @@ interface FrameComment {
   status: 'open' | 'resolved';
   anchor: { segment: string; kind: string; component?: string; scene?: string; step?: number; step_id?: string;
             src_time_s?: number };                              // computed from the plan provenance
-  replies: Array<{ author: string; text: string; created_at: string }>;
+  replies: Array<{ id: string; author: string; text: string; created_at: string }>;  // append-only
   resolution?: { by: string; note: string; render_id?: string };
 }
 ```

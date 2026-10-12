@@ -12,9 +12,13 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - A lot ends with: build + full test suite green, the lot's acceptance checked (tests, real runs, frames looked at),
   `docs/requirements.json` statuses/evidence updated (`node scripts/requirements.mjs`), `docs/HANDOFF.md` updated,
   one commit pushed to the working branch, and a short report (what was done, verification, consumption, next lot).
-- The user picks how many lots to chain. Current go (2026-10-11): autonomous through the end of phase 4, one clean
-  commit per lot, a short report at the end of each phase.
-- The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data.
+- The user picks how many lots to chain. Current go (2026-10-12): autonomous through the end of phase 2 (L2.14) in
+  the cloud session, one clean commit per lot. The work then moves to a local Claude Code session on the user's Mac,
+  which starts with L1.5 (macOS verification, decides L1.3), then L1.6–L1.8 and phase 3.
+- **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
+  instead of a lot.
+- The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data. The market
+  docs (`docs/COMPETITION.md`, `docs/BACKLOG.md`) name third-party products for analysis only.
 - Every lot that adds or changes a component regenerates its committed `preview.png` (`studio components preview`).
 
 ## Status
@@ -65,7 +69,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
-| L6 | V2 — marketplace (+ backlog candidates: terminal, code, chat/SMS, Dynamic Island, calendar, sounds, webcam, SRT), licensing (incl. Remotion licence review), packaging | — | later |
+| L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
 
@@ -392,6 +396,10 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - **Scope:** render catalogue + quote with the editorial theme, clean review, contact-sheet review by Claude, switch a
   component and the theme without touching the scenario (R-ACC2-*, R-GOAL-05, R-LES-10, R-CMP-01); one video with a user intro file and an alpha overlay; one raw export
   imported checks (FCPXML/OTIO validate); README update.
+- **Mac handoff:** root `CLAUDE.md` (points to `docs/HANDOFF.md`, working agreement, commands); HANDOFF gains
+  "Mac setup" (Node ≥ 22, pnpm, ffmpeg, Chromium for playwright-core, Docker later, Xcode for phase 5) and "First
+  local session" (L1.5 checklist first); every helper used in the cloud session lives in the repo; branch ready to
+  merge.
 
 ### L3.1 – L3.8, L4.1 – L4.9, L5.x, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

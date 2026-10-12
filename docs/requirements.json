@@ -4561,7 +4561,7 @@
   {
    "id": "R-CMT-02",
    "source": "DESIGN-phase2 §4; SPEC §12; decision",
-   "requirement": "Comments are stored in the workspace at <project>/comments/<scenario>.json.",
+   "requirement": "Comments are stored in the workspace, one file per thread at <project>/comments/<scenario>/<thread-id>.json (same as R-ARC-04); replies are append-only with their own ids.",
    "status": "todo",
    "evidence": "",
    "gap": "Absent; comments/ not in PROJECT_GITIGNORE nor project layout.",
