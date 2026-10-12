@@ -102,9 +102,9 @@
    "id": "R-PRIN-10",
    "source": "SPEC §0 (authenticated sessions); SPEC §4 auth; DESIGN §3.1",
    "requirement": "Authenticated sessions use a persistent pre-authenticated profile (global or per environment) or a storage_state file.",
-   "status": "partial",
-   "evidence": "session.ts:239-260 launchPersistentContext(profileDir); session.ts:376-392 applyStorageState; config.ts:238-247; unit test 'resolves auth globally or per environment'",
-   "gap": "No test or run launches with a real profile or storage_state; every test uses a temporary profile. Signing in with studio login cannot be verified here (R-ISS-09).",
+   "status": "done",
+   "evidence": "session.ts launchPersistentContext(profileDir) + applyStorageState; L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): a headless dry run on the persistent profile saved by `studio login` passed an assert on text only visible when signed in (personal staging site, outside the repository). storage_state files: unit-tested only (personas in L1.6).",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -212,9 +212,9 @@
    "id": "R-GOAL-08",
    "source": "SPEC §1.1; SPEC §14 phase 1 accept",
    "requirement": "Capture runs headless and offscreen while the user keeps working on the Mac.",
-   "status": "n/a-here",
-   "evidence": "headless:true (session.ts:246); every Linux run here was headless",
-   "gap": "Not verifiable without a macOS desktop.",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): catalogue (20261012-181152, 21/21 steps) and quote (20261012-181304, 25/25) captured headless while the user switched apps, typed, scrolled and moved windows — no window shown, focus never taken, typing never reached the capture.",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -364,9 +364,9 @@
    "requirement": "Use HeadlessExperimental.beginFrame for deterministic frames when available.",
    "status": "todo",
    "evidence": "no beginFrame usage anywhere in packages/",
-   "gap": "Not implemented; it would also be a mitigation for R-ISS-01.",
+   "gap": "Not implemented. Dropped for the local tool by the L1.5 decision (ROADMAP L1.3): a GPU Mac captures ≈ 60 frames/s while the cursor moves without it. Relevant again only for GPU-less captures (cloud or CI runners).",
    "phase": "1",
-   "lot": "L1.3"
+   "lot": "L6"
   },
   {
    "id": "R-ARCH-06",
@@ -902,9 +902,9 @@
    "id": "R-ACT-28",
    "source": "SPEC §6 notify; DESIGN §3.3",
    "requirement": "`notify` shows a desktop notification (macOS osascript, Linux notify-send, else log).",
-   "status": "n/a-here",
-   "evidence": "misc.ts:60-87; widgets test runs notify but neither osascript nor notify-send exists here, so only the log fallback runs",
-   "gap": "Real notification unverified (R-ISS-09).",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): a `notify` step (dry run) showed the macOS notification \"Demo Studio — Notification check\" (osascript), seen by the user. Linux notify-send still unexercised.",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -1552,9 +1552,9 @@
    "id": "R-SEC-02",
    "source": "SPEC §13; DESIGN §1 resolveSecretRef",
    "requirement": "{{keychain:service/account}} resolves through the macOS Keychain (`security`) or Linux `secret-tool`.",
-   "status": "n/a-here",
-   "evidence": "core/src/templating.ts:151-179; secrets.test only describes keychain refs in a dry run",
-   "gap": "Neither `security` nor `secret-tool` exists in this container, so it was never executed (R-ISS-09).",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): a hook header {{keychain:demo-studio-check/token}} resolved through `security find-generic-password` (200 OK, journal in .demo-studio/journals, value found nowhere on disk); a missing item fails with \"keychain item … not found\". Linux secret-tool still unexercised.",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -1633,8 +1633,8 @@
    "source": "SPEC §14 accept ('cursor and clicks in sync'); DESIGN §6",
    "requirement": "The drawn cursor and the clicks are in sync.",
    "status": "partial",
-   "evidence": "acceptance 'the drawn hotspot is within 3 px of every click point and inside the target' (synthetic ACCEPT_PAGE); fixture timelines have every click point inside its bbox",
-   "gap": "Sync is only proven at click instants on a synthetic page; during motion the drawn cursor trails the recorded track (R-ISS-02); it is never measured on the fixture catalogue capture.",
+   "evidence": "Synthetic ACCEPT_PAGE: drawn hotspot within 3 px of every click point; fixture timelines: every click point inside its bbox. L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"), catalogue 20261012-181152, quote 20261012-181304: every click's ripple appears within ≈ 0.02–0.05 s of t_click (first screencast frames) at the cursor point; during motion the drawn cursor matches the track within one sample (R-ISS-02).",
+   "gap": "Within 2 px in 94 % of moving frames only (R-ISS-02); the renderer-pause case trails up to 71 px.",
    "phase": "1",
    "lot": "L1.3"
   },
@@ -1652,9 +1652,9 @@
    "id": "R-ACC-04",
    "source": "SPEC §14 accept ('runs while the user uses the Mac')",
    "requirement": "Capture does not take over the user's screen on macOS.",
-   "status": "n/a-here",
-   "evidence": "headless offscreen (session.ts:246)",
-   "gap": "Needs a macOS desktop to verify.",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): the two captures of step 6 ran offscreen while the user worked; nothing appeared on screen (user report).",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -2072,9 +2072,9 @@
    "id": "R-CLI-09",
    "source": "DESIGN §4; README Signing in",
    "requirement": "`studio login <project> [--env] [--page] [--url]` opens a headed browser on the persistent profile to sign in once.",
-   "status": "n/a-here",
-   "evidence": "misc.ts:114-130; runner-web/src/login.ts",
-   "gap": "No display in the container: never run (R-ISS-09).",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): `studio login site-check` from a separate workspace opened a visible Chromium on a personal staging site, the user signed in by hand and closed it → \"profile saved: ~/.demo-studio/profiles/site-check\"; doctor Profile OK.",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -2082,9 +2082,9 @@
    "id": "R-CLI-10",
    "source": "DESIGN §4; README run --headed",
    "requirement": "`studio run --headed` shows the browser window.",
-   "status": "n/a-here",
-   "evidence": "session.ts:246; cli run.ts:270-272 refuses when there is no display",
-   "gap": "No display: never exercised (R-ISS-09).",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): `studio run northfield-fixture quote --headed` (run 20261012-181929): visible window with the in-page cursor and ripples, closed at the end, 25/25 steps (user watched).",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -2423,8 +2423,8 @@
    "source": "Known open issue; README Requirements (GPU note)",
    "requirement": "Captures stay smooth (~30 fps) during cursor motion, including over dialogs with backdrop-filter blur.",
    "status": "partial",
-   "evidence": "Detection and warning: run.ts:248-257, timeline.ts:60-90 motionCapture (unit test). runs/20261011-150847-catalogue/run.json: '17 of 23 cursor moves were captured below 18 fps (lowest 6 fps)'; quote run: 11 of 18 below. The fixture uses backdrop-filter (fixtures/wholesale/src/shared/styles.css:815,1296; shop.css:8)",
-   "gap": "Choppy at 6–10 fps under software rendering with no mitigation (no beginFrame, no option to disable heavy effects). Smoothness on a GPU or Mac cannot be verified here.",
+   "evidence": "Detection and warning: run.ts motionCapture warning (timeline.ts, unit test). Cloud (no GPU): '17 of 23 cursor moves were captured below 18 fps (lowest 6 fps)'. L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"), catalogue 20261012-181152, quote 20261012-181304: ≈ 60 frames/s while the cursor moves (cloud 15–20), moves over blurred dialog backdrops 57–75 fps, 42 of 43 moves ≥ 24 fps.",
+   "gap": "On the Mac the remaining defects are short stalls: the first move after a scripted scroll (R-ISS-11) and every animated dialog close (R-ISS-12). Software rendering (containers) stays at 6–10 fps under blur with no mitigation: not pursued for the local tool (L1.5 decision, ROADMAP L1.3; beginFrame R-ARCH-05 moved to L6).",
    "phase": "1",
    "lot": "L1.3"
   },
@@ -2433,8 +2433,8 @@
    "source": "Known open issue; SPEC §14 accept",
    "requirement": "The recorded cursor track (timeline.cursor) matches the cursor drawn in the frames.",
    "status": "partial",
-   "evidence": "pointer.ts:95-98 samples the position right after mouse.move resolves; timeline.ts:123-130 applies no render-latency offset",
-   "gap": "The drawn cursor trails the recorded track by 1–3 frames during moves (only click instants are verified). Phase-2 overlays or zooms keyed on timeline.cursor will lead the visible cursor.",
+   "evidence": "pointer.ts samples the position right after mouse.move resolves. L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"), catalogue 20261012-181152, quote 20261012-181304: sweep of the arrow-cursor frames inside judged moves (hand and I-beam frames not swept; the arrow found in 663): 622 (94 %) within 2 px of the last dispatched sample, 38 on the previous sample (stamped 0–6 ms before the frame), 2 on the next, 1 false detection; the 1–3 frame trailing seen in the cloud does not happen on the Mac.",
+   "gap": "During a renderer pause (quote 2.92–3.05 s, a card hover-in) the drawn cursor trails the samples by up to 71 px; the track records dispatch time, not paint time.",
    "phase": "1",
    "lot": "L1.3"
   },
@@ -2502,9 +2502,9 @@
    "id": "R-ISS-09",
    "source": "Known open issue",
    "requirement": "studio login, --headed, Keychain secret resolution and desktop notifications are verified.",
-   "status": "n/a-here",
-   "evidence": "No DISPLAY, no osascript, notify-send, security or secret-tool in the container; see R-CLI-09, R-CLI-10, R-SEC-02, R-ACT-28",
-   "gap": "Needs a macOS (or desktop Linux) verification pass.",
+   "status": "done",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): studio login (R-CLI-09), --headed (R-CLI-10), Keychain refs (R-SEC-02) and desktop notifications (R-ACT-28) verified.",
+   "gap": "",
    "phase": "1",
    "lot": "L1.5"
   },
@@ -2517,6 +2517,36 @@
    "gap": "",
    "phase": "1",
    "lot": "L1.1"
+  },
+  {
+   "id": "R-ISS-11",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "A scripted scroll and the first cursor move after it are captured without a stall (no frozen frames, then a jump).",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): 2 of 2 moves right after a scroll step stalled while input dispatch went on: catalogue 19.16 s (frames +147/+169/+428 ms, 9 repeated CFR frames, the cursor hops 36 px then 52 px), quote 5.42 s (258 ms without a frame, then a 329 px jump at 5.70 s inside the edited discover clip). One scroll stalled itself: quote 4.396 → 4.540 s (144 ms without a frame, then a 240 px scroll jump at 4.57 s, inside the edited clip; 1 of the 5 scroll steps of the Mac runs).",
+   "gap": "Keep the scroll's own frames flowing and wait for a fresh screencast frame after a scroll (or pace the motion clock on frame delivery) before the next glide.",
+   "phase": "1",
+   "lot": "L1.3"
+  },
+  {
+   "id": "R-ISS-12",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "Closing a dialog with an exit animation (backdrop-filter blur) does not stall the capture: the click ripple and the page keep animating.",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): every animated dialog close stalled the screencast 256–269 ms (3 of 3: catalogue Pause confirm 23.21 s and Save 41.04 s, quote Send request 30.65 s; the headed run 250 ms); a dialog that unmounts with a navigation (catalogue registry result, 51.02 s) shows no gap (≤ 26 ms): the ripple freezes at ≈ 35 % opacity for 7–9 frames, then vanishes; the toast after it waits.",
+   "gap": "Find the cause (the exit animation over the blur layer) and a capture-side mitigation, or hold the cursor still until frames resume.",
+   "phase": "1",
+   "lot": "L1.3"
+  },
+  {
+   "id": "R-ISS-13",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "The runner's motion check flags a stall inside a move (longest frame gap while the cursor moves), not only a low average rate over the move and its rest.",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): the quote freeze of R-ISS-11 counts as 37 fps in motionCapture (frames averaged over the move plus the rest before the click), so no warning was printed.",
+   "gap": "motionCapture: judge the motion part only and report the longest frame gap.",
+   "phase": "1",
+   "lot": "L1.3"
   },
   {
    "id": "R-MCP-01",
@@ -6062,11 +6092,101 @@
    "id": "R-RAW-06",
    "source": "L2.13 (use case: edit in another tool)",
    "requirement": "A raw package imports cleanly into Final Cut Pro, Premiere Pro and DaVinci Resolve (clips in order, markers, cursor layers composited, timecodes matching).",
-   "status": "n/a-here",
-   "evidence": "Interchange files validated with OpenTimelineIO 0.18.1 (incl. its FCPXML and CMX 3600 adapters) and against ffprobe in the cloud container; the tools themselves need a Mac (docs/MACOS-CHECKLIST.md step 12).",
-   "gap": "Import into Final Cut Pro, Premiere Pro and DaVinci Resolve on the Mac (L1.5).",
+   "status": "partial",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): `run quote --raw --cursor layer --format prores --fps 60` (20261012-182250): 4 ProRes 422 HQ clips + 4 ProRes 4444 layers in 1 m 12 s; scripts/validate-raw.py OK (OpenTimelineIO 0.18.1 on Python 3.13: FCPXML, OTIO, EDL, FCPXML via OTIO, 35 markers); a layer composited over its clip with ffmpeg at the Send request click: hand on the button, ripple, no halo.",
+   "gap": "No editing tool on the Mac used for the pass (no Final Cut Pro, Premiere Pro or DaVinci Resolve installed; the user chose to skip): the imports themselves are still unverified.",
    "phase": "2",
    "lot": "L1.5"
+  },
+  {
+   "id": "R-MAC-01",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "The tools work with ffmpeg 9 (no `-vsync`; frame-selection expressions nested at most 100 deep).",
+   "status": "done",
+   "evidence": "review/src/ffmpeg.ts selectExpr (balanced sum, log2 depth) + `-fps_mode passthrough` (ffmpeg ≥ 5.1) in review ffmpeg.ts / pixels.ts and editor test helpers; test review/test/ffmpeg.test.ts (250 frames of a lossless frame-index ramp in one pass); full suite green on ffmpeg 9.0.2 (macOS) — README requirement ffmpeg 5.1+.",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-MAC-02",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "Component validation works when the component folder is reached through a symbolic link (macOS /var → /private/var).",
+   "status": "done",
+   "evidence": "components/src/compile.ts checkComponentEntry resolves the folder, entry and kit to real paths (esbuild reports real paths); test validate.test.ts \"a component folder reached through a symbolic link\" (fails without the fix on any platform). Registry test fixture no longer relies on a case-sensitive file system.",
+   "gap": "",
+   "phase": "1",
+   "lot": "L1.5"
+  },
+  {
+   "id": "R-MAC-03",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "The CLI refuses an unsupported Node.js (< 22) with a clear message instead of a syntax error.",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): from a workspace outside the repository the folder's default Node 10.24 ran bin.js → \"SyntaxError: Unexpected token {\".",
+   "gap": "A version guard that parses on old Node (e.g. a CommonJS launcher that checks process.versions.node, then imports the ESM main); maybe pin Node in the repository (.node-version / mise.toml).",
+   "phase": "5",
+   "lot": "L5.1"
+  },
+  {
+   "id": "R-MAC-04",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "A new workspace can use the starter templates (`studio new` writes `template: default`).",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): a workspace made for the login check failed validation with 'template \"default\" not found … (available: none)' until studio.yaml pointed templates_dir at the repository's templates/.",
+   "gap": "Fall back to the bundled starter templates when the workspace has none (or copy them on studio new); doctor / validate say how.",
+   "phase": "5",
+   "lot": "L5.1"
+  },
+  {
+   "id": "R-MAC-05",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "A keychain reference that cannot be resolved fails with one clear line.",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): a missing item prints \"keychain item … not found: Command failed: security find-generic-password …\" twice, with security's raw stderr breaking the line.",
+   "gap": "Report once, with the security message folded in.",
+   "phase": "5",
+   "lot": "L5.1"
+  },
+  {
+   "id": "R-MAC-06",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "A scene's automatic rest point stays inside the dialog of its first target and near its click point (no out-and-back detour).",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): quote delivery scene (runs 20261012-181304 / -181929 / -182250, deterministic): kit.restNear put the rest below-right of the 622 px \"Delivery window\" field's corner, at (1327,594), outside the dialog: the cursor glided 536 px out and 373 px back (≈ 908 px for a 163 px move) during the protected opening still.",
+   "gap": "restNear: use the click point, keep inside the topmost dialog, prefer the side nearest the current position.",
+   "phase": "5",
+   "lot": "L5.1"
+  },
+  {
+   "id": "R-MAC-07",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "A continuing scene (no `open:`) starts with the cursor resting next to its first target, as the field rule asks, or the rule is revised.",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): quote request scene: scene_still cursor how=keep — the cursor rests 484 px from \"Request a quote\" for 1.6 s, then swoops 0.45 s; DESIGN §3.3 keeps a position already clear of the target, which contradicts MACOS-CHECKLIST step 7 / choreography.md.",
+   "gap": "Decision: glide to the rest point during the still (as delivery does) or keep; then align DESIGN §3.3 and the checklist.",
+   "phase": "5",
+   "lot": "L5.1"
+  },
+  {
+   "id": "R-MAC-08",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "A popup that nobody announced is still detected when it opens later than `after_click_ms` (slow or loaded machine).",
+   "status": "todo",
+   "evidence": "L1.5 macOS pass 2026-10-12 (Apple M4, macOS 26.6, Chromium 141, ffmpeg 9.0; docs/MACOS-CHECKLIST.md \"Results\"): the first full test run (all files in parallel) failed e2e \"captures capture.mp4 + timeline.json…\": steps[0].popup_opened undefined — the \"New import\" dialog (a plain button: an unannounced popup) opened after the poll window, the test scenario's after_click_ms 200 ms ± jitter (the run itself succeeded); green alone and in the second full run.",
+   "gap": "Keep polling up to after_popup_ms (or until the next step) for evidence; or relax the test under load.",
+   "phase": "5",
+   "lot": "L5.1"
+  },
+  {
+   "id": "R-MAC-09",
+   "source": "L1.5 macOS pass (docs/MACOS-CHECKLIST.md \"Results\")",
+   "requirement": "`studio doctor` checks the ffmpeg version (5.1+, for `-fps_mode`).",
+   "status": "todo",
+   "evidence": "doctor prints the version only; the review needs ffmpeg ≥ 5.1 since R-MAC-01.",
+   "gap": "Fail below 5.1 with the upgrade command.",
+   "phase": "5",
+   "lot": "L5.1"
   }
  ]
 }

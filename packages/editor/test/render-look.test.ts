@@ -59,6 +59,33 @@ interface Box {
   count: number;
 }
 
+/**
+ * Cap band of a line of text in region [x0, x1) × [y0, y1): the most frequent top and bottom of its columns — the flat
+ * tops and the baseline, leaving out diacritics (É), round overshoots and descenders, which platforms rasterise
+ * differently.
+ */
+function capBand(img: Image, region: [number, number, number, number], pred: (p: RGB) => boolean): { y0: number; y1: number } | undefined {
+  const [rx0, ry0, rx1, ry1] = region;
+  const tops = new Map<number, number>();
+  const bottoms = new Map<number, number>();
+  for (let x = rx0; x < rx1; x++) {
+    let top = -1;
+    let bottom = -1;
+    for (let y = ry0; y < ry1; y++) {
+      if (!pred(at(img, x, y))) continue;
+      if (top < 0) top = y;
+      bottom = y;
+    }
+    if (top < 0) continue;
+    tops.set(top, (tops.get(top) ?? 0) + 1);
+    bottoms.set(bottom, (bottoms.get(bottom) ?? 0) + 1);
+  }
+  const mode = (m: Map<number, number>) => [...m].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+  const y0 = mode(tops);
+  const y1 = mode(bottoms);
+  return y0 === undefined || y1 === undefined ? undefined : { y0, y1 };
+}
+
 /** Bounding box (inclusive) of the pixels of region [x0, x1) × [y0, y1) matching `pred`. */
 function bbox(img: Image, region: [number, number, number, number], pred: (p: RGB) => boolean): Box | undefined {
   const [rx0, ry0, rx1, ry1] = region;
@@ -172,7 +199,8 @@ describe.skipIf(!canRender)('reference look on real renders (quote fixture plan,
     expect(logo.y1 - logo.y0 + 1).toBeLessThanOrEqual(65);
     expect(Math.abs(centre(logo.y0, logo.y1) - 417)).toBeLessThanOrEqual(3);
     const kicker = bbox(img, [600, 500, 1320, 560], accentish)!;
-    expect(Math.abs(centre(kicker.y0, kicker.y1) - 528.5)).toBeLessThanOrEqual(3);
+    const kickerCaps = capBand(img, [600, 500, 1320, 560], accentish)!; // "FOR CAFÉS": the accent is not the cap band
+    expect(Math.abs(centre(kickerCaps.y0, kickerCaps.y1) - 528.5)).toBeLessThanOrEqual(3);
     expect(Math.abs(centre(kicker.x0, kicker.x1) - 960)).toBeLessThanOrEqual(4);
     const rule = bbox(img, [600, 650, 1320, 760], near(ACCENT, 20))!;
     expect(rule.y1 - rule.y0 + 1).toBe(2);

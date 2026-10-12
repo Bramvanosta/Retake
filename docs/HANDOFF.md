@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.14 — **phase 2 is done**. Branch: **`main`**. From here the work continues in a
-local Claude Code session on the user's Mac (see "Mac setup" and "First local session" below; the root `CLAUDE.md`
-sums up the working agreement and the everyday commands). The cloud working branch `claude/new-session-pq6jtq`, where
-phases 1–2 were built, is history.
+Last updated: 2026-10-12, end of lot **L1.5 (macOS verification pass)**, the first lot of the local Mac session —
+phases 1 and 2 are done. Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+"Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
+branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -28,7 +28,14 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (end of phase 2)
+## State (after L1.5)
+- **L1.5 done (2026-10-12, on the Mac)**: every step of `docs/MACOS-CHECKLIST.md` ran on an Apple M4 (results table
+  at its end); step 7 found stalls after scrolls and at dialog close (→ L1.3) and scene-start defects (→ L5.1); the
+  imports into editing tools were skipped (none installed; R-RAW-06 partial). It fixed the Mac blockers of
+  the test suite (ffmpeg 9, symbolic-link paths, a case-insensitive fixture, a font-sensitive look test), **narrowed
+  L1.3** to the stalls a GPU Mac still shows and filled **L5.1** (`--lot L5.1`). Tests on the Mac: **878 — 872 pass,
+  6 Postgres skipped, 2 m 28 s** for the full suite. Requirements: 618 tracked — 424 done, 50 partial, 136 todo,
+  8 n/a-here.
 - **Phases 1 and 2 are done**: phase 1 (core, runner-web, hooks, CLI, fixture product, starter templates) + L1.1, and
   phase 2 L2.1–L2.14 — contracts, components package, edit planner, Remotion render pipeline, reference-look
   components, review, layouts & previews, variants / 4K / music / export, mails / notifications / documents, tutorial
@@ -38,14 +45,12 @@ automatically with themeable components, and let Claude operate everything throu
   quote-v17 (editorial) review clean; quote-v18 (`--theme motion`) and quote-v19 (`--frame studio/layout-laptop`)
   re-render the same capture with no scenario change and review clean; own-media-v9 (user intro video, alpha overlay,
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
-- **Tests**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (full suite run twice at the end
-  of L2.14, green both times; ≈ 5–7 min in the cloud container).
-- **Requirements**: 606 tracked — 414 done, 50 partial, 126 todo, 16 n/a-here; every phase-2 lot has 0 open; the open
-  ones belong to L1.2–L1.8, phases 3–5 and L6 (`node scripts/requirements.mjs`).
-- **Not built yet**: L1.2 (runner robustness), L1.3 (capture smoothness — decided by L1.5), L1.4 (coverage), L1.5
-  (macOS pass, next), L1.6–L1.8 (personas, display URLs / safety, sandbox), phase 3 (MCP, authoring, recorder, skills),
-  phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp` is empty; `studio record|mcp|ui` print
-  "available in phase N".
+- **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
+  in the cloud container); 878 after L1.5 (see above).
+- **Not built yet**: L1.2 (runner robustness), L1.3 (capture smoothness, narrowed by L1.5: stalls after scrolls and at
+  dialog close), L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox), L5.1 (fixes found by L1.5),
+  phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
+  is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Mac setup
 The next sessions run locally on the user's Mac with Claude Code, on the `main` branch. Steps (once; `studio doctor`
@@ -74,12 +79,16 @@ checks the result):
    - `PLAYWRIGHT_BROWSERS_PATH` moves the browser cache (the cloud container used `/opt/pw-browsers`); leave it unset
      on the Mac. No other environment variable is needed.
 6. **Check** — `pnpm studio doctor` (Node, Chromium launch, ffmpeg / ffprobe, display, Keychain, notifications,
-   workspace, template fonts): every line `OK`.
+   workspace, template fonts): every line `OK`. Node must be 22+ in every folder the CLI runs from: a version manager
+   pins it per folder (the user's machine: Node 22 in the repository, 10 elsewhere → `SyntaxError: Unexpected token {`
+   until R-MAC-03); a workspace outside the repository needs `templates_dir: <repo>/templates` in its `studio.yaml`
+   until R-MAC-04. ffmpeg 5.1+ (the Mac has Homebrew's 9.0).
 7. **Later, not before their lot** — Docker Desktop for L1.8 (sandbox mode, docker-compose provider); the full Xcode
    (App Store) + Rust (`rustup`) for phase 5 (L5.2 Tauri shell, L5.3 iOS Simulator runner: simctl / idb).
 8. **Optional** — PostgreSQL for the 6 SQL hook tests (`brew install postgresql@16`, then
-   `DEMO_STUDIO_TEST_PG=postgres://…`); Python 3 + OpenTimelineIO for `scripts/validate-raw.py`:
-   `python3 -m venv ~/.venvs/otio && ~/.venvs/otio/bin/pip install opentimelineio otio-cmx3600-adapter otio-fcpx-xml-adapter`.
+   `DEMO_STUDIO_TEST_PG=postgres://…`); Python 3.13 or older + OpenTimelineIO for `scripts/validate-raw.py`
+   (OpenTimelineIO 0.18.1 does not load on Python 3.14: `RuntimeError: bad any cast`; Homebrew has `python@3.13`):
+   `python3.13 -m venv ~/.venvs/otio && ~/.venvs/otio/bin/pip install opentimelineio otio-cmx3600-adapter otio-fcpx-xml-adapter`.
 
 **macOS permissions.** Headless captures need no Screen Recording permission (frames come from Chromium's own
 screencast) and the fixture and the render asset server listen on loopback only (no firewall prompt). Expect prompts
@@ -87,19 +96,16 @@ only for what the L1.5 checklist exercises: Keychain access when a hook resolves
 (through `security`), the Notification / Automation prompt the first time `osascript` posts a notification from the
 terminal, and a visible window for `--headed` runs and `studio login`.
 
-## First local session
-1. Set up the Mac as above; `pnpm build && pnpm test` once (full suite; report the summary line).
-2. Run **L1.5 = `docs/MACOS-CHECKLIST.md`** step by step with the user: it verifies a real capture on a GPU Mac while
-   they keep working, `studio login`, `--headed`, Keychain, notifications and the raw export in their editing tools
-   (R-RAW-06). Its findings decide **L1.3** (capture smoothness under load: needed or not) and feed **L5.1** (macOS
-   fixes).
-3. Then **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock) → **L1.8**
-   (sandbox mode), then phase 3 from **L3.1** per `docs/ROADMAP.md` (L1.2–L1.4 stay open; the user decides when).
-4. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
+## Order of the next lots
+1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
+2. **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock) → **L1.8**
+   (sandbox mode), then phase 3 from **L3.1** per `docs/ROADMAP.md`. L1.2–L1.4 and L5.1 stay open; the user decides
+   when (L1.3 and L5.1 are scoped and measured now: see their requirements).
+3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.5 — macOS verification pass** (S, with the user on the Mac): `docs/MACOS-CHECKLIST.md` step by step; its results
-decide L1.3 and feed L5.1. Then L1.6 → L1.7 → L1.8 and phase 3 (L3.1) — see "First local session".
+**L1.6 — Sessions & personas** (M) per the plan; **L1.3** (narrowed: stalls after scrolls and at dialog close) and
+**L5.1** (fixes found by L1.5) are ready whenever the user prefers them first.
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -547,6 +553,28 @@ decide L1.3 and feed L5.1. Then L1.6 → L1.7 → L1.8 and phase 3 (L3.1) — se
   an empty caption block under an overlay caption), README phase status + validator, MACOS-CHECKLIST (clone `main`,
   validator), ROADMAP (phase 2 done, L1.5 next). 875 tests: 869 pass, 6 Postgres tests skipped (full suite run twice,
   green both times).
+- **L1.5 done** (macOS verification pass, 2026-10-12, a local Claude Code session with the user at an Apple M4 /
+  macOS 26.6.2 / ffmpeg 9.0.2; R-GOAL-08, R-ACC-04, R-CLI-09/10, R-SEC-02, R-ACT-28, R-PRIN-10, R-ISS-09 done, R-RAW-06
+  partial): `docs/MACOS-CHECKLIST.md` steps 1–13, results table at its end. **Fixes made in the lot** (the suite was
+  red on the Mac: 28 failures): ffmpeg 9 removed `-vsync` → `-fps_mode passthrough` (review `ffmpeg.ts` / `pixels.ts`,
+  editor test helper) and refuses `select` expressions nested > 100 deep → `selectExpr` builds a balanced sum (log2
+  depth) for the review's one-pass extraction (new review/test/ffmpeg.test.ts: 250 frames of a lossless ramp);
+  `checkComponentEntry` resolves the component folder, entry and kit to real paths (esbuild reports `/private/var/…`
+  for `/var/…`: a component's own imports were "leaving the folder"; validate.test.ts symlink case, fails without the
+  fix on Linux too); registry test fixture `Zeta/Bad` (APFS ignores case: `Acme/` merged with `acme/`); render-look
+  measures the intro kicker by its cap band (`capBand`: modal column top/bottom) — the bbox included the É accent,
+  which macOS rasterises darker (the cap band is 2.5 px off target, the whole intro stack ≈ 3 px higher than on Linux,
+  within tolerance). README: ffmpeg 5.1+, the validator venv on Python ≤ 3.13; checklist notes (Node per folder,
+  `templates_dir`, Python). **Measured** (step 7, two captures analysed frame by frame by a workflow with an
+  independent re-check of every defect): ≈ 60 frames/s while the cursor moves (cloud 15–20), 42 of 43 moves ≥ 24 fps,
+  drawn cursor within 2 px of the track in 94 % of moving frames; stalls after scripted scrolls (R-ISS-11), at every
+  animated dialog close (R-ISS-12) and invisible to the runner's averaged check (R-ISS-13) → **L1.3 narrowed** (ROADMAP);
+  scene-start rest points (R-MAC-06 detour out of a dialog, R-MAC-07 keep vs field rule), Node guard (R-MAC-03),
+  starter templates in a new workspace (R-MAC-04), keychain error formatting (R-MAC-05), late unannounced popup under
+  load (R-MAC-08), doctor ffmpeg version (R-MAC-09) → **L5.1**. 878 tests: 872 pass, 6 Postgres tests skipped (full
+  suite green on the Mac after the fixes, 2 m 28 s to 2 m 44 s). The diff was reviewed by a second workflow (code,
+  numbers against the measurements, repository rules; each finding re-checked): `selectExpr([])` guard, the entry's
+  real path taken through its folder, and wording / numbers in these docs fixed. No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -774,6 +802,23 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.5 (the Mac):
+- Runs of the pass (git-ignored, on the Mac): catalogue `20261012-181152-catalogue`, quote `20261012-181304-quote`
+  (both captured while the user worked), `20261012-181929-quote` (`--headed`), `20261012-182250-quote` (`--raw --cursor
+  layer --format prores --fps 60` → `exports/20261012-182250-quote-raw-prores60-layer/`, validated). The step-7 frame
+  analyses (tables, crops, scripts) stayed in the session scratchpad; the numbers are in the checklist results and the
+  requirements' evidence.
+- A capture with `--cursor layer` (or `none`) hides the cursor, so the screen does not change while it moves: fewer
+  screencast frames (825 vs 1538 for quote) and no fps check — expected.
+- The runner's motion fps (`motionCapture`) averages a move with the rest before its click (the cursor dispatch rate
+  caps it near 30–40 fps on the Mac); the motion itself runs at ≈ 60 frames/s. Stalls hide in that average (R-ISS-13).
+- Agents may not write to the macOS Keychain (the harness refuses `security add-generic-password`): the user runs that
+  line of checklist step 10 themselves.
+- Full-suite load (all test files in parallel, many Chromium) can delay a fixture dialog past `after_click_ms`: the e2e
+  `popup_opened` assertion failed once (R-MAC-08); rerun the file alone before suspecting the runner.
+- OpenTimelineIO 0.18.1 does not load on Python 3.14 (`bad any cast`): `~/.venvs/otio` is made with Homebrew's
+  `python3.13` on the Mac.
+
 Notes from L2.14:
 - Plan markers: `frame` = the marked step's start (the timeline marker, DESIGN §timeline — the raw export's mark
   markers too), `done` = the screen once the step is done. Use `done` when you need "the moment the mark names".
@@ -922,7 +967,10 @@ Carried over (from L2.10 notes, still true):
 
 ## Environment
 On the Mac: see "Mac setup" above (Homebrew ffmpeg, playwright-core's Chromium and headless shell in
-`~/Library/Caches/ms-playwright/`, no environment variable needed).
+`~/Library/Caches/ms-playwright/`, no environment variable needed). The user's Mac (L1.5): Apple M4, 10 cores, 24 GB,
+macOS 26.6.2, Node 22.16 pinned in the repository folder by mise (an untracked `mise.toml`; Node 10 elsewhere), pnpm
+10.28, ffmpeg 9.0.2, Chromium 141 (+ a newer playwright build in the cache, unused), Python 3.14 by default (3.13 from
+Homebrew for OpenTimelineIO), no Final Cut Pro / Premiere Pro / DaVinci Resolve. Full test suite ≈ 2.5 min.
 
 ### Cloud container (Linux) — specific to the cloud sessions of phases 1–2
 - Chromium 141 via playwright-core 1.56.1 (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`); new headless

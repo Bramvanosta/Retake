@@ -1,3 +1,4 @@
+import { symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { COMPONENT_KINDS } from '@demo-studio/core';
@@ -162,6 +163,15 @@ export default function X() {
       'jitter.ts': 'export const jitter = () => Math.random();\n',
     });
     expect(r.text).toBe('jitter.ts:1:29 error: Math.random() is not deterministic: use random(seed) from remotion');
+  });
+
+  it('a component folder reached through a symbolic link (macOS: /var → /private/var) keeps its own imports inside', async () => {
+    await check('acme/linked', "import { jitter } from './jitter';\nexport default function X() { return <div>{jitter()}</div>; }\n", {
+      'jitter.ts': 'export const jitter = () => Math.random();\n',
+    });
+    await symlink(join(ws.dir, 'components'), join(ws.dir, 'linked-components'));
+    const issues = await validateComponent(join(ws.dir, 'linked-components', 'acme', 'linked'), { folderId: 'acme/linked' });
+    expect(formatComponentIssues(issues)).toBe('jitter.ts:1:29 error: Math.random() is not deterministic: use random(seed) from remotion');
   });
 
   it('layout components must declare geometry (R-CMP-11)', async () => {

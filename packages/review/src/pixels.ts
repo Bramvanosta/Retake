@@ -139,7 +139,7 @@ export function readImage(file: string, frame = 0): RgbImage {
   const probe = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim();
   const [width, height] = probe.split('\n')[0].split(',').map(Number);
   const args = ['-v', 'error', '-i', file];
-  if (frame > 0) args.push('-vf', `select=eq(n\\,${frame})`, '-vsync', '0');
+  if (frame > 0) args.push('-vf', `select=eq(n\\,${frame})`, '-fps_mode', 'passthrough');
   args.push('-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-');
   const data = execFileSync('ffmpeg', args, { maxBuffer: width * height * 3 + 1024 });
   return { width, height, data };

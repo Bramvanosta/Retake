@@ -33,6 +33,21 @@ export interface ExtractOptions {
 }
 
 /**
+ * The `select` expression true on `frames`: a balanced sum of `eq(n,f)` terms. ffmpeg 9 refuses expressions nested
+ * more than 100 deep, and a flat `a+b+c…` nests one level per term; the balanced form nests log2(n) levels.
+ */
+export function selectExpr(frames: number[]): string {
+  const terms = frames.map((f) => `eq(n\\,${f})`);
+  if (terms.length === 0) return '0';
+  const sum = (from: number, to: number): string => {
+    if (to - from === 1) return terms[from];
+    const mid = (from + to) >> 1;
+    return `(${sum(from, mid)}+${sum(mid, to)})`;
+  };
+  return sum(0, terms.length);
+}
+
+/**
  * Decode `frames` (output frame numbers; sorted and de-duplicated here) of `file` in one ffmpeg pass and hand each
  * to `onFrame` in increasing order. Returns the frames delivered (fewer than asked when some lie past the end).
  */
@@ -44,10 +59,9 @@ export async function extractFrames(
 ): Promise<number[]> {
   const wanted = [...new Set(frames.filter((f) => Number.isInteger(f) && f >= 0))].sort((a, b) => a - b);
   if (wanted.length === 0) return [];
-  const select = wanted.map((f) => `eq(n\\,${f})`).join('+');
-  const filters = [`select='${select}'`];
+  const filters = [`select='${selectExpr(wanted)}'`];
   if (opts.width !== opts.videoWidth || opts.height !== opts.videoHeight) filters.push(`scale=${opts.width}:${opts.height}:flags=area`);
-  const args = ['-v', 'error', '-nostdin', '-i', file, '-vf', filters.join(','), '-vsync', '0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'];
+  const args = ['-v', 'error', '-nostdin', '-i', file, '-vf', filters.join(','), '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'];
   const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
   let stderr = '';
   proc.stderr.on('data', (c: Buffer) => {

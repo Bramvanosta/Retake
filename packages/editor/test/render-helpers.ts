@@ -52,7 +52,7 @@ export function pixelAt(file: string, frame: number, x: number, y: number): [num
   const out = execFileSync('ffmpeg', [
     '-v', 'error', '-i', file,
     '-vf', `select=eq(n\\,${frame}),format=rgb24,crop=1:1:${Math.round(x)}:${Math.round(y)}`,
-    '-vsync', '0', '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    '-fps_mode', 'passthrough', '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
   ]);
   return [out[0], out[1], out[2]];
 }

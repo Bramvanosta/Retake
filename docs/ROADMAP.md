@@ -14,8 +14,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   one commit pushed to `main`, and a short report (what was done, verification, consumption, next lot).
 - The user picks how many lots to chain. Phases 1 and 2 were built autonomously in a cloud session (through L2.14,
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
-  `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "First local session"): L1.5 first (macOS verification, decides L1.3),
-  then L1.6–L1.8 and phase 3.
+  `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
+  it narrowed L1.3 and filled L5.1), then L1.6–L1.8 and phase 3; L1.3 and L5.1 whenever the user picks them.
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -31,10 +31,10 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | P1 | Phase 1 — core, runner-web, hooks, CLI, fixture, starter templates | — | **done** (commit `0df4a29`) |
 | L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
 | L1.2 | Runner robustness for any site | M | todo |
-| L1.3 | Capture smoothness under load (spike) | M | todo |
+| L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | todo |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
-| L1.5 | macOS verification pass (run by the user on a Mac) | S | **next** (first lot of the local Mac session) |
-| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
+| L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
+| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **next** |
 | L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | todo |
 | L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
@@ -68,7 +68,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.7 | Component library + theme editor screens | M | todo |
 | L4.8 | Record screen | M | todo |
 | L4.9 | Studio acceptance, accessibility pass | S | todo |
-| L5.1 | (see L1.5) macOS fixes found by the verification pass | S | todo |
+| L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | todo |
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
@@ -109,6 +109,13 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   time. Keep the option that gives ≥ 24 fps cursor motion without changing what the product looks like.
 - **Acceptance:** catalogue capture with ≥ 24 fps during every cursor move (or a documented limit), cursor track
   within 2 px of the drawn cursor during motion (R-ACC-02).
+- **Decision after L1.5 (2026-10-12):** on a GPU Mac the slow rendering this spike was written for is gone (≈ 60
+  frames/s while the cursor moves, 57–75 over blurred dialogs, 42 of 43 moves ≥ 24 fps, the drawn cursor within 2 px
+  of the track in 94 % of moving frames). Time dilation, the reduce-effects option and beginFrame are dropped for the
+  local tool (R-ARCH-05 moved to L6). **Narrowed scope:** the stalls the Mac still shows — scripted scrolls and the
+  first move after them (R-ISS-11: 0.14–0.43 s frozen, then a jump of up to 329 px), every animated dialog close
+  (R-ISS-12: ≈ 0.26 s, the ripple freezes then vanishes), a motion check that sees them (R-ISS-13: longest frame gap during the motion), and the renderer pause on a
+  hover-in (R-ISS-02). Acceptance: catalogue and quote on the Mac with no stall over 100 ms during motion or a ripple.
 
 ### L1.4 — Coverage of untested options + automated fixture acceptance (M)
 - **Goal:** every option of the scenario language is exercised by a test (R-ACT-*, R-CLK-*, R-TGT-07, R-MOD-*,
@@ -123,6 +130,10 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   Keychain secrets, notifications, capture smoothness with a GPU (R-ISS-09, R-GOAL-08, R-ACC-04, R-CLI-09/10, R-ACT-28,
   R-SEC-02, R-PRIN-10).
 - **How:** `pnpm i && pnpm build`, `studio doctor`, then the steps of `docs/MACOS-CHECKLIST.md`; findings go to L5.1.
+- **Done (2026-10-12):** every step ran on an Apple M4 (results table at the end of `docs/MACOS-CHECKLIST.md`); step 7
+  found stalls after scrolls and at dialog close (→ L1.3) and scene-start defects (→ L5.1); the imports into editing
+  tools were skipped (none installed: R-RAW-06 stays partial; the package validates with OpenTimelineIO). Blocking Mac issues fixed in the lot (ffmpeg 9, symbolic-link paths, case-insensitive test fixture,
+  a font-sensitive look test; R-MAC-01/02); the rest went to L1.3 (narrowed) and L5.1.
 
 ### L1.6 — Sessions & personas (M) — scheduled after phase 2, before L3.1
 - **Goal:** never film a login page and support several accounts (two-sided demos, split screen).
@@ -489,7 +500,20 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   "First local session" / cloud notes as a subsection, MACOS-CHECKLIST on `main`, BACKLOG maintained by hand (BL-54
   from the review), README phase status. **Phase 2 is done**; next: L1.5 on the Mac.
 
-### L3.1 – L3.8, L4.1 – L4.9, L5.x, L6
+### L5.1 — Fixes found by the macOS verification pass (S)
+- **Goal:** fix what the L1.5 pass found outside capture smoothness (that part is L1.3).
+- **Scope** (`node scripts/requirements.mjs --lot L5.1`): the CLI refuses Node < 22 with a clear message (R-MAC-03:
+  from a folder whose default Node was 10 it failed with a syntax error); a new workspace finds the starter templates
+  (R-MAC-04); an unresolved keychain reference fails with one clean line (R-MAC-05); the automatic scene rest point stays
+  inside the first target's dialog and near its click point (R-MAC-06: the quote delivery scene glides out of its
+  dialog and back); decide how a continuing scene starts — keep the cursor or glide next to the first target —
+  and align DESIGN §3.3 with the field rule (R-MAC-07); an unannounced popup is still detected when it opens late under
+  load (R-MAC-08); `studio doctor` checks ffmpeg ≥ 5.1 (R-MAC-09).
+- **Acceptance:** tests per item; quote re-captured on the Mac with the delivery scene's cursor resting beside the
+  field inside the dialog; the CLI run from a folder on Node 18 prints the version message.
+- **Packages:** cli, core, runner-web (kit restNear, scene-cursor, click), hooks.
+
+### L3.1 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

@@ -6,8 +6,9 @@
  * so a misspelt import (`useCurrentFrme`) is an error too. Sources are also scanned for non-deterministic or
  * networked APIs (Math.random, Date.now, fetch…): a component must render the same frame the same way every time.
  */
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import type { Message, Plugin } from 'esbuild';
 import { didYouMean } from '@demo-studio/core';
@@ -47,6 +48,15 @@ function moduleExports(): Promise<Map<string, string[] | null>> {
 
 function stubSource(names: readonly string[]): string {
   return ['export default {};', ...names.map((n) => `export const ${n} = undefined;`)].join('\n');
+}
+
+/** The path with symbolic links resolved, as esbuild reports it (macOS: /var → /private/var); unchanged when missing. */
+function realPath(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
 }
 
 function isInside(file: string, dir: string): boolean {
@@ -296,10 +306,13 @@ function exportHint(text: string, absDir: string, exportsOf: Map<string, string[
  * other than react / remotion / the kit (or files outside the folder), missing named exports, and forbidden APIs.
  */
 export async function checkComponentEntry(dir: string, entry: string): Promise<EntryCheck> {
-  const absDir = resolve(dir);
-  const absEntry = resolve(absDir, entry);
+  // Real paths throughout: esbuild resolves symbolic links in importers and resolve dirs.
+  const absDir = realPath(resolve(dir));
+  const rawEntry = resolve(resolve(dir), entry);
+  const absEntry = realPath(join(realPath(dirname(rawEntry)), basename(rawEntry)));
   const exportsOf = await moduleExports();
-  const kit = kitEntry();
+  const kitFile = kitEntry();
+  const kit = kitFile && realPath(kitFile);
   const kitNames = await kitExports();
   const kitDir = kit ? resolve(kit, '..') : undefined;
   const imports = new Set<string>();

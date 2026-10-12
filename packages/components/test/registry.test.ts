@@ -85,7 +85,7 @@ describe('loadComponentRegistry (R-REG-01, R-REG-02, R-REG-12)', () => {
       'components/acme/moved/component.yaml': manifestOf('acme/other-name', 'card'),
       'components/acme/moved/index.tsx': '',
       'components/acme/no-entry/component.yaml': manifestOf('acme/no-entry', 'card'),
-      'components/Acme/Bad/component.yaml': manifestOf('acme/bad', 'card'),
+      'components/Zeta/Bad/component.yaml': manifestOf('zeta/bad', 'card'), // not Acme/: macOS folders ignore case
       'components/loose/component.yaml': manifestOf('loose/x', 'card'),
     });
     const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: builtin });
@@ -93,7 +93,7 @@ describe('loadComponentRegistry (R-REG-01, R-REG-02, R-REG-12)', () => {
     const notices = reg.notices.map((n) => `${n.severity} ${n.message}`);
     expect(notices).toEqual(
       expect.arrayContaining([
-        'error component folder "Acme/Bad" is not a valid id: use lower-case letters, digits and "-" (e.g. acme/intro-split)',
+        'error component folder "Zeta/Bad" is not a valid id: use lower-case letters, digits and "-" (e.g. acme/intro-split)',
         'error invalid component acme/broken: 1 error in component.yaml (studio components validate acme/broken)',
         'error invalid component acme/moved: 1 error in component.yaml (studio components validate acme/moved)',
         'error invalid component acme/no-entry: entry file index.tsx not found',

@@ -6,7 +6,7 @@ sheets, checks) and exports it — or exports the raw capture for an editing too
 The current goal is **a local tool for our own use**; selling it is a later topic (`docs/BACKLOG.md`).
 
 ## Read first
-1. `docs/HANDOFF.md` — state, Mac setup, first local session, decisions, notes per lot. **Always start here.**
+1. `docs/HANDOFF.md` — state, Mac setup, order of the next lots, decisions, notes per lot. **Always start here.**
 2. `docs/ROADMAP.md` — lots, status, working agreement; `node scripts/requirements.mjs --lot <id>` lists a lot's
    requirements (source of truth: `docs/requirements.json`).
 3. `docs/SPEC.md` (brief), `docs/DESIGN.md` + `docs/DESIGN-phase2.md` (contracts), `docs/reference/look.md`
@@ -36,7 +36,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~5–10 min; 6 Postgres tests skip without DEMO_STUDIO_TEST_PG)
+pnpm test                            # = vitest run, full suite (~2.5 min on the Mac, 5–10 in the cloud; 6 Postgres tests skip without DEMO_STUDIO_TEST_PG)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file
 node fixtures/wholesale/server.mjs & # fixture product (console :4401, shop :4402); stop it with kill <its pid>
                                      # (`kill $!`; not `pkill -f`: it also matches the shell running it)

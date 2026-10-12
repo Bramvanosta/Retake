@@ -25,12 +25,15 @@ pnpm --filter @demo-studio/runner-web exec playwright-core install chromium
   second).
 - **Send back:** macOS version and chip (Apple menu → About This Mac), `node -v`, `pnpm -v`, `ffmpeg -version | head -1`,
   and the last lines of any command that failed.
+- **Note:** `node -v` must be 22+ in every folder you run the CLI from, not only in the repository: a version manager
+  (mise, nvm, fnm) picks the Node of the current folder, and an older default fails with `SyntaxError: Unexpected token
+  {` (step 8 runs from `~/demo-check`). Run `node -v` there too, or call that Node by its path.
 
 ## 2. Build (and the tests)
 
 ```sh
 pnpm build
-pnpm test            # optional, ~5 min: the end-to-end tests start the fixture by themselves
+pnpm test            # optional, ~2.5 min on an M4: the end-to-end tests start the fixture by themselves
 ```
 
 - **Expected:** `pnpm build` prints nothing and exits 0; `pnpm test` ends with every test passed (6 Postgres tests
@@ -112,7 +115,8 @@ Use a site where you have an account (a personal one, nothing confidential), in 
 repository:
 
 ```sh
-mkdir -p ~/demo-check && cd ~/demo-check && echo "projects_dir: projects" > studio.yaml
+mkdir -p ~/demo-check && cd ~/demo-check
+printf 'projects_dir: projects\ntemplates_dir: <repo>/templates\n' > studio.yaml   # a new workspace has no templates
 node <repo>/packages/cli/dist/bin.js new site-check --env "prod=app:https://<the site>"
 ```
 
@@ -207,7 +211,8 @@ pnpm studio run northfield-fixture quote --raw --cursor layer --format prores --
 ```
 
 Optional first: `scripts/validate-raw.py <package>` checks the package (ffprobe against the manifest, FCPXML, the OTIO
-and EDL read back with OpenTimelineIO — set-up in docs/HANDOFF.md "Mac setup"); it should print `OK`.
+and EDL read back with OpenTimelineIO — set-up in docs/HANDOFF.md "Mac setup"; make the venv with Python 3.13 or
+older: OpenTimelineIO 0.18.1 fails on 3.14 with `RuntimeError: bad any cast`); it should print `OK`.
 Then import the package (`projects/northfield-fixture/exports/<run>-raw-prores60-layer/`) into the tools you have:
 Final Cut Pro (File → Import → XML… → `markers/quote.fcpxml`), DaVinci Resolve (File → Import → Timeline… → the
 `.fcpxml` or `.otio`), Premiere Pro (File → Import → `markers/quote.edl` with the `clips/` folder).
@@ -229,3 +234,26 @@ Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-stud
 with `rm -rf projects/northfield-fixture/runs projects/northfield-fixture/.demo-studio` if you want.
 
 **Send everything back in one message**, numbered like the steps above.
+
+## Results — first pass (L1.5, 2026-10-12)
+
+Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16
+(pinned in the repository folder by a version manager), pnpm 10.28, ffmpeg / ffprobe 9.0.2 (Homebrew), Chromium 141
+(playwright-core 1.56.1). Findings and where they go: `docs/ROADMAP.md` L1.3 (narrowed) and L5.1;
+`node scripts/requirements.mjs --lot L5.1`.
+
+| Step | Result |
+|---|---|
+| 1. Install | Already set up. Outside the repository folder the default `node` was 10.24: the CLI then fails with `SyntaxError: Unexpected token {` (note added to step 1; R-MAC-03). |
+| 2. Build / tests | Build OK. First full run: 28 failures, 27 of them from the Mac: ffmpeg 9 dropped `-vsync` and refuses `select` expressions nested over 100 deep (the review's one-pass frame extraction); `/var` → `/private/var` made the component validator call a component's own imports "outside the folder"; APFS ignores case (a test's `Acme/` folder merged with `acme/`); a look test measured the kicker with its É accent. The 28th was a load flake (an unannounced dialog seen after `after_click_ms`; R-MAC-08; green alone and in the next runs). Fixed in L1.5 (R-MAC-01, R-MAC-02) → **878 tests: 872 pass, 6 Postgres skipped, 2 m 28 s** (2 m 41–2 m 44 s in the later runs). |
+| 3. Doctor | Every line OK, 0 warnings (new headless launch 1.0 s). |
+| 4. Fixture | OK; hosts HTTP 200. |
+| 5. Dry run | 21/21 steps in 1 m 06 s, no warning, no window. |
+| 6. Captures while working | catalogue 21/21 (1 m 12 s), quote 25/25 (54.6 s) while the user switched apps, typed, scrolled and moved windows: no window, focus never taken, typing intact. Catalogue warning: 1 of 24 moves below 18 fps (13 fps at 19.2 s). |
+| 7. Smoothness | Measured frame by frame (both runs; every defect re-checked independently). **Motion:** ≈ 60 frames/s while the cursor moves (cloud without GPU: 15–20), moves over blurred dialog backdrops 57–75 fps, 42 of 43 moves ≥ 24 fps; the drawn cursor within 2 px of the recorded track in 94 % of moving frames, the rest within one sample. **Not OK:** the first move after a scripted scroll stalls (2 of 2: catalogue 00:19.16, 0.43 s frozen then hops; quote 00:05.42, 0.26 s frozen then a 329 px jump, inside the edited clip) and one scroll stalled itself (quote 00:04.40, 0.14 s then a 240 px jump; R-ISS-11); every animated dialog close stalls the screencast ≈ 0.26 s, so the click ripple freezes then vanishes (3 of 3: Pause confirm 00:23.21, Save 00:41.04, Send request 00:30.65; a dialog that unmounts with a navigation shows no gap; R-ISS-12); a short renderer pause on a card's hover-in (quote 00:02.59). **Scene starts:** OK for scenes that open a page (cursor just below / beside its first target, no jump); a continuing scene keeps a cursor 484 px from its first target (quote request, DESIGN §3.3 "keep"; R-MAC-07) and the delivery scene glides out of its dialog and back (rest point beside a 622 px field, outside the dialog; R-MAC-06). **Ripples:** visible within ≈ 0.02–0.05 s of every click, burgundy buttons included, gone by ≈ 0.55 s (except the dialog-close stalls). **File chip:** OK. **Loading frames:** the page loads of scene openings are in the raw capture only (cut by the edit and the raw export); 1–2 frames of the shop's own loading skeleton on client-side navigations (quote 00:06.30 and 00:40.20, the app's own state) play in the edit too. |
+| 8. Login | Personal staging site, in a workspace outside the repository: visible window, signed in by hand, `profile saved`; doctor Profile OK; the headless dry run passed an assert on the signed-in user's name. The new workspace needed `templates_dir` (no starter template outside the repository; R-MAC-04). |
+| 9. `--headed` | Visible window, in-page cursor and ripples, closed at the end, 25/25 (53.9 s). |
+| 10. Keychain | The user added the test item (an agent may not write to the Keychain); the hook resolved it through `security find-generic-password` (200 OK); the value is nowhere on disk; rollback ✓; a missing item fails clearly but prints the error twice with `security`'s raw stderr line (R-MAC-05). |
+| 11. Notification | The `notify` step and a direct `osascript` notification both shown; no permission prompt. |
+| 12. Raw export | `run quote --raw --cursor layer --format prores --fps 60`: 4 ProRes 422 HQ clips + 4 ProRes 4444 layers in 1 m 12 s (cloud ≈ 3.5 min), machine busy with other work; `scripts/validate-raw.py` OK with OpenTimelineIO 0.18.1 on Python 3.13 (3.14: `bad any cast`); a layer composited over its clip with ffmpeg at "Send request": hand on the button, ripple, no halo. **No editing tool installed** (no Final Cut Pro, Premiere Pro or DaVinci Resolve): imports skipped by the user's choice, R-RAW-06 stays partial. |
+| 13. Clean up | Fixture stopped; the test keychain item deleted by the user. |
