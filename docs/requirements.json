@@ -186,7 +186,7 @@
    "evidence": "packages/editor/src/plan-types.ts contract only",
    "gap": "Phase 2.",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-GOAL-06",
@@ -316,7 +316,7 @@
    "evidence": "editor not implemented",
    "gap": "Phase 2 editor rules.",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ARCH-01",
@@ -3526,7 +3526,7 @@
    "evidence": "",
    "gap": "To be verified on renders (L2.9). The planner already resolves every visual element of a plan to a component (intro, outro, card, interstitial, layout, caption, overlay, transition).",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-CMP-02",
@@ -5156,7 +5156,7 @@
    "evidence": "",
    "gap": "No components.",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ACC2-02",
@@ -5166,7 +5166,7 @@
    "evidence": "",
    "gap": "Contract done in L2.1 (template `components` + resolveThemeComponents, R-THM-02/03); the acceptance needs rendered videos that switch theme components (L2.9).",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ACC2-03",
@@ -5176,7 +5176,7 @@
    "evidence": "",
    "gap": "No renderer. Inputs exist locally (git-ignored): projects/northfield-fixture/runs/20261011-150847-catalogue (66.5 s) and 20261011-151034-quote (47.4 s) with capture.mp4 + timeline.json.",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ACC2-04",
@@ -5186,7 +5186,7 @@
    "evidence": "",
    "gap": "Review exists (L2.6). On the L2.5 renders: quote-v3 is clean (info: 56.3 s, a little under 1–2 min); catalogue-v3 has one warning — long-wait: 3.8 s of skeleton placeholders while add-product waits for its registry data (00:45.1–00:48.9, kept at 1×). The fixture captions fit their area (fitText with the real font).",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ACC2-05",
@@ -5196,7 +5196,7 @@
    "evidence": "",
    "gap": "Review artefacts exist (L2.6: contact sheets, per-scene sheets, key frames, report, base64 thumbnails); the acceptance pass is L2.12.",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ACC2-06",
@@ -5206,7 +5206,7 @@
    "evidence": "",
    "gap": "No renderer.",
    "phase": "2",
-   "lot": "L2.12"
+   "lot": "L2.14"
   },
   {
    "id": "R-ACC3-01",
@@ -5907,6 +5907,86 @@
    "gap": "",
    "phase": "3",
    "lot": "L3.1"
+  },
+  {
+   "id": "R-OWN-01",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Any segment (intro, outro, card, interstitial) can be a user video or image file (`intro: {video: assets/intro.mp4}`, `outro: {image: …, duration}`), with the theme transitions and audio rules applied; provided templates are never mandatory.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.12"
+  },
+  {
+   "id": "R-OWN-02",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Overlay videos with transparency (ProRes 4444 / WebM alpha) composited over the capture at a step or a time, positioned by anchor or rect.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.12"
+  },
+  {
+   "id": "R-OWN-03",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Lottie animations (After Effects bodymovin JSON) as a component usable as card or overlay.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.12"
+  },
+  {
+   "id": "R-OWN-04",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Documentation \"bring your own motion\": video/image files, Lottie, custom Remotion components in the workspace (incl. output of any Claude motion/design skill).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.12"
+  },
+  {
+   "id": "R-RAW-01",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Raw capture export (`studio export-capture` / `studio run --raw`): one clean clip per scene (page loads cut) as high-quality MP4 or ProRes 422 HQ, 30 or 60 fps.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.13"
+  },
+  {
+   "id": "R-RAW-02",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Cursor options for raw export: baked in; or captured without the cursor with the cursor track and clicks exported as data (JSON/CSV: time, position, click, target bbox); or a separate transparent cursor layer (cursor + ripples).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.13"
+  },
+  {
+   "id": "R-RAW-03",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "Markers for editing tools: scenes, steps, marks and captions exported as FCPXML, EDL, OpenTimelineIO and CSV/JSON so clips land in a timeline with markers.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.13"
+  },
+  {
+   "id": "R-RAW-04",
+   "source": "decision (user, 2026-10-12)",
+   "requirement": "A manifest describing the raw package (clips, durations, markers, resolution, cursor data), readable by humans and Claude.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "2",
+   "lot": "L2.13"
   }
  ]
 }

@@ -41,7 +41,9 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | **done** |
 | L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | next |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
-| L2.12 | Phase 2 acceptance (two videos, clean review, theme/component switch) | S | todo |
+| L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | todo |
+| L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | todo |
+| L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | todo |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
 | L3.2 | MCP render/review/export + theme & component tools | M | todo |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
@@ -357,9 +359,20 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   tracks per page; scenario syntax for parallel pages; layouts `studio/layout-split` and `studio/layout-pip` planned
   and rendered in sync (R-MPC-*).
 
-### L2.12 — Phase 2 acceptance (S)
+### L2.12 — Bring your own media & motion (M)
+- **Scope:** any segment can be a user video/image file; transparent overlay videos (ProRes 4444 / WebM alpha); Lottie
+  component (card/overlay); "bring your own motion" docs (files, Lottie, custom Remotion components, output of any
+  Claude motion skill) (R-OWN-*). Templates are never mandatory.
+
+### L2.13 — Raw capture export for editors (M)
+- **Scope:** `studio export-capture` / `run --raw`: clean clip per scene (loads cut), MP4 HQ or ProRes 422 HQ, 30/60 fps;
+  cursor baked / absent + cursor & clicks as data / separate transparent cursor layer; markers as FCPXML, EDL, OTIO,
+  CSV/JSON; package manifest (R-RAW-*). Use case: script and film with Demo Studio, edit in another tool.
+
+### L2.14 — Phase 2 acceptance (S)
 - **Scope:** render catalogue + quote with the editorial theme, clean review, contact-sheet review by Claude, switch a
-  component and the theme without touching the scenario (R-ACC2-*, R-GOAL-05, R-LES-10, R-CMP-01); README update.
+  component and the theme without touching the scenario (R-ACC2-*, R-GOAL-05, R-LES-10, R-CMP-01); one video with a user intro file and an alpha overlay; one raw export
+  imported checks (FCPXML/OTIO validate); README update.
 
 ### L3.1 – L3.8, L4.1 – L4.9, L5.x, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
