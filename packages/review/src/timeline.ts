@@ -73,7 +73,8 @@ export interface OutputTimeline {
   }>;
   transitions: Array<{ from: number; to: number; from_s: number; to_s: number; kind: string; before?: string; after?: string }>;
   captions: Array<{ from: number; to: number; from_s: number; to_s: number; scene: string; kicker?: string; text: string }>;
-  markers: Array<{ name: string; frame: number; time: number; scene: string }>;
+  /** `frame` / `time`: the marked step's start (the marker); `done_frame` / `done_time`: the screen once it is done. */
+  markers: Array<{ name: string; frame: number; time: number; scene: string; done_frame?: number; done_time?: number }>;
   steps: Array<{ segment: string; scene: string; step: number; step_id?: string; action: string; from: number; to: number; from_s: number; to_s: number }>;
   clicks: OutputClick[];
 }
@@ -168,7 +169,7 @@ export function buildOutputTimeline(record: RenderRecord, timeline?: Timeline): 
     segments: [],
     transitions: transitionSpans(plan).map((t) => ({ ...t, from_s: s(t.from), to_s: s(t.to) })),
     captions: plan.captions.map((c) => ({ from: c.from, to: c.to, from_s: s(c.from), to_s: s(c.to), scene: c.scene, ...(c.kicker ? { kicker: c.kicker } : {}), text: c.text })),
-    markers: plan.markers.map((m) => ({ name: m.name, frame: m.frame, time: s(m.frame), scene: m.scene })),
+    markers: plan.markers.map((m) => ({ name: m.name, frame: m.frame, time: s(m.frame), scene: m.scene, ...(m.done !== undefined ? { done_frame: m.done, done_time: s(m.done) } : {}) })),
     steps: [],
     clicks: outputClicks(plan, timeline),
   };

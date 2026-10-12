@@ -427,15 +427,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
       const mk = timeline.markers.find((m) => m.name === ref.name);
       label = `mark ${ref.name}`;
       if (!mk) warnings.add(`${where}: mark "${ref.name}" is not in run ${timeline.run_id} (marks: ${timeline.markers.map((m) => m.name).join(', ') || 'none'})`);
-      else {
-        // The screen once the marked step is done: within its hold, else just after it (still inside its scene).
-        const ev = timeline.events.find((e) => e.scene === mk.scene && e.step === mk.step);
-        const sc = timeline.scenes.find((x) => x.id === mk.scene && x.kind === 'scene');
-        const end = sc ? sc.t_end - 1 / cap.fps : cap.duration;
-        if (!ev) t = mk.t;
-        else if (ev.hold && ev.hold.t_end > ev.hold.t_start) t = Math.min(ev.hold.t_start + Math.min(0.8, (ev.hold.t_end - ev.hold.t_start) / 2), end);
-        else t = Math.min(ev.t_end + 0.25, end);
-      }
+      else t = markDoneAt(timeline, mk);
     }
     if (t === undefined) return undefined;
     return { kind: 'picture', name: slot, url: src.url, width: src.width, height: src.height, video: { time_s: captureFrameTime(t) }, label };
@@ -1620,7 +1612,9 @@ export function planEdit(input: PlanEditInput): EditPlan {
       if (mk.scene !== entry.scene.id) continue;
       const k = outFrameAt(run, mk.t);
       if (k < k0 || k >= k1) continue;
-      markers.push({ name: mk.name, frame: F + (k - k0), scene: mk.scene });
+      // `done`: the screen once the marked step is done (a marked wait's awaited state), inside this clip.
+      const kd = clamp(outFrameAt(run, markDoneAt(timeline, mk)), k, k1 - 1);
+      markers.push({ name: mk.name, frame: F + (k - k0), scene: mk.scene, done: F + (kd - k0) });
     }
   });
 
@@ -1833,6 +1827,21 @@ export const SCREEN_POSITION_CHOICES: Partial<Record<OverlayAnchor, readonly Ove
 };
 
 type ClickData = { bbox?: { x: number; y: number; w: number; h: number }; t_click?: number };
+
+/**
+ * Capture time of "the screen once the marked step is done": within its hold (0.8 s in, or half a shorter hold), else
+ * 0.25 s after the step's end — still inside its scene. A timeline marker sits at the step's start (DESIGN §timeline);
+ * for a marked wait this is the awaited state, which story-card frames (`frame: mark:<name>`) and the review's key
+ * frame of the marker show.
+ */
+export function markDoneAt(timeline: Pick<Timeline, 'events' | 'scenes' | 'capture'>, mk: { scene: string; step: number; t: number }): number {
+  const ev = timeline.events.find((e) => e.scene === mk.scene && e.step === mk.step);
+  const sc = timeline.scenes.find((x) => x.id === mk.scene && x.kind === 'scene');
+  const end = sc ? sc.t_end - 1 / timeline.capture.fps : timeline.capture.duration;
+  if (!ev) return mk.t;
+  if (ev.hold && ev.hold.t_end > ev.hold.t_start) return Math.min(ev.hold.t_start + Math.min(0.8, (ev.hold.t_end - ev.hold.t_start) / 2), end);
+  return Math.min(ev.t_end + 0.25, end);
+}
 
 /**
  * When a step overlay starts (capture s; L2.12 `at`): the end of the step (default), its start, its click, a mark of

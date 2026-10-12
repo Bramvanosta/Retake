@@ -1326,6 +1326,16 @@ raw: {format: prores, fps: 60, cursor: layer, layer: prores, selects: true, cuts
 
 A run captured without its cursor still renders with `studio render`, with a plan warning: the video shows no cursor.
 
+**Checking a package** (optional): `scripts/validate-raw.py <package> [...]` checks every clip and layer with ffprobe
+against the manifest, the FCPXML (well-formed, frame grid, spine, timecodes, markers), reads the OTIO and the EDL back
+with OpenTimelineIO and compares the marker lists. It needs Python 3 and, for the read-back, OpenTimelineIO with its
+EDL / FCPXML adapters — not a dependency of this repository:
+
+```sh
+python3 -m venv ~/.venvs/otio && ~/.venvs/otio/bin/pip install opentimelineio otio-cmx3600-adapter otio-fcpx-xml-adapter
+~/.venvs/otio/bin/python scripts/validate-raw.py projects/northfield-fixture/exports/<run>-raw-mp430-baked
+```
+
 ## Reviewing a render
 
 `studio review <project> <render>` (a render id such as `catalogue-v3`, a `renders/<id>.json` or `.mp4` path, or
@@ -1350,7 +1360,7 @@ $ studio review northfield-fixture catalogue-v3
 |---|---|
 | `sheet_<fps>fps.jpg` (+ `_p2`, `_p3`… when long) | contact sheet at 1 frame per second (`--fps 2`: two), each thumbnail labelled with its timecode, frame number, segment / scene, step, markers (◆) and transitions (⇄); tiles a finding points at are outlined (red error, orange warning); at most 6 × 10 tiles a page, shared evenly between pages |
 | `sheet_scene_<id>.jpg` (+ pages) | one sheet per scene, card and interstitial at 2 frames per second |
-| `keyframes/<marker>.png`, `keyframes/<scene>-first.png`, `-last.png`, `intro-hold.png`, `outro-hold.png` | full-size frames: every marker, the first and last fully visible frame of each scene, a held frame of the intro and the outro |
+| `keyframes/<marker>.png`, `keyframes/<scene>-first.png`, `-last.png`, `intro-hold.png`, `outro-hold.png` | full-size frames: every marker (the screen once its marked step is done — for a marked `wait_for`, the awaited state), the first and last fully visible frame of each scene, a held frame of the intro and the outro |
 | `timeline.json` | the output-time timeline: segments (frames and seconds, components with params and slots, caption component, transition in, layout rects, source range, speed, zooms, overlays), transitions, captions, markers, step spans and the clicks of the capture placed on the output (cursor point in capture px and on screen) |
 | `report.json` | the review result: render, rules, `clean`, counts, findings, segment durations, the diff and the files |
 | `report.md` | the same for people: findings with timecodes, a segment table, captions, markers and clicks, changes since the previous render, files |
@@ -1458,7 +1468,10 @@ packages/mcp          phase 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests
 projects/             the fixture project (your projects live in your workspace)
 templates/            starter themes: default, editorial, motion
-docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts)
+scripts/              requirements.mjs (docs/REQUIREMENTS.md), fixture media and preview samples, validate-raw.py
+docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md,
+                      ROADMAP.md, BACKLOG.md, ACCEPTANCE-phase2.md, MACOS-CHECKLIST.md
+CLAUDE.md             notes for Claude Code sessions (read order, working agreement, commands)
 ```
 
 Development: `pnpm build` (TypeScript project references), `pnpm test` (vitest; the end-to-end tests start the
@@ -1470,11 +1483,14 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) done; L2.14 next |
+| 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |
+
+Next: the macOS verification pass (lot L1.5, `docs/MACOS-CHECKLIST.md`), then phase 3 — in a local Claude Code
+session on a Mac, on the `main` branch (see `CLAUDE.md` and `docs/HANDOFF.md`).
 
 Planning lives in the repo: `docs/ROADMAP.md` (small lots and their status), `docs/REQUIREMENTS.md` (every requirement
 of the brief with its status, generated by `pnpm req` from `docs/requirements.json`) and `docs/HANDOFF.md` (where to

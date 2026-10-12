@@ -128,7 +128,7 @@ describe('spans of the fixture plans', () => {
     expect(tl.segments.find((s) => s.id === 'proposal')?.overlays).toEqual([
       expect.objectContaining({ component: expect.objectContaining({ id: 'studio/overlay-callout' }), scene: 'proposal', step: 3 }),
     ]);
-    expect(tl.markers).toEqual([{ name: 'proposal', frame: 1372, time: 45.733, scene: 'proposal' }]);
+    expect(tl.markers).toEqual([{ name: 'proposal', frame: 1372, time: 45.733, scene: 'proposal', done_frame: 1379, done_time: 45.967 }]);
     expect(tl.steps.every((s) => s.to > s.from && s.from_s === Math.round((s.from / 30) * 1000) / 1000)).toBe(true);
     expect(tl.captions).toHaveLength(3);
     expect(tl.duration_s).toBeCloseTo(56.267, 3);
@@ -319,6 +319,9 @@ describe('helpers', () => {
       'proposal', 'intro-hold', 'discover-first', 'discover-last', 'chapter-request-first', 'chapter-request-last',
       'request-first', 'request-last', 'interstitial-3-first', 'interstitial-3-last', 'proposal-first', 'proposal-last', 'outro-hold',
     ]);
+    // A marker's key frame is the screen once the marked step is done (its `done` frame).
+    expect(k.get('proposal')).toBe(plans.quote.plan.markers[0].done);
+    expect(keyframePlan(spans, [{ name: 'm', frame: 400 }], plans.quote.plan.durationInFrames).get('m')).toBe(400);
     expect(k.get('discover-first')).toBe(85 + 11);
     expect(k.get('discover-last')).toBe(319);
     expect(safeName('Total: €720 / VAT')).toBe('Total-720-VAT');

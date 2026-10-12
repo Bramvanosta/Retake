@@ -1,6 +1,6 @@
 /**
  * DemoVideo / DemoVertical: render an EditPlan and nothing else (DESIGN-phase2 §2.2). The theme background, one
- * Sequence per segment with its transition component (or plain fade envelope), the segment component with its
+ * Sequence per segment with its transition component (every fade is one: R-CMP-01), the segment component with its
  * slots/params; for clips the layout component with `screen` = the capture (one source frame per output frame, under
  * the camera transform), the caption component with the clip's cues in the layout's caption area, the overlays placed
  * from their source anchor through layout + camera, and the brand mark; the music bed. Every URL in the plan is
@@ -17,7 +17,7 @@ import type { SourceView } from '../layout.js';
 import { layoutPaneRectsAt, paneSource, paneViewOf } from '../panes.js';
 import type { PlanSource } from '../plan-types.js';
 import { useThemeFonts } from './fonts.js';
-import { brandmarkRect, envelopeAt, insetHole, layoutRects, mapUseRect, overlayBoxAt, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
+import { brandmarkRect, insetHole, layoutRects, mapUseRect, overlayBoxAt, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 
@@ -290,27 +290,10 @@ function TransitionRender({ plan, w, children }: { plan: EditPlan; w: Transition
   );
 }
 
-function Envelope({ seg, hasExit, children }: { seg: PlanSegment; hasExit: boolean; children: ReactNode }) {
-  const f = useCurrentFrame();
-  const { opacity, black } = envelopeAt(seg, f, hasExit);
-  if (opacity === 1 && black === 0) return <>{children}</>;
-  return (
-    <AbsoluteFill style={{ opacity }}>
-      {children}
-      {black > 0 ? <AbsoluteFill style={{ background: '#000000', opacity: black }} /> : null}
-    </AbsoluteFill>
-  );
-}
-
 function SegmentView({ plan, index }: { plan: EditPlan; index: number }) {
   const f = useCurrentFrame();
-  const seg = plan.segments[index];
   const { entering, exiting } = transitionWindows(plan, index);
-  let node: ReactNode = (
-    <Envelope seg={seg} hasExit={!!exiting}>
-      <SegmentBody plan={plan} index={index} />
-    </Envelope>
-  );
+  let node: ReactNode = <SegmentBody plan={plan} index={index} />;
   if (exiting && f >= exiting.from && f < exiting.to) node = <TransitionRender plan={plan} w={exiting}>{node}</TransitionRender>;
   if (entering && f >= entering.from && f < entering.to) node = <TransitionRender plan={plan} w={entering}>{node}</TransitionRender>;
   return <AbsoluteFill>{node}</AbsoluteFill>;

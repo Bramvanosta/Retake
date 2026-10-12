@@ -20,8 +20,8 @@ export interface TransitionSpan {
   /** Output frames [from, to). */
   from: number;
   to: number;
-  kind: 'crossfade' | 'fade-black' | 'fade';
-  /** Segment ids on each side (`before` absent for a fade-in of the first segment). */
+  kind: 'crossfade' | 'fade-black';
+  /** Segment ids on each side. */
   before?: string;
   after?: string;
 }
@@ -36,7 +36,7 @@ export function segmentLabel(s: PlanSegment): string {
   return s.id;
 }
 
-/** The transitions and plain fades of a plan, in output frames. */
+/** The transitions of a plan, in output frames (every fade is a transition component's window). */
 export function transitionSpans(plan: Pick<EditPlan, 'segments'>): TransitionSpan[] {
   const out: TransitionSpan[] = [];
   plan.segments.forEach((seg, i) => {
@@ -49,13 +49,6 @@ export function transitionSpans(plan: Pick<EditPlan, 'segments'>): TransitionSpa
         const half = Math.floor(w.entering.frames / 2);
         out.push({ from: seg.from - half, to: seg.from + w.entering.to, kind: 'fade-black', before: prev?.id, after: seg.id });
       }
-    } else if (seg.fadeIn.frames > 0 && !seg.transition?.component) {
-      out.push({ from: seg.from, to: seg.from + seg.fadeIn.frames, kind: 'fade', before: plan.segments[i - 1]?.id, after: seg.id });
-    }
-    const next = plan.segments[i + 1];
-    if (!w.exiting && seg.fadeOut.frames > 0 && !(next?.transition?.component)) {
-      const end = seg.from + seg.durationInFrames;
-      out.push({ from: end - seg.fadeOut.frames, to: end, kind: 'fade', before: seg.id, after: next?.id });
     }
   });
   return out.sort((a, b) => a.from - b.from || a.to - b.to);

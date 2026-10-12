@@ -32,57 +32,38 @@ export interface TransitionWindow {
 /**
  * The transition windows of segment `index` (DESIGN-phase2 §2.2): a crossfade overlaps the two segments (both renders
  * see transition frames [0, n)); a dip (fade-black) does not — the outgoing segment's last ⌊n/2⌋ frames are the
- * transition frames [0, ⌊n/2⌋) and the incoming segment's first frames are [⌊n/2⌋, n).
+ * transition frames [0, ⌊n/2⌋) and the incoming segment's first frames are [⌊n/2⌋, n). Every fade is drawn by a
+ * transition component (R-CMP-01): a plan whose fade carries none (the planner never writes one — a transition set to
+ * none is a cut — but a hand-written plan may) gets the transition stand-in, like any missing component.
  */
 export function transitionWindows(plan: Pick<EditPlan, 'segments'>, index: number): { entering?: TransitionWindow; exiting?: TransitionWindow } {
   const seg = plan.segments[index];
   const next = plan.segments[index + 1];
   const out: { entering?: TransitionWindow; exiting?: TransitionWindow } = {};
   const t = seg.transition;
-  if (t && t.component && t.kind !== 'cut' && t.frames > 0) {
+  if (t && t.kind !== 'cut' && t.frames > 0) {
+    const component = t.component ?? standInTransition(t.kind);
     if (t.kind === 'crossfade') {
-      out.entering = { direction: 'entering', from: 0, to: Math.min(t.frames, seg.durationInFrames), offset: 0, frames: t.frames, kind: 'crossfade', component: t.component, ...(t.anchor ? { anchor: t.anchor } : {}) };
+      out.entering = { direction: 'entering', from: 0, to: Math.min(t.frames, seg.durationInFrames), offset: 0, frames: t.frames, kind: 'crossfade', component, ...(t.anchor ? { anchor: t.anchor } : {}) };
     } else {
       const half = Math.floor(t.frames / 2);
       const inn = Math.min(t.frames - half, seg.durationInFrames);
-      out.entering = { direction: 'entering', from: 0, to: inn, offset: half, frames: t.frames, kind: 'fade-black', component: t.component, ...(t.anchor ? { anchor: t.anchor } : {}) };
+      out.entering = { direction: 'entering', from: 0, to: inn, offset: half, frames: t.frames, kind: 'fade-black', component, ...(t.anchor ? { anchor: t.anchor } : {}) };
     }
   }
   const nt = next?.transition;
-  if (nt && nt.component && nt.kind !== 'cut' && nt.frames > 0) {
+  if (nt && nt.kind !== 'cut' && nt.frames > 0) {
+    const component = nt.component ?? standInTransition(nt.kind);
     const d = seg.durationInFrames;
     if (nt.kind === 'crossfade') {
       const n = Math.min(nt.frames, d);
-      out.exiting = { direction: 'exiting', from: d - n, to: d, offset: nt.frames - n, frames: nt.frames, kind: 'crossfade', component: nt.component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
+      out.exiting = { direction: 'exiting', from: d - n, to: d, offset: nt.frames - n, frames: nt.frames, kind: 'crossfade', component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
     } else {
       const half = Math.min(Math.floor(nt.frames / 2), d);
-      out.exiting = { direction: 'exiting', from: d - half, to: d, offset: Math.floor(nt.frames / 2) - half, frames: nt.frames, kind: 'fade-black', component: nt.component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
+      out.exiting = { direction: 'exiting', from: d - half, to: d, offset: Math.floor(nt.frames / 2) - half, frames: nt.frames, kind: 'fade-black', component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
     }
   }
   return out;
-}
-
-/**
- * Opacity / veil of the plain fade envelope of a segment at frame `f` (used only when a fade has no transition
- * component): `opacity` multiplies the segment, `black` is the opacity of a black veil over it.
- */
-export function envelopeAt(seg: Pick<PlanSegment, 'fadeIn' | 'fadeOut' | 'durationInFrames' | 'transition'>, f: number, hasExitComponent: boolean): { opacity: number; black: number } {
-  let opacity = 1;
-  let black = 0;
-  const fi = seg.fadeIn;
-  if (fi.frames > 0 && !seg.transition?.component && f < fi.frames) {
-    const p = (f + 1) / (fi.frames + 1);
-    if (fi.color === 'black') black = Math.max(black, 1 - p);
-    else opacity *= p;
-  }
-  const fo = seg.fadeOut;
-  const start = seg.durationInFrames - fo.frames;
-  if (fo.frames > 0 && !hasExitComponent && f >= start) {
-    const p = (f - start + 1) / fo.frames;
-    if (fo.color === 'black') black = Math.max(black, p);
-    else opacity *= 1 - p;
-  }
-  return { opacity: clamp(opacity, 0, 1), black: clamp(black, 0, 1) };
 }
 
 /**
@@ -199,6 +180,19 @@ export function musicPlayGain(play: { frames: number; fadeIn: number; fadeOut: n
 
 /** The kinds the composition may need a stand-in for. */
 export type StandInKind = ComponentKind;
+
+/** The stand-in use of a fade that carries no transition component: drawn by the transition scaffold. */
+export function standInTransition(kind: 'crossfade' | 'fade-black'): ResolvedComponent {
+  return {
+    id: kind === 'fade-black' ? 'studio/transition-fade-black' : 'studio/transition-crossfade',
+    version: '0.0.0',
+    kind: 'transition',
+    params: {},
+    slots: {},
+    source: 'builtin-default',
+    missing: true,
+  };
+}
 
 /** Params of a stand-in transition: the scaffold dips through the text colour for a fade-black. */
 export function standInParams(kind: ComponentKind, transitionKind?: 'crossfade' | 'fade-black'): Record<string, unknown> {

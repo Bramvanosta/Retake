@@ -1,6 +1,6 @@
 /**
  * The render pipeline without a browser: the generated registry module and entry, the components a plan bundles,
- * the bundle hash, the composition's frame helpers (transition windows, fade envelope, brand mark, music volume),
+ * the bundle hash, the composition's frame helpers (transition windows, stand-in transitions, brand mark, music volume),
  * render versioning and records, run lookup, the browser choice and the asset server (Range requests).
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -22,7 +22,6 @@ import {
   compositionFiles,
   defaultConcurrency,
   entrySource,
-  envelopeAt,
   findRun,
   listRenders,
   musicVolumeAt,
@@ -34,6 +33,7 @@ import {
   renderBrowser,
   reserveVersion,
   srcFrameAt,
+  standInTransition,
   startAssetServer,
   takenVersions,
   transitionWindows,
@@ -173,14 +173,26 @@ describe('composition frame helpers', () => {
     expect(seg.fadeIn).toEqual({ frames: n - half, color: 'black' });
   });
 
-  it('the plain fade envelope applies only without a transition component', () => {
-    const seg = { durationInFrames: 100, fadeIn: { frames: 10, color: 'none' as const }, fadeOut: { frames: 10, color: 'black' as const } };
-    expect(envelopeAt(seg, 0, false).opacity).toBeCloseTo(1 / 11);
-    expect(envelopeAt(seg, 50, false)).toEqual({ opacity: 1, black: 0 });
-    expect(envelopeAt(seg, 99, false).black).toBe(1);
-    expect(envelopeAt(seg, 99, true).black).toBe(0);
-    const withComponent = { ...seg, transition: { kind: 'crossfade' as const, frames: 10, component: quote.segments[1].transition!.component } };
-    expect(envelopeAt(withComponent, 0, true)).toEqual({ opacity: 1, black: 0 });
+  it('every fade is a transition component: the planner never plans one without, a hand-written plan gets the stand-in (R-CMP-01)', () => {
+    for (const plan of [quote, quoteMotion]) {
+      for (const s of plan.segments) if (s.transition && s.transition.kind !== 'cut') expect(s.transition.component).not.toBeNull();
+    }
+    const i = quote.segments.findIndex((s, k) => k > 0 && s.transition?.kind === 'crossfade' && s.transition.frames > 0);
+    const bare = { ...quote, segments: quote.segments.map((s, k) => (k === i ? { ...s, transition: { ...s.transition!, component: null } } : s)) };
+    expect(transitionWindows(bare, i).entering!.component).toMatchObject({ kind: 'transition', id: 'studio/transition-crossfade', missing: true });
+    expect(transitionWindows(bare, i - 1).exiting!.component).toMatchObject({ kind: 'transition', missing: true });
+    expect(standInTransition('fade-black')).toMatchObject({ id: 'studio/transition-fade-black', kind: 'transition', missing: true });
+    const cut = { ...quote, segments: quote.segments.map((s, k) => (k === i ? { ...s, transition: { kind: 'cut' as const, frames: 0, component: null } } : s)) };
+    expect(transitionWindows(cut, i).entering).toBeUndefined();
+    expect(transitionWindows(cut, i - 1).exiting).toBeUndefined();
+  });
+
+  it('the composition draws nothing of its own: no colour literal in its sources (R-CMP-01)', () => {
+    const dir = join(EDITOR_DIR, 'src', 'remotion');
+    for (const file of readdirSync(dir).filter((f) => /\.tsx?$/.test(f))) {
+      const code = readFileSync(join(dir, file), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+      expect(code, file).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/);
+    }
   });
 
   it('brand mark placement, URLs and source frames', () => {

@@ -260,9 +260,12 @@ export interface SegmentBase {
   from: number;
   /** Includes any overlap needed by the following transition. */
   durationInFrames: number;
-  /** Opacity ramp at the start (frames). colour 'black' = fade from black. */
+  /**
+   * Opacity ramp at the start (frames), colour 'black' = a dip: the timing of the transition into this segment, drawn
+   * by its transition component (`transition.component`, R-CMP-01) — the composition draws no fade of its own.
+   */
   fadeIn: { frames: number; color: 'none' | 'black' };
-  /** Opacity ramp at the end (frames). colour 'black' = fade to black. */
+  /** Opacity ramp at the end (frames): the outgoing half of the next segment's dip (drawn by its component). */
   fadeOut: { frames: number; color: 'none' | 'black' };
   /** The transition that led into this segment (informational, for review). */
   transitionIn: TransitionKind | 'none';
@@ -478,7 +481,11 @@ export interface EditPlan {
   tracks?: Record<string, PlanSource>;
   segments: PlanSegment[];
   captions: CaptionCue[];
-  markers: Array<{ name: string; frame: number; scene: string }>;
+  /**
+   * Timeline markers (`mark:` steps) in output frames: `frame` = the marked step's start (the timeline marker),
+   * `done` = the screen once that step is done (a marked wait's awaited state; `markDoneAt`), clamped to the clip.
+   */
+  markers: Array<{ name: string; frame: number; scene: string; done?: number }>;
   timemap: TimeMapEntry[];
   music?: PlanMusic;
   /** Tutorial overlays (L2.10): what was planned, what could not be shown, the progress bar. Absent when none is on. */

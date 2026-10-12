@@ -5,7 +5,7 @@
  * §2. The compositions themselves (src/remotion, React) are only loaded by the render bundle.
  */
 export * from './plan-types.js';
-export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
+export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, markDoneAt, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
 export type { PlanEditInput, PlanInputFile } from './plan.js';
 export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 export { imageFileSize, planFileRefs, planInputFiles, themeFileRefs } from './inputs.js';
@@ -55,7 +55,7 @@ export {
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
-export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, envelopeAt, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
+export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, standInTransition, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
 export {
   ACTING_EASE_S,
   ACTING_LEAD_S,

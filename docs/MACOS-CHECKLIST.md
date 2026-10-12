@@ -13,14 +13,16 @@ Conventions: run every command from the repository root; `<id>` is the run id pr
 ```sh
 xcode-select --install                 # if git / compilers are missing
 brew install node@22 ffmpeg            # or nvm install 22; any Node.js 22+
+brew link --force node@22               # node@22 is keg-only
 corepack enable                        # provides pnpm 10
-git clone <repository> demo-studio && cd demo-studio
+git clone -b main <repository URL> demo-studio && cd demo-studio   # the work continues on main
 pnpm install
 pnpm --filter @demo-studio/runner-web exec playwright-core install chromium
 ```
 
-- **Expected:** every command ends without an error; Playwright prints where it put Chromium
-  (`~/Library/Caches/ms-playwright/chromium-…`).
+- **Expected:** every command ends without an error; Playwright prints where it put Chromium and its headless shell
+  (`~/Library/Caches/ms-playwright/chromium-…` and `chromium_headless_shell-…`: captures use the first, renders the
+  second).
 - **Send back:** macOS version and chip (Apple menu → About This Mac), `node -v`, `pnpm -v`, `ffmpeg -version | head -1`,
   and the last lines of any command that failed.
 
@@ -204,6 +206,8 @@ pnpm studio run northfield-fixture ~/demo-check/notify.yaml --dry
 pnpm studio run northfield-fixture quote --raw --cursor layer --format prores --fps 60
 ```
 
+Optional first: `scripts/validate-raw.py <package>` checks the package (ffprobe against the manifest, FCPXML, the OTIO
+and EDL read back with OpenTimelineIO — set-up in docs/HANDOFF.md "Mac setup"); it should print `OK`.
 Then import the package (`projects/northfield-fixture/exports/<run>-raw-prores60-layer/`) into the tools you have:
 Final Cut Pro (File → Import → XML… → `markers/quote.fcpxml`), DaVinci Resolve (File → Import → Timeline… → the
 `.fcpxml` or `.otio`), Premiere Pro (File → Import → `markers/quote.edl` with the `clips/` folder).

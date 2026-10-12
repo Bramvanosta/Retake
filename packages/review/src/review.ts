@@ -52,15 +52,18 @@ export function sampleFrames(from: number, to: number, fps: number, rate: number
   return out;
 }
 
-/** Key frames: markers, each scene's first and last fully visible frame, and a "hold" frame of the other segments. */
-export function keyframePlan(spans: SegmentSpan[], markers: Array<{ name: string; frame: number }>, durationInFrames: number): Map<string, number> {
+/**
+ * Key frames: markers (the screen once the marked step is done — `done`, a marked wait's awaited state — else the
+ * marker), each scene's first and last fully visible frame, and a "hold" frame of the other segments.
+ */
+export function keyframePlan(spans: SegmentSpan[], markers: Array<{ name: string; frame: number; done?: number }>, durationInFrames: number): Map<string, number> {
   const out = new Map<string, number>();
   const add = (name: string, frame: number) => {
     let n = safeName(name);
     for (let i = 2; out.has(n); i++) n = `${safeName(name)}-${i}`;
     out.set(n, Math.max(0, Math.min(durationInFrames - 1, Math.round(frame))));
   };
-  for (const m of markers) add(m.name, m.frame);
+  for (const m of markers) add(m.name, m.done ?? m.frame);
   for (const s of spans) {
     const a = s.clearFrom;
     const b = Math.max(a, s.clearTo - 1);

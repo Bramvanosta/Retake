@@ -487,14 +487,23 @@ listRenders(project): Promise<RenderRecord[]>
 
 ### 2.2 Composition & rendering
 `DemoVideo` / `DemoVertical` / `DemoSquare` (Remotion, `packages/editor/src/remotion/`) take `{ plan }` and render only the plan:
-background, one Sequence per segment with its transition component (or, without one, its plain fade envelope), the
-segment component, for clips the layout component with `screen` = the capture frame `srcFrames[f]` under the camera
+background, one Sequence per segment with its transition component (every fade is one — a plan whose fade carries no
+component gets the transition stand-in, like any missing component; the composition draws no fade, colour or text of its
+own, test-guarded: no colour literal in `src/remotion/`), the segment component, for clips the layout component with `screen` = the capture frame `srcFrames[f]` under the camera
 transform and `rects` = the clip's PlanLayout in output px, the caption component (cues, `area` = the layout's
-caption rect, `rects` = the layout's rects) and overlays (anchor mapped per frame with `mapSourceRect`, `rects`), the brand mark (theme logo + wordmark in the layout's `brandmark` rect — layouts do not draw it),
+caption rect, `rects` = the layout's rects) and overlays (anchor mapped per frame with `mapSourceRect`, `rects`), the brand mark (theme logo + wordmark in the layout's `brandmark` rect — layouts do not draw it; the one visual the
+composition places itself, R-CMP-01 exception: see below),
 optional music bed (one `Html5Audio` per planned play, volume = bed volume × seam gain; without plays the element
 loops itself). Interstitials receive the previous clip's last frame (layout + capture + brand mark) as `screen`. The
 capture `OffthreadVideo` is drawn with `object-fit: fill` in a box of the visible region's aspect scaled to the capture's
 (a reframe crop is never letterboxed).
+**R-CMP-01 audit (L2.14).** Everything the edit shows is drawn by a component, except two theme-driven elements the
+composition places itself: the theme **background** behind every segment (`backgroundCss(theme)`, the theme's own
+token) and the **brand mark** (the kit's `Logo` + `Wordmark` — the same primitives components use — sized, placed and
+faded by the theme's `brandmark` settings in the rect the layout component declares). They stay in the composition
+because they are one layer for every layout (the mark above the screen-layer overlays and under the caption,
+interstitial backdrops included) and they are theme tokens, not a look of their own: a theme changes them, a layout
+that declares no `brandmark` rect gets none (and may draw its own). No colour, text or shape is hard-coded.
 Transitions render twice: a crossfade over the overlap of the two segments (both see transition frames [0, n)), a dip
 without overlap (frames [0, ⌊n/2⌋) at the end of the outgoing segment, [⌊n/2⌋, n) at the start of the incoming one).
 The capture frame is an `OffthreadVideo` inside a `Sequence` shifted to that frame — not `<Freeze
@@ -593,7 +602,8 @@ own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawS
   FCPXML / OTIO), `writeOtio` (OTIO 0.17/0.18 JSON: V1, Cursor, Page n [+ cursor] tracks, Gap fillers, Clip.2 with
   ExternalReference with a `file://` target_url and available_range at the timecode — 0 for WebM layers —, Marker.2
   with colour / comment / metadata), `markersCsv|Json`.
-  Checked with OpenTimelineIO 0.18.1 (otio_json, cmx_3600 and fcpx_xml adapters) outside the repo.
+  Checked with OpenTimelineIO 0.18.1 (otio_json, cmx_3600 and fcpx_xml adapters): `scripts/validate-raw.py` (L2.14,
+  optional, not a repository dependency).
 - **Manifest** (`RawManifest`, `manifest.json`) + `README.md` (`packageReadme`): run, settings, sequence, clips
   (measured), selects, cursor files and icon source, marker files and counts, the edit's own files, notes, warnings.
 - **Editor**: a hidden-cursor capture still plans and renders, with a plan warning (no cursor in the video).
@@ -605,7 +615,8 @@ own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawS
 ```ts
 reviewRender(opts: { project; render: string; fps?: 1 | 2; previous?: string | false }): Promise<ReviewResult>
 ```
-Writes `review/<render-id>/`: `sheet_<fps>fps.jpg` (+ pages), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png`
+Writes `review/<render-id>/`: `sheet_<fps>fps.jpg` (+ pages), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png` (the
+screen once the marked step is done — `plan.markers[].done`, a marked wait's awaited state; L2.14)
 (+ scene first/last), `timeline.json` (output-time: segments with components, captions, markers, step spans),
 `report.json`, `report.md`; returns ≤1280 px JPEG thumbnails (base64) for the MCP. Checks: durations; blank/near-uniform
 frames in the screen rect and at scene starts; caption/scene mismatch, overlaps, captions too long for their area;

@@ -1,6 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.13. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.14 — **phase 2 is done**. Branch: **`main`**. From here the work continues in a
+local Claude Code session on the user's Mac (see "Mac setup" and "First local session" below; the root `CLAUDE.md`
+sums up the working agreement and the everyday commands). The cloud working branch `claude/new-session-pq6jtq`, where
+phases 1–2 were built, is history.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -8,6 +11,7 @@ professional product video — drive a real web app headless with an in-page cur
 automatically with themeable components, and let Claude operate everything through an MCP server.
 
 ## Read in this order
+0. `CLAUDE.md` (root) — the short version: working agreement, commands, where things live.
 1. `docs/SPEC.md` — the brief, especially §0 (product principles), §11 (components), §12 (Studio app), §14 (phases).
 2. `docs/ROADMAP.md` — lots, sizes, status, working agreement. **Work one lot at a time; the user decides how many.**
 3. The lot's requirements: `node scripts/requirements.mjs --lot <id>` (source of truth: `docs/requirements.json`).
@@ -18,9 +22,86 @@ automatically with themeable components, and let Claude operate everything throu
    themes): https://claude.ai/artifact/CEa9o9do5hr9AcLBajLRye (private to the owner).
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
-   start, recorder precisions for L3.4/L4.8, open decisions; `docs/COMPETITION.md` — competitive study (2026-10-12).
+   start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
+   first version are not in the repo: edit it directly, next free id BL-55); `docs/COMPETITION.md` — competitive study
+   (2026-10-12).
+8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
+   audit, own media, raw export validation).
 
-## State
+## State (end of phase 2)
+- **Phases 1 and 2 are done**: phase 1 (core, runner-web, hooks, CLI, fixture product, starter templates) + L1.1, and
+  phase 2 L2.1–L2.14 — contracts, components package, edit planner, Remotion render pipeline, reference-look
+  components, review, layouts & previews, variants / 4K / music / export, mails / notifications / documents, tutorial
+  overlays & story cards, multi-page capture (split, PiP), your own media & motion, raw capture export for editors,
+  and the phase-2 acceptance (`docs/ACCEPTANCE-phase2.md`).
+- **Acceptance (L2.14)**: fresh captures `20261012-144004-catalogue` / `20261012-144221-quote`; catalogue-v7 and
+  quote-v17 (editorial) review clean; quote-v18 (`--theme motion`) and quote-v19 (`--frame studio/layout-laptop`)
+  re-render the same capture with no scenario change and review clean; own-media-v9 (user intro video, alpha overlay,
+  Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
+- **Tests**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (full suite run twice at the end
+  of L2.14, green both times; ≈ 5–7 min in the cloud container).
+- **Requirements**: 606 tracked — 414 done, 50 partial, 126 todo, 16 n/a-here; every phase-2 lot has 0 open; the open
+  ones belong to L1.2–L1.8, phases 3–5 and L6 (`node scripts/requirements.mjs`).
+- **Not built yet**: L1.2 (runner robustness), L1.3 (capture smoothness — decided by L1.5), L1.4 (coverage), L1.5
+  (macOS pass, next), L1.6–L1.8 (personas, display URLs / safety, sandbox), phase 3 (MCP, authoring, recorder, skills),
+  phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp` is empty; `studio record|mcp|ui` print
+  "available in phase N".
+
+## Mac setup
+The next sessions run locally on the user's Mac with Claude Code, on the `main` branch. Steps (once; `studio doctor`
+checks the result):
+
+1. **Command line tools** — `xcode-select --install` (git, clang). The full Xcode is only needed for phase 5.
+2. **Node.js ≥ 22 and pnpm** — `brew install node@22` (keg-only: `brew link --force node@22`, or put
+   `$(brew --prefix node@22)/bin` on the PATH; nvm / fnm work too), then `corepack enable`: corepack provides the
+   pnpm version pinned in `package.json` (`packageManager: pnpm@10.28.0`). Node 25+ no longer bundles corepack:
+   `npm i -g corepack` first, or stay on 22 / 24.
+3. **ffmpeg and ffprobe** — `brew install ffmpeg` (H.264, VP9 / libvpx, ProRes encoders, ffprobe). Captures encode with
+   it, renders are probed with it, the review decodes with it, the raw export encodes with it. Elsewhere on disk:
+   `ffmpeg:` in `studio.yaml`, `$DEMO_STUDIO_FFPROBE` for ffprobe.
+4. **The repository** — `git clone -b main <repository URL> demo-studio && cd demo-studio`, then `pnpm install` and
+   `pnpm build`. The lockfile already lists the macOS binaries (`@remotion/compositor-darwin-arm64`,
+   `@img/sharp-darwin-arm64`, `@esbuild/darwin-arm64`); pnpm 10 runs install scripts only for esbuild and sharp
+   (`onlyBuiltDependencies` in `pnpm-workspace.yaml` / `package.json`).
+5. **Chromium for playwright-core** — `pnpm --filter @demo-studio/runner-web exec playwright-core install chromium`.
+   This downloads the Chromium build pinned by playwright-core 1.56.1 (Chromium 141, revision 1194) **and** its
+   headless shell into `~/Library/Caches/ms-playwright/`. How the browsers are found
+   (`packages/runner-web/src/probe.ts`, `session.ts`; `packages/editor/src/render/browser.ts`):
+   - captures (runner): `browser.executable` in project.yaml / studio.yaml, else `$DEMO_STUDIO_CHROMIUM`, else
+     playwright-core's own Chromium launched in new headless mode (`channel: chromium`);
+   - renders (Remotion): `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL`, else playwright-core's `chromium-headless-shell`
+     (looked up through its registry), else Remotion downloads its own (a warning says so);
+   - `PLAYWRIGHT_BROWSERS_PATH` moves the browser cache (the cloud container used `/opt/pw-browsers`); leave it unset
+     on the Mac. No other environment variable is needed.
+6. **Check** — `pnpm studio doctor` (Node, Chromium launch, ffmpeg / ffprobe, display, Keychain, notifications,
+   workspace, template fonts): every line `OK`.
+7. **Later, not before their lot** — Docker Desktop for L1.8 (sandbox mode, docker-compose provider); the full Xcode
+   (App Store) + Rust (`rustup`) for phase 5 (L5.2 Tauri shell, L5.3 iOS Simulator runner: simctl / idb).
+8. **Optional** — PostgreSQL for the 6 SQL hook tests (`brew install postgresql@16`, then
+   `DEMO_STUDIO_TEST_PG=postgres://…`); Python 3 + OpenTimelineIO for `scripts/validate-raw.py`:
+   `python3 -m venv ~/.venvs/otio && ~/.venvs/otio/bin/pip install opentimelineio otio-cmx3600-adapter otio-fcpx-xml-adapter`.
+
+**macOS permissions.** Headless captures need no Screen Recording permission (frames come from Chromium's own
+screencast) and the fixture and the render asset server listen on loopback only (no firewall prompt). Expect prompts
+only for what the L1.5 checklist exercises: Keychain access when a hook resolves `{{keychain:service/account}}`
+(through `security`), the Notification / Automation prompt the first time `osascript` posts a notification from the
+terminal, and a visible window for `--headed` runs and `studio login`.
+
+## First local session
+1. Set up the Mac as above; `pnpm build && pnpm test` once (full suite; report the summary line).
+2. Run **L1.5 = `docs/MACOS-CHECKLIST.md`** step by step with the user: it verifies a real capture on a GPU Mac while
+   they keep working, `studio login`, `--headed`, Keychain, notifications and the raw export in their editing tools
+   (R-RAW-06). Its findings decide **L1.3** (capture smoothness under load: needed or not) and feed **L5.1** (macOS
+   fixes).
+3. Then **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock) → **L1.8**
+   (sandbox mode), then phase 3 from **L3.1** per `docs/ROADMAP.md` (L1.2–L1.4 stay open; the user decides when).
+4. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
+
+## Next lot
+**L1.5 — macOS verification pass** (S, with the user on the Mac): `docs/MACOS-CHECKLIST.md` step by step; its results
+decide L1.3 and feed L5.1. Then L1.6 → L1.7 → L1.8 and phase 3 (L3.1) — see "First local session".
+
+## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
   (headless capture, in-page cursor on real input, click strategies, widgets, screencast → CFR mp4, timeline.json),
   hooks (http/sql/shell/js + rollback journal + allow-list), CLI (`studio …`), fixture product
@@ -451,28 +532,30 @@ automatically with themeable components, and let Claude operate everything throu
   raw-real (WebM package: no timecode, OTIO from 0, README; manifest pix_fmt = ffprobe), cli e2e (`run --raw --cursor
   none --json`: every stdout line is JSON, last = raw_export). 873 tests: 867 pass, 6 Postgres tests skipped (full
   suite run twice after the review fixes, green both times).
-- **Requirements:** 606 tracked; 405 done, 50 partial, 135 todo, 16 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.13 all done (L2.10: R-TUT-01…05, R-STO-01…06; L2.11: R-MPC-01…07,
-  R-TUT-06…07; L2.12: R-OWN-01…04 + R-OWN-05; L2.13: R-RAW-01…04 + R-RAW-05, new — cursor effects recorded;
-  R-RAW-06, new, n/a-here for L1.5 — imports into Final Cut Pro / Premiere / Resolve on the Mac). From L1.4, R-ARCH-06
-  (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture (2560×1440 still untested).
-- **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
-  (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
-  and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9) + tutorial
-  overlays & story cards (L2.10) + multi-page capture, split screen & picture in picture (L2.11) + your own media &
-  motion — video / image / Lottie segments, alpha overlay videos, Lottie overlays (L2.12) + raw capture export for
-  editors — clips per scene, cursor data / layer, FCPXML / EDL / OTIO markers, manifest (L2.13).
-  `packages/mcp` is empty; `studio record|mcp|ui` print "available in phase N".
+- **L2.14 done** (phase-2 acceptance + Mac handoff; R-ACC2-01…06, R-GOAL-05, R-LES-10, R-CMP-01): fresh captures of
+  catalogue and quote, renders and reviews listed in `docs/ACCEPTANCE-phase2.md`. **Fixes found by the review**:
+  (1) marker key frames showed the start of the marked step (a marked wait's spinner / skeleton): plan markers gain
+  `done` (`markDoneAt` in plan.ts — the screen once the step is done, the rule `frame: mark:` already used) and the
+  review's `keyframes/<marker>.png` is that frame (`timeline.json` markers: `done_frame` / `done_time`);
+  (2) **R-CMP-01**: the composition drew a component-less fade itself (opacity envelope + `#000000` veil) — removed;
+  `transitionWindows` gives such a fade the transition stand-in (`standInTransition`), review spans lost the `fade`
+  kind; justified exceptions (theme background token, brand mark) documented in DESIGN-phase2 §2.2; guards in
+  editor render-units.test.ts (no component-less non-cut transition in real plans, stand-in, no colour literal in
+  `src/remotion/`). Renders unchanged by (2) (reviews of catalogue-v7 / quote-v17 vs v6 / v14: no visible change).
+  **Helpers in the repo**: `scripts/validate-raw.py` (raw-package validator, optional, OpenTimelineIO). **Docs**:
+  root `CLAUDE.md`, this file's "Mac setup" / "First local session", `docs/ACCEPTANCE-phase2.md`, BL-54 (layouts keep
+  an empty caption block under an overlay caption), README phase status + validator, MACOS-CHECKLIST (clone `main`,
+  validator), ROADMAP (phase 2 done, L1.5 next). 875 tests: 869 pass, 6 Postgres tests skipped (full suite run twice,
+  green both times).
 
-## Next lot
-**L2.14 — Phase 2 acceptance** (S): render catalogue + quote with the editorial theme, clean review, contact-sheet
-review by Claude, switch a component and the theme without touching the scenario (R-ACC2-*, R-GOAL-05, R-LES-10,
-R-CMP-01); one video with a user intro file and an alpha overlay; one raw export imported checks (FCPXML / OTIO
-validate — the L2.13 packages below already pass OpenTimelineIO 0.18.1); README update; **Mac handoff** (root
-`CLAUDE.md`, HANDOFF "Mac setup" + "First local session", every helper in the repo, branch ready to merge). After
-phase 2 the work moves to a local session on the user's Mac starting with L1.5 (see ROADMAP).
+## Working with the fixture
+**On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
+git-ignored and stayed in the cloud container. Start the fixture, capture (`studio run`), then render / review /
+export `latest`; generate the music test bed once with the `generateTestTrack` line below. The fixture's own media
+(`projects/northfield-fixture/assets/`) and the frozen test timelines (`packages/*/test/fixtures/`) are committed.
 
-Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote
+Render, review, export and preview commands (cloud fixture captures: L2.14 acceptance runs 20261012-144004-catalogue and
+20261012-144221-quote; earlier runs 20261011-182524-catalogue, 20261011-182706-quote
 (before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup (L2.9),
 20261012-034207-signup (L2.10: tutorial overlays), 20261012-034247-highlights (L2.10: story cards),
 20261012-073840-live-quote and 20261012-080444-phone-and-desktop (L2.11: two pages on one clock),
@@ -508,9 +591,14 @@ node packages/cli/dist/bin.js review northfield-fixture quote-v9-vertical
 node packages/cli/dist/bin.js components preview --all --stale          # regenerate stale committed previews
 node -e "import('./packages/editor/dist/index.js').then(m => m.generateTestTrack('projects/northfield-fixture/.demo-studio/test-bed.m4a', {seconds: 16}))"
 ```
-Render times here (4 CPUs, no GPU, concurrency 3): 1080p quote 56.3 s → ≈ 3 m; vertical 1080×1920 → 3 m 13 s,
+Render times in the cloud container (4 CPUs, no GPU, concurrency 3; L2.14: ≈ 4 m per 70 s 1080p video, own-media 46 s
+≈ 2 m 50 s; a Mac should be faster): 1080p quote 56.3 s → ≈ 3 m; vertical 1080×1920 → 3 m 13 s,
 square 1080×1080 → 2 m 23 s; catalogue 59 s with music → 3 m 34 s; 4K catalogue (export mp4_4k) → 8 m 04 s; WebM (VP9)
 transcode of 59 s 1080p → 1 m 25 s; ≈ 8–9 output fps at 1080p; a still ≈ 1–2 s with a cached bundle.
+
+## Evidence per lot (measured in the cloud container)
+The renders and packages below are git-ignored (they stay in the cloud container); the acceptance of phase 2 is in
+`docs/ACCEPTANCE-phase2.md`.
 
 **4K findings (spike, measured here — headless Chromium 141, 4 CPUs, no GPU, JPEG q 90):**
 - Without help, scale 2 gives CSS-size images on every path: the CDP screencast (new headless and the headless shell
@@ -685,11 +773,23 @@ kept, then the results page — the old plan cut from 16.13 s, mid-typing); a co
 scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a note, mark "import-done" on the last
 frame).
 
-Notes for L2.14:
+## Notes
+Notes from L2.14:
+- Plan markers: `frame` = the marked step's start (the timeline marker, DESIGN §timeline — the raw export's mark
+  markers too), `done` = the screen once the step is done. Use `done` when you need "the moment the mark names".
+- The composition draws nothing of its own except the theme background and the brand mark (R-CMP-01, DESIGN-phase2
+  §2.2); `render-units.test.ts` fails on a colour literal in `src/remotion/`. A new visual = a component.
+- To show what a switch changed, review against an explicit render: `studio review <project> <render> --previous
+  <id>` (the default previous is the scenario's latest earlier render).
+- The CLI switches only the layout (`--frame <style|layout id>`) and the theme (`--theme`); other kinds go through
+  `renderVideo({overrides: {components: {...}}})` until L3.2 (MCP) / L4.5 (timeline UI).
+- Motion theme + project `frame: card`: an empty caption block stays under the card (BL-54).
+- Reproduce the raw validation: `scripts/validate-raw.py` (see README "Raw export for editors").
+
+Notes from L2.13 (raw export):
 - The raw export lives in runner-web (`src/raw/`): capture-side (frames, CFR schedule, the kit's look). Its CLI is
-  `packages/cli/src/commands/export-capture.ts` (+ `run --raw`). The acceptance's "one raw export imported" can reuse
-  the packages above or `studio export-capture northfield-fixture latest --scenario quote`; real imports into Final Cut
-  Pro / Premiere / Resolve are R-RAW-06 (Mac, MACOS-CHECKLIST step 12).
+  `packages/cli/src/commands/export-capture.ts` (+ `run --raw`). Real imports into Final Cut Pro / Premiere / Resolve
+  are R-RAW-06 (Mac, MACOS-CHECKLIST step 12).
 - Encoding speed here (4 CPUs, no hardware encoder): MP4 30 fps ≈ 30–40 s per minute of clips; ProRes 422 HQ
   (prores_ks) ≈ 17 fps → ≈ 3 min for 50 s at 60 fps; layers (prores_aw 4444) ≈ 90 fps. VideoToolbox on the Mac would be
   much faster (not wired: the brief names prores_ks; BACKLOG open decision on encoders).
@@ -786,11 +886,12 @@ Carried over (from L2.10 notes, still true):
   cards / badges, two-way with YAML; timeline with live Remotion Player preview and one-click component switching;
   Run and Record screens as in the canvas.
 - Backlog lives **only in the repo** (no Linear). Small lots; each lot is committed and pushed; consumption reported.
-- The user allowed force-pushes on this working branch (used to squash WIP checkpoints into one commit per phase/lot).
+- (History) The user allowed force-pushes on the cloud working branch `claude/new-session-pq6jtq` to squash WIP
+  checkpoints into one commit per phase / lot. On `main`, ask before rewriting history.
 - App UI language: English. Conversation with the user: French.
 
-- (2026-10-11) Autonomy granted through the end of phase 4: chain lots without asking, one clean commit per lot,
-  short report per phase. Phase 5 needs a Mac.
+- (2026-10-11) Autonomy granted through the end of phase 4 — superseded on 2026-10-12: autonomy through phase 2 in the
+  cloud, then the user decides how many lots to chain (ROADMAP working agreement).
 - (2026-10-11) Phase 2 now ends with L2.9 mails/notifications/documents, L2.10 tutorial overlays & story cards,
   L2.11 multi-page capture (split screen, picture in picture), L2.12 acceptance (see ROADMAP). Backlog for the
   marketplace: terminal, code, chat/SMS, Dynamic Island, calendar, sounds, webcam, SRT subtitles.
@@ -805,6 +906,9 @@ Carried over (from L2.10 notes, still true):
 
 - (2026-10-12) **Architecture: local-first, desktop-first, flat files** — see docs/ARCHITECTURE.md (ADR-1, ADR-2).
   V1 stays simple: no server-side capture/render; full cloud later, outside this development phase.
+- (2026-10-12, L2.14) **Phase 2 done; the work moves to the Mac.** At the end of L2.14 the work is pushed to a new
+  `main` branch (no pull request); local Claude Code sessions clone / pull `main` and commit each lot there. The user
+  writes in French and gets answers in French; the repository stays in English.
 
 ## Conventions
 - TypeScript ESM/NodeNext, relative imports end in `.js`; `pnpm build` (= `tsc -b`), `pnpm test` (= `vitest run`;
@@ -812,9 +916,15 @@ Carried over (from L2.10 notes, still true):
 - Commit messages end with the session attribution lines given by the harness. Never commit `runs/`, `renders/`,
   `review/`, frames or videos (git-ignored).
 - At the end of a lot: update `docs/requirements.json` (status/evidence/gap), run `node scripts/requirements.mjs`,
-  update this file and ROADMAP's status table, commit, push, report.
+  update this file and ROADMAP's status table, commit on `main`, push, report.
+- `docs/BACKLOG.md` is maintained by hand (new ideas get the next `BL-` id; nothing there is scheduled).
+- Helpers live in the repo (`scripts/`): nothing a later session needs may stay in a scratch folder.
 
-## Environment notes (Linux cloud container)
+## Environment
+On the Mac: see "Mac setup" above (Homebrew ffmpeg, playwright-core's Chromium and headless shell in
+`~/Library/Caches/ms-playwright/`, no environment variable needed).
+
+### Cloud container (Linux) — specific to the cloud sessions of phases 1–2
 - Chromium 141 via playwright-core 1.56.1 (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`); new headless
   (`channel: 'chromium'`). Remotion renders with
   `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` (found through playwright-core's
@@ -822,5 +932,7 @@ Carried over (from L2.10 notes, still true):
 - ffmpeg 6.1 on PATH. Postgres 16 installed (`pg_ctlcluster 16 main start`, run as the postgres user).
 - No GPU: pages with heavy effects (backdrop blur) are captured at 6–10 fps during cursor motion (L1.3). No display and
   no macOS: login, `--headed`, Keychain and notifications are verified by the user on a Mac (L1.5).
+- Python 3.13 without OpenTimelineIO: the raw validation used a scratch venv (`pip install opentimelineio
+  otio-cmx3600-adapter otio-fcpx-xml-adapter`).
 - Fixture: `node fixtures/wholesale/server.mjs` (console :4401, shop :4402), then
   `node packages/cli/dist/bin.js run northfield-fixture catalogue` (add `--dry` for a rehearsal).

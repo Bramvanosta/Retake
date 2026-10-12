@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cubicBezier } from '@demo-studio/components';
 import type { Timeline, TimelineEvent } from '@demo-studio/core';
-import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@demo-studio/editor';
+import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, markDoneAt, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@demo-studio/editor';
 import type { CardSegment, ClipSegment, EditPlan } from '@demo-studio/editor';
 import { clip, clips, fixtureProject, plan, realTimeline, seg, studioWorkspace, template } from './helpers.js';
 import type { PlanContext } from './helpers.js';
@@ -212,6 +212,19 @@ describe('catalogue (real timeline)', () => {
     const imp = clip(p, 'import');
     const mk = tl.markers.find((m) => m.name === 'import-done')!;
     expect(p.markers[0].frame).toBe(imp.from + imp.srcFrames.findIndex((f) => f >= Math.ceil(mk.t * FPS - 1e-6)));
+  });
+
+  it('places each marker\'s `done` frame on the screen once its step is done (a marked wait: its awaited state)', () => {
+    for (const m of p.markers) {
+      const mk = tl.markers.find((x) => x.name === m.name)!;
+      const ev = tl.events.find((e) => e.scene === mk.scene && e.step === mk.step)!;
+      const c = clip(p, mk.scene);
+      // After the marker, inside its clip, on a source frame at or after the end of the marked step (the wait ended).
+      expect(m.done).toBeGreaterThan(m.frame);
+      expect(m.done).toBeLessThan(c.from + c.durationInFrames);
+      expect(c.srcFrames[m.done! - c.from] / FPS).toBeGreaterThanOrEqual(ev.t_end - 1 / FPS);
+      expect(markDoneAt(tl, mk)).toBeGreaterThan(ev.t_end);
+    }
   });
 });
 

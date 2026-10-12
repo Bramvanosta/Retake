@@ -12,6 +12,9 @@ Also in this file: [guard-rails for planned lots](#guard-rails-for-planned-lots-
 backlog stays reachable), [recorder precisions](#recorder-precisions-l34--l48),
 [open decisions](#open-decisions) and [suggestions on the locked MVP](#suggestions-on-the-locked-mvp-founder-decides).
 
+**Maintained by hand** (since L2.14): the scratch files the first version was generated from are not in the repository;
+edit this file directly — add an item with the next free `BL-` number in the area it belongs to.
+
 **Current goal (decided 2026-10-12): a local tool for our own use.** Commercialisation (plans, licences, billing,
 cloud offers, marketplace, distribution) is a future topic: the items and decisions about it stay here, parked.
 
@@ -395,6 +398,19 @@ Keep the component format and kit independent of Remotion (R-V2-08), and prototy
 
 - **Value:** A bargaining position with Remotion, and an exit if its terms make a plan unviable.
 - **Hard parts:** The component scaffolds import `remotion` directly today. Reproducing frame-accurate sequencing, audio and the Player preview.
+
+### BL-54 — Layouts that give the caption block's room back
+*S · found in the phase-2 acceptance (L2.14) · builds on: L2.5 (geometry expressions), L2.7*
+
+With a theme whose caption goes over the screen (`caption-overlay`, the motion starter) and a project that asks for
+`frame: card`, `studio/layout-card` still keeps the 122 px caption block below the card: the card sits 40 px from the
+top with ≈ 160 px of empty background under it (quote-v15). A geometry builtin such as `caption_below` (1 when the
+caption component draws in the layout's caption rect, 0 when it draws over the screen) would let the device and card
+layouts centre themselves — or grow — when the block is empty.
+
+- **Value:** Balanced frames for every theme / frame combination without a theme-specific layout.
+- **Hard parts:** The planner must resolve the caption before evaluating the layout geometry; every layout manifest
+  and its previews / tests follow.
 
 ## Distribution & packaging
 

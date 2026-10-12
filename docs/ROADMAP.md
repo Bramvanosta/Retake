@@ -11,10 +11,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   (reference: phase 1 took ≈ 2.5 M across 6 agents; the spec audit ≈ 0.65 M).
 - A lot ends with: build + full test suite green, the lot's acceptance checked (tests, real runs, frames looked at),
   `docs/requirements.json` statuses/evidence updated (`node scripts/requirements.mjs`), `docs/HANDOFF.md` updated,
-  one commit pushed to the working branch, and a short report (what was done, verification, consumption, next lot).
-- The user picks how many lots to chain. Current go (2026-10-12): autonomous through the end of phase 2 (L2.14) in
-  the cloud session, one clean commit per lot. The work then moves to a local Claude Code session on the user's Mac,
-  which starts with L1.5 (macOS verification, decides L1.3), then L1.6–L1.8 and phase 3.
+  one commit pushed to `main`, and a short report (what was done, verification, consumption, next lot).
+- The user picks how many lots to chain. Phases 1 and 2 were built autonomously in a cloud session (through L2.14,
+  2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
+  `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "First local session"): L1.5 first (macOS verification, decides L1.3),
+  then L1.6–L1.8 and phase 3.
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -32,7 +33,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L1.2 | Runner robustness for any site | M | todo |
 | L1.3 | Capture smoothness under load (spike) | M | todo |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
-| L1.5 | macOS verification pass (run by the user on a Mac) | S | todo |
+| L1.5 | macOS verification pass (run by the user on a Mac) | S | **next** (first lot of the local Mac session) |
 | L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
 | L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | todo |
 | L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
@@ -49,7 +50,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.11 | Multi-page capture: split screen & picture in picture | M | **done** |
 | L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | **done** |
 | L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | **done** |
-| L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) | S | next |
+| L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) + Mac handoff | S | **done** — phase 2 done |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
 | L3.2 | MCP render/review/export + theme & component tools | M | todo |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
@@ -476,6 +477,17 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   "Mac setup" (Node ≥ 22, pnpm, ffmpeg, Chromium for playwright-core, Docker later, Xcode for phase 5) and "First
   local session" (L1.5 checklist first); every helper used in the cloud session lives in the repo; branch ready to
   merge.
+- **Done** (`docs/ACCEPTANCE-phase2.md`): fresh captures of catalogue and quote; catalogue-v7 and quote-v17 (editorial)
+  review clean; the same quote capture re-rendered with `--theme motion` (quote-v18) and with one component switched,
+  `--frame studio/layout-laptop` (quote-v19, the review's diff names only the layout), both clean, no scenario,
+  project or template edited; contact sheets, scene sheets and key frames read by Claude against the reference look —
+  two fixes: marker key frames now show the marked step done (plan markers `done`, `markDoneAt`), and the
+  composition's own fade envelope with a hard-coded black veil is gone (every fade is a transition component; R-CMP-01
+  audit with the theme background and the brand mark as documented exceptions); own-media-v9 (user intro video,
+  alpha overlay, Lottie, music) clean; the raw export of the fresh quote run validated by the new
+  `scripts/validate-raw.py` (OpenTimelineIO read-back). Mac handoff: root `CLAUDE.md`, HANDOFF "State" / "Mac setup" /
+  "First local session" / cloud notes as a subsection, MACOS-CHECKLIST on `main`, BACKLOG maintained by hand (BL-54
+  from the review), README phase status. **Phase 2 is done**; next: L1.5 on the Mac.
 
 ### L3.1 – L3.8, L4.1 – L4.9, L5.x, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
