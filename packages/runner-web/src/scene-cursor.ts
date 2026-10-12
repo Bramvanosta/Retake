@@ -15,6 +15,13 @@ const PAGE_CHANGING = new Set(['open', 'new_tab', 'switch_page', 'press', 'eval'
 const ANCHOR_WAIT_MS = 1500;
 /** Clearance kept between the drawn cursor and the anchor box. */
 const COVER_CLEAR = 10;
+/**
+ * A continuing scene keeps the cursor where it is when it is clear of the first target and at most this far from
+ * where that target will be clicked; farther away it glides next to the target during the still (R-ISS-04, MACOS-CHECKLIST
+ * step 7: the scene opens with the cursor resting next to the first thing it will click; the field notes' right-centre
+ * spot is only the fallback).
+ */
+export const KEEP_NEAR_PX = 240;
 
 /** What the scene-start placement did (recorded as `data.cursor` of the scene_still event). */
 export interface SceneCursorRecord {
@@ -29,11 +36,16 @@ export interface SceneCursorRecord {
   side?: string;
   /** ms of the glide. */
   move_ms?: number;
+  /** Capture time (s) the glide ended: the review compares the opening still from then on (hover states follow it). */
+  t_settled?: number;
 }
 
 interface Anchor {
   desc: string;
   box: BBox;
+  /** Where the step will click (the box centre when unknown), and the element (for the dialog that holds it). */
+  point: PointSpec;
+  ref?: string;
 }
 
 /** The first pointer step, and the document scroll that precedes it (if any). Null when a page change comes first. */
@@ -73,14 +85,21 @@ async function anchorBox(rt: Runtime, step: NormalizedStep): Promise<Anchor | nu
       const rowRef = await kit.rowFor(a.row);
       const trig = rowRef ? await kit.menuTrigger(rowRef) : null;
       const pt = trig ? await kit.point(trig) : null;
-      return pt ? { desc: `menu trigger of row "${a.row}"`, box: pt.bbox } : null;
+      if (!pt || !trig) return null;
+      const point = pt.hit ? { x: pt.x, y: pt.y } : { x: pt.bbox.x + pt.bbox.w / 2, y: pt.bbox.y + pt.bbox.h / 2 };
+      return { desc: `menu trigger of row "${a.row}"`, box: pt.bbox, point, ref: trig };
     }
   }
   const t = primaryTarget(step);
   if (!t) return null;
   const r = await kit.find(normalizeTarget(t));
   if (r.count === 0 || !('bbox' in r)) return null;
-  return { desc: r.desc || describeTarget(t), box: r.bbox };
+  const ref = 'ref' in r ? r.ref : undefined;
+  // The kit's click point of an element out of view is clipped to the viewport: below the fold (a scroll comes first)
+  // the box centre is where the step will click.
+  const pt = ref && r.in_view ? await kit.point(ref).catch(() => null) : null;
+  const point = pt?.hit ? { x: pt.x, y: pt.y } : { x: r.bbox.x + r.bbox.w / 2, y: r.bbox.y + r.bbox.h / 2 };
+  return { desc: r.desc || describeTarget(t), box: r.bbox, point, ...(ref ? { ref } : {}) };
 }
 
 /** Document scroll performed by the scroll steps before the first pointer step (null: not predictable). */
@@ -112,11 +131,12 @@ async function findAnchor(rt: Runtime, scene: Scene, waitMs: number): Promise<An
       const dy = await predictedScroll(rt, first.scrolls).catch(() => null);
       if (dy === null) return null;
       const box = { ...a.box, y: a.box.y - dy };
+      const point = { x: a.point.x, y: a.point.y - dy };
       const W = rt.viewport.width;
       const H = rt.viewport.height;
       // Only an anchor that will be on screen when its step starts is useful.
       if (box.x + box.w <= 0 || box.y + box.h <= 0 || box.x >= W || box.y >= H) return null;
-      return { desc: a.desc, box };
+      return { ...a, box, point };
     }
     if (wallNow() >= deadline) return null;
     await rt.sleep(100);
@@ -176,12 +196,18 @@ export async function placeSceneCursor(
     }
     if (to === null && !(spec === 'keep' && pointer.known)) {
       anchor = await findAnchor(rt, scene, opts.loading ? ANCHOR_WAIT_MS : 0);
-      if (!opts.loading && from && insideViewport(rt, from) && (!anchor || !cursorCovers(from, anchor.box))) {
-        to = null; // a continuing scene keeps a position that is already clear of its first target
+      const near = (p: PointSpec, a: Anchor) => !cursorCovers(p, a.box) && distance(p, a.point) <= KEEP_NEAR_PX;
+      if (!opts.loading && from && insideViewport(rt, from) && (!anchor || near(from, anchor))) {
+        to = null; // a continuing scene keeps a position already clear of, and close to, its first target
       } else if (anchor) {
-        const plan = await kit.restNear(anchor.box);
-        to = { x: plan.x, y: plan.y };
-        side = plan.side;
+        const plan = await kit.restNear(anchor.box, { point: anchor.point, ...(anchor.ref ? { ref: anchor.ref } : {}) });
+        // restNear's last resort (restPoint) can land on a target that fills the screen (an editor, a map, a drop
+        // zone): a continuing scene whose cursor is already clear of it keeps it rather than gliding onto it.
+        const keepClear = !opts.loading && from !== undefined && insideViewport(rt, from) && !cursorCovers(from, anchor.box);
+        if (!(keepClear && cursorCovers(plan, anchor.box))) {
+          to = { x: plan.x, y: plan.y };
+          side = plan.side;
+        }
       } else if (opts.loading || !from) {
         to = await kit.restPoint(where);
         side = opts.idle ? 'idle' : 'fallback';
@@ -219,6 +245,7 @@ export async function placeSceneCursor(
     const lead = Math.min(300, opts.stillMs * 0.2);
     await rt.sleep(lead);
     record.move_ms = await pointer.moveTo(target, { jitter: opts.jitter });
+    record.t_settled = rt.now();
   };
   return { record, glide };
 }

@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import type { LoadedProject, Scenario, TimelineEvent } from '@demo-studio/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
-import { NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';
+import { LATE_DIALOG_PAGE, NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
 
@@ -14,6 +14,7 @@ beforeAll(async () => {
   server = await startServer({
     '/nav.html': NAV_PAGE,
     '/nav2.html': NAV2_PAGE,
+    '/late.html': LATE_DIALOG_PAGE,
     '/strategies.html': STRATEGY_PAGE,
     '/locale.html': (headers) => localePage(String(headers['accept-language'] ?? '')),
   });
@@ -36,6 +37,42 @@ async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partia
 }
 
 describe('pacing from the field notes', () => {
+  it('a plain click whose dialog opens after after_click_ms is recorded as opening it and keeps the post-popup pause (R-MAC-08)', async () => {
+    const ev = await run('late', {
+      pacing: { ...FAST, after_click_ms: 120, after_popup_ms: 500, popup_timeout_ms: 1200 },
+      scenes: [
+        {
+          id: 'late',
+          open: '/late.html',
+          steps: [
+            // Its target exists: the plain click is not slowed down by the late-popup check.
+            { click: 'Plain' },
+            { click: 'Open later' },
+            // Not on screen yet when the step starts: the dialog opens 450 ms after the click.
+            { type: { text: 'Ada', into: { label: 'Name' } } },
+          ],
+        },
+      ],
+    });
+    expect(ev[0].popup_opened).toBeUndefined();
+    expect(ev[0].t_end - ev[0].t_click!).toBeLessThan(0.45);
+    expect(ev[1].popup_opened).toBe(true);
+    // The click step lasts until the dialog opened (≈ 0.45 s) and the post-popup pause ended; no gap before the next.
+    expect(ev[1].t_end - ev[1].t_click!).toBeGreaterThanOrEqual(0.45 + 0.5 * 0.9);
+    expect(ev[2].t_start - ev[1].t_end).toBeLessThan(0.08);
+  });
+
+  it('content that renders late without a popup ends the late-popup wait as soon as it shows (R-MAC-08)', async () => {
+    const ev = await run('late-content', {
+      pacing: { ...FAST, after_click_ms: 120, after_popup_ms: 500, popup_timeout_ms: 3000 },
+      scenes: [{ id: 'late', open: '/late.html', steps: [{ click: 'Show later' }, { click: 'Shown later' }] }],
+    });
+    expect(ev[0].popup_opened).toBeUndefined();
+    // The button shows 300 ms after the click: the next step starts then, not popup_timeout_ms (3 s) after it.
+    expect(ev[1].t_start - ev[0].t_click!).toBeLessThan(0.9);
+    expect(ev[0].t_end - ev[0].t_click!).toBeLessThan(0.45);
+  });
+
   it('holds at least after_navigation_ms after a click that changed the page (URL or document), not after a plain click (R-CHO-07)', async () => {
     const ev = await run('nav', {
       pacing: { ...FAST, after_navigation_ms: 1000 },

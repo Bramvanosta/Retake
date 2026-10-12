@@ -8,11 +8,10 @@
  */
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { loadTemplate } from '@demo-studio/core';
+import { STARTER_TEMPLATES_DIR, loadTemplate } from '@demo-studio/core';
 import type { LoadedTemplate } from '@demo-studio/core';
 import {
   PREVIEW_FILE,
@@ -32,25 +31,20 @@ import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
 import type { BuiltPreview, PreviewSamples } from '../preview.js';
 import { startAssetServer } from './asset-server.js';
 import { renderBrowser } from './browser.js';
-import { EDITOR_DIR, ensureBundle, scaffoldComponents } from './bundle.js';
+import { ensureBundle, scaffoldComponents } from './bundle.js';
 import type { BundleComponent } from './bundle.js';
 import { RenderError } from './types.js';
 
 /** The starter templates shipped with Demo Studio (default, editorial, motion). */
-export const STARTER_TEMPLATES_DIR = resolve(EDITOR_DIR, '..', '..', 'templates');
+export { STARTER_TEMPLATES_DIR };
 
 /**
  * The theme of previews: a template of the workspace (name or path), else — for a bare name — the starter template of
- * that name shipped with Demo Studio (the committed previews use the starter `editorial`).
+ * that name shipped with Demo Studio (the committed previews use the starter `editorial`): `loadTemplate` falls back
+ * to the starters itself.
  */
 export async function loadPreviewTheme(nameOrDir: string, root: string): Promise<LoadedTemplate> {
-  try {
-    return await loadTemplate(nameOrDir, root);
-  } catch (e) {
-    const starter = join(STARTER_TEMPLATES_DIR, nameOrDir);
-    if (!/[\\/.]/.test(nameOrDir) && existsSync(join(starter, 'template.yaml'))) return loadTemplate(starter, root);
-    throw e;
-  }
+  return loadTemplate(nameOrDir, root);
 }
 
 /** Composition id of component previews (see ../remotion/Root.tsx). */

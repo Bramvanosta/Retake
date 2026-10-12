@@ -7,6 +7,7 @@ import {
   redact,
   resolveEnvironment,
   resolvePageUrl,
+  resolveSecretRef,
 } from '@demo-studio/core';
 import type { TemplateContext } from '@demo-studio/core';
 import { fakeProject } from './helpers.js';
@@ -77,5 +78,18 @@ describe('environments & URLs', () => {
     expect(resolvePageUrl('https://x.example.com/app', '/imports')).toBe('https://x.example.com/app/imports');
     expect(resolvePageUrl('https://x.example.com/', 'imports?a=1')).toBe('https://x.example.com/imports?a=1');
     expect(resolvePageUrl('https://x.example.com', 'https://y.example.com/z')).toBe('https://y.example.com/z');
+  });
+});
+
+describe('resolveSecretRef', () => {
+  it('a keychain item that cannot be read fails with one line naming the item and the reason', async () => {
+    // Reads only (an item that does not exist): macOS `security`, Linux `secret-tool` (or its absence).
+    const err = await resolveSecretRef('keychain:demo-studio-test-missing/none').then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    expect(err).toBeInstanceOf(TemplateError);
+    expect(err!.message).toMatch(/^keychain item demo-studio-test-missing\/none not found \([^()\n]+\)$/);
+    if (process.platform === 'darwin') expect(err!.message).toContain('could not be found in the keychain');
   });
 });

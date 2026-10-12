@@ -3,6 +3,7 @@
  * scene starts (rendered frames, and the capture frames behind them), a screen still changing during the scene's
  * opening still (the page was loading), captions that do not show in their area, segments that render nothing.
  */
+import type { Timeline } from '@demo-studio/core';
 import { viewOf } from '@demo-studio/editor';
 import type { ClipSegment, EditPlan } from '@demo-studio/editor';
 import type { CheckContext } from './checks.js';
@@ -105,10 +106,10 @@ export function stillFromSource(plan: Pick<EditPlan, 'source' | 'variant'>, clip
 }
 
 /** The capture frames shown at the still pair of a clip compared on its capture frames (`stillFromSource`), keyed. */
-export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, spans: SegmentSpan[], fps: number): string[] {
+export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, spans: SegmentSpan[], fps: number, timeline?: Timeline): string[] {
   const out: string[] = [];
   for (const s of spans) {
-    const pair = stillPair(s, fps);
+    const pair = stillPair(s, fps, timeline);
     if (!pair || !isClip(s.segment) || !stillFromSource(plan, s.segment, pair[0], pair[1])) continue;
     const clip = s.segment;
     for (let p = 0; p < Math.max(1, clip.panes?.length ?? 0); p++) out.push(sourceKey(clip, clip.srcFrames[pair[0] - s.from], p), sourceKey(clip, clip.srcFrames[pair[1] - s.from], p));
@@ -117,15 +118,36 @@ export function stillSourceFrames(plan: Pick<EditPlan, 'source' | 'variant'>, sp
 }
 
 /** The rendered frames of a clip whose opening still is compared (first and last fully visible still frames). */
-export function stillPair(span: SegmentSpan, fps: number): [number, number] | undefined {
+export function stillPair(span: SegmentSpan, fps: number, timeline?: Timeline): [number, number] | undefined {
   if (!isClip(span.segment)) return undefined;
   const clip = span.segment;
   const still = clip.steps.find((s) => s.step === -1 && s.action === 'scene_still');
   if (!still) return undefined;
-  const a = Math.max(still.from, span.clearFrom - clip.from);
+  let a = Math.max(still.from, span.clearFrom - clip.from);
+  // A continuing scene may glide its cursor during the still (next to its first target): compare from its end on.
+  const settled = stillGlideEnd(timeline, clip.scene);
+  if (settled !== undefined && timeline) a = Math.max(a, frameAtOrAfter(clip, Math.round(settled * timeline.capture.fps)));
   const b = Math.min(still.to, span.clearTo - clip.from, clip.durationInFrames - clip.heldFrames) - 1;
   if ((b - a) / fps < 0.3) return undefined;
   return [clip.from + a, clip.from + b];
+}
+
+/** Capture seconds the hover states a scene-start glide passes over get to settle once it ended. */
+const GLIDE_SETTLE_S = 0.3;
+
+/**
+ * Capture time from which the opening still of `scene` holds still: the end of its scene-start glide (`t_settled`,
+ * estimated from `move_ms` for runs before L5.1) plus GLIDE_SETTLE_S; undefined when no cursor glided. A multi-page
+ * scene records one cursor per page: the last glide counts.
+ */
+export function stillGlideEnd(timeline: Timeline | undefined, scene: string): number | undefined {
+  const ev = timeline?.events.find((e) => e.scene === scene && e.action === 'scene_still');
+  const c = (ev?.data as { cursor?: unknown } | undefined)?.cursor;
+  if (!ev || !c || typeof c !== 'object') return undefined;
+  const recs = ('how' in c ? [c] : Object.values(c)) as Array<{ how?: string; move_ms?: number; t_settled?: number } | null>;
+  const lead = Math.min(0.3, 0.2 * (ev.t_end - ev.t_start)); // the runner's glide lead (placeSceneCursor)
+  const ends = recs.filter((r) => r?.how === 'glide').map((r) => r!.t_settled ?? ev.t_start + lead + (r!.move_ms ?? 0) / 1000);
+  return ends.length ? Math.max(...ends) + GLIDE_SETTLE_S : undefined;
 }
 
 /** First output frame of a clip showing capture frame `n` or a later one (clamped to the clip). */
@@ -224,7 +246,7 @@ export function checkPixels(ctx: CheckContext, input: PixelCheckInput): Finding[
         });
       }
       // Opening still: nothing should change on screen (the page is loaded and the cursor rests).
-      const pair = stillPair(span, fps);
+      const pair = stillPair(span, fps, ctx.timeline);
       if (pair) {
         // When the view moves during the still (a reframe, a zoom) or something is drawn over the page (an overlay, a
         // caption over the screen), the page itself is compared: its capture frames.

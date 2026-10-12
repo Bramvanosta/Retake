@@ -126,7 +126,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
   const sceneSamples = new Map<string, number[]>();
   for (const s of spans) sceneSamples.set(s.segment.id, sampleFrames(s.from, s.to, F, 2));
   const keyframes = keyframePlan(spans, plan.markers, D);
-  const stills = spans.map((s) => stillPair(s, F)).filter((p): p is [number, number] => p !== undefined);
+  const stills = spans.map((s) => stillPair(s, F, timeline)).filter((p): p is [number, number] => p !== undefined);
   const mainSet = new Set(mainFrames);
   const sceneSet = new Set([...sceneSamples.values()].flat());
   const keyByFrame = new Map<number, string[]>();
@@ -182,7 +182,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     if (captureFile && existsSync(captureFile)) {
       progress({ stage: 'capture' });
       const want = new Set(sourceFramesAtStarts(spans));
-      const sigWanted = new Set(stillSourceFrames(plan, spans, F));
+      const sigWanted = new Set(stillSourceFrames(plan, spans, F, timeline));
       for (const k of sigWanted) want.add(k);
       for (const [f, a] of analyses) {
         const span = spanAt(spans, f);

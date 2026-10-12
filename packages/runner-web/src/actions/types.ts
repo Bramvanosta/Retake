@@ -12,6 +12,11 @@ export interface ActionResult {
   data?: unknown;
   /** The whole step is a hold (stillness the editor must not trim). */
   hold?: boolean;
+  /**
+   * A plain click that showed no popup within after_click_ms: popups open then (wall-clock ms of the press), for the
+   * next step to notice a popup that opens late on a slow or loaded machine (settleLatePopup).
+   */
+  pending_popup?: { before: number[]; wall: number };
 }
 
 export type ActionHandler<K extends ActionName> = (ctx: StepContext, args: NormalizedArgsMap[K]) => Promise<ActionResult>;

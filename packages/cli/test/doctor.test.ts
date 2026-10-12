@@ -131,6 +131,16 @@ describe('studio doctor (mocked environment)', () => {
     expect(r.err).toMatch(/FAIL +ffmpeg +\/opt\/media\/bin\/ffmpeg not found/);
     expect(r.err).toMatch(/→ install ffmpeg/);
     expect(r.err).toMatch(/4 failures/);
+    // ffmpeg older than 5.1 has no -fps_mode (review, raw export); snapshot builds are not judged.
+    const versioned = (v: string) => macProbes({ exec: async (cmd) => ({ code: 0, stdout: `${cmd.endsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version ${v} Copyright\n`, stderr: '' }) });
+    const old = await checks(versioned('4.4.2-0ubuntu0.22.04.1'));
+    expect(byName(old.checks, 'ffmpeg')).toMatchObject({ status: 'fail', detail: expect.stringContaining('(needs 5.1+)'), hint: expect.stringContaining('upgrade ffmpeg') });
+    expect(byName(old.checks, 'ffprobe')).toMatchObject({ status: 'fail' });
+    expect(byName((await checks(versioned('5.0.3'))).checks, 'ffmpeg').status).toBe('fail');
+    expect(byName((await checks(versioned('5.1.6'))).checks, 'ffmpeg').status).toBe('ok');
+    expect(byName((await checks(versioned('n9.0.2'))).checks, 'ffmpeg').status).toBe('ok');
+    expect(byName((await checks(versioned('N-117245-g0b097ed9f1'))).checks, 'ffmpeg').status).toBe('ok');
+    expect(byName((await checks(versioned('2025-03-10-git-9d4b1a6ab2'))).checks, 'ffmpeg').status).toBe('ok');
     const missing = await checks(macProbes({ chromium: async () => ({ path: null, source: 'playwright', exists: false, launched: false }) }));
     expect(byName(missing.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('playwright-core install chromium') });
   });

@@ -9,6 +9,7 @@ import {
   loadProjectTemplate,
   loadTemplate,
   parseTemplateYaml,
+  STARTER_TEMPLATES_DIR,
 } from '@demo-studio/core';
 import { tempDir, writeFiles } from './helpers.js';
 
@@ -109,7 +110,9 @@ describe('loadTemplate', () => {
       '2:13 expected one of "real", "balanced", "motion", got "subtle"',
       '3:7 expected an image file (.svg, .png, .jpg or .webp) relative to the template dir',
     ]);
-    await expect(loadTemplate('y', ws.dir)).rejects.toThrow(/template "y" not found in .*templates \(did you mean "x"\?\) \(available: x\)/);
+    await expect(loadTemplate('y', ws.dir)).rejects.toThrow(
+      /template "y" not found in .*templates or the starter templates \(did you mean "x"\?\) \(available: default, editorial, motion, x\)/,
+    );
   });
 
   it('listTemplates and loadProjectTemplate (name or project-relative path)', async () => {
@@ -118,7 +121,12 @@ describe('loadTemplate', () => {
       'templates/default/template.yaml': 'name: Neutral\n',
       'templates/notes/README.md': 'not a template',
     });
-    expect(await listTemplates(ws.dir)).toEqual([{ name: 'default', dir: join(ws.dir, 'templates/default') }]);
+    // The workspace's own default shadows the starter one; the other starters are listed after it.
+    expect(await listTemplates(ws.dir)).toEqual([
+      { name: 'default', dir: join(ws.dir, 'templates/default'), source: 'workspace' },
+      { name: 'editorial', dir: join(STARTER_TEMPLATES_DIR, 'editorial'), source: 'starter' },
+      { name: 'motion', dir: join(STARTER_TEMPLATES_DIR, 'motion'), source: 'starter' },
+    ]);
     const p = await createProject(ws.dir, { name: 'Northfield' });
     const t = await loadProjectTemplate(p);
     expect(t.name).toBe('default');
@@ -127,6 +135,29 @@ describe('loadTemplate', () => {
     const local = await loadProjectTemplate(p, './brand');
     expect(local.dir).toBe(join(p.dir, 'brand'));
     expect(local.template.colors.accent).toBe('#123456');
+  });
+
+  it('a workspace without templates uses the starter templates (R-MAC-04)', async () => {
+    const p = await createProject(ws.dir, { name: 'Northfield' });
+    expect(p.config.template).toBe('default');
+    expect((await listTemplates(ws.dir)).map((t) => `${t.name}:${t.source}`)).toEqual(['default:starter', 'editorial:starter', 'motion:starter']);
+    const t = await loadProjectTemplate(p);
+    expect(t.dir).toBe(join(STARTER_TEMPLATES_DIR, 'default'));
+    expect((await loadTemplate('editorial', ws.dir)).dir).toBe(join(STARTER_TEMPLATES_DIR, 'editorial'));
+  });
+
+  it('a workspace folder named like a starter shadows it, even without a template.yaml', async () => {
+    await writeFiles(ws.dir, { 'templates/default/README.md': 'work in progress' });
+    expect((await listTemplates(ws.dir)).map((t) => t.name)).toEqual(['editorial', 'motion']);
+    await expect(loadTemplate('default', ws.dir)).rejects.toThrow(/template "default": no template\.yaml in .*templates\/default \(a workspace folder of that name takes precedence/);
+  });
+
+  it('the repository itself lists its templates once, as its own', async () => {
+    expect((await listTemplates(join(STARTER_TEMPLATES_DIR, '..'))).map((t) => `${t.name}:${t.source}`)).toEqual([
+      'default:workspace',
+      'editorial:workspace',
+      'motion:workspace',
+    ]);
   });
 
   it('parseTemplateYaml validates without touching the disk', () => {

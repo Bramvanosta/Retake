@@ -18,6 +18,7 @@ import type {
   PointInfo,
   PopupEntry,
   ResolveResult,
+  RestAt,
   RestPlan,
   ScrollInfo,
   ScrollOp,
@@ -185,8 +186,8 @@ export class KitClient {
   restPoint(where?: 'side' | 'centre'): Promise<PointSpec> {
     return where ? this.call('restPoint', where) : this.call('restPoint');
   }
-  restNear(box: BBox): Promise<RestPlan> {
-    return this.call('restNear', box);
+  restNear(box: BBox, at?: RestAt): Promise<RestPlan> {
+    return at ? this.call('restNear', box, at) : this.call('restNear', box);
   }
   hasText(text: string): Promise<boolean> {
     return this.call('hasText', text);

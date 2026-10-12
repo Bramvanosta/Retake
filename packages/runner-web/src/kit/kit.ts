@@ -1050,30 +1050,39 @@ export function demoKit(config: KitConfig): void {
     const size = Math.max(12, config.cursor.size || 26);
     return { l: x - 6, t: y - 6, r: x + size * 0.8 + 4, b: y + size + 6 };
   }
-  function restNear(box: BBox): { x: number; y: number; side: string } {
+  function restNear(box: BBox, at: { point?: PointSpec; ref?: string } = {}): { x: number; y: number; side: string } {
     const W = window.innerWidth;
     const H = window.innerHeight;
     const EDGE = 28;
     const CLEAR = 14;
-    const R = box.x + box.w;
+    // A wide target is clicked at one point: rest next to that point, not next to the far corner of its box.
+    const NEAR_SPAN = 80;
+    const R0 = box.x + box.w;
     const B = box.y + box.h;
-    const cx = box.x + box.w / 2;
+    const px = at.point ? Math.min(R0, Math.max(box.x, at.point.x)) : box.x + box.w / 2;
+    const L = Math.max(box.x, px - NEAR_SPAN);
+    const R = Math.min(R0, px + NEAR_SPAN);
+    const cx = (L + R) / 2;
     const cy = box.y + box.h / 2;
     // Natural resting spots a hand would leave the pointer at: below-right first, then around the target.
     const cands: Array<[string, number, number]> = [
       ['below-right', R + 56, B + 44],
       ['right', R + 84, cy + 18],
       ['below', cx + 36, B + 64],
-      ['below-left', box.x - 64, B + 44],
+      ['below-left', L - 64, B + 44],
       ['above-right', R + 56, box.y - 72],
       ['above', cx + 36, box.y - 92],
-      ['left', box.x - 96, cy + 18],
-      ['above-left', box.x - 72, box.y - 72],
+      ['left', L - 96, cy + 18],
+      ['above-left', L - 72, box.y - 72],
     ];
+    // Inside the dialog that holds the target: never out on its backdrop (the arrow extends right and down).
+    const host = (at.ref ? deref(at.ref) : null)?.closest('[role=dialog],[role=alertdialog],dialog,[aria-modal=true]');
+    const hr = host ? host.getBoundingClientRect() : null;
+    const inHost = (x: number, y: number) => !hr || (x >= hr.left + 12 && y >= hr.top + 12 && x <= hr.right - 12 - 20 && y <= hr.bottom - 12 - 28);
     const inside = (x: number, y: number) => x >= EDGE && y >= EDGE && x <= W - EDGE - 20 && y <= H - EDGE - 28;
     const covers = (x: number, y: number) => {
       const c = cursorBox(x, y);
-      return c.r > box.x - CLEAR && c.l < R + CLEAR && c.b > box.y - CLEAR && c.t < B + CLEAR;
+      return c.r > box.x - CLEAR && c.l < R0 + CLEAR && c.b > box.y - CLEAR && c.t < B + CLEAR;
     };
     const neutral = (x: number, y: number) => {
       const hit = document.elementFromPoint(x, y);
@@ -1083,7 +1092,19 @@ export function demoKit(config: KitConfig): void {
       return cur !== 'pointer' && cur !== 'text';
     };
     const ok = cands.filter(([, x, y]) => inside(x, y) && !covers(x, y)).map(([side, x, y]) => ({ side, x: Math.round(x), y: Math.round(y) }));
-    const best = ok.find((p) => neutral(p.x, p.y)) ?? ok[0];
+    const usual = ok.find((p) => inHost(p.x, p.y) && neutral(p.x, p.y));
+    if (usual) return usual;
+    // No usual spot is free (a form in a dialog: fields all around): look closer to the click point, below-right
+    // first — the gap between two rows of fields, a label — before settling on something interactive.
+    const DIRS: Array<[string, number]> = [['below-right', 0.25], ['below', 0.5], ['right', 0], ['below-left', 0.75], ['above-right', -0.25], ['above', -0.5], ['left', 1], ['above-left', -0.75]];
+    for (const r of [40, 56, 72, 96, 128, 160]) {
+      for (const [side, turn] of DIRS) {
+        const x = Math.round(px + r * Math.cos(turn * Math.PI));
+        const y = Math.round(cy + r * Math.sin(turn * Math.PI));
+        if (inside(x, y) && !covers(x, y) && inHost(x, y) && neutral(x, y)) return { side: `near-${side}`, x, y };
+      }
+    }
+    const best = ok.find((p) => inHost(p.x, p.y)) ?? ok.find((p) => neutral(p.x, p.y)) ?? ok[0];
     if (best) return best;
     return { ...restPoint(), side: 'fallback' };
   }

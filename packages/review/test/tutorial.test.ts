@@ -13,7 +13,7 @@ import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import { planEdit } from '@demo-studio/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile, RenderRecord } from '@demo-studio/editor';
-import { DEFAULT_RULES, captionOverDuring, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, overlayDuring, planFontFiles, segmentSpans, stillFromSource, stillPair, stillSourceFrames, transitionSpans, viewMoves } from '../src/index.js';
+import { DEFAULT_RULES, captionOverDuring, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, overlayDuring, planFontFiles, segmentSpans, stillFromSource, stillGlideEnd, stillPair, stillSourceFrames, transitionSpans, viewMoves } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
 import { REPO, synthTimeline } from './helpers.js';
 
@@ -99,6 +99,30 @@ describe('tutorial overlays in the review', () => {
     const offSpan = off.spans.find((s) => s.segment.id === 'signup')!;
     const offPair = stillPair(offSpan, off.plan.fps)!;
     expect(stillFromSource(off.plan, offSpan.segment as ClipSegment, offPair[0], offPair[1])).toBe(false);
+  });
+
+  it('a scene-start glide: the opening still is compared from its end on (L5.1)', async () => {
+    const t = load('signup-tutorial');
+    const still = t.events.find((e) => e.scene === 'signup' && e.action === 'scene_still')!;
+    const base = await ctxOf(t);
+    const span0 = base.spans.find((s) => s.segment.id === 'signup')!;
+    const pair0 = stillPair(span0, base.plan.fps, t)!;
+    expect(stillGlideEnd(t, 'signup')).toBeUndefined(); // that run placed the cursor while the page loaded
+    still.data = { cursor: { mode: 'auto', how: 'glide', from: { x: 100, y: 100 }, to: { x: 400, y: 300 }, move_ms: 450, t_settled: still.t_start + 0.5 } };
+    expect(stillGlideEnd(t, 'signup')).toBeCloseTo(still.t_start + 0.8, 6);
+    const ctx = await ctxOf(t);
+    const span = ctx.spans.find((s) => s.segment.id === 'signup')!;
+    const clip = span.segment as ClipSegment;
+    const pair = stillPair(span, ctx.plan.fps, t)!;
+    expect(pair[0]).toBeGreaterThan(pair0[0]);
+    expect(clip.srcFrames[pair[0] - clip.from]).toBeGreaterThanOrEqual(Math.round((still.t_start + 0.8) * t.capture.fps));
+    expect(pair[1]).toBe(pair0[1]);
+    // The capture frames extracted for the comparison follow the shifted pair (this still is compared on them).
+    expect(stillSourceFrames(ctx.plan, ctx.spans, ctx.plan.fps, t)).toContain(`main:${clip.srcFrames[pair[0] - clip.from]}`);
+    // Runs before L5.1 have no t_settled: the end is estimated from the glide's lead and length; one cursor per page.
+    still.data = { cursor: { desk: { how: 'keep' }, phone: { how: 'glide', move_ms: 450 } } };
+    const lead = Math.min(0.3, 0.2 * (still.t_end - still.t_start));
+    expect(stillGlideEnd(t, 'signup')).toBeCloseTo(still.t_start + lead + 0.45 + 0.3, 6);
   });
 
   it('so is the opening still under a caption drawn over the screen (motion theme)', async () => {

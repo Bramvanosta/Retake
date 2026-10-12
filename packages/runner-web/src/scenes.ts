@@ -17,7 +17,7 @@ import type {
 } from '@demo-studio/core';
 import { ACTIONS, primaryTarget } from './actions/index.js';
 import type { ActionResult } from './actions/types.js';
-import { approach } from './actions/click.js';
+import { approach, settleLatePopup } from './actions/click.js';
 import { menuTriggerFor } from './actions/widgets.js';
 import { navigate } from './actions/pages.js';
 import { StepError, errorMessage, isCancelled } from './errors.js';
@@ -222,6 +222,14 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     clicks: [],
   };
   const desc = describeStep(step);
+  const pending = rt.pendingPopup;
+  rt.pendingPopup = null;
+  if (pending && pending.ev.scene === scene.id) {
+    await settleLatePopup(ctx, pending, primaryTarget(step)).catch((e: unknown) => {
+      if (isCancelled(e)) throw e;
+      return false;
+    });
+  }
   rt.current = { scene: scene.id, scene_index: sceneIndex, step: step.index };
   opts.emit({ type: 'step_start', scene: scene.id, step: step.index, action: step.action, desc });
   opts.record.current = { scene: scene.id, step: step.index, action: step.action };
@@ -275,6 +283,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     if (res.t_click !== undefined) ev.t_click = res.t_click;
     if (res.strategy) ev.strategy = res.strategy;
     if (res.popup_opened !== undefined) ev.popup_opened = res.popup_opened;
+    if (res.pending_popup) rt.pendingPopup = { ...res.pending_popup, ev, page: rt.page };
     if (res.data !== undefined) ev.data = res.data;
     if (res.hold) ev.hold = { t_start: ev.t_start, t_end: ev.t_end };
     if (step.camera) ev.camera = await cameraFor(ctx, step.camera, res);

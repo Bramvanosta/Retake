@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot **L1.5 (macOS verification pass)**, the first lot of the local Mac session —
-phases 1 and 2 are done. Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-12, end of lot **L5.1 (fixes found by the macOS pass)**, after L1.5 — phases 1 and 2 are done;
+the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -28,7 +28,13 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.5)
+## State (after L5.1)
+- **L5.1 done (2026-10-12)**: the CLI tells an old Node.js which version it needs, a new workspace uses the starter
+  templates, one-line keychain errors (printed once), `doctor` checks ffmpeg ≥ 5.1, scene rest points next to the
+  click point and inside the target's dialog, continuing scenes glide next to a far first target, late popups caught
+  by the next step. Tests on the Mac: **893 — 886 pass, 7 skipped** (6 Postgres without `DEMO_STUDIO_TEST_PG`, 1
+  without `DEMO_STUDIO_TEST_OLD_NODE`), ≈ 2 m 45 s. Requirements: 618 tracked — 431 done, 50 partial, 129 todo,
+  8 n/a-here.
 - **L1.5 done (2026-10-12, on the Mac)**: every step of `docs/MACOS-CHECKLIST.md` ran on an Apple M4 (results table
   at its end); step 7 found stalls after scrolls and at dialog close (→ L1.3) and scene-start defects (→ L5.1); the
   imports into editing tools were skipped (none installed; R-RAW-06 partial). It fixed the Mac blockers of
@@ -48,7 +54,7 @@ automatically with themeable components, and let Claude operate everything throu
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
 - **Not built yet**: L1.2 (runner robustness), L1.3 (capture smoothness, narrowed by L1.5: stalls after scrolls and at
-  dialog close), L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox), L5.1 (fixes found by L1.5),
+  dialog close), L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox),
   phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
@@ -80,9 +86,9 @@ checks the result):
      on the Mac. No other environment variable is needed.
 6. **Check** — `pnpm studio doctor` (Node, Chromium launch, ffmpeg / ffprobe, display, Keychain, notifications,
    workspace, template fonts): every line `OK`. Node must be 22+ in every folder the CLI runs from: a version manager
-   pins it per folder (the user's machine: Node 22 in the repository, 10 elsewhere → `SyntaxError: Unexpected token {`
-   until R-MAC-03); a workspace outside the repository needs `templates_dir: <repo>/templates` in its `studio.yaml`
-   until R-MAC-04. ffmpeg 5.1+ (the Mac has Homebrew's 9.0).
+   pins it per folder (the user's machine: Node 22 in the repository — `.nvmrc` —, 10 elsewhere; an older Node.js
+   prints which version it needs). A workspace outside the repository uses the starter templates by name. ffmpeg 5.1+
+   (the Mac has Homebrew's 9.0; `studio doctor` fails below 5.1).
 7. **Later, not before their lot** — Docker Desktop for L1.8 (sandbox mode, docker-compose provider); the full Xcode
    (App Store) + Rust (`rustup`) for phase 5 (L5.2 Tauri shell, L5.3 iOS Simulator runner: simctl / idb).
 8. **Optional** — PostgreSQL for the 6 SQL hook tests (`brew install postgresql@16`, then
@@ -98,14 +104,14 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock) → **L1.8**
-   (sandbox mode), then phase 3 from **L3.1** per `docs/ROADMAP.md`. L1.2–L1.4 and L5.1 stay open; the user decides
-   when (L1.3 and L5.1 are scoped and measured now: see their requirements).
+2. ~~L5.1~~ — done 2026-10-12. Chain asked by the user (2026-10-12): **L1.3** (stalls) → **L1.2** (runner
+   robustness) → **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
+   → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.6 — Sessions & personas** (M) per the plan; **L1.3** (narrowed: stalls after scrolls and at dialog close) and
-**L5.1** (fixes found by L1.5) are ready whenever the user prefers them first.
+**L1.3 — Capture smoothness** (narrowed by L1.5: stalls after scripted scrolls and at animated dialog close, a motion
+check that sees them), then L1.2, L1.6, L1.7, L1.8, L1.4 — see "Order of the next lots".
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -575,6 +581,35 @@ terminal, and a visible window for `--headed` runs and `studio login`.
   suite green on the Mac after the fixes, 2 m 28 s to 2 m 44 s). The diff was reviewed by a second workflow (code,
   numbers against the measurements, repository rules; each finding re-checked): `selectExpr([])` guard, the entry's
   real path taken through its folder, and wording / numbers in these docs fixed. No dependency added.
+- **L5.1 done** (fixes found by the macOS pass; R-MAC-03…09): **Node guard** — `cli/src/bin.ts` is readable by any
+  Node.js up to its version check (no import / export / import.meta / top-level await, ES2017; the CLI is loaded with
+  a dynamic import built at run time; the cli tsconfig sets `moduleDetection: legacy` so tsc emits no `export {}`):
+  "studio needs Node.js 22 or later; this is vX (path)…" (cli/test/bin.test.ts: syntax scan, a faked Node 18,
+  `DEMO_STUDIO_TEST_OLD_NODE` for a real one); `.nvmrc` = 22. **Starter templates** — core `STARTER_TEMPLATES_DIR`;
+  `listTemplates` returns the workspace's templates plus the starters no workspace folder shadows, sorted by name (`source`; a same-named folder without a template.yaml is an error, not a silent fallback), `loadTemplate`
+  falls back to the starter of that name (editor previews reuse it; doctor and `studio list` mark starters).
+  **Keychain** — one line "keychain item S/A not found (reason)"; the CLI hook context logs hook errors at debug level
+  (the results list prints them once). **doctor** — ffmpeg / ffprobe below 5.1 fail (`MIN_FFMPEG`; snapshot builds not
+  judged). **Scene rest points** (kit `restNear(box, {point, ref})`) — candidates around the click point (±80 px of a
+  wide target), inside the dialog that holds the element, neutral; else the nearest neutral gap around the click point
+  (`near-<side>`; `<label>`s count as interactive). **Continuing scenes** — keep the cursor only when it is clear of
+  the first target and within `KEEP_NEAR_PX` 240 px of its click point, else glide next to it during the still
+  (decision recorded in DESIGN §3.3 / README). **Late popups** — a plain click that showed nothing within
+  after_click_ms leaves `Runtime.pendingPopup`; the next step, when its target is not on screen yet, waits up to
+  popup_timeout_ms after the press for a new popup, then marks the click `popup_opened` and keeps after_popup_ms in
+  the click's step (`settleLatePopup`). Tests: kit.test.ts (dialog edge, wide field, dense form), scene-cursor.test.ts
+  (far → glide, near → keep, dialog scenes), pacing.test.ts (dialog 450 ms late), core template / templating tests,
+  cli doctor / bin tests. Mac re-captures: quote 20261012-191149 and 20261012-191556 (request rests 152 px from
+  "Request a quote" in both; delivery at (960,458) between two selects inside the dialog in 191556 — 191149 predates
+  the near-scan and rested on the Message field's edge), catalogue 20261012-191245 (scene
+  starts unchanged; its known stall after the scroll stays for L1.3). **Review fixes** (a review workflow, each finding
+  re-checked): bin.js resolves `main.js` next to the real file (a symlinked `studio` broke) and exits 13 when main()
+  never settles; a same-named workspace folder without template.yaml shadows the starter (error, not a silent
+  fallback); an out-of-view anchor is judged at its box centre (the kit's point is clipped to the viewport); a clear
+  cursor is kept when no spot next to a huge target exists; the late-popup wait ends when the target shows without a
+  popup; the scene-start glide's end is recorded (`t_settled`) and the review compares the opening still from 0.3 s
+  after it (`stillGlideEnd`, `stillPair(span, fps, timeline)`): no false "screen changes during the opening still".
+  893 tests: 886 pass, 7 skipped (full suite green on the Mac, 2 m 43 s). No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -814,8 +849,10 @@ Notes from L1.5 (the Mac):
   caps it near 30–40 fps on the Mac); the motion itself runs at ≈ 60 frames/s. Stalls hide in that average (R-ISS-13).
 - Agents may not write to the macOS Keychain (the harness refuses `security add-generic-password`): the user runs that
   line of checklist step 10 themselves.
-- Full-suite load (all test files in parallel, many Chromium) can delay a fixture dialog past `after_click_ms`: the e2e
-  `popup_opened` assertion failed once (R-MAC-08); rerun the file alone before suspecting the runner.
+- Full-suite load (all test files in parallel, many Chromium) once delayed a fixture dialog past `after_click_ms` and
+  failed the e2e `popup_opened` assertion (R-MAC-08). Since L5.1 the next step waits up to `popup_timeout_ms` after
+  the press for such a late popup (`settleLatePopup`); a failure there now means the dialog took longer than that —
+  rerun the file alone before suspecting the runner.
 - OpenTimelineIO 0.18.1 does not load on Python 3.14 (`bad any cast`): `~/.venvs/otio` is made with Homebrew's
   `python3.13` on the Mac.
 

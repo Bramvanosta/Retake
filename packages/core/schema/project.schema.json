@@ -57,7 +57,7 @@
     "template": {
       "type": "string",
       "minLength": 1,
-      "description": "Template name (templates/<name>) or a path relative to the project dir."
+      "description": "Template name (the workspace templates/<name>, else a starter template: default, editorial, motion) or a path relative to the project dir."
     },
     "locale": {
       "type": "string",

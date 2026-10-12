@@ -153,6 +153,8 @@ describe('device scale 2 (4K-class captures, L2.8)', () => {
 describe('drop_file', () => {
   it('drops on a drop zone, falls back to the hidden input, and sets an explicit input', async () => {
     const rec = await run('drop', {
+      // Glides long enough to tell an eased move from a jump whatever the rest point (FAST moves take 60–160 ms).
+      pacing: { ...FAST, move_base_ms: 0, move_ms_per_px: 0.9, move_min_ms: 450, move_max_ms: 1100 },
       scenes: [
         {
           id: 'import',

@@ -45,6 +45,8 @@ export interface DoctorProbes {
 }
 
 export const MIN_NODE_MAJOR = 22;
+/** Oldest ffmpeg / ffprobe the tools work with (`-fps_mode`). */
+export const MIN_FFMPEG = [5, 1] as const;
 export const HOST_TIMEOUT_MS = 5000;
 
 function whichOnPath(cmd: string, env: Record<string, string | undefined>, platform: NodeJS.Platform): string | null {
@@ -118,6 +120,16 @@ async function mediaTool(p: DoctorProbes, name: 'ffmpeg' | 'ffprobe', configured
   }
   if (res.code !== 0) return { status: 'fail', name, detail: `${where} -version failed: ${firstLine(res.stderr) || `exit ${res.code}`}` };
   const version = /version\s+(\S+)/.exec(res.stdout)?.[1] ?? firstLine(res.stdout);
+  // `-fps_mode` (the review, the raw export) needs 5.1+; snapshot builds ("N-…", "2025-…-git") are not judged.
+  const m = /^n?(\d+)\.(\d+)/.exec(version);
+  if (m && (Number(m[1]) < MIN_FFMPEG[0] || (Number(m[1]) === MIN_FFMPEG[0] && Number(m[2]) < MIN_FFMPEG[1]))) {
+    return {
+      status: 'fail',
+      name,
+      detail: `${version} · ${where} (needs ${MIN_FFMPEG.join('.')}+)`,
+      hint: 'upgrade ffmpeg (macOS: brew upgrade ffmpeg · Debian/Ubuntu: a release with ffmpeg 5.1 or later)',
+    };
+  }
   return { status: 'ok', name, detail: `${version} · ${where}` };
 }
 
@@ -210,7 +222,8 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
     try {
       const loaded = await loadTemplate(t.dir, ws.root);
       const fonts = [loaded.assets.display, ...loaded.assets.body];
-      out.push({ status: 'ok', name: `Template ${t.name}`, detail: `fonts present (${fonts.length} file${fonts.length === 1 ? '' : 's'})` });
+      const from = t.source === 'starter' ? ' · starter template' : '';
+      out.push({ status: 'ok', name: `Template ${t.name}`, detail: `fonts present (${fonts.length} file${fonts.length === 1 ? '' : 's'})${from}` });
     } catch (e) {
       out.push({ status: 'fail', name: `Template ${t.name}`, detail: errorMessage(e).split('\n')[0], hint: `add the missing files to ${t.dir} or fix template.yaml` });
     }

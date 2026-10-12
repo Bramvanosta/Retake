@@ -76,6 +76,12 @@ export interface RestPlan extends PointSpec {
   side: string;
 }
 
+/** Where the target of a rest point will be clicked, and its element (to stay inside the dialog holding it). */
+export interface RestAt {
+  point?: PointSpec;
+  ref?: string;
+}
+
 export interface PointInfo extends PointSpec {
   bbox: BBox;
   /** elementFromPoint at (x, y) is the element or inside it. */
@@ -206,9 +212,10 @@ export interface KitApi {
   restPoint(where?: 'side' | 'centre'): PointSpec;
   /**
    * Neutral scene-start point near `box` (the scene's first pointer target) whose drawn cursor never covers it,
-   * inside the viewport, preferably over a non-interactive spot; `restPoint()` when no candidate fits.
+   * inside the viewport, preferably over a non-interactive spot; `restPoint()` when no candidate fits. With `at`: next
+   * to the click point of a wide target (not its far corner) and inside the dialog that holds `at.ref`.
    */
-  restNear(box: BBox): RestPlan;
+  restNear(box: BBox, at?: RestAt): RestPlan;
   hasText(text: string): boolean;
   snapshot(ref: string | null, max: number): string;
   domClick(ref: string, x: number, y: number): void;

@@ -35,7 +35,8 @@ async function hookContext(
     dryRun: opts.dry === true,
     saved: {},
     log: (level, msg) => {
-      if (level === 'error') ui.error(msg);
+      // A failing hook is listed with its error by printResults: its error log would print it a second time.
+      if (level === 'error') ui.debug(msg);
       else if (level === 'warn') ui.warn(msg);
       else ui.debug(msg);
     },

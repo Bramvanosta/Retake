@@ -43,7 +43,7 @@ Because the browser is headless and offscreen, a capture does not take over your
 
 ## Requirements
 
-- macOS or Linux, Node.js 22+, pnpm 10
+- macOS or Linux, Node.js 22+ (an older Node.js gets a message saying so; `.nvmrc` pins 22 for nvm, and for mise when `idiomatic_version_file_enable_tools` includes `node`), pnpm 10
 - ffmpeg and ffprobe 5.1+ on `PATH` (or `ffmpeg:` in `studio.yaml`); used with 6.1 (Linux) and 9.0 (macOS, Homebrew)
 - Chromium for Playwright: `pnpm --filter @demo-studio/runner-web exec playwright-core install chromium`
   (or point `$DEMO_STUDIO_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary)
@@ -166,9 +166,10 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `.demo-studio/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
   asked on a terminal, or they are refused).
 - **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
-  version and a real new-headless launch), ffmpeg and ffprobe, a display (only needed by `--headed` and `login`),
+  version and a real new-headless launch), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
-  (`osascript`, `notify-send`), the workspace root and its projects, and the fonts of every template. With
+  (`osascript`, `notify-send`), the workspace root and its projects, and the fonts of every template (the starter
+  templates included). With
   `--project <slug>` it also checks that project's browser profile(s) (present, not in use) and sends a `HEAD`
   request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
   failure, of another environment a warning. It exits with `1` when any check fails; `--json` prints the checks.
@@ -241,7 +242,7 @@ auth:                          # never passwords; global, or keyed by environmen
   profile: ~/.demo-studio/profiles/acme-staging
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → real 3840×2160 frames from a 1080p viewport (4K)
 frame: card                    # raw | card | browser | laptop | phone | tablet (| split | pip: multi-page scenes), or a layout component id
-template: default              # a name in the workspace templates, or a path like ./theme
+template: default              # a workspace template, a starter (default, editorial, motion), or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
 allow_hosts: [api.staging.example.com]                    # extra hosts hooks may call
 databases:
@@ -271,7 +272,7 @@ Run `studio schema project` for the full schema (also in `packages/core/schema/`
 | `after_navigation_ms` | 1500 | Minimum time between a click that changed the page (document navigation or new URL) and the next step |
 | `page_switch_ms` | 500 | Multi-page scenes: the pause when the next step acts on another page than the previous one (the eye moves), before that page's cursor glides |
 | `popup_fallback_ms` | 300 | How long a click gets to show that an expected popup opened (`aria-expanded="true"` or a new popup, polled every 40 ms) before the next strategy (DOM click, then pointer sequence) is tried |
-| `popup_timeout_ms` | 700 | How long the last strategy waits for the popup before the step reports it missing |
+| `popup_timeout_ms` | 700 | How long the last strategy waits for the popup before the step reports it missing; also how long after the press of a plain click the next step waits for a popup that opens late, while that step's target is not on screen yet |
 | `type_cps` | 14 | Typing speed (search fields are capped at 10) |
 | `scroll_duration`, `scroll_offset` | 1.6, −140 | Scroll animation seconds; default `scroll.offset` with a target (it ends 140 px below the top) |
 | `jitter`, `settle_ms` | 0.08, 3000 | Deterministic ±jitter on durations; network-idle wait after a navigation |
@@ -327,7 +328,7 @@ scenes, cards and interstitials.
 
 | Value | Where the cursor rests during the still |
 |---|---|
-| `auto` (default) | A neutral spot next to the scene's first pointer target (the element the first click, hover, select… travels to; its position after leading `scroll` steps is predicted), never covering it, inside the viewport, preferably over a non-interactive area. Without such a target: the right-centre of the screen. A scene that continues from the current state keeps the cursor where it is when it is already clear of that target |
+| `auto` (default) | A neutral spot next to the scene's first pointer target (the element the first click, hover, select… travels to; its position after leading `scroll` steps is predicted), next to where it will be clicked, never covering it, inside the viewport and inside the dialog that holds it, preferably over a non-interactive area. Without such a target: the right-centre of the screen. A scene that continues from the current state keeps the cursor where it is when it is already clear of that target and within 240 px of where it will be clicked; otherwise it glides next to it |
 | `keep` | Where the previous scene left it |
 | `{x: 1500, y: 540}` | That viewport point (CSS px) |
 | a target, e.g. `{text: New import}` | On that element, as a hover would (`{text: auto}` for an element whose text is "auto") |
@@ -516,7 +517,9 @@ template folder).
 
 `templates/<name>/template.yaml` gives the brand and motion style (colours, fonts, logo, wordmark, background, cursor,
 captions, timings) and picks a default **component per kind**. Every section is optional and merged over the
-defaults; start from a starter template (`templates/README.md`).
+defaults; start from a starter template (`templates/README.md`). The starter templates `default`, `editorial` and
+`motion` are always available by name, also in a workspace without a `templates/` folder (`studio list` marks them
+"starter"); a workspace template of the same name takes precedence.
 
 ```yaml
 # yaml-language-server: $schema=../../packages/core/schema/template.schema.json
@@ -1478,7 +1481,8 @@ CLAUDE.md             notes for Claude Code sessions (read order, working agreem
 
 Development: `pnpm build` (TypeScript project references), `pnpm test` (vitest; the end-to-end tests start the
 fixture on free ports and skip themselves when Chromium or ffmpeg is missing). Set `DEMO_STUDIO_TEST_PG` to a
-PostgreSQL URL to include the SQL hook tests.
+PostgreSQL URL to include the SQL hook tests, and `DEMO_STUDIO_TEST_OLD_NODE` to an older `node` binary (e.g. a
+Node.js 10) to check the CLI's version message on it.
 
 ## Phase status
 
@@ -1491,8 +1495,8 @@ PostgreSQL URL to include the SQL hook tests.
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |
 
-The macOS verification pass is done (lot L1.5, results at the end of `docs/MACOS-CHECKLIST.md`). Next: sessions &
-personas (L1.6), then L1.7, L1.8 and phase 3 — in local Claude Code sessions on a Mac, on the `main` branch (see
+The macOS verification pass and its fixes are done (lots L1.5 and L5.1, results at the end of
+`docs/MACOS-CHECKLIST.md`). Next: capture smoothness (L1.3), then L1.2, L1.6, L1.7, L1.8 and L1.4 before phase 3 — in local Claude Code sessions on a Mac, on the `main` branch (see
 `CLAUDE.md` and `docs/HANDOFF.md`).
 
 Planning lives in the repo: `docs/ROADMAP.md` (small lots and their status), `docs/REQUIREMENTS.md` (every requirement

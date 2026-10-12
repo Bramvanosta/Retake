@@ -15,7 +15,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - The user picks how many lots to chain. Phases 1 and 2 were built autonomously in a cloud session (through L2.14,
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
   `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
-  it narrowed L1.3 and filled L5.1), then L1.6–L1.8 and phase 3; L1.3 and L5.1 whenever the user picks them.
+  it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 → L1.2 → L1.6 → L1.7 → L1.8 →
+  L1.4, stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -31,10 +32,10 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | P1 | Phase 1 — core, runner-web, hooks, CLI, fixture, starter templates | — | **done** (commit `0df4a29`) |
 | L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
 | L1.2 | Runner robustness for any site | M | todo |
-| L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | todo |
+| L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **next** |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
-| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **next** |
+| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
 | L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | todo |
 | L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
@@ -68,7 +69,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.7 | Component library + theme editor screens | M | todo |
 | L4.8 | Record screen | M | todo |
 | L4.9 | Studio acceptance, accessibility pass | S | todo |
-| L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | todo |
+| L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
@@ -512,6 +513,9 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - **Acceptance:** tests per item; quote re-captured on the Mac with the delivery scene's cursor resting beside the
   field inside the dialog; the CLI run from a folder on Node 18 prints the version message.
 - **Packages:** cli, core, runner-web (kit restNear, scene-cursor, click), hooks.
+- **Done (2026-10-12):** all seven items, with tests; quote and catalogue re-captured on the Mac (the request scene
+  now glides to rest next to "Request a quote", the delivery scene rests between two selects inside its dialog, 72 px
+  from the field's click point); the CLI's message checked on real Node.js 10, 16, 18 and 20.
 
 ### L3.1 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

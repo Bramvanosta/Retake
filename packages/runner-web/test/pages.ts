@@ -326,6 +326,81 @@ export const CURSOR_PAGE = page(
   `for (const b of document.querySelectorAll('button')) b.addEventListener('click', () => { document.getElementById('status').textContent = b.id + ' clicked'; });`,
 );
 
+/**
+ * Scene-start cursor in a dialog (R-MAC-06): a field as wide as the dialog, whose far corner is close to the dialog's
+ * right edge, and a second field below it.
+ */
+export const CURSOR_DIALOG_PAGE = page(
+  'Cursor in a dialog',
+  `<main>
+    <button id="outside" style="position:absolute;left:40px;top:40px">Outside</button>
+    <div role="dialog" aria-modal="true" aria-label="Request" style="position:absolute;left:200px;top:150px;width:520px;height:340px;background:#fff;border:1px solid #ccc">
+      <button id="close" aria-label="Close" style="position:absolute;right:10px;top:10px;width:32px;height:32px">×</button>
+      <div style="position:absolute;left:20px;top:30px">Delivery window</div>
+      <button id="wide" style="position:absolute;left:20px;top:60px;width:480px;height:40px">Pick dates</button>
+      <div style="position:absolute;left:20px;top:150px">Message</div>
+      <textarea id="msg" style="position:absolute;left:20px;top:180px;width:470px;height:80px"></textarea>
+    </div>
+  </main>`,
+);
+
+/**
+ * Scene-start cursor on a tall page: a corner button, a textarea filling most of the viewport (no rest spot next to
+ * it), and a button below the fold.
+ */
+export const CURSOR_TALL_PAGE = page(
+  'Cursor on a tall page',
+  `<main style="position:relative;height:2400px">
+    <button id="corner" style="position:absolute;left:900px;top:20px">Corner</button>
+    <textarea id="big" style="position:absolute;left:20px;top:60px;width:860px;height:540px"></textarea>
+    <button id="deep" style="position:absolute;left:60px;top:1500px">Deep button</button>
+  </main>`,
+);
+
+/**
+ * A dense form in a dialog (R-MAC-06): selects above, a full-width field, a short label, a textarea below — none of
+ * the usual rest spots next to the field is neutral; the gap with the label is.
+ */
+export const CURSOR_FORM_PAGE = page(
+  'Cursor in a form',
+  `<main>
+    <div role="dialog" aria-modal="true" aria-label="Form" style="position:absolute;left:200px;top:150px;width:520px;height:260px;background:#fff;border:1px solid #ccc">
+      <select style="position:absolute;left:20px;top:16px;width:230px;height:40px"><option>Grind</option></select>
+      <select style="position:absolute;left:270px;top:16px;width:230px;height:40px"><option>Label</option></select>
+      <button id="dates" style="position:absolute;left:20px;top:70px;width:480px;height:40px">Pick dates</button>
+      <div style="position:absolute;left:20px;top:120px;font-size:12px">Message</div>
+      <textarea style="position:absolute;left:20px;top:140px;width:470px;height:100px"></textarea>
+    </div>
+  </main>`,
+);
+
+/**
+ * A popup that opens late (R-MAC-08): a plain button (no aria-haspopup) opens a dialog 450 ms after the click, as a
+ * loaded machine would; another plain button opens nothing.
+ */
+export const LATE_DIALOG_PAGE = page(
+  'Late dialog',
+  `<main>
+    <button id="later" style="position:absolute;left:60px;top:80px">Open later</button>
+    <button id="plain" style="position:absolute;left:260px;top:80px">Plain</button>
+    <button id="content" style="position:absolute;left:420px;top:80px">Show later</button>
+  </main>`,
+  `document.getElementById('later').addEventListener('click', () => setTimeout(() => {
+    const d = document.createElement('div');
+    d.setAttribute('role', 'dialog');
+    d.setAttribute('aria-label', 'Late');
+    d.style.cssText = 'position:absolute;left:200px;top:200px;width:400px;height:200px;background:#fff;border:1px solid #ccc';
+    d.innerHTML = '<label style="position:absolute;left:20px;top:30px">Name <input id="name"></label>';
+    document.body.appendChild(d);
+  }, 450));
+  document.getElementById('content').addEventListener('click', () => setTimeout(() => {
+    const b = document.createElement('button');
+    b.textContent = 'Shown later';
+    b.style.cssText = 'position:absolute;left:420px;top:300px';
+    document.body.appendChild(b);
+  }, 300));`,
+);
+
 /** Navigation hold: a SPA route change (pushState), a full navigation and a plain button. */
 export const NAV_PAGE = page(
   'Navigation',

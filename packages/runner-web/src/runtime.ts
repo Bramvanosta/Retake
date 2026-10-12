@@ -26,6 +26,7 @@ import { RunnerError, StepError } from './errors.js';
 import { fileSlug } from './util.js';
 import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
+import type { PendingPopup } from './actions/click.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -82,6 +83,8 @@ export class Runtime {
   readonly artefacts: ArtefactStore;
   /** The scene and step being executed (notifications are attributed to them). */
   current: { scene: string; scene_index: number; step: number } | null = null;
+  /** The last plain click of the scene, while the popup it may open late is not ruled out (settleLatePopup). */
+  pendingPopup: PendingPopup | null = null;
   private tabSeq = 1;
   private readonly tracked = new WeakSet<Page>();
   /** Per-page tracks of multi-page scenes, by page id (kept for the whole run). */

@@ -85,6 +85,6 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
     ui.result(`  ${c.bold(p.slug.padEnd(width))}  ${info}`);
   }
   ui.result(`${c.bold('Templates')} ${c.dim(ui.path(ws.templatesDir))}`);
-  ui.result(templates.length ? `  ${templates.map((t) => t.name).join(', ')}` : c.dim('  none'));
+  ui.result(templates.length ? `  ${templates.map((t) => (t.source === 'starter' ? `${t.name} ${c.dim('(starter)')}` : t.name)).join(', ')}` : c.dim('  none'));
   return EXIT.ok;
 }

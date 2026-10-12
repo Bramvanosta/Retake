@@ -3,7 +3,7 @@ import type { Page } from 'playwright-core';
 import type { TargetObject } from '@demo-studio/core';
 import { ERROR_DOM_MAX, openSession, kitConfigFor } from '../src/index.js';
 import type { BrowserSession, KitClient, ResolveMissing } from '../src/index.js';
-import { CURSOR_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE } from './pages.js';
+import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE } from './pages.js';
 import { startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
 
@@ -19,6 +19,8 @@ beforeAll(async () => {
     '/overlay-b.html': OVERLAY_B,
     '/ripple.html': RIPPLE_PAGE,
     '/cursor.html': CURSOR_PAGE,
+    '/cursor-dialog.html': CURSOR_DIALOG_PAGE,
+    '/cursor-form.html': CURSOR_FORM_PAGE,
     '/big.html': `<!doctype html><html><body>${'<section><h2>Region</h2><p>Lorem ipsum dolor sit amet</p><button>Act</button></section>'.repeat(3000)}</body></html>`,
   });
   session = await openSession({ width: 1000, height: 700, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
@@ -326,6 +328,44 @@ describe('scene-start rest point and DOM snippets', () => {
     }
     // A target filling the viewport leaves no room: the neutral right-centre point is used.
     expect((await kit.restNear({ x: 0, y: 0, w: W, h: H })).side).toBe('fallback');
+  });
+
+  it('restNear rests next to the click point of a wide target and inside the dialog that holds it (R-MAC-06)', async () => {
+    await page.goto(`${server.url}/cursor-dialog.html`);
+    const r = (await kit.find({ text: 'Pick dates' })) as { ref: string; bbox: { x: number; y: number; w: number; h: number } };
+    const pt = (await kit.point(r.ref))!;
+    const dialog = await page.locator('[role=dialog]').boundingBox();
+    const inDialog = (q: { x: number; y: number }) =>
+      q.x > dialog!.x && q.y > dialog!.y && q.x + 26 < dialog!.x + dialog!.width && q.y + 32 < dialog!.y + dialog!.height;
+    // A button at the dialog's right edge: its natural rest point (below-right) is on the backdrop unless the dialog
+    // is known.
+    const close = (await kit.find({ aria: 'Close' })) as { ref: string; bbox: { x: number; y: number; w: number; h: number } };
+    expect(inDialog(await kit.restNear(close.bbox))).toBe(false);
+    expect(inDialog(await kit.restNear(close.bbox, { ref: close.ref }))).toBe(true);
+    // The 480 px field: next to where it is clicked, inside the dialog.
+    const p = await kit.restNear(r.bbox, { point: { x: pt.x, y: pt.y }, ref: r.ref });
+    expect(p.side).not.toBe('fallback');
+    expect(inDialog(p)).toBe(true);
+    expect(Math.hypot(p.x - pt.x, p.y - pt.y)).toBeLessThan(160);
+    const coversX = p.x + 28 > r.bbox.x - 4 && p.x - 6 < r.bbox.x + r.bbox.w + 4;
+    const coversY = p.y + 32 > r.bbox.y - 4 && p.y - 6 < r.bbox.y + r.bbox.h + 4;
+    expect(coversX && coversY).toBe(false);
+  });
+
+  it('restNear finds a neutral gap close to the click point when every usual spot is a field (R-MAC-06)', async () => {
+    await page.goto(`${server.url}/cursor-form.html`);
+    const r = (await kit.find({ text: 'Pick dates' })) as { ref: string; bbox: { x: number; y: number; w: number; h: number } };
+    const pt = (await kit.point(r.ref))!;
+    const p = await kit.restNear(r.bbox, { point: { x: pt.x, y: pt.y }, ref: r.ref });
+    expect(p.side).toMatch(/^near-/);
+    expect(Math.hypot(p.x - pt.x, p.y - pt.y)).toBeLessThan(100);
+    const under = await page.evaluate(([x, y]) => {
+      const el = document.elementFromPoint(x, y)!;
+      return { tag: el.tagName, cursor: getComputedStyle(el).cursor, dialog: !!el.closest('[role=dialog]') };
+    }, [p.x, p.y] as const);
+    expect(under.dialog).toBe(true);
+    expect(['SELECT', 'BUTTON', 'TEXTAREA', 'INPUT']).not.toContain(under.tag);
+    expect(['pointer', 'text']).not.toContain(under.cursor);
   });
 
   it(`error DOM snippets are capped at ${ERROR_DOM_MAX / 1024} KB, cut at a tag boundary (R-KIT-10)`, async () => {

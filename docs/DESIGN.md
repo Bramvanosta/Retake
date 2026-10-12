@@ -79,8 +79,11 @@ interpolateDeep<T>(value: T, ctx): T             // recursively over strings in 
 resolvePageUrl(base: string, pathOrUrl: string): string
 
 // templates
-listTemplates(root: string): Promise<Array<{ name: string; dir: string }>>
-loadTemplate(nameOrDir: string, root?: string): Promise<LoadedTemplate>  // defaults applied, assets resolved & checked
+STARTER_TEMPLATES_DIR: string                        // the starter templates (default, editorial, motion): templates/ of the repository
+listTemplates(root: string): Promise<TemplateEntry[]> // { name, dir, source: 'workspace' | 'starter' }, sorted by name: the workspace's
+                                                      // templates and the starters no workspace folder shadows (L5.1)
+loadTemplate(nameOrDir: string, root?: string): Promise<LoadedTemplate>  // a name: <templates_dir>/<name>, else the starter of that
+                                                      // name; defaults applied, assets resolved & checked
 DEFAULT_TEMPLATE: Template
 
 // schemas (draft 2020-12 JSON Schema objects, also written to packages/core/schema/*.json by `pnpm -F @demo-studio/core gen:schema`)
@@ -208,8 +211,13 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
   (timeline.cursor) with capture time.
 - Scene start (scene key `cursor`: `auto` | `keep` | point | target): `auto` rests next to the scene's first pointer
   target (its box after leading document scrolls is predicted) where the drawn cursor never covers it, inside the
-  viewport (`kit.restNear(box)`), else at the right-centre point; a continuing scene keeps a position already clear
-  of that target. Placement is a teleport while a page opens (cut by the editor), otherwise an eased glide during
+  viewport (`kit.restNear(box, {point, ref})`: next to where the target is clicked — not the far corner of a wide
+  field —, inside the dialog that holds it, over a neutral spot, else the nearest neutral gap around the click point),
+  else at the right-centre point; a continuing scene keeps a position already clear of that target and at most
+  `KEEP_NEAR_PX` (240 px) from its click point, else glides next to it (L5.1, R-MAC-07: the scene opens with the cursor
+  resting next to the first thing it will click — R-ISS-04, MACOS-CHECKLIST step 7; the field notes' right-centre spot
+  is the fallback). It keeps a clear cursor when no spot next to the target exists (a target filling the screen). The
+  glide's end is recorded (`t_settled`): the review compares the opening still from 0.3 s after it. Placement is a teleport while a page opens (cut by the editor), otherwise an eased glide during
   the still — never a jump; recorded as `scene_still.data.cursor`.
 - Ripple: 12 px disc, scale .4 → 5.5 (transform .5 s cubic-bezier(.2,.7,.2,1)), opacity 1 → 0 (.55 s ease-out),
   template colour, with a light ring + soft dark edge so it stays visible on a button of the same colour.
@@ -220,7 +228,9 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
   event sequence (pointerdown, mousedown, pointerup, mouseup, click with coordinates) + ripple, which waits up to
   popup_timeout_ms. Records `strategy` and `popup_opened`; waits after_popup_ms when a popup opened, else
   after_click_ms; a click that navigated or changed the URL holds at least after_navigation_ms after the press
-  (`data.navigation`). Composite steps record every click in `data.clicks`
+  (`data.navigation`). A plain click whose popup opens later than after_click_ms (slow or loaded machine) is caught by
+  the next step: when that step's target is not on screen yet, it waits up to popup_timeout_ms after the press for a
+  new popup, then records `popup_opened` on the click and keeps the after_popup_ms pause in the click's step. Composite steps record every click in `data.clicks`
   (`{role: trigger|option|item|confirm|outside|search, strategy, popup_opened, point, bbox, t_click, desc}`); the
   event's top-level fields describe the trigger click.
   `outside: true` → click the topmost dialog's title/heading if a dialog is open, else a blank point

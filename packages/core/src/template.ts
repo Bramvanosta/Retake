@@ -1,6 +1,7 @@
-import { statSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { z } from 'zod';
 import { CheckContext } from './checks/context.js';
 import { checkMediaFields } from './checks/media.js';
@@ -139,21 +140,63 @@ function isFile(p: string): boolean {
   }
 }
 
-/** Templates of a workspace (directories of templates_dir holding a template.yaml), sorted by name. */
-export async function listTemplates(root: string): Promise<Array<{ name: string; dir: string }>> {
-  const { templatesDir } = await loadWorkspaceConfig(root);
-  let names: string[];
+function isDirectory(p: string): boolean {
   try {
-    const entries = await readdir(templatesDir, { withFileTypes: true });
-    names = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name);
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** The starter templates shipped with Demo Studio (default, editorial, motion): `templates/` of the repository. */
+export const STARTER_TEMPLATES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
+
+export interface TemplateEntry {
+  name: string;
+  dir: string;
+  /** workspace: in the workspace's templates_dir; starter: shipped with Demo Studio (no workspace template has its name). */
+  source: 'workspace' | 'starter';
+}
+
+/** Sub-folders of a directory (hidden ones left out); [] when it does not exist. */
+async function subfolders(dir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
   }
-  return names
+}
+
+/** Template folders (holding a template.yaml) of a directory, sorted by name; [] when it does not exist. */
+async function templateFolders(dir: string): Promise<Array<{ name: string; dir: string }>> {
+  return (await subfolders(dir))
     .sort()
-    .map((name) => ({ name, dir: join(templatesDir, name) }))
+    .map((name) => ({ name, dir: join(dir, name) }))
     .filter((t) => isFile(join(t.dir, TEMPLATE_FILE)));
+}
+
+function samePath(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+}
+
+/**
+ * Templates a workspace can use, sorted by name: its own (templates_dir) and the starter templates whose name none of
+ * its folders uses — a new workspace can pick `default`, `editorial` or `motion` without copying them.
+ */
+export async function listTemplates(root: string): Promise<TemplateEntry[]> {
+  const { templatesDir } = await loadWorkspaceConfig(root);
+  const own = (await templateFolders(templatesDir)).map((t) => ({ ...t, source: 'workspace' as const }));
+  if (samePath(templatesDir, STARTER_TEMPLATES_DIR)) return own;
+  // Any workspace folder of that name shadows the starter, even one without a template.yaml (loadTemplate reports it).
+  const taken = new Set(await subfolders(templatesDir));
+  const starters = (await templateFolders(STARTER_TEMPLATES_DIR)).filter((t) => !taken.has(t.name)).map((t) => ({ ...t, source: 'starter' as const }));
+  return [...own, ...starters].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function resolveTemplateDir(nameOrDir: string, root: string | undefined, base: string): Promise<string> {
@@ -167,9 +210,14 @@ async function resolveTemplateDir(nameOrDir: string, root: string | undefined, b
   const { templatesDir } = await loadWorkspaceConfig(wsRoot);
   const dir = join(templatesDir, nameOrDir);
   if (isFile(join(dir, TEMPLATE_FILE))) return dir;
+  if (isDirectory(dir)) {
+    throw new ConfigError(`template "${nameOrDir}": no ${TEMPLATE_FILE} in ${dir} (a workspace folder of that name takes precedence over the starter template)`);
+  }
+  const starter = join(STARTER_TEMPLATES_DIR, nameOrDir);
+  if (isFile(join(starter, TEMPLATE_FILE))) return starter;
   const available = (await listTemplates(wsRoot)).map((t) => t.name);
   throw new ConfigError(
-    `template "${nameOrDir}" not found in ${templatesDir}${suggestion(nameOrDir, available)} (available: ${available.join(', ') || 'none'})`,
+    `template "${nameOrDir}" not found in ${templatesDir} or the starter templates${suggestion(nameOrDir, available)} (available: ${available.join(', ') || 'none'})`,
   );
 }
 
@@ -201,7 +249,7 @@ async function loadTemplateDir(dir: string): Promise<LoadedTemplate> {
 }
 
 /**
- * Load templates/<name> (or a template directory path, relative to the cwd), merged over
+ * Load templates/<name> — else the starter template of that name — (or a template directory path, relative to the cwd), merged over
  * DEFAULT_TEMPLATE, with asset paths resolved and checked. Throws ConfigError listing every
  * missing asset file.
  */
@@ -211,7 +259,7 @@ export async function loadTemplate(nameOrDir: string, root?: string): Promise<Lo
 
 /**
  * The template of a project: `override` ?? project.config.template. A path-like reference
- * ("./template") is resolved against the project directory, a name against the workspace templates.
+ * ("./template") is resolved against the project directory, a name against the workspace templates, then the starters.
  */
 export async function loadProjectTemplate(project: LoadedProject, override?: string): Promise<LoadedTemplate> {
   return loadTemplateDir(await resolveTemplateDir(override ?? project.config.template, project.root, project.dir));

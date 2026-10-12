@@ -172,7 +172,12 @@ export async function resolveSecretRef(ref: string): Promise<string> {
       const { stdout } = await execFileP('secret-tool', args);
       return stdout.replace(/\n$/, '');
     } catch (e) {
-      throw new TemplateError(`keychain item ${service}${account ? '/' + account : ''} not found: ${(e as Error).message}`);
+      // One line: the tool's own reason (its last stderr line, without the "security: SecKeychain…:" prefixes).
+      const err = e as NodeJS.ErrnoException & { stderr?: string };
+      const tool = process.platform === 'darwin' ? 'security' : 'secret-tool';
+      const said = (err.stderr ?? '').trim().split('\n').pop()?.split(': ').pop()?.trim();
+      const why = err.code === 'ENOENT' ? `${tool} is not installed` : said || `${tool} exited with code ${String(err.code)}`;
+      throw new TemplateError(`keychain item ${service}${account ? '/' + account : ''} not found (${why})`);
     }
   }
   throw new TemplateError(`unsupported secret reference "${ref}" (use env:VAR or keychain:service/account)`);

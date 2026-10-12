@@ -1,6 +1,6 @@
 import type { Page, Request } from 'playwright-core';
-import { hasLocator, pickTarget } from '@demo-studio/core';
-import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec } from '@demo-studio/core';
+import { hasLocator, normalizeTarget, pickTarget } from '@demo-studio/core';
+import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec, TimelineEvent } from '@demo-studio/core';
 import { StepError } from '../errors.js';
 import { distance, isNudge } from '../motion.js';
 import type { PopupEntry } from '../kit/types.js';
@@ -26,6 +26,8 @@ export interface ClickRun {
   navigated: boolean;
   /** The click changed the page: a document navigation, or a new URL (SPA route, ignoring the hash). */
   page_changed: boolean;
+  /** No popup was announced nor seen: the popups open at the press, for a late popup check (settleLatePopup). */
+  pending_popup?: { before: number[]; wall: number };
 }
 
 export interface ClickRunOptions extends ClickOptions {
@@ -220,6 +222,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
     page_changed: pageChanged,
   };
   if (popupMs !== undefined) run.popup_ms = popupMs;
+  if (!expected && !opened && !pageChanged) run.pending_popup = { before: [...before], wall: clickWall };
   ctx.clicks.push({
     role: opts.click_role ?? 'trigger',
     t: t_click,
@@ -276,6 +279,50 @@ export async function clickOutside(ctx: StepContext, open?: PopupEntry[]): Promi
   return { t_click, point: target, desc, closed };
 }
 
+/** A plain click whose popup may still be opening, and its timeline event (Runtime.pendingPopup). */
+export interface PendingPopup {
+  before: number[];
+  wall: number;
+  ev: TimelineEvent;
+  page: Page;
+}
+
+/**
+ * A plain click (no popup announced) that showed nothing within after_click_ms can still open a popup on a slow or
+ * loaded machine. When the next step's target `t` is not on screen yet, wait — up to popup_timeout_ms after the press,
+ * and no longer than until the target shows up without a popup — for a new popup; when one opens, the click is recorded as having opened it, its step lasts until the post-popup
+ * pause ends (the viewer sees the popup before the cursor moves on) and true is returned.
+ */
+export async function settleLatePopup(ctx: StepContext, pending: PendingPopup, t: TargetSpec | null): Promise<boolean> {
+  const { rt } = ctx;
+  const { kit, pacing } = rt;
+  if (pending.page !== rt.page || !t) return false;
+  const target = normalizeTarget(t);
+  const found = await kit.find(target).catch(() => null);
+  if (!found || found.count > 0) return false;
+  const left = pending.wall + pacing.popup_timeout_ms - wallNow();
+  if (left <= 0) return false;
+  const before = new Set(pending.before);
+  // Popups first in each tick (a late dialog holding the target is still a popup), then stop as soon as the target
+  // shows up without one: content that renders late is not a popup, and waiting on would only add dead time.
+  const seen = await poll(
+    ctx,
+    async () => {
+      if ((await kit.popupState()).some((p) => !before.has(p.id))) return 'popup' as const;
+      const f = await kit.find(target).catch(() => null);
+      return f && f.count > 0 ? ('target' as const) : null;
+    },
+    left,
+    40,
+  );
+  if (seen !== 'popup') return false;
+  pending.ev.popup_opened = true;
+  rt.log('debug', `${pending.ev.scene}.${pending.ev.step}: the click opened a popup ${Math.round(wallNow() - pending.wall)} ms after the press`);
+  await rt.sleep(ctx.jitter.ms(pacing.after_popup_ms));
+  pending.ev.t_end = rt.now();
+  return true;
+}
+
 /** Every pointer interaction of a composite step, as recorded in the timeline (`data.clicks`). */
 export function clickData(ctx: StepContext): Array<Record<string, unknown>> {
   return ctx.clicks.map((c) => {
@@ -301,6 +348,7 @@ function clickResult(run: ClickRun, ctx: StepContext): ActionResult {
     strategy: run.strategy,
   };
   if (run.expected || run.popup_opened) out.popup_opened = run.popup_opened;
+  if (run.pending_popup) out.pending_popup = run.pending_popup;
   if (run.page_changed) out.data = { navigation: { kind: run.navigated ? 'document' : 'url', url: ctx.rt.page.url() } };
   return out;
 }

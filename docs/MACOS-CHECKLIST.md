@@ -26,8 +26,8 @@ pnpm --filter @demo-studio/runner-web exec playwright-core install chromium
 - **Send back:** macOS version and chip (Apple menu → About This Mac), `node -v`, `pnpm -v`, `ffmpeg -version | head -1`,
   and the last lines of any command that failed.
 - **Note:** `node -v` must be 22+ in every folder you run the CLI from, not only in the repository: a version manager
-  (mise, nvm, fnm) picks the Node of the current folder, and an older default fails with `SyntaxError: Unexpected token
-  {` (step 8 runs from `~/demo-check`). Run `node -v` there too, or call that Node by its path.
+  (mise, nvm, fnm) picks the Node of the current folder (step 8 runs from `~/demo-check`). An older Node.js prints
+  "studio needs Node.js 22 or later; this is v…" — run that Node 22 by its path, or make it the default.
 
 ## 2. Build (and the tests)
 
@@ -37,7 +37,7 @@ pnpm test            # optional, ~2.5 min on an M4: the end-to-end tests start t
 ```
 
 - **Expected:** `pnpm build` prints nothing and exits 0; `pnpm test` ends with every test passed (6 Postgres tests
-  skipped unless `DEMO_STUDIO_TEST_PG` is set).
+  skipped unless `DEMO_STUDIO_TEST_PG` is set, 1 unless `DEMO_STUDIO_TEST_OLD_NODE` points to an old `node`).
 - **Send back:** the `Test Files … Tests …` summary lines, and the full output of any failing test.
 
 ## 3. `studio doctor`
@@ -115,8 +115,7 @@ Use a site where you have an account (a personal one, nothing confidential), in 
 repository:
 
 ```sh
-mkdir -p ~/demo-check && cd ~/demo-check
-printf 'projects_dir: projects\ntemplates_dir: <repo>/templates\n' > studio.yaml   # a new workspace has no templates
+mkdir -p ~/demo-check && cd ~/demo-check && echo "projects_dir: projects" > studio.yaml
 node <repo>/packages/cli/dist/bin.js new site-check --env "prod=app:https://<the site>"
 ```
 
