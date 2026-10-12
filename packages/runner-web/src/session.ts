@@ -67,6 +67,30 @@ export function scaleArgs(scale: number, headed: boolean | undefined, extra: rea
   return [`--force-device-scale-factor=${scale}`];
 }
 
+/** A web notification reported by the in-page kit (Notification API or ServiceWorkerRegistration.showNotification). */
+export interface NotificationPayload {
+  via: 'Notification' | 'ServiceWorkerRegistration.showNotification';
+  title: string;
+  body: string;
+  tag?: string;
+  /** Absolute icon URL (resolved against the page), when given. */
+  icon?: string;
+  /** Page wall clock (epoch ms). */
+  time: number;
+  url: string;
+  origin: string;
+}
+
+/** Name of the binding the kit calls for each web notification the page shows. */
+export const NOTIFICATION_BINDING = '__demoStudioNotification';
+
+/** playwright-core launch target for a browser config: an executable, else a channel (new headless by default). */
+export function launchTarget(b: BrowserConfig = {}): { executablePath?: string; channel?: string } {
+  const executablePath = b.executable ?? process.env.DEMO_STUDIO_CHROMIUM ?? undefined;
+  const channel = executablePath ? undefined : b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
+  return { executablePath, channel };
+}
+
 interface StorageStateFile {
   cookies?: Parameters<BrowserContext['addCookies']>[0];
   origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }> }>;
@@ -238,6 +262,8 @@ export class BrowserSession {
   private readonly spare: Page[] = [];
   private activeKey: string | null = null;
   private closed = false;
+  /** Called for every web notification a page of the session shows (set by the runner). */
+  onNotification: ((page: Page, n: NotificationPayload) => void) | null = null;
 
   private constructor(
     readonly context: BrowserContext,
@@ -257,8 +283,7 @@ export class BrowserSession {
     const b = opts.browser ?? {};
     const tempProfile = opts.profileDir ? null : await mkdtemp(join(tmpdir(), 'demo-studio-profile-'));
     const userDataDir = opts.profileDir ?? tempProfile!;
-    const executablePath = b.executable ?? process.env.DEMO_STUDIO_CHROMIUM ?? undefined;
-    const channel = executablePath ? undefined : b.channel === 'headless-shell' ? undefined : b.channel ?? 'chromium';
+    const { executablePath, channel } = launchTarget(b);
     let context: BrowserContext;
     try {
       context = await chromium.launchPersistentContext(userDataDir, {
@@ -286,9 +311,19 @@ export class BrowserSession {
       throw new RunnerError(`could not launch Chromium${hint}: ${m.split('\n')[0]}`, { cause: e });
     }
     const source = kitSource(opts.kit);
+    // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.
+    await context.grantPermissions(['notifications']).catch(() => undefined);
+    let session: BrowserSession | null = null;
+    await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: NotificationPayload) => {
+      try {
+        if (session?.onNotification && src.page) session.onNotification(src.page, payload);
+      } catch {
+        /* a listener error must not reach the page */
+      }
+    });
     await context.addInitScript({ content: source });
     if (opts.storageState) await applyStorageState(context, opts.storageState);
-    const session = new BrowserSession(context, opts, source, tempProfile);
+    session = new BrowserSession(context, opts, source, tempProfile);
     for (const p of context.pages()) await session.kit(p).install().catch(() => undefined);
     return session;
   }

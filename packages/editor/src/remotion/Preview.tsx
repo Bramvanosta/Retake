@@ -35,6 +35,7 @@ function UseOf({ use, spec, extra }: { use: PreviewUse; spec: ComponentPreviewSp
       slots={use.slots}
       params={use.params}
       durationInFrames={use.durationInFrames}
+      {...(use.media ? { media: use.media } : {})}
       {...extra}
     />
   );
@@ -111,18 +112,19 @@ function Body({ spec }: { spec: ComponentPreviewSpec }) {
     case 'interstitial':
       return <UseOf use={main} spec={spec} extra={scene ? { screen: <Scene spec={spec} scene={scene} caption={false} /> } : {}} />;
     case 'transition': {
+      const anchor = spec.anchor ? { anchor: spec.anchor } : {};
       const outgoing: ReactNode = scene ? <Scene spec={spec} scene={scene} caption /> : null;
       const incoming: ReactNode = spec.incoming ? <Incoming spec={spec} use={spec.incoming} /> : null;
       const n = main.durationInFrames;
       if (spec.transitionKind === 'fade-black' && spec.frame >= Math.floor(n / 2)) {
-        return <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming }} />;
+        return <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming, ...anchor }} />;
       }
-      if (spec.transitionKind === 'fade-black') return <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing }} />;
+      if (spec.transitionKind === 'fade-black') return <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing, ...anchor }} />;
       return (
         <AbsoluteFill>
-          <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing }} />
+          <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing, ...anchor }} />
           <AbsoluteFill>
-            <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming }} />
+            <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming, ...anchor }} />
           </AbsoluteFill>
         </AbsoluteFill>
       );

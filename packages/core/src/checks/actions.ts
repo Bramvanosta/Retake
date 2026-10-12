@@ -23,6 +23,8 @@ export interface ActionFacts {
   switchTo?: { to: string; path: IssuePath };
   /** `open.page`, checked against the environment. */
   openPage?: { page: string; path: IssuePath };
+  /** Artefact declared by the step (`wait_for_email.as` → email, `download.as` → document). */
+  artefact?: { kind: 'email' | 'document'; name: string; path: IssuePath };
 }
 
 /** Rules the schema cannot express (required-one-of, conflicting keys, empty targets, files). */
@@ -119,6 +121,22 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       break;
     case 'open':
       return typeof a.page === 'string' ? { openPage: { page: a.page, path: [...ap, 'page'] } } : {};
+    case 'wait_for_email':
+      if (a.to === undefined && a.from === undefined && a.subject === undefined) {
+        ctx.warning(ap, 'wait_for_email without `to`, `from` or `subject` captures the first new message, whatever it is');
+      }
+      if (typeof a.subject === 'string' && /^\/.*\/[a-z]*$/.test(a.subject)) {
+        const m = /^\/(.*)\/([a-z]*)$/.exec(a.subject)!;
+        try {
+          new RegExp(m[1], m[2]);
+        } catch (e) {
+          ctx.error([...ap, 'subject'], `invalid regular expression ${a.subject}: ${(e as Error).message}`);
+        }
+      }
+      return typeof a.as === 'string' ? { artefact: { kind: 'email', name: a.as, path: [...ap, 'as'] } } : {};
+    case 'download':
+      target(pickTarget(a.click as Record<string, unknown>), 'click');
+      return typeof a.as === 'string' ? { artefact: { kind: 'document', name: a.as, path: [...ap, 'as'] } } : {};
     default:
       break;
   }

@@ -120,6 +120,18 @@
       "description": "Layouts with the square variant: geometry in the 1080×1080 design space.",
       "$ref": "#/$defs/LayoutGeometry"
     },
+    "anchor": {
+      "description": "Tap target at the end of the segment (1920×1080 design space), for tap-open transitions.",
+      "$ref": "#/$defs/Anchor"
+    },
+    "anchor_vertical": {
+      "description": "Tap target in the vertical variant (1080×1920).",
+      "$ref": "#/$defs/Anchor"
+    },
+    "anchor_square": {
+      "description": "Tap target in the square variant (1080×1080).",
+      "$ref": "#/$defs/Anchor"
+    },
     "variants": {
       "minItems": 1,
       "type": "array",
@@ -198,9 +210,12 @@
             "image",
             "url",
             "color",
-            "screen"
+            "screen",
+            "email",
+            "document",
+            "notification"
           ],
-          "description": "text, image (URL), url (shown as text), color (CSS) or screen (the capture, layouts only)."
+          "description": "text, image (URL), url (shown as text), color (CSS), screen (the capture, layouts only), or a run artefact the scenario names: email (a wait_for_email `as`), document (a download `as` or a project file), notification (a captured web notification: its name or 1-based index) — the component receives it as `props.media[<slot>]`."
         },
         "description": {
           "type": "string",
@@ -313,6 +328,42 @@
       ],
       "additionalProperties": false,
       "description": "Layout geometry, so the planner and the review can reason without rendering. Values may be expressions over the params: the planner evaluates them for each use (e.g. a theme width moves the card and the caption rect)."
+    },
+    "Anchor": {
+      "type": "object",
+      "properties": {
+        "vars": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/GeometryValue"
+          },
+          "description": "Named values computed in order."
+        },
+        "x": {
+          "$ref": "#/$defs/GeometryValue"
+        },
+        "y": {
+          "$ref": "#/$defs/GeometryValue"
+        },
+        "w": {
+          "$ref": "#/$defs/GeometryValue"
+        },
+        "h": {
+          "$ref": "#/$defs/GeometryValue"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false,
+      "description": "Where the component draws its tap target (a notification banner, an app icon) at the end of its segment: a transition such as studio/transition-tap-open zooms from it. Expressions may use numeric params, `<param>_<value>` one-hot names of string params (e.g. style_macos), vars and aspect."
     },
     "ParamSchema": {
       "type": "object",

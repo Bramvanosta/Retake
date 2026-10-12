@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# The "you've got mail" moment (SPEC §11, R-MAIL-03): studio/notification's system styles fed by an email — the
+# sender as the title, the subject in bold, the first line of the text — from a captured email (`email: <name>`, a
+# wait_for_email `as`) or from scenario values (from, subject, preview), scenario values winning. The icon is a mail
+# glyph on the theme accent unless an icon is given. Same motion, placement and tap-open anchor as studio/notification.
+id: studio/mail-notification
+version: 1.0.0
+kind: overlay
+name: Mail notification
+description: A system-style new-mail notification (sender, subject, first line) sliding over the footage, fed by a captured email or scenario values; macOS, Windows, iOS, Android or in-app styles.
+tags: [overlay, notification, email, mail]
+slots:
+  email: {type: email, description: A captured email (the `as` of a wait_for_email step).}
+  from: {type: text, max_chars: 60, description: Sender (default — the email's sender name or address).}
+  subject: {type: text, max_chars: 120, description: Subject (default — the email's subject).}
+  preview: {type: text, max_chars: 200, description: First line of the text (default — the email's).}
+  app: {type: text, max_chars: 40, description: 'Mail app name (default "Mail").'}
+  time: {type: text, max_chars: 16, description: 'Time shown ("now" by default).'}
+  icon: {type: image, description: App icon URL (default — a mail glyph on the theme accent).}
+params:
+  type: object
+  properties:
+    style: {type: string, enum: [macos, windows, ios-banner, android, in-app], default: macos, description: Which system look.}
+    place: {type: string, enum: [auto, frame, screen], default: auto, description: "frame: the corner of the video frame; screen: over the capture; auto: frame for macOS / Windows, screen for the others."}
+    appearance: {type: string, enum: [auto, light, dark], default: auto, description: "Light or dark card (auto: dark on a dark theme background)."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, fonts.body, style_bias]
+duration: {default: 4, min: 1.5, max: 30}
+variants: [landscape, vertical, square]
+anchor:
+  vars:
+    on: place_screen + place_auto * (style_ios_banner + style_android + style_in_app)
+    ax: on * screen_x
+    ay: on * screen_y
+    aw: on * screen_w + (1 - on) * frame_w
+    ah: on * screen_h + (1 - on) * frame_h
+    inset: 20 * style_macos + 16 * style_windows + 14 * style_ios_banner + 14 * style_android + 24 * style_in_app
+    w0: 430 * style_macos + 380 * style_windows + 520 * style_ios_banner + 560 * style_android + 440 * style_in_app
+    cw: min(w0, aw - 2 * inset)
+    ch: 113 * style_macos + 128 * style_windows + 116 * style_ios_banner + 150 * style_android + 112 * style_in_app
+    right: style_macos + style_windows + style_in_app
+  x: right * (ax + aw - inset - cw) + (1 - right) * (ax + (aw - cw) / 2)
+  y: style_windows * (ay + ah - inset - ch) + (1 - style_windows) * (ay + inset)
+  w: cw
+  h: ch
+preview:
+  slots: {from: Northfield Roasters, subject: Confirm your email address, preview: "Welcome to Northfield! One click and your café account is ready."}
+  at: [1.5]

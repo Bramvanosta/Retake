@@ -1,3 +1,4 @@
+import { allowedHosts, isHostAllowed } from '../hosts.js';
 import { KEY_RE, SLUG_RE } from '../schemas/primitives.js';
 import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
@@ -84,11 +85,31 @@ export function checkProject(
     }
   }
 
+  if (isObj(value.mailbox) && typeof value.mailbox.url === 'string' && !ctx.broken(['mailbox'])) {
+    // The mailbox is contacted by the runner like an http hook: its host must be in the allow-list.
+    let host = '';
+    try {
+      host = new URL(value.mailbox.url).hostname;
+    } catch {
+      /* the schema reports a malformed URL */
+    }
+    const config = {
+      environments: envs as Record<string, Record<string, string>>,
+      allow_hosts: Array.isArray(value.allow_hosts) ? value.allow_hosts.filter((h): h is string => typeof h === 'string') : undefined,
+    };
+    if (host && !isHostAllowed(host, { config: config as never })) {
+      ctx.error(
+        ['mailbox', 'url'],
+        `mailbox host ${host} is not allowed: use localhost, an environment host, or add it to allow_hosts (allowed: ${allowedHosts({ config: config as never }).join(', ')})`,
+      );
+    }
+  }
+
   const saved = new Set<string>();
   checkHooks(value.reset, ['reset'], ctx, { pages: [...pageKeys], saved });
   const vars = new Set(isObj(value.vars) ? Object.keys(value.vars) : []);
   const scope = { pages: [...pageKeys], vars, varsComplete: true, saved };
-  for (const key of ['reset', 'databases'] as const) {
+  for (const key of ['reset', 'databases', 'mailbox'] as const) {
     if (value[key] !== undefined && !ctx.broken([key])) checkTokens(value[key], [key], scope, ctx);
   }
   return ctx.out;

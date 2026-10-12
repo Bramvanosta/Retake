@@ -29,7 +29,7 @@ vi.mock('remotion', async (importOriginal) => {
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 
-/** Every id referenced by the starter templates and the legacy field mapping (DESIGN-phase2 §1.2, §1.4). */
+/** Every id referenced by the starter templates and the legacy field mapping (DESIGN-phase2 §1.2, §1.4), and the L2.9 family. */
 const IDS = [
   'studio/intro-stack',
   'studio/intro-minimal',
@@ -50,6 +50,14 @@ const IDS = [
   'studio/overlay-lower-third',
   'studio/transition-crossfade',
   'studio/transition-fade-black',
+  // L2.9: mails, notifications and documents.
+  'studio/notification',
+  'studio/mail-notification',
+  'studio/mail-view',
+  'studio/document-pdf',
+  'studio/phone-lockscreen',
+  'studio/phone-home-badge',
+  'studio/transition-tap-open',
 ];
 
 /** The reference-look components (docs/reference/look.md), final since L2.5. */

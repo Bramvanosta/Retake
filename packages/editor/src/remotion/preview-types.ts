@@ -4,7 +4,7 @@
  * (../render/preview.ts). Every URL is already served (asset server).
  */
 import type { ComponentKind } from '@demo-studio/core';
-import type { CaptionCue, LayoutRects, ThemeTokens } from '@demo-studio/components';
+import type { CaptionCue, LayoutRects, MediaValue, ThemeTokens } from '@demo-studio/components';
 
 export interface PreviewRect {
   x: number;
@@ -20,6 +20,8 @@ export interface PreviewUse {
   slots: Record<string, string | undefined>;
   params: Record<string, unknown>;
   durationInFrames: number;
+  /** Sample artefacts for `email` / `document` / `notification` slots (served URLs). */
+  media?: Record<string, MediaValue>;
 }
 
 /** A clip-like scene: a layout with the sample screen as its capture, the brand mark and a caption. */
@@ -50,6 +52,6 @@ export interface ComponentPreviewSpec {
   /** transition previews: the segment entering (a card), and the transition's kind. */
   incoming?: PreviewUse;
   transitionKind?: 'crossfade' | 'fade-black';
-  /** overlay previews: the target box in output px. */
+  /** overlay previews: the target box in output px; transition previews: the box the transition opens from. */
   anchor?: PreviewRect;
 }

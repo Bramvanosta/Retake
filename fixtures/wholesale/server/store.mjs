@@ -95,6 +95,8 @@ export class Store {
     /** Refs removed by DELETE /refs, per product, so POST /refs can restore them without a body. */
     this.removedRefs = new Map();
     this.autoProposal = null;
+    /** Café accounts opened through the sign-up flow (pending until their email is confirmed). */
+    this.signups = [];
     this.clockStart = Date.now();
     this.resets = (this.resets ?? 0) + 1;
   }
@@ -424,6 +426,31 @@ export class Store {
 
   getQuote(id) {
     return this.#publicQuote(this.#quote(id));
+  }
+
+  // ── Sign-up (L2.9 fixture: confirmation email) ─────────────────────────────
+
+  /** Open a café account: {cafe, name, email} → pending signup with a confirmation token. */
+  createSignup(input) {
+    const i = input ?? {};
+    const cafe = typeof i.cafe === 'string' ? i.cafe.trim() : '';
+    const name = typeof i.name === 'string' ? i.name.trim() : '';
+    const email = typeof i.email === 'string' ? i.email.trim().toLowerCase() : '';
+    if (!cafe) throw new ApiError(400, 'invalid', '"cafe" (the café name) is required');
+    if (!name) throw new ApiError(400, 'invalid', '"name" is required');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new ApiError(400, 'invalid', '"email" must be an email address');
+    if (this.signups.some((s) => s.email === email)) throw new ApiError(409, 'duplicate', `An account already uses ${email}`);
+    const s = { id: String(this.signups.length + 1), cafe, name, email, token: `confirm-${String(this.signups.length + 1).padStart(4, '0')}`, status: 'pending', created_at: this.now() };
+    this.signups.push(s);
+    return s;
+  }
+
+  /** Confirm a signup by its token ("latest" = the most recent one: a fixture convenience for scenarios). */
+  confirmSignup(token) {
+    const s = token === 'latest' ? this.signups[this.signups.length - 1] : this.signups.find((x) => x.token === token);
+    if (!s) throw new ApiError(404, 'not_found', 'This confirmation link is not valid (any more)');
+    s.status = 'confirmed';
+    return s;
   }
 
   createQuote(input) {

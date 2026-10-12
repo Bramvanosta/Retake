@@ -3,6 +3,7 @@ export * from './targets.js';
 export * from './steps.js';
 export * from './templating.js';
 export * from './env.js';
+export * from './hosts.js';
 export * from './util.js';
 export * from './issues.js';
 export * from './schema.js';

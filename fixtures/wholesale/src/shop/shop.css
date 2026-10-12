@@ -1513,3 +1513,95 @@
     display: none;
   }
 }
+
+/* ── Sign-up (L2.9 fixture: account creation with a confirmation email) ──── */
+
+.signup {
+  min-height: calc(100vh - 220px);
+  display: grid;
+  place-items: center;
+  padding: 48px 20px;
+}
+
+.signup-card {
+  width: min(520px, 100%);
+  padding: 36px 40px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.signup-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.signup-kicker {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.signup-title {
+  margin: 4px 0 0;
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.signup-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.signup-form .btn {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.signup-error {
+  margin: 0;
+  color: #a12a2a;
+  font-size: 14px;
+}
+
+.signup-sent {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: #f1f6f1;
+  border: 1px solid #d6e6d6;
+}
+
+.signup-sent p {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+
+.signup-sent-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2f6b4f;
+  color: #fff;
+}
+
+.signup-card > .btn {
+  align-self: flex-start;
+}

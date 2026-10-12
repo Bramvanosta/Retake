@@ -24,6 +24,65 @@ import type {
 
 export function demoKit(config: KitConfig): void {
   const VERSION = '1.0.0';
+  // ── Web notifications (R-NTF-03): report every `new Notification(…)` and ServiceWorkerRegistration#showNotification
+  // to the runner (binding `__demoStudioNotification`, else queued in `__demoStudioNotifications`), then let the page's
+  // call proceed unchanged. Patched once per window (a re-installed kit keeps the first patch).
+  (() => {
+    type Reported = { via: string; title: string; body: string; tag?: string; icon?: string; time: number; url: string; origin: string };
+    const g = window as unknown as Record<string, unknown> & { __demoStudioNotifications?: Reported[] };
+    if (g.__demoStudioNotifyPatched) return;
+    g.__demoStudioNotifyPatched = true;
+    const report = (via: string, title: unknown, options: unknown) => {
+      try {
+        const o = (options && typeof options === 'object' ? options : {}) as { body?: unknown; tag?: unknown; icon?: unknown };
+        let icon: string | undefined;
+        if (o.icon !== undefined && o.icon !== null && String(o.icon) !== '') {
+          try {
+            icon = new URL(String(o.icon), location.href).href;
+          } catch {
+            icon = String(o.icon);
+          }
+        }
+        const payload: Reported = {
+          via,
+          title: String(title ?? ''),
+          body: o.body === undefined || o.body === null ? '' : String(o.body),
+          time: Date.now(),
+          url: location.href,
+          origin: location.origin,
+        };
+        if (o.tag !== undefined && o.tag !== null && String(o.tag) !== '') payload.tag = String(o.tag);
+        if (icon) payload.icon = icon;
+        const binding = g.__demoStudioNotification;
+        if (typeof binding === 'function') (binding as (p: Reported) => unknown)(payload);
+        else (g.__demoStudioNotifications ??= []).push(payload);
+      } catch {
+        /* never break the page */
+      }
+    };
+    const Orig = g.Notification as (new (title: string, options?: unknown) => Notification) & { permission?: string; requestPermission?: (...a: unknown[]) => unknown; maxActions?: number } | undefined;
+    if (typeof Orig === 'function') {
+      const Patched = function (this: unknown, title: string, options?: unknown) {
+        if (!new.target) throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator.");
+        report('Notification', title, options);
+        return Reflect.construct(Orig, [title, options], new.target) as Notification;
+      } as unknown as Record<string, unknown>;
+      Patched.prototype = Orig.prototype;
+      Object.defineProperty(Patched, 'permission', { get: () => Orig.permission, configurable: true });
+      if ('maxActions' in Orig) Object.defineProperty(Patched, 'maxActions', { get: () => Orig.maxActions, configurable: true });
+      if (typeof Orig.requestPermission === 'function') Patched.requestPermission = (...a: unknown[]) => Orig.requestPermission!.apply(Orig, a);
+      Object.defineProperty(Patched, 'name', { value: 'Notification' });
+      g.Notification = Patched;
+    }
+    const SWR = g.ServiceWorkerRegistration as { prototype: { showNotification?: (this: unknown, title: string, options?: unknown) => Promise<void> } } | undefined;
+    const show = SWR?.prototype.showNotification;
+    if (SWR && typeof show === 'function') {
+      SWR.prototype.showNotification = function (this: unknown, title: string, options?: unknown) {
+        report('ServiceWorkerRegistration.showNotification', title, options);
+        return show.call(this, title, options);
+      };
+    }
+  })();
   const w = window as unknown as Window & { __demoStudio?: KitApi };
   const prev = w.__demoStudio;
   let carried: CursorState | null = null;

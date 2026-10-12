@@ -6,9 +6,9 @@
  * renderer draws a stand-in of the kind). Slots are filled with `fillSlots` (given values, then `default_from`).
  */
 import { FRAME_STYLE_LAYOUTS, normalizeComponentRef, resolveThemeComponents } from '@demo-studio/core';
-import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, TransitionKind } from '@demo-studio/core';
+import type { ComponentKind, ComponentRef, FrameSpec, FrameStyle, LoadedTemplate, SceneTransition, TransitionKind } from '@demo-studio/core';
 import { fillSlots } from '@demo-studio/components';
-import type { ComponentManifest, ComponentRegistry, ResolvedComponentRef, SlotContext } from '@demo-studio/components';
+import type { ComponentManifest, ComponentRegistry, MediaValue, ResolvedComponentRef, SlotContext } from '@demo-studio/components';
 import type { ResolvedComponent } from './plan-types.js';
 import type { MessageList } from './util.js';
 import { firstLine } from './util.js';
@@ -65,6 +65,9 @@ export function transitionKindOf(rc: { id: string; params: Record<string, unknow
   return 'crossfade';
 }
 
+/** Resolves the artefact slots of a use (`email: welcome`…) into media (the planner's artefact index). */
+export type MediaResolver = (manifest: ComponentManifest, slots: Record<string, string | undefined>, where: string) => Record<string, MediaValue> | undefined;
+
 export class ComponentResolver {
   private readonly manifests = new WeakMap<ResolvedComponent, ComponentManifest>();
   private readonly theme: ReturnType<typeof resolveThemeComponents>;
@@ -76,6 +79,7 @@ export class ComponentResolver {
     private readonly registry: ComponentRegistry,
     readonly template: LoadedTemplate,
     private readonly warnings: MessageList,
+    private readonly media?: MediaResolver,
   ) {
     this.theme = resolveThemeComponents(template.template);
     let resolved: Record<ComponentKind, ResolvedComponentRef | null> | null = null;
@@ -121,6 +125,16 @@ export class ComponentResolver {
     return { ref: { id, params }, source, label: `${label} (frame "${spec}")` };
   }
 
+  /**
+   * A transition candidate from a scene / card `transition`: a kind (see transitionCandidate) or a transition component
+   * (an id or {component, params}).
+   */
+  sceneTransitionCandidate(spec: SceneTransition, source: ResolvedComponent['source'], label: string): Candidate {
+    if (typeof spec === 'string' && (spec === 'crossfade' || spec === 'cut' || spec === 'fade-black')) return this.transitionCandidate(spec, source, label);
+    const ref = typeof spec === 'string' ? { id: spec, params: {} } : { id: spec.component, params: spec.params ?? {} };
+    return { ref, source, label: `${label} (${ref.id})` };
+  }
+
   /** A transition candidate from a transition kind: the theme's transition when it is of that kind, else the built-in one. */
   transitionCandidate(kind: TransitionKind, source: ResolvedComponent['source'], label: string): Candidate {
     if (kind === 'cut') return { ref: null, source, label: `${label} (cut)` };
@@ -164,6 +178,8 @@ export class ComponentResolver {
         slots: filled,
         source: c.source,
       };
+      const media = this.media?.(resolved.manifest, filled, where);
+      if (media && Object.keys(media).length > 0) out.media = media;
       this.manifests.set(out, resolved.manifest);
       return out;
     }

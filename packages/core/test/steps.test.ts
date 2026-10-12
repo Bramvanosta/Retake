@@ -56,6 +56,8 @@ describe('normalizeStep shorthands', () => {
     [{ cursor: { move: 'Save' } }, 'cursor', { mode: 'move', to: { text: 'Save' } }],
     [{ cursor: { set: { x: 0, y: 0 } } }, 'cursor', { mode: 'set', to: { x: 0, y: 0 } }],
     [{ cursor: { show: false } }, 'cursor', { mode: 'hide' }],
+    [{ wait_for_email: { to: 'buyer@', subject: 'Confirm', as: 'welcome' } }, 'wait_for_email', { to: 'buyer@', subject: 'Confirm', as: 'welcome' }],
+    [{ download: { click: 'Download quote PDF', as: 'quote' } }, 'download', { click: { text: 'Download quote PDF' }, as: 'quote' }],
   ];
 
   it.each(cases)('%j', (step, action, args) => {

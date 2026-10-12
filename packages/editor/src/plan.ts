@@ -2,7 +2,7 @@
  * `planEdit`: the edit of a capture as an EditPlan (docs/DESIGN-phase2.md §2.1, SPEC §9). PURE and deterministic:
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
-import { extname, isAbsolute, join } from 'node:path';
+import { dirname, extname, isAbsolute, join } from 'node:path';
 import { COMPONENT_KINDS, timelineVideo } from '@demo-studio/core';
 import type {
   ComponentKind,
@@ -11,13 +11,14 @@ import type {
   LoadedTemplate,
   Scenario,
   Timeline,
+  TimelineArtefact,
   TimelineEvent,
   TimelineScene,
   TimelineVideo,
   TransitionKind,
 } from '@demo-studio/core';
-import { GEOMETRY_KEYS, evalLayoutGeometry, fontFileFace, themeTokens } from '@demo-studio/components';
-import type { CaptionCue, ComponentRegistry, LayoutGeometry, SlotContext } from '@demo-studio/components';
+import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, paramEnums, themeTokens } from '@demo-studio/components';
+import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, SlotContext } from '@demo-studio/components';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase, clampView, isStatic, reframeTrack } from './camera.js';
 import type { ReframeTarget, ZoomMove } from './camera.js';
 import { DESIGN_SPACES, FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from './layout.js';
@@ -64,7 +65,12 @@ export interface PlanEditInput {
   overrides?: EditOverrides;
   /** Length (s) of the music track when the caller measured it (the planner does no I/O): its loops are then planned. */
   musicDuration_s?: number;
+  /** The run directory (artefact files of timeline.artefacts are relative to it); default: the capture file's folder. */
+  runDir?: string;
 }
+
+/** Seconds before the end of a clip during which an overlay still counts as "showing" for a tap-open anchor. */
+export const ANCHOR_OVERLAY_WINDOW_S = 1;
 
 /** The input cannot be planned (dry-run timeline, no capture…). */
 export class PlanError extends Error {
@@ -218,7 +224,81 @@ export function planEdit(input: PlanEditInput): EditPlan {
   const bodyUrls = template.assets.body.map((f, i) => asset(`font-body-${i}`, f));
   const tokens = themeTokens(template, { logo: logoUrl, wordmark: wordmarkUrl, fonts: { display: displayUrl, body: bodyUrls } });
 
-  const resolver = new ComponentResolver(registry, template, warnings);
+  // ── Artefacts (L2.9): `email` / `document` / `notification` slots → media with ds-asset images ──────────────
+  const runDir = input.runDir ?? dirname(input.captureFile);
+  const artefacts: TimelineArtefact[] = timeline.artefacts ?? [];
+  const findArtefact = (type: ArtefactSlotType, value: string): TimelineArtefact | undefined => {
+    const v = value.trim();
+    const own = artefacts.filter((a) => a.kind === type);
+    const byName = own.find((a) => a.name === v);
+    if (byName || type !== 'notification' || !/^\d+$/.test(v)) return byName;
+    return own.find((a) => a.kind === 'notification' && a.index === Number(v));
+  };
+  const slugOf = (x: string) => x.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
+  const mediaOfArtefact = (a: TimelineArtefact): MediaValue => {
+    const img = (prefix: string, i: { file: string; width: number; height: number }) => ({ url: asset(`${prefix}`, join(runDir, i.file)), width: i.width, height: i.height });
+    if (a.kind === 'email') {
+      return {
+        kind: 'email',
+        name: a.name,
+        from: a.from,
+        ...(a.from_name ? { from_name: a.from_name } : {}),
+        to: [...a.to],
+        subject: a.subject,
+        date: a.date,
+        preview: a.preview,
+        ...(a.image ? { image: img(`artefact-email-${slugOf(a.name)}`, a.image) } : {}),
+      };
+    }
+    if (a.kind === 'document') {
+      return {
+        kind: 'document',
+        name: a.name,
+        file_name: a.file_name,
+        pages: a.pages.map((p, i) => ({ ...img(`artefact-document-${slugOf(a.name)}-p${i + 1}`, p), number: i + 1, width_pt: p.width_pt, height_pt: p.height_pt })),
+      };
+    }
+    let app = a.origin;
+    try {
+      app = new URL(a.origin).host || a.origin;
+    } catch {
+      /* keep the origin */
+    }
+    return {
+      kind: 'notification',
+      name: a.name,
+      title: a.title,
+      body: a.body,
+      app,
+      time: a.time,
+      ...(a.tag ? { tag: a.tag } : {}),
+      ...(a.icon ? { icon: img(`artefact-notification-${slugOf(a.name)}-icon`, a.icon) } : {}),
+    };
+  };
+  const mediaOf = (manifest: ComponentManifest, slots: Record<string, string | undefined>, where: string): Record<string, MediaValue> | undefined => {
+    let out: Record<string, MediaValue> | undefined;
+    for (const [slot, spec] of Object.entries(manifest.slots)) {
+      if (!(ARTEFACT_SLOT_TYPES as readonly string[]).includes(spec.type)) continue;
+      const value = slots[slot];
+      if (value === undefined || value.trim() === '') continue;
+      const type = spec.type as ArtefactSlotType;
+      const a = findArtefact(type, value);
+      if (!a) {
+        const names = artefacts.filter((x) => x.kind === type).map((x) => (x.kind === 'notification' ? `${x.name} (#${x.index})` : x.name));
+        warnings.add(
+          `${where}: ${type} "${value}" was not captured by run ${timeline.run_id}` +
+            (names.length ? ` (captured: ${names.join(', ')})` : ` (the run captured no ${type})`) +
+            ' — the component shows its scenario values only',
+        );
+        continue;
+      }
+      if (a.kind === 'document' && a.pages.length === 0) warnings.add(`${where}: document "${value}" has no rasterised page (not a PDF or an image?)`);
+      (out ??= {})[slot] = mediaOfArtefact(a);
+    }
+    return out;
+  };
+
+  const resolver = new ComponentResolver(registry, template, warnings, mediaOf);
   const overrideRefs = ov.components ?? {};
   const kindOverride = (kind: ComponentKind): Candidate[] =>
     overrideRefs[kind] !== undefined ? [{ ref: overrideRefs[kind], source: 'override', label: `overrides.components.${kind}` }] : [];
@@ -247,7 +327,10 @@ export function planEdit(input: PlanEditInput): EditPlan {
       continue;
     }
     if (scene.status === 'failed' || scene.status === 'partial') warnings.add(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
-    const events = timeline.events.filter((e) => e.scene === scene.id && e.scene_index === scene.index).sort((a, b) => a.t_start - b.t_start || a.step - b.step);
+    // Notification events (step -1, L2.9) belong to no step: they are artefacts, not provenance.
+    const events = timeline.events
+      .filter((e) => e.scene === scene.id && e.scene_index === scene.index && e.action !== 'notification')
+      .sort((a, b) => a.t_start - b.t_start || a.step - b.step);
     const open = events.find((e) => e.action === 'scene_open');
     const still = events.find((e) => e.action === 'scene_still');
     const s0 = still ? still.t_start : open ? open.t_end : scene.t_start;
@@ -609,11 +692,16 @@ export function planEdit(input: PlanEditInput): EditPlan {
   } else if (video.outro === false && ov.outro === undefined) notes.add('no outro (scenario outro: false)');
 
   // ── Transitions and timing of the segments ────────────────────────────────────
+  const timelineSceneOf = (id: string): TimelineScene | undefined => timeline.scenes.find((x) => x.id === id);
   const transitionFor = (next: Draft): PlanTransition => {
     const chain: Candidate[] = [...kindOverride('transition')];
     if (ov.transition !== undefined) chain.push(resolver.transitionCandidate(ov.transition, 'override', 'overrides.transition'));
-    const sceneKind = next.clip?.entry.scene.transition;
-    if (sceneKind) chain.push(resolver.transitionCandidate(sceneKind, 'scenario', `the transition of scene "${next.seg.id}"`));
+    const cardScene = next.seg.kind === 'card' ? timelineSceneOf(next.seg.id) : undefined;
+    const sceneSpec = next.clip?.entry.scene.transition ?? cardScene?.card?.transition;
+    if (sceneSpec) {
+      const what = next.seg.kind === 'card' ? 'card' : 'scene';
+      chain.push(resolver.sceneTransitionCandidate(sceneSpec, 'scenario', `the transition of ${what} "${next.seg.id}"`));
+    }
     chain.push(...themeAndBuiltin('transition'));
     const rc = resolver.resolve('transition', chain, `transition into "${next.seg.id}"`);
     const kind: TransitionKind = rc?.missing ? requestedKind(chain) : transitionKindOf(rc);
@@ -708,18 +796,28 @@ export function planEdit(input: PlanEditInput): EditPlan {
       const chain: Candidate[] = [...kindOverride('overlay'), { ref: { id: o.component, params: o.params }, source: 'scenario', label: 'the step overlay' }, ...themeAndBuiltin('overlay')];
       const rc = resolver.resolve('overlay', chain, where, { explicit: o.slots, ctx: { ...slotBase, scene: { caption: entry.scene.caption } } });
       if (!rc) continue;
-      const from = rel(ev.t_end);
+      let from = rel(ev.t_end);
+      // A notification overlay shows when the notification showed (when that moment is inside this clip).
+      const nName = Object.entries(o.slots).find(([k]) => resolver.manifest(rc)?.slots[k]?.type === 'notification')?.[1];
+      const shown = nName ? findArtefact('notification', nName) : undefined;
+      if (shown && shown.t >= entry.s0 && shown.t < entry.s1) {
+        from = rel(shown.t);
+        notes.add(`${where}: starts when notification "${shown.name}" showed (${secs(shown.t)} of the capture)`);
+      }
       if (from >= n) {
         warnings.add(`${where}: the step ends after the clip: overlay left out`);
         continue;
       }
       const seconds = o.duration ?? resolver.manifest(rc)?.duration?.default ?? 2.5;
       let frames = fr(seconds);
+      let componentFrames: number | undefined;
       if (from + frames > seg.durationInFrames) {
+        componentFrames = frames;
         frames = seg.durationInFrames - from;
-        notes.add(`${where}: shortened to ${secs(frames / outFps)} (the clip ends)`);
+        notes.add(`${where}: shortened to ${secs(frames / outFps)} (the clip ends): it stays on screen to the clip's last frame`);
       }
       const use: OverlayUse = { component: rc, from, durationInFrames: frames, scene: entry.scene.id, step: ev.step };
+      if (componentFrames !== undefined) use.componentFrames = componentFrames;
       if (o.bbox) use.anchor = { bbox: { ...o.bbox } };
       else if (o.point) use.anchor = { point: { ...o.point } };
       else notes.add(`${where}: no anchor recorded — the overlay places itself`);
@@ -799,6 +897,41 @@ export function planEdit(input: PlanEditInput): EditPlan {
       if (k < k0 || k >= k1) continue;
       markers.push({ name: mk.name, frame: F + (k - k0), scene: mk.scene });
     }
+  });
+
+  // ── Tap targets of transitions (L2.9): the outgoing segment's (or its last overlay's) manifest anchor ──────────
+  const anchorKey = ANCHOR_KEYS[variant];
+  const anchorOf = (rc: ResolvedComponent, where: string, layout?: PlanLayout): EditPlan['layout']['capture'] | undefined => {
+    const m = resolver.manifest(rc);
+    // A variant without its own anchor uses the landscape one (expressions over frame_w / frame_h follow the format).
+    const spec = (m?.[anchorKey] ?? m?.anchor) as AnchorSpec | undefined;
+    if (!m || !spec) return undefined;
+    const c = layout?.capture;
+    try {
+      const r = evalAnchor(spec, rc.params, {
+        enums: paramEnums(m.params),
+        frame: { w: design.width, h: design.height },
+        ...(c ? { screen: { x: c.x / unit, y: c.y / unit, w: c.w / unit, h: c.h / unit } } : {}),
+        aspect: cssW / cssH,
+      });
+      return { x: round(r.x * unit, 2), y: round(r.y * unit, 2), w: round(r.w * unit, 2), h: round(r.h * unit, 2) };
+    } catch (e) {
+      warnings.add(`${where}: the ${anchorKey} of ${rc.id} cannot be evaluated: ${(e as Error).message}`);
+      return undefined;
+    }
+  };
+  drafts.forEach((d, i) => {
+    const tr = d.seg.transition;
+    const prev = drafts[i - 1];
+    if (!tr?.component || !prev) return;
+    let anchor: EditPlan['layout']['capture'] | undefined;
+    if (prev.seg.kind === 'clip') {
+      const end = prev.content;
+      const showing = prev.seg.overlays.filter((o) => o.from + o.durationInFrames >= end - ANCHOR_OVERLAY_WINDOW_S * outFps && o.from < end);
+      for (let k = showing.length - 1; k >= 0 && !anchor; k--) anchor = anchorOf(showing[k].component, `overlay of "${prev.seg.id}"`, prev.seg.layout);
+    }
+    anchor ??= anchorOf(prev.seg.component, `"${prev.seg.id}"`);
+    if (anchor) tr.anchor = anchor;
   });
 
   const segments = drafts.map((d) => d.seg);

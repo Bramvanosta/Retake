@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot L2.8. Working branch: `claude/new-session-pq6jtq`.
+Last updated: 2026-10-12, end of lot L2.9. Working branch: `claude/new-session-pq6jtq`.
 
 ## What this is
 Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
@@ -209,26 +209,68 @@ automatically with themeable components, and let Claude operate everything throu
   (variants, theme zooms, widget clicks), components library/scaffolds (square geometry = defaultRects, nothing over the
   device), runner scale-2 capture, CLI export/square. 630 tests: 624 pass, 6 Postgres tests skipped (full suite run
   twice, green both times).
-- **Requirements:** 572 tracked; 362 done, 50 partial, 145 todo, 15 n/a-here; the open ones are assigned to lots
-  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.7 all done. L2.8: all 11 done (R-ED-17/20/21/22, R-EXP-01…06,
-  R-CLI2-03); from L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
+- **L2.9 done** (mails, notifications & documents): **core** `mailbox: {provider: mailpit | http, url, poll_ms?,
+  headers?}` (host must be allowed: allow-list helpers moved from hooks to core `hosts.ts`, hooks re-exports them),
+  actions `wait_for_email {to?, from?, subject?, timeout?, as}` and `download {click, as, timeout?}`, `SceneTransition`
+  (a scene / card `transition` may be a component id), timeline `artefacts` (email | document | notification, files
+  relative to the run) and the `notification` event; checks: unknown `email:` / `document:` names (with a suggestion),
+  project documents (`.pdf/.png/.jpg/.jpeg`, file exists), `notification:` name or 1-based index, duplicate `as`,
+  `wait_for_email` without a project mailbox. **Runner** (`packages/runner-web/src/artefacts/`): `MailboxClient`
+  (Mailpit `/api/v1/messages` + `/api/v1/message/{ID}`; `http`: the generic JSON shape in the README), baseline at run
+  start, oldest new unclaimed match; `download` (real click; download event or new tab polled until its URL leaves
+  about:blank, fetched with `context.request` = session cookies; tab closed; `watchNavigation` ignores a navigation that
+  became a download); `ArtefactStore` + `ArtefactRenderer` after the capture (clean Chromium): email HTML sandboxed (JS
+  off, offline, CSP, cid: inlined) at 600 px × 2 full height, PDFs with pdfjs-dist 5.4.296 (served from node_modules
+  via `ctx.route`) at 2 × 96/72 (A4 ≈ 1587×2245) → `documents/<as>/page-<n>.png` + page sizes, notification icons →
+  192 px PNG. **Web notifications**: the kit patches `new Notification` / `ServiceWorkerRegistration.prototype.
+  showNotification` once per window; the session grants `notifications` and exposes `__demoStudioNotification`;
+  `watchNotifications` records artefact + event (step −1 of the current scene). **Planner**: artefact slots →
+  serialisable `props.media` (images as `ds-asset:` plan assets; warnings naming what the run captured), notification
+  overlays start when the notification showed (inside the clip), `OverlayUse.componentFrames` when cut, tap anchors:
+  manifest `anchor` / `anchor_vertical` / `anchor_square` expressions (builtins `frame_w/h`, `screen_x/y/w/h`, `aspect`,
+  one-hot `style_<value>` params; `evalAnchor`, `checkAnchor`) evaluated on the outgoing overlay (last second) or card
+  → `PlanTransition.anchor`. **Components** (kit `notifications.tsx`: 5 styles, sizes, placement, motion, tones,
+  `AppIcon`; kit `phone.tsx`: `PhoneDevice`, `phoneCardGeometry`, wallpapers; `SYSTEM_COLORS.badge/page`):
+  `studio/notification`, `studio/mail-notification`, `studio/mail-view`, `studio/document-pdf`,
+  `studio/phone-lockscreen`, `studio/phone-home-badge`, `studio/transition-tap-open`; previews committed (media samples
+  in `packages/components/preview/` from `scripts/preview-media-samples.mjs`), `Preview.tsx` passes media + a sample
+  anchor. **Fixture**: `/signup` + `/signup/confirm` (token `latest`), confirmation email with a cid: logo into the
+  built-in Mailpit-compatible API (`/mailbox/api/v1/…` on both ports, cleared by `/api/reset`), real quote PDF
+  (`/quotes/:id/quote.pdf`, Chromium `page.pdf`, cached; compact print CSS fits one A4 page), console web notification
+  for each new quote request (polls every 1 s), `/app-icon.svg`; smoke script checks the PDF and the mail. Project
+  `mailbox`; scenario **`signup`** (new: sign-up → mail notification overlay → tap-open into the mail-view card →
+  lock screen → home badge → tap-open into the confirmed account → first product) and **`quote`** (setup hook
+  `open-console` opens the console tab; the captured notification overlaid when it showed; `download` of the quote PDF
+  + `quote-pdf` document card; the request scene split into `request` + `delivery`, see notes). Tests: core
+  artefacts.test.ts, runner artefacts.test.ts (8: mailbox baseline, cid, sandbox, download event 2 pages, new tab with
+  the session cookie, Notification + service worker, project document), components library-l29.test.ts (anchors vs
+  layout, media rendering, page selection, grouping, badge, tap-open, dark theme and all formats), editor
+  planner-artefacts.test.ts (frozen timelines `signup.timeline.json`, `quote-artefacts.timeline.json`). 671 tests:
+  665 pass, 6 Postgres tests skipped (full suite run twice, green both times).
+- **Requirements:** 572 tracked; 375 done, 50 partial, 132 todo, 15 n/a-here; the open ones are assigned to lots
+  L1.2 … L6 (R-ARCH-03 moved to L5.3). L2.1–L2.8 all done. L2.9: all 13 done (R-MAIL-01…04, R-DOC-01…03,
+  R-NTF-01…06). From L1.4, R-ARCH-06 (crisp scale-2 frames) is done too and R-GOAL-01 records the real scale-2 capture
   (2560×1440 still untested).
 - **Phase 2 so far:** contracts in core (L2.1) + components package (L2.2) + edit planner (L2.3) + render pipeline
   (L2.4) + reference-look components with geometry expressions (L2.5) + review (L2.6) + final library, device layouts
-  and previews (L2.7) + variants, 4K, music and export (L2.8). `packages/mcp` is empty; `studio record|mcp|ui` print
-  "available in phase N".
+  and previews (L2.7) + variants, 4K, music and export (L2.8) + mails, notifications & documents (L2.9).
+  `packages/mcp` is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Next lot
-**L2.9 — Mails, notifications & documents** (L): project `mailbox` (Mailpit or HTTP), `wait_for_email`, `download`
-(files and new-tab documents, PDFs rasterised with pdf.js), captured artefacts referenced by components, the
-notification / mail / document / lock-screen / badge components, web notifications of the product, a "tap to open"
-transition, fixture sign-up with a confirmation email and a real quote PDF (R-MAIL-*, R-DOC-*, R-NTF-*) — unless the
-user picks otherwise (L1.2 robustness, L1.3 capture smoothness — now also 4K —, L1.5 = the user runs
-`docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
+**L2.10 — Tutorial overlays & story cards** (L): automatic overlays from the timeline — keyboard shortcut (for `press`
+steps), spotlight, numbered steps, typing loupe, chapter progress bar — and cards — key figure (animated counter;
+`capture_text` action), feature list, before/after wipe, testimonial, final CTA with QR code, animated chart from
+data/CSV (R-TUT-*, R-STO-*) — unless the user picks otherwise (L1.2 robustness, L1.3 capture smoothness — now also 4K
+and dialogs, see notes —, L1.5 = the user runs `docs/MACOS-CHECKLIST.md` on a Mac). See ROADMAP.
 
-Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote,
-20261011-222856-mobile-quote, and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario):
+Render, review, export and preview commands (fixture captures: runs 20261011-182524-catalogue, 20261011-182706-quote
+(before L2.9), 20261012-022141-quote (L2.9: notification + PDF), 20261012-022315-signup, 20261011-222856-mobile-quote,
+and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario). Captures need the fixture server
+(`node fixtures/wholesale/server.mjs`; stop it with `kill <pid>` — `pkill -f` with its path also matches the shell
+that runs it):
 ```
+node packages/cli/dist/bin.js run northfield-fixture signup              # mail, phone cards, tap-open (≈ 45 s)
+node packages/cli/dist/bin.js render northfield-fixture signup && node packages/cli/dist/bin.js review northfield-fixture signup-v4
 node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
 node packages/cli/dist/bin.js render northfield-fixture quote --vertical # 1080×1920, reframed → quote-v<N>-vertical.mp4
 node packages/cli/dist/bin.js render northfield-fixture quote --square --theme motion   # 1080×1080 + theme zoom
@@ -282,28 +324,51 @@ edge followed smoothly), the exported vertical reviewed: the known `long-wait` w
 Earlier: quote-v7-vertical / quote-v8-square (before the calm start and the caption bands below the card),
 catalogue-v3 one `long-wait` warning (registry delay of the fixture, 00:45.1–00:48.9) — to fix for L2.12.
 
-Notes for L2.9:
-- Reframing reads targets from `timeline.events` (step target bbox, `data.clicks[].bbox`, `camera.bbox`,
-  `overlay.bbox`): new actions (wait_for_email, download, tap to open) should record a bbox for what the viewer must
-  see, or the vertical/square crop only follows the cursor there. Components drawn over the capture (a notification
-  banner) are not known to the reframe: anchor them to the frame (output px), not to the capture.
-- Caption bands over a reframed capture: in vertical/square, `captionBandBox` moves caption-overlay to the caption area
-  below the card; with `layout-raw` (caption area over the capture) the band still covers the bottom of the crop and
-  the vertical crop cannot move vertically (full height) — a reframe that avoids occluded zones is not done.
-- Release from the capture's edge (a file dragged in from the right edge in catalogue/import) is the worst jolt of the
-  reframe (≈ 1 % of the crop width per frame²): the cursor pins the view to the edge and the smoothed path wants to leave
-  earlier; acceptable, the review threshold is 1.5 %.
-- 4K: export `mp4_4k` re-renders at scale 2 (≈ 4× the 1080p time). The runner's scale flag is headless-only: `--headed`
-  on a non-retina screen would still get CSS-size frames.
-- Music: the planner is pure, so `renderVideo` measures the track; `studio plan` / `still` plan without its length
-  (no `plays`: the composition then loops the element itself). Volume curves are frame functions (Remotion builds the
-  ffmpeg volume filter from them).
+Renders of L2.9, reviewed with `studio review` and looked at frame by frame (ffmpeg frames of every new component,
+the tap-open transitions frame by frame, crops at full size): **signup-v4** (editorial, 46.4 s, run
+20261012-022315-signup; review clean, 5 info — video length within the tolerance): the mail notification slides in
+at the top right when the mail was captured (sender, subject, two-line preview, mail glyph), the tap ring on it, the
+mail-view card grows from the banner's box and scrolls the real rendered email (date from the `date` slot), the lock
+screen (theme wallpaper, 9:41) receives the scenario notification then the captured email on top, the home screen badge
+counts 0 → 2 on the theme app icon, tap-open from that icon into the confirmed-account clip, then Browse coffees →
+Selowa Ridge → hover on Request a quote. **quote-v13** (editorial, 70.7 s, run 20261012-022141-quote; review clean,
+8 info): the console's real web notification ("New quote request — Demo Café asks for Selowa Ridge · 3 × 5 kg", the
+app icon fetched from the product) overlaid in macOS style at the moment it showed, with the "Instantly" caption; the
+download click on "Download quote PDF" with no flash of the PDF tab; the `quote-pdf` card zooming slowly into the real
+one-page PDF (no overlap since the print CSS was compacted). Previews of the 7 new components (regenerated after the
+last source edits) and variant sheets (windows / ios-banner / android / in-app, motion theme, document scroll, mail and
+lock-screen motion) looked at. Earlier: signup-v1…v3 (35.8 / 41.6 s: `video-length` warning), quote-v11 (PDF footer
+over the signature), quote-v12 (request scene 34.1 s: `long-scene` warning) — fixed by the changes above.
+
+Notes for L2.10:
+- New data-driven cards (key figure with `capture_text`, chart from data) can follow the artefact pattern: the action
+  records an entry in `timeline.artefacts` (files relative to the run), a slot type in core `ARTEFACT_SLOTS` +
+  components `SlotType` / manifest enum (regenerate both JSON schemas), checks of unknown names in
+  `checks/scenario.ts checkArtefactRefs`, and the planner's `mediaOf` turns it into a serialisable `props.media`.
+- Overlays tied to a timeline moment: a notification overlay starts at the artefact time when it falls inside the
+  clip (plan.ts, with a plan note); shortcut overlays for `press` steps can reuse that (event `t`). A tap-open anchor
+  comes from an overlay still showing in the last `ANCHOR_OVERLAY_WINDOW_S` (1 s) of the outgoing clip, else its card.
+- Anchored effects (spotlight, loupe) can reuse the manifest anchor expressions (`evalAnchor`, builtins `frame_*`,
+  `screen_*`, one-hot enum params) that tap-open uses; `SceneTransition` already accepts component ids.
+- CTA + QR: no QR encoder in the workspace yet (the lead allows a tiny one only if truly needed); pdfjs-dist is the only
+  dependency L2.9 added (pnpm override `@napi-rs/canvas: "-"`: its optional native canvas is not needed in Chromium).
+- Capture speed varies with the machine: today, under the quote dialog (backdrop blur), one `mouse.move` round trip
+  takes ≈ 105–115 ms with the kit's cursor overlay vs ≈ 34 ms without it (measured with a bare Playwright script: the
+  notification patch, the binding and the permission change nothing), ≈ 67 ms per tick in yesterday's runs; the glide
+  pauses instead of jumping (MAX_TICK_ADVANCE_MS), so dialog-heavy scenes get longer (request scene 24.7 → 34 s).
+  The quote scenario's request scene was split (`request` + `delivery`); the root cause belongs to L1.3.
+- `mail-view` shows the captured `date` (the real capture time, UTC) unless the `date` slot stages one.
+- Components drawn over the capture (notification banners) are not known to the reframe; `place: auto` anchors macOS /
+  Windows banners to the frame and phone styles to the screen. The new components declare vertical and square
+  (library-l29 renders them in every format), but the fixture renders of L2.9 are landscape only — check a vertical /
+  square signup in L2.12.
+- `download` of a file that is neither a PDF nor an image keeps the file with a warning (no pages to show).
 - Previews: `preview.json.source_hash` covers the manifest, the entry and its relative imports — not the kit. A kit
-  change that alters a look needs `components preview --all` (not `--stale`). Previews are landscape only (vertical /
-  square looks are checked by renders, not previews).
-- Remaining look differences vs the reference are brand-related (editorial display face lighter than the reference's
-  serif; the placeholder brand's wordmark is shorter); the reference fades the clip caption during the interstitial
-  dim, ours has already left.
+  change that alters a look needs `components preview --all` (not `--stale`). Media samples for previews are committed
+  (`scripts/preview-media-samples.mjs`, needs the fixture running), so previews never need a live app.
+- Still open from L2.8: caption bands over a reframed capture with `layout-raw`; the release from the capture's edge is
+  the worst reframe jolt (≈ 1 % of the crop width per frame², under the 1.5 % review threshold); 4K export ≈ 4× the
+  1080p time; the reference fades the clip caption during the interstitial dim, ours has already left.
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for

@@ -14,6 +14,7 @@ import { HomePage } from './pages/Home.jsx';
 import { ProductPage } from './pages/Product.jsx';
 import { QuotePage } from './pages/Quote.jsx';
 import { QuotesPage } from './pages/Quotes.jsx';
+import { SignupConfirmPage, SignupPage } from './pages/Signup.jsx';
 
 const KIND_ICON = { proposal: 'receipt', order: 'truck', arrival: 'sparkles' };
 
@@ -198,6 +199,8 @@ const ROUTES = [
   ['/products/:slug', ProductPage],
   ['/quotes', QuotesPage],
   ['/quotes/:id', QuotePage],
+  ['/signup', SignupPage],
+  ['/signup/confirm', SignupConfirmPage],
 ];
 
 export function App() {

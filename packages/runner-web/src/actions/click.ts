@@ -43,26 +43,43 @@ function pageUrl(page: Page): string {
   }
 }
 
-/** Watches a page for a main-frame document navigation started by an action. */
+/**
+ * Watches a page for a main-frame document navigation started by an action. A navigation that turns into a download
+ * (Content-Disposition: attachment, a file the browser does not display) never commits: it is not a page change.
+ */
 export function watchNavigation(page: Page) {
   let started = false;
   let committed = false;
+  let downloaded = false;
   const onRequest = (req: Request) => {
-    if (req.isNavigationRequest() && req.frame() === page.mainFrame()) started = true;
+    if (req.isNavigationRequest() && req.frame() === page.mainFrame() && !downloaded) started = true;
   };
   const onNav = (f: unknown) => {
     if (started && f === page.mainFrame()) committed = true;
   };
+  const onDownload = () => {
+    downloaded = true;
+    if (!committed) started = false;
+  };
   page.on('request', onRequest);
   page.on('framenavigated', onNav);
+  page.on('download', onDownload);
   return {
     started: () => started,
+    downloaded: () => downloaded,
     async settle(ctx: StepContext): Promise<void> {
       if (!started) return;
       if (!committed) {
-        await page
-          .waitForEvent('framenavigated', { predicate: (f) => f === page.mainFrame(), timeout: 15_000 })
-          .catch(() => ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: a navigation started but did not commit within 15 s`));
+        const nav = page.waitForEvent('framenavigated', { predicate: (f) => f === page.mainFrame(), timeout: 15_000 }).then(() => 'nav' as const);
+        const dl = page.waitForEvent('download', { timeout: 15_000 }).then(() => 'download' as const);
+        const first = await Promise.race([nav, dl]).catch(() => 'timeout' as const);
+        nav.catch(() => undefined);
+        dl.catch(() => undefined);
+        if (first === 'download' || downloaded) {
+          started = false;
+          return;
+        }
+        if (first === 'timeout') ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: a navigation started but did not commit within 15 s`);
       }
       await ctx.rt.settle(page);
       await ctx.rt.pointer.syncPage();
@@ -70,6 +87,7 @@ export function watchNavigation(page: Page) {
     stop(): void {
       page.off('request', onRequest);
       page.off('framenavigated', onNav);
+      page.off('download', onDownload);
     },
   };
 }

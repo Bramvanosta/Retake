@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/phone-lockscreen",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 4.2,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "5a370e3d827af388",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

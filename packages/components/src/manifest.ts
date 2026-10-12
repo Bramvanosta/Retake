@@ -18,9 +18,9 @@ import {
 } from '@demo-studio/core';
 import type { ComponentKind, LocatedIssue } from '@demo-studio/core';
 import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
-import { GEOMETRY_BUILTINS, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic } from './geometry.js';
+import { ANCHOR_KEYS, GEOMETRY_BUILTINS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';
-import type { ComponentIssue, ComponentManifest, LayoutGeometry, LayoutGeometrySpec } from './types.js';
+import type { AnchorSpec, ComponentIssue, ComponentManifest, LayoutGeometry, LayoutGeometrySpec } from './types.js';
 
 export const MANIFEST_FILE = 'component.yaml';
 export const DEFAULT_ENTRY = 'index.tsx';
@@ -87,8 +87,12 @@ const nonEmpty = () => z.string().min(1);
 export const SlotSpecSchema = z
   .strictObject({
     type: z
-      .enum(['text', 'image', 'url', 'color', 'screen'])
-      .describe('text, image (URL), url (shown as text), color (CSS) or screen (the capture, layouts only).'),
+      .enum(['text', 'image', 'url', 'color', 'screen', 'email', 'document', 'notification'])
+      .describe(
+        'text, image (URL), url (shown as text), color (CSS), screen (the capture, layouts only), or a run artefact the ' +
+          'scenario names: email (a wait_for_email `as`), document (a download `as` or a project file), notification ' +
+          '(a captured web notification: its name or 1-based index) — the component receives it as `props.media[<slot>]`.',
+      ),
     description: z.string().describe('What the slot shows (for the UI and Claude).').optional(),
     required: z.boolean().describe('The component cannot render without it (default false).').optional(),
     default_from: nonEmpty()
@@ -141,6 +145,25 @@ export const LayoutGeometrySchema = z
       'the params: the planner evaluates them for each use (e.g. a theme width moves the card and the caption rect).',
   });
 
+export const AnchorSchema = z
+  .strictObject({
+    vars: z
+      .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, { error: 'a var name is a letter or _ followed by letters, digits or _' }), GeometryValueSchema)
+      .describe('Named values computed in order.')
+      .optional(),
+    x: GeometryValueSchema,
+    y: GeometryValueSchema,
+    w: GeometryValueSchema,
+    h: GeometryValueSchema,
+  })
+  .meta({
+    id: 'Anchor',
+    description:
+      "Where the component draws its tap target (a notification banner, an app icon) at the end of its segment: a transition " +
+      'such as studio/transition-tap-open zooms from it. Expressions may use numeric params, `<param>_<value>` one-hot names ' +
+      'of string params (e.g. style_macos), vars and aspect.',
+  });
+
 /** The params schema is checked by `checkParamsSchema` (supported JSON Schema subset); zod only wants a mapping. */
 export const ParamsJsonSchemaSchema = z
   .record(z.string(), z.unknown())
@@ -177,6 +200,9 @@ export const ComponentManifestFileSchema = z
     geometry: LayoutGeometrySchema.describe('Layouts: geometry in the 1920×1080 design space.').optional(),
     geometry_vertical: LayoutGeometrySchema.describe('Layouts with the vertical variant: geometry in the 1080×1920 design space.').optional(),
     geometry_square: LayoutGeometrySchema.describe('Layouts with the square variant: geometry in the 1080×1080 design space.').optional(),
+    anchor: AnchorSchema.describe('Tap target at the end of the segment (1920×1080 design space), for tap-open transitions.').optional(),
+    anchor_vertical: AnchorSchema.describe('Tap target in the vertical variant (1080×1920).').optional(),
+    anchor_square: AnchorSchema.describe('Tap target in the square variant (1080×1080).').optional(),
     variants: z
       .array(z.enum(VARIANTS))
       .min(1)
@@ -297,6 +323,54 @@ function checkGeometry(g: LayoutGeometrySpec, key: GeometryKey, paramTypes: Read
   if (e.radius !== undefined && e.radius < 0) out.push(locatedIssue('error', [key, 'radius'], `must be ≥ 0, is ${e.radius}${withDefaults}`));
 }
 
+/** An anchor's expressions only name numeric params, one-hot string values, vars and aspect; with the defaults it lies in the design space. */
+function checkAnchor(spec: AnchorSpec, key: string, variant: 'landscape' | 'vertical' | 'square', schema: JsonSchemaNode | undefined): LocatedIssue[] {
+  const out: LocatedIssue[] = [];
+  const enums = paramEnums(schema);
+  const defaults = schema ? paramDefaults(schema) : {};
+  const frame = DESIGN_SPACE[variant];
+  const known = new Set<string>(Object.keys(anchorScope(defaults, { enums, frame: { w: frame.width, h: frame.height } })));
+  if (schema && isPlainObject(schema.properties)) {
+    for (const [name, sch] of Object.entries(schema.properties as Record<string, unknown>)) {
+      const t = isPlainObject(sch) ? sch.type : undefined;
+      if (t === 'number' || t === 'integer' || t === 'boolean') known.add(name);
+    }
+  }
+  let ok = true;
+  const check = (path: Array<string | number>, v: unknown) => {
+    if (typeof v !== 'string') return;
+    let ids: string[];
+    try {
+      ids = expressionIdentifiers(v);
+    } catch (e) {
+      ok = false;
+      out.push(locatedIssue('error', [key, ...path], `invalid expression "${v}": ${(e as Error).message}`));
+      return;
+    }
+    for (const id of ids) {
+      if (known.has(id)) continue;
+      ok = false;
+      const s = didYouMean(id, [...known]);
+      out.push(locatedIssue('error', [key, ...path], `unknown name "${id}" in "${v}"${s ? ` (did you mean "${s}"?)` : ''}`));
+    }
+  };
+  for (const [name, v] of Object.entries(spec.vars ?? {})) {
+    check(['vars', name], v);
+    known.add(name);
+  }
+  for (const k of ['x', 'y', 'w', 'h'] as const) check([k], spec[k]);
+  if (!ok) return out;
+  try {
+    const r = evalAnchor(spec, defaults, { enums, frame: { w: frame.width, h: frame.height } });
+    const space = frame;
+    if (r.w < 0 || r.h < 0) out.push(locatedIssue('error', [key], 'w and h must be ≥ 0 (with the param defaults)'));
+    else if (!rectInside(r, space)) out.push(locatedIssue('error', [key], `anchor {x: ${r.x}, y: ${r.y}, w: ${r.w}, h: ${r.h}} leaves the ${space.width}×${space.height} design space (param defaults)`));
+  } catch (e) {
+    out.push(locatedIssue('error', [key], `the anchor cannot be evaluated with the param defaults: ${(e as Error).message}`));
+  }
+  return out;
+}
+
 /** Semantic checks of a structurally valid manifest. Exported for tests; use `parseManifest`. */
 export function checkManifest(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
   const out: LocatedIssue[] = [];
@@ -367,6 +441,15 @@ export function checkManifest(value: unknown, structural: readonly LocatedIssue[
     for (const key of ALL_GEOMETRY_KEYS) {
       if (m[key] !== undefined && ok([key])) checkGeometry(m[key] as LayoutGeometrySpec, key, paramTypes, out, defaults);
     }
+  }
+
+  // Anchors (tap targets for tap-open transitions).
+  for (const variant of ['landscape', 'vertical', 'square'] as const) {
+    const key = ANCHOR_KEYS[variant];
+    const spec = m[key] as AnchorSpec | undefined;
+    if (spec === undefined || !ok([key])) continue;
+    const schema = m.params !== undefined && ok(['params']) && !hasErrors(checkParamsSchema(m.params, ['params'])) ? (m.params as JsonSchemaNode) : undefined;
+    out.push(...checkAnchor(spec, key, variant, schema));
   }
 
   // Duration.

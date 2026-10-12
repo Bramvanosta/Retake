@@ -51,11 +51,22 @@ Console: `/imports` (New import dialog: organisation select, drag & drop zone wi
 `<input type=file>`, progress, "921 offers created"), `/products` (catalogue, "Add a coffee" registry
 search → `/products/<slug>` with ~4 s "Enrichment in progress" then a staggered reveal down to
 **Awards**), `/availability/products/<slug>` (delivery-window overview + table by market, row menu
-Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal").
+Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"). While open, the console polls the quote list and
+shows a **web notification** (Notification API, tag `quote-request`, icon `/app-icon.svg`) for every new quote request
+(it asks for the permission once; Demo Studio's runner grants it).
 
 Shop: `/` (highlight rows), `/coffees`, `/products/<slug>` ("Request a quote"), `/quotes`,
-`/quotes/<id>` (proposal, "Download quote PDF" → `/quotes/<id>/pdf`, an HTML page styled as a PDF
-viewer, `target=_blank`).
+`/quotes/<id>` (proposal, "Download quote PDF" → `/quotes/<id>/quote.pdf` in a new tab: a **real PDF**, printed by
+Chromium's `page.pdf` (playwright-core, launched on the first request and kept) from the quote document, cached per
+quote state; the older HTML viewer page stays at `/quotes/<id>/pdf`), `/signup` (open a café account: café name, your
+name, work email → "Check your inbox"; the server sends a **confirmation email** to the fixture mailbox),
+`/signup/confirm?token=…` (the email's link; `token=latest` confirms the most recent sign-up — a convenience for
+scenarios).
+
+**Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
+`GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,
+`DELETE /mailbox/api/v1/messages`. The confirmation email is a 600 px table layout with the logo as an inline `cid:`
+image, delivered 0.6 s after the sign-up. `POST /api/reset` empties the mailbox.
 
 The shop is responsive (same labels and roles at every size, so scenarios target the same elements): at tablet width
 (820 × 1180, ≤ 1100 / ≤ 900 px) the search field and the account name collapse, product grids go to 2–3 columns and
@@ -65,7 +76,9 @@ span the width. `projects/northfield-fixture/scenarios/mobile-quote.yaml` captur
 
 ## API (shared by both ports; `GET /api` lists every route)
 
-- `POST /api/reset` — restore the seed data and restart the demo clock (2 Nov 2026, 10:24).
+- `POST /api/reset` — restore the seed data and restart the demo clock (2 Nov 2026, 10:24); empty the mailbox.
+- `POST /api/signup` — `{cafe, name, email}` opens a café account and sends its confirmation email;
+  `POST /api/signup/confirm` — `{token}` (`latest` = the most recent sign-up).
 - `GET /api/products`, `GET|POST /api/products[/:slug]`, `POST /api/products/:slug/publish`
 - `DELETE /api/products/:slug/refs` / `POST /api/products/:slug/refs` — free / restore a product's
   registry refs (lets the same registry lot be added again; duplicates answer 409).

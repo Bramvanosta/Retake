@@ -262,6 +262,20 @@ const CursorArgsSchema = z.union([
   }),
 ]);
 
+const WaitForEmailArgsSchema = z.strictObject({
+  to: nonEmpty().describe('Recipient: a substring of the address or the name (case-insensitive).').optional(),
+  from: nonEmpty().describe('Sender: a substring of the address or the name (case-insensitive).').optional(),
+  subject: nonEmpty().describe('Subject: a substring (case-insensitive) or a /regex/.').optional(),
+  timeout: positiveSeconds().describe('Seconds to wait for the message (default 30).').optional(),
+  as: slugString('artefact name').describe('Artefact name, referenced by components as `email: <as>`.'),
+});
+
+const DownloadArgsSchema = z.strictObject({
+  click: TargetSpecSchema.describe('Link or button to click (real click).'),
+  as: slugString('artefact name').describe('Artefact name, referenced by components as `document: <as>`.'),
+  timeout: positiveSeconds().describe('Seconds to wait for the file after the click (default 30).').optional(),
+});
+
 /** Argument schema of every action. */
 export const ACTION_ARG_SCHEMAS = {
   open: OpenArgsSchema,
@@ -287,6 +301,8 @@ export const ACTION_ARG_SCHEMAS = {
   notify: NotifyArgsSchema,
   emit: EmitArgsSchema,
   cursor: CursorArgsSchema,
+  wait_for_email: WaitForEmailArgsSchema,
+  download: DownloadArgsSchema,
 } satisfies { [K in ActionName]: z.ZodType<ActionArgsMap[K]> };
 
 export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
@@ -313,6 +329,8 @@ export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
   notify: 'Desktop notification (macOS osascript, Linux notify-send).',
   emit: 'Custom event recorded in the timeline.',
   cursor: 'Show, hide, move or teleport the in-page cursor.',
+  wait_for_email: "Wait for a new message in the project's test mailbox and capture it (from, to, subject, text, an image of its HTML) as an artefact.",
+  download: 'Click a link or button and capture the file it produces (download, or a document opened in a new tab) as an artefact; PDFs are rasterised.',
 };
 
 function stepBranch<K extends ActionName>(action: K) {

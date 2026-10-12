@@ -15,6 +15,7 @@ import { suggestion } from './validation/suggest.js';
 import { zodIssues } from './validation/zod-issues.js';
 
 export type { ScenarioCheckOptions } from './checks/scenario.js';
+export { ARTEFACT_SLOTS, DOCUMENT_FILE_EXTENSIONS, isDocumentPath } from './checks/scenario.js';
 
 /** Thrown when a scenario has error-level issues (or cannot be found / saved). */
 export class ScenarioError extends Error {

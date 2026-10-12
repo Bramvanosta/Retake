@@ -101,6 +101,12 @@ export function describeStep(step: NormalizedStep): string {
       return String(a.name);
     case 'notify':
       return String(a.message);
+    case 'wait_for_email': {
+      const f = [a.to && `to ${a.to}`, a.from && `from ${a.from}`, a.subject && `subject ${a.subject}`].filter(Boolean).join(', ');
+      return `${f || 'any new message'} → ${a.as}`;
+    }
+    case 'download':
+      return `${td} → ${a.as}`;
     case 'cursor':
       return `${a.mode}${a.to ? ` ${isPoint(a.to) ? `(${(a.to as { x: number }).x}, ${(a.to as { y: number }).y})` : describeTarget(a.to as TargetSpec)}` : ''}`;
     default:
@@ -212,6 +218,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     clicks: [],
   };
   const desc = describeStep(step);
+  rt.current = { scene: scene.id, scene_index: sceneIndex, step: step.index };
   opts.emit({ type: 'step_start', scene: scene.id, step: step.index, action: step.action, desc });
   opts.record.current = { scene: scene.id, step: step.index, action: step.action };
   opts.save();
@@ -342,6 +349,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     const switched = rt.activeId !== pageKey;
     await rt.activate(pageKey);
     const ts: TimelineScene = { id, index: si, kind: 'scene', t_start: rt.now(), t_end: rt.now(), page: pageKey, status: 'ok' };
+    rt.current = { scene: id, scene_index: si, step: -1 };
     const cap = caption(scene.caption);
     if (cap) ts.caption = cap;
     if (scene.speed !== undefined) ts.speed = scene.speed;

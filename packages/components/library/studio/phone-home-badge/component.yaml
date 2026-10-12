@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A phone home screen card (R-NTF-05): the phone of studio/layout-phone's family on the theme background, a wallpaper
+# from the theme, a grid of quiet app icons (theme tints with simple glyphs, no real apps), a dock, and the product's
+# app (the theme logo, or `icon`, named after the brand) whose badge counts up from `from` to `to` — one step every
+# `interval` seconds, each with a small pop. Layout `left` puts a kicker + title column beside the phone. The app icon
+# is the `anchor` a tap-open transition zooms from.
+id: studio/phone-home-badge
+version: 1.0.0
+kind: card
+name: Phone home badge
+description: A phone home screen whose product app icon gets a badge counting up (e.g. 0 → 3 new notifications), with a theme wallpaper, quiet icon grid and dock; optional kicker and title beside it.
+tags: [card, phone, notification, badge, mobile]
+slots:
+  app: {type: text, max_chars: 20, default_from: theme.brand.name, description: Label under the product's app icon.}
+  icon: {type: image, default_from: theme.logo, description: The product's app icon (default the theme logo on the paper).}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line beside the phone (layout left).}
+  title: {type: text, max_chars: 90, description: Title beside the phone (layout left).}
+params:
+  type: object
+  properties:
+    from: {type: integer, minimum: 0, maximum: 99, default: 0, description: Badge count at the start (0 = no badge).}
+    to: {type: integer, minimum: 1, maximum: 999, default: 3, description: Badge count at the end.}
+    start: {type: number, minimum: 0, maximum: 10, default: 0.9, description: Seconds before the first step.}
+    interval: {type: number, minimum: 0.15, maximum: 5, default: 0.55, description: Seconds between steps.}
+    row: {type: integer, minimum: 0, maximum: 4, default: 1, description: Row of the app icon (0 = top).}
+    col: {type: integer, minimum: 0, maximum: 3, default: 2, description: Column of the app icon (0 = left).}
+    badge: {type: string, enum: [system, accent], default: system, description: "Badge colour: the system red or the theme accent."}
+    time: {type: string, default: "9:41", description: Status bar time.}
+    layout: {type: string, enum: [center, left], default: center, description: "center: the phone alone; left: the phone left of a kicker + title column (wide formats)."}
+    height: {type: number, minimum: 600, maximum: 900, default: 880, description: Display height in design px.}
+    finish: {type: string, enum: [dark, light], default: dark, description: Metal band.}
+    wallpaper: {type: string, enum: [accent, night, paper], default: night, description: Wallpaper mood (all from the theme).}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, logo, brand.name, style_bias]
+duration: {default: 4, min: 1.5, max: 20}
+variants: [landscape, vertical, square]
+anchor:
+  vars:
+    sh: min(height, frame_h - 160)
+    sw: round(sh * 0.462)
+    e: round(sh * 0.017) + round(sh * 0.006)
+    bw: sw + 2 * e
+    bh: sh + 2 * e
+    wide: min(1, floor(frame_w / frame_h))
+    side: layout_left * wide
+    gap: round(frame_w * 0.05)
+    cw: min(700, frame_w - bw - 3 * gap)
+    px: side * round((frame_w - bw - gap - cw) / 2) + (1 - side) * round((frame_w - bw) / 2)
+    py: round((frame_h - bh) / 2) - (1 - wide) * 120
+    m: sw * 0.075
+    s: sw * 0.155
+    cg: (sw - 2 * m - 4 * s) / 3
+  x: px + e + m + col * (s + cg)
+  y: py + e + sh * 0.085 + row * (s + sh * 0.052)
+  w: s
+  h: s
+preview:
+  params: {from: 0, to: 3, layout: left}
+  slots: {kicker: Notifications, title: Your customers never miss a proposal}
+  at: [3]

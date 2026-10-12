@@ -6,8 +6,20 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "files": ["dist", "src"],
-  "dependencies": { "@demo-studio/core": "workspace:*", "@demo-studio/hooks": "workspace:*", "playwright-core": "1.56.1" }
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@demo-studio/core": "workspace:*",
+    "@demo-studio/hooks": "workspace:*",
+    "pdfjs-dist": "5.4.296",
+    "playwright-core": "1.56.1"
+  }
 }

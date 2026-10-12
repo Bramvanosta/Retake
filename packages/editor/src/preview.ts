@@ -14,7 +14,8 @@ import {
   fillSlots,
   previewMoment,
 } from '@demo-studio/components';
-import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, ResolvedComponentRef, ThemeTokens } from '@demo-studio/components';
+import { ARTEFACT_SLOT_TYPES } from '@demo-studio/components';
+import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, MediaValue, ResolvedComponentRef, ThemeTokens } from '@demo-studio/components';
 import { FALLBACK_GEOMETRY, planLayout } from './layout.js';
 import { brandmarkRect, layoutRects } from './remotion/frames.js';
 import type { ComponentPreviewSpec, PreviewRect, PreviewScene, PreviewUse } from './remotion/preview-types.js';
@@ -36,7 +37,13 @@ export interface PreviewSample {
   anchor?: PreviewRect;
 }
 
-export type PreviewSamples = Record<PreviewScreenName, PreviewSample>;
+/** Sample artefacts for previews of components with `email` / `document` slots (files absolute). */
+export interface PreviewMediaSamples {
+  email?: { file: string; width: number; height: number; from: string; from_name?: string; to: string[]; subject: string; date: string; preview: string };
+  document?: { file_name: string; pages: Array<{ file: string; width: number; height: number; width_pt: number; height_pt: number }> };
+}
+
+export type PreviewSamples = Record<PreviewScreenName, PreviewSample> & { media?: PreviewMediaSamples };
 
 /** The sample screens shipped with the components package. */
 export function loadPreviewSamples(dir = PREVIEW_SAMPLES_DIR): PreviewSamples {
@@ -46,6 +53,12 @@ export function loadPreviewSamples(dir = PREVIEW_SAMPLES_DIR): PreviewSamples {
     const m = meta[name];
     if (!m) throw new Error(`preview samples: ${name} is missing from ${join(dir, 'samples.json')}`);
     out[name] = { ...m, file: join(dir, m.file) };
+  }
+  const media = (meta as unknown as { media?: PreviewMediaSamples }).media;
+  if (media) {
+    out.media = {};
+    if (media.email) out.media.email = { ...media.email, file: join(dir, media.email.file) };
+    if (media.document) out.media.document = { ...media.document, pages: media.document.pages.map((p) => ({ ...p, file: join(dir, p.file) })) };
   }
   return out;
 }
@@ -115,9 +128,28 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
   const theme = registry.resolveTheme(t);
   const used = new Set<string>([target.id]);
 
+  /** Sample media for the artefact slots a preview fills (`email: sample`, `document: sample`, `notification: sample`). */
+  const sampleMedia = (manifest: ComponentManifest, slots: Record<string, string | undefined>): Record<string, MediaValue> | undefined => {
+    let out: Record<string, MediaValue> | undefined;
+    for (const [name, spec] of Object.entries(manifest.slots)) {
+      if (!(ARTEFACT_SLOT_TYPES as readonly string[]).includes(spec.type) || !slots[name]) continue;
+      const m = samples.media;
+      if (spec.type === 'email' && m?.email) {
+        const e = m.email;
+        (out ??= {})[name] = { kind: 'email', name: 'sample', from: e.from, ...(e.from_name ? { from_name: e.from_name } : {}), to: e.to, subject: e.subject, date: e.date, preview: e.preview, image: { url: opts.sampleUrl(e.file), width: e.width, height: e.height } };
+      } else if (spec.type === 'document' && m?.document) {
+        (out ??= {})[name] = { kind: 'document', name: 'sample', file_name: m.document.file_name, pages: m.document.pages.map((p, i) => ({ url: opts.sampleUrl(p.file), width: p.width, height: p.height, width_pt: p.width_pt, height_pt: p.height_pt, number: i + 1 })) };
+      } else if (spec.type === 'notification') {
+        (out ??= {})[name] = { kind: 'notification', name: 'sample', title: 'New quote request', body: 'Café Lumen asks for 10 × 5 kg of Selowa Ridge.', app: 'console.northfield.example', time: '2026-10-12T09:41:00.000Z' };
+      }
+    }
+    return out;
+  };
   const use = (id: string, manifest: ComponentManifest, given: Record<string, string | undefined>, params: Record<string, unknown>, secondsLong: number): PreviewUse => {
     used.add(id);
-    return { id, kind: manifest.kind, slots: fillSlots(manifest, given, slotCtx).slots, params, durationInFrames: Math.max(1, Math.round(secondsLong * fps)) };
+    const slots = fillSlots(manifest, given, slotCtx).slots;
+    const media = sampleMedia(manifest, slots);
+    return { id, kind: manifest.kind, slots, params, durationInFrames: Math.max(1, Math.round(secondsLong * fps)), ...(media ? { media } : {}) };
   };
   const contextOf = (kind: 'layout' | 'caption' | 'card', fallbackId: string): ResolvedComponentRef => {
     const rc = theme[kind];
@@ -198,6 +230,13 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
       main.durationInFrames = Math.max(2, Math.round(d * fps));
       spec.transitionKind = transitionKindOf({ id: target.id, params: main.params }) === 'fade-black' ? 'fade-black' : 'crossfade';
       spec.scene = themeScene(true);
+      // The box a tap-open transition opens from: the sample screen's button (other transitions ignore it).
+      const a = sample.anchor;
+      if (a) {
+        const cap = spec.scene.rects.screen;
+        const k = cap.w / sample.width;
+        spec.anchor = { x: cap.x + a.x * k, y: cap.y + a.y * k, w: a.w * k, h: a.h * k };
+      }
       const card = contextOf('card', 'studio/card-title');
       const cardSlots = (card.manifest.preview?.slots as Record<string, string> | undefined) ?? SAMPLE_CARD;
       spec.incoming = use(card.id, card.manifest, cardSlots, card.params, seconds(card.manifest, 2.5));

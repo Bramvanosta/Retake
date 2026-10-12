@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A system notification sliding over the footage (SPEC §11, R-NTF-01): five styles — macOS (top right of the frame,
+# slides in from the right), Windows (bottom right, rises), iOS banner and Android heads-up (top centre of the capture,
+# drop in), and an in-app toast in the theme's own look (top right of the capture). Filled from the scenario (app,
+# title, body, time, icon) or from a web notification the product showed (`notification: <name | index>`: title, body,
+# icon and app = the page's host), scenario values winning. Body font, theme tones for the light / dark appearance,
+# the theme logo as the app icon when there is none. Leaves the way it came over its last 0.35 s; when the clip's end
+# cuts it short it stays to the last frame, so a tap-open transition can open from it (`anchor`).
+id: studio/notification
+version: 1.0.0
+kind: overlay
+name: Notification
+description: A system-style notification (macOS, Windows, iOS banner, Android or an in-app toast) with icon, app, title, body and time, filled from the scenario or a captured web notification; slides in and out like the real one.
+tags: [overlay, notification, system, mobile, desktop]
+slots:
+  notification: {type: notification, description: "A web notification the product showed (its name — the tag — or its 1-based index)."}
+  app: {type: text, max_chars: 40, default_from: theme.brand.name, description: App name (Windows / Android header).}
+  title: {type: text, max_chars: 80, description: Title line (default — the captured notification's title).}
+  body: {type: text, max_chars: 200, description: Body (default — the captured notification's body).}
+  time: {type: text, max_chars: 16, description: 'Time shown ("now" by default).'}
+  icon: {type: image, description: 'App icon URL (default — the captured icon, else the theme logo).'}
+params:
+  type: object
+  properties:
+    style: {type: string, enum: [macos, windows, ios-banner, android, in-app], default: macos, description: Which system look.}
+    place: {type: string, enum: [auto, frame, screen], default: auto, description: "frame: the corner of the video frame; screen: over the capture; auto: frame for macOS / Windows, screen for the others."}
+    appearance: {type: string, enum: [auto, light, dark], default: auto, description: "Light or dark card (auto: dark on a dark theme background)."}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, fonts.body, logo, brand.name, style_bias]
+duration: {default: 4, min: 1.5, max: 30}
+variants: [landscape, vertical, square]
+# The card's box at the end of its time on screen (mirrors the kit's notificationBox; heights are typical).
+anchor:
+  vars:
+    on: place_screen + place_auto * (style_ios_banner + style_android + style_in_app)
+    ax: on * screen_x
+    ay: on * screen_y
+    aw: on * screen_w + (1 - on) * frame_w
+    ah: on * screen_h + (1 - on) * frame_h
+    inset: 20 * style_macos + 16 * style_windows + 14 * style_ios_banner + 14 * style_android + 24 * style_in_app
+    w0: 430 * style_macos + 380 * style_windows + 520 * style_ios_banner + 560 * style_android + 440 * style_in_app
+    cw: min(w0, aw - 2 * inset)
+    ch: 92 * style_macos + 110 * style_windows + 96 * style_ios_banner + 128 * style_android + 92 * style_in_app
+    right: style_macos + style_windows + style_in_app
+  x: right * (ax + aw - inset - cw) + (1 - right) * (ax + (aw - cw) / 2)
+  y: style_windows * (ay + ah - inset - ch) + (1 - style_windows) * (ay + inset)
+  w: cw
+  h: ch
+preview:
+  slots: {app: Northfield, title: New quote request, body: "Café Lumen asks for 10 × 5 kg of Selowa Ridge, delivered in January."}
+  at: [1.5]

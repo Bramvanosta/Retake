@@ -114,7 +114,7 @@ function Proposal({ q, onDecision }) {
       ) : (
         <div style={{ height: 18 }} />
       )}
-      <a className="pdf-link" href={`/quotes/${q.id}/pdf`} target="_blank" rel="noopener noreferrer">
+      <a className="pdf-link" href={`/quotes/${q.id}/quote.pdf`} target="_blank" rel="noopener noreferrer">
         <span className="pdf-icon">PDF</span>
         <span className="grow">
           <span className="pdf-name">Download quote PDF</span>

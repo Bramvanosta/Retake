@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# A café opens an account: the sign-up form, the confirmation email captured from the test mailbox (the fixture's
+# Mailpit-compatible API) shown as a mail notification and in a mail client card, the same email arriving on a phone
+# lock screen, the app badge counting up, and a tap that opens the confirmed account.
+video: signup
+title: {kicker: For cafés, text: Open your café account in a minute}
+outro: {tagline: "From sign-up to first quote, in one place."}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: signup
+    caption: {kicker: Sign up, text: "Open a café account with your work email, no card needed."}
+    page: shop
+    open: /signup
+    steps:
+      - type: {into: {label: Café name}, text: Café Lumen, cps: 10}
+      - type: {into: {label: Your name}, text: Noa Brandt, cps: 10}
+      - type: {into: {label: Work email}, text: noa@cafe-lumen.example, cps: 16}
+      - click: {text: Create account}
+      - wait_for: {text: Check your inbox}
+      # The confirmation email, captured from the mailbox; a mail notification slides in when it lands.
+      - wait_for_email: {to: noa@cafe-lumen.example, subject: Confirm, timeout: 20, as: welcome}
+        caption: {kicker: Confirmation, text: "The confirmation email lands a second later."}
+        overlay:
+          component: studio/mail-notification
+          slots: {email: welcome}
+          duration: 4.5
+      - hold: 2.6
+
+  # Tap the notification: the mail opens (the transition zooms out of the banner).
+  - card:
+      component: studio/mail-view
+      slots: {email: welcome, date: "Today, 09:41"}   # scenario values win over the captured ones
+      duration: 6
+      transition: studio/transition-tap-open
+    id: inbox
+
+  # The same email on the phone, after a reminder from the app.
+  - card:
+      component: studio/phone-lockscreen
+      params:
+        layout: left
+        notifications:
+          - {app: Northfield, title: Almost there, body: "Confirm your email to request your first quote."}
+      slots: {email: welcome, kicker: On the go, title: "Every step reaches you, on any device."}
+      duration: 5.5
+    id: lockscreen
+
+  - card:
+      component: studio/phone-home-badge
+      params: {from: 0, to: 2, layout: left}
+      slots: {kicker: Notifications, title: "Proposals and deliveries, the moment they happen."}
+      duration: 4.5
+    id: badge
+
+  # Tap the app icon: the confirmed account opens.
+  - id: welcome
+    caption: {kicker: Confirmed, text: "One click in the email and the account is ready."}
+    page: shop
+    open: /signup/confirm?token=latest
+    transition: studio/transition-tap-open
+    steps:
+      - wait_for: {text: Browse coffees}
+      - hover: {text: Browse coffees, ms: 900}
+        hold: 0.8
+      - click: {text: Browse coffees}
+        caption: {kicker: Ready to order, text: "This season's lots, with prices for every bag size."}
+      - wait_for: {text: Selowa Ridge}
+      - hover: {text: Selowa Ridge, ms: 900}
+        hold: 1.2
+      - click: {text: Selowa Ridge}
+        caption: {kicker: First quote, text: "Ask the roaster for a quote in a few clicks."}
+      - wait_for: {target: {role: button, name: Request a quote}}
+      - hover: {role: button, name: Request a quote, ms: 900}
+        hold: 2.2

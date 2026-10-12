@@ -251,12 +251,7 @@
             "exclusiveMinimum": 0
           },
           "transition": {
-            "type": "string",
-            "enum": [
-              "crossfade",
-              "cut",
-              "fade-black"
-            ]
+            "$ref": "#/$defs/SceneTransition"
           },
           "frame": {
             "$ref": "#/$defs/Frame"
@@ -318,6 +313,9 @@
               },
               "duration": {
                 "type": "number"
+              },
+              "transition": {
+                "$ref": "#/$defs/SceneTransition"
               }
             },
             "additionalProperties": false
@@ -388,8 +386,11 @@
               "notify",
               "emit",
               "cursor",
+              "wait_for_email",
+              "download",
               "scene_open",
-              "scene_still"
+              "scene_still",
+              "notification"
             ]
           },
           "t_start": {
@@ -725,6 +726,298 @@
         "additionalProperties": false
       }
     },
+    "artefacts": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "email"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "t": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              },
+              "scene": {
+                "type": "string"
+              },
+              "step": {
+                "type": "integer"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relative to the run directory."
+              },
+              "from": {
+                "type": "string"
+              },
+              "from_name": {
+                "type": "string"
+              },
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "subject": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "preview": {
+                "type": "string"
+              },
+              "image": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Relative to the run directory."
+                  },
+                  "width": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "file",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "t",
+              "file",
+              "from",
+              "to",
+              "subject",
+              "date",
+              "preview"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "document"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "t": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              },
+              "scene": {
+                "type": "string"
+              },
+              "step": {
+                "type": "integer"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relative to the run directory."
+              },
+              "mime": {
+                "type": "string"
+              },
+              "file_name": {
+                "type": "string"
+              },
+              "via": {
+                "type": "string",
+                "enum": [
+                  "download",
+                  "tab",
+                  "project"
+                ]
+              },
+              "url": {
+                "type": "string"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Relative to the run directory."
+                    },
+                    "width": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "height": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "width_pt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "height_pt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "file",
+                    "width",
+                    "height",
+                    "width_pt",
+                    "height_pt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "t",
+              "file",
+              "mime",
+              "file_name",
+              "via",
+              "bytes",
+              "pages"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "notification"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "t": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time in seconds."
+              },
+              "scene": {
+                "type": "string"
+              },
+              "step": {
+                "type": "integer"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relative to the run directory."
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "title": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              },
+              "icon": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Relative to the run directory."
+                  },
+                  "width": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "file",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              "icon_url": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "page": {
+                "type": "string"
+              },
+              "via": {
+                "type": "string",
+                "enum": [
+                  "Notification",
+                  "ServiceWorkerRegistration.showNotification"
+                ]
+              },
+              "time": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "t",
+              "file",
+              "index",
+              "title",
+              "body",
+              "origin",
+              "via",
+              "time"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "description": "A captured email, document or web notification (L2.9)."
+      },
+      "description": "Emails, documents and web notifications captured by the run."
+    },
     "warnings": {
       "type": "array",
       "items": {
@@ -773,6 +1066,45 @@
         }
       ],
       "description": "How the capture is framed: raw, card, browser, laptop, phone or tablet (built-in layouts studio/layout-<style>), or a layout component id \"namespace/name\"."
+    },
+    "SceneTransition": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "crossfade",
+            "cut",
+            "fade-black"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Transition component \"namespace/name\", e.g. studio/transition-tap-open."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
+            }
+          },
+          "required": [
+            "component"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "crossfade, cut or fade-black (the theme's transition of that kind), or a transition component: its id (e.g. studio/transition-tap-open) or {component, params}."
     },
     "BBox": {
       "type": "object",

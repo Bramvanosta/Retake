@@ -113,6 +113,46 @@
         "type": "string"
       },
       "description": "Variables shared by every scenario ({{vars.x}})."
+    },
+    "mailbox": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "mailpit",
+            "http"
+          ],
+          "description": "mailpit: the Mailpit API; http: the generic JSON shape (see the README)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed)."
+        },
+        "poll_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Polling interval in ms (default 500)."
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra request headers, e.g. an API token ({{env:VAR}} references are expanded)."
+        }
+      },
+      "required": [
+        "provider",
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API)."
     }
   },
   "required": [

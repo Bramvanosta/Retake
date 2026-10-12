@@ -301,6 +301,36 @@ export interface EmitArgs {
   data?: unknown;
 }
 
+/**
+ * `wait_for_email`: poll the project's test mailbox (`project.mailbox`) until a NEW message matches (one that was not
+ * in the mailbox when the run started), then capture it as the run artefact `as` (artefacts/emails/<as>.json + an
+ * image of its HTML). `to` / `from` match a substring of the address or the name (case-insensitive), `subject` a
+ * substring or a /regex/.
+ */
+export interface WaitForEmailArgs {
+  to?: string;
+  from?: string;
+  subject?: string;
+  /** Seconds (default 30). */
+  timeout?: number;
+  /** Artefact name, referenced by components (`email: <as>`). */
+  as: string;
+}
+
+/**
+ * `download`: click a link / button (real click) and capture the file it produces — from the browser's download
+ * event, or the document a new tab opens (fetched with the session's cookies, then the tab is closed) — as the run
+ * artefact `as` (artefacts/documents/<as>.<ext>; PDFs are rasterised page by page into documents/<as>/page-<n>.png).
+ */
+export interface DownloadArgs {
+  /** Element to click. */
+  click: TargetSpec;
+  /** Artefact name, referenced by components (`document: <as>`). */
+  as: string;
+  /** Seconds to wait for the file after the click (default 30). */
+  timeout?: number;
+}
+
 export type CursorArgs =
   | 'show'
   | 'hide'
@@ -384,6 +414,8 @@ export interface ActionArgsMap {
   notify: string | NotifyArgs;
   emit: string | EmitArgs;
   cursor: CursorArgs;
+  wait_for_email: WaitForEmailArgs;
+  download: DownloadArgs;
 }
 
 export type ActionName = keyof ActionArgsMap;
@@ -412,6 +444,8 @@ export const ACTION_NAMES: readonly ActionName[] = [
   'notify',
   'emit',
   'cursor',
+  'wait_for_email',
+  'download',
 ] as const;
 
 /** A step = exactly one action key + optional common modifiers. */
@@ -453,6 +487,8 @@ export interface NormalizedArgsMap {
   notify: NotifyArgs;
   emit: EmitArgs;
   cursor: { mode: 'show' | 'hide' | 'move' | 'set'; to?: TargetSpec | PointSpec; duration?: number };
+  wait_for_email: WaitForEmailArgs;
+  download: Omit<DownloadArgs, 'click'> & { click: TargetObject & ClickOptions };
 }
 export type NormalizedArgs = NormalizedArgsMap;
 
@@ -488,6 +524,12 @@ export const FRAME_STYLE_LAYOUTS: Readonly<Record<FrameStyle, ComponentId>> = {
 export type SceneCursor = 'auto' | 'keep' | PointSpec | TargetSpec;
 export type TransitionKind = 'crossfade' | 'cut' | 'fade-black';
 
+/**
+ * The transition INTO a scene or a card: a kind (crossfade, cut, fade-black: the theme's transition of that kind, else
+ * the built-in one) or a transition component — its id ("studio/transition-tap-open") or `{component, params}`.
+ */
+export type SceneTransition = TransitionKind | ComponentId | { component: ComponentId; params?: Record<string, unknown> };
+
 export interface Scene {
   id: string;
   caption?: CaptionSpec;
@@ -502,8 +544,8 @@ export interface Scene {
   still?: number;
   /** Where the cursor rests at the scene start (default 'auto'). */
   cursor?: SceneCursor;
-  /** Transition INTO this scene (default template.transitions.between_scenes). */
-  transition?: TransitionKind;
+  /** Transition INTO this scene: a kind or a transition component (default: the theme's transition). */
+  transition?: SceneTransition;
   /** Frame of this scene: a FrameStyle or a layout component id (default: scenario frame, else project frame). */
   frame?: FrameSpec;
   irreversible?: boolean;
@@ -539,6 +581,8 @@ export interface CardSpec {
   slots?: Record<string, string>;
   /** Seconds on screen (> 0; default: the component's duration). */
   duration?: number;
+  /** Transition INTO this card: a kind or a transition component, e.g. studio/transition-tap-open (default: the theme's). */
+  transition?: SceneTransition;
 }
 
 /** Generic full-screen card (title, chapter, quote…) between scenes; takes no capture time. */
@@ -807,6 +851,21 @@ export interface BrowserConfig {
   color_scheme?: 'light' | 'dark';
 }
 
+/**
+ * A test mailbox the runner reads with `wait_for_email`. `mailpit`: the Mailpit API (GET <url>/api/v1/messages and
+ * <url>/api/v1/message/<ID>); `http`: the generic JSON shape documented in the README (GET <url>/messages and
+ * <url>/messages/<id>). Its host must be allowed (localhost, an environment host or `allow_hosts`).
+ */
+export interface MailboxConfig {
+  provider: 'mailpit' | 'http';
+  /** Base URL, e.g. http://localhost:8025. */
+  url: string;
+  /** Polling interval in ms (default 500). */
+  poll_ms?: number;
+  /** Extra request headers (e.g. an API token: use {{env:VAR}}). */
+  headers?: Record<string, string>;
+}
+
 export interface ProjectConfig {
   name: string;
   /** env name → page key → base URL. */
@@ -827,6 +886,8 @@ export interface ProjectConfig {
   /** Hooks run by `env_reset`. */
   reset?: HookStep[];
   vars?: Record<string, string>;
+  /** Test mailbox read by `wait_for_email`. */
+  mailbox?: MailboxConfig;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -910,7 +971,7 @@ export interface TimelineScene {
   url?: string;
   caption?: { kicker?: string; text: string };
   speed?: number;
-  transition?: TransitionKind;
+  transition?: SceneTransition;
   /** Scene-level frame as written in the scenario (the scenario/project default is in `Timeline.video.frame`). */
   frame?: FrameSpec;
   interstitial?: InterstitialSpec;
@@ -953,7 +1014,12 @@ export interface TimelineEvent {
   /** Step index within the scene. */
   step: number;
   id?: string;
-  action: ActionName | 'scene_open' | 'scene_still';
+  /**
+   * `notification`: a web notification the product showed (Notification API or a service worker's showNotification),
+   * captured by the in-page kit — `step` is -1 (it belongs to no step) and `data` = {name, title, body, icon?, tag?,
+   * artefact}; the artefact is in `Timeline.artefacts`.
+   */
+  action: ActionName | 'scene_open' | 'scene_still' | 'notification';
   /** Capture time at which the action started (cursor starts moving, etc.). */
   t_start: number;
   /** Capture time at which the action itself completed (before any `hold`). */
@@ -1005,6 +1071,94 @@ export interface CursorSample {
   down?: boolean;
 }
 
+// ── Artefacts (L2.9): captured emails, documents and web notifications ────────
+
+/** Folder of a run holding the captured artefacts (emails/, documents/, notifications/). */
+export const ARTEFACTS_DIR = 'artefacts';
+
+export type ArtefactKind = 'email' | 'document' | 'notification';
+
+/** An image of an artefact (rendered email, PDF page, notification icon); `file` is relative to the run directory. */
+export interface ArtefactImage {
+  file: string;
+  /** Pixels. */
+  width: number;
+  height: number;
+}
+
+interface ArtefactBase {
+  kind: ArtefactKind;
+  /** The step's `as` (emails, documents), or the notification name (its `tag`, else "notification-<n>"). */
+  name: string;
+  /** Capture time it was captured at. */
+  t: number;
+  /** Scene / step that captured it (a notification: the scene and step running when it showed). */
+  scene?: string;
+  step?: number;
+}
+
+export interface EmailArtefact extends ArtefactBase {
+  kind: 'email';
+  /** artefacts/emails/<name>.json: {from, to, subject, date, text, html} as captured. */
+  file: string;
+  from: string;
+  /** Display name of the sender, when the message has one. */
+  from_name?: string;
+  to: string[];
+  subject: string;
+  /** ISO 8601. */
+  date: string;
+  /** The first characters of the text part (whitespace collapsed), for components. */
+  preview: string;
+  /** The HTML rendered at 600 px width, full height (absent when the message has no HTML part or rendering failed). */
+  image?: ArtefactImage;
+}
+
+export interface DocumentPage extends ArtefactImage {
+  /** Page size in PDF points (1/72 in). */
+  width_pt: number;
+  height_pt: number;
+}
+
+export interface DocumentArtefact extends ArtefactBase {
+  kind: 'document';
+  /** artefacts/documents/<name>.<ext>. */
+  file: string;
+  mime: string;
+  /** File name the server suggested (download) or the URL's last segment. */
+  file_name: string;
+  /** How it was captured: the browser's download event, a document opened in a new tab, or a project file. */
+  via: 'download' | 'tab' | 'project';
+  url?: string;
+  bytes: number;
+  /** PDFs: every page rasterised at 2× (A4 → ≈ 1587 × 2245 px) into documents/<name>/page-<n>.png; images: the image. */
+  pages: DocumentPage[];
+}
+
+export interface NotificationArtefact extends ArtefactBase {
+  kind: 'notification';
+  /** artefacts/notifications/<name>.json. */
+  file: string;
+  /** 1-based order of capture in the run. */
+  index: number;
+  title: string;
+  body: string;
+  tag?: string;
+  /** The icon, fetched with the session (absent when the notification has none or it could not be fetched). */
+  icon?: ArtefactImage;
+  /** Icon URL as the page gave it (resolved against the page URL). */
+  icon_url?: string;
+  /** Origin of the page that showed it (the "app" a system notification names). */
+  origin: string;
+  /** Environment page key that showed it. */
+  page?: string;
+  via: 'Notification' | 'ServiceWorkerRegistration.showNotification';
+  /** ISO 8601 wall time. */
+  time: string;
+}
+
+export type TimelineArtefact = EmailArtefact | DocumentArtefact | NotificationArtefact;
+
 export interface Timeline {
   version: 1;
   run_id: string;
@@ -1033,6 +1187,8 @@ export interface Timeline {
   cursor: CursorSample[];
   /** Intervals where the screen did not change at all (no screencast frame) for ≥ 0.5 s. */
   idle: Array<{ t_start: number; t_end: number }>;
+  /** Emails, documents and web notifications captured by the run (L2.9); files are relative to the run directory. */
+  artefacts?: TimelineArtefact[];
   warnings: string[];
 }
 

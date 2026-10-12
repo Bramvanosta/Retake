@@ -45,6 +45,11 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/overlay-callout | overlay | ring on the target + a pill with a pointer toward it, never off-screen |
 | studio/overlay-lower-third | overlay | lower third (kicker + text) inside the capture |
 | studio/transition-crossfade, studio/transition-fade-black | transition | |
+| studio/notification, studio/mail-notification | overlay | system notification (macos / windows / ios-banner / android / in-app), fed by the scenario, a captured web notification or a captured email (L2.9) |
+| studio/mail-view | card | mail client window over the captured email's rendered HTML, slow scroll when tall (L2.9) |
+| studio/document-pdf | card | A4 page(s) of a captured or project PDF, paper shadow, zoom / scroll / static (L2.9) |
+| studio/phone-lockscreen, studio/phone-home-badge | card | phone lock screen with notifications arriving (stacked, grouped) · home screen with the app badge counting up (L2.9) |
+| studio/transition-tap-open | transition | tap on the outgoing tap target, the next segment zooms out of it (L2.9) |
 
 Since L2.4 every id above exists; since L2.5 the six reference-look components (intro-stack, outro-stack, layout-card,
 caption-below, interstitial-clock, transition-crossfade; tag `reference-look`, version 1.x) reproduce
@@ -219,6 +224,32 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
 - `Timeline.video = { title?, intro?, outro?, frame?, template?, music? }` (`timelineVideo()` in core): the scenario's
   edit info as written, the effective default `frame` (scenario, else project) and the template the run used — the
   editor never re-reads scenario.yaml. Optional in the schema so older timelines stay valid.
+
+### 1.6 Artefacts: mails, documents, notifications (L2.9)
+- **Capture** (runner-web): `wait_for_email` (project `mailbox`, Mailpit API or the generic JSON shape; only messages
+  that were not in the mailbox at run start — listed before the setup hooks — and not taken by an earlier capture; the
+  oldest match), `download` (real click; the download event — on the page or on a tab the click opens — or the
+  document a new tab shows, fetched with `context.request` = the session's cookies; the tab is closed), web
+  notifications (the kit wraps `Notification` and `ServiceWorkerRegistration#showNotification` once per window and
+  calls the context binding `__demoStudioNotification`; the permission is granted by the session). Files under
+  `runs/<id>/artefacts/{emails,documents,notifications}/`; images are rendered AFTER the capture in a clean browser
+  (`ArtefactRenderer`: email HTML at 600 px × 2, JavaScript off, offline, CSP; PDFs with pdf.js 5 in Chromium at 2×
+  CSS px → A4 1587 × 2245; icons → 192 px PNG); project documents named by `document:` slots are copied and rasterised
+  by the run too. `Timeline.artefacts` lists everything components need (the editor never reads artefact files);
+  notifications are also events `{action: notification, step: -1}` (excluded from step provenance by the planner).
+- **Slots → media**: slot types `email`, `document`, `notification` (manifest) name an artefact; `ComponentResolver`
+  resolves them through the planner's artefact index into `ResolvedComponent.media` (`EmailMedia`, `DocumentMedia`,
+  `NotificationMedia` with `ds-asset:artefact-…` image URLs in `plan.assets`); the composition passes it as
+  `props.media`. Unknown names: a plan warning (core validation checks `email:` / `document:` against the scenario's
+  `as` names and project files). A notification overlay starts at the notification's capture time when it lies in the
+  clip. `OverlayUse.componentFrames`: an overlay cut by the clip end is rendered with its own length (no early exit).
+- **Transitions as components**: scene / card `transition` = a kind or a component (`SceneTransition`). **Anchors**: a
+  manifest may declare `anchor` (+ `anchor_vertical`, `anchor_square`) = `{vars?, x, y, w, h}`, expressions over
+  numeric params, one-hot string params (`<param>_<value>`), `frame_w/h`, `screen_x/y/w/h` (the clip's capture rect)
+  and `aspect` (`evalAnchor`, checked by `parseManifest`). The planner evaluates the outgoing segment's anchor — or the
+  last overlay still showing in the outgoing clip's final second — into `PlanTransition.anchor` (output px), handed to
+  the transition as `props.anchor` (studio/transition-tap-open zooms out of it). The kit's `notificationBox` and
+  `phoneCardGeometry` mirror the anchors of the notification and phone components (tested equal).
 
 ## 2. Editor (`packages/editor`)
 

@@ -16,7 +16,7 @@
  * moves the card AND the caption / brand mark rects; the composition hands the evaluated rects to the layout
  * component (`props.rects`), so the component draws exactly where the planner placed captions and overlays.
  */
-import type { LayoutGeometry, LayoutGeometrySpec, Rect1920 } from './types.js';
+import type { AnchorSpec, LayoutGeometry, LayoutGeometrySpec, Rect1920 } from './types.js';
 
 export type GeometryValue = number | string;
 
@@ -280,4 +280,72 @@ export function geometryIsDynamic(spec: LayoutGeometrySpec): boolean {
   }
   if (spec.radius !== undefined) values.push(spec.radius);
   return values.some((v) => typeof v === 'string');
+}
+
+/** Manifest key of a component's anchor per output variant. */
+export const ANCHOR_KEYS = { landscape: 'anchor', vertical: 'anchor_vertical', square: 'anchor_square' } as const;
+
+/** The one-hot name of a string param value in anchor expressions: `style` = "ios-banner" → `style_ios_banner`. */
+export function oneHotName(param: string, value: string): string {
+  return `${param}_${value.replace(/[^A-Za-z0-9_]/g, '_')}`;
+}
+
+/** Built-in names of anchor expressions (besides `aspect`): the frame of the variant and the clip's capture rect. */
+export const ANCHOR_BUILTINS = ['frame_w', 'frame_h', 'screen_x', 'screen_y', 'screen_w', 'screen_h'] as const;
+
+/** What an anchor is evaluated against: the variant's design frame, and (overlays) the clip's screen rect. */
+export interface AnchorContext {
+  /** Design space of the variant (default landscape 1920×1080). */
+  frame?: { w: number; h: number };
+  /** The clip layout's screen rect (design px); default the whole frame. */
+  screen?: Rect1920;
+  aspect?: number;
+  /** param → values of string params (one-hot names default to 0). */
+  enums?: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * The scope of anchor expressions: numeric/boolean params (geometryScope), `aspect`, every string param as one-hot
+ * names — 1 for its value, 0 for the other values its schema enumerates (`enums`: param → values) —, the frame size
+ * (`frame_w`, `frame_h`) and the clip's screen rect (`screen_x`, `screen_y`, `screen_w`, `screen_h`).
+ */
+export function anchorScope(params: Readonly<Record<string, unknown>>, ctx: AnchorContext = {}): Record<string, number> {
+  const scope = geometryScope(params, ctx.aspect);
+  for (const [p, values] of Object.entries(ctx.enums ?? {})) for (const v of values) scope[oneHotName(p, v)] = 0;
+  for (const [p, v] of Object.entries(params)) if (typeof v === 'string') scope[oneHotName(p, v)] = 1;
+  const frame = ctx.frame ?? { w: 1920, h: 1080 };
+  const screen = ctx.screen ?? { x: 0, y: 0, w: frame.w, h: frame.h };
+  scope.frame_w = frame.w;
+  scope.frame_h = frame.h;
+  scope.screen_x = screen.x;
+  scope.screen_y = screen.y;
+  scope.screen_w = screen.w;
+  scope.screen_h = screen.h;
+  return scope;
+}
+
+/** The string params of a params JSON Schema with their enumerated values. */
+export function paramEnums(schema: unknown): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const props = schema && typeof schema === 'object' ? (schema as { properties?: Record<string, unknown> }).properties : undefined;
+  for (const [name, sch] of Object.entries(props ?? {})) {
+    const e = sch && typeof sch === 'object' ? (sch as { enum?: unknown }).enum : undefined;
+    if (Array.isArray(e)) out[name] = e.filter((x): x is string => typeof x === 'string');
+  }
+  return out;
+}
+
+/** A component's anchor for the given params (design px of its variant). Throws GeometryExpressionError. */
+export function evalAnchor(spec: AnchorSpec, params: Readonly<Record<string, unknown>> = {}, ctx: AnchorContext = {}): Rect1920 {
+  const scope = anchorScope(params, ctx);
+  const at = (path: string, v: GeometryValue) => {
+    try {
+      return evalGeometryValue(v, scope);
+    } catch (e) {
+      const err = e as GeometryExpressionError;
+      throw new GeometryExpressionError(`${path}: ${err.message}`, err.expression ?? String(v), err.index);
+    }
+  };
+  for (const [name, v] of Object.entries(spec.vars ?? {})) scope[name] = at(`vars.${name}`, v);
+  return { x: at('x', spec.x), y: at('y', spec.y), w: at('w', spec.w), h: at('h', spec.h) };
 }

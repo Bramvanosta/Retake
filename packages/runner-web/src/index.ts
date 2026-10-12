@@ -23,3 +23,10 @@ export { RunnerError, StepError, CancelledError, EncodeError } from './errors.js
 export { StepFailure, describeStep, DEFAULT_STEP_TIMEOUT_S, ERROR_DOM_MAX } from './scenes.js';
 export { probeChromium, chromiumExecutable } from './probe.js';
 export type { ChromiumProbe } from './probe.js';
+export { ArtefactStore, artefactSlug, previewText, htmlText, sniffMime, extensionFor, imageSize, projectDocuments, EMAIL_PREVIEW_CHARS } from './artefacts/store.js';
+export { ArtefactRenderer, sandboxedEmail, EMAIL_WIDTH, EMAIL_SCALE, PDF_SCALE, ICON_SIZE } from './artefacts/render.js';
+export { MailboxClient, mailMatches, parseAddress, parseAddressList, formatAddress, inlineCids } from './artefacts/mailbox.js';
+export type { MailAddress, MailMessage, MailSummary } from './artefacts/mailbox.js';
+export { ARTEFACT_TIMEOUT_S } from './actions/artefacts.js';
+export { NOTIFICATION_BINDING, launchTarget } from './session.js';
+export type { NotificationPayload } from './session.js';

@@ -74,6 +74,7 @@ pnpm studio validate northfield-fixture catalogue
 pnpm studio run northfield-fixture catalogue --dry --hooks run   # screenshots of every step, no recording
 pnpm studio run northfield-fixture catalogue                     # capture.mp4 + timeline.json
 pnpm studio run northfield-fixture quote
+pnpm studio run northfield-fixture signup                        # sign-up email, phone cards, tap-open
 ```
 
 `pnpm studio …` runs `node packages/cli/dist/bin.js …` from the repository root, whose `studio.yaml` makes the
@@ -240,6 +241,7 @@ pacing: {type_cps: 12}                                    # override field-teste
 browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`
 reset:                         # run by `studio env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
+mailbox: {provider: mailpit, url: "http://localhost:8025"}   # test mailbox read by wait_for_email (see below)
 ```
 
 `capture` also accepts `format` (`jpeg`/`png`), `quality`, `crf` and `keep_frames`. The browser locale is
@@ -353,6 +355,8 @@ Every step has exactly one action; shorthand forms are shown first.
 | `notify` | `notify: Capture finished` · `{title, message}` | Desktop notification |
 | `emit` | `emit: {name: chapter, data: {n: 2}}` | Custom event in the timeline |
 | `cursor` | `cursor: hide` · `{move: {x: 1500, y: 540}, duration: 0.8}` · `{set: {x: 0, y: 0}}` | Show, hide, move or teleport the cursor |
+| `wait_for_email` | `wait_for_email: {to: noa@cafe.example, subject: Confirm, timeout: 20, as: welcome}` | Wait for a new message in the project's test mailbox and capture it (artefact `email: welcome`) — see [Mails, documents and notifications](#mails-documents-and-notifications) |
+| `download` | `download: {click: {text: Download quote PDF}, as: quote, timeout: 30}` | Real click, then capture the file it produces — a download, or a document opened in a new tab (fetched with the session) — as artefact `document: quote`; PDFs are rasterised page by page |
 
 **Step modifiers** (on any step): `id` (for `--until` and references), `caption`, `speed` (edit-time),
 `hold` (seconds still after the step), `mark` (named marker), `camera` (zoom hint:
@@ -395,8 +399,9 @@ scenes:
 | `frame` | project, scenario, scene | `raw`, `card`, `browser`, `laptop`, `phone`, `tablet` (= `studio/layout-<style>`) or a layout component id; default `card` (project) |
 | `intro` / `outro` | scenario | `false`, or `{component, params, duration}` (+ `tagline`, `url` for the outro) |
 | `interstitial` | scene entry | `{text, kicker, duration, component, params}` |
-| `card` | scene entry | `{component, params, slots, duration}`; needs `component` or `slots.title` (the theme's card component shows a title) |
+| `card` | scene entry | `{component, params, slots, duration, transition}`; needs `component` or `slots.title` (the theme's card component shows a title) |
 | `overlay` | step modifier | `{component, slots, params, duration (0 < s ≤ 30), target}` |
+| `transition` | scene, card | the transition INTO it: `crossfade` · `cut` · `fade-black` (the theme's of that kind) or a transition component — `studio/transition-tap-open` or `{component, params}` |
 
 Slots are the texts a component shows (`title`, `kicker`, `text`…); params tune it (see the component's params
 schema). The run records cards in `timeline.json` (`kind: card`), each overlay on its step event
@@ -707,6 +712,98 @@ with another theme or older than their sources. One bundle and one browser serve
 built-ins). The built-in previews are committed and a test fails when one is missing or stale. In code:
 `renderComponentPreviews({root, targets, template, outDir?})` and `buildComponentPreview` (the pure spec) from
 `@demo-studio/editor`; `previewStatus(dir)`, `componentSourceHash(dir)` from `@demo-studio/components`.
+
+## Mails, documents and notifications
+
+A video often needs what happens **outside** the page: the confirmation email that lands, the PDF the product
+generates, the notification the app shows. The runner captures them as **artefacts** of the run; components show them,
+fed by their name.
+
+**Test mailbox.** `mailbox: {provider, url, poll_ms?, headers?}` in project.yaml points at a test mailbox; its host
+must be allowed like a hook's (localhost, an environment host or `allow_hosts`). `provider: mailpit` reads the
+[Mailpit](https://mailpit.axllent.org) API (`GET <url>/api/v1/messages`, `GET <url>/api/v1/message/<ID>`, inline
+`cid:` images from `…/part/<PartID>`); `provider: http` reads a generic JSON API:
+
+```
+GET <url>/messages        → [{id, from, to, subject, date}]   (or {messages: [...]})
+GET <url>/messages/<id>   → {id, from, to, cc?, subject, date, text, html}
+```
+
+where `from` is `"Name <address>"`, an address or `{name, address}` and `to` a string, a list of those or of objects.
+`headers` (e.g. an API token, `{{env:VAR}}` expanded) are sent with every request. The bundled fixture serves a
+Mailpit-compatible mailbox at `http://localhost:4401/mailbox` (the fixture project uses it).
+
+**`wait_for_email: {to?, from?, subject?, timeout?, as}`** polls the mailbox (every `poll_ms`, default 500) until a
+**new** message matches — one that was not there when the run started (the runner lists the mailbox before the setup
+hooks) and that no earlier `wait_for_email` of the run took; the oldest match wins. `to` / `from` match a substring of
+the address or the display name (case-insensitive), `subject` a substring or a `/regex/flags`; `timeout` defaults to 30
+s. The message is written to `runs/<id>/artefacts/emails/<as>.json` (`{from, to, cc, subject, date, text, html}`,
+inline images as data: URLs) and, after the capture, its HTML is rendered in a clean browser — JavaScript off,
+offline, a CSP blocking scripts and remote loads — at 600 px layout width, full height, 2× (`<as>.png`).
+
+**`download: {click, as, timeout?}`** clicks the target for real (the cursor travels and clicks) and captures what the
+click produces: the browser's download event, or a document opened in a new tab — fetched with the page's request
+context (the session's cookies), the tab then closed so the recording stays on the page. The file lands in
+`artefacts/documents/<as>.<ext>` (type sniffed from its bytes, else the server's type, else its name); a PDF is
+rasterised after the capture with **pdf.js inside Chromium** (no system tool), page by page, at 2× (an A4 page →
+1587 × 2245 px) into `artefacts/documents/<as>/page-<n>.png`. A project file works as a document too: a slot
+`document: assets/terms.pdf` (PDF, PNG or JPEG) is rasterised by the run that names it.
+
+**Web notifications.** The runner grants the notification permission and the in-page kit reports every
+`new Notification(…)` and `ServiceWorkerRegistration#showNotification(…)` called by a page (the page's call goes on
+unchanged): title, body, tag, icon (fetched with the session and rendered to a 192 px PNG) and time become
+`artefacts/notifications/<name>.json` — `<name>` is the notification's `tag` (else `notification-<n>`) — and a timeline
+event `{action: notification, step: -1, data: {name, index, title, body, …}}` in the scene running at that moment.
+Notifications a service worker shows on its own (push events) are not seen.
+
+**Artefacts in the timeline.** `timeline.json` lists them under `artefacts` (`kind`, `name`, capture time `t`, scene,
+step, file, and per kind: email `from`, `to`, `subject`, `date`, `preview`, `image`; document `mime`, `file_name`, `via`
+download | tab | project, `url`, `bytes`, `pages` with their size in points; notification `index`, `title`, `body`,
+`tag`, `icon`, `origin`, `via`, `time`), so the editor never reads the artefact files.
+
+**Using them in the edit.** Slots of type `email`, `document` and `notification` name an artefact; the planner hands
+the component the captured data as `props.media[<slot>]` (images served like every asset) and scenario values still
+win over captured ones:
+
+```yaml
+steps:
+  - click: {text: Create account}
+  - wait_for_email: {to: noa@cafe-lumen.example, subject: Confirm, as: welcome}
+    overlay: {component: studio/mail-notification, slots: {email: welcome}, duration: 4.5}
+  - download: {click: {text: Download quote PDF}, as: quote}
+  - hold: 3
+    overlay: {component: studio/notification, slots: {notification: quote-request}, params: {style: macos}}
+…
+- card: {component: studio/mail-view, slots: {email: welcome}, transition: studio/transition-tap-open}
+- card: {component: studio/document-pdf, slots: {document: quote, title: "A real PDF"}, params: {motion: zoom}}
+- card: {component: studio/document-pdf, slots: {document: assets/terms.pdf}}
+```
+
+`notification:` takes a name (the tag) or a 1-based index. Validation checks every `email:` against the scenario's
+`wait_for_email` names and every `document:` against its `download` names or the project files (with a suggestion);
+the planner warns when the run did not capture a name. An overlay with a `notification` slot starts when that
+notification showed (when it is inside the clip), not at the end of its step. An overlay the clip's end cuts short
+stays on screen to the last frame (no exit animation), so a **tap-open** transition can open from it.
+
+**Components** (built-in, theme-driven, with committed previews):
+
+| id | kind | what it draws (main params) |
+|---|---|---|
+| `studio/notification` | overlay | a system notification — `style: macos \| windows \| ios-banner \| android \| in-app` (the last in the theme's own look) — with icon, app, title, body, time; macOS / Windows in the frame corner, the others over the capture (`place: auto \| frame \| screen`), `appearance: auto \| light \| dark`; slides / rises / drops in like the real one. Slots `notification` (captured), `app`, `title`, `body`, `time`, `icon` |
+| `studio/mail-notification` | overlay | the same styles fed by an email: sender, subject, first line, a mail glyph on the accent. Slots `email`, `from`, `subject`, `preview`, `app`, `time`, `icon` |
+| `studio/mail-view` | card | a mail client window (toolbar, inbox column with the message selected, header with the sender's initials, date) over the rendered email, which scrolls slowly when tall (`scroll: auto \| none`, `width`, `sidebar`). Slots `email`, `from`, `address`, `subject`, `date`, `body`, `mailbox` |
+| `studio/document-pdf` | card | A4 page(s) with a paper shadow on the theme background — `motion: zoom` (slow push-in to `focus`), `scroll` (pages scroll by) or `static` (a page, or two side by side); `pages: auto \| 2 \| 1-3 \| 1,3 \| all`. Slots `document`, `kicker`, `title` (a column beside the page) |
+| `studio/phone-lockscreen` | card | a phone (wallpaper from the theme), date and big time, notifications arriving one by one — newest on top, grouped by app; `notifications: [{app, title, body, time?, icon?}]`, `time`, `date`, `start`, `interval`, `layout: center \| left`. Slots `email`, `notification` (arrive last), `kicker`, `title` |
+| `studio/phone-home-badge` | card | a phone home screen whose app icon gets a badge counting up (`from`, `to`, `interval`, `row`, `col`, `badge: system \| accent`). Slots `app`, `icon`, `kicker`, `title` |
+| `studio/transition-tap-open` | transition | a touch on the outgoing tap target, then the next segment zooms out of it to the full frame (`duration` 0.8 s, `radius`, `touch`) |
+
+**Tap targets.** A component may declare where its tap target is at the end of its segment — manifest `anchor` (and
+`anchor_vertical` / `anchor_square`), `{vars?, x, y, w, h}` in design px, each value an expression over its numeric
+params, its string params as one-hot names (`style_ios_banner` is 1 when `style` is `ios-banner`), `frame_w` /
+`frame_h` (the format), `screen_x/y/w/h` (the clip's capture rect, for overlays) and `aspect`. The planner evaluates the
+outgoing segment's anchor — or that of an overlay still showing at the end of the outgoing clip — and hands it to the
+transition (`PlanTransition.anchor`, `props.anchor`): the lock screen's newest notification, the home screen's app icon,
+a notification banner. Without one, `studio/transition-tap-open` opens from the centre.
 
 ## Editing: the edit plan
 
@@ -1020,13 +1117,14 @@ A profile can be used by one browser at a time: close the login window before ru
 | File | Content |
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
-| `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors), markers, page/URL segments, cursor track, idle intervals, warnings |
+| `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, artefacts, warnings |
 | `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet), updated live |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
 | `screenshots/` | dry-run screenshots, `screenshot` steps, error screenshots and DOM snippets |
 | `hooks-journal.json` | executed hooks and their rollbacks |
 | `scenario.yaml` | snapshot of the scenario that ran |
+| `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
 
 Composite steps (`select`, `pick`, `menu`, `drop_file`) keep every click in `data.clicks`:
 `{role, strategy, popup_opened, point, bbox, t_click, desc, popup_ms?}` with `role` one of `trigger`, `option`,
@@ -1062,7 +1160,7 @@ PostgreSQL URL to include the SQL hook tests.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) done; mails, notifications & documents next |
+| 2 | Components, themes, editor (Remotion), review artefacts | Contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition) done; tutorial overlays & story cards next |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |

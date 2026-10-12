@@ -434,8 +434,8 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     const d = s.$defs;
     expect(d.SceneEntry.anyOf.map((b: Json) => b.$ref)).toEqual(['#/$defs/Scene', '#/$defs/Interstitial', '#/$defs/Card']);
     expect(d.Card.required).toEqual(['card']);
-    expect(Object.keys(d.Card.properties.card.properties)).toEqual(['component', 'params', 'slots', 'duration']);
-    for (const k of ['component', 'params', 'slots', 'duration']) expect(typeof d.Card.properties.card.properties[k].description, k).toBe('string');
+    expect(Object.keys(d.Card.properties.card.properties)).toEqual(['component', 'params', 'slots', 'duration', 'transition']);
+    for (const k of ['component', 'params', 'slots', 'duration', 'transition']) expect(typeof d.Card.properties.card.properties[k].description, k).toBe('string');
     expect(d.Overlay.required).toEqual(['component']);
     expect(d.Overlay.properties.duration).toMatchObject({ exclusiveMinimum: 0, maximum: 30 });
     expect(d.Overlay.properties.component.pattern).toBe(COMPONENT_ID_RE.source);

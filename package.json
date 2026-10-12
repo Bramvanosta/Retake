@@ -26,6 +26,9 @@
       "esbuild",
       "sharp",
       "@remotion/compositor-linux-x64-gnu"
-    ]
+    ],
+    "overrides": {
+      "@napi-rs/canvas": "-"
+    }
   }
 }

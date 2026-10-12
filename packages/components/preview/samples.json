@@ -34,5 +34,32 @@
       "w": 142,
       "h": 42
     }
+  },
+  "media": {
+    "email": {
+      "file": "email-sample.jpg",
+      "width": 1200,
+      "height": 1444,
+      "from": "hello@northfield.example",
+      "from_name": "Northfield",
+      "to": [
+        "noa@cafe-lumen.example"
+      ],
+      "subject": "Confirm your email to open your café account",
+      "date": "2026-10-12T09:41:00.000Z",
+      "preview": "Hi Noa, Welcome to Northfield! Confirm your email to open the account of Café Lumen and request your first quote. Confirm my email: http://localhost:4402/signup/confirm?token=confirm-0001 Once confirmed you can browse the lots of the season, request quotes with your delivery…"
+    },
+    "document": {
+      "file_name": "Quote_Q-1040.pdf",
+      "pages": [
+        {
+          "file": "document-sample-p1.jpg",
+          "width": 1100,
+          "height": 1556,
+          "width_pt": 594.96,
+          "height_pt": 841.92
+        }
+      ]
+    }
   }
 }

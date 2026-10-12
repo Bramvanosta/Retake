@@ -45,6 +45,18 @@ const projectShape = {
   browser: BrowserConfigSchema.optional(),
   reset: z.array(HookStepSchema).describe('Hooks run by env_reset.').optional(),
   vars: z.record(z.string(), z.string()).describe('Variables shared by every scenario ({{vars.x}}).').optional(),
+  mailbox: z
+    .strictObject({
+      provider: z.enum(['mailpit', 'http']).describe('mailpit: the Mailpit API; http: the generic JSON shape (see the README).'),
+      url: httpUrl().describe('Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed).'),
+      poll_ms: z.number().int().min(100).max(10_000).describe('Polling interval in ms (default 500).').optional(),
+      headers: z
+        .record(z.string(), z.string())
+        .describe('Extra request headers, e.g. an API token ({{env:VAR}} references are expanded).')
+        .optional(),
+    })
+    .describe('Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API).')
+    .optional(),
 };
 
 /** project.yaml as written (defaults not applied). */

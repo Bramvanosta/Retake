@@ -32,7 +32,8 @@ function baseProps(plan: EditPlan): Pick<ComponentProps, 'theme' | 'unit' | 'wid
 function Use(props: { rc: ResolvedComponent; plan: EditPlan; durationInFrames: number; extra?: Partial<ComponentProps>; transitionKind?: 'crossfade' | 'fade-black' }) {
   const modules = useModules();
   const { Component, params } = pickComponent(modules, props.rc, props.transitionKind);
-  return <Component {...baseProps(props.plan)} slots={props.rc.slots} params={params} durationInFrames={props.durationInFrames} {...props.extra} />;
+  const media = props.rc.media ? { media: props.rc.media } : {};
+  return <Component {...baseProps(props.plan)} slots={props.rc.slots} params={params} durationInFrames={props.durationInFrames} {...media} {...props.extra} />;
 }
 
 // ── Clips ─────────────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function OverlayView({ plan, clip, use }: { plan: EditPlan; clip: ClipSegment; u
   const f = use.from + local;
   const a = use.anchor?.bbox ?? use.anchor?.point;
   const anchor = a ? mapSourceRect(plan, clip, f, a) : undefined;
-  return <Use rc={use.component} plan={plan} durationInFrames={use.durationInFrames} extra={{ rects: layoutRects(clip.layout), ...(anchor ? { anchor } : {}) }} />;
+  return <Use rc={use.component} plan={plan} durationInFrames={use.componentFrames ?? use.durationInFrames} extra={{ rects: layoutRects(clip.layout), ...(anchor ? { anchor } : {}) }} />;
 }
 
 /**
@@ -216,7 +217,7 @@ function TransitionRender({ plan, w, children }: { plan: EditPlan; w: Transition
   );
   return (
     <Sequence from={shift} durationInFrames={w.frames} layout="none" name={`${w.kind} ${w.direction}`}>
-      <Use rc={w.component} plan={plan} durationInFrames={w.frames} transitionKind={w.kind} extra={{ direction: w.direction, screen }} />
+      <Use rc={w.component} plan={plan} durationInFrames={w.frames} transitionKind={w.kind} extra={{ direction: w.direction, screen, ...(w.anchor ? { anchor: w.anchor } : {}) }} />
     </Sequence>
   );
 }

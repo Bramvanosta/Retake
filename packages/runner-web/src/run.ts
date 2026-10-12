@@ -23,6 +23,8 @@ import type {
   TemplateContext,
 } from '@demo-studio/core';
 import { evalInPage } from './actions/misc.js';
+import { snapshotMailbox } from './actions/artefacts.js';
+import { watchNotifications } from './notifications.js';
 import { mergeCapture, mergePacing, projectBrowser, resolveAuth } from './config.js';
 import { encodeFrames } from './encode.js';
 import { CancelledError, EncodeError, RunnerError, errorMessage, isCancelled } from './errors.js';
@@ -165,6 +167,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   };
 
   let session: BrowserSession | null = null;
+  let rt: Runtime | null = null;
+  let notifications: { settled: () => Promise<void> } | null = null;
   let recorder: ScreencastRecorder | null = null;
   let hooks: HooksState | null = null;
   let failure: unknown = null;
@@ -185,7 +189,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       headed: opts.headed,
       log,
     });
-    const rt = new Runtime({
+    rt = new Runtime({
       session,
       timeline,
       pacing,
@@ -200,6 +204,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       recorder: null,
       log,
     });
+
+    notifications = watchNotifications(rt);
+    // wait_for_email takes only the messages that arrive during the run: remember those already there (before setup).
+    if (project.config.mailbox && listed.some((l) => l.step.action === 'wait_for_email')) await snapshotMailbox(rt);
 
     const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0;
     if (hasHooks && hooksMode === 'skip') {
@@ -269,7 +277,17 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         log('error', `teardown failed: ${errorMessage(e)}`);
       }
     }
+    await notifications?.settled().catch(() => undefined);
     await session?.close().catch((e: unknown) => log('warn', `closing the browser failed: ${errorMessage(e)}`));
+    // Artefact images (emails, PDF pages, icons, project documents) are rendered after the capture, in a clean browser.
+    if (rt && !(failure !== null && isCancelled(failure))) {
+      try {
+        await rt.artefacts.finalize({ browser: projectBrowser(project, opts.browser), scenario: sc, project });
+      } catch (e) {
+        timeline.warn(`artefacts: ${errorMessage(e)}`);
+      }
+    }
+    if (rt) timeline.artefacts = rt.artefacts.items;
     removeSignals();
   }
 

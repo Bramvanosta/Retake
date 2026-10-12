@@ -94,10 +94,33 @@ export function quotePdfFileName(quote) {
 /** @param {any} quote public quote (store.getQuote) */
 export function renderQuotePdf(quote) {
   const title = quotePdfFileName(quote);
-  const p = quote.proposal;
-  if (!p) {
+  const article = quoteArticle(quote);
+  if (!article) {
     return shell(title, `<p class="empty">No PDF yet — ${esc(quote.supplier)} has not sent a proposal for ${esc(quote.reference)}.</p>`);
   }
+  return shell(title, article);
+}
+
+/**
+ * The quote as a printable A4 document (no viewer chrome): what `/quotes/:id/quote.pdf` prints with Chromium.
+ * Null when the quote has no proposal yet.
+ * @param {any} quote public quote (store.getQuote)
+ */
+export function renderQuotePrint(quote) {
+  const article = quoteArticle(quote);
+  if (!article) return null;
+  const print = `@page{size:A4;margin:0}html,body{background:#fff}body{margin:0}
+.page{width:210mm;height:297mm;min-height:0;margin:0;box-shadow:none;padding:52px 60px 48px;overflow:hidden}
+.head{padding-bottom:22px}.meta{margin:22px 0 20px}td{padding:11px 8px}.totals{margin-top:12px}
+.note{margin-top:20px;padding:12px 16px}.terms{margin-top:18px}.sign{margin-top:22px}.foot{left:60px;right:60px;bottom:30px}`;
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>${esc(quotePdfFileName(quote))}</title><style>${STYLE}${print}</style></head>
+<body>${article}</body></html>`;
+}
+
+function quoteArticle(quote) {
+  const p = quote.proposal;
+  if (!p) return null;
   const org = ORGANIZATIONS[0];
   const product = quote.product ?? { name: quote.product_slug, origin: '', region: '', process: '', variety: '' };
   const body = `
@@ -131,7 +154,7 @@ export function renderQuotePdf(quote) {
   <div class="sign"><div><div class="who">Maja Lindqvist</div><div>Supply manager, ${esc(org.name)}</div></div>${quote.status === 'accepted' ? '<div class="stamp">Accepted</div>' : ''}</div>
   <footer class="foot"><span>${esc(org.name)} AB · ${esc(SUPPLIER_ADDRESS.join(', '))}</span><span>Page 1 of 1</span></footer>
 </article>`;
-  return shell(title, body);
+  return body;
 }
 
 export function renderNotFoundPdf(id) {

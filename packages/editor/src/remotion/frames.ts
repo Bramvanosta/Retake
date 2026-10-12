@@ -21,6 +21,8 @@ export interface TransitionWindow {
   frames: number;
   kind: 'crossfade' | 'fade-black';
   component: ResolvedComponent;
+  /** The box the transition opens from (PlanTransition.anchor), when the outgoing segment declares one. */
+  anchor?: Rect;
 }
 
 /**
@@ -35,11 +37,11 @@ export function transitionWindows(plan: Pick<EditPlan, 'segments'>, index: numbe
   const t = seg.transition;
   if (t && t.component && t.kind !== 'cut' && t.frames > 0) {
     if (t.kind === 'crossfade') {
-      out.entering = { direction: 'entering', from: 0, to: Math.min(t.frames, seg.durationInFrames), offset: 0, frames: t.frames, kind: 'crossfade', component: t.component };
+      out.entering = { direction: 'entering', from: 0, to: Math.min(t.frames, seg.durationInFrames), offset: 0, frames: t.frames, kind: 'crossfade', component: t.component, ...(t.anchor ? { anchor: t.anchor } : {}) };
     } else {
       const half = Math.floor(t.frames / 2);
       const inn = Math.min(t.frames - half, seg.durationInFrames);
-      out.entering = { direction: 'entering', from: 0, to: inn, offset: half, frames: t.frames, kind: 'fade-black', component: t.component };
+      out.entering = { direction: 'entering', from: 0, to: inn, offset: half, frames: t.frames, kind: 'fade-black', component: t.component, ...(t.anchor ? { anchor: t.anchor } : {}) };
     }
   }
   const nt = next?.transition;
@@ -47,10 +49,10 @@ export function transitionWindows(plan: Pick<EditPlan, 'segments'>, index: numbe
     const d = seg.durationInFrames;
     if (nt.kind === 'crossfade') {
       const n = Math.min(nt.frames, d);
-      out.exiting = { direction: 'exiting', from: d - n, to: d, offset: nt.frames - n, frames: nt.frames, kind: 'crossfade', component: nt.component };
+      out.exiting = { direction: 'exiting', from: d - n, to: d, offset: nt.frames - n, frames: nt.frames, kind: 'crossfade', component: nt.component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
     } else {
       const half = Math.min(Math.floor(nt.frames / 2), d);
-      out.exiting = { direction: 'exiting', from: d - half, to: d, offset: Math.floor(nt.frames / 2) - half, frames: nt.frames, kind: 'fade-black', component: nt.component };
+      out.exiting = { direction: 'exiting', from: d - half, to: d, offset: Math.floor(nt.frames / 2) - half, frames: nt.frames, kind: 'fade-black', component: nt.component, ...(nt.anchor ? { anchor: nt.anchor } : {}) };
     }
   }
   return out;

@@ -10,6 +10,7 @@ import type {
   FrameStyle,
   PointSpec,
   ScopeSpec,
+  SceneTransition,
   TargetSpec,
 } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
@@ -191,3 +192,20 @@ export const FrameSpecSchema: z.ZodType<FrameSpec> = z
   });
 
 export const TransitionSchema = z.enum(['crossfade', 'cut', 'fade-black']);
+
+/** Transition INTO a scene or a card: a kind, a transition component id, or {component, params}. */
+export const SceneTransitionSchema: z.ZodType<SceneTransition> = z
+  .union([
+    TransitionSchema,
+    componentIdSchema('transition component id'),
+    z.strictObject({
+      component: componentIdSchema('transition component id').describe('Transition component "namespace/name", e.g. studio/transition-tap-open.'),
+      params: ComponentParamsSchema.optional(),
+    }),
+  ])
+  .meta({
+    id: 'SceneTransition',
+    description:
+      'crossfade, cut or fade-black (the theme\'s transition of that kind), or a transition component: its id ' +
+      '(e.g. studio/transition-tap-open) or {component, params}.',
+  });

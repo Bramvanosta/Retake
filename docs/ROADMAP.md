@@ -34,8 +34,8 @@ requirements of a lot with their gaps.
 | L2.6 | Review package + `studio review` | M | **done** |
 | L2.7 | Layouts & previews (browser, laptop, phone, tablet, raw; caption-overlay, card-title, lower-third…) | M | **done** |
 | L2.8 | Variants & export (vertical 9:16, square 1:1, 4K, music bed, formats; theme default zoom) | M | **done** |
-| L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | next |
-| L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | todo |
+| L2.9 | Mails, notifications & documents (wait_for_email, download, PDF, lock screen, tap to open, badge) | L | **done** |
+| L2.10 | Tutorial overlays & story cards (shortcut, spotlight, steps, loupe, progress; figure, features, before/after, testimonial, CTA+QR, chart) | L | next |
 | L2.11 | Multi-page capture: split screen & picture in picture | M | todo |
 | L2.12 | Phase 2 acceptance (two videos, clean review, theme/component switch) | S | todo |
 | L3.1 | MCP server skeleton, job runner, project/scenario/run/hooks tools | M | todo |
@@ -310,6 +310,21 @@ requirements of a lot with their gaps.
   and a web notification (R-MAIL-*, R-DOC-*, R-NTF-*).
 - **Acceptance:** a fixture scenario captures an email, a PDF and a web notification and renders each component;
   frames reviewed.
+- **Done:** core `mailbox` (Mailpit or generic HTTP JSON, host in the allow-list — helpers moved to core `hosts.ts`),
+  actions `wait_for_email` (baseline at run start, oldest new matching message, `artefacts/emails/<as>.json` + the HTML
+  rendered sandboxed at 600 px × 2) and `download` (real click; download event or new tab fetched with the session;
+  `artefacts/documents/<as>.<ext>`, PDFs rasterised with pdfjs-dist 5.4.296 in a clean Chromium at 2× A4 →
+  `documents/<as>/page-<n>.png`); project files as documents; **web notifications** captured by the kit
+  (`new Notification`, `showNotification`; permission granted, binding) → artefact + timeline event; `timeline.artefacts`.
+  Slots `email:` / `document:` / `notification:` checked (unknown names with a suggestion) and resolved by the planner
+  into a serialisable `media` prop (images as plan assets; warnings when a run lacks them). Components (kit
+  `notifications.tsx`, `phone.tsx`): `studio/notification` (macos | windows | ios-banner | android | in-app),
+  `studio/mail-notification`, `studio/mail-view`, `studio/document-pdf`, `studio/phone-lockscreen`,
+  `studio/phone-home-badge`, `studio/transition-tap-open` (scene/card `transition: <component>`, anchor from the
+  outgoing overlay or card via manifest `anchor` expressions) — previews committed. Fixture: sign-up + confirmation
+  email in a built-in Mailpit-compatible API, real quote PDF (Chromium `page.pdf`), console web notification; scenario
+  `signup` (new) and `quote` (download + document card + captured notification). Renders signup-v4 and quote-v13
+  reviewed, frames of every new component inspected (HANDOFF).
 
 ### L2.10 — Tutorial overlays & story cards (L)
 - **Scope:** automatic overlays from the timeline — keyboard shortcut, spotlight, numbered steps, typing loupe,

@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# "Tap to open" (R-NTF-04): a tap on the outgoing segment's tap target — the notification banner of an overlay still
+# showing at the end of a clip, the newest notification of studio/phone-lockscreen, the app icon of
+# studio/phone-home-badge (their manifest `anchor`, which the planner hands over as `props.anchor`) — then the incoming
+# segment zooms out of that box to the full frame, its corners rounding off as it grows. The outgoing side shows a
+# touch ring on the target and dims slightly. Without an anchor the zoom starts from the centre. Kind: crossfade (the
+# two segments overlap; the outgoing one holds its last frame). Use it on a scene or a card:
+# `transition: studio/transition-tap-open`.
+id: studio/transition-tap-open
+version: 1.0.0
+kind: transition
+name: Tap to open
+description: A tap on the outgoing notification or app icon, then the next segment zooms out of it to full frame (rounded corners easing off); from the centre when the outgoing segment declares no tap target.
+tags: [transition, tap, notification, mobile]
+slots:
+  screen: {type: screen, required: true, description: The segment this render wraps.}
+params:
+  type: object
+  properties:
+    duration: {type: number, minimum: 0.3, maximum: 2, default: 0.8, description: Length of the transition in seconds.}
+    radius: {type: number, minimum: 0, maximum: 80, default: 26, description: Corner radius (design px) of the box at the start of the zoom.}
+    touch: {type: boolean, default: true, description: Draw the touch ring on the tap target.}
+    kind: {type: string, enum: [crossfade], default: crossfade, description: Overlapping transition (the planner reads it).}
+tokens: [colors.text, colors.paper, colors.dark, style_bias]
+duration: {default: 0.8, min: 0.3, max: 2}
+variants: [landscape, vertical, square]
+preview:
+  at: [0.36]

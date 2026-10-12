@@ -1,6 +1,7 @@
 import { hasLocator, normalizeTarget, pickTarget } from '@demo-studio/core';
 import type { NormalizedStep, TargetSpec } from '@demo-studio/core';
 import { click, doubleClick, hover } from './click.js';
+import { download, waitForEmail } from './artefacts.js';
 import { drag, dropFile } from './drag.js';
 import { press, type } from './keyboard.js';
 import { cursor, emit, evalStep, notify, screenshot } from './misc.js';
@@ -37,6 +38,8 @@ export const ACTIONS: ActionTable = {
   notify,
   emit,
   cursor,
+  wait_for_email: waitForEmail,
+  download,
 };
 
 /** The element a step acts on first (hovered instead of executed for irreversible steps in dry-run). */
@@ -63,6 +66,8 @@ export function primaryTarget(step: NormalizedStep): TargetSpec | null {
       return (a.zone as TargetSpec | undefined) ?? null;
     case 'new_tab':
       return (a.target as TargetSpec | undefined) ?? null;
+    case 'download':
+      return (a.click as TargetSpec | undefined) ?? null;
     default:
       return null;
   }

@@ -18,6 +18,7 @@ import { Pointer } from './pointer.js';
 import type { Jitter } from './motion.js';
 import { RunnerError } from './errors.js';
 import { sleep } from './util.js';
+import { ArtefactStore } from './artefacts/store.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -53,6 +54,10 @@ export class Runtime {
   readonly template: TemplateContext;
   readonly log: (level: LogLevel, message: string) => void;
   recorder: ScreencastRecorder | null;
+  /** Captured emails, documents and web notifications (runs/<id>/artefacts/). */
+  readonly artefacts: ArtefactStore;
+  /** The scene and step being executed (notifications are attributed to them). */
+  current: { scene: string; scene_index: number; step: number } | null = null;
   private tabSeq = 1;
   private readonly tracked = new WeakSet<Page>();
 
@@ -70,6 +75,7 @@ export class Runtime {
     this.template = init.template;
     this.recorder = init.recorder;
     this.log = init.log;
+    this.artefacts = new ArtefactStore(init.runDir, (m) => this.warn(m));
     this.pointer = new Pointer({
       page: () => this.page,
       kit: () => this.kit,

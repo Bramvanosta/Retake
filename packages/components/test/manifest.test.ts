@@ -62,7 +62,7 @@ describe('parseManifest (R-CMP-04)', () => {
     expect(out).toMatch(/component\.yaml:1:5 error id: component id must be "namespace\/name"/);
     expect(out).toMatch(/:2:10 error version: version must be a semantic version like "1\.0\.0", got "1\.0"/);
     expect(out).toMatch(/:3:7 error kind: expected one of .* got "intr" \(did you mean "intro"\?\)/);
-    expect(out).toMatch(/:7:17 error slots\.title\.type: expected one of "text", "image", "url", "color", "screen", got "txt"/);
+    expect(out).toMatch(/:7:17 error slots\.title\.type: expected one of "text", "image", "url", "color", "screen", "email", "document", "notification", got "txt"/);
     expect(errors('id: a/b\nversion: 1.2.3-beta.1+build.5\nkind: card\nname: X\ndescription: Y\n')).toEqual([]);
   });
 

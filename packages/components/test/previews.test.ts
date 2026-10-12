@@ -36,7 +36,7 @@ const BUILTIN = [
 
 describe('committed previews of the built-in components', () => {
   it('every built-in component and scaffold has a fresh preview.png (960×540, ≤ 200 KB, editorial theme), its sidecar and a README showing it', () => {
-    expect(BUILTIN.length).toBe(27);
+    expect(BUILTIN.length).toBe(34); // 26 studio/* (7 added in L2.9) + 8 scaffolds
     const stale: string[] = [];
     for (const { id, dir } of BUILTIN) {
       const status = previewStatus(dir, { theme: PREVIEW_THEME });

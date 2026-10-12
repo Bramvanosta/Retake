@@ -355,13 +355,27 @@ async function shopFlow(context, page, S) {
 
   const link = page.getByRole('link', { name: /Download quote PDF/ });
   check((await link.getAttribute('target')) === '_blank', 'PDF link has target=_blank');
-  const [pdf] = await Promise.all([context.waitForEvent('page'), click(page, link)]);
-  await pdf.waitForLoadState('load');
-  await pdf.setViewportSize({ width: 1920, height: 1080 });
-  check((await pdf.title()) === 'Northfield_Quote_Q-1043.pdf', 'PDF tab title is the file name');
-  await pdf.getByText('€720.00').first().waitFor();
-  await shot(pdf, 'quote-pdf');
-  await pdf.close();
+  // A real PDF (printed by Chromium from the quote document), fetched with the page's session.
+  const res = await context.request.get(new URL(await link.getAttribute('href'), S).toString());
+  check(res.headers()['content-type'] === 'application/pdf', 'the quote PDF is application/pdf');
+  check((await res.body()).subarray(0, 5).toString('latin1') === '%PDF-', 'the quote PDF is a real PDF');
+  check(/filename="Northfield_Quote_Q-1043\.pdf"/.test(res.headers()['content-disposition'] ?? ''), 'the PDF is named after the quote');
+
+  // Sign-up: the confirmation email lands in the Mailpit-compatible mailbox.
+  await page.goto(`${S}/signup`);
+  await page.getByLabel('Café name').fill('Café Lumen');
+  await page.getByLabel('Your name').fill('Noa Brandt');
+  await page.getByLabel('Work email').fill('noa@cafe-lumen.example');
+  await click(page, page.getByRole('button', { name: 'Create account' }));
+  await visibleText(page, 'Check your inbox');
+  await shot(page, 'signup-sent');
+  let mail = null;
+  for (let i = 0; i < 30 && !mail; i++) {
+    const list = await (await fetch(`${S}/mailbox/api/v1/messages`)).json();
+    mail = list.messages.find((m) => m.To.some((t) => t.Address === 'noa@cafe-lumen.example')) ?? null;
+    if (!mail) await page.waitForTimeout(100);
+  }
+  check(!!mail && /Confirm your email/.test(mail.Subject), 'the confirmation email is in the mailbox');
 
   await page.goto(`${S}/quotes`);
   await visibleText(page, 'Q-1043');

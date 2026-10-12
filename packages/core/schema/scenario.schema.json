@@ -809,13 +809,8 @@
           "$ref": "#/$defs/SceneCursor"
         },
         "transition": {
-          "type": "string",
-          "enum": [
-            "crossfade",
-            "cut",
-            "fade-black"
-          ],
-          "description": "Transition INTO this scene (default: template)."
+          "description": "Transition INTO this scene: crossfade, cut, fade-black or a transition component (default: the theme's).",
+          "$ref": "#/$defs/SceneTransition"
         },
         "frame": {
           "description": "Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id \"namespace/name\".",
@@ -3012,9 +3007,187 @@
           "additionalProperties": false,
           "title": "cursor",
           "description": "Show, hide, move or teleport the in-page cursor."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait_for_email": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Recipient: a substring of the address or the name (case-insensitive)."
+                },
+                "from": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Sender: a substring of the address or the name (case-insensitive)."
+                },
+                "subject": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Subject: a substring (case-insensitive) or a /regex/."
+                },
+                "timeout": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Seconds to wait for the message (default 30)."
+                },
+                "as": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  "description": "Artefact name, referenced by components as `email: <as>`."
+                }
+              },
+              "required": [
+                "as"
+              ],
+              "additionalProperties": false,
+              "description": "Wait for a new message in the project's test mailbox and capture it (from, to, subject, text, an image of its HTML) as an artefact."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "wait_for_email"
+          ],
+          "additionalProperties": false,
+          "title": "wait_for_email",
+          "description": "Wait for a new message in the project's test mailbox and capture it (from, to, subject, text, an image of its HTML) as an artefact."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "download": {
+              "type": "object",
+              "properties": {
+                "click": {
+                  "description": "Link or button to click (real click).",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "as": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  "description": "Artefact name, referenced by components as `document: <as>`."
+                },
+                "timeout": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Seconds to wait for the file after the click (default 30)."
+                }
+              },
+              "required": [
+                "click",
+                "as"
+              ],
+              "additionalProperties": false,
+              "description": "Click a link or button and capture the file it produces (download, or a document opened in a new tab) as an artefact; PDFs are rasterised."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "download"
+          ],
+          "additionalProperties": false,
+          "title": "download",
+          "description": "Click a link or button and capture the file it produces (download, or a document opened in a new tab) as an artefact; PDFs are rasterised."
         }
       ],
-      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor) plus optional modifiers (id, caption, speed, hold, camera, overlay, mark, timeout, optional, irreversible, note)."
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download) plus optional modifiers (id, caption, speed, hold, camera, overlay, mark, timeout, optional, irreversible, note)."
     },
     "CameraHint": {
       "type": "object",
@@ -3457,6 +3630,45 @@
       ],
       "description": "Where the cursor rests at the scene start: 'auto' (default: a neutral point near the first pointer target, never on it), 'keep' (where the previous scene left it), a viewport point {x, y}, or a target to rest on. Use {text: auto} for an element whose text is \"auto\"."
     },
+    "SceneTransition": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "crossfade",
+            "cut",
+            "fade-black"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+              "description": "Transition component \"namespace/name\", e.g. studio/transition-tap-open."
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Component params (see the component's params schema; unset params take its defaults)."
+            }
+          },
+          "required": [
+            "component"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "crossfade, cut or fade-black (the theme's transition of that kind), or a transition component: its id (e.g. studio/transition-tap-open) or {component, params}."
+    },
     "Interstitial": {
       "type": "object",
       "properties": {
@@ -3549,10 +3761,14 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "description": "Seconds on screen (default: the component's duration)."
+            },
+            "transition": {
+              "description": "Transition INTO this card: crossfade, cut, fade-black or a transition component, e.g. studio/transition-tap-open (default: the theme's).",
+              "$ref": "#/$defs/SceneTransition"
             }
           },
           "additionalProperties": false,
-          "description": "Full-screen card: component, params, slots, duration."
+          "description": "Full-screen card: component, params, slots, duration, transition."
         },
         "id": {
           "type": "string",

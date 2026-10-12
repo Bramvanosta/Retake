@@ -1,0 +1,1076 @@
+{
+  "version": 1,
+  "run_id": "20261012-015003-signup",
+  "project": "northfield-fixture",
+  "scenario": "signup",
+  "created_at": "2026-10-12T01:50:03.291Z",
+  "mode": "capture",
+  "capture": {
+    "file": "capture.mp4",
+    "width": 1920,
+    "height": 1080,
+    "scale": 1,
+    "fps": 30,
+    "duration": 19.002,
+    "t0_wall": 1791769803681,
+    "frames": 242
+  },
+  "video": {
+    "title": {
+      "kicker": "For cafés",
+      "text": "Open your café account in a minute"
+    },
+    "outro": {
+      "tagline": "From sign-up to first quote, in one place."
+    },
+    "frame": "card",
+    "template": "editorial"
+  },
+  "scenes": [
+    {
+      "id": "signup",
+      "index": 0,
+      "kind": "scene",
+      "t_start": 0.017,
+      "t_end": 13.098,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "Sign up",
+        "text": "Open a café account with your work email, no card needed."
+      },
+      "url": "http://localhost:4402/signup",
+      "t_actions": 2.642
+    },
+    {
+      "id": "inbox",
+      "index": 1,
+      "kind": "card",
+      "t_start": 13.098,
+      "t_end": 13.098,
+      "card": {
+        "component": "studio/mail-view",
+        "slots": {
+          "email": "welcome"
+        },
+        "duration": 5.5,
+        "transition": "studio/transition-tap-open"
+      },
+      "status": "ok"
+    },
+    {
+      "id": "lockscreen",
+      "index": 2,
+      "kind": "card",
+      "t_start": 13.098,
+      "t_end": 13.098,
+      "card": {
+        "component": "studio/phone-lockscreen",
+        "params": {
+          "layout": "left",
+          "notifications": [
+            {
+              "app": "Northfield",
+              "title": "Almost there",
+              "body": "Confirm your email to request your first quote."
+            }
+          ]
+        },
+        "slots": {
+          "email": "welcome",
+          "kicker": "On the go",
+          "title": "Every step reaches you, on any device."
+        },
+        "duration": 5
+      },
+      "status": "ok"
+    },
+    {
+      "id": "badge",
+      "index": 3,
+      "kind": "card",
+      "t_start": 13.098,
+      "t_end": 13.098,
+      "card": {
+        "component": "studio/phone-home-badge",
+        "params": {
+          "from": 0,
+          "to": 2,
+          "layout": "left"
+        },
+        "slots": {
+          "kicker": "Notifications",
+          "title": "Proposals and deliveries, the moment they happen."
+        },
+        "duration": 4
+      },
+      "status": "ok"
+    },
+    {
+      "id": "welcome",
+      "index": 4,
+      "kind": "scene",
+      "t_start": 13.098,
+      "t_end": 19.002,
+      "page": "shop",
+      "status": "ok",
+      "caption": {
+        "kicker": "Confirmed",
+        "text": "One click in the email and the account is ready."
+      },
+      "transition": "studio/transition-tap-open",
+      "url": "http://localhost:4402/signup/confirm?token=latest",
+      "t_actions": 15.624
+    }
+  ],
+  "events": [
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 0.017,
+      "t_end": 0.695,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/signup"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 1.042,
+      "t_end": 2.642,
+      "status": "ok",
+      "point": {
+        "x": 1235,
+        "y": 555
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 1235,
+            "y": 555
+          },
+          "anchor": "textbox \"Café name\"",
+          "side": "below-right"
+        }
+      }
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 0,
+      "action": "type",
+      "t_start": 2.643,
+      "t_end": 4.549,
+      "status": "ok",
+      "target": {
+        "desc": "textbox \"Café name\"",
+        "bbox": {
+          "x": 741,
+          "y": 470.63,
+          "w": 438,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 491
+      },
+      "t_click": 3.341,
+      "data": {
+        "chars": 10,
+        "cps": 12
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 1,
+      "action": "type",
+      "t_start": 4.55,
+      "t_end": 6.431,
+      "status": "ok",
+      "target": {
+        "desc": "textbox \"Your name\"",
+        "bbox": {
+          "x": 741,
+          "y": 553.13,
+          "w": 438,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 573
+      },
+      "t_click": 5.209,
+      "data": {
+        "chars": 10,
+        "cps": 12
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 2,
+      "action": "type",
+      "t_start": 6.431,
+      "t_end": 8.769,
+      "status": "ok",
+      "target": {
+        "desc": "textbox \"Work email\"",
+        "bbox": {
+          "x": 741,
+          "y": 635.63,
+          "w": 438,
+          "h": 40
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 656
+      },
+      "t_click": 7.081,
+      "data": {
+        "chars": 22,
+        "cps": 16
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 3,
+      "action": "click",
+      "t_start": 8.77,
+      "t_end": 9.961,
+      "status": "ok",
+      "target": {
+        "desc": "button \"Create account\"",
+        "bbox": {
+          "x": 741,
+          "y": 697.63,
+          "w": 438,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 960,
+        "y": 721
+      },
+      "t_click": 9.469,
+      "strategy": "real",
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 4,
+      "action": "wait_for",
+      "t_start": 9.961,
+      "t_end": 9.972,
+      "status": "ok",
+      "data": {
+        "waited_ms": 10
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 5,
+      "action": "wait_for_email",
+      "t_start": 9.972,
+      "t_end": 10.496,
+      "status": "ok",
+      "caption": {
+        "kicker": "Confirmation",
+        "text": "The confirmation email lands a second later."
+      },
+      "data": {
+        "artefact": "email",
+        "name": "welcome",
+        "file": "artefacts/emails/welcome.json",
+        "subject": "Confirm your email to open your café account",
+        "from": "Northfield <hello@northfield.example>",
+        "to": [
+          "noa@cafe-lumen.example"
+        ]
+      },
+      "overlay": {
+        "component": "studio/mail-notification",
+        "slots": {
+          "email": "welcome"
+        },
+        "params": {},
+        "duration": 4.5,
+        "point": {
+          "x": 960,
+          "y": 721
+        }
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "signup",
+      "scene_index": 0,
+      "step": 6,
+      "action": "hold",
+      "t_start": 10.497,
+      "t_end": 13.098,
+      "status": "ok",
+      "hold": {
+        "t_start": 10.497,
+        "t_end": 13.098
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "scene": "welcome",
+      "scene_index": 4,
+      "step": -1,
+      "action": "scene_open",
+      "t_start": 13.098,
+      "t_end": 13.681,
+      "status": "ok",
+      "target": {
+        "desc": "http://localhost:4402/signup/confirm?token=latest"
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup/confirm?token=latest"
+    },
+    {
+      "scene": "welcome",
+      "scene_index": 4,
+      "step": -1,
+      "action": "scene_still",
+      "t_start": 14.025,
+      "t_end": 15.624,
+      "status": "ok",
+      "point": {
+        "x": 954,
+        "y": 713
+      },
+      "data": {
+        "cursor": {
+          "mode": "auto",
+          "how": "teleport",
+          "to": {
+            "x": 954,
+            "y": 713
+          },
+          "from": {
+            "x": 960,
+            "y": 721
+          },
+          "anchor": "link \"Browse coffees\"",
+          "side": "below-right"
+        }
+      }
+    },
+    {
+      "scene": "welcome",
+      "scene_index": 4,
+      "step": 0,
+      "action": "wait_for",
+      "t_start": 15.624,
+      "t_end": 15.629,
+      "status": "ok",
+      "data": {
+        "waited_ms": 4
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup/confirm?token=latest"
+    },
+    {
+      "scene": "welcome",
+      "scene_index": 4,
+      "step": 1,
+      "action": "hover",
+      "t_start": 15.629,
+      "t_end": 17,
+      "status": "ok",
+      "target": {
+        "desc": "link \"Browse coffees\"",
+        "bbox": {
+          "x": 741,
+          "y": 623.02,
+          "w": 157.31,
+          "h": 46
+        }
+      },
+      "point": {
+        "x": 820,
+        "y": 646
+      },
+      "hold": {
+        "t_start": 17,
+        "t_end": 19.001
+      },
+      "page": "shop",
+      "url": "http://localhost:4402/signup/confirm?token=latest"
+    }
+  ],
+  "markers": [],
+  "pages": [
+    {
+      "id": "shop",
+      "t_start": 0.002,
+      "t_end": 13.115,
+      "url": "http://localhost:4402/signup"
+    },
+    {
+      "id": "shop",
+      "t_start": 13.115,
+      "t_end": 19.002,
+      "url": "http://localhost:4402/signup/confirm?token=latest"
+    }
+  ],
+  "cursor": [
+    {
+      "t": 0.731,
+      "x": 1235,
+      "y": 555,
+      "visible": true
+    },
+    {
+      "t": 2.704,
+      "x": 1234,
+      "y": 554,
+      "visible": true
+    },
+    {
+      "t": 2.733,
+      "x": 1232,
+      "y": 554,
+      "visible": true
+    },
+    {
+      "t": 2.754,
+      "x": 1230,
+      "y": 552,
+      "visible": true
+    },
+    {
+      "t": 2.78,
+      "x": 1224,
+      "y": 549,
+      "visible": true
+    },
+    {
+      "t": 2.803,
+      "x": 1213,
+      "y": 544,
+      "visible": true
+    },
+    {
+      "t": 2.827,
+      "x": 1199,
+      "y": 537,
+      "visible": true
+    },
+    {
+      "t": 2.853,
+      "x": 1180,
+      "y": 528,
+      "visible": true
+    },
+    {
+      "t": 2.877,
+      "x": 1151,
+      "y": 516,
+      "visible": true
+    },
+    {
+      "t": 2.895,
+      "x": 1115,
+      "y": 504,
+      "visible": true
+    },
+    {
+      "t": 2.917,
+      "x": 1084,
+      "y": 497,
+      "visible": true
+    },
+    {
+      "t": 2.936,
+      "x": 1053,
+      "y": 493,
+      "visible": true
+    },
+    {
+      "t": 2.958,
+      "x": 1028,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 2.986,
+      "x": 1007,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.006,
+      "x": 986,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.026,
+      "x": 976,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.046,
+      "x": 969,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.069,
+      "x": 964,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.091,
+      "x": 961,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.117,
+      "x": 960,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 3.349,
+      "x": 960,
+      "y": 491,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 3.445,
+      "x": 960,
+      "y": 491,
+      "visible": true
+    },
+    {
+      "t": 4.611,
+      "x": 960,
+      "y": 492,
+      "visible": true
+    },
+    {
+      "t": 4.659,
+      "x": 961,
+      "y": 493,
+      "visible": true
+    },
+    {
+      "t": 4.689,
+      "x": 961,
+      "y": 495,
+      "visible": true
+    },
+    {
+      "t": 4.717,
+      "x": 962,
+      "y": 501,
+      "visible": true
+    },
+    {
+      "t": 4.744,
+      "x": 964,
+      "y": 508,
+      "visible": true
+    },
+    {
+      "t": 4.767,
+      "x": 966,
+      "y": 518,
+      "visible": true
+    },
+    {
+      "t": 4.79,
+      "x": 967,
+      "y": 530,
+      "visible": true
+    },
+    {
+      "t": 4.813,
+      "x": 966,
+      "y": 542,
+      "visible": true
+    },
+    {
+      "t": 4.833,
+      "x": 965,
+      "y": 552,
+      "visible": true
+    },
+    {
+      "t": 4.861,
+      "x": 964,
+      "y": 558,
+      "visible": true
+    },
+    {
+      "t": 4.885,
+      "x": 962,
+      "y": 565,
+      "visible": true
+    },
+    {
+      "t": 4.898,
+      "x": 961,
+      "y": 569,
+      "visible": true
+    },
+    {
+      "t": 4.918,
+      "x": 961,
+      "y": 571,
+      "visible": true
+    },
+    {
+      "t": 4.939,
+      "x": 960,
+      "y": 572,
+      "visible": true
+    },
+    {
+      "t": 4.965,
+      "x": 960,
+      "y": 573,
+      "visible": true
+    },
+    {
+      "t": 5.215,
+      "x": 960,
+      "y": 573,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 5.319,
+      "x": 960,
+      "y": 573,
+      "visible": true
+    },
+    {
+      "t": 6.508,
+      "x": 960,
+      "y": 574,
+      "visible": true
+    },
+    {
+      "t": 6.536,
+      "x": 959,
+      "y": 575,
+      "visible": true
+    },
+    {
+      "t": 6.557,
+      "x": 959,
+      "y": 577,
+      "visible": true
+    },
+    {
+      "t": 6.579,
+      "x": 958,
+      "y": 580,
+      "visible": true
+    },
+    {
+      "t": 6.6,
+      "x": 957,
+      "y": 584,
+      "visible": true
+    },
+    {
+      "t": 6.625,
+      "x": 956,
+      "y": 590,
+      "visible": true
+    },
+    {
+      "t": 6.645,
+      "x": 954,
+      "y": 599,
+      "visible": true
+    },
+    {
+      "t": 6.662,
+      "x": 954,
+      "y": 609,
+      "visible": true
+    },
+    {
+      "t": 6.689,
+      "x": 953,
+      "y": 618,
+      "visible": true
+    },
+    {
+      "t": 6.708,
+      "x": 955,
+      "y": 631,
+      "visible": true
+    },
+    {
+      "t": 6.729,
+      "x": 956,
+      "y": 638,
+      "visible": true
+    },
+    {
+      "t": 6.748,
+      "x": 957,
+      "y": 644,
+      "visible": true
+    },
+    {
+      "t": 6.768,
+      "x": 958,
+      "y": 648,
+      "visible": true
+    },
+    {
+      "t": 6.79,
+      "x": 959,
+      "y": 651,
+      "visible": true
+    },
+    {
+      "t": 6.814,
+      "x": 959,
+      "y": 654,
+      "visible": true
+    },
+    {
+      "t": 6.838,
+      "x": 960,
+      "y": 655,
+      "visible": true
+    },
+    {
+      "t": 6.859,
+      "x": 960,
+      "y": 656,
+      "visible": true
+    },
+    {
+      "t": 7.085,
+      "x": 960,
+      "y": 656,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 7.179,
+      "x": 960,
+      "y": 656,
+      "visible": true
+    },
+    {
+      "t": 8.847,
+      "x": 960,
+      "y": 657,
+      "visible": true
+    },
+    {
+      "t": 8.874,
+      "x": 960,
+      "y": 658,
+      "visible": true
+    },
+    {
+      "t": 8.897,
+      "x": 961,
+      "y": 659,
+      "visible": true
+    },
+    {
+      "t": 8.921,
+      "x": 961,
+      "y": 661,
+      "visible": true
+    },
+    {
+      "t": 8.939,
+      "x": 962,
+      "y": 664,
+      "visible": true
+    },
+    {
+      "t": 8.961,
+      "x": 963,
+      "y": 668,
+      "visible": true
+    },
+    {
+      "t": 8.987,
+      "x": 964,
+      "y": 673,
+      "visible": true
+    },
+    {
+      "t": 9.01,
+      "x": 965,
+      "y": 682,
+      "visible": true
+    },
+    {
+      "t": 9.032,
+      "x": 965,
+      "y": 691,
+      "visible": true
+    },
+    {
+      "t": 9.055,
+      "x": 965,
+      "y": 699,
+      "visible": true
+    },
+    {
+      "t": 9.078,
+      "x": 963,
+      "y": 706,
+      "visible": true
+    },
+    {
+      "t": 9.1,
+      "x": 962,
+      "y": 711,
+      "visible": true
+    },
+    {
+      "t": 9.121,
+      "x": 962,
+      "y": 715,
+      "visible": true
+    },
+    {
+      "t": 9.147,
+      "x": 961,
+      "y": 717,
+      "visible": true
+    },
+    {
+      "t": 9.17,
+      "x": 960,
+      "y": 719,
+      "visible": true
+    },
+    {
+      "t": 9.193,
+      "x": 960,
+      "y": 720,
+      "visible": true
+    },
+    {
+      "t": 9.215,
+      "x": 960,
+      "y": 721,
+      "visible": true
+    },
+    {
+      "t": 9.474,
+      "x": 960,
+      "y": 721,
+      "visible": true,
+      "down": true
+    },
+    {
+      "t": 9.581,
+      "x": 960,
+      "y": 721,
+      "visible": true
+    },
+    {
+      "t": 13.71,
+      "x": 954,
+      "y": 713,
+      "visible": true
+    },
+    {
+      "t": 15.689,
+      "x": 953,
+      "y": 713,
+      "visible": true
+    },
+    {
+      "t": 15.718,
+      "x": 953,
+      "y": 712,
+      "visible": true
+    },
+    {
+      "t": 15.737,
+      "x": 951,
+      "y": 711,
+      "visible": true
+    },
+    {
+      "t": 15.764,
+      "x": 949,
+      "y": 709,
+      "visible": true
+    },
+    {
+      "t": 15.786,
+      "x": 944,
+      "y": 704,
+      "visible": true
+    },
+    {
+      "t": 15.811,
+      "x": 938,
+      "y": 699,
+      "visible": true
+    },
+    {
+      "t": 15.813,
+      "x": 928,
+      "y": 692,
+      "visible": true
+    },
+    {
+      "t": 15.836,
+      "x": 920,
+      "y": 686,
+      "visible": true
+    },
+    {
+      "t": 15.856,
+      "x": 910,
+      "y": 679,
+      "visible": true
+    },
+    {
+      "t": 15.875,
+      "x": 898,
+      "y": 671,
+      "visible": true
+    },
+    {
+      "t": 15.897,
+      "x": 884,
+      "y": 665,
+      "visible": true
+    },
+    {
+      "t": 15.915,
+      "x": 869,
+      "y": 659,
+      "visible": true
+    },
+    {
+      "t": 15.947,
+      "x": 857,
+      "y": 655,
+      "visible": true
+    },
+    {
+      "t": 15.972,
+      "x": 841,
+      "y": 651,
+      "visible": true
+    },
+    {
+      "t": 15.992,
+      "x": 832,
+      "y": 649,
+      "visible": true
+    },
+    {
+      "t": 16.014,
+      "x": 827,
+      "y": 648,
+      "visible": true
+    },
+    {
+      "t": 16.031,
+      "x": 824,
+      "y": 647,
+      "visible": true
+    },
+    {
+      "t": 16.061,
+      "x": 822,
+      "y": 646,
+      "visible": true
+    },
+    {
+      "t": 16.083,
+      "x": 820,
+      "y": 646,
+      "visible": true
+    }
+  ],
+  "idle": [
+    {
+      "t_start": 0.779,
+      "t_end": 2.726
+    },
+    {
+      "t_start": 10.061,
+      "t_end": 13.14
+    },
+    {
+      "t_start": 13.722,
+      "t_end": 15.71
+    },
+    {
+      "t_start": 16.155,
+      "t_end": 19.002
+    }
+  ],
+  "artefacts": [
+    {
+      "kind": "email",
+      "name": "welcome",
+      "t": 10.493,
+      "scene": "signup",
+      "step": 5,
+      "file": "artefacts/emails/welcome.json",
+      "from": "hello@northfield.example",
+      "from_name": "Northfield",
+      "to": [
+        "noa@cafe-lumen.example"
+      ],
+      "subject": "Confirm your email to open your café account",
+      "date": "2026-10-12T01:50:13.853Z",
+      "preview": "Hi Noa, Welcome to Northfield! Confirm your email to open the account of Café Lumen and request your first quote. Confirm my email: http://localhost:4402/signup/confirm?token=confirm-0001 Once confirmed you can browse the lots of the season, request quotes with your delivery…",
+      "image": {
+        "file": "artefacts/emails/welcome.png",
+        "width": 1200,
+        "height": 1444
+      }
+    }
+  ],
+  "warnings": []
+}

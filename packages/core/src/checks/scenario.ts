@@ -27,6 +27,17 @@ export interface ScenarioCheckOptions {
 
 const STATIC_PAGE_IDS = ['main', 'previous'];
 
+/** Slots whose value names a captured artefact (or, for documents, a project file). */
+export const ARTEFACT_SLOTS = ['email', 'document', 'notification'] as const;
+type ArtefactRefKind = (typeof ARTEFACT_SLOTS)[number];
+/** Project files a `document:` slot accepts (PDFs are rasterised by the run; images are shown as one page). */
+export const DOCUMENT_FILE_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg'];
+
+/** A `document:` slot value that names a project file rather than a `download` artefact. */
+export function isDocumentPath(value: string): boolean {
+  return value.includes('/') || /\.[A-Za-z0-9]{2,5}$/.test(value);
+}
+
 /** projects/<p>/scenarios/x.yaml → projects/<p> (when it holds a project.yaml). */
 function inferProjectDir(file: string | undefined): string | undefined {
   if (!file) return undefined;
@@ -45,6 +56,10 @@ class ScenarioChecker {
   private readonly marks = new Map<string, IssuePath>();
   private readonly tabIds = new Set<string>();
   private readonly switches: Array<{ to: string; path: IssuePath }> = [];
+  /** Artefacts declared by wait_for_email / download (`as`), per kind. */
+  private readonly artefacts = { email: new Map<string, IssuePath>(), document: new Map<string, IssuePath>() };
+  /** Artefact references in card / overlay slots (`email: <name>`…), checked once every step is known. */
+  private readonly artefactRefs: Array<{ kind: ArtefactRefKind; value: string; path: IssuePath }> = [];
 
   constructor(
     private readonly s: Record<string, unknown>,
@@ -180,6 +195,47 @@ class ScenarioChecker {
     if (card.component === undefined && (typeof slots.title !== 'string' || slots.title.trim() === '')) {
       this.ctx.error(p, 'a card needs a `component` or a `slots.title` (the theme\'s card component shows a title)');
     }
+    this.slotRefs(slots, [...p, 'slots']);
+  }
+
+  /** Remember the artefact references of a component use's slots (`email`, `document`, `notification`). */
+  private slotRefs(slots: Record<string, unknown>, p: IssuePath): void {
+    for (const kind of ARTEFACT_SLOTS) {
+      const v = slots[kind];
+      if (typeof v === 'string' && v.trim() !== '') this.artefactRefs.push({ kind, value: v.trim(), path: [...p, kind] });
+    }
+  }
+
+  /** Every `email:` names a wait_for_email `as`; every `document:` a download `as` or a project file; notifications: a name or an index. */
+  private checkArtefactRefs(): void {
+    for (const r of this.artefactRefs) {
+      if (r.kind === 'notification') {
+        const index = /^\d+$/.test(r.value);
+        if (index ? !/^[1-9]\d*$/.test(r.value) : !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(r.value)) {
+          this.ctx.error(r.path, `notification "${r.value}" must be a captured notification's name (its tag) or its 1-based index`);
+        }
+        continue;
+      }
+      if (r.kind === 'document' && isDocumentPath(r.value)) {
+        const ext = (/\.[A-Za-z0-9]+$/.exec(r.value)?.[0] ?? '').toLowerCase();
+        if (!DOCUMENT_FILE_EXTENSIONS.includes(ext)) {
+          this.ctx.error(r.path, `document "${r.value}": a project document must be a ${DOCUMENT_FILE_EXTENSIONS.join(', ')} file`);
+          continue;
+        }
+        this.ctx.file(r.value, r.path, 'document', 'error');
+        continue;
+      }
+      const known = this.artefacts[r.kind];
+      if (!known.has(r.value)) {
+        const action = r.kind === 'email' ? 'wait_for_email' : 'download';
+        const names = [...known.keys()];
+        this.ctx.error(
+          r.path,
+          `unknown ${r.kind} "${r.value}": no ${action} step captures it as \`as: ${r.value}\`${suggestion(r.value, names)}` +
+            (names.length ? ` (captured: ${names.join(', ')})` : r.kind === 'document' ? ' (or give a project file such as assets/quote.pdf)' : ''),
+        );
+      }
+    }
   }
 
   private interstitial(inter: unknown, p: IssuePath): void {
@@ -241,7 +297,20 @@ class ScenarioChecker {
       if (ct !== 'cursor' && ct !== 'step') checkTarget(ct, [...sp, 'camera', 'target'], this.ctx);
     }
     if (step.overlay?.target !== undefined) checkTarget(step.overlay.target, [...sp, 'overlay', 'target'], this.ctx);
+    if (step.overlay?.slots) this.slotRefs(step.overlay.slots, [...sp, 'overlay', 'slots']);
     const facts = checkActionArgs(step, sp, this.ctx);
+    if (facts.artefact) {
+      const known = this.artefacts[facts.artefact.kind];
+      const prev = known.get(facts.artefact.name);
+      if (prev) this.ctx.error(facts.artefact.path, `${facts.artefact.kind} "${facts.artefact.name}" is already captured at ${formatPath(prev)}: give each capture its own \`as\``);
+      else known.set(facts.artefact.name, facts.artefact.path);
+      if (facts.artefact.kind === 'email' && this.opts.project && !this.opts.project.config.mailbox) {
+        this.ctx.error(
+          [...sp, 'wait_for_email'],
+          `project "${this.opts.project.slug}" has no \`mailbox\`: add mailbox: {provider: mailpit, url: http://localhost:8025} to project.yaml`,
+        );
+      }
+    }
     if (facts.tabId) this.tabIds.add(facts.tabId);
     if (facts.switchTo) this.switches.push(facts.switchTo);
     if (facts.openPage && this.pages && !Object.hasOwn(this.pages, facts.openPage.page)) {
@@ -268,6 +337,7 @@ class ScenarioChecker {
   }
 
   private misc(): void {
+    this.checkArtefactRefs();
     if (this.pages && this.switches.length > 0) {
       const known = new Set([...Object.keys(this.pages), ...STATIC_PAGE_IDS, ...this.tabIds]);
       for (const { to, path } of this.switches) {

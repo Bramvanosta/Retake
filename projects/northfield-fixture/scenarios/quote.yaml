@@ -1,5 +1,9 @@
 # yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
-# Buyer side: discover a coffee, request a quote, receive the roaster's proposal, open the PDF.
+# Buyer side: discover a coffee, request a quote (the roaster's console shows a web notification, captured and
+# overlaid), receive the roaster's proposal, download the PDF (a real PDF, rasterised into a document card).
+#
+# The `open-console` setup hook loads the supplier console in a background tab: it polls for quote requests and shows
+# a web notification (Notification API) when ours arrives — the runner captures it (title, body, icon).
 #
 # "A few hours later": the setup arms an automatic proposal for the NEXT quote request
 # (POST /api/quotes/auto-proposal), stamped 4 h 18 min after the request. The shop loads
@@ -18,6 +22,8 @@ setup:
       url: "{{shop}}/api/quotes/auto-proposal"
       json: {after_minutes: 258, note: "Roasted on Monday, delivered within your window."}
       rollback: {method: DELETE, url: "{{shop}}/api/quotes/auto-proposal"}
+  - name: open-console
+    js: {page: console, code: "return location.href"}
 
 teardown:
   - name: reset
@@ -40,13 +46,18 @@ scenes:
     id: chapter-request
 
   - id: request
-    caption: {kicker: Request a quote, text: "Choose the quantity, the grind, the labels and your delivery window."}
+    caption: {kicker: Request a quote, text: "Choose the quantity, the bag size and the grind."}
     steps:
       - click: {role: button, name: Request a quote}
       - click: {aria: Increase, in: dialog}
       - click: {aria: Increase, in: dialog}
       - select: {field: Bag size, option: 5 kg}
       - select: {field: Grind, option: Whole bean}
+
+  # Same page, same dialog: a second scene keeps each one short (the reference look: 4–25 s per scene).
+  - id: delivery
+    caption: {kicker: Delivery, text: "Pick your delivery window and leave a note for the roaster."}
+    steps:
       - click: {label: Delivery window}
       - click: {aria: Next month}
       - click: {aria: "10 January 2027"}
@@ -54,7 +65,14 @@ scenes:
       - type: {into: {label: Message}, text: "Light roast for filter, please. Deliveries before 9 am.", cps: 18}
       - click: {text: Send request, in: dialog}
       - wait_for: {text: Quote request sent}
-      - hold: 2.5
+      # The roaster's console (background tab) shows a web notification: overlaid when it showed.
+      - hold: 3.2
+        caption: {kicker: Instantly, text: "The roaster is notified the moment the request is sent."}
+        overlay:
+          component: studio/notification
+          slots: {notification: quote-request, app: Northfield console}
+          params: {style: macos}
+          duration: 3
 
   - interstitial: {text: A few hours later, duration: 2.6}
 
@@ -75,5 +93,13 @@ scenes:
           target: {testid: proposal-total}
       - hover: {text: Accept proposal, ms: 600}
         hold: 1.5
-      - new_tab: {target: {text: Download quote PDF}, as: pdf}
-      - hold: 3.5
+      # A real PDF opens in a new tab: captured with the session and rasterised (pdf.js) for the document card.
+      - download: {click: {text: Download quote PDF}, as: quote}
+      - hold: 1
+
+  - card:
+      component: studio/document-pdf
+      slots: {document: quote, kicker: Quote PDF, title: "A real PDF, ready to share with your team."}
+      params: {motion: zoom}
+      duration: 4.5
+    id: quote-pdf

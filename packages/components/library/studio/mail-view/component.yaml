@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A mail client card (SPEC §11, R-MAIL-04): on the theme background, a window in the reference card family (soft
+# shadow, theme radius) with a toolbar, an inbox column (landscape) where the message is selected, and the message —
+# subject in the display font, the sender's initials on the accent, name, address, date — over its HTML rendered at
+# 600 px (the captured email's image), which scrolls slowly from top to bottom when it is taller than the window.
+# Fed by a captured email (`email: <name>`) or scenario values (from, subject, date, body text), scenario values
+# winning. Window rises in (0.5 s); the scroll starts after 1.2 s and ends 0.8 s before the card does.
+id: studio/mail-view
+version: 1.0.0
+kind: card
+name: Mail view
+description: A mail client card showing a captured email — subject, sender, date and its rendered HTML, scrolling slowly when long — or scenario values, in a window with an inbox column on the theme background.
+tags: [card, email, mail]
+slots:
+  email: {type: email, description: A captured email (the `as` of a wait_for_email step).}
+  from: {type: text, max_chars: 60, description: Sender name (default — the email's).}
+  address: {type: text, max_chars: 80, description: Sender address (default — the email's).}
+  subject: {type: text, max_chars: 120, description: Subject (default — the email's).}
+  date: {type: text, max_chars: 40, description: Date as shown (default — the email's date).}
+  body: {type: text, max_chars: 800, description: Body text when there is no captured email image.}
+  mailbox: {type: text, max_chars: 24, description: 'Mailbox name in the toolbar (default "Inbox").'}
+params:
+  type: object
+  properties:
+    width: {type: number, minimum: 900, maximum: 1700, default: 1440, description: Window width in design px (landscape).}
+    sidebar: {type: boolean, default: true, description: Inbox column on the left (landscape and square).}
+    scroll: {type: string, enum: [auto, none], default: auto, description: "auto: scroll a tall email slowly from top to bottom; none: show its top."}
+    shadow: {type: string, enum: [none, soft, strong], default: soft, description: Shadow under the window.}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 5.5, min: 2, max: 20}
+variants: [landscape, vertical, square]
+preview:
+  slots: {email: sample}
+  at: [3]

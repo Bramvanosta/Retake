@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect } from 'react';
-import { useApi } from '../shared/api.js';
+import { api, useApi } from '../shared/api.js';
 import { Icon, LogoMark } from '../shared/icons.jsx';
 import { Link, navigate, Routes, useLocation } from '../shared/router.jsx';
 import { session, urls } from '../shared/session.js';
@@ -165,7 +165,47 @@ function Sidebar() {
   );
 }
 
+/**
+ * Web notifications for new quote requests (L2.9 fixture): the console asks for the permission once and polls the
+ * quote list; each request that arrives while it is open shows a system notification (Notification API).
+ */
+function useQuoteNotifications() {
+  useEffect(() => {
+    if (!('Notification' in window)) return undefined;
+    if (Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+    let known = null;
+    let stopped = false;
+    const tick = async () => {
+      try {
+        const quotes = await api.get('/api/quotes');
+        const ids = new Set(quotes.map((q) => q.id));
+        if (known) {
+          for (const q of quotes) {
+            if (known.has(q.id) || Notification.permission !== 'granted') continue;
+            const what = [q.product?.name ?? q.product_slug, `${q.bags} × ${q.bag_size}`].filter(Boolean).join(' · ');
+            new Notification('New quote request', {
+              body: `${q.buyer_name} asks for ${what}`,
+              icon: '/app-icon.svg',
+              tag: 'quote-request',
+            });
+          }
+        }
+        known = ids;
+      } catch {
+        /* the next poll retries */
+      }
+      if (!stopped) timer = setTimeout(tick, 1000);
+    };
+    let timer = setTimeout(tick, 0);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, []);
+}
+
 export function App() {
+  useQuoteNotifications();
   return (
     <Toaster>
       <div className="console">

@@ -6,6 +6,7 @@ import type {
   TimelineEvent,
   TimelineMarker,
   TimelinePageSegment,
+  TimelineArtefact,
   TimelineScene,
   TimelineVideo,
 } from '@demo-studio/core';
@@ -109,6 +110,8 @@ export class TimelineBuilder {
   readonly cursor: CursorSample[] = [];
   readonly warnings: string[] = [];
   readonly createdAt = new Date().toISOString();
+  /** Captured emails, documents and notifications (the run's ArtefactStore items). */
+  artefacts: TimelineArtefact[] = [];
 
   constructor(
     public readonly meta: TimelineMeta,
@@ -190,6 +193,7 @@ export class TimelineBuilder {
       pages: this.pages,
       cursor: this.cursor,
       idle: this.meta.mode === 'capture' ? computeIdle(capture.frameTimes, end) : [],
+      ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       warnings: this.warnings,
     };
   }

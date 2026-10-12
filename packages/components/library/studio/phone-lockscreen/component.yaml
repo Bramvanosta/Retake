@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A phone lock screen card (R-NTF-02): the phone of studio/layout-phone's family, a wallpaper drawn from the theme
+# (accent glowing into the night tone), the date and the big time in the display font, and notifications arriving one
+# by one (iOS-style translucent cards that drop in and push the others down), newest on top, grouped by app (older ones
+# of the same app stacked under the newest). The notifications come from `notifications` (scenario values) followed by
+# a captured email (`email: <name>`, as a Mail notification) and a captured web notification (`notification:`).
+# Layout `left` puts a kicker + title column beside the phone (wide formats). The newest card is the `anchor` a
+# tap-open transition zooms from.
+id: studio/phone-lockscreen
+version: 1.0.0
+kind: card
+name: Phone lock screen
+description: A phone lock screen with a theme wallpaper, big time and date, and notifications arriving one by one — stacked newest first and grouped by app — from the scenario, a captured email or a captured web notification.
+tags: [card, phone, notification, mobile]
+slots:
+  email: {type: email, description: 'A captured email, shown as the last Mail notification.'}
+  notification: {type: notification, description: 'A captured web notification, shown last.'}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line beside the phone (layout left).}
+  title: {type: text, max_chars: 90, description: Title beside the phone (layout left).}
+params:
+  type: object
+  properties:
+    time: {type: string, default: "9:41", description: Big clock.}
+    date: {type: string, default: "Monday 12 October", description: Date above the clock.}
+    notifications:
+      type: array
+      default: []
+      description: Notifications in order of arrival {app, title, body, time?, icon?}.
+      items:
+        type: object
+        properties:
+          app: {type: string, description: App name (groups notifications).}
+          title: {type: string}
+          body: {type: string}
+          time: {type: string, description: '"now" by default.'}
+          icon: {type: string, description: Icon URL (default the theme logo).}
+        required: [app]
+    start: {type: number, minimum: 0, maximum: 10, default: 0.9, description: Seconds before the first notification arrives.}
+    interval: {type: number, minimum: 0.3, maximum: 5, default: 1.1, description: Seconds between arrivals.}
+    layout: {type: string, enum: [center, left], default: center, description: "center: the phone alone; left: the phone left of a kicker + title column (wide formats)."}
+    height: {type: number, minimum: 600, maximum: 900, default: 880, description: Display height in design px.}
+    finish: {type: string, enum: [dark, light], default: dark, description: Metal band.}
+    wallpaper: {type: string, enum: [accent, night, paper], default: accent, description: Wallpaper mood (all from the theme).}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, logo, style_bias]
+duration: {default: 5, min: 2, max: 20}
+variants: [landscape, vertical, square]
+anchor:
+  vars:
+    sh: min(height, frame_h - 160)
+    sw: round(sh * 0.462)
+    e: round(sh * 0.017) + round(sh * 0.006)
+    bw: sw + 2 * e
+    bh: sh + 2 * e
+    wide: min(1, floor(frame_w / frame_h))
+    side: layout_left * wide
+    gap: round(frame_w * 0.05)
+    cw: min(700, frame_w - bw - 3 * gap)
+    px: side * round((frame_w - bw - gap - cw) / 2) + (1 - side) * round((frame_w - bw) / 2)
+    py: round((frame_h - bh) / 2) - (1 - wide) * 120
+  x: px + e + round(sw * 0.04)
+  y: py + e + round(sh * 0.4)
+  w: round(sw * 0.92)
+  h: round(sw * 0.24)
+preview:
+  params:
+    notifications:
+      - {app: Northfield, title: Quote request sent, body: "Selowa Ridge · 10 × 5 kg · delivery 10–24 Jan."}
+      - {app: Mail, title: Northfield Roasters, body: "Your proposal is ready: €720.00 incl. VAT."}
+      - {app: Northfield, title: New proposal, body: "Roasted on Monday, delivered within your window."}
+  at: [4.2]

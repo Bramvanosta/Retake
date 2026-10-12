@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/mail-view",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 3,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "359afff2105a95ee",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

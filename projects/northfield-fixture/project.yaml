@@ -11,6 +11,8 @@ capture: {width: 1920, height: 1080, scale: 1, fps: 30}
 frame: card
 template: editorial
 locale: en
+# Test mailbox read by wait_for_email: the fixture serves a Mailpit-compatible API (a real Mailpit works the same way).
+mailbox: {provider: mailpit, url: "http://localhost:4401/mailbox"}
 reset:
   - name: reset-fixture
     http: {method: POST, url: "{{console}}/api/reset"}

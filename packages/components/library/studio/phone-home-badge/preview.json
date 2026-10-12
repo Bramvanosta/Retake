@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/phone-home-badge",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 3,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "4a941808e3698d69",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "component": "studio/transition-tap-open",
+  "version": "1.0.0",
+  "kind": "transition",
+  "theme": "editorial",
+  "at": 0.36,
+  "screen": "desktop",
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "85e47a24e3d105bb",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}

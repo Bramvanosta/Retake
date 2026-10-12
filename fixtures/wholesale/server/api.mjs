@@ -2,9 +2,20 @@
 // Every route is listed in ROUTES; GET /api lists them (handy when writing http hooks).
 
 import { compilePath, HttpError, readJson, sendError, sendJson, sendPreflight } from './http.mjs';
+import { confirmationEmail } from './email.mjs';
 import { ApiError } from './store.mjs';
 
-/** @typedef {{ store: import('./store.mjs').Store, urls: { console: string, shop: string } }} ApiContext */
+/** Create the signup and "send" its confirmation email (Mailpit-compatible mailbox). */
+function signup(ctx, body) {
+  const s = ctx.store.createSignup(body);
+  const link = `${ctx.urls.shop}/signup/confirm?token=${encodeURIComponent(s.token)}`;
+  const mail = confirmationEmail({ cafe: s.cafe, name: s.name, email: s.email, link });
+  // A real mailer answers before the message lands: deliver it a moment later.
+  setTimeout(() => ctx.mailbox?.send({ from: { name: 'Northfield', address: 'hello@northfield.example' }, to: [{ name: s.name, address: s.email }], ...mail }), 600);
+  return { id: s.id, cafe: s.cafe, email: s.email, status: s.status };
+}
+
+/** @typedef {{ store: import('./store.mjs').Store, urls: { console: string, shop: string }, mailbox?: import('./mailbox.mjs').Mailbox }} ApiContext */
 
 class Created {
   constructor(value) {
@@ -16,7 +27,9 @@ const created = (value) => new Created(value);
 const ROUTES = [
   ['GET', '/api', 'This list', (_p, _b, _q, ctx) => ({ routes: ROUTES.map(([m, path, doc]) => ({ method: m, path, doc })), urls: ctx.urls })],
   ['GET', '/api/health', 'Liveness + app URLs', (_p, _b, _q, ctx) => ({ ok: true, name: 'northfield-fixture', urls: ctx.urls, now: ctx.store.now() })],
-  ['POST', '/api/reset', 'Restore the seed data (and the demo clock)', (_p, _b, _q, ctx) => (ctx.store.reset(), { ok: true, now: ctx.store.now() })],
+  ['POST', '/api/reset', 'Restore the seed data (and the demo clock); empty the mailbox', (_p, _b, _q, ctx) => (ctx.store.reset(), ctx.mailbox?.clear(), { ok: true, now: ctx.store.now() })],
+  ['POST', '/api/signup', 'Open a café account {cafe, name, email} → sends a confirmation email to the mailbox (/mailbox/api/v1)', (_p, b, _q, ctx) => created(signup(ctx, b))],
+  ['POST', '/api/signup/confirm', 'Confirm a signup {token} ("latest" = the most recent one)', (_p, b, _q, ctx) => ctx.store.confirmSignup(String(b?.token ?? ''))],
   ['GET', '/api/session', 'Demo date, signed-in supplier user and buyer account, option lists', (_p, _b, _q, ctx) => ctx.store.session()],
   ['GET', '/api/organizations', 'Supplier organisations', (_p, _b, _q, ctx) => ctx.store.organizations()],
   ['GET', '/api/products', 'Catalogue (?q=search&status=all|active|published|draft|archived)', (_p, _b, q, ctx) => ctx.store.listProducts({ q: q.get('q') ?? undefined, status: q.get('status') ?? undefined })],

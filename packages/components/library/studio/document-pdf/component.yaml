@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../../schema/component.schema.json
+# A document card (SPEC §11, R-DOC-03): A4 page(s) on the theme background with a paper shadow, from a captured
+# document (`document: <name>`: a download `as`, its PDF pages rasterised at 2× A4) or a project file
+# (`document: assets/quote.pdf`). Motion: zoom (a slow push-in towards `focus`), scroll (the pages stacked, scrolling
+# slowly from the first to the last) or static (one page, or two side by side). `pages` picks them ("1", "2-3",
+# "1,3", "all"). An optional kicker + title column sits left of the page. Without a document it draws a neutral sheet.
+id: studio/document-pdf
+version: 1.0.0
+kind: card
+name: Document (PDF)
+description: A4 page(s) of a captured or project PDF on the theme background with a paper shadow — a slow push-in, a slow scroll through the pages, or a static page / spread — with an optional kicker and title beside it.
+tags: [card, document, pdf]
+slots:
+  document: {type: document, description: "A captured document (a download `as`) or a project file (assets/quote.pdf)."}
+  kicker: {type: text, max_chars: 40, description: Small uppercase line above the title (left column).}
+  title: {type: text, max_chars: 90, description: Title beside the page (left column).}
+params:
+  type: object
+  properties:
+    motion: {type: string, enum: [zoom, scroll, static], default: zoom, description: "zoom: slow push-in; scroll: the pages scroll by; static: still page(s)."}
+    pages: {type: string, default: auto, description: 'Pages shown: "auto" (zoom / static: 1; scroll: all), "2", "1-3", "1,3" or "all".'}
+    focus: {type: string, enum: [top, center, bottom], default: top, description: Where the push-in goes (zoom).}
+    zoom: {type: number, minimum: 1, maximum: 2, default: 1.16, description: Scale the push-in reaches.}
+    shadow: {type: string, enum: [soft, strong], default: strong, description: Paper shadow.}
+tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.display, fonts.body, style_bias]
+duration: {default: 4.5, min: 1.5, max: 20}
+variants: [landscape, vertical, square]
+preview:
+  slots: {document: sample, kicker: Quote, title: 'A real PDF, ready to share'}
+  at: [3.5]

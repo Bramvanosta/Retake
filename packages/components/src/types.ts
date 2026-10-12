@@ -30,7 +30,16 @@ export type { ComponentId, ComponentKind, ComponentRef } from '@demo-studio/core
 /** Output orientations: landscape 16:9 (1920×1080 design space), vertical 9:16 (1080×1920), square 1:1 (1080×1080). */
 export type OutputVariant = 'landscape' | 'vertical' | 'square';
 
-export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen';
+/**
+ * Slot types. `email`, `document` and `notification` slots name a run artefact (L2.9): the scenario writes the
+ * artefact's name (`email: welcome`, `document: quote` or a project file `assets/terms.pdf`, `notification: 1` or a
+ * name) and the planner hands the component the captured data as `props.media[<slot>]`.
+ */
+export type SlotType = 'text' | 'image' | 'url' | 'color' | 'screen' | 'email' | 'document' | 'notification';
+
+/** Slot types whose value names a run artefact (resolved into `ComponentProps.media`). */
+export const ARTEFACT_SLOT_TYPES = ['email', 'document', 'notification'] as const;
+export type ArtefactSlotType = (typeof ARTEFACT_SLOT_TYPES)[number];
 
 export interface SlotSpec {
   type: SlotType;
@@ -96,6 +105,20 @@ export interface LayoutGeometry {
   radius?: number;
 }
 
+/**
+ * Where a component draws its "tap target" (a notification banner, an app icon) at the end of its segment, in the
+ * design space of the variant: a transition such as studio/transition-tap-open zooms from it into the next segment.
+ * Values may be expressions over the numeric params, the string params as one-hot names (`<param>_<value>`: 1 when the
+ * param has that value — `style_ios_banner`; non-alphanumerics become "_"), `vars` and `aspect`.
+ */
+export interface AnchorSpec {
+  vars?: Record<string, number | string>;
+  x: number | string;
+  y: number | string;
+  w: number | string;
+  h: number | string;
+}
+
 export interface ComponentManifest {
   /** "namespace/name", e.g. "studio/intro-stack". */
   id: string;
@@ -122,6 +145,10 @@ export interface ComponentManifest {
   geometry_vertical?: LayoutGeometrySpec;
   /** Square variant (1080×1080 design space). */
   geometry_square?: LayoutGeometrySpec;
+  /** The component's tap target at the end of its segment (landscape design space), for tap-open transitions. */
+  anchor?: AnchorSpec;
+  anchor_vertical?: AnchorSpec;
+  anchor_square?: AnchorSpec;
   variants?: Array<OutputVariant>;
   /** Sample values used to render previews with any theme. */
   /**
@@ -177,6 +204,54 @@ export interface ThemeTokens {
   /** Motion style: the template's zoom easing (cubic-bezier) — the kit's `themeEasing()` uses it. */
   motion?: { zoom_ease: [number, number, number, number] };
 }
+
+/** An image of a run artefact, served by the renderer (`url`), with its pixel size. */
+export interface MediaImage {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** A captured email (wait_for_email), as components receive it. */
+export interface EmailMedia {
+  kind: 'email';
+  name: string;
+  /** Sender address and display name. */
+  from: string;
+  from_name?: string;
+  to: string[];
+  subject: string;
+  /** ISO 8601. */
+  date: string;
+  /** The first characters of the text (whitespace collapsed). */
+  preview: string;
+  /** The HTML rendered at 600 px layout width (2×), full height. */
+  image?: MediaImage;
+}
+
+/** A captured document (download, or a project file), as components receive it: one image per page. */
+export interface DocumentMedia {
+  kind: 'document';
+  name: string;
+  file_name: string;
+  pages: Array<MediaImage & { number: number; width_pt: number; height_pt: number }>;
+}
+
+/** A web notification the product showed, as components receive it. */
+export interface NotificationMedia {
+  kind: 'notification';
+  name: string;
+  title: string;
+  body: string;
+  /** The app a system notification names: the page's host (e.g. "console.example.com"). */
+  app: string;
+  /** ISO 8601 wall time it showed. */
+  time: string;
+  icon?: MediaImage;
+  tag?: string;
+}
+
+export type MediaValue = EmailMedia | DocumentMedia | NotificationMedia;
 
 /** A layout's evaluated rects in output px (`ComponentProps.rects`). */
 export interface LayoutRects {
@@ -235,8 +310,17 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
    * (e.g. a band over the capture).
    */
   area?: { x: number; y: number; w: number; h: number };
-  /** overlay: the box it points at, in output px (a point is a 0×0 box), when the step recorded one. */
+  /**
+   * overlay: the box it points at, in output px (a point is a 0×0 box), when the step recorded one.
+   * transition: the box it opens from (the outgoing segment's tap target — a notification banner, an app icon — from
+   * that component's manifest `anchor`), when there is one.
+   */
   anchor?: { x: number; y: number; w: number; h: number };
+  /**
+   * The run artefacts named by the use's `email` / `document` / `notification` slots (key = slot name), resolved by the
+   * planner (images are served URLs). Absent when the use names none or the run did not capture it.
+   */
+  media?: Record<string, MediaValue>;
   /**
    * transition: the component renders twice — once around the outgoing segment ('exiting') and once around the
    * incoming one ('entering', drawn on top); progress = frame / durationInFrames. A crossfade overlaps the two

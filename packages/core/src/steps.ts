@@ -100,6 +100,12 @@ function normalizeArgs(action: ActionName, v: unknown): NormalizedArgsMap[Action
       return typeof v === 'string' ? { message: v } : { ...(v as NormalizedArgsMap['notify']) };
     case 'emit':
       return typeof v === 'string' ? { name: v } : { ...(v as NormalizedArgsMap['emit']) };
+    case 'wait_for_email':
+      return { ...(v as NormalizedArgsMap['wait_for_email']) };
+    case 'download': {
+      const o = v as { click: TargetSpec; as: string; timeout?: number };
+      return { ...o, click: targetOrObject(o.click) } as NormalizedArgsMap['download'];
+    }
     case 'cursor': {
       if (v === 'show' || v === 'hide') return { mode: v };
       const o = v as { move?: unknown; set?: unknown; duration?: number; show?: boolean };

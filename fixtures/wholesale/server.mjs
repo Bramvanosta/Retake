@@ -16,7 +16,9 @@ import { parseArgs } from 'node:util';
 import { build, bundleState, bundleVersion, OUT_DIR } from './build.mjs';
 import { handleApi } from './server/api.mjs';
 import { sendError, sendText } from './server/http.mjs';
-import { renderNotFoundPdf, renderQuotePdf } from './server/pdf.mjs';
+import { Mailbox, handleMailbox } from './server/mailbox.mjs';
+import { quotePdfFileName, renderNotFoundPdf, renderQuotePdf, renderQuotePrint } from './server/pdf.mjs';
+import { closePdfBrowser, htmlToPdf } from './server/pdfgen.mjs';
 import { Store } from './server/store.mjs';
 
 const TYPES = {
@@ -78,12 +80,35 @@ function appHandler(appKey, ctx) {
     }
     const path = url.pathname;
     if (path === '/api' || path.startsWith('/api/')) return handleApi(req, res, url, ctx);
+    if ((path === '/mailbox' || path.startsWith('/mailbox/')) && handleMailbox(req, res, url, ctx.mailbox)) return;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return sendError(res, 405, 'method_not_allowed', `${req.method} is only supported under /api`);
     }
     if (path.startsWith('/build/')) return serveBuildFile(res, path);
     if (path === '/favicon.svg' || path === '/favicon.ico') return sendText(res, 200, 'image/svg+xml', FAVICON);
+    if (path === '/app-icon.svg') return sendText(res, 200, 'image/svg+xml', FAVICON);
     if (appKey === 'shop') {
+      // A real PDF of the quote (printed by Chromium from the quote document), shown inline in a new tab.
+      const real = /^\/quotes\/([^/]+)\/quote\.pdf$/.exec(path);
+      if (real) {
+        let quote;
+        try {
+          quote = ctx.store.getQuote(decodeURIComponent(real[1]));
+        } catch {
+          return sendError(res, 404, 'not_found', `Quote ${real[1]} was not found`);
+        }
+        const html = renderQuotePrint(quote);
+        if (!html) return sendError(res, 404, 'no_proposal', `Quote ${quote.reference} has no proposal yet`);
+        try {
+          const pdf = await htmlToPdf(html);
+          return sendText(res, 200, 'application/pdf', pdf, {
+            'content-disposition': `inline; filename="${quotePdfFileName(quote)}"`,
+            'cache-control': 'no-store',
+          });
+        } catch (err) {
+          return sendError(res, 500, 'pdf_failed', `The PDF could not be printed: ${err instanceof Error ? err.message : err}`);
+        }
+      }
       const pdf = /^\/quotes\/([^/]+)\/pdf\/?$/.exec(path);
       if (pdf) {
         try {
@@ -154,7 +179,7 @@ export async function startFixture(opts = {}) {
   const hosts = opts.host ? [opts.host] : ['127.0.0.1', '::1'];
   const urlHost = !opts.host || opts.host === '127.0.0.1' || opts.host === '::1' || opts.host === '0.0.0.0' || opts.host === '::' ? 'localhost' : opts.host;
   const store = new Store({ enrichMs: opts.enrichMs, importMs: opts.importMs });
-  const ctx = { store, urls: { console: '', shop: '' }, version: await bundleVersion() };
+  const ctx = { store, mailbox: new Mailbox(), urls: { console: '', shop: '' }, version: await bundleVersion() };
   const consoleSide = await listenAll(appHandler('console', ctx), opts.consolePort ?? 4401, hosts, 'console');
   let shopSide;
   try {
@@ -170,8 +195,11 @@ export async function startFixture(opts = {}) {
   return {
     urls: ctx.urls,
     store,
+    mailbox: ctx.mailbox,
     close() {
-      closing ??= Promise.all(
+      closing ??= Promise.all([
+        closePdfBrowser(),
+        ...
         servers.map(
           (s) =>
             new Promise((resolve) => {
@@ -179,7 +207,7 @@ export async function startFixture(opts = {}) {
               s.closeAllConnections();
             }),
         ),
-      ).then(() => undefined);
+      ]).then(() => undefined);
       return closing;
     },
   };
@@ -226,6 +254,7 @@ async function main() {
   console.log(`  Console  ${fixture.urls.console}`);
   console.log(`  Shop     ${fixture.urls.shop}`);
   console.log(`  API      ${fixture.urls.console}/api  (same store on both ports; POST /api/reset restores the seed)`);
+  console.log(`  Mailbox  ${fixture.urls.console}/mailbox  (Mailpit-compatible API: /mailbox/api/v1/messages)`);
   const stop = (signal) => {
     console.log(`Received ${signal}, shutting down`);
     const force = setTimeout(() => process.exit(0), 2000);

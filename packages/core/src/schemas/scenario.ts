@@ -8,7 +8,7 @@ import {
   PointSchema,
   SlotsSchema,
   TargetSpecSchema,
-  TransitionSchema,
+  SceneTransitionSchema,
   componentIdSchema,
   keyString,
   nonEmpty,
@@ -40,7 +40,7 @@ export const SceneSchema = z
     speed: speedSchema().describe('Edit-time speed for the whole scene, in (0, 8].').optional(),
     still: seconds().describe('Seconds of stillness at scene start (default pacing.scene_start_still).').optional(),
     cursor: SceneCursorSchema.optional(),
-    transition: TransitionSchema.describe('Transition INTO this scene (default: template).').optional(),
+    transition: SceneTransitionSchema.describe('Transition INTO this scene: crossfade, cut, fade-black or a transition component (default: the theme\'s).').optional(),
     frame: FrameSpecSchema.describe(
       'Frame of this scene (default: the scenario frame, else the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
     ).optional(),
@@ -82,8 +82,11 @@ export const CardSchema = z
           'Slot values: title, kicker, text… as the component declares them (a card without `component` needs `title`).',
         ).optional(),
         duration: positiveSeconds().describe("Seconds on screen (default: the component's duration).").optional(),
+        transition: SceneTransitionSchema.describe(
+          "Transition INTO this card: crossfade, cut, fade-black or a transition component, e.g. studio/transition-tap-open (default: the theme's).",
+        ).optional(),
       })
-      .describe('Full-screen card: component, params, slots, duration.'),
+      .describe('Full-screen card: component, params, slots, duration, transition.'),
     id: slugString('scene id').describe('Card id (default "card-<index>").').optional(),
   })
   .meta({

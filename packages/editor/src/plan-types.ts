@@ -6,7 +6,7 @@
  * Layout rectangles are in output pixels.
  */
 import type { BBox, FrameSpec, PointSpec, TransitionKind, Template } from '@demo-studio/core';
-import type { CaptionCue, ComponentManifest, ThemeTokens } from '@demo-studio/components';
+import type { CaptionCue, ComponentManifest, MediaValue, ThemeTokens } from '@demo-studio/components';
 
 export type { CaptionCue };
 
@@ -91,6 +91,11 @@ export interface ResolvedComponent {
   /** Where the choice came from (for the UI: "theme default" vs "scenario override"). */
   source: 'theme' | 'scenario' | 'override' | 'builtin-default';
   /**
+   * The run artefacts its `email` / `document` / `notification` slots name (key = slot name), with `ds-asset:` image
+   * URLs (L2.9). Handed to the component as `props.media`.
+   */
+  media?: Record<string, MediaValue>;
+  /**
    * Set when no registered component could be resolved for this use (not found, wrong kind or invalid params): the
    * renderer draws a stand-in of the kind; the plan warnings say why.
    */
@@ -104,6 +109,12 @@ export interface PlanTransition {
   frames: number;
   /** The transition component (null for a cut). */
   component: ResolvedComponent | null;
+  /**
+   * Output px box the transition opens from: the tap target the outgoing segment's component declares (manifest
+   * `anchor`, evaluated with its params) — a lock-screen notification, an app icon, a notification overlay still
+   * showing at the end of the outgoing clip. Absent when the outgoing segment declares none.
+   */
+  anchor?: Rect;
 }
 
 /** Provenance of a span of output frames: which scenario step produced it (comments, timeline UI, review). */
@@ -121,7 +132,14 @@ export interface OverlayUse {
   component: ResolvedComponent;
   /** Relative to the segment. */
   from: number;
+  /** Frames on screen (cut by the clip's end). */
   durationInFrames: number;
+  /**
+   * The component's own length when the clip's end cut the overlay short: the component is rendered with this
+   * `durationInFrames`, so its exit animation (after the cut) is never seen — it stays on screen to the clip's last
+   * frame (and through a tap-open transition from it).
+   */
+  componentFrames?: number;
   /** Step that requested it. */
   scene: string;
   step: number;

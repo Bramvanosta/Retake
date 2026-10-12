@@ -8,12 +8,17 @@ import { darkLight, isDarkBackground, luminance, mixColors, nightTone, withAlpha
 
 /**
  * Neutral SYSTEM colours of operating-system mock-ups — not brand colours: the window controls ("traffic lights") of
- * a macOS-style window. Layouts offer a theme-tinted alternative (`controls: theme`).
+ * a macOS-style window (layouts offer a theme-tinted alternative, `controls: theme`), the red of an app badge and the
+ * white of a printed page.
  */
 export const SYSTEM_COLORS = {
   close: '#ff5f57',
   minimize: '#febc2e',
   zoom: '#28c840',
+  /** The red of an app icon's badge (phone home screens; `badge: accent` uses the theme instead). */
+  badge: '#ff3b30',
+  /** The white of a printed page and of an email's canvas (documents, mail views) — not a theme colour. */
+  page: '#ffffff',
 } as const;
 
 export type ShadowKind = 'none' | 'soft' | 'strong';

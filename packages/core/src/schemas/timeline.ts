@@ -8,7 +8,7 @@ import {
   FrameSpecSchema,
   PointSchema,
   TargetSpecSchema,
-  TransitionSchema,
+  SceneTransitionSchema,
   nonEmpty,
 } from './primitives.js';
 
@@ -26,7 +26,7 @@ const TimelineSceneSchema = z.strictObject({
   url: z.string().optional(),
   caption: CaptionObject.optional(),
   speed: z.number().gt(0).optional(),
-  transition: TransitionSchema.optional(),
+  transition: SceneTransitionSchema.optional(),
   frame: FrameSpecSchema.optional(),
   interstitial: z
     .strictObject({
@@ -44,6 +44,7 @@ const TimelineSceneSchema = z.strictObject({
       params: ComponentParamsSchema.optional(),
       slots: z.record(z.string(), z.string()).optional(),
       duration: z.number().optional(),
+      transition: SceneTransitionSchema.optional(),
     })
     .optional(),
   status: z.enum(['ok', 'failed', 'skipped', 'partial']),
@@ -69,7 +70,7 @@ const TimelineEventSchema = z.strictObject({
   scene_index: z.number().int().min(0),
   step: z.number().int(),
   id: z.string().optional(),
-  action: z.enum([...ACTION_NAMES, 'scene_open', 'scene_still']),
+  action: z.enum([...ACTION_NAMES, 'scene_open', 'scene_still', 'notification']),
   t_start: t(),
   t_end: t(),
   hold: z.strictObject({ t_start: t(), t_end: t() }).optional(),
@@ -110,6 +111,60 @@ const TimelineEventSchema = z.strictObject({
   data: z.unknown().optional(),
 });
 
+const ArtefactImageSchema = z.strictObject({
+  file: nonEmpty().describe('Relative to the run directory.'),
+  width: z.number().int().gt(0),
+  height: z.number().int().gt(0),
+});
+
+const artefactBase = {
+  name: nonEmpty(),
+  t: t(),
+  scene: z.string().optional(),
+  step: z.number().int().optional(),
+  file: nonEmpty().describe('Relative to the run directory.'),
+};
+
+const TimelineArtefactSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('email'),
+      ...artefactBase,
+      from: z.string(),
+      from_name: z.string().optional(),
+      to: z.array(z.string()),
+      subject: z.string(),
+      date: z.string(),
+      preview: z.string(),
+      image: ArtefactImageSchema.optional(),
+    }),
+    z.strictObject({
+      kind: z.literal('document'),
+      ...artefactBase,
+      mime: z.string(),
+      file_name: z.string(),
+      via: z.enum(['download', 'tab', 'project']),
+      url: z.string().optional(),
+      bytes: z.number().int().min(0),
+      pages: z.array(ArtefactImageSchema.extend({ width_pt: z.number().gt(0), height_pt: z.number().gt(0) })),
+    }),
+    z.strictObject({
+      kind: z.literal('notification'),
+      ...artefactBase,
+      index: z.number().int().min(1),
+      title: z.string(),
+      body: z.string(),
+      tag: z.string().optional(),
+      icon: ArtefactImageSchema.optional(),
+      icon_url: z.string().optional(),
+      origin: z.string(),
+      page: z.string().optional(),
+      via: z.enum(['Notification', 'ServiceWorkerRegistration.showNotification']),
+      time: z.string(),
+    }),
+  ])
+  .describe('A captured email, document or web notification (L2.9).');
+
 export const TimelineSchema = z
   .strictObject({
     version: z.literal(1),
@@ -137,6 +192,7 @@ export const TimelineSchema = z
       z.strictObject({ t: t(), x: z.number(), y: z.number(), visible: z.boolean(), down: z.boolean().optional() }),
     ),
     idle: z.array(z.strictObject({ t_start: t(), t_end: t() })),
+    artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents and web notifications captured by the run.').optional(),
     warnings: z.array(z.string()),
   })
   .meta({

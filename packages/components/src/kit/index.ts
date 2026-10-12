@@ -11,4 +11,6 @@ export * from './metrics.js';
 export * from './style.js';
 export * from './devices.js';
 export * from './elements.js';
-export type { ComponentProps, ThemeTokens, ThemeTextStyle, CaptionCue, LayoutRects } from '../types.js';
+export * from './notifications.js';
+export * from './phone.js';
+export type { ComponentProps, ThemeTokens, ThemeTextStyle, CaptionCue, LayoutRects, MediaValue, MediaImage, EmailMedia, DocumentMedia, NotificationMedia } from '../types.js';

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "component": "studio/document-pdf",
+  "version": "1.0.0",
+  "kind": "card",
+  "theme": "editorial",
+  "at": 3.5,
+  "files": [
+    "component.yaml",
+    "index.tsx"
+  ],
+  "source_hash": "04a9c0deb0a89351",
+  "image": {
+    "file": "preview.png",
+    "width": 960,
+    "height": 540
+  }
+}
