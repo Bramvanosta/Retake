@@ -21,6 +21,10 @@ export { moveDuration, arcPath, easeInOutCubic, isNudge } from './motion.js';
 export { evalInPage } from './actions/misc.js';
 export { evalHookInPage } from './hook-page.js';
 export type { HookPageOptions } from './hook-page.js';
+export { armWriteGuard, closePage, unloadGuardScript, unloadPages } from './write-guard.js';
+export type { GuardedWrite, PageRole, WriteGuardOptions, WriteVia } from './write-guard.js';
+export { REAL_TIME_SCRIPT, isRealTimePage, productClock, productClockScript, useRealTime } from './product-clock.js';
+export type { ProductClockConfig } from './product-clock.js';
 export { RunnerError, StepError, CancelledError, EncodeError, PreflightError, LoginPageError } from './errors.js';
 export {
   LoginGuard,

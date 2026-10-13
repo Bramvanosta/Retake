@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { allowedHosts } from '@demo-studio/core';
+import { allowedHosts, shellHostRefs } from '@demo-studio/core';
 import type { ShellHookSpec } from '@demo-studio/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
@@ -126,6 +126,11 @@ function checkHosts(ctx: HookContext, cmd: ShellCommand): void {
   checkShellHosts(cmd.run, hookEnv(ctx, cmd.env), cmd.env, ctx.project);
 }
 
+/** The hosts a command names (checked by checkHosts first). */
+function hostsOf(ctx: HookContext, cmd: ShellCommand): string[] {
+  return shellHostRefs(cmd.run, { vars: hookEnv(ctx, cmd.env), env: cmd.env }).flatMap((r) => (r.unresolved ? [] : [r.host]));
+}
+
 async function execute(
   ctx: HookContext,
   log: (level: HookLogLevel, msg: string) => void,
@@ -146,7 +151,11 @@ async function execute(
   return 'exit 0';
 }
 
-export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv): Promise<PreparedHook> {
+/**
+ * `declared`: the hook's `writes` field (L1.7). A shell command writes unless the hook declares `writes: false`; even
+ * then a destructive command (rm, dropdb, destructive SQL given to psql) and a rollback write.
+ */
+export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, declared?: { writes?: boolean }): Promise<PreparedHook> {
   const { ctx, log } = k;
   const s: ShellHookSpec = typeof spec === 'string' ? { run: spec } : spec;
   const forward: ShellCommand = { run: s.run, cwd: s.cwd, env: s.env };
@@ -156,12 +165,14 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv): Pr
   const timeout = s.timeout ?? DEFAULT_SHELL_TIMEOUT_S;
 
   ignoreRollback(k, s.rollback !== undefined);
+  const hosts = hostsOf(ctx, cmd);
   let rollback: RollbackAction | undefined;
   if (s.rollback !== undefined && k.phase === 'setup') {
     const template: ShellCommand = { run: s.rollback, cwd: s.cwd, env: s.env };
     const tpl = await hookTemplateContext(ctx, template);
     const rb = renderDeep(template, tpl);
     checkHosts(ctx, rb);
+    hosts.push(...hostsOf(ctx, rb));
     rollback = {
       kind: 'shell',
       run: s.rollback,
@@ -172,9 +183,19 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv): Pr
       description: redactText(ctx, describeShell(rb.run)),
     };
   }
+  const destructive = shellDestructiveReason(cmd.run, { projectDir: ctx.project.dir });
   return {
     description: redactText(ctx, describeShell(cmd.run)),
-    destructive: shellDestructiveReason(cmd.run, { projectDir: ctx.project.dir }),
+    destructive,
+    writes:
+      declared?.writes !== false
+        ? 'a shell command — add `writes: false` to a shell hook that only reads'
+        : destructive
+          ? `${destructive}, although it declares writes: false`
+          : s.rollback !== undefined && k.phase === 'setup'
+            ? 'its rollback: a shell command'
+            : null,
+    hosts,
     async execute() {
       return { message: await execute(ctx, log, cmd, timeout), rollback };
     },

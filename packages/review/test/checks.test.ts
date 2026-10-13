@@ -9,11 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadProject, loadTemplate } from '@demo-studio/core';
-import type { Timeline } from '@demo-studio/core';
+import type { LoadedProject, LoadedTemplate, Timeline, TimelineEnvironment } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import { planEdit } from '@demo-studio/editor';
-import type { ClipSegment, EditPlan, RenderRecord } from '@demo-studio/editor';
+import type { CardSegment, ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@demo-studio/editor';
 import {
   DEFAULT_RULES,
   buildOutputTimeline,
@@ -22,10 +22,13 @@ import {
   checkCaptions,
   checkCursor,
   checkDurations,
+  checkEnvironment,
+  checkRender,
   checkLongScenes,
   checkTextSlots,
   checkTransitionsOnClicks,
   diffRecords,
+  environmentLine,
   fitCaption,
   fontFileMeasurer,
   keyframePlan,
@@ -33,6 +36,7 @@ import {
   outputClicks,
   outputFrameOf,
   planFontFiles,
+  reviewEnvironment,
   safeName,
   sampleFrames,
   segmentDurations,
@@ -63,10 +67,21 @@ function ctxOf(name: 'catalogue' | 'quote'): CheckContext {
   };
 }
 
+let project: LoadedProject;
+let editorial: LoadedTemplate;
+
+/** A check context of a timeline planned now (editorial, the fixture project), with overrides. */
+function ctxPlanned(timeline: Timeline, overrides: EditOverrides = {}): CheckContext {
+  const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4', overrides });
+  const record = { version: 1, id: 'x-v1', scenario: 'x', run_id: timeline.run_id, template: 'editorial', status: 'succeeded', overrides, variant: 'landscape', plan } as unknown as RenderRecord;
+  const spans = segmentSpans(plan);
+  return { record, plan, timeline, rules: { ...DEFAULT_RULES }, spans, transitions: transitionSpans(plan), clicks: outputClicks(plan, timeline), registry, measure: fontFileMeasurer(planFontFiles(plan)) };
+}
+
 beforeAll(async () => {
   registry = await loadComponentRegistry({ root: REPO });
-  const project = await loadProject('northfield-fixture', REPO);
-  const editorial = await loadTemplate('editorial', REPO);
+  project = await loadProject('northfield-fixture', REPO);
+  editorial = await loadTemplate('editorial', REPO);
   for (const name of ['catalogue', 'quote'] as const) {
     const timeline = realTimeline(name);
     const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4' });
@@ -217,6 +232,113 @@ describe('plan checks on the fixture plans', () => {
     a.camera = a.srcFrames.map(() => [1.3, 900, 500]);
     const f = checkCamera({ ...ctx, plan, spans: segmentSpans(plan), transitions: transitionSpans(plan) });
     expect(f.find((x) => x.code === 'zoom-reset')).toMatchObject({ severity: 'warning', at: { segment: b.id } });
+  });
+});
+
+describe('environment (L1.7): the report line, stopped writes, hidden and local URLs', () => {
+  const SHOP = { page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' };
+  const withEnv = (env: TimelineEnvironment): Timeline => ({ ...realTimeline('quote'), environment: env });
+
+  it('a run before L1.7 (no environment block): no line, nothing to say on a card frame', () => {
+    expect(reviewEnvironment(plans.quote.timeline)).toBeUndefined();
+    expect(checkEnvironment(ctxOf('quote'))).toEqual([]);
+  });
+
+  it('a read-only run: the line counts its writes; each stopped write is a warning at its output frame, named by its display URL', () => {
+    const tl = withEnv({
+      name: 'production',
+      production: true,
+      access: 'read-only',
+      display: [SHOP],
+      clock: { at: '2026-11-02T10:24:00', epoch_ms: Date.UTC(2026, 10, 2, 9, 24) },
+      writes: [
+        { t: 30.8, method: 'POST', url: 'http://localhost:4402/api/quotes', outcome: 'mocked', rule: 'POST shop:/api/quotes', status: 201, via: 'page' },
+        { t: 20.2, method: 'POST', url: 'http://localhost:4402/api/track?session=1', outcome: 'blocked', via: 'page' },
+        { t: 22.4, method: 'POST', url: 'http://localhost:4402/api/track?session=2', outcome: 'blocked', via: 'page' },
+        { method: 'PATCH', url: 'http://localhost:4402/api/profile', outcome: 'blocked', via: 'page' },
+        { method: 'POST', url: 'http://localhost:4402/sign-in', outcome: 'exempt', via: 'sign-in' },
+        { method: 'PUT', url: 'http://localhost:4402/api/last-seen', outcome: 'blocked', via: 'sign-in' },
+        { t: 3, method: 'POST', url: 'https://metrics.example.com/collect', outcome: 'passed', via: 'page' },
+      ],
+    });
+    const env = reviewEnvironment(tl)!;
+    expect(env).toEqual({
+      name: 'production',
+      production: true,
+      access: 'read-only',
+      clock: { at: '2026-11-02T10:24:00' },
+      display: ['https://shop.northfield.example'],
+      writes: { blocked: 4, mocked: 1, allowed: 0, passed: 1 },
+    });
+    expect(environmentLine(env)).toBe('production · production · read-only · 1 write mocked, 4 stopped, 1 to unguarded hosts · clock 2026-11-02T10:24:00');
+    expect(environmentLine({ name: 'local', access: 'read-write', writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } })).toBe('local · read-write');
+    // A read-write run whose guard stopped writes to the hosts of a read-only environment says so.
+    expect(environmentLine({ name: 'local', access: 'read-write', writes: { blocked: 2, mocked: 0, allowed: 0, passed: 0 } })).toBe('local · read-write · 2 stopped (hosts of read-only environments)');
+    expect(environmentLine({ name: 'live', production: true, access: 'read-write', allow_writes: true, writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } })).toBe('live · production · read-write (--allow-writes)');
+    const ctx = ctxPlanned(tl);
+    const f = checkEnvironment(ctx);
+    expect(f.map((x) => x.code)).toEqual(['write-blocked', 'write-blocked', 'write-blocked']);
+    // One per method and path (two /api/track POSTs), at the output frame of the first: inside the request scene.
+    expect(f[0]).toMatchObject({ severity: 'warning', at: { segment: 'request', scene: 'request' } });
+    expect(f[0].message).toBe('a write was stopped: POST https://shop.northfield.example/api/track ×2 — the app saw a network error and may show it; add a mock (README: Environments)');
+    const clip = ctx.plan.segments.find((x): x is ClipSegment => x.id === 'request')!;
+    expect(clip.srcFrames[f[0].at!.frame! - clip.from] / ctx.plan.source.fps).toBeCloseTo(20.2, 0);
+    expect(f[1].message).toMatch(/^a write was stopped before the capture started: PATCH https:\/\/shop\.northfield\.example\/api\/profile/);
+    expect(f[1].at).toBeUndefined();
+    // What the automated sign-in sent from the page it landed on is guarded and reported (its own sign-in POST is not).
+    expect(f[2].message).toMatch(/^a write was stopped before the capture started: PUT https:\/\/shop\.northfield\.example\/api\/last-seen from the automated sign-in — /);
+    expect(JSON.stringify(f)).not.toMatch(/localhost/);
+    // A write a read-write run stopped because it went to another environment's host names that environment.
+    const rw = checkEnvironment(
+      ctxPlanned(withEnv({ name: 'local', access: 'read-write', writes: [{ t: 20.2, method: 'POST', url: 'https://api.example.com/reset', outcome: 'blocked', via: 'page', protected_by: 'production' }] })),
+    );
+    expect(rw.map((x) => x.message)).toEqual(['a write was stopped: POST https://api.example.com/reset — a host of read-only environment production: the app saw a network error and may show it (README: Environments)']);
+  });
+
+  it('url-hidden: only where the layout draws the URL, at the first local address, never naming the local host', () => {
+    // An environment the project does not declare (no display URLs to merge): every address is local.
+    const local = withEnv({ name: 'qa', access: 'read-write' });
+    expect(checkEnvironment(ctxPlanned(local))).toEqual([]); // a card draws no URL
+    const browser = checkEnvironment(ctxPlanned(local, { frame: 'browser' }));
+    expect(browser.map((x) => [x.code, x.at?.segment])).toEqual([
+      ['url-hidden', 'discover'],
+      ['url-hidden', 'request'],
+      ['url-hidden', 'proposal'],
+    ]);
+    expect(browser[0].message).toBe('discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in project.yaml environments and render again (README: Environments)');
+    expect(JSON.stringify(browser)).not.toMatch(/localhost/);
+    // The plan's warning about it reaches the report masked (V4).
+    const planned = ctxPlanned(local, { frame: 'browser' });
+    expect(planned.plan.warnings.join('\n')).toMatch(/localhost:4402/);
+    const notes = checkRender(planned).filter((x) => x.code === 'plan-warning');
+    expect(notes.map((x) => x.message)).toEqual([
+      'a local URL outside the pages of environment qa has no display URL (a local page): the browser bar shows no address for it — declare it as a page with a display: in project.yaml and render again (README: Environments)',
+    ]);
+    // The run's environment declared in project.yaml with display URLs: they apply at edit time (V2) — nothing to say,
+    // and the review names URLs through the table the edit used.
+    const merged = ctxPlanned(withEnv({ name: 'local', access: 'read-write' }), { frame: 'browser' });
+    expect(merged.plan.display?.map((r) => r.display)).toEqual(['https://console.northfield.example', 'https://shop.northfield.example']);
+    expect(checkEnvironment(merged)).toEqual([]);
+    expect(reviewEnvironment(merged.timeline, merged.plan)?.display).toEqual(['https://console.northfield.example', 'https://shop.northfield.example']);
+    expect(checkEnvironment(ctxPlanned(local, { frame: 'browser', components: { layout: { id: 'studio/layout-browser', params: { show_url: false } } } }))).toEqual([]);
+    // With the display table: the bar shows the display URL, nothing to say.
+    expect(checkEnvironment(ctxPlanned(withEnv({ name: 'local', access: 'read-write', display: [SHOP] }), { frame: 'browser' }))).toEqual([]);
+  });
+
+  it('local-url-text: a caption, a card slot or a page label naming a local URL', () => {
+    const ctx = ctxPlanned(withEnv({ name: 'local', access: 'read-write' }));
+    const discover = ctx.plan.segments.find((x): x is ClipSegment => x.id === 'discover')!;
+    discover.cues[0] = { ...discover.cues[0], text: 'Order at localhost:4402/coffees today' };
+    const card = ctx.plan.segments.find((x): x is CardSegment => x.id === 'chapter-request')!;
+    card.component.slots = { ...card.component.slots, title: 'See http://127.0.0.1:4402/quotes.' };
+    const f = checkEnvironment(ctx);
+    expect(f.map((x) => [x.code, x.at?.segment])).toEqual([
+      ['local-url-text', 'discover'],
+      ['local-url-text', 'chapter-request'],
+    ]);
+    expect(f[0].message).toBe('caption of discover shows a local URL (/coffees): it is burnt into the video — write {{page}} and give that page a display URL in project.yaml, or write the public address');
+    expect(f[1].message).toMatch(/^card chapter-request \("title"\) shows a local URL \(\/quotes\)/);
+    expect(JSON.stringify(f)).not.toMatch(/localhost|127\.0\.0\.1/);
   });
 });
 

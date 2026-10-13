@@ -113,6 +113,12 @@ scenarios film.
 `DELETE /mailbox/api/v1/messages`. The confirmation email is a 600 px table layout with the logo as an inline `cid:`
 image, delivered 0.6 s after the sign-up. `POST /api/reset` empties the mailbox.
 
+**Dates.** Every date the apps show comes from the server's demo clock (2 Nov 2026 at 10:24 after a reset, then
+running) — except one line: `/#as-of` adds **Prices as of Monday 2 November 2026, 10:24** under the shop's hero
+(`data-testid="prices-as-of"`), read from the *browser's* clock in its time zone. It shows Demo Studio's product clock
+(`clock:`, L1.7): the `read-only` scenario sets that clock, so every take shows the same line; `/` without the flag
+(what the other scenarios film) never shows it.
+
 The shop is responsive (same labels and roles at every size, so scenarios target the same elements): at tablet width
 (820 × 1180, ≤ 1100 / ≤ 900 px) the search field and the account name collapse, product grids go to 2–3 columns and
 the product page stacks; at phone width (390 × 844, ≤ 600 px) the main navigation becomes a row of tabs under the brand,
@@ -121,6 +127,9 @@ span the width. `projects/northfield-fixture/scenarios/mobile-quote.yaml` captur
 
 ## API (shared by both ports; `GET /api` lists every route)
 
+- `GET /api/health` — liveness, the apps' URLs, the demo clock and `mutations`: the number of successful non-GET API
+  calls since the server started (never reset, not even by `/api/reset`) — read it before and after a read-only run to
+  prove the run changed nothing on the server.
 - `POST /api/reset` — restore the seed data and restart the demo clock (2 Nov 2026, 10:24); empty the mailbox.
 - `POST /api/auth/expire` — end every session of the signed-in side, or one persona's `{persona}` (sessions are not data:
   `/api/reset` leaves them).

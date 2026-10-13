@@ -1,4 +1,6 @@
+import { readOnlyHookMessage } from '@demo-studio/core';
 import type { HookKind, HookStep, HttpHookSpec } from '@demo-studio/core';
+import { checkWriteHosts } from './allow-list.js';
 import { describeHook, hookKindOf, withName } from './describe.js';
 import { HookSecurityError, errorMessage } from './errors.js';
 import type { Journal } from './journal.js';
@@ -125,6 +127,12 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   try {
     prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log });
     description = withName(hook.name, prepared.description);
+    // A read-only run (L1.7) refuses a hook that writes before anything else (no destructive prompt for it).
+    if (ctx.access?.mode === 'read-only' && prepared.writes) {
+      throw new HookSecurityError(readOnlyHookMessage(prepared.writes, ctx.access), 'read-only');
+    }
+    // Nor does any run write to the hosts of another, read-only environment (production): refused like the above.
+    if (prepared.writes && prepared.hosts) checkWriteHosts(prepared.hosts, prepared.writes, ctx.access);
     const reason = hook.destructive === true ? 'declared destructive' : prepared.destructive;
     if (reason) await confirmDestructive(hook, reason, description, ctx, log);
     if (ctx.dryRun) {

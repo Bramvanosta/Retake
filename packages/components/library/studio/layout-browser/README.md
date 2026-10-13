@@ -3,7 +3,7 @@
 
 `studio/layout-browser` · layout · v1.0.0
 
-The capture in a macOS-style browser window (traffic lights, optional tabs, an address bar with the real page URL) on the theme background, caption area below, brand mark right-aligned with the window.
+The capture in a macOS-style browser window (traffic lights, optional tabs, an address bar with the page's display URL) on the theme background, caption area below, brand mark right-aligned with the window.
 
 ![Browser window preview — editorial theme, at 1 s, desktop sample screen](preview.png)
 
@@ -22,8 +22,8 @@ The capture in a macOS-style browser window (traffic lights, optional tabs, an a
 | `width` | number (600–1920) | 1560 | Window width in design px (landscape; centred). The page area keeps the capture's aspect, at most 878 px minus the chrome tall: wider windows on 16:9 captures are capped. |
 | `radius` | number (0–40) | 12 | Corner radius of the window in design px. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the window (tinted with the theme's dark tone). |
-| `show_url` | boolean | true | Show the page URL in the address bar. |
-| `tabs` | boolean | false | Add a tab strip (one tab named after the page's host) above the toolbar. |
+| `show_url` | boolean | true | Show the page URL in the address bar: its display URL (none for a local URL without one). |
+| `tabs` | boolean | false | Add a tab strip (one tab named after the page's display host) above the toolbar. |
 | `chrome` | `auto` \| `light` \| `dark` | auto | Toolbar tone: auto = dark on a dark theme background, light otherwise. |
 | `controls` | `color` \| `theme` | color | Window controls: the classic red / yellow / green, or quiet dots tinted from the theme. |
 

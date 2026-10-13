@@ -18,6 +18,7 @@ import {
   cursorFrames,
   cursorJson,
   easeOut,
+  exportDisplayTable,
   fcpTime,
   gridFrameOf,
   heldBesideOtherPages,
@@ -30,6 +31,7 @@ import {
   rawMarkers,
   rawSettings,
   scaleStep,
+  shownTargets,
   timecode,
   writeEdl,
   writeFcpxml,
@@ -538,6 +540,31 @@ describe('markers and interchange files (R-RAW-03)', () => {
     expect(rows[0].startsWith('kind,name,color,clip,')).toBe(true);
     expect(rows.length - 1).toBe(j.markers.length);
     for (const m of j.markers) expect(m.seq_tc).toBe(timecode(m.seq_frame, 30));
+  });
+});
+
+describe('URLs in the package (L1.7, R-ENV-01)', () => {
+  it('step markers and click targets name a URL as the video shows it: the display URL, else its path — never a local host', () => {
+    const tl = fixture('catalogue');
+    const step = tl.events.find((e) => e.step >= 0 && e.action === 'click')!;
+    const open = { ...step, action: 'open', target: { desc: 'http://localhost:4401/imports' } } as TimelineEvent;
+    tl.events = tl.events.map((e) => (e === step ? open : e));
+    const project = {
+      config: {
+        environments: { local: { console: 'http://localhost:4401', shop: 'http://localhost:4402' } },
+        environment_settings: { local: { display: { console: 'https://console.northfield.example' } } },
+      },
+    } as unknown as Parameters<typeof exportDisplayTable>[0];
+    // A run captured before L1.7 (no environment block): run.json's env and project.yaml's current display URLs.
+    const shown = shownTargets(tl, exportDisplayTable(project, tl, 'local'));
+    const name = (t: Timeline) => rawMarkers(planRawExport(t, { fps: 30 })).find((m) => m.kind === 'step' && m.step === open.step)?.name;
+    expect(name(shown)).toBe(`${open.step + 1}. open https://console.northfield.example/imports`);
+    // No display URL for it: the path only.
+    const bare = shownTargets(tl, exportDisplayTable(project, tl, 'staging'));
+    expect(name(bare)).toBe(`${open.step + 1}. open /imports`);
+    expect(JSON.stringify(rawMarkers(planRawExport(bare, { fps: 30 })))).not.toMatch(/localhost/);
+    // The recorded timeline is left as it is (the real URLs stay in timeline.json).
+    expect(open.target!.desc).toBe('http://localhost:4401/imports');
   });
 });
 

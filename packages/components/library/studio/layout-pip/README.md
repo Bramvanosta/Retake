@@ -22,7 +22,7 @@ The main page in a card (or browser window), the other page floating over a corn
 | `width` | number (800–1920) | 1560 | Main card width in design px (landscape); its height follows the main page's aspect, at most 878 px. |
 | `radius` | number (0–64) | 18 | Corner radius of the main card in design px. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the main card (tinted with the theme's dark tone); the inset always has one. |
-| `chrome` | boolean | false | A browser bar with the real URL above the main page (the planner turns it on for themes whose layout is a browser window). |
+| `chrome` | boolean | false | A browser bar with the display URL above the main page — none for a local URL without one (the planner turns it on for themes whose layout is a browser window). |
 | `inset_height` | number (0.3–0.9) | 0.7 | Height of a portrait inset (a phone) as a share of the main card's height. |
 | `inset_width` | number (0.15–0.5) | 0.32 | Width of a landscape inset as a share of the main card's width. |
 | `margin` | number (8–120) | 36 | Distance from the inset to the edges of the main card, in design px. |

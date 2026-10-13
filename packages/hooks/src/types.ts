@@ -1,4 +1,4 @@
-import type { HookKind, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { HookAccess, HookKind, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 
 /** Which list of hooks is being run. Only `setup` hooks journal a rollback action. */
 export type HookPhase = 'setup' | 'teardown' | 'reset';
@@ -32,6 +32,17 @@ export interface HookContext {
    * Without it, such hooks are refused.
    */
   confirmDestructive?: (description: string, reason: string) => boolean | Promise<boolean>;
+  /**
+   * The access of the run (L1.7, core resolveRunAccess): on `read-only`, a hook that writes is refused (status
+   * `refused`, reason `read-only`) and SQL runs in a read-only transaction. Absent: read-write.
+   */
+  access?: HookAccess;
+  /**
+   * The access of another environment of the project, by name: a journal replay (`studio env reset`, `studio hooks
+   * rollback`) checks each entry against the environment it ran in, not the command's. Undefined (an environment no
+   * longer in project.yaml): `access`.
+   */
+  accessOf?: (env: string) => HookAccess | undefined;
 }
 
 /** What `save_as` stores in `ctx.saved[name]`, and `{{response…}}` in an http rollback. */

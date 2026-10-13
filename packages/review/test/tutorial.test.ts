@@ -72,7 +72,17 @@ describe('tutorial overlays in the review', () => {
     badge.durationInFrames += 2 * ctx.plan.fps;
     const f = checkTutorial(ctx).filter((x) => x.code === 'tutorial-stale-target');
     expect(f).toHaveLength(1);
-    expect(f[0].message).toMatch(new RegExp(`^${clip!.id} step ${badge.step}: the step badge stays \\d\\.\\d s on its target after the page went to http`));
+    // A local URL without a display URL is named by its path, never its host (L1.7: report.md shows no localhost).
+    expect(f[0].message).toMatch(new RegExp(`^${clip!.id} step ${badge.step}: the step badge stays \\d\\.\\d s on its target after the page went to /[^ ]* \\(a local page\\)$`));
+    // With the run's display URLs the check still sees the navigation, and names the display URL.
+    const t = load('signup-tutorial');
+    t.environment = { name: 'local', access: 'read-write', display: [{ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' }] };
+    const shown = await ctxOf(t);
+    const c2 = shown.plan.segments.find((s) => s.id === clip!.id) as ClipSegment;
+    c2.overlays.find((o) => o.tutorial === 'steps' && o.step === badge.step)!.durationInFrames += 2 * shown.plan.fps;
+    const f2 = checkTutorial(shown).filter((x) => x.code === 'tutorial-stale-target');
+    expect(f2).toHaveLength(1);
+    expect(f2[0].message).toMatch(/after the page went to https:\/\/shop\.northfield\.example\//);
   });
 
   it('a target pushed out of the frame is reported', async () => {

@@ -11,6 +11,7 @@ import type {
   TimelineMarker,
   TimelinePageSegment,
   TimelineArtefact,
+  TimelineEnvironment,
   TimelineScene,
   TimelineVideo,
 } from '@demo-studio/core';
@@ -305,6 +306,8 @@ export class TimelineBuilder {
   readonly tracks: TrackBuilder[] = [];
   /** Page loads the main capture held (R-ISS-08), set when the run ends. */
   loading: TimelineLoading[] = [];
+  /** The run's environment (L1.7): access, display table, clock; the read-only guard appends to `writes`. */
+  environment?: TimelineEnvironment;
 
   constructor(
     public readonly meta: TimelineMeta,
@@ -394,6 +397,7 @@ export class TimelineBuilder {
       ...(this.loading.length ? { loading: this.loading } : {}),
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),
+      ...(this.environment ? { environment: this.environment } : {}),
       warnings: this.warnings,
     };
   }

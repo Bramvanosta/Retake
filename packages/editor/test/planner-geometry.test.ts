@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
-import { mapSourceRect, planEdit } from '@demo-studio/editor';
+import { mapSourceRect, planEdit, urlAt } from '@demo-studio/editor';
 import type { ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
 import { REPO, clip, clips, fixtureProject, realTimeline, template } from './helpers.js';
 
@@ -137,8 +137,25 @@ describe('device and window layouts through the planner (L2.7)', () => {
   };
 
   it('browser: the window around the capture with its chrome bar; every clip keeps the URLs it showed', () => {
+    // A run of the fixture with display URLs (L1.7): the bar shows them, nothing to warn about.
+    const displayed = realTimeline('quote');
+    displayed.environment = { name: 'local', access: 'read-write', display: [{ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' }] };
+    const d = plan(displayed, { frame: 'browser' });
+    expect(d.warnings).toEqual([]);
+    expect(clip(d, 'proposal').urls.map((u) => u.url)).toEqual([
+      'https://shop.northfield.example/',
+      'https://shop.northfield.example/quotes/1043',
+      'https://shop.northfield.example/quotes/1043/pdf',
+    ]);
+    expect(clips(d).every((c) => c.urls.every((u) => !u.hidden))).toBe(true);
+    // A run without display URLs (this timeline predates L1.7): every URL is local — kept, marked hidden (the bar
+    // shows no address: urlAt), and one plan warning names the page.
     const p = plan(realTimeline('quote'), { frame: 'browser' });
-    expect(p.warnings).toEqual([]);
+    expect(p.warnings).toEqual([
+      expect.stringMatching(/^a local URL outside the pages of environment \(unknown\) has no display URL \(http:\/\/localhost:4402\): the browser bar shows no address for it/),
+    ]);
+    expect(urlAt(clip(p, 'proposal'), 0)).toBeUndefined();
+    expect(urlAt(clip(d, 'proposal'), 0)).toBe('https://shop.northfield.example/');
     const c = clip(p, 'proposal');
     expect(c.component.id).toBe('studio/layout-browser');
     expect(c.layout.card).toEqual({ x: 226, y: 40, w: 1468, h: 878 });
@@ -146,7 +163,33 @@ describe('device and window layouts through the planner (L2.7)', () => {
     expect(c.layout.capture).toEqual({ x: 226, y: 92.125, w: 1468, h: 825.75 }); // 1468 / (16 / 9), centred in the 826 px page area
     expect(c.layout.display).toBeUndefined();
     expect(c.urls.length).toBeGreaterThan(0);
-    expect(c.urls.every((u) => /^http:\/\/localhost:4402\//.test(u.url))).toBe(true);
+    expect(c.urls.every((u) => /^http:\/\/localhost:4402\//.test(u.url) && u.hidden)).toBe(true);
+    // The same timeline in a card or with the bar's URL off draws no URL: no warning (only layouts that draw one).
+    expect(plan(realTimeline('quote')).warnings).toEqual([]);
+    expect(plan(realTimeline('quote'), { frame: 'browser', components: { layout: { id: 'studio/layout-browser', params: { show_url: false } } } }).warnings).toEqual([]);
+    // Its tab strip names the host even without the address: it warns.
+    expect(plan(realTimeline('quote'), { frame: 'browser', components: { layout: { id: 'studio/layout-browser', params: { show_url: false, tabs: true } } } }).warnings).toHaveLength(1);
+  });
+
+  it('display URLs are edit-time data: a run captured before them gets the project\'s current ones (V2)', () => {
+    const edit = (timeline: Timeline, env?: string, proj: LoadedProject = project) =>
+      planEdit({ timeline, template: editorial, project: proj, registry, captureFile: '/captures/capture.mp4', overrides: { frame: 'browser' }, ...(env ? { env } : {}) });
+    // A timeline without an environment block (before L1.7) and run.json's env: the fixture's display URLs apply.
+    const old = edit(realTimeline('quote'), 'local');
+    expect(old.warnings).toEqual([]);
+    expect(urlAt(clip(old, 'proposal'), 0)).toBe('https://shop.northfield.example/');
+    expect(old.display?.find((r) => r.page === 'shop')).toEqual({ page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' });
+    // A display URL recorded at capture and changed since: the project's current one wins.
+    const recorded = realTimeline('quote');
+    recorded.environment = { name: 'local', access: 'read-write', display: [{ page: 'shop', url: 'http://localhost:4402', display: 'https://old.northfield.example' }] };
+    expect(urlAt(clip(edit(recorded), 'proposal'), 0)).toBe('https://shop.northfield.example/');
+    // The project's page without a display URL: the bar shows nothing, the warning names the page and says to render again.
+    const bare: LoadedProject = { ...project, config: { ...project.config, environment_settings: undefined } };
+    const none = edit(realTimeline('quote'), 'local', bare);
+    expect(urlAt(clip(none, 'proposal'), 0)).toBeUndefined();
+    expect(none.warnings).toEqual([
+      'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to environments.local.shop in project.yaml and render again (README: Environments)',
+    ]);
   });
 
   it('phone: a phone capture fills the screen under the status bar; a desktop one is letterboxed in it (display rect)', () => {

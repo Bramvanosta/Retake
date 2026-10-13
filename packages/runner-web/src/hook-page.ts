@@ -10,13 +10,23 @@
  * route: first hops only), page WebSockets (routeWebSocket) — and the tab bypasses service workers, so requests one
  * would answer still meet the guard. `window.open` is disabled there; a popup that still opens is closed at once.
  * The guard logs hosts, never URLs or code (the runner log is not hook-redacted).
+ *
+ * On a read-only run (L1.7, `writes`) the tab also stops every write to the environment's guarded hosts that no
+ * `read_only.allow` entry lets through — never answered by a mock: a hook that writes is refused, not fooled — and on
+ * any run with a write policy, every write to a host of the project's other read-only environments. A hook that failed
+ * after such a write throws core `WriteRefusedError` (@demo-studio/hooks: refused, reason `read-only`); one that caught
+ * it and went on succeeds with a warning. Writes are named `POST shop:/api/x` (no query); the context's own write guard
+ * (write-guard.ts) leaves the tab's requests to this one. `fetchLater` and `SharedWorker` do not exist in the tab
+ * (write-guard.ts UNGUARDED_APIS_SCRIPT): a shared worker's requests would escape both guards.
  */
 import type { CDPSession, Page } from 'playwright-core';
-import { HostRefusedError, isHostAllowed, networkHost } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
+import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@demo-studio/core';
+import type { LoadedProject, WritePolicy } from '@demo-studio/core';
 import { evalInPage } from './actions/misc.js';
 import { LoginPageError, RunnerError, errorMessage } from './errors.js';
 import type { BrowserSession } from './session.js';
+import { UNGUARDED_APIS_SCRIPT } from './write-guard.js';
+import type { GuardedWrite } from './write-guard.js';
 
 export interface HookPageOptions {
   /** Its allow-list applies (environment hosts, `allow_hosts`, localhost). */
@@ -29,6 +39,8 @@ export interface HookPageOptions {
    * that lands on that persona's sign-in page is refused with this message (null: not a sign-in page).
    */
   loginLanding?: (key: string, url: string) => string | null;
+  /** A read-only run (L1.7): the tab stops writes (never mocked); each write it sees is reported (`via: hook`). */
+  writes?: { policy: WritePolicy; onWrite?: (w: GuardedWrite) => void };
 }
 
 /** What the tab is doing: blocked hosts are reported according to it. */
@@ -39,6 +51,13 @@ const NO_POPUPS = `(() => { try { Object.defineProperty(window, 'open', { value:
 
 function isWebPage(url: string): boolean {
   return /^https?:/i.test(url);
+}
+
+/** The body of a request paused by CDP Fetch (absent when it is too large to inline: then its entries). */
+function cdpBody(r: { postData?: string; postDataEntries?: Array<{ bytes?: string }> }): string | null {
+  if (typeof r.postData === 'string') return r.postData;
+  if (r.postDataEntries?.length) return r.postDataEntries.map((e) => (e.bytes ? Buffer.from(e.bytes, 'base64').toString('utf8') : '')).join('');
+  return null;
 }
 
 /** A Playwright evaluation error, first line, without its "page.evaluate:" prefix. */
@@ -54,6 +73,12 @@ class HookTab {
   private navBlocked: string | undefined;
   /** Hosts already logged while the tab was idle. */
   private readonly logged = new Set<string>();
+  /** Writes stopped since the current load or run began (read-only runs). */
+  private stopped = new Set<string>();
+  /** Writes reported since the current load or run began: the tab's Fetch and its route may both see one. */
+  private reported = new Set<string>();
+  /** The other, read-only environment whose host the last stopped write went to (a read-write run's only reason). */
+  private stoppedFor: string | undefined;
   private mainFrame = '';
 
   private constructor(
@@ -66,6 +91,8 @@ class HookTab {
   static async open(session: BrowserSession, key: string, o: HookPageOptions): Promise<HookTab> {
     const context = await session.hookContext(key);
     const page = await context.newPage();
+    // Its requests are this tab's guard's, not the context's (read-only runs).
+    session.markOwnGuard(page);
     try {
       const cdp = await context.newCDPSession(page);
       const tab = new HookTab(key, page, cdp, o);
@@ -83,21 +110,71 @@ class HookTab {
     return host && !isHostAllowed(host, this.o.project) ? host : null;
   }
 
+  /**
+   * On a read-only run: whether a request is a write the tab stops (a guarded host, no allow entry; a mock never
+   * answers it). Every write seen is reported once per load or run.
+   */
+  private stopsWrite(method: string, url: string, body: string | null): boolean {
+    const w = this.o.writes;
+    if (!w) return false;
+    const d = classifyRequest({ method, url, body }, w.policy);
+    if (!d.write) return false;
+    const stop = d.outcome === 'blocked' || d.outcome === 'mocked';
+    const label = describeWriteRequest(method, url, w.policy.pages);
+    const key = `${stop ? 'stop' : d.outcome} ${method.toUpperCase()} ${url}`;
+    if (!this.reported.has(key)) {
+      this.reported.add(key);
+      try {
+        w.onWrite?.({
+          method: method.toUpperCase(),
+          // Without its query: a hook's secrets are not the run's (the timeline would not mask them).
+          url: url.split(/[?#]/)[0],
+          label,
+          ...(d.operation ? { operation: d.operation } : {}),
+          outcome: stop ? 'blocked' : d.outcome,
+          ...(!stop && d.rule ? { rule: d.rule } : {}),
+          via: 'hook',
+          ...(d.protectedBy ? { protectedBy: d.protectedBy } : {}),
+          page: this.page,
+        });
+      } catch {
+        /* a listener error must not reach the guard */
+      }
+    }
+    if (!stop) return false;
+    this.stopped.add(label);
+    if (d.protectedBy) this.stoppedFor = d.protectedBy;
+    if (this.phase === 'idle' && !this.logged.has(`write ${label}`)) {
+      this.logged.add(`write ${label}`);
+      this.o.log('info', `js hook tab "${this.key}": stopped a write (${label}): ${this.why()}`);
+    }
+    return true;
+  }
+
+  /** Why the tab stops writes: its read-only environment, or (a read-write run) another environment's host. */
+  private why(): string {
+    const w = this.o.writes;
+    return w?.policy.readOnly === false ? `a host of read-only environment ${this.stoppedFor ?? '?'}` : `environment ${w?.policy.env} is read-only`;
+  }
+
   private async guard(): Promise<void> {
     const { cdp, page } = this;
     // Every request of the tab pauses here, each redirect hop too (page.route never sees those): failed or continued,
     // never left paused, and never throwing.
     cdp.on('Fetch.requestPaused', (ev) => {
       let host: string | null = 'unknown';
+      let write = false;
       try {
         host = this.refused(ev.request.url);
         if (host) this.block(host, ev.resourceType === 'Document' && ev.frameId === this.mainFrame);
+        else write = this.stopsWrite(ev.request.method, ev.request.url, cdpBody(ev.request));
       } catch {
         /* fail closed */
       }
-      const done = host
-        ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' })
-        : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
+      const done =
+        host || write
+          ? cdp.send('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'BlockedByClient' })
+          : cdp.send('Fetch.continueRequest', { requestId: ev.requestId });
       done.catch(() => undefined);
     });
     // Network must be enabled for the service-worker bypass to apply.
@@ -109,14 +186,16 @@ class HookTab {
     // (their first hop; it lets redirects through), and backs the Fetch guard up everywhere else.
     await page.route('**/*', (route) => {
       let host: string | null = 'unknown';
+      let write = false;
       try {
         const req = route.request();
         host = this.refused(req.url());
         if (host) this.block(host, req.isNavigationRequest() && req.frame() === page.mainFrame());
+        else write = this.stopsWrite(req.method(), req.url(), req.postData());
       } catch {
         /* fail closed */
       }
-      return (host ? route.abort('blockedbyclient') : route.fallback()).catch(() => undefined);
+      return (host || write ? route.abort('blockedbyclient') : route.fallback()).catch(() => undefined);
     });
     // WebSocket handshakes never reach Fetch: the page's WebSocket goes through Playwright's route instead.
     await page.routeWebSocket(
@@ -131,7 +210,7 @@ class HookTab {
         ws.close({ code: 1008, reason: 'host not in the allow-list' }).catch(() => undefined);
       },
     );
-    await page.addInitScript({ content: NO_POPUPS });
+    await page.addInitScript({ content: `${NO_POPUPS}\n${UNGUARDED_APIS_SCRIPT}` });
     page.on('popup', (p) => {
       const host = this.refused(p.url());
       this.o.log('warn', `js hook tab "${this.key}": closed a popup it opened${host ? ` (to ${host}, not in the allow-list)` : ''}`);
@@ -151,6 +230,9 @@ class HookTab {
   private start(phase: Phase): void {
     this.phase = phase;
     this.blocked = new Set();
+    this.stopped = new Set();
+    this.reported = new Set();
+    this.stoppedFor = undefined;
   }
 
   /** Open the environment page (the tab is blank, or on an error page after a blocked navigation). */
@@ -172,6 +254,9 @@ class HookTab {
     if (this.blocked.size) {
       this.o.log('info', `js hook page "${this.key}": blocked ${[...this.blocked].join(', ')} while loading (not in the allow-list; add to allow_hosts what the page needs)`);
     }
+    if (this.stopped.size) {
+      this.o.log('info', `js hook page "${this.key}": stopped ${[...this.stopped].join(', ')} while loading (${this.why()})`);
+    }
   }
 
   /**
@@ -190,11 +275,23 @@ class HookTab {
       if (this.blocked.size) {
         this.o.log('warn', `js hook on page "${this.key}": blocked ${[...this.blocked].join(', ')} (not in the allow-list); the hook went on without it`);
       }
+      if (this.stopped.size) {
+        this.o.log('warn', `js hook on page "${this.key}": stopped ${[...this.stopped].join(', ')} (${this.why()}); the hook went on without it`);
+      }
       return value;
     } catch (e) {
       // A request was blocked and the hook failed: refused (it names the host), with the hook's own error.
       if (this.blocked.size) {
         throw new HostRefusedError([...this.blocked], this.o.project, 'blocked while the js hook ran', { cause: e, detail: `the hook threw: ${cleanError(e)}` });
+      }
+      // A write was stopped (read-only run) and the hook failed: refused, never mocked.
+      if (this.stopped.size) {
+        const protectedBy = this.o.writes?.policy.readOnly === false ? this.stoppedFor : undefined;
+        throw new WriteRefusedError([...this.stopped], this.o.writes?.policy.env ?? this.o.env.name, {
+          cause: e,
+          detail: `the hook threw: ${cleanError(e)}`,
+          ...(protectedBy ? { protectedBy } : {}),
+        });
       }
       throw e;
     } finally {
@@ -232,7 +329,8 @@ async function hookTab(session: BrowserSession, key: string, o: HookPageOptions)
  * Run a js hook's code (a function body) in the hook tab of `pageKey` (default: the environment's first page), opening
  * the tab on that environment page when it is not on a web page yet. Throws core `HostRefusedError` when the page
  * redirected to a host outside the allow-list, or when the code failed after one of its requests was blocked; a hook
- * that catches the blocked request and goes on succeeds, with a warning naming the host.
+ * that catches the blocked request and goes on succeeds, with a warning naming the host. On a read-only run (`writes`),
+ * core `WriteRefusedError` when the code failed after one of its writes was stopped.
  */
 export async function evalHookInPage(session: BrowserSession, o: HookPageOptions, pageKey: string | undefined, code: string): Promise<unknown> {
   const key = pageKey ?? Object.keys(o.env.pages)[0];

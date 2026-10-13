@@ -35,7 +35,7 @@ background renderer, safe-area helpers). Text slots must never overflow: fitText
 | studio/interstitial-clock | interstitial | dark overlay over the dimmed last frame, animated clock, text (reference look) |
 | studio/interstitial-plain | interstitial | paper/dark card with text |
 | studio/layout-card | layout | capture in a rounded card with soft shadow on the theme background, caption area below, brandmark (reference look: 1560 wide) |
-| studio/layout-browser | layout | card + macOS-style browser chrome with the real URL |
+| studio/layout-browser | layout | card + macOS-style browser chrome with the page's display URL (L1.7) |
 | studio/layout-laptop | layout | MacBook-style mockup |
 | studio/layout-phone | layout | iPhone-style mockup for narrow captures (status bar + Dynamic Island, caption beside it) |
 | studio/layout-tablet | layout | iPad-style mockup: portrait (caption beside) or landscape (caption below), following the capture |
@@ -478,6 +478,22 @@ listRenders(project): Promise<RenderRecord[]>
   overlay (L2.12) starts at its `at` and fills its `box` (§1.9).
 - Provenance: every clip segment lists `steps` (output frame spans per scenario step) and the plan keeps markers and a
   time map — used by review, the Studio timeline and frame comments.
+- URLs (L1.7, R-ENV-01): `ClipSegment.urls` / `PlanPane.urls` hold what the browser bars show — each real URL of the
+  timeline (`pages[]`, `tracks[].pages[]`) mapped through the edit's display table (core `displayUrl`), recorded as
+  `plan.display`: display URLs are edit-time data — core `editDisplayTable(timeline.environment.display,
+  displayRows(project's environment))`, the environment being `timeline.environment.name`, else `PlanEditInput.env`
+  (run.json `env`, passed by render / plan / still: runs captured before L1.7 get the project's display URLs too); the
+  project's current rows win, recorded rows for real bases it no longer declares are kept. A URL
+  still local afterwards (core `isLocalUrl`: no display URL for its page) is kept with
+  `hidden: true` — `urlAt` / `paneUrlAt` return undefined there (the bar shows no address; window bars fall back to the
+  theme's `brand.url`), the entry still marks the navigation for the review — and, when the clip's layout draws a URL
+  (`drawsUrl`: studio/layout-browser unless `show_url` and `tabs` are both off, split / pip with `chrome`, the pip's
+  main page only), a plan warning per page ("page "shop" has no display URL (http://localhost:4402)… add display: to
+  environments.local.shop in project.yaml and render again"; a URL outside the environment's pages: "a local URL
+  outside the pages of environment local…"). Notification
+  media `app` = the display host of the notification's origin (a local host without one: the theme's `brand.name`).
+  Captions, cards and the other edit text were templated by the runner with the display URLs (core
+  `templateSceneEntry` edit context).
 - Output: 1920×1080 × scale (capture scale 2 ⇒ 4K; a scale above the capture's is a warning: the capture is
   upscaled); vertical 1080×1920 / square 1080×1080 use `geometry_vertical` / `geometry_square`. When the screen rect's
   aspect differs from the capture's, `PlanLayout.crop` is the region of the capture with that aspect (narrowed so the
@@ -629,7 +645,11 @@ own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawS
   NAME` / `FROM CLIP`, `* LOC: <tc> <COLOUR> <KIND>: <name>`; one picture track: other pages and layers are left to
   FCPXML / OTIO), `writeOtio` (OTIO 0.17/0.18 JSON: V1, Cursor, Page n [+ cursor] tracks, Gap fillers, Clip.2 with
   ExternalReference with a `file://` target_url and available_range at the timecode — 0 for WebM layers —, Marker.2
-  with colour / comment / metadata), `markersCsv|Json`.
+  with colour / comment / metadata), `markersCsv|Json`. URLs in step markers and click targets (L1.7): `exportCapture`
+  maps the events' target descriptions through the edit's display table (`exportDisplayTable`: core
+  `editDisplayTable` of the timeline's table and project.yaml's current pages of the run's environment) with core
+  `shownText` (`2. open https://shop.example.com/quotes`, a local URL without a display: `2. open /quotes`), in memory —
+  the run's timeline.json keeps the real URLs.
   Checked with OpenTimelineIO 0.18.1 (otio_json, cmx_3600 and fcpx_xml adapters): `scripts/validate-raw.py` (L2.14,
   optional, not a repository dependency).
 - **Manifest** (`RawManifest`, `manifest.json`) + `README.md` (`packageReadme`): run, settings, sequence, clips
@@ -682,6 +702,18 @@ Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `late
   `reframe_max_step` / `reframe_max_accel`); theme zooms are not counted against `max_zooms` but checked per scene:
   `theme-zoom-count` (> 1 in a scene), `theme-zoom-cut` (not back to 1× when the scene ends), `theme-zoom-real`
   (style_bias real); caption widths use the kit `captionMaxLines` of the variant.
+- **L1.7 (environment)**: `ReviewResult.environment` (`reviewEnvironment(timeline, plan)`: name, production, access,
+  allow_writes, clock, display bases, write counts — the automated sign-in's excepted) → the line under the title of
+  report.md and on the terminal (`environmentLine`: "production · production · read-only · 1 write mocked · clock
+  2026-11-02T10:24:00"). `checkEnvironment`: `write-blocked` (warning; one per method + origin + path of
+  `environment.writes` with outcome blocked, at the first output frame showing its capture time, or unlocated before
+  capture time 0 / outside the video), `url-hidden` (warning; a clip or pane whose layout `drawsUrl` with a `hidden`
+  URL entry, at its frame), `local-url-text` (warning; core `findLocalUrls` in caption cues, kickers, every segment's
+  and overlay's slots, pane labels; named by their path). URLs are named through `plan.display` (the table the render
+  used), else `timeline.environment.display`. Findings never name a local host: a hidden URL is written as its path
+  "(a local page)" (a `file:` URL: its file name), a write by its display URL (`tutorial-stale-target` too), and every
+  local URL in a plan warning is masked the same way (`plan-warning`); report.md's caption list quotes captions as
+  written (a local URL there is a `local-url-text` finding).
 
 ## 4. Frame comments (data model now, UI in phase 4, MCP tools in phase 3)
 

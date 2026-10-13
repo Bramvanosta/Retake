@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { formatIssues, loadProjectTemplate, loadScenario, readJson } from '@demo-studio/core';
+import { formatIssues, isAccessError, loadProjectTemplate, loadScenario, readJson, resolveEnvironment, resolveRunAccess } from '@demo-studio/core';
 import type { LoadedTemplate, RunProgress, RunRecord, Timeline } from '@demo-studio/core';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -22,6 +22,8 @@ export interface RunCommandOptions extends RawFlags {
   json?: boolean;
   /** Capture, then export the raw package for editors (L2.13). */
   raw?: boolean;
+  /** Let a run on a production environment that allows writes write (L1.7). */
+  allowWrites?: boolean;
 }
 
 /** Raw flags given without --raw are a usage error (they only shape the raw export). */
@@ -64,6 +66,8 @@ export async function runCommand(
     return fail(errorMessage(e));
   }
   const { ws, project, scenario, template, templateWarning } = prepared;
+  // --allow-writes on a read-only environment is a usage error (it confirms writes, it never grants them).
+  if (opts.allowWrites) checkAllowWrites(project, opts.env ?? scenario.scenario.env);
   // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
   const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
 
@@ -95,6 +99,7 @@ export async function runCommand(
       ffmpeg: ws.ffmpeg,
       // The fix of an expired session names this workspace when the command line did (-C).
       loginCommand: loginCommandFor(global),
+      ...(opts.allowWrites ? { allowWrites: true } : {}),
       ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
       onProgress: json ? emitJson : (e) => printer.handle(e),
     });
@@ -115,6 +120,22 @@ export async function runCommand(
   return EXIT.ok;
 }
 
+/** `--allow-writes` where the environment is read-only in project.yaml: a usage error (exit 2) before anything runs. */
+export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[0], env: string | undefined): void {
+  let resolved: ReturnType<typeof resolveEnvironment>;
+  try {
+    resolved = resolveEnvironment(project, env);
+  } catch {
+    return; // an unknown environment is reported where it is used
+  }
+  try {
+    resolveRunAccess(resolved, { allowWrites: true });
+  } catch (e) {
+    if (isAccessError(e)) throw new UsageError(e.message);
+    throw e;
+  }
+}
+
 async function prepare(global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions) {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
@@ -133,6 +154,23 @@ async function prepare(global: GlobalOptions, projectArg: string, scenarioArg: s
   return { ws, project, scenario, template, templateWarning };
 }
 
+/**
+ * "1 mocked, 0 stopped" (+ allowed, to unguarded hosts) for a read-only run; "1 stopped (hosts of read-only
+ * environments)" for a read-write run whose guard stopped a write to another environment's host; undefined otherwise.
+ * The automated sign-in's exempt writes are not counted.
+ */
+export function writesSummary(tl: Pick<Timeline, 'environment'> | undefined): { text: string; stopped: number } | undefined {
+  const env = tl?.environment;
+  if (!env) return undefined;
+  const n = { blocked: 0, mocked: 0, allowed: 0, passed: 0 };
+  for (const w of env.writes ?? []) if (w.outcome !== 'exempt') n[w.outcome]++;
+  if (env.access !== 'read-only') return n.blocked ? { text: `${n.blocked} stopped (hosts of read-only environments)`, stopped: n.blocked } : undefined;
+  const parts = [`${n.mocked} mocked`, `${n.blocked} stopped`];
+  if (n.allowed) parts.push(`${n.allowed} allowed`);
+  if (n.passed) parts.push(`${n.passed} to unguarded hosts`);
+  return { text: `${parts.join(', ')} (read-only)`, stopped: n.blocked };
+}
+
 async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<void> {
   const c = ui.c;
   ui.line();
@@ -148,16 +186,16 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
     const why = r.stopped_at.reason === 'until' ? '--until' : 'irreversible step (dry run)';
     ui.line(`  ${c.dim('stopped')}   ${r.stopped_at.scene}.${r.stopped_at.step} (${why})`);
   }
-  if (r.capture) {
-    let detail = '';
-    if (r.timeline) {
-      try {
-        const tl = await readJson<Timeline>(r.timeline);
-        detail = ` ${c.dim(`(${tl.capture.duration.toFixed(1)} s, ${tl.capture.width * tl.capture.scale}×${tl.capture.height * tl.capture.scale} @ ${tl.capture.fps} fps)`)}`;
-      } catch {
-        /* the timeline is reported below anyway */
-      }
+  let tl: Timeline | undefined;
+  if (r.timeline) {
+    try {
+      tl = await readJson<Timeline>(r.timeline);
+    } catch {
+      /* the timeline is reported below anyway */
     }
+  }
+  if (r.capture) {
+    const detail = tl ? ` ${c.dim(`(${tl.capture.duration.toFixed(1)} s, ${tl.capture.width * tl.capture.scale}×${tl.capture.height * tl.capture.scale} @ ${tl.capture.fps} fps)`)}` : '';
     ui.line(`  ${c.dim('capture')}   ${ui.path(r.capture)}${detail}`);
   }
   if (r.timeline) ui.line(`  ${c.dim('timeline')}  ${ui.path(r.timeline)}`);
@@ -166,5 +204,8 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
   if (r.hooks.setup !== 'none' || r.hooks.teardown !== 'none') {
     ui.line(`  ${c.dim('hooks')}     setup ${r.hooks.setup}, teardown ${r.hooks.teardown}`);
   }
+  // L1.7: what the read-only guard did (timeline.json environment.writes lists each one) — once the run got going.
+  const writes = r.steps_done > 0 || (tl?.environment?.writes?.length ?? 0) > 0 ? writesSummary(tl) : undefined;
+  if (writes) ui.line(`  ${c.dim('writes')}    ${writes.stopped ? c.yellow(writes.text) : writes.text}`);
   if (r.warnings.length) ui.line(`  ${c.yellow(plural(r.warnings.length, 'warning'))} ${c.dim('(listed in run.json)')}`);
 }

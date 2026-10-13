@@ -22,7 +22,7 @@ params:
     width: {type: number, minimum: 800, maximum: 1920, default: 1560, description: "Main card width in design px (landscape); its height follows the main page's aspect, at most 878 px."}
     radius: {type: number, minimum: 0, maximum: 64, default: 18, description: Corner radius of the main card in design px.}
     shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under the main card (tinted with the theme's dark tone); the inset always has one."}
-    chrome: {type: boolean, default: false, description: "A browser bar with the real URL above the main page (the planner turns it on for themes whose layout is a browser window)."}
+    chrome: {type: boolean, default: false, description: "A browser bar with the display URL above the main page — none for a local URL without one (the planner turns it on for themes whose layout is a browser window)."}
     inset_height: {type: number, minimum: 0.3, maximum: 0.9, default: 0.7, description: "Height of a portrait inset (a phone) as a share of the main card's height."}
     inset_width: {type: number, minimum: 0.15, maximum: 0.5, default: 0.32, description: "Width of a landscape inset as a share of the main card's width."}
     margin: {type: number, minimum: 8, maximum: 120, default: 36, description: "Distance from the inset to the edges of the main card, in design px."}

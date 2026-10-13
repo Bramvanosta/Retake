@@ -231,7 +231,7 @@ class Converter {
         typeof v === 'string' && info.keys.includes(v)
           ? `"${v}" needs a value: write "${v}: …"`
           : info.fallback !== undefined
-            ? `expected a ${info.noun} mapping (${info.example}), got ${describeValue(v)}`
+            ? `expected ${/^[aeiou]/i.test(info.noun) ? 'an' : 'a'} ${info.noun} mapping (${info.example}), got ${describeValue(v)}`
             : `expected a mapping with one ${info.label} key (${info.example}), got ${describeValue(v)}`;
       this.error(path, msg);
       return;
@@ -243,7 +243,19 @@ class Converter {
     if (proper.length > 0) present = proper;
     if (present.length === 0) {
       if (info.fallback !== undefined) {
-        this.convert(branches[info.fallback], path, v);
+        const issues = branches[info.fallback];
+        const moved = info.misplaced;
+        const hit = new Set<string>();
+        const rest = moved
+          ? issues.filter((i) => {
+              const k = i.path.length > 0 ? String(i.path[0]) : '';
+              if (!moved.keys.includes(k)) return true;
+              hit.add(k);
+              return false;
+            })
+          : issues;
+        for (const k of hit) this.error([...path, k], moved!.message(k, path), { path: [...path, k], key: true });
+        this.convert(rest, path, v);
         return;
       }
       let explained = false;

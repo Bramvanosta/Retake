@@ -105,6 +105,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .addOption(new Option('--hooks <mode>', 'setup/teardown hooks (default: run for captures, skip for dry runs)').choices(['run', 'skip']))
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
     .option('--headed', 'show the browser window (needs a display)')
+    .option('--allow-writes', 'let a run on a production environment write (only where project.yaml sets access: read-write; without it such a run is read-only)')
     .option('--json', 'stream progress events as JSON lines on stdout')
     .option('--raw', 'then export the raw package for editors (as studio export-capture: clips per scene, cursor data, markers)')
     .addOption(new Option('--cursor <mode>', 'with --raw: baked (as captured), none (captured without the cursor; data only) or layer (captured without it + a transparent cursor layer per clip)').choices(['baked', 'none', 'layer']))
@@ -218,6 +219,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<source>', '<scenario>:setup | <scenario>:teardown | reset | hooks/<file>.yaml')
     .option('--env <name>', 'environment')
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
+    .option('--allow-writes', 'let hooks write to a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'template and security-check the hooks without executing them')
     .action(action((u, g, p: string, s: string, o: HookCommandOptions) => hooksRunCommand(u, g, p, s, o)));
   hooks
@@ -226,6 +228,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .argument('[id]', 'run id (folder under runs/) or hooks journal id (.demo-studio/journals/<id>.json)')
     .option('--env <name>', 'environment')
+    .option('--allow-writes', 'replay rollbacks of a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'describe the rollbacks without executing them')
     .action(action((u, g, p: string, r: string | undefined, o: HookCommandOptions) => hooksRollbackCommand(u, g, p, r, o)));
 
@@ -236,6 +239,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .option('--env <name>', 'environment')
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
+    .option('--allow-writes', 'write to a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
 

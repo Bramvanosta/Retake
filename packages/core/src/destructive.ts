@@ -72,7 +72,8 @@ function defaultRead(file: string): string | undefined {
 /** psql short options that take an argument (the rest of the cluster or the next word). */
 const PSQL_ARG_OPTS = new Set('cdfhpUvoLFRPT'.split(''));
 
-function readSqlFile(file: string, opts: DestructiveOptions): string | undefined {
+/** A project file's text (relative to `opts.projectDir`), or undefined when it cannot be read or there is no project dir. */
+export function readProjectText(file: string, opts: DestructiveOptions): string | undefined {
   if (!opts.projectDir) return undefined;
   return (opts.readText ?? defaultRead)(resolve(opts.projectDir, file));
 }
@@ -106,7 +107,7 @@ function psqlArgsReason(args: readonly string[], opts: DestructiveOptions): stri
     if (kw) return `psql -c ${kw}`;
   }
   for (const f of files) {
-    const text = readSqlFile(f, opts);
+    const text = readProjectText(f, opts);
     const kw = text === undefined ? null : sqlDestructiveKeyword(text);
     if (kw) return `psql -f ${f} contains ${kw}`;
   }

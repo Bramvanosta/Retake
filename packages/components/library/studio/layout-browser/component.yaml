@@ -1,8 +1,9 @@
 # yaml-language-server: $schema=../../../schema/component.schema.json
 # A macOS-style browser window around the capture, in the family of the reference card (docs/reference/look.md): the
 # window (chrome bar + page) on the theme background with the reference soft shadow, the caption area below it and the
-# brand mark (drawn by the composition) right-aligned with the window. The address bar shows the REAL page URL of the
-# clip (ClipSegment.urls: it changes with navigation); `tabs` adds a tab strip above the toolbar.
+# brand mark (drawn by the composition) right-aligned with the window. The address bar shows the clip's page URL as the
+# video shows it (ClipSegment.urls: the page's display URL, it changes with navigation; a local URL without one is
+# never drawn — the bar stays empty); `tabs` adds a tab strip above the toolbar.
 # Geometry follows the params and the capture: `width` sizes the window, the page area keeps the capture's aspect
 # (at most 878 − bar px tall so the caption block fits), window + 12 px + caption block centred vertically. At the
 # default width and a 16:9 capture: window {226, 40, 1468 × 878} (bar 52), caption {226, 930, 1128 × 110}.
@@ -10,7 +11,7 @@ id: studio/layout-browser
 version: 1.0.0
 kind: layout
 name: Browser window
-description: The capture in a macOS-style browser window (traffic lights, optional tabs, an address bar with the real page URL) on the theme background, caption area below, brand mark right-aligned with the window.
+description: The capture in a macOS-style browser window (traffic lights, optional tabs, an address bar with the page's display URL) on the theme background, caption area below, brand mark right-aligned with the window.
 tags: [browser, window, chrome, url]
 slots:
   screen: {type: screen, required: true, description: The capture (video + camera moves).}
@@ -20,8 +21,8 @@ params:
     width: {type: number, minimum: 600, maximum: 1920, default: 1560, description: "Window width in design px (landscape; centred). The page area keeps the capture's aspect, at most 878 px minus the chrome tall: wider windows on 16:9 captures are capped."}
     radius: {type: number, minimum: 0, maximum: 40, default: 12, description: Corner radius of the window in design px.}
     shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under the window (tinted with the theme's dark tone)."}
-    show_url: {type: boolean, default: true, description: Show the page URL in the address bar.}
-    tabs: {type: boolean, default: false, description: "Add a tab strip (one tab named after the page's host) above the toolbar."}
+    show_url: {type: boolean, default: true, description: "Show the page URL in the address bar: its display URL (none for a local URL without one)."}
+    tabs: {type: boolean, default: false, description: "Add a tab strip (one tab named after the page's display host) above the toolbar."}
     chrome: {type: string, enum: [auto, light, dark], default: auto, description: "Toolbar tone: auto = dark on a dark theme background, light otherwise."}
     controls: {type: string, enum: [color, theme], default: color, description: "Window controls: the classic red / yellow / green, or quiet dots tinted from the theme."}
 tokens: [colors.text, colors.paper, colors.dark, colors.accent, background, fonts.body]

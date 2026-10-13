@@ -3,21 +3,29 @@ import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
   ARTEFACTS_DIR,
+  compileWritePolicy,
+  guardsWrites,
+  displayPages,
+  displayTable,
   environmentLoginPatterns,
   isCaptureScene,
   listSteps,
   loginCommand as defaultLoginCommand,
   loginMatchers,
+  networkHost,
   scenePageEntries,
   newRunId,
   planPersonas,
+  resolveClock,
   resolveEnvironment,
   resolvePersonas,
+  resolveRunAccess,
   resolveStepRef,
   sceneId,
   templateVideo,
   timelineVideo,
   writeJson,
+  writingHooks,
 } from '@demo-studio/core';
 import type {
   BrowserConfig,
@@ -30,9 +38,14 @@ import type {
   RunProgress,
   PersonaPlan,
   ResolvedPersona,
+  ResolvedClock,
+  RunAccess,
   RunRecord,
   Scenario,
   TemplateContext,
+  TimelineEnvironment,
+  TimelineWrite,
+  WritePolicy,
 } from '@demo-studio/core';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { watchNotifications } from './notifications.js';
@@ -57,6 +70,7 @@ import { BrowserSession } from './session.js';
 import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
 import type { MotionCapture } from './timeline.js';
 import { throwIfAborted, wallNow } from './util.js';
+import type { GuardedWrite, WriteGuardOptions } from './write-guard.js';
 
 export interface RunOptions {
   project: LoadedProject;
@@ -89,6 +103,11 @@ export interface RunOptions {
   resolveSecret?: (ref: string) => Promise<string>;
   /** The command that signs a persona in again, as messages print it (default `studio login <project> --env … --persona …`). */
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
+  /**
+   * `--allow-writes` (L1.7): lets a run on a production environment whose project.yaml sets `access: read-write` write.
+   * On a read-only environment it is refused (core AccessError, thrown before anything is recorded).
+   */
+  allowWrites?: boolean;
 }
 
 /**
@@ -178,6 +197,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const { project, scenario: loaded, mode } = opts;
   const sc = loaded.scenario;
   const env = resolveEnvironment(project, opts.env ?? sc.env);
+  // L1.7: the run's access (a read-only run refuses writing hooks) and the product's clock, settled before anything
+  // is recorded — a refused --allow-writes or an unusable clock fails here, like --until.
+  const access = resolveRunAccess(env, { allowWrites: opts.allowWrites === true, project });
+  const runClock = resolveClock(sc.clock, project.config.clock, { timezone: projectBrowser(project, opts.browser).timezone });
   const pacing = mergePacing(project.config.pacing, sc.pacing);
   const capture = mergeCapture(project.config.capture, sc.capture);
   const hooksMode = opts.hooks ?? (mode === 'capture' ? 'run' : 'skip');
@@ -234,8 +257,14 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     screenshots: [],
     hooks: { setup: 'none', teardown: 'none' },
     warnings: [],
+    environment: {
+      ...(access.production ? { production: true as const } : {}),
+      access: access.mode,
+      ...(runClock ? { clock: { at: runClock.at, ...(runClock.timezone ? { timezone: runClock.timezone } : {}), ...(runClock.freeze ? { freeze: true as const } : {}) } } : {}),
+    },
   };
   if (opts.until !== undefined) record.options.until = opts.until;
+  if (access.allow_writes) record.options.allow_writes = true;
   if (opts.hideCursor) record.options.cursor = 'hidden';
   // Secret values ({{env:…}}, {{keychain:…}}) are masked wherever the run writes: run.json, log.jsonl, the progress
   // events, timeline.json, error snippets and the returned record (R-RUN-17).
@@ -253,6 +282,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const log = (level: LogLevel, message: string) => emit({ type: 'log', level, message });
   emit({ type: 'run_start', run: { ...record } });
   await files.saveRecord();
+  if (access.notice) log('warn', access.notice);
+  if (access.warning) log('warn', access.warning);
 
   const abort = new AbortController();
   const signal = opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal;
@@ -263,6 +294,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     { run_id: runId, project: project.slug, scenario: loaded.name, mode, capture, video, ...(opts.hideCursor ? { cursor: 'hidden' as const } : {}) },
     clock,
   );
+  timeline.environment = timelineEnvironment(env, access, runClock);
   const template: TemplateContext = {
     pages: env.pages,
     vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) },
@@ -292,9 +324,36 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   let failure: unknown = null;
   let frames: FrameIndexEntry[] = [];
   let endT = 0;
+  /** Capture time 0 is set (writes and the like are stamped from then on). */
+  let captureStarted = false;
+  let writeGuard: WriteGuardOptions | null = null;
 
   try {
     throwIfAborted(signal);
+    // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
+    if (access.mode === 'read-only' && hooksMode === 'run') {
+      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown }, { projectDir: project.dir });
+      if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
+    }
+    // A read-only run stops the browser's writes (L1.7, write-guard.ts): armed in every browser at launch. Any run
+    // stops writes to the hosts of the project's other read-only environments (none: a read-write run arms nothing).
+    const policy = compileWritePolicy(env, { scenarioMocks: sc.mocks, access });
+    if (guardsWrites(policy)) {
+      writeGuard = readOnlyGuard(policy, {
+        timeline,
+        log,
+        captureStarted: () => captureStarted,
+        where: () => {
+          const cur = rt?.current;
+          const at = `${clock.now().toFixed(1)} s`;
+          return cur ? `${cur.step >= 0 ? `step ${cur.scene}.${cur.step}` : `scene ${cur.scene}`}, ${at}` : at;
+        },
+        pageId: (p) => session?.idOf(p),
+      });
+    }
+    if (!policy.readOnly && sc.mocks?.length) {
+      log('warn', `the scenario's mocks apply to read-only runs only: environment ${env.name} runs read-write, its writes really happen`);
+    }
     // Every secret the run uses, before the browser opens and the setup hooks run: a keychain prompt never stalls the
     // capture, and a missing one fails the run up front.
     await prefetchSecrets(secrets, sc, until, readsMail ? project : null);
@@ -314,6 +373,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       browser: projectBrowser(project, opts.browser),
       headed: opts.headed,
       log,
+      ...(writeGuard ? { writes: writeGuard } : {}),
       ...(prepared.length
         ? {
             realms: [...prepared.map((p) => p.realm), ...(plan.needsDefault ? [{ name: '' }] : [])],
@@ -333,8 +393,16 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         kitSource: session.source,
         log,
         signal,
+        // The automated sign-in tab is exempt from the write guard on its sign-in page (its POST /sign-in must happen).
+        signInTab: (p, onSignInPage) => session?.markSignIn(p, onSignInPage),
         ...(opts.loginCommand ? { loginCommand: opts.loginCommand } : {}),
       });
+    }
+    // The product's clock (L1.7, R-ENV-05): after the preflight (a sign-in under a far clock may fail its token checks),
+    // before the setup hooks; set back to its time at capture time 0 (anchorClock).
+    if (runClock) {
+      await session.installClock(runClock);
+      log('info', `clock: the product's browser reads ${runClock.at}${runClock.timezone ? ` (${runClock.timezone})` : ''} at capture time 0${runClock.freeze ? ' and never moves (freeze)' : ', then runs'}`);
     }
     guard = signInGuard(project, env, personas, plan, () => session, {
       command: commandOf,
@@ -372,18 +440,36 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       if (sc.setup?.length) record.hooks.setup = 'skipped';
       if (sc.teardown?.length) record.hooks.teardown = 'skipped';
     } else if (hasHooks) {
-      hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record, hookLanding: hookLanding(guard, personas, env, session, commandOf, expire) });
+      hooks = await setupHooks(sc.setup ?? [], {
+        rt,
+        session,
+        project,
+        env,
+        access,
+        template,
+        runId,
+        dir,
+        emit,
+        log,
+        record,
+        hookLanding: hookLanding(guard, personas, env, session, commandOf, expire),
+        ...(writeGuard ? { writes: { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } } : {}),
+      });
     }
     // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
     const meta = timeline.meta;
-    if (meta.video) meta.video = templated(() => templateVideo(meta.video!, template), record);
+    // All of it is text the video shows: `{{page}}` reads the page's display URL (L1.7).
+    if (meta.video) meta.video = templated(() => templateVideo(meta.video!, { ...template, pages: displayPages(env) }), record);
 
     const captured = sc.scenes.filter(isCaptureScene).filter((s) => !s.skip);
     const firstScene = captured[0];
     const firstPage = firstScene?.pages !== undefined ? undefined : (firstScene?.page ?? Object.keys(env.pages)[0]);
     if (firstScene?.pages === undefined && !firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
-    // Capture time 0: right before the first page is shown and the screencast starts.
+    // Capture time 0: right before the first page is shown and the screencast starts. The product's clock reads its
+    // time now (L1.7), in every browser.
+    await session.anchorClock();
     clock.t0Wall = wallNow();
+    captureStarted = true;
     // A scenario whose first scene films several pages starts with their tracks (the main capture starts with the
     // first single-page scene, if any).
     if (firstPage) await rt.activate(firstPage);
@@ -624,6 +710,119 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
 }
 
 /**
+ * The environment block of the timeline (L1.7): name, production, the run's access, the display table, the clock.
+ * The read-only guard adds `writes` while the run goes.
+ */
+function timelineEnvironment(env: ReturnType<typeof resolveEnvironment>, access: RunAccess, runClock: ResolvedClock | undefined): TimelineEnvironment {
+  const display = displayTable(env);
+  return {
+    name: env.name,
+    ...(access.production ? { production: true as const } : {}),
+    access: access.mode,
+    ...(access.allow_writes ? { allow_writes: true as const } : {}),
+    ...(display.length ? { display } : {}),
+    ...(runClock ? { clock: runClock } : {}),
+  };
+}
+
+/**
+ * The write guard of a run (L1.7): each write it sees goes to `timeline.environment.writes` (capture time from capture
+ * time 0 on); a stopped write warns once per request (`POST shop:/api/x`), a write to a host it does not watch once per
+ * host, a WebSocket to a guarded host once per host; mocked / allowed writes and the sign-in's exempt ones are logged.
+ * A read-write run's guard only stops writes to the hosts of the project's read-only environments.
+ */
+function readOnlyGuard(
+  policy: WritePolicy,
+  o: {
+    timeline: TimelineBuilder;
+    log: (level: LogLevel, message: string) => void;
+    captureStarted: () => boolean;
+    /** Where the run is (capture time, scene / step): for messages from capture time 0 on. */
+    where: () => string;
+    pageId: (page: Page) => string | undefined;
+  },
+): WriteGuardOptions {
+  const writes: TimelineWrite[] = [];
+  if (o.timeline.environment) o.timeline.environment.writes = writes;
+  const warned = new Set<string>();
+  const warnOnce = (key: string, message: string) => {
+    if (warned.has(key)) return;
+    warned.add(key);
+    o.timeline.warn(message);
+    o.log('warn', message);
+  };
+  const rules = [
+    ...(policy.mocks.length ? [`${policy.mocks.length} mock${policy.mocks.length === 1 ? '' : 's'}`] : []),
+    ...(policy.allow.length ? [`${policy.allow.length} allow entr${policy.allow.length === 1 ? 'y' : 'ies'}`] : []),
+  ];
+  const foreign = [...new Set(policy.protected.map((p) => p.env))].map((e) => `${e} (${policy.protected.filter((p) => p.env === e).map((p) => p.host).join(', ')})`);
+  if (policy.readOnly) {
+    o.log('info', `read-only run: writes to ${policy.hosts.includes('*') ? 'every host' : policy.hosts.join(', ')} are stopped${rules.length ? ` (${rules.join(', ')})` : ''}`);
+  }
+  if (foreign.length) o.log('info', `writes to the hosts of read-only environment${foreign.length > 1 ? 's' : ''} ${foreign.join(', ')} are stopped`);
+  return {
+    policy,
+    onWrite: (w) => {
+      const started = o.captureStarted();
+      writes.push({
+        ...(started ? { t: o.timeline.clock.now() } : {}),
+        method: w.method,
+        url: w.url,
+        ...(w.operation ? { operation: w.operation } : {}),
+        outcome: w.outcome,
+        ...(w.rule ? { rule: w.rule } : {}),
+        ...(w.status !== undefined ? { status: w.status } : {}),
+        via: w.via,
+        ...(w.protectedBy ? { protected_by: w.protectedBy } : {}),
+      });
+      const where = started ? o.where() : w.via === 'sign-in' ? 'the automated sign-in, before the capture started' : 'before the capture started';
+      // A js hook tab says what it stopped itself (the hook is refused, or warned about).
+      if (w.via === 'hook') return;
+      if (w.outcome === 'exempt') {
+        o.log('debug', `the automated sign-in sent ${w.label} (${where}) from its sign-in page: exempt from the write guard`);
+        return;
+      }
+      if (w.outcome === 'blocked') {
+        warnOnce(
+          `blocked ${w.label}`,
+          w.protectedBy
+            ? `a write was stopped (${w.label}, ${where}): ${networkHost(w.url) ?? '?'} is a host of read-only environment ${w.protectedBy}, and this run is on environment ${policy.env} — the app may show an error`
+            : `a write was stopped (${w.label}, ${where}): environment ${policy.env} is read-only — the app may show an error; answer it with a mock (\`mocks:\` of the scenario)`,
+        );
+      } else if (w.outcome === 'passed') {
+        const host = networkHost(w.url) ?? '?';
+        warnOnce(
+          `passed ${host}`,
+          `a write went to ${host} (${w.label}, ${where}), a host the read-only guard does not watch: it was sent — list ${host} in read_only.hosts of environment ${policy.env} if it writes your data`,
+        );
+      } else if (w.outcome === 'mocked') {
+        o.log('info', `${w.label} (${where}): answered by the mock "${w.rule}" (HTTP ${w.status})`);
+      } else {
+        o.log('info', `${w.label} (${where}): let through by read_only.allow "${w.rule}"`);
+      }
+    },
+    onWebSocket: (host, page) => {
+      const id = o.pageId(page);
+      warnOnce(
+        `ws ${host}`,
+        `${id ? `page ${id}: ` : ''}a WebSocket to ${host} is open — the read-only guard does not check its messages: writes sent over it are NOT stopped`,
+      );
+    },
+  };
+}
+
+/** Why a read-only run refuses to start: its hooks that write, and the ways out. */
+function readOnlyRunRefusal(writing: ReturnType<typeof writingHooks>, access: RunAccess): string {
+  const list = writing.map((w) => `${w.phase} hook ${w.index + 1}${w.name ? ` "${w.name}"` : ''} (${w.reason})`);
+  const env = `environment ${access.env} is ${access.production ? 'production, ' : ''}read-only${access.configured === 'read-write' ? ' without --allow-writes' : ''}`;
+  const out = access.configured === 'read-write' ? 'pass --allow-writes to write to production' : 'run it on a read-write environment';
+  return (
+    `${env} and ${writing.length === 1 ? 'a hook writes' : `${writing.length} hooks write`}: ${list.join(', ')} — nothing ran. ` +
+    `Run with --hooks skip (no hooks), or ${out}; \`optional: true\` does not skip a refusal`
+  );
+}
+
+/**
  * Resolve the secret references of the scenes this run reaches (skipped scenes and the steps after --until excluded)
  * and of the mailbox headers when the run reads mail. A missing one fails the run naming where it is used.
  */
@@ -651,10 +850,14 @@ async function prefetchSecrets(
 }
 
 interface SetupDeps {
+  /** A read-only run: the js hook tabs stop writes (never mocked) and report them. */
+  writes?: { policy: WritePolicy; onWrite?: (w: GuardedWrite) => void };
   rt: Runtime;
   session: BrowserSession;
   project: LoadedProject;
   env: { name: string; pages: Record<string, string> };
+  /** The run's access: a read-only run refuses hooks that write (each one again, on its templated content). */
+  access: RunAccess;
   template: TemplateContext;
   runId: string;
   dir: string;
@@ -860,8 +1063,15 @@ async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> 
     // really execute: the dry run then sees the same prepared data as a capture.
     dryRun: false,
     log: (level, msg) => d.log(level, msg),
+    access: d.access,
     // js hooks run in a guarded tab of their own, kept for the run (hook-page.ts), never in a capture tab.
-    evalInPage: (pageKey, code) => evalHookInPage(d.session, { project: d.project, env: d.env, log: d.log, ...(d.hookLanding ? { loginLanding: d.hookLanding } : {}) }, pageKey, code),
+    evalInPage: (pageKey, code) =>
+      evalHookInPage(
+        d.session,
+        { project: d.project, env: d.env, log: d.log, ...(d.hookLanding ? { loginLanding: d.hookLanding } : {}), ...(d.writes ? { writes: d.writes } : {}) },
+        pageKey,
+        code,
+      ),
     saved,
   };
   const state: HooksState = { mod, journal, ctx };

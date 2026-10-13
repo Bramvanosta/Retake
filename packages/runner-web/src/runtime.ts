@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { LOADING_CUT_MIN_S, isDesktopViewport, resolvePageUrl } from '@demo-studio/core';
+import { LOADING_CUT_MIN_S, displayPages, isDesktopViewport, resolvePageUrl } from '@demo-studio/core';
 import type {
   ResolvedScenePage,
   ResolvedViewport,
@@ -135,6 +135,14 @@ export class Runtime {
   private mainPaused = false;
   /** What each page of a multi-page scene was declared with (a later scene listing it by id inherits it). */
   readonly declaredPages = new Map<string, { page?: string; viewport: ResolvedViewport; label?: string }>();
+
+  /**
+   * The template context of the text the video shows — captions, cards, overlays, page labels (L1.7): `{{page}}` reads
+   * the page's display URL. Made per use: the setup hooks' saved results land in `template` after the runtime exists.
+   */
+  get editTemplate(): TemplateContext {
+    return { ...this.template, pages: displayPages(this.env) };
+  }
 
   constructor(init: RuntimeInit) {
     this.session = init.session;
@@ -559,18 +567,19 @@ export class Runtime {
 
   /**
    * Resolve once the active page has painted the current DOM state (two animation frames; at most 150 ms when the
-   * page does not render). Used before a scene's still so its first frames already show the cursor in place.
+   * page does not render). Used before a scene's still so its first frames already show the cursor in place. The kit
+   * waits on the timers and frames it captured when it started (L1.7: whatever the page does to its globals since).
    */
   async painted(page: Page = this.page): Promise<void> {
     await page
-      .evaluate(
-        () =>
-          new Promise<void>((resolve) => {
-            const done = () => resolve();
-            setTimeout(done, 150);
-            requestAnimationFrame(() => requestAnimationFrame(done));
-          }),
-      )
+      .evaluate(() => {
+        const g = globalThis as unknown as { __demoStudio?: { afterPaint?: () => Promise<void> } };
+        if (typeof g.__demoStudio?.afterPaint === 'function') return g.__demoStudio.afterPaint();
+        return new Promise<void>((resolve) => {
+          setTimeout(() => resolve(), 150);
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+      })
       .catch(() => undefined);
   }
 

@@ -10,7 +10,10 @@ export interface KindEnv {
   log: (level: HookLogLevel, msg: string) => void;
 }
 
-export type RollbackEnv = Pick<KindEnv, 'ctx' | 'log'>;
+export type RollbackEnv = Pick<KindEnv, 'ctx' | 'log'> & {
+  /** The replay runs on a read-only environment (the entry's own, L1.7): SQL runs in a read-only transaction. */
+  readOnly?: boolean;
+};
 
 /** A hook whose templates, files and security checks are resolved; nothing has run yet. */
 export interface PreparedHook {
@@ -18,6 +21,13 @@ export interface PreparedHook {
   description: string;
   /** Why the content that will run is destructive, or null (declared `destructive: true` is handled by the caller). */
   destructive: string | null;
+  /** Why it writes (refused on a read-only run, L1.7), or null: its templated request / SQL, its rollback included. */
+  writes: string | null;
+  /**
+   * The hosts it contacts (its URL, its database, the hosts its shell command names; a js hook: none — its tab
+   * guards its requests): a hook that writes to a host of another, read-only environment is refused in every run.
+   */
+  hosts?: string[];
   execute(): Promise<ExecutedHook>;
 }
 

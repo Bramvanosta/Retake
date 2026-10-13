@@ -17,9 +17,20 @@ export function normalizeHost(host: string): string {
   return h;
 }
 
+/** A host in its ASCII form (an internationalised name in punycode, as URLs carry it); unchanged when not a valid one. */
+function asciiHost(host: string): string {
+  if (/^[\x21-\x7e]*$/.test(host)) return host;
+  try {
+    return new URL(`http://${host}`).hostname || host;
+  } catch {
+    return host;
+  }
+}
+
 /**
- * An `allow_hosts` entry as a host pattern. Accepts "api.example.com", "*.example.com" (any subdomain),
- * "https://api.example.com/x", "db.example.com:5432", "[::1]:5432".
+ * An `allow_hosts` / `read_only.hosts` entry as a host pattern. Accepts "api.example.com", "*.example.com" (any
+ * subdomain), "https://api.example.com/x", "db.example.com:5432", "[::1]:5432"; an internationalised name is matched in
+ * its punycode form (the one URLs carry).
  */
 export function normalizeAllowEntry(entry: string): string {
   const e = entry.trim();
@@ -34,8 +45,39 @@ export function normalizeAllowEntry(entry: string): string {
   const bracketed = /^\[([^\]]+)\](?::\d+)?$/.exec(e);
   if (bracketed) return normalizeHost(bracketed[1]);
   const hostPort = /^([^:]+):\d+$/.exec(e);
-  if (hostPort) return normalizeHost(hostPort[1]);
-  return normalizeHost(e);
+  const h = normalizeHost(hostPort ? hostPort[1] : e);
+  return h.startsWith('*.') ? `*.${asciiHost(h.slice(2))}` : asciiHost(h);
+}
+
+const HOST_HINT = 'write a host ("api.example.com", "api.example.com:8443"), "*.example.com" for its subdomains, "*" for every host, or a URL';
+
+/**
+ * Why a `read_only.hosts` entry is not a host pattern, or null: a host (an internationalised one too), `host:port`,
+ * `[ipv6]`, `*.domain`, `"*"`, or an http(s) URL (its host). A path, a leading dot or a wildcard elsewhere would
+ * guard nothing.
+ */
+export function hostPatternError(entry: string): string | null {
+  const e = entry.trim();
+  if (e === '*') return null;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(e)) {
+    try {
+      if (new URL(e).hostname) return null;
+    } catch {
+      /* refused below */
+    }
+    return `"${entry}" is not a URL with a host: ${HOST_HINT}`;
+  }
+  if (/^\[[0-9a-f:.]+\](?::\d{1,5})?$/i.test(e)) return null;
+  const m = /^(\*\.)?([^\s:/?#*[\]@]+)(?::\d{1,5})?$/.exec(e);
+  const label = /^(?!-)[a-z0-9_-]+(?<!-)$/i;
+  const labels = m ? asciiHost(m[2]).replace(/\.$/, '').split('.') : [];
+  if (!m || !labels.every((l) => label.test(l))) return `"${entry}" is not a host: ${HOST_HINT} (no path, no leading dot)`;
+  return null;
+}
+
+/** Whether a normalised host matches a host pattern: exact, `*.suffix` (subdomains only), or `"*"` (every host). */
+export function hostMatches(host: string, pattern: string): boolean {
+  return pattern === '*' || (pattern.startsWith('*.') ? host.endsWith(pattern.slice(1)) && host.length > pattern.length - 1 : host === pattern);
 }
 
 /** Hosts a project may contact: localhost, the hosts of every project environment, project.allow_hosts. */

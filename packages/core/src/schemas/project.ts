@@ -1,7 +1,12 @@
 import { z } from 'zod';
+import { clockError } from '../clock.js';
+import { displayError } from '../display.js';
+import { hostPatternError } from '../hosts.js';
+import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '../types.js';
+import { requestPatternError } from '../writes.js';
 import { HookStepSchema } from './hooks.js';
+import { keyedUnion } from './keyed.js';
 import { FrameSpecSchema, nonEmpty } from './primitives.js';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '../types.js';
 import {
   AuthConfigSchema,
   BrowserConfigSchema,
@@ -13,11 +18,116 @@ import {
 const httpUrl = () =>
   z.url({ protocol: /^https?$/, error: 'expected an absolute http(s) URL, e.g. "https://app.staging.example.com"' });
 
+/** A string checked by a function returning the reason it is refused (positioned like any schema issue). */
+const checkedString = (why: (s: string) => string | null) =>
+  nonEmpty().superRefine((s, ctx) => {
+    const message = why(s);
+    if (message) ctx.addIssue({ code: 'custom', message });
+  });
+
+/** `clock:` (L1.7): an ISO 8601 date-time, or {at, freeze}. */
+export const ClockSpecSchema = z
+  .union([
+    checkedString(clockError).describe('ISO 8601 date and time, e.g. 2026-11-02T10:24:00 (without an offset: wall time in the browser\'s time zone).'),
+    z.strictObject({
+      at: checkedString(clockError).describe('ISO 8601 date and time, e.g. 2026-11-02T10:24:00.'),
+      freeze: z.boolean().describe('true: the clock never moves (timers still run; code measuring time with Date stalls). Default false: it starts at `at` when the capture starts and runs.').optional(),
+    }),
+  ])
+  .describe('The date and time the product\'s browser clock reads when the capture starts, so every take shows the same dates and times.');
+
+/** `[METHOD ]<page>:/path` or `[METHOD ]/path` (globs * and **), as in read_only.allow and mocks. */
+const requestPattern = () =>
+  checkedString(requestPatternError).describe('"[METHOD ]<page>:/path" or "[METHOD ]/path", e.g. "POST shop:/api/quotes"; * matches within a path segment, ** anything; the query is ignored.');
+
+const WriteRuleSchema = z.union([
+  requestPattern(),
+  z.strictObject({
+    request: requestPattern(),
+    operation: nonEmpty().describe('GraphQL operation name.').optional(),
+  }),
+]);
+
+/** The answer to a write stopped on a read-only run (literal: nothing in it is templated). */
+export const WriteMockSchema = z
+  .strictObject({
+    request: requestPattern(),
+    operation: nonEmpty().describe('GraphQL operation name.').optional(),
+    status: z.number().int().min(200).max(599).describe('Status of the answer (default 200).').optional(),
+    json: z.unknown().describe('JSON body of the answer.').optional(),
+    body: z.string().describe('Raw body of the answer (text/plain unless content_type).').optional(),
+    content_type: nonEmpty().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    delay_ms: z.number().int().min(0).max(10_000).describe('Wait before answering (ms).').optional(),
+  })
+  .describe('Answer to a write stopped on a read-only run, so the flow continues on screen.');
+
+const ReadOnlySchema = z
+  .strictObject({
+    hosts: z
+      .array(checkedString(hostPatternError))
+      .describe(
+        'More hosts whose writes are stopped (the pages\' hosts always are; on a production environment every host is): "api.example.com", "*.example.com", or "*" for every host. They also belong to this environment: runs on other environments never write to them.',
+      )
+      .optional(),
+    allow: z.array(WriteRuleSchema).describe('Writes let through (a token refresh, a search sent as POST…).').optional(),
+    mocks: z.array(WriteMockSchema).describe('Answers to stopped writes, for every scenario on this environment (a scenario\'s own mocks come first).').optional(),
+  })
+  .describe('Used only when a run on this environment is read-only (its hosts are also never written to from runs on other environments).');
+
+const PageValueSchema = z.union([
+  httpUrl(),
+  z.strictObject({
+    url: httpUrl(),
+    display: checkedString(displayError)
+      .describe('The URL the video shows instead (address bar, captions): a host such as shop.example.com (https implied) or an http(s) URL.')
+      .optional(),
+  }),
+]);
+
+const PagesSchema = z.record(z.string(), PageValueSchema);
+
+const LongEnvironmentSchema = z.strictObject({
+  production: z.boolean().describe('A production environment: read-only unless access: read-write, and then only with --allow-writes.').optional(),
+  access: z.enum(ENVIRONMENT_ACCESS).describe('read-only or read-write (default: read-only in production, else read-write).').optional(),
+  pages: PagesSchema.describe('page key → base URL, or {url, display}.'),
+  read_only: ReadOnlySchema.optional(),
+});
+
+/** One environment: the page map (short form), or {production, access, pages, read_only} (long form, L1.7). */
+const EnvironmentSchema = keyedUnion(
+  [LongEnvironmentSchema, PagesSchema],
+  {
+    noun: 'environment',
+    label: 'environment form',
+    keys: ['pages'],
+    common: [],
+    fallback: 1,
+    example: 'page keys and URLs such as "console: https://console.staging.example.com", or "pages:" with production / access',
+    misplaced: {
+      keys: ['production', 'access', 'read_only'],
+      message: (key, path) =>
+        `"${key}" is a setting of environment ${String(path[path.length - 1])}, not a page: settings go with the long form — write the page URLs under \`pages:\` and \`${key}\` next to it`,
+    },
+  },
+  {
+    id: 'Environment',
+    description: 'page key → base URL (or {url, display}); or the long form {production, access, pages, read_only}.',
+  },
+);
+
+const EnvironmentSettingsSchema = z.strictObject({
+  production: z.boolean().optional(),
+  access: z.enum(ENVIRONMENT_ACCESS).optional(),
+  display: z.record(z.string(), z.string()).optional(),
+  read_only: ReadOnlySchema.optional(),
+});
+
 const projectShape = {
   name: nonEmpty().describe('Display name of the product / project.'),
   environments: z
-    .record(z.string(), z.record(z.string(), httpUrl()))
-    .describe('env name → page key → base URL, e.g. {staging: {console: https://…, shop: https://…}}.')
+    .record(z.string(), EnvironmentSchema)
+    .describe('env name → page key → base URL (or {url, display}), e.g. {staging: {console: https://…, shop: https://…}}; or the long form {production, access, pages, read_only}.')
     .optional(),
   default_env: nonEmpty().describe('Environment used when a scenario does not say (default: the first one).').optional(),
   auth: z
@@ -58,6 +168,7 @@ const projectShape = {
     })
     .describe('Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API).')
     .optional(),
+  clock: ClockSpecSchema.optional(),
   raw: z
     .strictObject({
       format: z.enum(RAW_FORMATS).describe('Clip codec: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ .mov). Default mp4.').optional(),
@@ -82,7 +193,9 @@ export const ProjectFileSchema = z
 /** ProjectConfig after defaults (what loadProject returns). */
 export const ProjectConfigSchema = z.strictObject({
   ...projectShape,
-  environments: projectShape.environments.unwrap(),
+  // Normalised by loadProject: real page URLs only; the rest of the long form is in environment_settings.
+  environments: z.record(z.string(), z.record(z.string(), httpUrl())),
+  environment_settings: z.record(z.string(), EnvironmentSettingsSchema).optional(),
   capture: CaptureSettingsSchema,
   frame: FrameSpecSchema,
   template: nonEmpty(),

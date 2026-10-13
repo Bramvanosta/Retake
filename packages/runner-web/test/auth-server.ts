@@ -2,7 +2,8 @@
  * A small app with a cookie sign-in for the L1.6 tests: two accounts on ONE host with the SAME cookie name (one browser
  * holds one of them at a time: two personas need two browsers), a session cookie for one and a persistent cookie for
  * the other, a server-side expiry, a page that routes itself to the sign-in page (pushState), a document link that opens
- * a tab, a page that never answers, and a hook counter.
+ * a tab, a page that never answers, a page that shows the browser clock's year, a landing page that writes as it loads
+ * (L1.7: what the automated sign-in tab sends after the sign-in), and counters.
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
@@ -28,6 +29,8 @@ export interface AuthServer {
   url: string;
   /** Requests to /api/ping (setup hooks). */
   pings: () => number;
+  /** Writes (non-GET requests) to /api/… that reached the server: "METHOD /path". */
+  apiWrites: () => string[];
   /** Forget every session (or one account's). */
   expire: (persona?: string) => void;
   close(): Promise<void>;
@@ -47,9 +50,15 @@ function readBody(req: IncomingMessage): Promise<string> {
 export async function startAuthServer(): Promise<AuthServer> {
   const sessions = new Map<string, string>();
   let pings = 0;
+  const apiWrites: string[] = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     const path = url.pathname;
+    if (path.startsWith('/api/') && req.method !== 'GET' && req.method !== 'HEAD') apiWrites.push(`${req.method} ${path}`);
+    if (path === '/api/last-seen' || path === '/api/onboarding') {
+      res.writeHead(204).end();
+      return;
+    }
     const sid = /(?:^|;\s*)sid=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
     const who = sid ? sessions.get(sid) : undefined;
     const html = (status: number, body: string, headers: Record<string, string> = {}) => {
@@ -98,6 +107,17 @@ export async function startAuthServer(): Promise<AuthServer> {
     if (path === '/hang') return;
     if (!who) return html(302, '', { location: `/sign-in?next=${encodeURIComponent(path + url.search)}` });
     const account = ACCOUNTS[who];
+    // The browser's clock (L1.7): which year the page reads.
+    if (path === '/clock') {
+      return html(200, page('Clock', `<h1>Signed in as ${account.name}</h1><p id="y"></p><script>document.getElementById('y').textContent = 'Year ' + new Date().getFullYear()</script>`));
+    }
+    // The page a sign-in lands on (next=/welcome): it writes as it loads, like a product's "last seen" ping.
+    if (path === '/welcome') {
+      return html(
+        200,
+        page('Welcome', `<h1>Signed in as ${account.name}</h1><script>fetch('/api/last-seen', { method: 'PUT', body: '{}' }); navigator.sendBeacon('/api/onboarding', 'done');</script>`),
+      );
+    }
     if (path === '/spa') {
       return html(
         200,
@@ -122,6 +142,7 @@ export async function startAuthServer(): Promise<AuthServer> {
   return {
     url: `http://127.0.0.1:${port}`,
     pings: () => pings,
+    apiWrites: () => [...apiWrites],
     expire: (persona) => {
       for (const [k, v] of [...sessions]) if (!persona || v === persona) sessions.delete(k);
     },

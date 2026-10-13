@@ -2,15 +2,28 @@
 # Demo Studio project filming the bundled fixture product (fixtures/wholesale).
 # Start it first:  pnpm fixture   (or: node fixtures/wholesale/server.mjs)
 name: Northfield (fixture)
+# Each page: its real URL (what the runner opens) and the URL the video shows (`display`: browser bars, `{{shop}}` in a
+# caption, notification apps) — invented hosts under the reserved .example domain, never localhost on screen.
 environments:
   local:
-    console: http://localhost:4401
-    shop: http://localhost:4402
+    console: {url: http://localhost:4401, display: console.northfield.example}
+    shop: {url: http://localhost:4402, display: shop.northfield.example}
   # The same apps behind a sign-in (the fixture serves them on :4403 / :4404): every scenario runs signed in with
   # `--env signed-in`, as the persona whose `pages` list each page (L1.6).
   signed-in:
-    console: http://localhost:4403
-    shop: http://localhost:4404
+    console: {url: http://localhost:4403, display: console.northfield.example}
+    shop: {url: http://localhost:4404, display: shop.northfield.example}
+  # Pretend production (L1.7): the local fixture, filmed read-only — the browser's writes to the fixture are stopped
+  # or answered by a mock, hooks that write are refused (`studio run northfield-fixture quote --env production` is
+  # refused before anything runs: its setup hooks write). The `read-only` scenario runs here.
+  production:
+    production: true
+    pages:
+      console: {url: http://localhost:4401, display: console.northfield.example}
+      shop: {url: http://localhost:4402, display: shop.northfield.example}
+    read_only:
+      mocks:   # for every scenario on this environment: the shop marks its notifications read when the bell opens
+        - {request: "POST shop:/api/notifications/read", json: {unread: 0, items: []}}
 default_env: local
 # Personas of the signed-in environment. Their sessions live in ~/.demo-studio (never in this file):
 # `studio login northfield-fixture --env signed-in --persona supplier` signs one in; a run without a valid session signs

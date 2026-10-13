@@ -388,7 +388,7 @@ export interface LayoutPaneRects {
   inset?: boolean;
   /** A phone or tablet viewport (mobile emulation): layouts may draw a device around it. */
   mobile?: boolean;
-  /** The page's URL at this frame (browser bar). */
+  /** The page's URL at this frame (browser bar): its display URL; absent for a local URL without one (L1.7). */
   url?: string;
 }
 
@@ -443,7 +443,7 @@ export interface ComponentProps<P extends Record<string, unknown> = Record<strin
   screen?: unknown;
   /** Multi-page layouts (L2.11): the capture of each page (React nodes), in the order of `rects.panes`. */
   screens?: unknown[];
-  /** layout with chrome: the URL to show. */
+  /** layout with chrome: the URL to show — the page's display URL (L1.7); absent for a local URL without one. */
   url?: string;
   /**
    * layout: where to draw, in output px — the manifest geometry evaluated by the planner with this use's params and

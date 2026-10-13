@@ -16,7 +16,7 @@ export function prepareHook(hook: HookStep, kind: HookKind, k: KindEnv): Promise
     case 'sql':
       return prepareSql((hook as { sql: string | SqlHookSpec }).sql, k);
     case 'shell':
-      return prepareShell((hook as { shell: string | ShellHookSpec }).shell, k);
+      return prepareShell((hook as { shell: string | ShellHookSpec }).shell, k, { writes: hook.writes });
     case 'js':
       return prepareJs((hook as { js: string | JsHookSpec }).js, k);
   }

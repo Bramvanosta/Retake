@@ -30,8 +30,9 @@ export function barTones(theme: ThemeTokens): { bar: string; field: string; ink:
 }
 
 /**
- * A compact macOS-style window bar (traffic lights, an address field with the page's real URL: host emphasised, path
- * quieter), `w × h` output px, drawn at the top-left of its parent.
+ * A compact macOS-style window bar (traffic lights, an address field with the page's URL as the video shows it — its
+ * display URL, host emphasised, path quieter; without `url`, a local page without one, the theme's `brand.url`),
+ * `w × h` output px, drawn at the top-left of its parent.
  */
 export function WindowBar({ theme, w, h, url, unit }: { theme: ThemeTokens; w: number; h: number; url?: string; unit: number }): ReactNode {
   const u = unit;

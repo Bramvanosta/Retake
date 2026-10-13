@@ -132,21 +132,29 @@ export function interpolateDeep<T>(value: T, ctx: TemplateContext): T {
 /**
  * interpolateDeep that knows where it is: a node for which `skip(path, value)` is true stays as written, and a
  * TemplateError names the string that raised it ("scenes[2].steps[3].type.text: unknown template key …").
+ * `ctxAt(path)`, when given, picks the context of each string (L1.7: edit text sees the display URLs, steps the real
+ * ones); `ctx` otherwise.
  */
-export function interpolateAt<T>(value: T, ctx: TemplateContext, path: IssuePath, skip?: (path: IssuePath, value: unknown) => boolean): T {
+export function interpolateAt<T>(
+  value: T,
+  ctx: TemplateContext,
+  path: IssuePath,
+  skip?: (path: IssuePath, value: unknown) => boolean,
+  ctxAt?: (path: IssuePath) => TemplateContext,
+): T {
   if (skip?.(path, value)) return value;
   if (typeof value === 'string') {
     try {
-      return interpolate(value, ctx) as unknown as T;
+      return interpolate(value, ctxAt ? ctxAt(path) : ctx) as unknown as T;
     } catch (e) {
       if (e instanceof TemplateError && path.length) throw new TemplateError(`${formatPath(path)}: ${e.message}`);
       throw e;
     }
   }
-  if (Array.isArray(value)) return value.map((v, i) => interpolateAt(v, ctx, [...path, i], skip)) as unknown as T;
+  if (Array.isArray(value)) return value.map((v, i) => interpolateAt(v, ctx, [...path, i], skip, ctxAt)) as unknown as T;
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = interpolateAt(v, ctx, [...path, k], skip);
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = interpolateAt(v, ctx, [...path, k], skip, ctxAt);
     return out as T;
   }
   return value;

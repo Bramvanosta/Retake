@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ACTION_NAMES, CURSOR_ICONS } from '../types.js';
+import { ACTION_NAMES, CURSOR_ICONS, ENVIRONMENT_ACCESS } from '../types.js';
 import type { RunRecord, Timeline } from '../types.js';
 import {
   BBoxSchema,
@@ -253,6 +253,40 @@ const TimelineArtefactSchema = z
   ])
   .describe('A captured email, document or web notification (L2.9), or a text read by capture_text (L2.10).');
 
+const ResolvedClockSchema = z.strictObject({
+  at: nonEmpty().describe('As written (ISO 8601).'),
+  epoch_ms: z.number().describe('The instant it names (epoch ms).'),
+  timezone: z.string().describe("IANA zone a time without an offset was read in (browser.timezone, else the machine's).").optional(),
+  freeze: z.literal(true).optional(),
+});
+
+const TimelineWriteSchema = z.strictObject({
+  t: t().describe('Capture time; absent before capture time 0 (preflight, setup hooks).').optional(),
+  method: nonEmpty(),
+  url: z.string().describe('The real URL.'),
+  operation: z.string().describe('GraphQL operation name.').optional(),
+  outcome: z.enum(['blocked', 'mocked', 'allowed', 'passed', 'exempt']).describe('exempt: the automated sign-in\'s own write, from its sign-in page.'),
+  rule: z.string().describe('The allow / mock entry that matched.').optional(),
+  status: z.number().int().optional(),
+  via: z.enum(['page', 'hook', 'sign-in']).optional(),
+  protected_by: z.string().describe('The other, read-only environment whose host it went to.').optional(),
+});
+
+const TimelineEnvironmentSchema = z
+  .strictObject({
+    name: nonEmpty(),
+    production: z.literal(true).optional(),
+    access: z.enum(ENVIRONMENT_ACCESS).describe("The run's effective access."),
+    allow_writes: z.literal(true).describe('Written with --allow-writes (production, access: read-write).').optional(),
+    display: z
+      .array(z.strictObject({ page: nonEmpty(), url: z.string(), display: z.string() }))
+      .describe('Display base of each page that declares one (url: its real base URL).')
+      .optional(),
+    clock: ResolvedClockSchema.optional(),
+    writes: z.array(TimelineWriteSchema).describe('Writes the read-only guard stopped, answered or let through, and writes to hosts it does not guard.').optional(),
+  })
+  .describe('The environment of the run (L1.7): access, display URLs, clock, writes seen on a read-only run.');
+
 export const TimelineSchema = z
   .strictObject({
     version: z.literal(1),
@@ -283,6 +317,7 @@ export const TimelineSchema = z
     loading: z.array(LoadingSchema).describe('Page loads `capture` did not show (the previous frame held until the new page painted).').optional(),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
+    environment: TimelineEnvironmentSchema.optional(),
     warnings: z.array(z.string()),
   })
   .meta({
@@ -302,7 +337,24 @@ export const RunRecordSchema = z
     finished_at: z.string().optional(),
     dir: nonEmpty(),
     env: z.string(),
-    options: z.strictObject({ until: z.string().optional(), hooks: z.enum(['run', 'skip']), headed: z.boolean(), cursor: z.literal('hidden').optional() }),
+    options: z.strictObject({
+      until: z.string().optional(),
+      hooks: z.enum(['run', 'skip']),
+      headed: z.boolean(),
+      cursor: z.literal('hidden').optional(),
+      allow_writes: z.literal(true).optional(),
+    }),
+    environment: z
+      .strictObject({
+        production: z.literal(true).optional(),
+        access: z.enum(ENVIRONMENT_ACCESS),
+        clock: z
+          .strictObject({ at: nonEmpty(), timezone: z.string().optional(), freeze: z.literal(true).optional() })
+          .describe('The product clock: as written, the zone a time without an offset is read in, frozen or not.')
+          .optional(),
+      })
+      .describe("The environment's safety: production, the run's effective access, the clock.")
+      .optional(),
     steps_total: z.number().int().min(0),
     steps_done: z.number().int().min(0),
     current: z.strictObject({ scene: z.string(), step: z.number().int(), action: z.string() }).optional(),

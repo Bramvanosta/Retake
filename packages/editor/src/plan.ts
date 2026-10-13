@@ -3,9 +3,10 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join } from 'node:path';
-import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, fileExtension, hasTokens, mediaSegmentUse, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
+import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, resolveEnvironment, timelineVideo, tutorialOff } from '@demo-studio/core';
 import type {
   ComponentKind,
+  DisplayEntry,
   FrameSpec,
   LottieMeta,
   MediaFileFields,
@@ -59,7 +60,7 @@ import type { Candidate } from './resolve.js';
 import { DEFAULT_IDLE_THRESHOLD_S, QUICK_RUN_SPEED, WAIT_SPEED, loadsBesideOtherPages, outFrameAt, planRunTiming, quickRunSpans, waitingSpans } from './timing.js';
 import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
-import { INSET_GROW, cornerOf, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
+import { INSET_GROW, cornerOf, drawsUrl, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
 import { captionBandOver, mapUseRect, overlayBoxAt, playsSound, staysInInset } from './remotion/frames.js';
 import { autoFit } from '@demo-studio/components/kit';
 import { planBadgeNumbers, planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
@@ -77,6 +78,11 @@ export interface PlanEditInput {
   captureFile: string;
   /** Optional extra context: used for the edit info of older timelines without a `video` block. */
   scenario?: Scenario;
+  /**
+   * The environment the run filmed (run.json `env`): its display URLs in project.yaml apply to runs whose timeline has
+   * no `environment` block (captured before L1.7). A timeline's own `environment.name` wins.
+   */
+  env?: string;
   overrides?: EditOverrides;
   /** Length (s) of the music track when the caller measured it (the planner does no I/O): its loops are then planned. */
   musicDuration_s?: number;
@@ -207,6 +213,21 @@ function pageAt(timeline: Timeline, t: number): { id: string; url?: string } | u
   return found;
 }
 
+/**
+ * A URL as the video's browser bars show it (L1.7, R-ENV-01): mapped through the run's display table; a URL still
+ * local afterwards (localhost, a private address…) is kept `hidden` — urlAt / paneUrlAt never return it, the bar shows
+ * no address — so a local URL is never drawn, and the navigation it marks stays visible to the review.
+ */
+function addressEntry(url: string, table: readonly DisplayEntry[]): { url: string; hidden?: true } {
+  const shown = displayedUrl(url, table);
+  return isLocalUrl(shown) ? { url: shown, hidden: true } : { url: shown };
+}
+
+/** Appends an address from relative frame `frame` on, unless the bar already shows it. */
+function pushAddress(list: ClipSegment['urls'], frame: number, e: { url: string; hidden?: true }): void {
+  if (list[list.length - 1]?.url !== e.url) list.push({ frame, ...e });
+}
+
 /** A short deterministic hash of a string (FNV-1a, 8 hex digits): unique asset names for user files. */
 function shortHash(v: string): string {
   let h = 0x811c9dc5;
@@ -305,6 +326,46 @@ export function planEdit(input: PlanEditInput): EditPlan {
     warnings.add(`${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`);
   }
 
+  // Display URLs (L1.7, R-ENV-01): what the browser bars and notification overlays show instead of the real URLs. They
+  // are edit-time data: project.yaml's current pages of the run's environment (runs captured before L1.7 included: the
+  // environment of run.json) win over the table the run recorded, so a display URL added since applies on this render.
+  const envName = timeline.environment?.name ?? input.env;
+  let currentRows: DisplayEntry[] | undefined;
+  if (envName !== undefined && Object.hasOwn(project.config.environments ?? {}, envName)) currentRows = displayRows(resolveEnvironment(project, envName));
+  const displayTable: DisplayEntry[] = editDisplayTable(timeline.environment?.display, currentRows);
+  const addresses = new Map<string, { url: string; hidden?: true }>();
+  const addressOf = (url: string) => {
+    let e = addresses.get(url);
+    if (!e) addresses.set(url, (e = addressEntry(url, displayTable)));
+    return e;
+  };
+  /**
+   * A local URL a browser bar of the video would show: one warning per page (its address is left empty). The local
+   * origin is named in parentheses only (the review masks it: a report never names a local host).
+   */
+  const warnHiddenUrl = (url: string): void => {
+    let page: string | undefined;
+    let best = -1;
+    for (const row of currentRows ?? []) {
+      const b = row.url;
+      if ((url === b || url.startsWith(`${b}/`) || url.startsWith(`${b}?`)) && b.length > best) {
+        page = row.page;
+        best = b.length;
+      }
+    }
+    let origin = url;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      /* keep the URL */
+    }
+    warnings.add(
+      page !== undefined
+        ? `page "${page}" has no display URL (${origin}): the browser bar shows no address for it — add display: to environments.${envName}.${page} in project.yaml and render again (README: Environments)`
+        : `a local URL outside the pages of environment ${envName ?? '(unknown)'} has no display URL (${origin}): the browser bar shows no address for it — declare it as a page with a display: in project.yaml and render again (README: Environments)`,
+    );
+  };
+
   const assets: Record<string, string> = {};
   const asset = (name: string, file: string): string => {
     const url = `${PLAN_ASSET_SCHEME}${name}${extname(file).toLowerCase()}`;
@@ -387,9 +448,12 @@ export function planEdit(input: PlanEditInput): EditPlan {
       };
     }
     if (a.kind === 'text') return { kind: 'text', name: a.name, value: a.value, text: a.text };
+    // The app a system notification names: the host the video shows for its page (L1.7: the display URL); a local
+    // host without one is never shown — the theme's brand name instead.
     let app = a.origin;
     try {
-      app = new URL(a.origin).host || a.origin;
+      const shown = new URL(displayedUrl(a.origin, displayTable));
+      app = isLocalHost(shown.hostname) ? (t.brand?.name ?? '') : shown.host || a.origin;
     } catch {
       /* keep the origin */
     }
@@ -1541,21 +1605,24 @@ export function planEdit(input: PlanEditInput): EditPlan {
     });
     seg.steps = steps;
 
-    // URLs (browser chrome) along the clip: of the main capture, or of each page's track.
+    // URLs (browser chrome) along the clip: of the main capture, or of each page's track — as the video shows them
+    // (L1.7): display URLs; a local one is kept hidden, and a layout that would draw it gets a plan warning.
     if (seg.panes) {
-      for (const pane of seg.panes) {
+      seg.panes.forEach((pane, p) => {
         const tr = timelineTracks.get(pane.track);
-        const scenePage = entry.pages?.find((p) => p.id === pane.page);
+        const scenePage = entry.pages?.find((x) => x.id === pane.page);
         seg.srcFrames.forEach((f, k) => {
           const url = (tr ? trackUrlAt(tr, f / srcFps) : undefined) ?? scenePage?.url;
-          if (url && pane.urls[pane.urls.length - 1]?.url !== url) pane.urls.push({ frame: k, url });
+          if (url) pushAddress(pane.urls, k, addressOf(url));
         });
-      }
+        if (drawsUrl(seg, p)) for (const u of pane.urls) if (u.hidden) warnHiddenUrl(u.url);
+      });
     } else {
       seg.srcFrames.forEach((f, k) => {
         const url = pageAt(timeline, f / srcFps)?.url ?? entry.scene.url;
-        if (url && seg.urls[seg.urls.length - 1]?.url !== url) seg.urls.push({ frame: k, url });
+        if (url) pushAddress(seg.urls, k, addressOf(url));
       });
+      if (drawsUrl(seg)) for (const u of seg.urls) if (u.hidden) warnHiddenUrl(u.url);
     }
 
     // Multi-page clips (L2.11): the acting page over time, and where a picture-in-picture inset sits.
@@ -1799,6 +1866,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     markers,
     timemap,
     assets,
+    ...(displayTable.length > 0 ? { display: displayTable } : {}),
     meta: { run_id: timeline.run_id, project: timeline.project, scenario: timeline.scenario, theme: template.name },
     notes: notes.items,
     warnings: warnings.items,

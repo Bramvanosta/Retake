@@ -223,6 +223,21 @@ export interface ReviewFiles {
   diff_sheet?: string;
 }
 
+/** The run's environment as a review shows it (L1.7; from timeline.json `environment`). */
+export interface ReviewEnvironment {
+  name: string;
+  production?: true;
+  /** The run's access. */
+  access: 'read-only' | 'read-write';
+  /** Written to production with `--allow-writes`. */
+  allow_writes?: true;
+  clock?: { at: string; timezone?: string; freeze?: true };
+  /** The display bases of the run's pages (what the browser bars show). */
+  display?: string[];
+  /** Writes the write guard saw (the automated sign-in's exempt ones excepted). */
+  writes: { blocked: number; mocked: number; allowed: number; passed: number };
+}
+
 export interface ReviewResult {
   version: 1;
   render: {
@@ -245,6 +260,8 @@ export interface ReviewResult {
   counts: Record<Severity, number>;
   findings: Finding[];
   durations: { total_s: number; segments: SegmentDuration[] };
+  /** The environment the run filmed (L1.7: access, production, clock, writes); absent for runs before it. */
+  environment?: ReviewEnvironment;
   diff?: ReviewDiff;
   files: ReviewFiles;
   /** Not written to report.json. */

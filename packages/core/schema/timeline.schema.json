@@ -1712,6 +1712,152 @@
       },
       "description": "Multi-page scenes: one track per page, on the capture clock."
     },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "production": {
+          "type": "boolean",
+          "const": true
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read-only",
+            "read-write"
+          ],
+          "description": "The run's effective access."
+        },
+        "allow_writes": {
+          "type": "boolean",
+          "const": true,
+          "description": "Written with --allow-writes (production, access: read-write)."
+        },
+        "display": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "type": "string"
+              },
+              "display": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "page",
+              "url",
+              "display"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Display base of each page that declares one (url: its real base URL)."
+        },
+        "clock": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "string",
+              "minLength": 1,
+              "description": "As written (ISO 8601)."
+            },
+            "epoch_ms": {
+              "type": "number",
+              "description": "The instant it names (epoch ms)."
+            },
+            "timezone": {
+              "type": "string",
+              "description": "IANA zone a time without an offset was read in (browser.timezone, else the machine's)."
+            },
+            "freeze": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "at",
+            "epoch_ms"
+          ],
+          "additionalProperties": false
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "t": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Capture time; absent before capture time 0 (preflight, setup hooks)."
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "type": "string",
+                "description": "The real URL."
+              },
+              "operation": {
+                "type": "string",
+                "description": "GraphQL operation name."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "blocked",
+                  "mocked",
+                  "allowed",
+                  "passed",
+                  "exempt"
+                ],
+                "description": "exempt: the automated sign-in's own write, from its sign-in page."
+              },
+              "rule": {
+                "type": "string",
+                "description": "The allow / mock entry that matched."
+              },
+              "status": {
+                "type": "integer"
+              },
+              "via": {
+                "type": "string",
+                "enum": [
+                  "page",
+                  "hook",
+                  "sign-in"
+                ]
+              },
+              "protected_by": {
+                "type": "string",
+                "description": "The other, read-only environment whose host it went to."
+              }
+            },
+            "required": [
+              "method",
+              "url",
+              "outcome"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Writes the read-only guard stopped, answered or let through, and writes to hosts it does not guard."
+        }
+      },
+      "required": [
+        "name",
+        "access"
+      ],
+      "additionalProperties": false,
+      "description": "The environment of the run (L1.7): access, display URLs, clock, writes seen on a read-only run."
+    },
     "warnings": {
       "type": "array",
       "items": {

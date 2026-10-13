@@ -1,6 +1,6 @@
 import { reviewRender } from '@demo-studio/review';
 import type { Finding, ReviewProgress, ReviewResult } from '@demo-studio/review';
-import { findingLine, summaryLine } from '@demo-studio/review';
+import { environmentLine, findingLine, summaryLine } from '@demo-studio/review';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -42,6 +42,7 @@ export function printReview(ui: Ui, r: ReviewResult): void {
   const head = `review ${c.bold(r.render.id)} (${r.render.duration_s.toFixed(2)} s, ${plural(r.durations.segments.length, 'segment')}) → ${ui.path(r.files.dir)}`;
   if (r.clean) ui.ok(`${head}\n  ${c.green(summaryLine(r))}`);
   else ui.line(`${r.counts.error ? c.red('✗') : c.yellow('!')} ${head}\n  ${r.counts.error ? c.red(summaryLine(r)) : c.yellow(summaryLine(r))}`);
+  if (r.environment) ui.line(c.dim(`  environment ${environmentLine(r.environment)}`));
   const colour = (f: Finding) => (f.severity === 'error' ? c.red : f.severity === 'warning' ? c.yellow : c.dim);
   for (const f of r.findings) ui.line(`  ${colour(f)(f.severity.padEnd(7))} ${findingLine(f, false)}`);
   const files = r.files;

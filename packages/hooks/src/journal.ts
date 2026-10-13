@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { writeJson } from '@demo-studio/core';
+import { readOnlyHookMessage, rollbackWriteReason, writeJson } from '@demo-studio/core';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { executeRollback } from './kinds/index.js';
 import { logger, redactText } from './secrets.js';
@@ -183,6 +183,15 @@ export class Journal {
       journal_seq: entry.seq,
     };
     const label = `rollback of #${entry.seq} (${entry.description})`;
+    // L1.7: a replay writes on the environment the hook ran in — checked against that environment's access, not the
+    // command's (`studio env reset` on a read-write environment never replays a production write without --allow-writes).
+    const access = (entry.env !== undefined ? ctx.accessOf?.(entry.env) : undefined) ?? ctx.access;
+    const writes = access?.mode === 'read-only' ? rollbackWriteReason(action) : null;
+    if (access && writes) {
+      const error = readOnlyHookMessage(`its rollback: ${writes}`, access);
+      log('error', `${label} refused: ${error}`);
+      return { ...base, ok: false, status: 'refused', error, ms: Date.now() - t0 };
+    }
     if (ctx.dryRun) {
       log('info', `${label} [dry]: would run ${action.description}`);
       return { ...base, ok: true, status: 'dry', message: 'not executed (dry run)', ms: Date.now() - t0 };
@@ -190,7 +199,7 @@ export class Journal {
     log('info', `${label}: ${action.description}`);
     let message: string;
     try {
-      message = await executeRollback(action, { ctx, log });
+      message = await executeRollback(action, { ctx, log, readOnly: access?.mode === 'read-only' });
     } catch (e) {
       const error = redactText(ctx, errorMessage(e));
       entry.rollback_error = error;

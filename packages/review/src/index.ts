@@ -12,6 +12,7 @@ export {
   checkCaptions,
   checkCursor,
   checkDurations,
+  checkEnvironment,
   checkLongScenes,
   checkRender,
   checkTextSlots,
@@ -20,9 +21,11 @@ export {
   checkOverlayCover,
   COVER_SHARE,
   STALE_TARGET_S,
+  environmentLine,
   fitCaption,
   locate,
   planFontFiles,
+  reviewEnvironment,
   segmentDurations,
 } from './checks.js';
 export type { CheckContext } from './checks.js';

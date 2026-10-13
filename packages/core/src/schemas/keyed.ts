@@ -21,6 +21,11 @@ export interface KeyedUnionInfo {
   fallback?: number;
   /** Short example shown when the entry is not a mapping. */
   example: string;
+  /**
+   * Keys of the other branches written in the fallback branch, where they fail (the short form of an environment
+   * given `production: true`): one targeted message per key replaces the fallback branch's issues about it.
+   */
+  misplaced?: { keys: readonly string[]; message: (key: string, path: ReadonlyArray<string | number>) => string };
 }
 
 const KEYED = new WeakMap<object, KeyedUnionInfo>();
@@ -35,7 +40,7 @@ export function extraKeyCandidates(schema: unknown): readonly string[] {
   return (typeof schema === 'object' && schema !== null ? EXTRA_KEYS.get(schema) : undefined) ?? [];
 }
 
-export function keyedUnion<const T extends readonly [z.ZodObject, ...z.ZodObject[]]>(
+export function keyedUnion<const T extends readonly [z.ZodType, ...z.ZodType[]]>(
   options: T,
   info: Omit<KeyedUnionInfo, 'branchOf'> & { branchOf?: ReadonlyMap<string, number> },
   meta: z.core.GlobalMeta,

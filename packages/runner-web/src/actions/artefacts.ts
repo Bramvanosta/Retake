@@ -14,6 +14,7 @@ import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
+import { closePage } from '../write-guard.js';
 import { clickResolved } from './click.js';
 import type { ClickRun } from './click.js';
 import type { ActionResult } from './types.js';
@@ -159,7 +160,7 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
     }
   } finally {
     // Close the tabs the click opened: the recording stays on this page.
-    for (const t of tabs) await t.close().catch(() => undefined);
+    for (const t of tabs) await closePage(t);
     if (tabs.length) await page.bringToFront().catch(() => undefined);
   }
 

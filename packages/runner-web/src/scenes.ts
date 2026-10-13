@@ -467,7 +467,8 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     const entry = scenes[si];
     const id = sceneId(entry, si);
     // Every string of the entry is templated now, once (R-RUN-16): what the timeline records holds values, not tokens.
-    const templateEntry = <T extends SceneEntry>(e: T): T => templated(() => templateSceneEntry(untilSteps(e, si, opts.until), si, rt.template), opts.record);
+    // The text the video shows reads the display URLs (L1.7); steps and `open` the real ones.
+    const templateEntry = <T extends SceneEntry>(e: T): T => templated(() => templateSceneEntry(untilSteps(e, si, opts.until), si, rt.template, rt.editTemplate), opts.record);
     if (isInterstitial(entry)) {
       const t = rt.now();
       rt.timeline.addScene({ id, index: si, kind: 'interstitial', t_start: t, t_end: t, interstitial: templateEntry(entry).interstitial, status: 'ok' });

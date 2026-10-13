@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { TemplateError, normalizeStep, templateSceneEntry, templateVideo } from '@demo-studio/core';
+import { TemplateError, displayPages, normalizeStep, templateSceneEntry, templateVideo } from '@demo-studio/core';
 import type { CardScene, InterstitialScene, Scene, TemplateContext } from '@demo-studio/core';
 
 const ctx: TemplateContext = {
@@ -113,6 +113,47 @@ describe('templateSceneEntry (R-RUN-16)', () => {
     const bad: Scene = { id: 'bad', steps: [{ wait: 1 }, { type: { text: '{{vars.nope}}' } }] };
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(TemplateError);
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(/^scenes\[3\]\.steps\[1\]\.type\.text: unknown template key \{\{vars\.nope\}\}/);
+  });
+});
+
+describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
+  const env = { pages: { shop: 'http://localhost:4402', console: 'http://localhost:4401/app' }, display: { shop: 'https://shop.example.com' } };
+  const edit: TemplateContext = { ...ctx, pages: displayPages(env) };
+
+  it('displayPages: the display base where a page has one, else its real URL', () => {
+    expect(displayPages(env)).toEqual({ shop: 'https://shop.example.com', console: 'http://localhost:4401/app' });
+    expect(displayPages({ pages: { app: 'http://localhost:3000/' } })).toEqual({ app: 'http://localhost:3000/' });
+  });
+
+  it('captions, cards, overlay slots, page labels and tutorial text read the display URL; steps, open and targets (an overlay\'s too) the real one', () => {
+    const scene: Scene = {
+      id: 'shop',
+      caption: { kicker: 'Live', text: 'Order at {{shop}}' },
+      open: '{{shop}}/coffees',
+      steps: [
+        { click: { text: 'Visit {{shop}}' }, caption: 'Now on {{shop}}/coffees' },
+        { new_tab: '{{shop}}/quotes', overlay: { component: 'studio/card-cta', slots: { url: '{{shop}}' }, target: { text: '{{shop}}' } } },
+        { wait_for: { url: '{{shop}}/quotes' } },
+      ],
+    };
+    const out = templateSceneEntry(scene, 0, ctx, edit);
+    expect(out.caption).toEqual({ kicker: 'Live', text: 'Order at https://shop.example.com' });
+    expect(out.open).toBe('http://localhost:4402/coffees');
+    const steps = out.steps.map((s, i) => normalizeStep(s, i));
+    expect(steps[0].args).toEqual({ text: 'Visit http://localhost:4402' });
+    expect(steps[0].caption).toBe('Now on https://shop.example.com/coffees');
+    expect(steps[1].args).toEqual({ href: 'http://localhost:4402/quotes' });
+    // An overlay's slots are edit text (the display URL); its target is an element of the real page (the real URL).
+    expect(steps[1].overlay).toMatchObject({ slots: { url: 'https://shop.example.com' }, target: { text: 'http://localhost:4402' } });
+    expect(steps[2].args).toEqual({ url: 'http://localhost:4402/quotes' });
+    // Multi-page labels and cards.
+    const multi: Scene = { id: 'both', pages: { buyer: { page: 'shop', open: '{{shop}}/', label: 'Café · {{shop}}' } }, steps: [{ wait: 1 }] };
+    const m = templateSceneEntry(multi, 1, ctx, edit);
+    expect(m.pages!.buyer).toMatchObject({ open: 'http://localhost:4402/', label: 'Café · https://shop.example.com' });
+    const card: CardScene = { card: { slots: { title: 'Try {{shop}}', url: '{{console}}' } } };
+    expect(templateSceneEntry(card, 2, ctx, edit).card).toEqual({ slots: { title: 'Try https://shop.example.com', url: 'http://localhost:4401/app' } });
+    // Without an edit context everything reads the real URLs (as before L1.7).
+    expect(templateSceneEntry(scene, 0, ctx).caption).toEqual({ kicker: 'Live', text: 'Order at http://localhost:4402' });
   });
 });
 

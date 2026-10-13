@@ -89,6 +89,13 @@ export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, op
         if (opts.project) checkShellHosts((hook as { shell: string | ShellHookSpec }).shell, kp, ctx, opts.project);
         break;
     }
+    if (hook.writes !== undefined && kind !== 'shell') {
+      ctx.error(
+        [...p, 'writes'],
+        `\`writes\` is for shell hooks: ${kind === 'js' ? 'a js hook is guarded in its tab (its writes are stopped on a read-only run)' : `the writes of ${kind === 'http' ? 'an http hook are seen in its method and body' : 'a sql hook are seen in its statements'}`}`,
+        { path: [...p, 'writes'], key: true },
+      );
+    }
     const reason = destructiveReason(hook, { projectDir: ctx.projectDir });
     if (reason && hook.confirm !== true) {
       ctx.error(p, `destructive hook (${reason}) requires "confirm: true"`, { path: kp, key: true });

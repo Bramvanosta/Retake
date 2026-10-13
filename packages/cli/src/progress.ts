@@ -28,6 +28,12 @@ export class ProgressPrinter {
         const r = e.run;
         const mode = r.mode === 'dry' ? c.cyan('dry run') : c.magenta('capture');
         const opts = [`env ${r.env}`, `hooks ${r.options.hooks}`];
+        // L1.7: say what is not ordinary — production, a read-only run, writes allowed, a fixed clock.
+        if (r.environment?.production) opts.push('production');
+        if (r.environment?.access === 'read-only') opts.push('read-only');
+        else if (r.options.allow_writes) opts.push('writes allowed');
+        const clk = r.environment?.clock;
+        if (clk) opts.push(`clock ${clk.at}${clk.timezone ? ` ${clk.timezone}` : ''}${clk.freeze ? ' (frozen)' : ''}`);
         if (r.options.until) opts.push(`until ${r.options.until}`);
         if (r.options.headed) opts.push('headed');
         ui.line(`${c.bold(`${r.project}/${r.scenario}`)}  ${mode}  ${c.dim(opts.join(' · '))}`);

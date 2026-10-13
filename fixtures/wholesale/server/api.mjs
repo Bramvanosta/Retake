@@ -26,7 +26,7 @@ const created = (value) => new Created(value);
 
 const ROUTES = [
   ['GET', '/api', 'This list', (_p, _b, _q, ctx) => ({ routes: ROUTES.map(([m, path, doc]) => ({ method: m, path, doc })), urls: ctx.urls })],
-  ['GET', '/api/health', 'Liveness + app URLs', (_p, _b, _q, ctx) => ({ ok: true, name: 'northfield-fixture', urls: ctx.urls, now: ctx.store.now() })],
+  ['GET', '/api/health', 'Liveness + app URLs; `mutations` = successful non-GET API calls since the server started (never reset: proves a read-only run changed nothing)', (_p, _b, _q, ctx) => ({ ok: true, name: 'northfield-fixture', urls: ctx.urls, now: ctx.store.now(), mutations: ctx.store.mutations })],
   ['POST', '/api/reset', 'Restore the seed data (and the demo clock); empty the mailbox', (_p, _b, _q, ctx) => (ctx.store.reset(), ctx.mailbox?.clear(), { ok: true, now: ctx.store.now() })],
   ['POST', '/api/auth/expire', 'Sign-in side (:4403 / :4404): end every session, or one persona\'s {persona: supplier | buyer} — for tests and demos of an expired session', (_p, b, _q, ctx) => ({ ok: true, expired: ctx.sessions?.expire(typeof b?.persona === 'string' ? b.persona : undefined) ?? 0 })],
   ['POST', '/api/signup', 'Open a café account {cafe, name, email} → sends a confirmation email to the mailbox (/mailbox/api/v1)', (_p, b, _q, ctx) => created(signup(ctx, b))],
@@ -78,6 +78,7 @@ export async function handleApi(req, res, url, ctx) {
   try {
     const body = method === 'GET' || method === 'DELETE' ? undefined : await readJson(req);
     const out = hit.r[3](hit.params, body, url.searchParams, ctx);
+    if (method !== 'GET') ctx.store.mutations++;
     if (out instanceof Created) sendJson(res, 201, out.value);
     else sendJson(res, 200, out);
   } catch (err) {

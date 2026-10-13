@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, readJson } from '@demo-studio/core';
 import type { Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
-import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, planInputFiles, renderStill, renderVideo, runScenario } from '@demo-studio/editor';
+import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, planInputFiles, renderStill, renderVideo, runEnv, runScenario } from '@demo-studio/editor';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -232,6 +232,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     registry,
     captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
     scenario: await runScenario(run.dir),
+    env: await runEnv(run.dir),
     overrides,
     files: await planInputFiles(timeline, project, template),
   });

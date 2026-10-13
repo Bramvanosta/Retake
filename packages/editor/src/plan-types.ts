@@ -5,7 +5,7 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { BBox, FrameSpec, OverlayAnchor, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@demo-studio/core';
+import type { BBox, DisplayEntry, FrameSpec, OverlayAnchor, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@demo-studio/core';
 import type { CaptionCue, ComponentManifest, MediaValue, ProgressChapter, ThemeTokens } from '@demo-studio/components';
 
 export type { CaptionCue };
@@ -306,8 +306,12 @@ export interface ClipSegment extends SegmentBase {
   srcFrames: number[];
   /** Per-output-frame camera, or null when the camera is static (zoom 1) for the whole segment. */
   camera: CameraFrame[] | null;
-  /** URL shown by the browser-chrome frame, from relative frame `frame` onwards. */
-  urls: Array<{ frame: number; url: string }>;
+  /**
+   * URL shown by the browser-chrome frame, from relative frame `frame` onwards: the display URL (L1.7, `plan.display`);
+   * `hidden` — a local URL without a display one (its real URL): the bar shows no address there (urlAt), the entry
+   * still marks the navigation (review).
+   */
+  urls: Array<{ frame: number; url: string; hidden?: true }>;
   /**
    * Vertical and square variants: per-output-frame crop centre in source CSS px (the reframe track: cursor, step
    * targets and overlay anchors kept in view, dead zone, critically damped smoothing; see camera.ts `reframeTrack`).
@@ -390,8 +394,8 @@ export interface PlanPane {
   camera: CameraFrame[] | null;
   /** Vertical / square: the crop centre per output frame when the pane reframes the page. */
   reframe?: Array<[cx: number, cy: number]>;
-  /** URL of the page from relative frame `frame` on (a browser bar shows it). */
-  urls: Array<{ frame: number; url: string }>;
+  /** URL of the page from relative frame `frame` on (a browser bar shows it): as ClipSegment.urls (display, hidden). */
+  urls: Array<{ frame: number; url: string; hidden?: true }>;
   zooms: ZoomSpan[];
   /** The page is the floating inset of a picture in picture. */
   inset?: boolean;
@@ -492,6 +496,11 @@ export interface EditPlan {
   tutorial?: PlanTutorial;
   /** Every `ds-asset:` URL of the plan → absolute file (capture, logo, wordmark, fonts, music). */
   assets: Record<string, string>;
+  /**
+   * The display table the edit used (L1.7, core editDisplayTable): project.yaml's current pages of the run's
+   * environment, then the rows the run recorded. The review names URLs through it. Absent when empty.
+   */
+  display?: DisplayEntry[];
   /** Run, scenario, project and theme the plan was made from. */
   meta: { run_id: string; project: string; scenario: string; theme: string };
   /** Planner decisions worth surfacing (trimmed idle gaps, clamped zooms…). */

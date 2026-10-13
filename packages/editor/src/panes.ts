@@ -406,14 +406,29 @@ export function mapPaneRect(
   return { x: round(cap.x + (rect.x - left) * sx, 2), y: round(cap.y + (rect.y - top) * sy, 2), w: round((rect.w ?? 0) * sx, 2), h: round((rect.h ?? 0) * sy, 2) };
 }
 
-/** The URL of pane `i` at clip frame `f`. */
+/** The URL of pane `i` at clip frame `f`; undefined while it is a hidden (local) one (L1.7: the bar shows no address). */
 export function paneUrlAt(pane: Pick<PlanPane, 'urls'>, f: number): string | undefined {
-  let url: string | undefined;
+  let at: PlanPane['urls'][number] | undefined;
   for (const u of pane.urls) {
-    if (u.frame <= f) url = u.url;
+    if (u.frame <= f) at = u;
     else break;
   }
-  return url ?? pane.urls[0]?.url;
+  at ??= pane.urls[0];
+  return at && !at.hidden ? at.url : undefined;
+}
+
+/**
+ * Whether a clip's layout draws a page URL (L1.7) — the whole clip, or pane `pane` of a multi-page clip:
+ * studio/layout-browser unless both `show_url` and `tabs` are off (its tab strip names the host); studio/layout-split
+ * and studio/layout-pip with `chrome` (a picture in picture: its main page only). Other layouts (card, laptop, tablet,
+ * phone, raw, your own) draw none as far as the planner knows.
+ */
+export function drawsUrl(clip: Pick<ClipSegment, 'component' | 'inset'>, pane?: number): boolean {
+  const { id, params } = clip.component;
+  if (id === 'studio/layout-browser') return pane === undefined && (params.show_url !== false || params.tabs === true);
+  if (id === 'studio/layout-split') return pane !== undefined && params.chrome === true;
+  if (id === 'studio/layout-pip') return pane !== undefined && params.chrome === true && clip.inset?.pane !== pane;
+  return false;
 }
 
 /** Every pane's rects at frame `f` (output px), as a layout component receives them (`LayoutRects.panes`). */

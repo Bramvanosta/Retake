@@ -23,7 +23,7 @@ Two pages of a multi-page scene side by side (stacked in vertical), each in a ca
 | `gap` | number (0–200) | 32 | Gap between the two pages, in design px. |
 | `radius` | number (0–64) | 14 | Corner radius of each card in design px. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under each card (tinted with the theme's dark tone). |
-| `chrome` | boolean | false | A compact browser bar above each page with its real URL (the planner turns it on for themes whose layout is a browser window). |
+| `chrome` | boolean | false | A compact browser bar above each page with its display URL — none for a local URL without one (the planner turns it on for themes whose layout is a browser window). |
 | `labels` | boolean | true | Each page's label (scenario `pages.<id>.label`) above it. |
 | `emphasis` | `auto` \| `none` \| `dim` | auto | Dim the idle page a little while the other acts: auto = for themes with style_bias balanced or motion. |
 

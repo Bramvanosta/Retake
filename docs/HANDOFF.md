@@ -1,6 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-13, end of lot **L1.6 (sessions & personas)**, after L1.5, L5.1, L1.3 and L1.2 — phases 1 and 2 are done;
+Last updated: 2026-10-13, end of lot **L1.7 (display URLs, read-only & production safety, frozen clock)**, after L1.5, L5.1,
+L1.3, L1.2 and L1.6 — phases 1 and 2 are done;
 the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
@@ -23,18 +24,22 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-62); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-67); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.6)
+## State (after L1.7)
+- **L1.7 done (2026-10-13)**: environment pages take a display URL (never localhost on screen or in a report),
+  production / read-only environments (browser writes mocked or stopped, writing hooks refused, production writes only
+  with `access: read-write` + `--allow-writes`, access mode in run.json / timeline / review), and a product clock
+  (`clock:`, Date-only, timers and animations real). Tests on the Mac: **1455 — 1446 pass, 9 skipped (≈ 5 m 20 s; 7 Postgres without DEMO_STUDIO_TEST_PG, 1 old Node, 1 headed sign-in)**. Requirements: 618 tracked — 461
+  done, 40 partial, 109 todo, 8 n/a-here.
 - **L1.6 done (2026-10-13)**: personas per environment (`auth.personas`), one browser per persona on a per-run copy of
   its signed-in profile, a session preflight before every dry run and capture (automated off-camera login when
   `login:` steps exist, else the exact `studio login` command), a sign-in guard that fails a run and keeps nothing,
   `studio login --persona [--auto]`, `studio auth status`, interactive `studio new`, doctor persona lines; the fixture
   has a signed-in side (env `signed-in`, personas supplier and buyer). Tests on the Mac: **1212 — 1204 pass, 8 skipped (≈ 4 m 40 s; the 8th: the headed sign-in test without DEMO_STUDIO_TEST_HEADED)**.
-  Requirements: 618 tracked — 456 done, 40 partial, 114 todo, 8 n/a-here.
 - **L1.2 done (2026-10-13)**: the runner finds targets in open shadow roots and same-origin iframes, never films a
   loading page (frames held until the new page paints, `timeline.loading`, cut in the edit), templates every scenario
   string with secrets resolved up front and redacted from every run file, checks the hosts of shell and js hooks, and
@@ -69,7 +74,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: L1.4 (coverage), L1.7–L1.8 (display URLs / safety, sandbox),
+- **Not built yet**: L1.4 (coverage), L1.8 (sandbox),
   phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
@@ -119,13 +124,13 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~ — done 2026-10-13. Chain asked by the user (2026-10-12):
-   L1.3 (stalls) → L1.2 (runner robustness) → L1.6 (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
+2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~, ~~L1.7~~ — done 2026-10-13. Chain asked by the user
+   (2026-10-12): L1.3 (stalls) → L1.2 (runner robustness) → L1.6 (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
    → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.7 — Display URLs, read-only & production safety, frozen clock**, then L1.8, L1.4 — see "Order of the next lots".
+**L1.8 — Sandbox mode**, then L1.4 — see "Order of the next lots".
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -739,6 +744,39 @@ terminal, and a visible window for `--headed` runs and `studio login`.
   showed both expired (exit 1); `studio new` through a pseudo-terminal. Not proven by a person: a headed `studio login`
   typed by hand (MACOS-CHECKLIST step 8b; the gated `DEMO_STUDIO_TEST_HEADED=1` test drives it by code). 1212 tests: 1204 pass, 8 skipped.
   No dependency added.
+- **L1.7 done** (display URLs, read-only & production safety, frozen clock; R-ENV-01..05 done). Planned, criticised
+  (11 defects; the clock probe proved the kit had to keep real timers), built in three parts (core + hooks, browser,
+  edit side + review + fixture), reviewed by three independent reviewers (23 findings, two high: `fetchLater` and
+  SharedWorker writes bypassed the guard) and fixed in two passes. **Environments**: the short form is unchanged
+  (`page: url` or `page: {url, display}`); a long form adds `{production, access, pages, read_only: {hosts, allow,
+  mocks}}` (keyed union on `pages`); `ProjectConfig.environments` keeps real URLs, settings live in the derived
+  `environment_settings`; production is read-only by default; writing there needs `access: read-write` AND
+  `--allow-writes` (on run, hooks run / rollback, env reset), else the run is read-only with a notice. **Hooks**
+  (core access.ts / hook-writes.ts): writing hooks refused on read-only environments before any browser opens (http by
+  method, SQL by a classifier + `BEGIN READ ONLY`, shell unless `writes: false`, rollbacks with their hook, journal
+  replays judged by their own environment); hosts that belong only to read-only / production environments are protected
+  in every run (`crossEnvironmentHosts`). **Browser guard** (runner-web write-guard.ts): `context.route` in every
+  persona realm armed at launch; reads pass, writes are mocked / allowed / stopped (a navigation gets 204, the rest is
+  aborted), production guards every host (fail-closed), a non-production read-only environment its page hosts +
+  `read_only.hosts`; GraphQL mutations (batches judged whole), keepalive / beacon writes rewritten by an init script,
+  `fetchLater` and `SharedWorker` removed, service-worker traffic routed, pages closed through `about:blank`; the
+  sign-in tab is exempt only on its sign-in page; js hook tabs stop writes and never mock them; every write lands in
+  `timeline.environment.writes`, the run summary and the review. **Display URLs**: edit-time data (project.yaml's current
+  table for the run's environment wins, also for runs captured before L1.7); the address bar, `{{page}}` in edit text,
+  notifications, raw markers show the display URL; a local URL without one is never drawn (`hidden` urls entry,
+  warnings only for layouts that draw a URL); reports never name a local host. **Clock** (runner-web product-clock.ts):
+  `clock:` on project / scenario patches only `Date` and Intl's "now" in every document, frame, popup, hook tab and
+  dedicated worker, anchored at capture start; timers, rAF and `performance` stay real (Playwright's clock slowed the
+  product's own animations to 30 fps with ten rAF loops — dropped); `freeze` opt-in; never on sign-in / check tabs;
+  non-existent or ambiguous DST wall times refused. Fixture: display URLs `console. / shop.northfield.example`, env
+  `production` (same local server: the refusal demo), `/api/health` `mutations` counter, `/#as-of` price-date line,
+  scenario `read-only` (mocked quote POST, clock, browser frame). Acceptance (Mac): read-only takes
+  20261013-205843 / -205930 — one mocked POST, `mutations` 0 → 0, "Monday 2 November 2026, 10:24" pixel-identical in
+  both; read-only-v4 shows `shop.northfield.example` in the bar and reviews clean; no localhost in report.md /
+  report.json / the review timeline / the raw export; `quote --env production` refused before the browser (3 writing
+  hooks); env local quote / catalogue / live-quote capture and render as before; an old run re-rendered with `--frame
+  browser` (quote-v6) shows the project's display URL; product rAF / timers at full rate with the clock (60 fps, 100
+  ticks/s, a burst of 100 timeouts in 0 ms). 1455 tests: 1446 pass, 9 skipped. No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -968,6 +1006,33 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.7:
+- `ProjectConfig.environments` always holds the real URLs (both forms); settings only in `environment_settings`
+  (absent for short-form projects, so their configs are as before L1.7). Code reading project.yaml raw uses
+  `rawEnvironments` / `rawEnvironmentPages`. The schema's keyed union (`misplaced`) turns production / access /
+  read_only written in the short form into one targeted error.
+- Refusal order in hooks `runOne`: prepare (template) → read-only / protected-host check → destructive confirm → dry; a
+  refusal never prompts. Journal replays use `ctx.accessOf(entry.env)`; a refused replay stays pending. The runner
+  refuses statically (`writingHooks`) before secrets, sessions or the browser; `runOne` stays authoritative.
+- The browser guard is armed only when `guardsWrites(policy)`: read-write runs of projects without production /
+  read-only environments are byte-for-byte unchanged. Any context route disables Chromium's HTTP cache and pauses every
+  request (invisible locally, slower on remote sites). Pages of a guarded context close through `closePage` /
+  `unloadPages`, never `page.close()`. A stopped form POST gets 204 and the page stays; mock one with 303 + location.
+- On production every host is guarded: a third-party write (analytics, an identity provider) needs an `allow` rule or a
+  mock; an identity provider's sign-in page belongs in `login_url` (the sign-in tab is exempt only on sign-in pages).
+- Diagnose writes with `timeline.environment.writes` (outcome blocked / mocked / allowed / passed / exempt, `t`, `via`,
+  `protected_by`) and the log line "read-only run: writes to … are stopped (N mocks)". Fixture proof of "no change on
+  the server": `curl localhost:4402/api/health` → `mutations` (never reset).
+- Display URLs are edit-time data: change `display:` in project.yaml and render again (no re-capture). Hidden local
+  entries stay in `urls` (the `tutorial-stale-target` check needs them). `drawsUrl` decides the warnings (browser layout
+  unless show_url and tabs are off; split / pip only with `chrome`; device and custom layouts draw nothing).
+- The product clock patches only `Date` / Intl "now" (runner-web product-clock.ts): shared and service workers keep the
+  real date, a dedicated worker's first lines may too; server-made dates are untouched (BL-65). The kit keeps its own
+  real timers anyway (kit 1.3.0: never use page globals for timing in kit code, use `RT`). Session checks and the
+  automated sign-in always run on real time.
+- SQL hooks on read-only environments run in `BEGIN READ ONLY`; Postgres cases need `DEMO_STUDIO_TEST_PG` (no server
+  on the Mac: the classifier is unit-tested, the execution was not).
+
 Notes from L1.6:
 - Tests and probes ALWAYS set `DEMO_STUDIO_HOME` to a temp folder: the real `~/.demo-studio` holds the user's own
   signed-in profile (from L1.5). Never launch a browser on it, never touch the Keychain.

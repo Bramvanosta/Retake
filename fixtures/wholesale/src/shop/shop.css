@@ -267,6 +267,15 @@
   line-height: 1.55;
 }
 
+/* "Prices as of …" (shown on /#as-of): the one line that reads the browser's clock. */
+.hero-copy p.hero-asof {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #f1d9cf;
+  letter-spacing: 0.01em;
+  margin-top: -6px;
+}
+
 .hero-copy .btn-light {
   background: #fbf3ea;
   color: var(--espresso);

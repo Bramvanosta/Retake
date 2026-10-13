@@ -25,7 +25,30 @@ import type {
 } from './types.js';
 
 export function demoKit(config: KitConfig): void {
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
+  // ── Time sources (L1.7): the kit's timers, frames and clocks are the browser's real ones, captured once — also under
+  // a product clock (`clock:`: product-clock.ts replaces `Date` in every document). The kit's init script runs before
+  // the clock's in each new document, so `Date` is still real there; evaluated later (KitClient.install), it takes the
+  // real `Date` the clock kept. Cursor effects are stamped on the real clock (the runner maps them to capture time); a
+  // notification's time and a dropped file's date stay the product's.
+  const RT = (() => {
+    const g = globalThis as unknown as Record<string | symbol, unknown>;
+    const clock = g[Symbol.for('demo-studio.clock')] as { Date?: DateConstructor } | undefined;
+    const saved: Record<string, unknown> = clock?.Date ? { Date: clock.Date } : {};
+    const pick = <T,>(name: string, bind: boolean): T => {
+      const v = saved[name] ?? g[name];
+      return (bind && typeof v === 'function' && saved[name] === undefined ? (v as (...a: unknown[]) => unknown).bind(g) : v) as T;
+    };
+    return {
+      setTimeout: pick<typeof setTimeout>('setTimeout', true),
+      clearTimeout: pick<typeof clearTimeout>('clearTimeout', true),
+      setInterval: pick<typeof setInterval>('setInterval', true),
+      clearInterval: pick<typeof clearInterval>('clearInterval', true),
+      requestAnimationFrame: pick<typeof requestAnimationFrame>('requestAnimationFrame', true),
+      performance: pick<Performance>('performance', false),
+      Date: pick<DateConstructor>('Date', false),
+    };
+  })();
   // ── Web notifications (R-NTF-03): report every `new Notification(…)` and ServiceWorkerRegistration#showNotification
   // to the runner (binding `__demoStudioNotification`, else queued in `__demoStudioNotifications`), then let the page's
   // call proceed unchanged. Patched once per window (a re-installed kit keeps the first patch).
@@ -1255,8 +1278,8 @@ export function demoKit(config: KitConfig): void {
       fired = true;
       fn();
     };
-    requestAnimationFrame(go);
-    setTimeout(go, 17);
+    RT.requestAnimationFrame(go);
+    RT.setTimeout(go, 17);
   }
   function scrollAnimate(id: string, top: number, left: number, ms: number): Promise<{ top: number; left: number }> {
     const c = containerEl(id);
@@ -1266,10 +1289,10 @@ export function demoKit(config: KitConfig): void {
     styleEl.style.scrollBehavior = 'auto';
     const fromTop = c.scrollTop;
     const fromLeft = c.scrollLeft;
-    const t0 = performance.now();
+    const t0 = RT.performance.now();
     return new Promise((resolve) => {
       const step = () => {
-        const u = ms <= 0 ? 1 : Math.min(1, (performance.now() - t0) / ms);
+        const u = ms <= 0 ? 1 : Math.min(1, (RT.performance.now() - t0) / ms);
         const e = easeInOutCubic(u);
         c.scrollTop = fromTop + (top - fromTop) * e;
         c.scrollLeft = fromLeft + (left - fromLeft) * e;
@@ -1951,7 +1974,7 @@ export function demoKit(config: KitConfig): void {
   }
   function flashPress(): void {
     cursorApi.press(true);
-    setTimeout(() => cursorApi.press(false), 110);
+    RT.setTimeout(() => cursorApi.press(false), 110);
   }
   // Synthetic events go to the element's realm at its frame-local coordinates; the ripple stays in top px.
   function domClick(id: string, x: number, y: number): void {
@@ -2136,7 +2159,7 @@ export function demoKit(config: KitConfig): void {
     try {
       const b = (window as unknown as Record<string, unknown>).__demoStudioCursor;
       if (typeof b !== 'function') return;
-      const r = (b as (p: unknown) => unknown)({ type, time: Date.now(), ...extra }) as { catch?: (f: () => void) => void } | undefined;
+      const r = (b as (p: unknown) => unknown)({ type, time: RT.Date.now(), ...extra }) as { catch?: (f: () => void) => void } | undefined;
       if (r && typeof r.catch === 'function') r.catch(() => undefined);
     } catch {
       /* the runner is gone */
@@ -2240,7 +2263,7 @@ export function demoKit(config: KitConfig): void {
   /** Hide the cursor until the document's first contentful paint (see `revealed`), when it has not happened yet. */
   function awaitFirstPaint(): void {
     try {
-      if (performance.getEntriesByName('first-contentful-paint').length > 0) return;
+      if (RT.performance.getEntriesByName('first-contentful-paint').length > 0) return;
       const po = new PerformanceObserver((list) => {
         if (list.getEntriesByName('first-contentful-paint').length === 0) return;
         po.disconnect();
@@ -2253,15 +2276,15 @@ export function demoKit(config: KitConfig): void {
     }
     revealed = false;
     const fallback = () => {
-      const t = setTimeout(reveal, REVEAL_FALLBACK_MS);
-      cleanups.push(() => clearTimeout(t));
+      const t = RT.setTimeout(reveal, REVEAL_FALLBACK_MS);
+      cleanups.push(() => RT.clearTimeout(t));
     };
     if (document.readyState === 'complete') fallback();
     else on(window, 'load', fallback);
   }
   let lastSave = 0;
   function save(force = false): void {
-    const now = Date.now();
+    const now = RT.Date.now();
     if (!force && now - lastSave < 120) return;
     lastSave = now;
     try {
@@ -2306,10 +2329,10 @@ export function demoKit(config: KitConfig): void {
   /** Last icon reported to the runner (a new document reports its first one). */
   let reportedKind: CursorKind | null = null;
   function updateKind(force: boolean): void {
-    const now = performance.now();
+    const now = RT.performance.now();
     if (!force && now - lastKind < 50) {
       // Throttled: make sure the icon is re-evaluated once the pointer settles.
-      kindTimer ??= setTimeout(() => {
+      kindTimer ??= RT.setTimeout(() => {
         kindTimer = null;
         updateKind(true);
       }, 50 - (now - lastKind));
@@ -2347,7 +2370,7 @@ export function demoKit(config: KitConfig): void {
     d.addEventListener('animationend', (e) => {
       if ((e as AnimationEvent).animationName === 'dsr-o') kill();
     });
-    setTimeout(kill, 800);
+    RT.setTimeout(kill, 800);
   }
   function press(down: boolean): void {
     const changed = state.pressed !== down;
@@ -2402,7 +2425,7 @@ export function demoKit(config: KitConfig): void {
       if (!ghostEl) return;
       ghostEl.classList.remove('on');
       const el = ghostEl;
-      setTimeout(() => {
+      RT.setTimeout(() => {
         if (!el.classList.contains('on')) {
           ghostOn = false;
           el.innerHTML = '';
@@ -2432,7 +2455,7 @@ export function demoKit(config: KitConfig): void {
     const onDown = (e: Event) => {
       const m = e as MouseEvent;
       if (!m.isTrusted) return;
-      const now = performance.now();
+      const now = RT.performance.now();
       if (m.type === 'mousedown' && now - downAt < 80) return;
       downAt = now;
       moveTo(m.clientX, m.clientY);
@@ -2456,10 +2479,10 @@ export function demoKit(config: KitConfig): void {
     on(window, 'toggle', (e) => {
       if (e.target !== host && (e as ToggleEvent).newState === 'open') queueRaise();
     });
-    const timer = setInterval(() => {
+    const timer = RT.setInterval(() => {
       if (state.visible) updateKind(true);
     }, 250);
-    cleanups.push(() => clearInterval(timer));
+    cleanups.push(() => RT.clearInterval(timer));
 
     const patch = (proto: object, name: string) => {
       const p = proto as Record<string, unknown>;
@@ -2579,6 +2602,17 @@ export function demoKit(config: KitConfig): void {
     scrollContainerFor,
     scrollInfo,
     scrollAnimate,
+    afterPaint: () =>
+      new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        RT.setTimeout(finish, 150);
+        RT.requestAnimationFrame(() => RT.requestAnimationFrame(finish));
+      }),
     popupState,
     expanded: (id) => deref(id)?.getAttribute('aria-expanded') ?? null,
     outsidePlan,

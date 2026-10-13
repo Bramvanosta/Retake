@@ -326,6 +326,76 @@ describe('automated login (R-AUTH-05)', () => {
   });
 });
 
+describe('read-only environments and the product clock with personas (L1.7)', () => {
+  const login = {
+    login: [
+      { open: 'app:/sign-in' },
+      { type: { into: { label: 'Email' }, text: ACCOUNTS.supplier.email } },
+      { type: { into: { label: 'Password' }, text: ACCOUNTS.supplier.password } },
+      { click: { role: 'button', name: 'Sign in' } },
+      { wait_for: { text: ACCOUNTS.supplier.name, timeout: 3 } },
+    ],
+  };
+
+  it('the automated sign-in posts from its sign-in page (exempt, recorded `via: sign-in`); what the page it lands on sends, the check page and the capture pages are guarded', async () => {
+    const before = srv.apiWrites().length;
+    const p = await project(authConfig({ supplier: { login: [{ open: 'app:/sign-in?next=/welcome' }, ...login.login.slice(1)] } }));
+    p.config.environment_settings = { [ENV]: { production: true } };
+    const { rec, events } = await run(p, 'ro-login', {
+      scenes: [
+        // The app's "Expire" button posts /expire: stopped — the session survives it.
+        { id: 'a', page: 'app', open: '/home', steps: [{ assert: { text: `Signed in as ${ACCOUNTS.supplier.name}` } }, { click: 'Expire' }, { wait: 0.3 }] },
+        { id: 'b', page: 'app', open: '/quotes', steps: [{ assert: { text: `Signed in as ${ACCOUNTS.supplier.name}` } }] },
+      ],
+    });
+    expect(rec.error?.message).toBeUndefined();
+    expect(rec.status).toBe('succeeded');
+    expect(logs(events).some((l) => l.includes('signed in automatically'))).toBe(true);
+    const tl = JSON.parse(await readFile(join(rec.dir, 'timeline.json'), 'utf8')) as { environment: { access: string; writes: Array<{ t?: number; method: string; url: string; outcome: string; via: string }> } };
+    expect(tl.environment.access).toBe('read-only');
+    // The sign-in POST passed; the landing page's writes (a fetch and a beacon) were stopped and recorded from the tab.
+    const writes = tl.environment.writes.map((w) => [w.method, new URL(w.url).pathname, w.outcome, w.via, w.t === undefined ? 'before t0' : 'captured']);
+    expect(writes[0]).toEqual(['POST', '/sign-in', 'exempt', 'sign-in', 'before t0']);
+    expect(writes.slice(1).sort()).toEqual(
+      [
+        ['POST', '/api/onboarding', 'blocked', 'sign-in', 'before t0'],
+        ['PUT', '/api/last-seen', 'blocked', 'sign-in', 'before t0'],
+        ['POST', '/expire', 'blocked', 'page', 'captured'],
+      ].sort(),
+    );
+    expect(srv.apiWrites().slice(before)).toEqual([]);
+    expect(logs(events).some((l) => /a write was stopped \(PUT app:\/api\/last-seen, the automated sign-in, before the capture started\)/.test(l))).toBe(true);
+  });
+
+  it('the preflight checks on the real clock; the capture reads the clock (installed after the preflight, D8)', async () => {
+    await master('supplier');
+    const year = new Date().getFullYear();
+    const p = await project(authConfig({ supplier: { check: { url: 'app:/clock', expect_text: `Year ${year}` } } }));
+    const { rec } = await run(p, 'clock-preflight', {
+      clock: '2020-01-01T09:00:00Z',
+      scenes: [{ id: 'a', page: 'app', open: '/clock', steps: [{ assert: { text: 'Year 2020' } }] }],
+    });
+    expect(rec.error?.message).toBeUndefined();
+    expect(rec.status).toBe('succeeded');
+    expect(rec.environment?.clock).toEqual({ at: '2020-01-01T09:00:00Z' });
+  });
+
+  it('the session check after a failed step runs on the real time, not the product clock (T5)', async () => {
+    await master('supplier');
+    const year = new Date().getFullYear();
+    const p = await project(authConfig({ supplier: { check: { url: 'app:/clock', expect_text: `Year ${year}`, timeout: 2 } } }));
+    const { rec } = await run(p, 'clock-diagnose', {
+      clock: '2020-01-01T09:00:00Z',
+      scenes: [{ id: 'a', page: 'app', open: '/clock', steps: [{ assert: { text: 'Year 2020' } }, { click: 'Nothing here', timeout: 1 }] }],
+    });
+    expect(rec.status).toBe('failed');
+    // Checked under the clock, the page would read 2020 and the session would be called expired.
+    expect(rec.error?.message).toMatch(/click text="Nothing here"/);
+    expect(rec.error?.message).not.toMatch(/no longer valid/);
+    expect(await readStatus(files('supplier').statusFile)).not.toMatchObject({ status: 'expired' });
+  });
+});
+
 describe('two personas on one host: one browser each (R-AUTH-01)', () => {
   it('a multi-page scene films the supplier and the buyer side by side, each signed in as itself; a js hook runs as its page\'s persona', async () => {
     await master('supplier');

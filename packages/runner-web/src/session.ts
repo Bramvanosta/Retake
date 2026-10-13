@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import type { BrowserConfig } from '@demo-studio/core';
+import type { BrowserConfig, ResolvedClock } from '@demo-studio/core';
 import { registerSessionCopy } from './copies.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
+import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
+import { isRealTimePage, productClockScript } from './product-clock.js';
+import type { ProductClockConfig } from './product-clock.js';
+import type { PageRole, WriteGuardOptions } from './write-guard.js';
 import type {
   CalendarInfo,
   CursorEffectPayload,
@@ -52,6 +56,11 @@ export interface SessionOptions {
   realmOf?: (pageId: string) => string;
   /** The realm of a js hook tab (environment page key; default: ""). */
   hookRealmOf?: (key: string) => string;
+  /**
+   * A read-only run (L1.7): every realm is armed with the write guard at launch (write-guard.ts), realms launched later
+   * too; its pages are closed through about:blank.
+   */
+  writes?: WriteGuardOptions;
 }
 
 /** Playwright storage state: cookies + localStorage per origin. */
@@ -369,6 +378,12 @@ export class BrowserSession {
   onNotification: ((page: Page, n: NotificationPayload) => void) | null = null;
   /** Called for every cursor effect (icon, press, ripple) a page's kit reports (set by the runner, L2.13). */
   onCursorEffect: ((page: Page, e: CursorEffectPayload) => void) | null = null;
+  /** Tabs with a guard of their own (js hook tabs): the context's write guard lets their requests through to it. */
+  private readonly ownGuard = new WeakSet<Page>();
+  /** The automated sign-in tabs (L1.6) → whether a URL is its sign-in page: exempt from the write guard there (L1.7). */
+  private readonly signIn = new WeakMap<Page, (url: string) => boolean>();
+  /** The product's clock (L1.7): installed after the preflight (installClock), anchored at capture time 0. */
+  private clockState: ProductClockConfig | null = null;
 
   private constructor(
     readonly options: SessionOptions,
@@ -377,10 +392,20 @@ export class BrowserSession {
 
   private adopt(realm: Realm): void {
     this.realms.push(realm);
+    for (const p of realm.context.pages()) this.clockWorkers(p);
     realm.context.on('page', (p) => {
+      this.clockWorkers(p);
       if (this.waiters.size > 0) {
         for (const w of [...this.waiters]) w(p);
       }
+    });
+  }
+
+  /** Dedicated workers of a page get the product's clock as soon as they start (their first lines may run before it). */
+  private clockWorkers(page: Page): void {
+    page.on('worker', (w) => {
+      const c = this.clockState;
+      if (c && !isRealTimePage(page)) w.evaluate(productClockScript(c)).catch(() => undefined);
     });
   }
 
@@ -438,14 +463,73 @@ export class BrowserSession {
     let p = this.launching.get(name);
     if (!p) {
       this.options.log?.('debug', 'opening the default browser for a page without a persona');
-      p = launchRealm(this.options, { name }, this.source, this).then((r) => {
+      p = launchRealm(this.options, { name }, this.source, this).then(async (r) => {
         this.adopt(r);
+        // A browser opened after the clock was installed reads the same time as the others.
+        await this.applyClock(r.context);
         return r;
       });
       this.launching.set(name, p);
     }
     return p;
   }
+
+  /** How the write guard treats a page (write-guard.ts): asked at request time. */
+  pageRole(page: Page): PageRole {
+    if (this.ownGuard.has(page)) return 'hook';
+    const onSignInPage = this.signIn.get(page);
+    return !onSignInPage ? 'capture' : onSignInPage(page.url()) ? 'sign-in' : 'signed-in';
+  }
+
+  /** A tab that guards its own requests (a js hook tab, hook-page.ts), before it loads anything. */
+  markOwnGuard(page: Page): void {
+    this.ownGuard.add(page);
+  }
+
+  /**
+   * The automated sign-in tab of a persona (auth.ts autoLogin), before it loads anything: exempt from the write guard
+   * while its main frame is on a sign-in page (`onSignInPage`), guarded elsewhere; it bypasses service workers.
+   */
+  async markSignIn(page: Page, onSignInPage: (url: string) => boolean): Promise<void> {
+    this.signIn.set(page, onSignInPage);
+    if (this.options.writes) await bypassServiceWorkers(page);
+  }
+
+  /**
+   * Install the product's clock (L1.7, R-ENV-05) in every realm — after the preflight (the session check and the
+   * automated sign-in run on the real time) and before the setup hooks: a Date-only clock (product-clock.ts: `Date` and
+   * Intl's default date; timers, frames and `performance` stay real) in every document, frame and dedicated worker,
+   * hook tabs included. `freeze`: the time never moves; otherwise it runs from the install, and anchorClock sets it
+   * back to the clock's time at capture time 0.
+   */
+  async installClock(c: Pick<ResolvedClock, 'epoch_ms' | 'freeze'>): Promise<void> {
+    this.clockState = { epoch: c.epoch_ms, since: Date.now(), freeze: c.freeze === true };
+    await Promise.all(this.realms.map((r) => this.applyClock(r.context)));
+  }
+
+  /**
+   * Capture time 0: the product reads exactly the clock's time now, in every realm (a running clock; no-op otherwise).
+   * Every document computes the time from the same anchor: documents created before and after it agree.
+   */
+  async anchorClock(): Promise<void> {
+    const c = this.clockState;
+    if (!c || c.freeze) return;
+    this.clockState = { ...c, since: Date.now() };
+    await Promise.all(this.realms.map((r) => this.applyClock(r.context)));
+  }
+
+  /** The clock in a context: for its new documents (an init script; a later one moves an earlier one) and its open ones. */
+  private async applyClock(context: BrowserContext): Promise<void> {
+    const c = this.clockState;
+    if (!c) return;
+    const script = productClockScript(c);
+    await context.addInitScript({ content: script });
+    const pages = context.pages().filter((p) => !isRealTimePage(p));
+    await Promise.all(
+      pages.flatMap((p) => [...p.frames().map((f) => f.evaluate(script).catch(() => undefined)), ...p.workers().map((w) => w.evaluate(script).catch(() => undefined))]),
+    );
+  }
+
   /** The page being recorded and acted on. */
   get active(): Page {
     if (!this.activeKey) throw new RunnerError('no active page');
@@ -606,6 +690,8 @@ export class BrowserSession {
     this.closing ??= (async () => {
       const late = await Promise.all([...this.launching.values()].map((p) => p.catch(() => null)));
       for (const r of late) if (r && !this.realms.includes(r)) this.realms.push(r);
+      // A read-only run: what the pages send while they unload still meets the guard (write-guard.ts).
+      await Promise.all(this.realms.map((r) => unloadPages(r.context)));
       await Promise.all(this.realms.map((r) => closeRealm(r)));
     })();
     return this.closing;
@@ -619,6 +705,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
   if (temp) registerSessionCopy(temp);
   const userDataDir = spec.userDataDir ?? temp!;
   const { executablePath, channel } = launchTarget(b);
+  if (opts.writes) enableServiceWorkerRequests();
   let context: BrowserContext;
   try {
     context = await chromium.launchPersistentContext(userDataDir, {
@@ -665,6 +752,8 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     });
     await context.addInitScript({ content: source });
     if (spec.storageState) await applyStorageState(context, spec.storageState);
+    // Read-only run (L1.7): armed before any page loads — the preflight's check page included.
+    if (opts.writes) await armWriteGuard(context, opts.writes, (page) => session.pageRole(page));
   } catch (e) {
     await closeRealm(realm);
     throw e;

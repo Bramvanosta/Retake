@@ -100,7 +100,10 @@ name: Northfield
 environments:
   staging:
     console: https://console.staging.example.com
-    shop: https://shop.staging.example.com
+    shop: {url: https://shop.staging.example.com, display: shop.example.com}   # the URL the video shows
+  production:    # long form: settings + pages; production is read-only (writes stopped or mocked, writing hooks refused)
+    production: true
+    pages: {console: https://console.example.com, shop: https://shop.example.com}
 auth:            # personas by name: never a password, never a path (sessions stay in ~/.demo-studio, kept by `studio login`)
   staging:
     login_url: /sign-in
@@ -276,6 +279,9 @@ A client of the same packages (the MCP keeps working without it). Served locally
 - No passwords in scenarios; use pre-authenticated profiles or the macOS keychain via references.
 - Hooks are explicit files, logged, with rollback; destructive hooks require `confirm: true` in the scenario.
 - Staging/localhost allow-list per project; refuse to run setup hooks against hosts not listed.
+- Production and read-only environments (L1.7): the run's browsers stop mutating requests to the environment's hosts
+  (or answer them with a mock), hooks that write are refused; writing to production needs `access: read-write` in
+  project.yaml and `--allow-writes`. A video never shows a local URL: pages declare display URLs.
 
 ## 14. Phases & acceptance
 

@@ -622,6 +622,68 @@ L1.6 ships personas in their minimal form. Left out:
 - **Value:** Fewer workarounds for multi-account and sign-in demos; scripted onboarding.
 - **Hard parts:** Each one widens what the static persona plan must predict.
 
+### BL-62 — Dynamic mocks for read-only runs
+*M · found in L1.7 (R-ENV-03) · builds on: L1.7*
+
+L1.7 mocks are literal: the same answer every time, matched by method, path and GraphQL operation. Many flows need
+more: an answer that echoes the request (a PATCH returning the edited row, an id in the path), an answer from a file,
+a list the app reloads afterwards that shows the mocked write (a small stateful store per run), and templated values
+(`{{vars.*}}`, `{{run.id}}`; secret references refused: a mock is served into the filmed page). A "discover the
+writes" dry run could print a mock skeleton for every write a read-only run stopped.
+
+- **Value:** More flows filmable on production without an error state on screen.
+- **Hard parts:** A small, safe expression language for echoes; keeping mocks literal enough to review.
+
+### BL-63 — Display URLs inside what the capture shows
+*M · found in L1.7 (R-ENV-01) · builds on: L1.7, L2.9*
+
+L1.7 maps the URLs the edit draws (browser bars, captions, notification apps); what the captured page itself shows is
+filmed as it is: its own links and text, a captured email's HTML (the fixture's sign-up email links to localhost), a
+PDF's text. Rewrite the environment's real hosts to their display hosts in captured email HTML and documents before
+they are rasterised, optionally in the page (a text-node rewrite on screen), and an OCR check of frames for local
+hosts in the review.
+
+- **Value:** "Never localhost in a video" holds for the content too.
+- **Hard parts:** Rewriting a live page without breaking it; OCR cost and false positives.
+
+### BL-64 — Read-only coverage beyond HTTP writes
+*M · found in L1.7 (R-ENV-03) · builds on: L1.7*
+
+The L1.7 guard stops mutating HTTP requests from the run's browsers and hooks. Not covered (README limits): messages
+over a WebSocket or an EventSource (warned per host — an app that saves over a socket writes), WebTransport / WebRTC,
+unsafe GETs (a write sent as GET: a block list of patterns), a write to an unguarded host that redirects to a guarded
+one (only its first hop is seen and recorded `passed`), and `studio login --auto` / `studio auth status --check` on a
+read-only environment (outside any run: never guarded). Message rules for sockets (block / allow by frame pattern), a
+GET block list and following redirects to the end would close most of it.
+
+- **Value:** Read-only that holds for real-time apps and odd APIs.
+- **Hard parts:** Parsing socket protocols (Phoenix, Socket.IO, GraphQL subscriptions) generically.
+
+### BL-65 — Clock extras
+*S–M · found in L1.7 (R-ENV-05) · builds on: L1.7, L1.8*
+
+L1.7 sets the product's browser clock once per run (`clock:`, running from capture time 0, or frozen) — `Date` and
+Intl's default date only, timers and animation frames stay real. Left out: per-scene time jumps (an interstitial "two
+days later" fast-forwards the clock), a `--clock` flag on `studio run`, the clock in a dedicated worker's first lines
+(it arrives once the worker started: pausing it needs our own target auto-attach, which Playwright's resumes), in
+shared and service workers, a mode that also fakes timers for an app that derives what it shows from `performance`,
+and the server's clock (dates the server makes: created_at, emails, PDFs) — through hooks or the L1.8 sandbox seeds.
+
+- **Value:** Stories that span days; identical server-made dates on every take.
+- **Hard parts:** Keeping the capture's own timing on real time while the product's clock jumps.
+
+### BL-66 — Environment extras cut from L1.7
+*S · cut in L1.7 · builds on: L1.7, L2.13*
+
+Cut to keep L1.7 an M: the raw export's manifest `run.environment` and per-clip display URLs (the package names URLs
+only in its step markers and click targets, as display URLs or paths since the L1.7 review), `studio doctor
+--project` lines per environment (production, access, display URLs, mock and allow counts), absolute-URL and query patterns in `allow` / `mocks`, mocks on read-write runs,
+GET mocking / response rewriting, HAR replay, and the Studio app's confirmation of a production write (R-ENV-04, with
+the phase 4 run screen).
+
+- **Value:** Small conveniences around environments once they are used daily.
+- **Hard parts:** None in particular.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -631,7 +693,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L1.4** — Finish R-PRIN-13: add a `version` field to scenario, project.yaml, template.yaml, studio.yaml and run.json. Also record the engine version, Chromium version, OS and installed font set in run.json. *Why:* Files will meet clients of different versions through sync, CI and a hosted UI, and differences between local and CI captures must be explainable.
 - **L1.6** — Reference personas by name. Resolve profile and storage-state paths from user config (~/.demo-studio) or a git-ignored project.local.yaml, never from project.yaml. Mark storage states as tied to one machine. *Why:* SPEC §4 currently puts `auth.profile: ~/.demo-studio/...` in project.yaml, so a path specific to one user would sync and break on every other machine. *Applied in L1.6:* personas by name, paths derived under `~/.demo-studio` (`DEMO_STUDIO_HOME`), snapshots stamped with the machine; the `project.local.yaml` override is BL-60.
 - **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs. *Applied in L1.6:* `login:` steps run headless with no profile at all (in a run's preflight, or `studio login --auto`).
-- **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run.
+- **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run. *Applied in L1.7:* the automated sign-in tab is exempt while it is on its persona's sign-in page (its writes there are recorded `exempt`, `via: sign-in`; what the page it lands on sends is guarded); the session check only reads, so it is guarded like the capture pages and passes; the product clock is installed after both (they run on the real time). Token refreshes from capture pages go in `read_only.allow`.
 - **L1.8** — Keep host paths out of the sandbox manifest, so the same file runs on a laptop, a VPS or in CI. *Why:* A cloud or CI sandbox (BL-05, BL-08) can then reuse the manifest unchanged.
 - **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI.
 - **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports.

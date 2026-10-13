@@ -83,6 +83,13 @@ export function dayTime(local, today) {
   return `${d} ${MONTHS_SHORT[m]}${sameYear ? '' : ` ${y}`}, ${time(local)}`;
 }
 
+/** A Date in the browser's own time zone → "Monday 2 November 2026, 10:24" (the shop's "prices as of" line). */
+export function dateTimeLong(d) {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
+}
+
 /** 49152 → "48 KB"; 1468211 → "1.4 MB" */
 export function fileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;

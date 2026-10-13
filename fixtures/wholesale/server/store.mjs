@@ -82,6 +82,8 @@ export class Store {
     this.enrichMs = opts.enrichMs ?? 4000;
     this.importMs = opts.importMs ?? 2000;
     this.registry = registryEntries();
+    /** Successful non-GET API calls since the server started (GET /api/health); never reset — not even by /api/reset. */
+    this.mutations = 0;
     this.reset();
   }
 

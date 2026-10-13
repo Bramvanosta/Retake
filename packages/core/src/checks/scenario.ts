@@ -4,6 +4,8 @@ import { PERSONA_NONE, planPersonas, projectPersonaNames, resolvePersonas } from
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
+import { environmentAccess } from '../env.js';
+import { hookWriteReason } from '../hook-writes.js';
 import { normalizeStep, resolveStepRef } from '../steps.js';
 import { isDesktopViewport, resolveViewport, scenePageEntries, splitPageOpen } from '../pages.js';
 import type { ResolvedViewport } from '../pages.js';
@@ -19,6 +21,7 @@ import { checkActionArgs, checkTarget } from './actions.js';
 import { CheckContext, isObj } from './context.js';
 import { checkHooks } from './hooks.js';
 import { checkMediaFields } from './media.js';
+import { checkWriteRules } from './project.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
 import type { TokenRules } from './tokens.js';
 
@@ -105,6 +108,7 @@ class ScenarioChecker {
     const project = this.opts.project;
     checkHooks(this.s.setup, ['setup'], this.ctx, { pages: pageKeys, saved, project });
     checkHooks(this.s.teardown, ['teardown'], this.ctx, { pages: pageKeys, saved, project });
+    this.readOnly();
     this.tokens(saved);
     this.misc();
     this.personas();
@@ -132,6 +136,42 @@ class ScenarioChecker {
       return;
     }
     this.pages = envs[this.envName] ?? {};
+  }
+
+  /**
+   * Read-only environments (L1.7): the scenario's mocks (page keys, literal values), and the hooks a read-only run of
+   * this scenario refuses (a warning: `--hooks skip`, or `--allow-writes` on a production environment that allows
+   * writes, make the run valid).
+   */
+  private readOnly(): void {
+    // Entry by entry: one malformed mock does not hide the others' problems.
+    checkWriteRules(this.s.mocks, ['mocks'], this.pages ? Object.keys(this.pages) : undefined, this.ctx, 'mock', this.envName);
+    const project = this.opts.project;
+    if (!project || this.envName === undefined) return;
+    const settings = project.config.environment_settings;
+    const s = settings && Object.hasOwn(settings, this.envName) ? settings[this.envName] : undefined;
+    const production = s?.production === true;
+    const configured = environmentAccess(s ?? {});
+    if (configured === 'read-write' && !production) {
+      if (Array.isArray(this.s.mocks) && this.s.mocks.length > 0) {
+        this.ctx.warning(['mocks'], `mocks apply to read-only runs only: environment ${this.envName} is read-write, so they are ignored and its writes really happen`, { path: ['mocks'], key: true });
+      }
+      return;
+    }
+    const how = `environment ${this.envName} is ${production ? 'production, ' : ''}read-only${configured === 'read-write' ? ' without --allow-writes' : ''}`;
+    for (const phase of ['setup', 'teardown'] as const) {
+      const list = this.s[phase];
+      if (!Array.isArray(list)) continue;
+      list.forEach((hook, i) => {
+        if (!isObj(hook) || this.ctx.broken([phase, i])) return;
+        const reason = hookWriteReason(hook as never, { projectDir: this.ctx.projectDir, rollback: phase === 'setup' });
+        if (!reason) return;
+        this.ctx.warning(
+          [phase, i],
+          `this hook writes (${reason}) and ${how}: such a run refuses it before anything runs — run with --hooks skip${configured === 'read-write' ? ', or with --allow-writes' : ', or on a read-write environment'}`,
+        );
+      });
+    }
   }
 
   private unknownPage(page: string, path: IssuePath): void {

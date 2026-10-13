@@ -1,4 +1,4 @@
-import { isHostRefusedError } from '@demo-studio/core';
+import { isHostRefusedError, isWriteRefusedError, protectedHostMessage, readOnlyHookMessage } from '@demo-studio/core';
 import type { JsHookSpec } from '@demo-studio/core';
 import { describeJs } from '../describe.js';
 import { HookError, HookSecurityError } from '../errors.js';
@@ -26,6 +26,15 @@ async function evaluate(ctx: HookContext, page: string | undefined, code: string
   } catch (e) {
     // The runner's hook tab blocked a host outside the allow-list (R-SEC-06): a refusal, like http and sql.
     if (isHostRefusedError(e)) throw new HookSecurityError(e.message, 'host');
+    // On a read-only run the tab stopped a write the hook needed (L1.7): refused like a writing http hook.
+    // On any run, a write to a host of another, read-only environment (production) is refused the same way.
+    if (isWriteRefusedError(e)) {
+      const access = ctx.access ?? { env: e.env, mode: 'read-only' as const };
+      const reason = `${e.writes.join(', ')}, stopped in its tab`;
+      const hit = e.protectedBy ? access.protected?.find((p) => p.env === e.protectedBy) : undefined;
+      const message = hit ? protectedHostMessage(reason, hit, access) : readOnlyHookMessage(reason, access);
+      throw new HookSecurityError(`${message}${e.detail ? `; ${e.detail}` : ''}`, 'read-only');
+    }
     throw e;
   }
   if (value === undefined) return 'done';
@@ -62,6 +71,8 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
   return {
     description: redactText(ctx, describeJs(s.file ? { file: s.file } : { code }, s.page)),
     destructive: null,
+    // Its requests are guarded in its tab on a read-only run; a rollback is a write the guard cannot judge.
+    writes: rollback ? 'its rollback: JavaScript run in the page' : null,
     async execute() {
       return { message: await evaluate(ctx, s.page, code), rollback };
     },

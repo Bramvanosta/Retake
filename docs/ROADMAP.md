@@ -16,7 +16,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
   `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
   it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 (done 2026-10-12) → L1.2
-  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 → L1.8 → L1.4, stopping before phase 3 (L3.1).
+  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 → L1.4, stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -36,8 +36,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
 | L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **done** |
-| L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | **next** |
-| L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
+| L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | **done** |
+| L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | **next** |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
@@ -178,6 +178,14 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   and shown by review; frozen clock option (R-ENV-01..05).
 - **Acceptance:** fixture run in read-only shows the flow with mocked writes and no data change on the server; the
   browser layout shows the display URL; two takes with a frozen clock show identical dates.
+- **Done (2026-10-13):** environment pages `{url, display}` (display URLs are edit-time data; a local URL is never
+  drawn, reports never name one); long-form environments with `production`, `access`, `read_only: {hosts, allow,
+  mocks}`; read-only enforced in every persona context (writes mocked or stopped, production fail-closed on every host,
+  keepalive / beacon / fetchLater / SharedWorker / service-worker paths covered), writing hooks refused, production
+  writes only with `access: read-write` + `--allow-writes`, hosts of read-only environments protected from any run;
+  access mode and writes in run.json / timeline / run summary / review; `clock:` (Date-only: the product's timers and
+  animations stay real — a deviation from "Playwright clock API", whose fake timers slowed product animations). The
+  Studio app confirmation is phase 4 (BL-66). Every acceptance item checked on the Mac.
 
 ### L1.8 — Sandbox mode (L) — after L1.7, before L3.1
 - **Scope:** `sandbox.yaml` manifest (docker-compose | process), `studio sandbox init|up|down|reset|status|logs`,

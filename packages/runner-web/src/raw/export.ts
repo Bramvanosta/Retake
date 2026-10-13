@@ -15,8 +15,8 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@demo-studio/core';
-import type { BrowserConfig, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@demo-studio/core';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, resolveEnvironment, shownText } from '@demo-studio/core';
+import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@demo-studio/core';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
 import { LAYER_ENCODING, RAW_ENCODING, clipFrameFiles, concatClips, decodeVideoFrames, encodeClip, exportSchedule, probeVideo, readFrameSource, type FrameSource, type ProbedVideo } from './encode.js';
@@ -24,6 +24,30 @@ import { encodeCursorLayer, renderCursorAtlas, type CursorAtlas } from './layer.
 import { MARKER_COLORS, markersCsv, markersJson, rawMarkers, timecode, writeEdl, writeFcpxml, writeOtio, type PackageFiles, type RawMarkerKind } from './markers.js';
 import { clipFrameAt, mainSource, planRawExport, sequenceStartOf, trackSource, type RawClipPlan, type RawPlan } from './plan.js';
 
+
+/** The display table of a run as an edit uses it (core editDisplayTable): project.yaml's current pages, then the run's. */
+export function exportDisplayTable(project: Pick<LoadedProject, 'config'>, timeline: Timeline, runEnv: string | undefined): DisplayEntry[] {
+  const env = timeline.environment?.name ?? runEnv;
+  const current = env !== undefined && Object.hasOwn(project.config.environments ?? {}, env) ? displayRows(resolveEnvironment(project, env)) : undefined;
+  return editDisplayTable(timeline.environment?.display, current);
+}
+
+/** The timeline with its step and click target descriptions as shown (core shownText): `open http://localhost…` → `open /x`. */
+export function shownTargets(timeline: Timeline, table: readonly DisplayEntry[]): Timeline {
+  const shown = (d: string) => shownText(d, table);
+  return {
+    ...timeline,
+    events: timeline.events.map((e) => {
+      const data = e.data as { clicks?: Array<{ desc?: string }> } | undefined;
+      const clicks = Array.isArray(data?.clicks) ? data.clicks.map((c) => (typeof c.desc === 'string' ? { ...c, desc: shown(c.desc) } : c)) : undefined;
+      return {
+        ...e,
+        ...(e.target?.desc !== undefined ? { target: { ...e.target, desc: shown(e.target.desc) } } : {}),
+        ...(clicks ? { data: { ...data, clicks } } : {}),
+      };
+    }),
+  };
+}
 
 /** A raw export that cannot start (message written for the user). */
 export class RawExportError extends Error {
@@ -159,14 +183,17 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
   const runDir = resolve(opts.runDir);
   const tlFile = join(runDir, 'timeline.json');
   if (!existsSync(tlFile)) throw new RawExportError(`${runDir} has no timeline.json (not a run, or the run did not finish)`);
-  const timeline = JSON.parse(await readFile(tlFile, 'utf8')) as Timeline;
-  if (timeline.mode !== 'capture') throw new RawExportError(`run ${timeline.run_id} is a dry run: it has no capture to export`);
+  const recorded = JSON.parse(await readFile(tlFile, 'utf8')) as Timeline;
+  if (recorded.mode !== 'capture') throw new RawExportError(`run ${recorded.run_id} is a dry run: it has no capture to export`);
   let record: RunRecord | undefined;
   try {
     record = JSON.parse(await readFile(join(runDir, 'run.json'), 'utf8')) as RunRecord;
   } catch {
     record = undefined;
   }
+  // What the package names (step markers, click targets) as the video shows it (L1.7): URLs through the display table
+  // an edit would use, a local one reduced to its path — the real URLs stay in the run's timeline.json.
+  const timeline = shownTargets(recorded, exportDisplayTable(opts.project, recorded, record?.env));
   const s = rawSettings(opts.project, timeline, opts);
   if (s.hidden && s.cursor === 'baked') {
     throw new RawExportError(`run ${timeline.run_id} was captured without its cursor (run --raw --cursor none|layer): export it with --cursor none or --cursor layer`);

@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import type { z } from 'zod';
 import { checkProject } from './checks/project.js';
+import { normalizeEnvironments } from './env.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { ProjectFileSchema } from './schemas/project.js';
 import { DEFAULT_CAPTURE } from './types.js';
@@ -28,11 +29,16 @@ export const PROJECT_GITIGNORE = ['runs/', 'renders/', 'review/', 'exports/', 'f
 /** project.yaml as written (before defaults). */
 export type ProjectFile = z.infer<typeof ProjectFileSchema>;
 
-/** Defaults: capture = DEFAULT_CAPTURE merged, frame 'card', template 'default', environments {}. */
+/**
+ * Defaults: capture = DEFAULT_CAPTURE merged, frame 'card', template 'default', environments {}. Environments are
+ * normalised (L1.7): `environments` keeps the real page URLs of both forms, `environment_settings` the rest.
+ */
 export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
+  const { environments, settings } = normalizeEnvironments(file.environments);
   return {
     ...file,
-    environments: file.environments ?? {},
+    environments,
+    ...(settings ? { environment_settings: settings } : {}),
     capture: { ...DEFAULT_CAPTURE, ...file.capture },
     frame: file.frame ?? DEFAULT_FRAME,
     template: file.template ?? DEFAULT_TEMPLATE_NAME,
@@ -150,10 +156,20 @@ export interface CreateProjectInput {
   frame?: FrameStyle;
 }
 
-/** README.md skeleton: what an agent needs to write good scenarios for the product. */
-export function readmeSkeleton(name: string, environments: ProjectConfig['environments'] = {}): string {
+/**
+ * README.md skeleton: what an agent needs to write good scenarios for the product. `settings` (ProjectConfig
+ * environment_settings) adds the display URL a page is shown as.
+ */
+export function readmeSkeleton(
+  name: string,
+  environments: ProjectConfig['environments'] = {},
+  settings: ProjectConfig['environment_settings'] = {},
+): string {
   const links = Object.entries(environments).flatMap(([env, pages]) =>
-    Object.entries(pages).map(([page, url]) => `- ${env} · ${page}: ${url}`),
+    Object.entries(pages).map(([page, url]) => {
+      const display = settings[env]?.display?.[page];
+      return `- ${env} · ${page}: ${url}${display ? ` (shown as ${display})` : ''}`;
+    }),
   );
   return [
     `# ${name}`,

@@ -10,6 +10,10 @@ export const hookCommonShape = {
   confirm: z.boolean().describe('Required (true) for destructive hooks.').optional(),
   destructive: z.boolean().describe('Declare the hook destructive explicitly (also auto-detected).').optional(),
   optional: z.boolean().describe('Continue even if this hook fails.').optional(),
+  writes: z
+    .boolean()
+    .describe('Shell hooks only: false declares that the command only reads, so it may run on a read-only environment.')
+    .optional(),
 };
 
 export const HOOK_COMMON_KEYS = Object.keys(hookCommonShape);
@@ -93,5 +97,5 @@ export const HookStepSchema = keyedUnion(
     common: HOOK_COMMON_KEYS,
     example: 'e.g. "sql: hooks/reset.sql"',
   },
-  { id: 'HookStep', description: 'Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional.' },
+  { id: 'HookStep', description: 'Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional / writes.' },
 );

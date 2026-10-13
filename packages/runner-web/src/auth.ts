@@ -49,6 +49,8 @@ import { KitClient } from './session.js';
 import type { BrowserSession, RealmSpec, StorageStateFile } from './session.js';
 import { STALE_COPY_AGE_MS, SESSION_COPY_PREFIXES, isLiveCopy, registerSessionCopy } from './copies.js';
 import { fileSlug, sleep, throwIfAborted, wallNow } from './util.js';
+import { closePage } from './write-guard.js';
+import { useRealTime } from './product-clock.js';
 
 type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
 
@@ -434,6 +436,9 @@ export async function checkPersona(context: BrowserContext, persona: ResolvedPer
   const landed = (at: string) => done('expired', `${label} landed on the sign-in page (${urlOriginPath(at)})`, urlOriginPath(at));
   const page = await context.newPage();
   try {
+    // On the real time even after the product's clock is installed (the check after a failed step): a session is
+    // judged by its tokens' real expiry (L1.7).
+    await useRealTime(page);
     let status: number | undefined;
     page.on('response', (r) => {
       try {
@@ -468,7 +473,8 @@ export async function checkPersona(context: BrowserContext, persona: ResolvedPer
       await sleep(100, deps.signal);
     }
   } finally {
-    await page.close().catch(() => undefined);
+    // Through about:blank on a read-only run: what the page sends while it unloads meets the write guard (L1.7).
+    await closePage(page);
   }
 }
 
@@ -505,6 +511,12 @@ export interface LoginDeps extends CheckDeps {
   /** Pages, vars and the run's secret resolver: the steps are templated with it (their secrets prefetched). */
   template: TemplateContext;
   secrets: RunSecrets;
+  /**
+   * The sign-in tab, before its first navigation (L1.7): a guarded run exempts it from the write guard while its main
+   * frame is on a sign-in page (`onSignInPage`; its POST /sign-in must happen) and guards it elsewhere (the page the
+   * sign-in lands on) — BrowserSession.markSignIn.
+   */
+  signInTab?: (page: Page, onSignInPage: (url: string) => boolean) => void | Promise<void>;
 }
 
 function waitUrlMatches(url: string, pattern: string): boolean {
@@ -620,6 +632,18 @@ export async function autoLogin(context: BrowserContext, persona: ResolvedPerson
     throw new RunnerError(deps.secrets.redactText(errorMessage(e)));
   }
   const page = await context.newPage();
+  // The write guard's exemption (L1.7): while the steps run, on the persona's sign-in pages — every page when it
+  // declares none (login_url / check.expect_not_url narrow it) —; never while the tab closes.
+  const matchers = loginMatchers(persona.loginPatterns, deps.envPages);
+  let signingIn = true;
+  const onSignInPage = (url: string) => signingIn && (matchers.length === 0 || matchers.some((m) => m.test(url)));
+  try {
+    await useRealTime(page);
+    await deps.signInTab?.(page, onSignInPage);
+  } catch (e) {
+    await closePage(page);
+    throw e;
+  }
   const kit = new KitClient(page, deps.kitSource);
   try {
     for (let i = 0; i < steps.length; i++) {
@@ -637,7 +661,8 @@ export async function autoLogin(context: BrowserContext, persona: ResolvedPerson
       if (deps.signal?.aborted) throw e;
     });
   } finally {
-    await page.close().catch(() => undefined);
+    signingIn = false;
+    await closePage(page);
   }
 }
 

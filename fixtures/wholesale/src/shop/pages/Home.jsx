@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useApi } from '../../shared/api.js';
 import { CoffeeArt } from '../../shared/art.jsx';
+import { dateTimeLong } from '../../shared/format.js';
 import { Icon } from '../../shared/icons.jsx';
 import { Link } from '../../shared/router.jsx';
 import { session } from '../../shared/session.js';
@@ -11,8 +13,23 @@ const SHELVES = [
   ['espresso', 'Espresso staples', 'Sweet, balanced coffees that shine in milk drinks.'],
 ];
 
+/**
+ * The only element of the fixture that reads the BROWSER's clock (everything else shows the server's demo date): the
+ * "prices as of" line, shown on `/#as-of` only — the read-only scenario films it with a set clock; the other scenarios
+ * film `/` and stay as they were (a hash: the browser bar of a video shows no trace of the flag).
+ */
+function PricesAsOf() {
+  const [now] = useState(() => new Date());
+  return (
+    <p className="hero-asof" data-testid="prices-as-of">
+      Prices as of {dateTimeLong(now)}
+    </p>
+  );
+}
+
 export function HomePage() {
   const { data } = useApi('/api/products?status=published');
+  const [showAsOf] = useState(() => window.location.hash === '#as-of');
   const products = data ?? [];
   return (
     <>
@@ -23,6 +40,7 @@ export function HomePage() {
           </span>
           <h1>Fresh-crop coffees, roasted to order for your café</h1>
           <p>Request a quote on any lot, choose your bag sizes and delivery window, and get a proposal from the roaster within hours.</p>
+          {showAsOf ? <PricesAsOf /> : null}
           <div className="row gap-12" style={{ marginTop: 8 }}>
             <Link to="/coffees" className="btn btn-lg btn-light">
               Browse coffees

@@ -134,12 +134,12 @@ needs a sign-in and the accounts the videos are filmed as, and offers to sign ea
 studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
 studio list [--json]                                  # projects (with scenarios) and templates
 studio validate <project> [scenario|file] [--env E] [--until REF] [--json]
-studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--json]
+studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
            [--raw [--cursor baked|none|layer] [--format mp4|prores] [--fps 30|60] [--layer prores|webm] [--selects]
            [--no-cuts] [--out DIR]]          # capture, then the raw package for editors
-studio hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--dry]
-studio hooks rollback <project> [run-id] [--env E] [--dry]
-studio env reset <project> [--env E] [--yes] [--dry]
+studio hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
+studio hooks rollback <project> [run-id] [--env E] [--allow-writes] [--dry]
+studio env reset <project> [--env E] [--yes] [--allow-writes] [--dry]
 studio components list [--kind K] [--json]            # workspace components, then the built-in library
 studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
 studio components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
@@ -169,14 +169,18 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   saves a screenshot per step and never executes `irreversible` steps (it hovers their target and stops that scene).
   Hooks run by default for captures and are skipped for dry runs (`--hooks run` executes them, so a dry run sees the
   same prepared data). `--until scene.step` stops after that step. `--json` streams progress events (one JSON object
-  per line) on stdout for tools and agents. Ctrl-C cancels cleanly: teardown still runs.
+  per line) on stdout for tools and agents. Ctrl-C cancels cleanly: teardown still runs. On a read-only environment
+  a run with hooks that write is refused before anything runs; `--allow-writes` lets a production environment whose
+  project.yaml allows writes be written to — see [Environments](#environments-display-urls-production-read-only-clock).
 - **hooks run** runs a scenario's setup or teardown, the project's `reset` hooks, or a YAML file listing hooks (same
   entries as `setup:`). Its journal (executed hooks and their rollbacks) is kept in
   `<project>/.demo-studio/journals/<id>.json` — never in `runs/`, which only holds captures; **hooks rollback**
   replays the pending rollbacks of one journal (a run id or a journal id) or of every journal; **env reset** replays
   every pending journal (captures' and standalone ones), then runs the `reset` hooks (journaled in
   `.demo-studio/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
-  asked on a terminal, or they are refused).
+  asked on a terminal, or they are refused). On a read-only environment, hooks that write are refused; a replayed
+  rollback is judged by the environment its hook ran in (`--allow-writes` where that is a production environment
+  that allows writes).
 - **login** signs a persona in and saves its session: a visible browser window (sign in, then close it) or, with
   `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,
   or checked now with `--check`) — see [Signing in](#signing-in-personas-and-sessions).
@@ -259,7 +263,10 @@ name: Acme demo
 environments:                  # environment → page key → base URL ({{app}} in templates)
   staging:
     app: https://app.staging.example.com
-    admin: https://admin.staging.example.com
+    admin: {url: https://admin.staging.example.com, display: admin.example.com}   # the URL the video shows
+  production:                  # the long form: settings next to `pages` (see Environments below)
+    production: true           # read-only: hooks that write are refused, the browser's writes are stopped
+    pages: {app: https://app.example.com}
 default_env: staging
 auth:                          # the accounts videos are filmed as: never a password, never a path (see Signing in)
   staging:                     # global, or keyed by environment name
@@ -278,6 +285,7 @@ pacing: {type_cps: 12}                                    # override field-teste
 browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`; frame_rate_limit: false, see Requirements
 reset:                         # run by `studio env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
+clock: 2026-11-02T10:24:00     # the product's browser clock when the capture starts (a scenario's `clock` wins)
 mailbox: {provider: mailpit, url: "http://localhost:8025"}   # test mailbox read by wait_for_email (see below)
 ```
 
@@ -554,7 +562,7 @@ teardown:
 
 Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `save_as`, `rollback`), `sql` (`file` or
 `query`, `db`, `rollback`), `shell` (`run`, `cwd`, `env`, `timeout`, `rollback`), `js` (`code` or `file`, `page`,
-`rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`. Setup stops at the first failure and rolls
+`rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`, and `writes: false` on a shell hook that only reads (it may then run on a read-only environment). Setup stops at the first failure and rolls
 back what it did; teardown hooks always run (even after a failure or Ctrl-C), then the pending setup rollbacks are
 replayed, most recent first.
 
@@ -697,7 +705,7 @@ template fields use, plus a tablet layout — every one theme-driven, in the fam
 | `studio/card-title` | card | chapter card: kicker, title, rule, text (`tone: paper \| dark`, `align`) |
 | `studio/interstitial-clock` · `studio/interstitial-plain` | interstitial | night veil + clock (reference) · veil (`tone: dark \| paper`) + kicker, text and a filling accent line |
 | `studio/layout-card` | layout | the capture in a rounded card, caption below (reference; `width`, `radius`, `shadow`) |
-| `studio/layout-browser` | layout | macOS-style window: traffic lights, an address bar with the clip's **real URL** (changes with navigation), optional `tabs`; `width`, `chrome: auto \| light \| dark`, `controls: color \| theme` |
+| `studio/layout-browser` | layout | macOS-style window: traffic lights, an address bar with the clip's **display URL** (changes with navigation; a local URL without one is never drawn: README "Environments"), optional `tabs`; `width`, `chrome: auto \| light \| dark`, `controls: color \| theme` |
 | `studio/layout-laptop` | layout | MacBook-style laptop drawn in CSS (bezel + camera, hinge, base with thumb notch); `width`, `finish: light \| dark` |
 | `studio/layout-phone` | layout | iPhone-style phone (status bar, Dynamic Island, side buttons) for mobile captures, the caption beside it; `height`, `finish`, `island`, `status_bar` |
 | `studio/layout-tablet` | layout | iPad-style tablet: upright with the caption beside it for portrait captures, lying with the caption below for landscape ones; `height`, `width`, `finish` |
@@ -817,7 +825,7 @@ only `react`, `remotion`, `@demo-studio/components/kit` and the component's own 
 geometry in output px — `screen` = where the capture pixels go, `frame`, `display` = the declared screen rect when the
 capture is letterboxed in it, `caption`, `brandmark`, `chrome`, `radius`; absent outside a plan — and, for captions
 and overlays, the rects of the clip's layout, so they can sit over the capture), `url` (browser chrome: the page URL at
-this frame), `cues` + `area` (caption: cues in segment frames, the layout's caption rect), `anchor` (overlay: the
+this frame as the video shows it — its display URL; absent for a local URL without one), `cues` + `area` (caption: cues in segment frames, the layout's caption rect), `anchor` (overlay: the
 target box in output px) and `direction` (transition: rendered around the outgoing segment, `exiting`, and the
 incoming one, `entering`, on top). `theme.style_bias` (`real` | `balanced` | `motion`) says how lively the
 motion should be: `biasMotion(bias)` gives the factors the built-ins use (`real` = the subtle reference motion).
@@ -1124,7 +1132,7 @@ viewport cannot be filmed by a single-page scene).
 
 | id | what it draws (params) |
 |---|---|
-| `studio/layout-split` | the two pages side by side — stacked top / bottom in vertical, narrow side by side in square (a page wider than its pane is reframed around what it acts on) — each in a rounded card with the reference shadow, or a compact browser window with the page's real URL (`chrome`, on for themes whose layout is a browser window); each page's label above it, the acting page's in the accent colour; the caption below the pair. `margin`, `gap`, `radius`, `shadow`, `chrome`, `labels`, `emphasis: auto \| none \| dim` (auto: the idle page dims a little for balanced / motion themes) |
+| `studio/layout-split` | the two pages side by side — stacked top / bottom in vertical, narrow side by side in square (a page wider than its pane is reframed around what it acts on) — each in a rounded card with the reference shadow, or a compact browser window with the page's display URL (`chrome`, on for themes whose layout is a browser window); each page's label above it, the acting page's in the accent colour; the caption below the pair. `margin`, `gap`, `radius`, `shadow`, `chrome`, `labels`, `emphasis: auto \| none \| dim` (auto: the idle page dims a little for balanced / motion themes) |
 | `studio/layout-pip` | the main page in a card (or browser window), the other page floating over one of its corners — inside a phone drawn in CSS when it is a mobile page, else a smaller card. The planner picks the corner so the inset **never covers what the main page acts on now or next** (it glides to another corner, at most every 1.2 s, never while its own page acts: a corner the next main-page step needs is reached once the inset's step is over), and keeps it clear of a caption band over the screen; with `emphasis: auto \| grow` (auto: balanced / motion themes) the inset grows ×1.18 while its page acts — less, or not at all, when growing would reach a caption band over the screen (a plan note says so). `width`, `radius`, `shadow`, `chrome`, `inset_height`, `inset_width`, `margin` |
 
 The main page of a PiP is the landscape one (the first page when both are). A scene filmed on two pages with a
@@ -1500,7 +1508,7 @@ $ studio review northfield-fixture catalogue-v3
 | `keyframes/<marker>.png`, `keyframes/<scene>-first.png`, `-last.png`, `intro-hold.png`, `outro-hold.png` | full-size frames: every marker (the screen once its marked step is done — for a marked `wait_for`, the awaited state), the first and last fully visible frame of each scene, a held frame of the intro and the outro |
 | `timeline.json` | the output-time timeline: segments (frames and seconds, components with params and slots, caption component, transition in, layout rects, source range, speed, zooms, overlays), transitions, captions, markers, step spans and the clicks of the capture placed on the output (cursor point in capture px and on screen) |
 | `report.json` | the review result: render, rules, `clean`, counts, findings, segment durations, the diff and the files |
-| `report.md` | the same for people: findings with timecodes, a segment table, captions, markers and clicks, changes since the previous render, files |
+| `report.md` | the same for people: the run's environment (L1.7: `Environment production · production · read-only · 1 write mocked · clock 2026-11-02T10:24:00`; also in report.json `environment` and on the terminal), findings with timecodes, a segment table, captions, markers and clicks, changes since the previous render, files |
 | `diff_<previous>.jpg` | the frames that changed visibly since the previous render, side by side (before \| now) |
 
 Findings are `{severity: error|warning|info, code, message, at?: {frame, time, segment, scene, step}}`; a review is
@@ -1518,6 +1526,7 @@ not clean; `--json` prints the result. The checks:
 | Camera: more zooms than the reference look's one very slow zoom per video, zooms faster / stronger than "very slow", clamped zooms, a zoom reset at a same-page join, camera jumps | `zoom-count` (warning), `zoom-not-slow`, `zoom-clamped` (info), `zoom-reset`, `camera-jump` |
 | A transition (or fade) over a click and its ripple | `transition-on-click` (warning) |
 | The render itself: failed status, duration or size different from the plan, missing components (stand-ins), plan warnings | `render-failed`, `duration-mismatch`, `size-mismatch`, `component-missing`, `plan-warning` |
+| The environment (L1.7, see [Environments](#environments-display-urls-production-read-only-clock)): a write the read-only guard stopped (one per method and path, at its output frame; the app saw a network error), a browser bar left without its address (a local URL without a display URL, on a layout that draws the URL), a caption / card / overlay / page label / intro / outro text naming a local URL | `write-blocked`, `url-hidden`, `local-url-text` (warnings) |
 | Diff with the previous render of the same scenario (auto-detected; `--previous <id>` or `--no-previous`): total and per-segment durations, component / caption / transition / layout changes, sample frames compared at the same offset inside the same segment | `diff-duration`, `diff-segment`, `diff-frames` (info) |
 
 How it works (`@demo-studio/review`, `docs/DESIGN-phase2.md` §3): frames are decoded by ffmpeg in one pass per video
@@ -1681,6 +1690,197 @@ before, a missing profile starts signed out and a missing `storage_state` file f
   per project slug, so two workspaces with a project of the same slug share them.
 - A copy starts with cold caches: its first page loads are slower (held, and cut by the edit).
 
+## Environments: display URLs, production, read-only, clock
+
+An environment is written in one of two forms. The **short form** is the page map itself; the **long form** puts
+settings next to a `pages:` map. A page is its base URL, or `{url, display}` — in both forms.
+
+```yaml
+environments:
+  local:                                        # short form: page key → base URL …
+    console: http://localhost:4401
+    shop: {url: http://localhost:4402, display: shop.northfield.example}   # … or {url, display}
+  production:                                   # long form
+    production: true                            # read-only, unless access: read-write (and then only with --allow-writes)
+    access: read-only                           # read-only | read-write; default: read-only in production, else read-write
+    pages:
+      console: {url: https://console.example.com, display: console.example.com}
+      shop: https://shop.example.com
+    read_only:                                  # used only when a run on this environment is read-only
+      hosts: [api.example.com]                  # hosts that belong to it: writes stopped (production: every host is), never written to from other environments
+      allow:                                    # writes let through: a token refresh, a search sent as POST…
+        - POST console:/api/session/refresh
+        - {request: "POST shop:/graphql", operation: SearchProducts}
+      mocks:                                    # answers to stopped writes, for every scenario on this environment
+        - {request: "POST shop:/api/track", status: 204}
+```
+
+`production`, `access` and `read_only` written in the short form are an error that says to use the long form (a page
+key named `access` with a URL stays a page). Every consumer still sees each page's real URL: `{{shop}}` in a step or
+a hook is `http://localhost:4402`.
+
+**Display URLs.** `display` is a public host (`shop.example.com`, https implied: the address bar shows the lock), a
+`host/path` or an `http(s)://` URL — no query, fragment or `{{…}}`: it is shown as written; a local host or a port out
+of range is refused. The runner navigates the real URL; `timeline.json` keeps both (`environment.display`) and what the
+video shows maps the real URL to the display one: the page whose base is the longest prefix of it (path and query
+kept; a page without a display URL keeps its URLs as they are), else — a URL under no page, on the origin of one with a
+display URL — that origin's display host. Only http(s) URLs are mapped (a `blob:` URL maps the URL it wraps; a `file:`
+URL is local). Display URLs are **edit-time data**: `studio render`, `plan`, `still` and `export-capture` take
+project.yaml's current display URLs of the run's environment (a run captured before L1.7: the environment of its
+`run.json`), so adding or changing one needs a new render, never a new capture (only text templated at capture —
+`{{shop}}` in a caption — keeps what it read then); what the run recorded is kept for pages project.yaml no longer
+declares. What the video shows:
+
+- **Browser bars**: the address bar and tab strip of `studio/layout-browser`, the window bars of `split` / `pip` (themes
+  framing captures in a browser) show the display URL. A **local URL without a display URL** (localhost, a name without
+  a dot such as `devbox`, `*.localhost`, `*.local`, `*.test`, `*.internal`, `*.lan`, `*.home.arpa` and kin, a loopback,
+  private, link-local or 100.64/10 address, `file:`) is never drawn: the bar shows no address there (the window bars
+  fall back to the theme's `brand.url`), `studio render` warns once per page ("page "shop" has no display URL
+  (http://localhost:4402)… add display: to environments.local.shop in project.yaml and render again") and the review
+  reports `url-hidden` — only for layouts that draw a URL (a card, a laptop, a phone draws none).
+- **Text you write**: `{{shop}}` in a caption, a card, an overlay's slots, a page label, the title, the intro or the
+  outro reads the display URL (`https://shop.example.com`); in a step, `open`, a hook or a mock it stays the real URL.
+  A text that names a local URL anyway is `local-url-text` in the review.
+- **Notification overlays** name the display host of the page that sent the notification (a local host without one:
+  the theme's brand name).
+- **Reports and raw exports**: a review's findings never name a local host (a URL is its display URL, else its path
+  "(a local page)"; a caption you wrote is quoted as written in report.md's caption list, and flagged
+  `local-url-text`); the step markers and click targets of `export-capture` name the display URL, else the path
+  (`3. open /quotes`). The real URLs stay in the run's `timeline.json`.
+- Not mapped: what the captured page itself shows (its own links and text), captured emails and PDFs.
+
+**Access of a run.**
+
+| Environment | Without `--allow-writes` | With `--allow-writes` |
+|---|---|---|
+| not production, read-write (the default) | read-write | read-write (nothing changes) |
+| `access: read-only` | read-only | usage error |
+| `production: true` | read-only | usage error |
+| `production: true` + `access: read-write` | read-only, with a notice | read-write, with a warning ("writes go to production") |
+
+`--allow-writes` exists on `studio run`, `studio hooks run`, `studio hooks rollback` and `studio env reset`; it
+confirms writes, it never grants them. The run header says `production` / `read-only` / `writes allowed`, and
+`run.json` / `timeline.json` record the access.
+
+**On a read-only run, hooks that write are refused** (status `refused`; `optional: true` does not skip a refusal): an
+`http` hook whose method is not GET or HEAD (a GraphQL query sent as POST reads; a JSON body is GraphQL only when its
+keys are `query` / `operationName` / `variables` / `extensions` and its `query` is a document), a `sql` hook with a
+statement that is not a read (reads: `SELECT` without `INTO` / `FOR UPDATE` / `nextval` / `dblink`, `WITH` without a
+data-modifying part, `TABLE`, `VALUES`, `SHOW`, `EXPLAIN` of a read, `SET` / `RESET` of anything but the transaction
+mode or the role — a quoted name counts: `SET "transaction_read_only" = off` writes), a `shell` hook unless it declares
+`writes: false` (and then `rm`, `dropdb` or destructive SQL given to `psql` still write), and a setup hook whose
+`rollback` writes. `js` hooks run: their tab stops their writes. The SQL of a read-only run runs in a read-only
+transaction (a function that writes fails in Postgres). `studio run` refuses a scenario with
+such hooks before any browser opens, listing them — run it with `--hooks skip`, on a read-write environment, or with
+`--allow-writes` where project.yaml allows writes; `studio validate` warns about them. `studio env reset` and `studio
+hooks rollback` judge each pending rollback by the environment its hook ran in: a rollback journaled on production
+with `--allow-writes` is not replayed by a plain `studio env reset` on a local environment.
+
+**No run writes to another environment's production hosts.** The hosts of the project's read-only environments (a
+production one, `access: read-only`: their pages' hosts and `read_only.hosts`) are protected in every run: on a run on
+`local`, an `http` hook that writes to one (or a redirect hop of it), a `sql` hook that writes to a database there, a
+`shell` hook that writes and names one is refused (`refusing a hook that writes (HTTP POST) to api.example.com, a host
+of environment production — this run is on environment local: …`), and the browser stops writes to them (no mock, no
+allow entry: recorded with `protected_by`, counted `1 stopped (hosts of read-only environments)`). Unless that
+environment's own access applies: production with `access: read-write` and `--allow-writes`. A host an environment
+this run may write to shares (the fixture's `production` is the same `localhost` as `local`; ports aside) is never
+protected — a project without such environments runs exactly as before (nothing is armed).
+
+**In the browser, a read-only run stops writes.** Every browser of the run (one per persona) is guarded from its
+launch, the session check included: a request whose method is not GET, HEAD or OPTIONS — a GraphQL query sent as POST
+reads; a mutation, or a persisted query known only by its name, writes — to a **guarded host** (on a **production**
+environment, every host: fail closed — a write anywhere, a third-party API or analytics included, needs an allow entry
+or a mock; on another read-only environment, the hosts of its pages and `read_only.hosts`; on any run, the protected
+hosts of the project's other read-only environments) is
+
+- answered by the first matching **mock** (the scenario's, then the environment's): the flow goes on on screen;
+- else let through by a `read_only.allow` entry;
+- else **stopped**: a fetch / XHR / beacon fails like a network error the app sees, a form POST (in any frame or a new
+  window) is answered `204 No Content` — the page stays where it is, never a browser error page, and the click goes on
+  at once. The run warns once per stopped request (`a write was stopped (POST shop:/api/quotes, step request.5, 12.4
+  s)…`): the app may show an error — add a mock. A stopped write fails the request, not the run.
+
+On a read-only environment that is not production, a write to a host the guard does not watch is sent, recorded
+`passed` and warned about once per host (list the host in `read_only.hosts` when it writes your data). An allow entry
+or a mock narrowed to a GraphQL `operation` covers a request only when every operation of it that writes is that one (a
+batch `[RefreshToken, CreateOrder]` is stopped). `timeline.json` lists every write the guard saw
+(`environment.writes`: capture time, method, URL, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that
+matched, `via` page / hook / sign-in, `protected_by`); the run summary counts them (`writes  1 mocked, 0 stopped
+(read-only)`; the sign-in's exempt writes aside), the review's environment line too, and each stopped write is a
+`write-blocked` warning at the moment the video shows it. Covered: fetch, XHR, `sendBeacon` and `keepalive` fetches
+(also while a page unloads — a page the runner closes goes through `about:blank` first, and an unload write to a
+guarded host is sent as an ordinary request), dedicated workers, service workers (their own requests included),
+cross-site frames, popups and new windows, every persona's browser. `fetchLater` and `SharedWorker` do not exist in a
+guarded browser nor in a js hook tab (the browser would send their requests past the guard): apps feature-detect them
+— neither exists in every browser — and fall back to what the guard sees; one that requires them fails there. **What
+it cannot stop**: messages over a WebSocket (allowed, warned about once per host — an app that saves over WebSockets
+writes), WebTransport / WebRTC, an unsafe GET (a write sent as GET), a write to an unguarded host that redirects to a
+guarded one (only its first hop is seen), requests of other programs, and what the server does on its own after a
+read. Read-only means "no mutating HTTP from the run's browsers and hooks".
+
+- **Signing in.** The automated sign-in tab (`login:` steps of a persona) is exempt while it is on a sign-in page of
+  its persona (`auth.login_url`, its `login_url`, `check.expect_not_url`; every page when it declares none) — its
+  `POST /sign-in` must happen (recorded `exempt`, `via: sign-in`). What it sends from the page the sign-in lands on (a
+  "last seen" ping, an onboarding call) is guarded like a capture page's (recorded `via: sign-in`, counted and
+  reported). It bypasses service workers, so a worker that would forward its sign-in POST cannot hide it. An identity
+  provider on another host is guarded too on production: list its sign-in page in `login_url` (a URL pattern). The
+  session check and every capture page are guarded; an OAuth popup the sign-in opens is not exempt. A **token
+  refresh** the app sends from a capture page is a write: list it in `read_only.allow`, or the app may sign out and the
+  run fails at the sign-in page. `studio login` and `studio auth status --check` run outside any run: they are never
+  guarded.
+- **js hooks** run in their own tab, guarded by it: their writes are stopped and never mocked (a hook that writes is
+  refused, not fooled) — a hook that fails after a stopped write is `refused`; one that catches the error goes on with
+  a warning.
+- **Cost.** Any request interception makes Chromium pause every request of the browser and disables its HTTP cache:
+  every page load of a read-only run (or of a run that protects another environment's hosts) fetches its assets again
+  — invisible on a local app, slower loads (held by the capture, cut by the edit) on a remote one.
+
+**Mocks** (`mocks:` of a scenario, then `read_only.mocks` of its environment) answer writes a read-only run stops in
+the browser: `request` (same pattern as `allow`: `"[METHOD ]<page>:/path"` relative to that page's base URL, or
+`"[METHOD ]/path"` on any guarded host — on production, any host; `*` matches within a path segment, `**` anything; the query is ignored; GET
+patterns are refused), `operation` (a GraphQL operation name), `status` (200–599, default 200), `json` or `body`
+(+ `content_type`), `headers`, `delay_ms` (0–10 000). Mocks are literal (no `{{…}}`) and apply to read-only runs only
+(a read-write run with `mocks:` warns once: its writes really happen). A mock is the same answer every time — a list
+the app reloads afterwards does not show the mocked write. To mock a form POST (a navigation), answer it like the
+server would: `status: 303` with `headers: {location: /quotes}`; a JSON answer to a navigation shows the JSON.
+
+**Clock.** `clock:` (project or scenario; a scenario's wins, `clock: false` turns the project's off) is the date and
+time the product's browser clock reads when the capture starts — an ISO date-time such as `2026-11-02T10:24:00`
+(without an offset: wall time in `browser.timezone`, else the machine's zone; a wall time a DST change skips or shows
+twice is refused — write the offset the error suggests, e.g. `2026-10-25T02:30:00+02:00`) or `{at, freeze: true}`. A
+date alone, offset minutes past 59 and years before 1970 are refused. `timeline.json` records the clock
+(`environment.clock`: `at`, `epoch_ms`, `timezone`, `freeze`), `run.json` too (`at`, `timezone`, `freeze`), and the run
+header says it (`clock 2026-11-02T10:24:00 Europe/Paris (frozen)`).
+
+- **When.** The clock is installed in every browser of the run after the session check and the automated sign-in
+  (they run on the real time: a sign-in checks its tokens against it; so does the session check after a failed step)
+  and before the setup hooks; at capture time 0 it is set to the clock's time, then runs with the capture — two takes
+  show the same date and the same time at the same capture time.
+- **How.** Only the date: in every page, frame (one created empty too), popup and js hook tab of the run's browsers,
+  `new Date()`, `Date()`, `Date.now()` and the date `Intl.DateTimeFormat#format()` / `#formatToParts()` use without one
+  read the clock; timers, `requestAnimationFrame`, `performance` and event time stamps stay the browser's own, so the
+  product's animations and timers run exactly as without a clock (a clock that fakes timers slowed them: ten animation
+  loops from 60 to 30 fps, 100 `setTimeout(0)` from 0 to ~500 ms). Every document computes the time from one anchor:
+  pages opened before and after capture time 0, in any persona's browser, agree. **Not covered**: a dedicated worker
+  gets the clock as soon as it starts (its very first lines may still read the real date), shared workers (absent on
+  read-only runs) and service workers keep the real date, and so do `performance.timeOrigin`, `document.lastModified`,
+  cookie expiry and what the server makes (`created_at`, emails, PDFs: L1.8 seeds). A clock far from now can make
+  client-side token checks (a JWT's `exp`) refresh or sign out: choose a recent date, and allow the refresh endpoint on
+  read-only environments.
+- **`freeze: true`** keeps `Date` at the clock's time the whole run. Timers and animation frames still run, but code
+  that measures elapsed time with `Date` stalls — a debounced search field that compares `Date.now()`, a
+  `Date`-driven animation or countdown, "updated 3 s ago" labels, a timeout computed from `Date`. Use it only when the
+  product shows seconds and does none of that on screen.
+
+**The fixture shows all of it.** `projects/northfield-fixture` gives its pages display URLs
+(`shop.northfield.example`, `console.northfield.example`) and an environment `production` — the local fixture,
+read-only. Its scenario `read-only` (`env: production`, `frame: browser`, `clock: 2026-11-02T10:24:00`) requests a
+quote: the scenario's mock answers the `POST /api/quotes` (the toast reads the mock's supplier), the fixture's
+`GET /api/health` counts no new write (`mutations`), the address bar shows `shop.northfield.example`, and the shop's
+"Prices as of Monday 2 November 2026, 10:24" line (`/#as-of`: the fixture's only date from the browser's clock) is the
+same in every take. `studio run northfield-fixture quote --env production` is refused before anything runs (its setup
+hooks write).
+
 ## Security
 
 - **No secrets in files.** Use `{{env:VAR}}` or `{{keychain:service/account}}` references; validation flags database
@@ -1692,7 +1892,8 @@ before, a missing profile starts signed out and a missing `storage_state` file f
     the origin changes.
   - `js`: the hook's tab blocks every request to another host before it leaves the browser — navigations and each
     redirect hop, fetch / XHR, beacons, EventSource, images, workers, frames, the page's WebSockets; service workers
-    are bypassed there and `window.open` is disabled. A page that redirects to another host, or a hook that fails
+    are bypassed there, `window.open` is disabled, and `fetchLater` and `SharedWorker` do not exist (their requests
+    would escape the tab's guard). A page that redirects to another host, or a hook that fails
     while a request was blocked, is refused (the message adds the hook's own error — the blocked request may be the
     app's own background traffic: add its host to `allow_hosts`); a hook that catches the failed request and goes on
     succeeds, with a warning naming the host.
@@ -1722,6 +1923,10 @@ before, a missing profile starts signed out and a missing `storage_state` file f
     cross-site frame, the first request of a popup a link opens (closed at once). Like an `http` hook to a local
     server, the check covers what the hook names, not what that program does next (network isolation of hooks:
     `docs/BACKLOG.md` BL-57).
+- **Read-only and production environments** (see [Environments](#environments-display-urls-production-read-only-clock)):
+  hooks that write are refused there, before anything runs, and the run's browsers stop their writes to the
+  environment's hosts (or answer them with a mock); a production environment is written to only where project.yaml
+  sets `access: read-write` **and** the command line says `--allow-writes`.
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
   validation and refused at run time without it (`studio hooks run --yes` approves explicitly).
@@ -1738,7 +1943,8 @@ before, a missing profile starts signed out and a missing `storage_state` file f
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
-| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet), updated live |
+| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live |
+| `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
 | `timeline.json` `cursor_effects` | what the in-page cursor showed besides its position: icon changes, presses, click ripples (L2.13; per page in `tracks[]`); `capture.cursor: hidden` when captured without the cursor (`run --raw --cursor none\|layer`) |

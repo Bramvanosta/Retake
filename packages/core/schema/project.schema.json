@@ -14,16 +14,9 @@
         "type": "string"
       },
       "additionalProperties": {
-        "type": "object",
-        "propertyNames": {
-          "type": "string"
-        },
-        "additionalProperties": {
-          "type": "string",
-          "format": "uri"
-        }
+        "$ref": "#/$defs/Environment"
       },
-      "description": "env name → page key → base URL, e.g. {staging: {console: https://…, shop: https://…}}."
+      "description": "env name → page key → base URL (or {url, display}), e.g. {staging: {console: https://…, shop: https://…}}; or the long form {production, access, pages, read_only}."
     },
     "default_env": {
       "type": "string",
@@ -154,6 +147,34 @@
       "additionalProperties": false,
       "description": "Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API)."
     },
+    "clock": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "ISO 8601 date and time, e.g. 2026-11-02T10:24:00 (without an offset: wall time in the browser's time zone)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "string",
+              "minLength": 1,
+              "description": "ISO 8601 date and time, e.g. 2026-11-02T10:24:00."
+            },
+            "freeze": {
+              "type": "boolean",
+              "description": "true: the clock never moves (timers still run; code measuring time with Date stalls). Default false: it starts at `at` when the capture starts and runs."
+            }
+          },
+          "required": [
+            "at"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "The date and time the product's browser clock reads when the capture starts, so every take shows the same dates and times."
+    },
     "raw": {
       "type": "object",
       "properties": {
@@ -215,6 +236,200 @@
   "title": "Demo Studio project",
   "description": "projects/<slug>/project.yaml",
   "$defs": {
+    "Environment": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "production": {
+              "type": "boolean",
+              "description": "A production environment: read-only unless access: read-write, and then only with --allow-writes."
+            },
+            "access": {
+              "type": "string",
+              "enum": [
+                "read-only",
+                "read-write"
+              ],
+              "description": "read-only or read-write (default: read-only in production, else read-write)."
+            },
+            "pages": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "display": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The URL the video shows instead (address bar, captions): a host such as shop.example.com (https implied) or an http(s) URL."
+                      }
+                    },
+                    "required": [
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "description": "page key → base URL, or {url, display}."
+            },
+            "read_only": {
+              "type": "object",
+              "properties": {
+                "hosts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": "More hosts whose writes are stopped (the pages' hosts always are; on a production environment every host is): \"api.example.com\", \"*.example.com\", or \"*\" for every host. They also belong to this environment: runs on other environments never write to them."
+                },
+                "allow": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "\"[METHOD ]<page>:/path\" or \"[METHOD ]/path\", e.g. \"POST shop:/api/quotes\"; * matches within a path segment, ** anything; the query is ignored."
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "request": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "\"[METHOD ]<page>:/path\" or \"[METHOD ]/path\", e.g. \"POST shop:/api/quotes\"; * matches within a path segment, ** anything; the query is ignored."
+                          },
+                          "operation": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "GraphQL operation name."
+                          }
+                        },
+                        "required": [
+                          "request"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "description": "Writes let through (a token refresh, a search sent as POST…)."
+                },
+                "mocks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "request": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "\"[METHOD ]<page>:/path\" or \"[METHOD ]/path\", e.g. \"POST shop:/api/quotes\"; * matches within a path segment, ** anything; the query is ignored."
+                      },
+                      "operation": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "GraphQL operation name."
+                      },
+                      "status": {
+                        "type": "integer",
+                        "minimum": 200,
+                        "maximum": 599,
+                        "description": "Status of the answer (default 200)."
+                      },
+                      "json": {
+                        "description": "JSON body of the answer."
+                      },
+                      "body": {
+                        "type": "string",
+                        "description": "Raw body of the answer (text/plain unless content_type)."
+                      },
+                      "content_type": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "headers": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "delay_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "description": "Wait before answering (ms)."
+                      }
+                    },
+                    "required": [
+                      "request"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Answer to a write stopped on a read-only run, so the flow continues on screen."
+                  },
+                  "description": "Answers to stopped writes, for every scenario on this environment (a scenario's own mocks come first)."
+                }
+              },
+              "additionalProperties": false,
+              "description": "Used only when a run on this environment is read-only (its hosts are also never written to from runs on other environments)."
+            }
+          },
+          "required": [
+            "pages"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "display": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The URL the video shows instead (address bar, captions): a host such as shop.example.com (https implied) or an http(s) URL."
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      ],
+      "description": "page key → base URL (or {url, display}); or the long form {production, access, pages, read_only}."
+    },
     "AuthConfig": {
       "type": "object",
       "properties": {
@@ -1143,6 +1358,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -1224,6 +1443,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -1296,6 +1519,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -1358,6 +1585,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -1368,7 +1599,7 @@
           "description": "JavaScript evaluated in its own tab on an environment page (through the runner); requests to unlisted hosts are blocked."
         }
       ],
-      "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional."
+      "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional / writes."
     }
   }
 }

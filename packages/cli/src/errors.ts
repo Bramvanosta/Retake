@@ -46,6 +46,8 @@ const KNOWN = new Set([
   'CancelledError',
   'HookError',
   'HookSecurityError',
+  'AccessError',
+  'ClockError',
   'JournalError',
   'ComponentError',
   'RenderError',

@@ -197,6 +197,21 @@ describe.skipIf(!PG)('sql hooks against Postgres', () => {
     expect(await texts()).toEqual([]);
   });
 
+  it('a read-only run reads in a read-only transaction: a function that writes fails in Postgres (L1.7)', async () => {
+    await admin.query(`CREATE OR REPLACE FUNCTION ${table}_touch() RETURNS int LANGUAGE sql AS $$ INSERT INTO ${table} (text) VALUES ('touched') RETURNING id $$`);
+    try {
+      const { ctx } = context();
+      ctx.access = { env: 'production', mode: 'read-only', production: true, configured: 'read-only' };
+      // The static check sees a SELECT: Postgres refuses the write the function makes.
+      const res = await runHooks([{ sql: `SELECT ${table}_touch()` }, { sql: `SELECT count(*) FROM ${table}` }], ctx, { phase: 'teardown', journal: await journalAt() });
+      expect(res.results.map((r) => r.status)).toEqual(['failed', 'ok']);
+      expect(res.results[0].error).toMatch(/cannot execute INSERT in a read-only transaction/);
+      expect(await texts()).toEqual([]);
+    } finally {
+      await admin.query(`DROP FUNCTION IF EXISTS ${table}_touch()`);
+    }
+  });
+
   it('keeps the database password out of logs and the journal', async () => {
     const { ctx, logText } = context();
     const journal = await journalAt();

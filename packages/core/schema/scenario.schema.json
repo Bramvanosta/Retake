@@ -266,6 +266,99 @@
       "description": "Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.",
       "$ref": "#/$defs/Tutorial"
     },
+    "clock": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "const": false
+        },
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "ISO 8601 date and time, e.g. 2026-11-02T10:24:00 (without an offset: wall time in the browser's time zone)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "ISO 8601 date and time, e.g. 2026-11-02T10:24:00."
+                },
+                "freeze": {
+                  "type": "boolean",
+                  "description": "true: the clock never moves (timers still run; code measuring time with Date stalls). Default false: it starts at `at` when the capture starts and runs."
+                }
+              },
+              "required": [
+                "at"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "The date and time the product's browser clock reads when the capture starts, so every take shows the same dates and times."
+        }
+      ],
+      "description": "The product's clock when the capture starts (wins over the project's): an ISO date-time or {at, freeze}; false turns the project's clock off."
+    },
+    "mocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "string",
+            "minLength": 1,
+            "description": "\"[METHOD ]<page>:/path\" or \"[METHOD ]/path\", e.g. \"POST shop:/api/quotes\"; * matches within a path segment, ** anything; the query is ignored."
+          },
+          "operation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "GraphQL operation name."
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 200,
+            "maximum": 599,
+            "description": "Status of the answer (default 200)."
+          },
+          "json": {
+            "description": "JSON body of the answer."
+          },
+          "body": {
+            "type": "string",
+            "description": "Raw body of the answer (text/plain unless content_type)."
+          },
+          "content_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "delay_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Wait before answering (ms)."
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "additionalProperties": false,
+        "description": "Answer to a write stopped on a read-only run, so the flow continues on screen."
+      },
+      "description": "Answers to writes stopped on read-only runs (tried before the environment's read_only.mocks); ignored on read-write runs."
+    },
     "scenes": {
       "minItems": 1,
       "type": "array",
@@ -432,6 +525,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -513,6 +610,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -585,6 +686,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -647,6 +752,10 @@
             "optional": {
               "type": "boolean",
               "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
             }
           },
           "required": [
@@ -657,7 +766,7 @@
           "description": "JavaScript evaluated in its own tab on an environment page (through the runner); requests to unlisted hosts are blocked."
         }
       ],
-      "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional."
+      "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional / writes."
     },
     "CaptureOverrides": {
       "type": "object",

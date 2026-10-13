@@ -251,6 +251,11 @@ export interface KitApi {
   scrollContainerFor(ref: string | null, fromParent?: boolean): string;
   scrollInfo(container: string, of?: string | null): ScrollInfo;
   scrollAnimate(container: string, top: number, left: number, ms: number): Promise<{ top: number; left: number }>;
+  /**
+   * Resolves after two real animation frames (at most 150 ms when the page does not render): the DOM state is on
+   * screen. The kit's own frames and timers (captured when it started): real whatever the page did to its globals.
+   */
+  afterPaint(): Promise<void>;
   popupState(): PopupEntry[];
   expanded(ref: string): string | null;
   outsidePlan(near: PointSpec, avoid: number[]): OutsidePlan | null;

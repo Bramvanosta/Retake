@@ -33,8 +33,12 @@ const review = (render: string, extra: Partial<Parameters<typeof reviewRender>[0
 
 describe.skipIf(!can)('reviewRender', () => {
   it('a clean synthetic render: no error or warning, every artefact written', async () => {
-    await makeCase(ws, 'clean', scenesTimeline([19, 19, 21]));
+    // L1.7: a run that records its environment gets the line in report.md (and report.json `environment`).
+    const timeline = scenesTimeline([19, 19, 21]);
+    timeline.environment = { name: 'local', access: 'read-write', clock: { at: '2026-11-02T10:24:00', epoch_ms: Date.UTC(2026, 10, 2, 10, 24) } };
+    await makeCase(ws, 'clean', timeline);
     const r = await review('clean-v1');
+    expect(r.environment).toEqual({ name: 'local', access: 'read-write', clock: { at: '2026-11-02T10:24:00' }, writes: { blocked: 0, mocked: 0, allowed: 0, passed: 0 } });
     expect(r.findings.filter((f) => f.severity !== 'info'), JSON.stringify(r.findings, null, 1)).toEqual([]);
     expect(r.clean).toBe(true);
     expect(r.counts).toMatchObject({ error: 0, warning: 0 });
@@ -82,8 +86,26 @@ describe.skipIf(!can)('reviewRender', () => {
     expect(report.thumbnails).toBeUndefined();
     const md = await readFile(r.files.report_md, 'utf8');
     expect(md).toContain('# Review — clean-v1');
+    expect(md).toContain('\nEnvironment local · read-write · clock 2026-11-02T10:24:00\n');
     expect(md).toContain('clean: no error, no warning');
     expect(md).toContain('| 2 | s1 | clip |');
+  }, LONG);
+
+  it('a report never names a local host: hidden addresses, the plan\'s warning about them, a caption naming one (V4)', async () => {
+    const timeline = scenesTimeline([19, 19, 21], { captions: ['Open localhost:4499/admin to start.'] });
+    timeline.pages = [{ id: 'app', t_start: 0, t_end: 59, url: 'http://localhost:4499/start' }];
+    timeline.environment = { name: 'local', access: 'read-write' };
+    const c = await makeCase(ws, 'local-urls', timeline, { overrides: { frame: 'browser' } });
+    expect(c.plan.warnings.join('\n')).toMatch(/localhost:4499/);
+    const r = await review('local-urls-v1');
+    expect(codes(r)).toEqual(expect.arrayContaining(['plan-warning', 'url-hidden', 'local-url-text']));
+    // Findings (report.json and report.md) name paths only; the caption the scenario wrote is quoted as written (and
+    // flagged: local-url-text).
+    const json = JSON.parse(await readFile(r.files.report_json, 'utf8')) as ReviewResult;
+    expect(JSON.stringify(json.findings)).not.toMatch(/localhost|4499/);
+    const md = await readFile(r.files.report_md, 'utf8');
+    expect(md.replace(/## Captions[\s\S]*?\n## /, '## ')).not.toMatch(/localhost|4499/);
+    expect(md).toContain('Open localhost:4499/admin to start.');
   }, LONG);
 
   it('base64 thumbnails: JPEG ≤ 1280 px (sheets + marker key frames by default, everything with "all")', async () => {

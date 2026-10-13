@@ -1,4 +1,4 @@
-import type { HookStep, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { HookAccess, HookStep, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 import { RunnerError, errorMessage } from './errors.js';
 
 /** The part of @demo-studio/hooks the runner uses (docs/DESIGN.md §2). */
@@ -13,6 +13,8 @@ export interface HookContextLike {
   /** Runs a js hook through evalHookInPage (hook-page.ts): the guarded hook tab of the page key. */
   evalInPage?: (pageKey: string | undefined, code: string) => Promise<unknown>;
   saved: Record<string, unknown>;
+  /** The run's access (L1.7): read-only refuses hooks that write. */
+  access?: HookAccess;
 }
 
 export interface HookResultLike {

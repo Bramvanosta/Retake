@@ -1,6 +1,7 @@
 import { STATUS_CODES } from 'node:http';
+import { httpWriteReason } from '@demo-studio/core';
 import type { HttpHookSpec } from '@demo-studio/core';
-import { checkHostAllowed } from '../allow-list.js';
+import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
 import { HookError, errorMessage } from '../errors.js';
 import { redactText } from '../secrets.js';
@@ -115,6 +116,9 @@ async function send(call: HttpCall, ctx: HookContext): Promise<SavedHttpResponse
   let { method, url, headers, body } = call;
   for (let hop = 0; ; hop++) {
     checkHostAllowed(url, ctx.project);
+    // Every hop that writes (a redirect, a rollback replayed later): never to another read-only environment's host.
+    const writes = httpWriteReason({ method, body });
+    if (writes) checkWriteHosts([new URL(url).hostname], writes, ctx.access);
     let res: Response;
     try {
       res = await fetch(url, { method, headers, body, redirect: 'manual', signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
@@ -176,9 +180,12 @@ export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<Prepa
   ignoreRollback(k, rollback !== undefined);
   const rollbackTemplate = k.phase === 'setup' ? rollback : undefined;
   if (rollbackTemplate) checkTokens(rollbackTemplate, await hookTemplateContext(ctx, rollbackTemplate), ['response']);
+  const rollbackWrites = rollbackTemplate ? httpWriteReason(rollbackTemplate) : null;
   return {
     description: redactText(ctx, describeHttp(call.method, call.display) + (save_as ? ` → hooks.${save_as}` : '')),
     destructive: call.method === 'DELETE' ? 'HTTP DELETE' : null,
+    writes: httpWriteReason({ method: call.method, body: call.body }) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
+    hosts: [new URL(call.url).hostname],
     async execute() {
       const res = await sendChecked(call, ctx);
       if (save_as) ctx.saved[save_as] = res;

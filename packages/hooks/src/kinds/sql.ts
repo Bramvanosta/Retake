@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { collectSecretRefs, sqlDestructiveKeyword, sqlSource } from '@demo-studio/core';
+import { collectSecretRefs, sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@demo-studio/core';
 import type { SqlHookSpec, TemplateContext } from '@demo-studio/core';
 import { checkHostAllowed } from '../allow-list.js';
 import { databaseTarget, describeTarget } from '../db-url.js';
@@ -79,12 +79,16 @@ function summarize(res: pg.QueryResult | pg.QueryResult[]): string {
   return `${all.length} statement${all.length === 1 ? '' : 's'}, ${rows} row${rows === 1 ? '' : 's'} affected`;
 }
 
-/** Run a whole SQL text as one multi-statement query inside BEGIN … COMMIT (ROLLBACK on error). */
+/**
+ * Run a whole SQL text as one multi-statement query inside BEGIN … COMMIT (ROLLBACK on error). `readOnly` (a read-only
+ * run, L1.7): BEGIN READ ONLY — whatever the static check could not see (a function that writes) fails in Postgres.
+ */
 async function runSql(
   db: Database,
   sql: string,
   where: string,
   log: (level: HookLogLevel, msg: string) => void,
+  readOnly = false,
 ): Promise<string> {
   const client = new pg.Client({
     connectionString: db.connectionString,
@@ -102,7 +106,7 @@ async function runSql(
     throw new HookError(`cannot connect to database ${db.label}: ${errorMessage(e)}`);
   }
   try {
-    await client.query('BEGIN');
+    await client.query(readOnly ? 'BEGIN READ ONLY' : 'BEGIN');
     try {
       const res = (await client.query(sql)) as pg.QueryResult | pg.QueryResult[];
       await client.query('COMMIT');
@@ -140,16 +144,18 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
   const db = await openDatabase(ctx, log, typeof spec === 'object' ? spec.db : undefined);
   const sql = renderSql(text, await hookTemplateContext(ctx, text), where);
   const kw = sqlDestructiveKeyword(sql);
+  const readOnly = ctx.access?.mode === 'read-only';
 
   const rb = typeof spec === 'object' ? spec.rollback : undefined;
   ignoreRollback(k, rb !== undefined);
   let rollback: RollbackAction | undefined;
+  let rollbackWrites: string | null = null;
   if (rb !== undefined && k.phase === 'setup') {
     const rbSource = typeof rb === 'string' ? sqlSource(rb) : rb;
     const rbText = await loadSource(ctx, rbSource, 'sql rollback');
     // The connection URL is re-templated at rollback time too: snapshot its tokens with the SQL's.
     const tpl = await hookTemplateContext(ctx, [rbText, db.urlTemplate]);
-    renderSql(rbText, tpl, rbSource.file ?? 'inline rollback SQL');
+    rollbackWrites = sqlWriteStatement(renderSql(rbText, tpl, rbSource.file ?? 'inline rollback SQL'));
     rollback = {
       kind: 'sql',
       db: db.key,
@@ -162,8 +168,10 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
   return {
     description: redactText(ctx, describeSql(source, db.label)),
     destructive: kw ? (source.file ? `${source.file} contains ${kw}` : `SQL ${kw}`) : null,
+    writes: sqlWriteStatement(sql) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
+    hosts: db.target.socket ? [] : [db.target.host],
     async execute() {
-      const message = await runSql(db, sql, where, log);
+      const message = await runSql(db, sql, where, log, readOnly);
       return { message, rollback };
     },
   };
@@ -174,5 +182,5 @@ export async function rollbackSql(action: Extract<RollbackAction, { kind: 'sql' 
   const db = await openDatabase(ctx, log, action.db, action.data);
   const where = action.file ?? 'inline rollback SQL';
   const sql = renderSql(action.query, await snapshotTemplateContext(ctx, action.data, action.query), where);
-  return runSql(db, sql, where, log);
+  return runSql(db, sql, where, log, r.readOnly === true);
 }

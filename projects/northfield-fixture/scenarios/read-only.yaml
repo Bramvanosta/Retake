@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Filmed on production, nothing written (L1.7). The café requests a quote on the environment `production` — the local
+# fixture made pretend production in project.yaml: read-only, so the request's POST never reaches the server. The
+# scenario's mock answers it (201, the quote's id and supplier: the toast reads them) and the flow goes on on screen;
+# the quotes list afterwards is the one the server had. `GET /api/health` → `mutations` is the same before and after.
+#
+# `clock:` sets the product's browser clock to 2 Nov 2026, 10:24 when the capture starts: the shop's "Prices as of"
+# line (`/#as-of`, the fixture's only date from the browser's clock) reads the same in every take. Framed in a browser
+# window: its address bar shows the display URLs (shop.northfield.example), never localhost — and so does `{{shop}}`
+# in a caption. Setup reads only (a hook that writes would be refused); there is no teardown: nothing to undo.
+video: read-only
+env: production
+frame: browser
+clock: 2026-11-02T10:24:00
+title: {kicker: Read-only, text: "Filmed on production, nothing written"}
+outro: {tagline: "Every request answered on screen, nothing written."}
+
+setup:
+  - name: health
+    http: {url: "{{shop}}/api/health", save_as: health}
+
+# Answers to the writes this run stops (the environment's own mocks come after these).
+mocks:
+  - request: POST shop:/api/quotes
+    status: 201
+    json: {id: 9001, supplier: Northfield Roasters}
+    delay_ms: 300
+
+scenes:
+  - id: prices
+    caption: {kicker: Production, text: "Live prices at {{shop}}, filmed without changing a thing."}
+    page: shop
+    open: /#as-of
+    steps:
+      - capture_text: {target: {testid: prices-as-of}, as: prices-as-of, pattern: "/as of (.+)$/"}
+      - hold: 3
+      - scroll: {to: {text: Fresh arrivals}, offset: -100, duration: 1.6}
+      - click: Selowa Ridge
+      - wait_for: {target: {role: button, name: Request a quote}}
+      - hold: 1.2
+
+  - card: {slots: {kicker: On production, title: "A quote request, answered by a mock"}, duration: 2.2}
+    id: chapter-request
+
+  - id: request
+    caption: {kicker: Request a quote, text: "Choose the quantity, the bag size and the grind."}
+    steps:
+      - click: {role: button, name: Request a quote}
+      - click: {aria: Increase, in: dialog}
+      - click: {aria: Increase, in: dialog}
+      - select: {field: Bag size, option: 5 kg}
+      - select: {field: Grind, option: Whole bean}
+
+  - id: send
+    caption: {kicker: Mocked, text: "The request is answered by a mock: the server never sees it."}
+    steps:
+      - click: {label: Delivery window}
+      - click: {aria: Next month}
+      - click: {aria: "10 January 2027"}
+      - click: {aria: "24 January 2027"}
+      - type: {into: {label: Message}, text: "Light roast for filter, please.", cps: 18}
+      - click: {text: Send request, in: dialog}
+      - wait_for: {text: Quote request sent}
+      - hold: 3.5
+
+  - id: quotes
+    caption: {kicker: Unchanged, text: "Your quotes, exactly as they were."}
+    open: /quotes
+    steps:
+      - wait_for: {text: "Your quote requests"}
+      - hold: 3

@@ -1,5 +1,5 @@
-import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, shellHostRefs } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
+import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, protectedBy, protectedHostMessage, shellHostRefs } from '@demo-studio/core';
+import type { HookAccess, LoadedProject } from '@demo-studio/core';
 
 /** The pure allow-list helpers live in @demo-studio/core (project validation uses them too). */
 export { LOCAL_HOSTS, allowedHosts, isHostAllowed, normalizeAllowEntry, normalizeHost };
@@ -53,5 +53,18 @@ export function checkShellHosts(
       throw new HookSecurityError(`refusing a shell command whose host is computed at run time (${ref.via}): write the host, or use an http hook`, 'host');
     }
     if (!isHostAllowed(ref.host, project)) throw refuse(ref.host, project, `${ref.via} in the shell hook`);
+  }
+}
+
+/**
+ * Throws HookSecurityError (reason `read-only`) when a hook that writes (`reason`) contacts a host of another, read-only
+ * environment of the project (core protectedBy on the run's access): a run on a read-write environment never writes to
+ * production unless production's own access applies (access: read-write and --allow-writes).
+ */
+export function checkWriteHosts(hosts: Iterable<string>, reason: string, access: HookAccess | undefined): void {
+  if (!access?.protected?.length) return;
+  for (const host of hosts) {
+    const hit = protectedBy(host, access);
+    if (hit) throw new HookSecurityError(protectedHostMessage(reason, hit, access, normalizeHost(host)), 'read-only');
   }
 }

@@ -79,14 +79,18 @@ export function layoutRects(layout: PlanLayout): LayoutRects {
   return out;
 }
 
-/** The URL shown by a browser-chrome layout at frame `f` of a clip. */
+/**
+ * The URL shown by a browser-chrome layout at frame `f` of a clip; undefined while it is a hidden (local) one — the bar
+ * shows no address (L1.7: a local URL is never drawn).
+ */
 export function urlAt(clip: Pick<ClipSegment, 'urls'>, f: number): string | undefined {
-  let url: string | undefined;
+  let at: ClipSegment['urls'][number] | undefined;
   for (const u of clip.urls) {
-    if (u.frame <= f) url = u.url;
+    if (u.frame <= f) at = u;
     else break;
   }
-  return url ?? clip.urls[0]?.url;
+  at ??= clip.urls[0];
+  return at && !at.hidden ? at.url : undefined;
 }
 
 /** The source frame index shown at frame `f` of a clip (clamped to the clip). */

@@ -1,4 +1,4 @@
-import type { Page, Request } from 'playwright-core';
+import type { Page, Request, Response } from 'playwright-core';
 import { hasLocator, normalizeTarget, pickTarget } from '@demo-studio/core';
 import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec, TimelineEvent } from '@demo-studio/core';
 import { StepError } from '../errors.js';
@@ -47,14 +47,41 @@ function pageUrl(page: Page): string {
 
 /**
  * Watches a page for a main-frame document navigation started by an action. A navigation that turns into a download
- * (Content-Disposition: attachment, a file the browser does not display) never commits: it is not a page change.
+ * (Content-Disposition: attachment, a file the browser does not display) never commits: it is not a page change. Nor is
+ * one answered 204 / 205 or aborted — a form POST the read-only guard stopped (L1.7) is answered 204: the page stays
+ * where it is, at once (never a 15 s wait for a commit that cannot come).
  */
 export function watchNavigation(page: Page) {
   let started = false;
   let committed = false;
   let downloaded = false;
+  /** The main-frame navigation request (each redirect hop replaces it). */
+  let request: Request | null = null;
+  let wake: () => void = () => undefined;
+  const dropped = () => {
+    if (committed) return;
+    started = false;
+    request = null;
+    wake();
+  };
   const onRequest = (req: Request) => {
-    if (req.isNavigationRequest() && req.frame() === page.mainFrame() && !downloaded) started = true;
+    let main = false;
+    try {
+      main = req.isNavigationRequest() && req.frame() === page.mainFrame();
+    } catch {
+      main = false; // no frame (a request of another window)
+    }
+    if (main && !downloaded) {
+      started = true;
+      request = req;
+    }
+  };
+  const onResponse = (res: Response) => {
+    if (res.request() === request && (res.status() === 204 || res.status() === 205)) dropped();
+  };
+  const onFailed = (req: Request) => {
+    // An aborted navigation commits nothing (a refused one commits an error page: that one is waited for).
+    if (req === request && /ERR_ABORTED/.test(req.failure()?.errorText ?? '')) dropped();
   };
   const onNav = (f: unknown) => {
     if (started && f === page.mainFrame()) committed = true;
@@ -64,6 +91,8 @@ export function watchNavigation(page: Page) {
     if (!committed) started = false;
   };
   page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfailed', onFailed);
   page.on('framenavigated', onNav);
   page.on('download', onDownload);
   return {
@@ -74,13 +103,16 @@ export function watchNavigation(page: Page) {
       if (!committed) {
         const nav = page.waitForEvent('framenavigated', { predicate: (f) => f === page.mainFrame(), timeout: 15_000 }).then(() => 'nav' as const);
         const dl = page.waitForEvent('download', { timeout: 15_000 }).then(() => 'download' as const);
-        const first = await Promise.race([nav, dl]).catch(() => 'timeout' as const);
+        const gone = new Promise<'dropped'>((resolve) => (wake = () => resolve('dropped')));
+        const first = await Promise.race([nav, dl, gone]).catch(() => 'timeout' as const);
+        wake = () => undefined;
         nav.catch(() => undefined);
         dl.catch(() => undefined);
         if (first === 'download' || downloaded) {
           started = false;
           return;
         }
+        if (first === 'dropped' || (!started && !committed)) return;
         if (first === 'timeout') ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: a navigation started but did not commit within 15 s`);
       }
       await ctx.rt.settle(page);
@@ -88,6 +120,8 @@ export function watchNavigation(page: Page) {
     },
     stop(): void {
       page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfailed', onFailed);
       page.off('framenavigated', onNav);
       page.off('download', onDownload);
     },

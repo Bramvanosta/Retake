@@ -15,6 +15,7 @@ import {
   actingWeights,
   captionBandOver,
   drawnOverlayBox,
+  drawsUrl,
   focusBox,
   insetCornerRects,
   insetHole,
@@ -79,7 +80,28 @@ describe('multi-page clips: split screen (live-quote)', () => {
       // The layout receives both panes per frame, labels and URLs included.
       const rects = layoutPaneRectsAt(p, c, 0);
       expect(rects.map((r) => r.page)).toEqual(['buyer', 'supplier']);
-      expect(rects[1].url).toMatch(/\/quotes/);
+      // A run without display URLs (L1.7): the pane's URL is kept (marked hidden), never handed to the layout.
+      expect(c.panes![1].urls[0]).toMatchObject({ url: expect.stringMatching(/^http:\/\/localhost:4401\/quotes/), hidden: true });
+      expect(rects[1].url).toBeUndefined();
+    }
+    // Editorial frames the panes as cards (no browser bar): nothing warns about the hidden URLs.
+    expect(p.warnings.filter((w) => /display URL/.test(w))).toEqual([]);
+    // With the run's display table each pane's bar gets its display URL.
+    const shown = await plan({
+      ...load('live-quote'),
+      environment: {
+        name: 'local',
+        access: 'read-write',
+        display: [
+          { page: 'console', url: 'http://localhost:4401', display: 'https://console.northfield.example' },
+          { page: 'shop', url: 'http://localhost:4402', display: 'https://shop.northfield.example' },
+        ],
+      },
+    });
+    for (const c of clips(shown).filter((x) => x.panes)) {
+      const rects = layoutPaneRectsAt(shown, c, 0);
+      expect(rects[0].url).toMatch(/^https:\/\/shop\.northfield\.example\//);
+      expect(rects[1].url).toMatch(/^https:\/\/console\.northfield\.example\/quotes/);
     }
     // The caption sits under the pair, the brand mark at its right.
     const c0 = multi[0];
@@ -186,6 +208,23 @@ describe('multi-page clips: picture in picture (phone-and-desktop)', () => {
     expect(lq.notes.join('\n')).toMatch(/the caption band goes below the pages/);
     const pd = await plan(load('phone-and-desktop'), {}, 'motion');
     expect(clipOf(pd, 'desk').caption?.params.position).toBe('over');
+  });
+
+  it('browser bars on the panes (motion themes) never draw a local URL: hidden, one plan warning per page (L1.7)', async () => {
+    const lq = await plan(load('live-quote'), {}, 'motion');
+    const c = clipOf(lq, 'request');
+    expect(c.component.params.chrome).toBe(true);
+    expect(layoutPaneRectsAt(lq, c, 0).map((r) => r.url)).toEqual([undefined, undefined]);
+    expect(lq.warnings.filter((w) => /display URL/.test(w)).sort()).toEqual([
+      expect.stringMatching(/^a local URL outside the pages of environment \(unknown\) has no display URL \(http:\/\/localhost:4401\)/),
+      expect.stringMatching(/^a local URL outside the pages of environment \(unknown\) has no display URL \(http:\/\/localhost:4402\)/),
+    ]);
+    // A picture in picture draws the bar of its main page only (the inset is a phone).
+    const pd = await plan(load('phone-and-desktop'), {}, 'motion');
+    const desk = clipOf(pd, 'desk');
+    expect(drawsUrl(desk, desk.inset!.pane)).toBe(false);
+    expect(drawsUrl(desk, 1 - desk.inset!.pane)).toBe(true);
+    expect(drawsUrl(desk)).toBe(false);
   });
 
   it('overlays of the main page are drawn around the inset (clip-path with the inset as a hole), not over it', async () => {

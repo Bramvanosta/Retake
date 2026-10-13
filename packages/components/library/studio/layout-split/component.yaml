@@ -23,7 +23,7 @@ params:
     gap: {type: number, minimum: 0, maximum: 200, default: 32, description: "Gap between the two pages, in design px."}
     radius: {type: number, minimum: 0, maximum: 64, default: 14, description: Corner radius of each card in design px.}
     shadow: {type: string, enum: [none, soft, strong], default: soft, description: "Shadow under each card (tinted with the theme's dark tone)."}
-    chrome: {type: boolean, default: false, description: "A compact browser bar above each page with its real URL (the planner turns it on for themes whose layout is a browser window)."}
+    chrome: {type: boolean, default: false, description: "A compact browser bar above each page with its display URL — none for a local URL without one (the planner turns it on for themes whose layout is a browser window)."}
     labels: {type: boolean, default: true, description: "Each page's label (scenario `pages.<id>.label`) above it."}
     emphasis: {type: string, enum: [auto, none, dim], default: auto, description: "Dim the idle page a little while the other acts: auto = for themes with style_bias balanced or motion."}
 tokens: [colors.accent, colors.text, colors.muted, colors.paper, colors.dark, background, fonts.body]

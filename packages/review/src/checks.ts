@@ -3,15 +3,16 @@
  * area, brand mark), text slots, cursor at clicks, long scenes at ~1×, camera zooms, transitions over clicks, and the
  * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
  */
-import type { Timeline } from '@demo-studio/core';
+import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@demo-studio/core';
+import type { DisplayEntry, Timeline, TimelineWrite } from '@demo-studio/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
-import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@demo-studio/editor';
+import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@demo-studio/editor';
 import { insetPhoneEdge } from '@demo-studio/components/kit';
 import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@demo-studio/editor';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
-import type { Finding, FindingAt, ReviewRules, SegmentDuration, Severity } from './types.js';
+import type { Finding, FindingAt, ReviewEnvironment, ReviewRules, SegmentDuration, Severity } from './types.js';
 import type { SegmentSpan, TransitionSpan } from './spans.js';
 import { isClip, meanSpeed, round, segmentLabel, spanAt, stepAt, timecode } from './spans.js';
 
@@ -62,7 +63,8 @@ export function checkRender(ctx: CheckContext, probed?: { duration_s: number; fr
       out.push(finding('warning', 'size-mismatch', `the video is ${probed.width}×${probed.height}, the plan ${plan.width}×${plan.height}`));
     }
   }
-  for (const w of plan.warnings) out.push(finding('info', 'plan-warning', w));
+  // A plan warning may name a local URL (a page without a display URL): a report never names a local host (L1.7).
+  for (const w of plan.warnings) out.push(finding('info', 'plan-warning', maskLocalUrls(w)));
   const missing = (c: ResolvedComponent | null | undefined, where: string, frame: number) => {
     if (c?.missing) out.push(finding('warning', 'component-missing', `${where}: component ${c.id} could not be resolved, a stand-in was rendered`, locate(ctx, frame)));
   };
@@ -805,7 +807,7 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
           finding(
             'warning',
             'tutorial-stale-target',
-            `${s.id} step ${o.step}: the ${o.tutorial === 'steps' ? 'step badge' : 'spotlight'} stays ${fmtS((b - change.frame) / plan.fps)} on its target after the page went to ${change.url}`,
+            `${s.id} step ${o.step}: the ${o.tutorial === 'steps' ? 'step badge' : 'spotlight'} stays ${fmtS((b - change.frame) / plan.fps)} on its target after the page went to ${change.hidden ? localPath(change.url) : change.url}`,
             locate(ctx, s.from + change.frame),
           ),
         );
@@ -859,6 +861,192 @@ export function checkTutorial(ctx: CheckContext): Finding[] {
   for (const s of plan.segments) {
     media(s.component, `${s.kind} ${s.id}`, s.from);
     if (isClip(s)) for (const o of s.overlays) media(o.component, `overlay of ${s.id}`, s.from + o.from);
+  }
+  return out;
+}
+
+// ── Environment (L1.7) ─────────────────────────────────────────────────────────
+
+/** The path (and query) of a local URL, also written without a scheme (`localhost:3000/x`); a file: URL's file name. */
+function pathOf(url: string): string {
+  return namedUrl(/^(?:https?|file|blob|filesystem):/i.test(url) ? url : `http://${url}`, []);
+}
+
+/** A local URL as a report may name it: its path (never the local host), "(a local page)". */
+function localPath(url: string): string {
+  const p = pathOf(url);
+  return p ? `${p} (a local page)` : 'a local page';
+}
+
+/** A text with every local URL it names reduced to "a local page" / "<path> (a local page)". */
+function maskLocalUrls(text: string): string {
+  let out = text;
+  for (const u of findLocalUrls(text)) {
+    const p = pathOf(u);
+    out = out.split(u).join(p && p !== '/' ? `${p} (a local page)` : 'a local page');
+  }
+  return out;
+}
+
+/** A real URL of the run as the report names it: the display URL, else (still local) its path. */
+function shownUrl(url: string, table: readonly DisplayEntry[]): string {
+  const d = displayUrl(url, table);
+  return isLocalUrl(d) ? localPath(d) : d;
+}
+
+/** The first output frame showing capture time `t` or the moment after it (a trimmed moment: the next one shown). */
+function outputFrameAtCapture(ctx: Pick<CheckContext, 'plan'>, t: number): number | undefined {
+  const src = Math.round(t * ctx.plan.source.fps);
+  for (const s of ctx.plan.segments) {
+    if (!isClip(s) || s.srcFrames.length === 0) continue;
+    const f = s.srcFrames;
+    if (src < f[0] - 2 || src > f[f.length - 1] + 2) continue;
+    let lo = 0;
+    let hi = f.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (f[mid] < src) lo = mid + 1;
+      else hi = mid;
+    }
+    return s.from + Math.min(lo, f.length - 1);
+  }
+  return undefined;
+}
+
+/**
+ * The environment line of a review (report.md, the CLI): from the run's timeline (the display URLs: those the edit
+ * used, `plan.display`); undefined for runs before L1.7.
+ */
+export function reviewEnvironment(timeline: Timeline | undefined, plan?: Pick<EditPlan, 'display'>): ReviewEnvironment | undefined {
+  const env = timeline?.environment;
+  if (!env) return undefined;
+  const writes = { blocked: 0, mocked: 0, allowed: 0, passed: 0 };
+  for (const w of env.writes ?? []) if (w.outcome !== 'exempt') writes[w.outcome]++;
+  const out: ReviewEnvironment = { name: env.name, access: env.access, writes };
+  if (env.production) out.production = true;
+  if (env.allow_writes) out.allow_writes = true;
+  if (env.clock) out.clock = { at: env.clock.at, ...(env.clock.timezone ? { timezone: env.clock.timezone } : {}), ...(env.clock.freeze ? { freeze: true as const } : {}) };
+  const display = (plan?.display ?? env.display ?? []).flatMap((d) => (d.display !== undefined ? [d.display] : []));
+  if (display.length) out.display = display;
+  return out;
+}
+
+/** "production · production · read-only · 1 write mocked · clock 2026-11-02T10:24:00" (report.md, the CLI). */
+export function environmentLine(e: ReviewEnvironment): string {
+  const parts = [e.name];
+  if (e.production) parts.push('production');
+  parts.push(e.access === 'read-only' ? 'read-only' : e.allow_writes ? 'read-write (--allow-writes)' : 'read-write');
+  if (e.access !== 'read-only' && e.writes.blocked) parts.push(`${e.writes.blocked} stopped (hosts of read-only environments)`);
+  if (e.access === 'read-only') {
+    const w = e.writes;
+    const said = [
+      w.mocked ? `${w.mocked} write${w.mocked > 1 ? 's' : ''} mocked` : '',
+      w.blocked ? `${w.blocked} stopped` : '',
+      w.allowed ? `${w.allowed} allowed` : '',
+      w.passed ? `${w.passed} to unguarded hosts` : '',
+    ].filter(Boolean);
+    parts.push(said.length ? said.join(', ') : 'no write');
+  }
+  if (e.clock) parts.push(`clock ${e.clock.at}${e.clock.timezone ? ` ${e.clock.timezone}` : ''}${e.clock.freeze ? ' (frozen)' : ''}`);
+  return parts.join(' · ');
+}
+
+/**
+ * The environment of the run (L1.7, R-ENV-01/04):
+ *  - `write-blocked` (warning): a write the read-only guard stopped (the app saw a network error: an error state may be
+ *    on screen) — one per method and path, at the output frame of its first one when the video shows that moment;
+ *  - `url-hidden` (warning): a clip whose layout draws the page URL (browser bar, window bars, tab strip) while its page
+ *    is at a local URL without a display URL — the bar shows no address there;
+ *  - `local-url-text` (warning): a caption, card, overlay, page label, intro or outro text naming a local URL (it is
+ *    burnt into the video): `{{page}}` with a display URL in project.yaml writes the public one. Named by its path
+ *    only: a report never names a local host.
+ * URLs are named through the display table the edit used (`plan.display`), else the one the run recorded.
+ */
+export function checkEnvironment(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const table = ctx.plan.display ?? ctx.timeline?.environment?.display ?? [];
+  const seen = new Map<string, { first: TimelineWrite; count: number }>();
+  for (const w of ctx.timeline?.environment?.writes ?? []) {
+    if (w.outcome !== 'blocked') continue;
+    let path = w.url;
+    try {
+      const u = new URL(w.url);
+      path = `${u.origin}${u.pathname}`;
+    } catch {
+      /* keep the URL */
+    }
+    const key = `${w.method} ${path}`;
+    const s = seen.get(key);
+    if (s) s.count++;
+    else seen.set(key, { first: w, count: 1 });
+  }
+  for (const { first: w, count } of seen.values()) {
+    const url = shownUrl(w.url.replace(/[?#].*$/, ''), table);
+    const frame = w.t !== undefined ? outputFrameAtCapture(ctx, w.t) : undefined;
+    const when = w.t === undefined ? ' before the capture started' : frame === undefined ? ` at capture ${fmtS(w.t)} (not in the video)` : '';
+    out.push(
+      finding(
+        'warning',
+        'write-blocked',
+        `a write was stopped${when}: ${w.method} ${url}${w.operation ? ` (${w.operation})` : ''}${count > 1 ? ` ×${count}` : ''}${w.via === 'hook' ? ' from a js hook' : w.via === 'sign-in' ? ' from the automated sign-in' : ''} — ` +
+          (w.protected_by
+            ? `a host of read-only environment ${w.protected_by}: the app saw a network error and may show it (README: Environments)`
+            : 'the app saw a network error and may show it; add a mock (README: Environments)'),
+        frame !== undefined ? locate(ctx, frame) : undefined,
+      ),
+    );
+  }
+  for (const s of ctx.plan.segments) {
+    if (!isClip(s)) continue;
+    const lists: Array<{ urls: typeof s.urls; label: string }> = s.panes
+      ? s.panes.flatMap((p, i) => (drawsUrl(s, i) ? [{ urls: p.urls, label: `${s.id} (${p.label ?? p.page})` }] : []))
+      : drawsUrl(s)
+        ? [{ urls: s.urls, label: s.id }]
+        : [];
+    for (const { urls, label } of lists) {
+      const hidden = urls.find((u) => u.hidden);
+      if (!hidden) continue;
+      out.push(
+        finding(
+          'warning',
+          'url-hidden',
+          `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in project.yaml environments and render again (README: Environments)`,
+          locate(ctx, s.from + Math.max(0, Math.min(hidden.frame, s.durationInFrames - 1))),
+        ),
+      );
+    }
+  }
+  const text = (value: string | undefined, where: string, frame: number) => {
+    if (!value) return;
+    const found = findLocalUrls(value);
+    if (found.length === 0) return;
+    out.push(
+      finding(
+        'warning',
+        'local-url-text',
+        `${where} shows a local URL (${[...new Set(found.map(pathOf))].join(', ')}): it is burnt into the video — write {{page}} and give that page a display URL in project.yaml, or write the public address`,
+        locate(ctx, frame),
+      ),
+    );
+  };
+  const slots = (c: ResolvedComponent, where: string, frame: number) => {
+    for (const [name, v] of Object.entries(c.slots)) text(v, `${where} ("${name}")`, frame);
+  };
+  for (const s of ctx.plan.segments) {
+    if (isClip(s)) {
+      const seen = new Set<string>();
+      for (const cue of s.cues) {
+        const key = `${cue.kicker ?? ''}|${cue.text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        text(cue.kicker, `caption kicker of ${s.id}`, s.from + cue.from);
+        text(cue.text, `caption of ${s.id}`, s.from + cue.from);
+      }
+      for (const o of s.overlays) slots(o.component, `overlay of ${s.id}`, s.from + o.from);
+      for (const p of s.panes ?? []) text(p.label, `page label of ${s.id}`, s.from);
+    } else {
+      slots(s.component, `${s.kind} ${s.id}`, s.from);
+    }
   }
   return out;
 }

@@ -50,7 +50,15 @@ describe('JSON Schemas', () => {
   it('project, template and timeline schemas', () => {
     const p = projectJsonSchema() as Json;
     expect(p.required).toEqual(['name']);
-    expect(p.properties.environments.additionalProperties.additionalProperties).toMatchObject({ type: 'string', format: 'uri' });
+    // L1.7: an environment is the long form {production, access, pages, read_only} or the page map (short form);
+    // a page is a URL or {url, display}.
+    expect(p.properties.environments.additionalProperties).toEqual({ $ref: '#/$defs/Environment' });
+    const [long, short] = p.$defs.Environment.anyOf;
+    expect(long.required).toEqual(['pages']);
+    expect(Object.keys(long.properties)).toEqual(['production', 'access', 'pages', 'read_only']);
+    expect(short.additionalProperties.anyOf[0]).toMatchObject({ type: 'string', format: 'uri' });
+    expect(short.additionalProperties.anyOf[1].required).toEqual(['url']);
+    expect(Object.keys(p.properties.clock.anyOf[1].properties)).toEqual(['at', 'freeze']);
     const t = templateJsonSchema() as Json;
     expect(t.required).toBeUndefined();
     expect(Object.keys(t.properties)).toEqual(expect.arrayContaining(Object.keys(DEFAULT_TEMPLATE).filter((k) => k !== 'name')));

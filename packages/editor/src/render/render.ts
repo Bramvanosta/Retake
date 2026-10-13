@@ -23,7 +23,7 @@ import { renderBrowser } from './browser.js';
 import type { RenderBrowser } from './browser.js';
 import { bundleComponentsFor, ensureBundle } from './bundle.js';
 import type { RenderBundle } from './bundle.js';
-import { findRun, rendersDir, reserveVersion, runScenario } from './runs.js';
+import { findRun, rendersDir, reserveVersion, runEnv, runScenario } from './runs.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import type { RenderProgress, RenderRecord } from './types.js';
@@ -394,7 +394,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
   }
   const files = await planInputFiles(timeline, project, template);
-  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, overrides, musicDuration_s, files });
+  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, env: await runEnv(run.dir), overrides, musicDuration_s, files });
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
 

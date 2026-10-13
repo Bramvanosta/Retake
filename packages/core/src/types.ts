@@ -947,6 +947,11 @@ export interface HookCommon {
   destructive?: boolean;
   /** Continue even if this hook fails. */
   optional?: boolean;
+  /**
+   * Shell hooks only: `false` declares that the command only reads, so it may run on a read-only environment (L1.7).
+   * http and sql hooks are classified from their request / SQL; js hooks are guarded in their tab.
+   */
+  writes?: boolean;
 }
 
 /** `sql: "hooks/x.sql"` (path when it ends with .sql, inline query otherwise); `shell: "cmd"`; `js: "code"`. */
@@ -982,6 +987,10 @@ export interface Scenario {
   music?: MusicSpec;
   /** Automatic tutorial overlays fed by the timeline (shortcuts, spotlight, numbered steps, loupe, progress bar). */
   tutorial?: TutorialSwitch;
+  /** The product's clock at capture time 0 (L1.7; wins over the project's); `false` turns the project's clock off. */
+  clock?: ClockSpec | false;
+  /** Answers to writes stopped on read-only runs (L1.7), tried before the environment's `read_only.mocks`. */
+  mocks?: WriteMockSpec[];
   scenes: SceneEntry[];
 }
 
@@ -1177,6 +1186,94 @@ export interface DatabaseConfig {
   url: string;
 }
 
+// ── Environments: display URLs, production and read-only access, clock (L1.7) ─────────────────────────────
+
+/**
+ * Access of an environment. `read-only`: hooks that write are refused and the browser's writes to the environment's
+ * hosts are stopped (or answered by a mock); `read-write`: nothing is stopped.
+ */
+export const ENVIRONMENT_ACCESS = ['read-only', 'read-write'] as const;
+export type EnvironmentAccess = (typeof ENVIRONMENT_ACCESS)[number];
+
+/** A page of an environment as written in project.yaml: its base URL, or `{url, display}` (the URL the video shows). */
+export type EnvironmentPageSpec = string | { url: string; display?: string };
+
+/**
+ * A write the read-only guard lets through: `"[METHOD ]<page>:/path"` (against that page's base URL) or
+ * `"[METHOD ]/path"` (any guarded host); `*` matches within one path segment, `**` anything; the query is ignored.
+ * `operation` narrows it to one GraphQL operation name.
+ */
+export type WriteRuleSpec = string | { request: string; operation?: string };
+
+/** The answer to a write stopped on a read-only run (scenario `mocks:`, environment `read_only.mocks`). Literal. */
+export interface WriteMockSpec {
+  /** Same pattern as an allow entry: `"[METHOD ]<page>:/path"` or `"[METHOD ]/path"`. */
+  request: string;
+  /** GraphQL operation name. */
+  operation?: string;
+  /** 200–599, default 200. */
+  status?: number;
+  /** JSON body (content type application/json). Exactly one of `json` / `body` at most. */
+  json?: unknown;
+  /** Raw body (content type text/plain unless `content_type`). */
+  body?: string;
+  content_type?: string;
+  headers?: Record<string, string>;
+  /** Wait before answering (0–10 000 ms). */
+  delay_ms?: number;
+}
+
+/** `read_only:` of an environment: used only when a run on it is read-only. */
+export interface ReadOnlySettings {
+  /** More hosts whose writes are stopped (allow_hosts syntax, `*.example.com`; `"*"` = every host). The pages' hosts always are. */
+  hosts?: string[];
+  /** Writes let through (a token refresh, a search sent as POST…). */
+  allow?: WriteRuleSpec[];
+  /** Answers to stopped writes, for every scenario on this environment (a scenario's own `mocks` come first). */
+  mocks?: WriteMockSpec[];
+}
+
+/** The long form of an environment in project.yaml (the short form is the page map itself). */
+export interface EnvironmentSpec {
+  /** A production environment: read-only unless `access: read-write`, and then only with `--allow-writes`. */
+  production?: boolean;
+  /** Default: read-only in production, else read-write. */
+  access?: EnvironmentAccess;
+  pages: Record<string, EnvironmentPageSpec>;
+  read_only?: ReadOnlySettings;
+}
+
+/**
+ * What project.yaml says about an environment besides its page URLs (`ProjectConfig.environment_settings`, derived
+ * by loadProject; only environments that say something are listed).
+ */
+export interface EnvironmentSettings {
+  production?: boolean;
+  /** As written (absent: read-only in production, else read-write — core environmentAccess). */
+  access?: EnvironmentAccess;
+  /** Page key → display base, normalised (`https://host[:port][/path]`, no trailing slash). */
+  display?: Record<string, string>;
+  read_only?: ReadOnlySettings;
+}
+
+/**
+ * `clock:` of a project or scenario: the date and time the product's browser clock reads when the capture starts
+ * (ISO 8601; without an offset, wall time in the browser's time zone), or `{at, freeze}` (`freeze: true`: it never
+ * moves).
+ */
+export type ClockSpec = string | { at: string; freeze?: boolean };
+
+/** The clock of a run (core resolveClock). */
+export interface ResolvedClock {
+  /** As written. */
+  at: string;
+  /** The instant it names (epoch ms). */
+  epoch_ms: number;
+  /** The IANA zone a time without an offset was read in (`browser.timezone`, else the machine's); absent: an explicit offset. */
+  timezone?: string;
+  freeze?: true;
+}
+
 export interface BrowserConfig {
   executable?: string;
   /** 'chromium' = new headless (default); 'headless-shell' = old headless shell. */
@@ -1211,8 +1308,15 @@ export interface MailboxConfig {
 
 export interface ProjectConfig {
   name: string;
-  /** env name → page key → base URL. */
+  /**
+   * env name → page key → real base URL: both forms of project.yaml reduced to their page URLs (the long form's
+   * `pages`, `{url, display}` → its url). Display URLs, production and access live in `environment_settings`.
+   */
   environments: Record<string, Record<string, string>>;
+  /** Derived by loadProject from the environments (never written in project.yaml): only those that say something (L1.7). */
+  environment_settings?: Record<string, EnvironmentSettings>;
+  /** The product's clock at capture time 0 for every scenario (a scenario's `clock` wins; L1.7). */
+  clock?: ClockSpec;
   default_env?: string;
   /** Global auth, or per environment name. */
   auth?: AuthConfig | Record<string, AuthConfig>;
@@ -1726,7 +1830,52 @@ export interface Timeline {
    * clock. Absent when every scene films one page (`capture` holds everything).
    */
   tracks?: TimelineTrack[];
+  /** The environment the run filmed (L1.7; absent in older runs): access, display URLs, clock, writes stopped. */
+  environment?: TimelineEnvironment;
   warnings: string[];
+}
+
+/**
+ * The environment of a run (L1.7). URLs elsewhere in the timeline stay the real ones; `display` maps them to what the
+ * video shows.
+ */
+export interface TimelineEnvironment {
+  name: string;
+  production?: true;
+  /** The run's effective access. */
+  access: EnvironmentAccess;
+  /** The run was allowed to write to production (`--allow-writes` where project.yaml sets `access: read-write`). */
+  allow_writes?: true;
+  /** The display base of each page that declares one: `url` is its real base URL. */
+  display?: Array<{ page: string; url: string; display: string }>;
+  /** The product's clock (`clock:` of the scenario or the project). */
+  clock?: ResolvedClock;
+  /** Writes the read-only guard stopped, answered or let through, and writes that went to hosts it does not guard. */
+  writes?: TimelineWrite[];
+}
+
+/** A write request seen on a read-only run (L1.7). */
+export interface TimelineWrite {
+  /** Capture time; absent before capture time 0 (session preflight, setup hooks). */
+  t?: number;
+  method: string;
+  /** The real URL (query included). */
+  url: string;
+  /** GraphQL operation name, when the request is GraphQL. */
+  operation?: string;
+  /**
+   * blocked: stopped (the app saw a network error); mocked: answered by a mock; allowed: an allow entry let it through;
+   * passed: not a guarded host; exempt: the automated sign-in's own write, sent from its sign-in page (never counted).
+   */
+  outcome: 'blocked' | 'mocked' | 'allowed' | 'passed' | 'exempt';
+  /** The allow / mock entry that matched. */
+  rule?: string;
+  /** Status of the mock's answer. */
+  status?: number;
+  /** Who sent it: a capture page, a js hook tab, the automated sign-in tab. */
+  via?: 'page' | 'hook' | 'sign-in';
+  /** The other, read-only environment whose host it went to (guarded in every run, L1.7). */
+  protected_by?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1757,7 +1906,13 @@ export interface RunRecord {
   /** Absolute run directory. */
   dir: string;
   env: string;
-  options: { until?: string; hooks: 'run' | 'skip'; headed: boolean; cursor?: 'hidden' };
+  /** `allow_writes`: `--allow-writes` was given and accepted (production with `access: read-write`). */
+  options: { until?: string; hooks: 'run' | 'skip'; headed: boolean; cursor?: 'hidden'; allow_writes?: true };
+  /**
+   * The environment's safety (L1.7): production, the run's effective access, the product's clock (as written, the zone
+   * a time without an offset is read in, frozen or not).
+   */
+  environment?: { production?: true; access: EnvironmentAccess; clock?: { at: string; timezone?: string; freeze?: true } };
   steps_total: number;
   steps_done: number;
   current?: { scene: string; step: number; action: string };
@@ -1898,6 +2053,13 @@ export interface LoadedScenario {
 
 export interface ResolvedEnvironment {
   name: string;
-  /** page key → base URL */
+  /** page key → real base URL (what the runner and the hooks use). */
   pages: Record<string, string>;
+  /** page key → display base (L1.7), for the pages that declare one. */
+  display?: Record<string, string>;
+  /** Absent: false. */
+  production?: boolean;
+  /** As written in project.yaml; absent: read-only in production, else read-write (core environmentAccess). */
+  access?: EnvironmentAccess;
+  read_only?: ReadOnlySettings;
 }

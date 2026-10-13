@@ -6,11 +6,14 @@ export class HookError extends Error {
   }
 }
 
-/** A hook was refused before anything ran: host outside the allow-list, or unconfirmed destructive hook. */
+/**
+ * A hook was refused before anything ran: host outside the allow-list, unconfirmed destructive hook, or a hook that
+ * writes on a read-only run (L1.7).
+ */
 export class HookSecurityError extends Error {
   constructor(
     message: string,
-    public readonly reason: 'host' | 'destructive',
+    public readonly reason: 'host' | 'destructive' | 'read-only',
   ) {
     super(message);
     this.name = 'HookSecurityError';

@@ -69,21 +69,76 @@ resolveStepRef(s: Scenario, ref: string): { sceneIndex: number; stepIndex: numbe
 //   accepts "sceneId.stepId", "sceneId.3", "stepId" (unique), "sceneId" (= last step of scene)
 
 // environments & templating
-resolveEnvironment(project: LoadedProject, env?: string): { name: string; pages: Record<string, string> }
+resolveEnvironment(project: LoadedProject, env?: string): ResolvedEnvironment
+//   { name, pages /* real base URLs */, display?, production?, access?, read_only? } (L1.7: settings of the long form)
 interpolate(text: string, ctx: TemplateContext): string
 //   {{admin}} → environment page URL; {{vars.x}} / {{x}}; {{env:VAR}}; {{keychain:service/account}};
 //   {{hooks.name.json.id}}; {{run.id}}; unknown keys throw TemplateError listing the available keys
 //   TemplateContext = { pages, vars, hooks?, run?, secrets?: SecretResolver, usedSecrets? }
 resolveSecretRef(ref: string): Promise<string>   // env:VAR | keychain:service/account (macOS `security`, Linux `secret-tool`)
 interpolateDeep<T>(value: T, ctx): T             // recursively over strings in objects/arrays
-interpolateAt<T>(value, ctx, path, skip?): T     // same, skipping nodes; a TemplateError names the path ("scenes[2].steps[3].type.text: …")
+interpolateAt<T>(value, ctx, path, skip?, ctxAt?): T  // same, skipping nodes; a TemplateError names the path ("scenes[2].steps[3].type.text: …");
+                                                 // ctxAt(path) picks the context of each string (L1.7: edit text vs steps)
 secretForms(value): string[]                     // raw, URL-encoded (component, `+` for spaces, URI), JSON-, HTML-escaped; [] under 3 chars
 // scenario templating (R-RUN-16, L1.2; scenario-template.ts)
-templateSceneEntry<T extends SceneEntry>(entry, index, ctx): T   // every string except `note`s, `eval` and the literal names
-templateVideo(video: TimelineVideo, ctx): TimelineVideo          // title, intro, outro, tutorial
+templateSceneEntry<T extends SceneEntry>(entry, index, ctx, editCtx?): T   // every string except `note`s, `eval` and the
+                                                 // literal names; editCtx (L1.7) for isEditTextPath strings: the runner
+                                                 // passes {...ctx, pages: displayPages(env)} — {{shop}} in a caption, card,
+                                                 // overlay or label = the display URL, in a step / `open` = the real one
+templateVideo(video: TimelineVideo, ctx): TimelineVideo          // title, intro, outro, tutorial (the runner passes the edit context)
 isLiteralPath(rel, value) / isEditTextPath(rel)  // paths relative to a scene entry: an `emit` / `screenshot` name (a token
                                                  // there is a validation error) / text the video shows (no secret refs there)
 resolvePageUrl(base: string, pathOrUrl: string): string
+
+// environments: forms, access, display URLs, writes, clock (L1.7; env.ts, access.ts, display.ts, writes.ts, clock.ts,
+// hook-writes.ts — pure helpers)
+// project.yaml `environments.<env>` is the page map (short form: page → URL or {url, display}) or the long form
+// {production?, access?, pages, read_only?: {hosts?, allow?, mocks?}} (a keyed union on `pages`). loadProject normalises
+// it: ProjectConfig.environments keeps page → real URL (every consumer unchanged), ProjectConfig.environment_settings
+// (derived, never written) the display URLs (normalised https://host[:port][/path]), production, access, read_only.
+rawEnvironmentPages(value) / rawEnvironments(value)      // both forms of a raw project.yaml value (checks)
+environmentAccess(env): 'read-only' | 'read-write'       // access ?? (production ? read-only : read-write)
+resolveRunAccess(env, { allowWrites?, project? }): RunAccess   // { env, production, configured, mode, allow_writes, notice?,
+//   warning?, protected?, writable? }
+//   not production: as configured (--allow-writes a no-op where read-write); production read-only (default): read-only;
+//   production + access: read-write: read-only with a notice, read-write with --allow-writes (a warning);
+//   --allow-writes on a read-only environment throws AccessError (CLI: usage error, exit 2)
+runAccess(env, allowWrites, project?)                    // same, never throws (journal replays, per entry)
+crossEnvironmentHosts(project, runEnv, allowWrites) → { protected: ProtectedHost[], writable: string[] }
+//   the pages' hosts + read_only.hosts of every other environment the run would be read-only on (production, access:
+//   read-only; production + access: read-write unless --allow-writes), minus the page hosts of the environments it
+//   may write to (`writable`, its own included; ports aside). Empty for projects without such environments.
+protectedBy(host, access) → ProtectedHost | null; protectedHostMessage(reason, hit, access, host?)   // hooks' refusal
+readOnlyHookMessage(reason, access)                      // the refusal of a writing hook
+displayRows(env) → [{page, url, display?}] (every page); displayTable(env) → the rows with a display (what a run records)
+displayUrl(url, table)   // http(s) only (blob:/filesystem: map the URL they wrap): the longest real base prefix of any
+//   row → its display base + rest (a row without display: unchanged); a URL no row claims, on the origin of rows with a
+//   display → that origin's display host ("/" page first); else unchanged. normalizeDisplay / displayError (validation:
+//   a local host, an invalid URL or port refused)
+editDisplayTable(recorded, current) → the edit's table: project.yaml's current rows of the run's environment, then the
+//   recorded rows whose real base it no longer declares (display URLs are edit-time data: planner, raw export)
+displayPages(env) → {page: display base | real URL}     // the `pages` of the edit-text template context
+isLocalHost(host) / isLocalUrl(url) / findLocalUrls(text)   // localhost, dotless names, *.localhost/.local/.test/.internal/
+//   .lan/.home.arpa/…, loopback, private, link-local, 100.64/10, ::1, fc00::/7, fe80::/10, IPv4-mapped; file: URLs
+shownUrl(url, table) / shownText(text, table)            // the display URL, else (local) its path: never a local host
+isWriteMethod(m); graphqlOf(body) / graphqlReadsOnly / graphqlWriteName / graphqlWriteOperations  // minimal GraphQL: a
+//   JSON object whose keys are query / operationName / variables / extensions and whose query is a document, or a batch
+parseRequestPattern(s) / requestPatternError(s) / matchRequestPattern(p, method, url, pages)
+//   "[METHOD ]<page>:/path" (relative to that page's real base) | "[METHOD ]/path" (any guarded host); * = one segment
+//   part, ** = anything, trailing slash optional, query ignored; GET/HEAD/OPTIONS refused (never stopped)
+compileWritePolicy(env, { scenarioMocks?, access? }): WritePolicy   // read-only run: own guarded hosts (production: "*";
+//   else pages' hosts + read_only.hosts, "*" = all), allow entries, mocks (scenario's first, then the environment's);
+//   any run: access.protected / writable; a read-write run: protected hosts only (no allow, no mock). guardsWrites(p)
+classifyRequest({method, url, body?}, policy): WriteDecision   // { write: false } | { write: true, outcome: blocked |
+//   mocked | allowed | passed (unguarded host, read-only runs only), rule?, mock?, operation?, protectedBy? } — for
+//   the browser write guard (runner). An entry with `operation` covers a body only when every write operation is it.
+hostPatternError(entry) / hostMatches(host, pattern)     // read_only.hosts validation (host[:port], *.host, "*", URL; IDN → punycode)
+resolveClock(scenarioClock, projectClock, { timezone? }): ResolvedClock | undefined   // { at, epoch_ms, timezone?, freeze? }
+//   ISO date-time; without an offset: wall time in browser.timezone, else the machine's zone (recorded as `timezone`);
+//   a date alone, offset minutes > 59, a year before 1970, an unknown zone, or a wall time the zone skips or shows twice
+//   (DST: the message gives the offset to write) → ClockError. Scenario `clock: false` turns the project's off.
+sqlWriteStatement(sql) / httpWriteReason(req) / hookWriteReason(hook, { projectDir?, rollback? }) /
+rollbackWriteReason(action) / writingHooks({ setup, teardown }, opts)   // which hooks write (§2)
 
 // host allow-list (hosts.ts, shell-hosts.ts; R-SEC-06, L1.2)
 allowedHosts(project) / isHostAllowed(host, project)    // localhost, every environment host, allow_hosts ("*.x" = subdomains)
@@ -122,6 +177,14 @@ shell with `rm `/`dropdb`) require `confirm: true`; a shell hook naming a host o
 text (`shellHostRefs` without variables; `$VAR`, `$(…)` and `{{…}}` parts skipped) is an error on `run`, `rollback`
 or `env.<KEY>` when the project is known; `--until` refs must resolve; interstitial has text;
 a scene without `open` that is the first scene of a page is a warning ("starts on whatever is loaded").
+L1.7: an environment's settings (`production`, `access`, `read_only`) written in the short form get one targeted error
+("settings go with the long form") instead of the page-value error — a page key named like a setting with a URL stays a
+page; `display` must be a host or an http(s) base URL without query, fragment or `{{…}}`; allow / mock patterns are
+parsed (a GET pattern is an error), their page keys exist in their environment; a mock has at most one of `json` /
+`body` and no `{{…}}` (mocks are literal); `read_only` on an environment that is never read-only is a warning; `clock`
+must be a date and a time; `writes` is for shell hooks only; on a scenario whose environment is read-only (or
+production), each hook a read-only run would refuse is a warning (`--hooks skip` / `--allow-writes` make the run
+valid), and `mocks` on a read-write environment are a warning (ignored, the writes really happen).
 
 ## 2. @demo-studio/hooks
 
@@ -146,7 +209,10 @@ isDestructive(hook: HookStep): boolean
 describeHook(hook: HookStep): string
 
 HookContext = {
-  project: LoadedProject; env: { name; pages }; vars; runId?; dryRun?: boolean;
+  project: LoadedProject; env: ResolvedEnvironment; vars; runId?; dryRun?: boolean;
+  access?: HookAccess;                // L1.7: { env, mode, production?, configured?, protected?, writable? }; read-only
+                                      // refuses writing hooks; any run refuses a write to a protected host
+  accessOf?: (env: string) => HookAccess | undefined;  // journal replays: each entry's own environment
   log: (level, msg) => void;
   evalInPage?: (pageKey: string | undefined, code: string) => Promise<unknown>; // provided by the runner for js hooks:
                                       // runner-web evalHookInPage (the guarded hook tab); throws core HostRefusedError
@@ -204,7 +270,23 @@ HookContext = {
     tools the scanner does not know (socat, ncat, ftp…); in the hook tab, worker WebSockets, service / shared workers,
     WebTransport / WebRTC, preconnects, redirect hops inside cross-site frames, a link popup's first request.
   Destructive hooks without `confirm: true` are refused at run time too (defence in depth; core validation already
-  flags them). Every hook execution is logged with its description (secrets redacted: values resolved from secret
+  flags them).
+- **Read-only runs** (L1.7, R-ENV-04): with `ctx.access.mode === 'read-only'`, a hook that writes is refused after it
+  is prepared (templated), before anything runs and before any destructive prompt (`HookSecurityError` reason
+  `read-only`, status `refused`, never tolerated by `optional`; dry runs report it). `PreparedHook.writes` judges the
+  content that would run: http — every method but GET / HEAD, unless the body is a GraphQL document of queries only;
+  sql — core `sqlWriteStatement` on the templated SQL (reads: SELECT without INTO / FOR UPDATE / nextval / dblink, WITH
+  without a data-modifying part, TABLE, VALUES, SHOW, EXPLAIN of a read, SET / RESET of anything but the transaction
+  mode or the role; a quoted identifier is judged by its name — maskSql `identifiers`); shell — always, unless the hook
+  declares `writes: false` (a destructive command still writes); js — never
+  statically (the runner's hook tab guards its requests); a setup hook's rollback counts with its hook (an http
+  rollback by its method, a sql rollback by its statements, a shell or js rollback always). SQL of a read-only run runs
+  in `BEGIN READ ONLY` (a function that writes fails in Postgres). A journal replay (`rollbackOne`) checks the
+  rollback against the access of the entry's own environment (`ctx.accessOf(entry.env)`, else `ctx.access`): a refused
+  replay stays pending (no attempt counted). The runner refuses a read-only run with writing setup / teardown hooks
+  (core `writingHooks`) before any browser opens, secret is read or hook runs. **Any run** (`ctx.access.protected`,
+  core `crossEnvironmentHosts`): a hook that writes to a host of another, read-only environment (`PreparedHook.hosts`;
+  an http hook's every writing hop) is refused the same way (`protectedHostMessage`). Every hook execution is logged with its description (secrets redacted: values resolved from secret
   refs never appear in logs or journals).
 
 ## 3. @demo-studio/runner-web
@@ -514,6 +596,13 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 `run.json` (RunRecord, updated live), `capture.mp4`, `frames/` + `frames.jsonl`, `timeline.json`,
 `log.jsonl` (every RunProgress event), `screenshots/`, `hooks-journal.json`, `scenario.yaml` (snapshot, tokens as
 written). Secret values appear as `***` in run.json, log.jsonl, timeline.json (except `artefacts`) and error-*.html.
+L1.7: `run.json` `environment: {production?, access, clock?: {at, timezone?, freeze?}}` (+ `options.allow_writes`) and `timeline.json`
+`environment: {name, production?, access, allow_writes?, display?: [{page, url, display}], clock?: {at, epoch_ms,
+timezone?, freeze?}, writes?: [{t?, method, url, operation?, outcome, rule?, status?, via?}]}` — the run's effective
+access, the display table (URLs elsewhere stay real), the clock and the writes the read-only guard saw. The secrets
+policy keeps names, enums, display bases and the clock; real URLs and matched patterns are redacted like any URL. A
+read-only run refuses its writing hooks first (before secrets, sessions and the browser); `--allow-writes` on a
+read-only environment and an unusable clock throw before the run folder is made.
 
 ### 3.6 Sessions & personas (L1.6; core `auth.ts`, runner `auth.ts`)
 - **Model.** `auth` (global, or keyed by environment) names personas: `{pages?, session?: profile | storage_state,
@@ -635,16 +724,100 @@ written). Secret values appear as `***` in run.json, log.jsonl, timeline.json (e
   hooks (not abortable), closes their browsers then exits; the command exits 130; a second signal removes the copies
   synchronously (`removeSessionCopiesSync`) and exits. `BrowserSession.close()` called twice waits for the first.
 
+### 3.7 Read-only guard and product clock (L1.7; runner `write-guard.ts`, `session.ts`, `hook-page.ts`, `product-clock.ts`)
+- **Arming.** A run whose policy guards writes (`guardsWrites`: read-only, or hosts of other read-only environments to
+  protect — see Policy) opens its `BrowserSession` with `writes: {policy, onWrite, onWebSocket}`: `launchRealm` arms
+  every realm (also one launched later) after the kit and the storage state, before any page loads — the preflight's
+  check page included — with `armWriteGuard(context, o, session.pageRole)`: an init script (`unloadGuardScript` over
+  `guardedHostPatterns(policy)`, with `UNGUARDED_APIS_SCRIPT`), `context.route('**/*')`, and a `websocket` listener per
+  page. `SessionOptions.writes` absent (read-write runs with nothing to protect): nothing is armed or changed.
+- **Policy.** core `compileWritePolicy(env, {scenarioMocks, access})` with `access = resolveRunAccess(env, {allowWrites,
+  project})`: a production environment guards every host (`"*"`, fail closed); another read-only one its pages' hosts +
+  `read_only.hosts` (validated: `hostPatternError`, IDN in punycode); every run also guards `access.protected` (core
+  `crossEnvironmentHosts`: the hosts of the project's other read-only environments, minus the page hosts of those it
+  may write to). `guardsWrites(policy)` (read-only, or something protected) arms the session: a read-write run of a
+  project whose read-only environments share its hosts (the fixture) arms nothing. A read-write policy has no allow
+  entries nor mocks, and `classifyRequest` ignores (`write: false`) its writes to unprotected hosts.
+- **Decision** (per request, at request time): GET / HEAD / OPTIONS → `fallback()` at once; `frame().page()` resolved
+  (a throw — a popup's first request, a form posted into a new window, a service worker's fetch — counts as a capture
+  page: fail closed) and its role asked (`session.pageRole`): `hook` (a js hook tab, `markOwnGuard` before it loads) →
+  `fallback()` (its own guard decides); then core `classifyRequest({method, url, body: postData()}, policy)`: not a
+  write → fallback; `sign-in` (the automated login tab — `LoginDeps.signInTab` → `markSignIn(page, onSignInPage)`
+  before its first navigation — while its main frame URL matches the persona's sign-in patterns, every URL when it
+  declares none, and never once autoLogin's steps are over) → recorded `exempt` `via: sign-in`, fallback; `signed-in`
+  (that tab elsewhere: the page the sign-in lands on) → decided like a capture page's, recorded `via: sign-in`;
+  `passed` (unguarded host) / `allowed` → recorded, fallback; `mocked` →
+  `delay_ms`, `route.fulfill({status, headers, contentType, body})` (no body for 204 / 205 / 304; Playwright adds CORS
+  headers); `blocked` → a navigation request (any frame) is fulfilled `204` (the frame stays; `watchNavigation` drops a
+  main-frame navigation answered 204 / 205 or aborted — `ERR_ABORTED` — at once instead of waiting 15 s for a commit),
+  anything else `route.abort('blockedbyclient')`.
+- **Unload.** Writes sent while a document unloads escape a plain route: a page closed directly sends its pagehide
+  beacons / keepalive fetches with the interception gone, and a keepalive request paused during a navigation can be
+  released when the browser closes. Two measures, both needed (measured: either alone leaks): the init script turns
+  a `keepalive` write fetch and a `sendBeacon` to a guarded host into an ordinary `fetch` (it dies with its document
+  unless the guard lets it through), and pages of a guarded context close through `about:blank` — `closePage(page)`
+  (switch_page `close_current`, a download's tabs, the check and sign-in tabs) and `unloadPages(context)` before
+  `BrowserSession.close()` — then wait (60–300 ms) until the route handlers in flight have decided.
+- **Unguarded APIs.** `fetchLater` (a deferred fetch the browser sends after the page is gone or on its timer — it
+  bypassed the route: sent on the next navigation, `closePage`, `session.close()` or `activateAfter`) and
+  `SharedWorker` (Playwright detaches from shared-worker targets: their requests reach no route, nor a hook tab's CDP
+  Fetch) are deleted from every frame's global by the guard's init script (`UNGUARDED_APIS_SCRIPT`, measured: deleting
+  works in frames and popups) and by the js hook tab's own init script on every run. Apps feature-detect both.
+- **Service workers.** `enableServiceWorkerRequests()` sets `PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1` before
+  the first read-only launch (read by playwright-core when a service-worker target attaches; process-wide, harmless for
+  read-write runs: no route there): a service worker's own requests — answering a page, or in the background — reach
+  the context route (`frame()` throws for them: guarded). The sign-in tab bypasses service workers
+  (`bypassServiceWorkers`: `Network.setBypassServiceWorker` on a CDP session of the tab, as hook tabs do), so a worker
+  that forwards its sign-in POST does not turn it into a page-less, stopped request.
+- **Recording.** `onWrite` (run.ts `readOnlyGuard`) appends a `TimelineWrite` to `timeline.environment.writes` (`t`
+  from capture time 0 on; `protected_by` for a protected host), warns once per stopped `METHOD page:/path`
+  (`describeWriteRequest`, never the query; a protected host's names its environment) and once per unguarded host a
+  write `passed` to, logs mocked / allowed writes (info) and the sign-in's exempt ones (debug); a WebSocket to a
+  guarded host warns once per host (not inspected). Summary and review count every outcome but `exempt`.
+- **js hook tabs** (`HookPageOptions.writes`): the tab's CDP Fetch handler and its `page.route` backup classify after
+  the host allow-list; a write to a guarded host that no allow entry lets through is failed (`BlockedByClient`) —
+  mocked ones too: a hook is never fooled — and reported `via: hook` once per load / run (its URL without the query:
+  a hook's secrets are not the run's, the timeline could not mask them). `run()`: the hook threw after
+  a stopped write → core `WriteRefusedError` (`protectedBy` on a read-write run; hooks `kinds/js.ts` →
+  `HookSecurityError('read-only')`, status `refused`); it caught it → a warning. The CLI hook commands open their
+  browser with the same policy (`guardsWrites`).
+- **Hooks of other kinds** (any run, `@demo-studio/hooks` runOne): a hook that writes and whose `PreparedHook.hosts`
+  (http: its URL; sql: its database host; shell: the hosts its command names) include a protected host is refused
+  (`checkWriteHosts` → `protectedHostMessage`, reason `read-only`) before it runs; an http hook checks every hop that
+  writes (redirects, rollbacks replayed later) too.
+- **Cost (C1).** Any context route makes Playwright enable `Fetch` for every request and disable the HTTP cache on
+  every page session (playwright-core `crNetworkManager`): every load of a read-only run refetches its assets.
+- **Product clock** (`ResolvedClock` from core `resolveClock`; runner `product-clock.ts`): a **Date-only** clock.
+  `session.installClock(c)` after the preflight (the session check and the automated sign-in run on the real time)
+  and before the setup hooks: `context.addInitScript` + an evaluate in every open frame and dedicated worker of every
+  realm of the script `productClock({epoch, since, freeze})`, which replaces `Date` (constructor without arguments,
+  `Date()`, `Date.now`; same prototype, so `instanceof` and subclasses hold) and the "now" default of
+  `Intl.DateTimeFormat#format` (a bound function per instance) / `#formatToParts`; its state lives under
+  `Symbol.for('demo-studio.clock')` with the real `Date`. The time is `epoch + (realNow − since)` (or `epoch` frozen):
+  `since` is the runner's `Date.now()` at the install, then at `session.anchorClock()` right before capture time 0
+  (`clock.t0Wall`): a later init script moves earlier ones in new documents, an evaluate moves the open ones — every
+  document computes from the same anchor, so documents before and after it, in any realm (a realm launched later
+  included), agree. Dedicated workers get it on Playwright's `worker` event (after their first task may have run);
+  shared and service workers keep the real date. Timers, `requestAnimationFrame`, `performance` and
+  `Event.timeStamp` stay the browser's (Playwright's `context.clock`, used first, faked them and slowed the product's
+  own frames and timers: ten rAF loops 60 → 30 fps, 100 `setTimeout(0)` 0 → ~500 ms). `useRealTime(page)` (a
+  page-level init script `productClock(null)`: the realm reads the real time for good, the session skips the page and
+  its workers) keeps the session check (`checkPersona`, also `diagnoseSession` after a failed step) and the automated
+  sign-in tab off the clock. The **kit** still captures its time sources once at the top (`RT`: the globals, still
+  real since the kit's init script runs first; the real `Date` from the clock's state when re-injected) — it keeps
+  working when a page replaces its own timers; `afterPaint()` (two real frames, ≤ 150 ms) backs `Runtime.painted()`.
+  Kit 1.3.0.
+
 ## 4. CLI (`studio`)
 
 ```
 studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
 studio list                                   # projects
 studio validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
-studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--json]
-studio hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes]
-studio hooks rollback <project> [id]          # replay pending rollback journals (run id or journal id)
-studio env reset <project>                    # project.reset hooks + pending journals
+studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
+studio hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes] [--allow-writes]
+studio hooks rollback <project> [id] [--allow-writes]   # replay pending rollback journals (run id or journal id)
+studio env reset <project> [--allow-writes]   # project.reset hooks + pending journals
 studio schema [scenario|project|template|timeline]  # print JSON Schema
 studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in (§3.6)
 studio auth status [--project P [--env E]] [--check] [--json]   # personas: valid / expired / never / unchecked / error
@@ -654,6 +827,13 @@ studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Ch
 studio render / review / export / mcp         # phases 2–3
 ```
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
+`--allow-writes` (L1.7) confirms writes on a production environment whose project.yaml sets `access: read-write`; on a
+read-only environment it is a usage error (exit 2). The run header and the hooks commands' header say `production`,
+`read-only` / `writes allowed` and the clock (`clock 2026-11-02T10:24:00 Europe/Paris (frozen)`); the notice / warning
+of core `RunAccess` is printed once. The run summary
+of a read-only run counts its writes (`writes  1 mocked, 0 stopped (read-only)`, + allowed / to unguarded hosts;
+`writesSummary`; a read-write run's writes stopped on another environment's hosts: `1 stopped (hosts of read-only
+environments)`), and `studio review` / `render --review` print the review's environment line.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 
@@ -670,6 +850,11 @@ notes, awards, farm), and a buyer shop (home highlights → product → Request 
 calendar → notifications → proposal → "Download quote PDF" `target=_blank`). Server-rendered "Sales reports"
 (`/reports`, R-ISS-08) make full page loads mid-scene: leaving the app, a slow report that paints a text-less skeleton
 while it fetches its figures, and the way back into the app's empty shell.
+L1.7: `GET /api/health` counts `mutations` (successful non-GET API calls since the server started, never reset) — the
+proof that a read-only run changed nothing; `/#as-of` adds the shop hero's "Prices as of …" line, the fixture's only
+date from the browser's clock (every other date is the server's demo clock). The fixture project gives its pages
+display URLs (`*.northfield.example`) and an environment `production` (the local fixture, read-only, with an
+environment-level mock); its scenario `read-only` films a mocked quote request with `clock:` and `frame: browser`.
 
 ## 6. Testing & acceptance (phase 1)
 

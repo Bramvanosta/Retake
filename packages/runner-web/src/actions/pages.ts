@@ -4,6 +4,7 @@ import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';
 import { sleep } from '../util.js';
+import { closePage } from '../write-guard.js';
 import { clickResolved } from './click.js';
 import type { ActionResult } from './types.js';
 
@@ -105,6 +106,10 @@ export async function switchPage(ctx: StepContext, args: SwitchPageArgs): Promis
   }
   if (!rt.session.has(to)) rt.warn(`switch_page: "${to}" was never opened; it starts blank (add an open step)`);
   await rt.activate(to);
-  if (args.close_current && prev && prev !== to) await rt.session.pages.get(prev)?.close().catch(() => undefined);
+  if (args.close_current && prev && prev !== to) {
+    const closing = rt.session.pages.get(prev);
+    // Through about:blank on a read-only run: its unload writes meet the guard (L1.7).
+    if (closing) await closePage(closing);
+  }
   return { data: { page: to, url: rt.page.url() } };
 }

@@ -66,6 +66,16 @@ export async function runScenario(dir: string): Promise<Scenario | undefined> {
   }
 }
 
+/** The environment a run filmed (run.json `env`); undefined when absent (the planner then uses the timeline's alone). */
+export async function runEnv(dir: string): Promise<string | undefined> {
+  try {
+    const env = (JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as { env?: unknown }).env;
+    return typeof env === 'string' && env !== '' ? env : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** `<project>/renders` */
 export function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
   return join(project.dir, 'renders');

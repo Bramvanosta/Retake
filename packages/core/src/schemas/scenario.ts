@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { keyedUnion } from './keyed.js';
 import { HookStepSchema } from './hooks.js';
+import { ClockSpecSchema, WriteMockSchema } from './project.js';
 import {
   CaptionSpecSchema,
   ComponentParamsSchema,
@@ -230,6 +231,14 @@ export const ScenarioSchema = z
     tutorial: TutorialSwitchSchema.describe(
       'Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.',
     ).optional(),
+    clock: z
+      .union([z.literal(false), ClockSpecSchema])
+      .describe('The product\'s clock when the capture starts (wins over the project\'s): an ISO date-time or {at, freeze}; false turns the project\'s clock off.')
+      .optional(),
+    mocks: z
+      .array(WriteMockSchema)
+      .describe('Answers to writes stopped on read-only runs (tried before the environment\'s read_only.mocks); ignored on read-write runs.')
+      .optional(),
     scenes: z.array(SceneEntrySchema).min(1).describe('Scenes, cards and interstitials, in order.'),
   })
   .meta({ id: 'Scenario', title: 'Demo Studio scenario', description: 'A product video: hooks, scenes and steps.' });

@@ -46,11 +46,18 @@ export const TIMELINE_POLICY: RedactPolicy = {
   loading: K,
   artefacts: { '*': K, target: 'all', url: 'all' },
   tracks: { id: K, file: K, frames_file: K, preset: K, pages: PAGE_SEGMENT, cursor_effects: K, loading: K },
+  // L1.7: names, enums, the display bases (literal in project.yaml) and the clock are kept; the real URLs of the
+  // display table and of the writes, and the patterns that matched them, are redacted like any URL.
+  environment: {
+    name: K, production: K, access: K, allow_writes: K, display: { page: K, display: K }, clock: K,
+    writes: { t: K, method: K, operation: K, outcome: K, status: K, via: K, protected_by: K },
+  },
 };
 
 export const RECORD_POLICY: RedactPolicy = {
   id: K, project: K, scenario: K, mode: K, status: K, started_at: K, finished_at: K, dir: K, env: K, options: K, current: K,
   capture: K, timeline: K, screenshots: K, hooks: K, stopped_at: K, error: { scene: K, action: K, screenshot: K, dom: K },
+  environment: K,
 };
 
 /** Progress events (log.jsonl, the terminal): a hook's `name` is its name, else its description (redacted by hooks). */

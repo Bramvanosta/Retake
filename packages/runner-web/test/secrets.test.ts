@@ -150,7 +150,8 @@ describe('RunSecrets (R-RUN-17)', () => {
     const rec = {
       id: '20261013-094758-signup', project: 'p', scenario: 'signup', mode: 'capture', status: 'succeeded',
       started_at: '2026-10-13T09:47:58.123Z', finished_at: '2026-10-13T09:49:01.000Z', dir: '/runs/20261013-094758-signup', env: 'local',
-      options: { until: 'checkout.3', hooks: 'run', headed: false }, steps_total: 3, steps_done: 3,
+      options: { until: 'checkout.3', hooks: 'run', headed: false, allow_writes: true }, steps_total: 3, steps_done: 3,
+      environment: { production: true, access: 'read-write', clock: '2026-11-02T10:24:00' },
       capture: '/runs/20261013-094758-signup/capture.mp4', timeline: '/runs/20261013-094758-signup/timeline.json', screenshots: [],
       hooks: { setup: 'ok', teardown: 'none' }, warnings: ['PIN 2026 typed'], error: { message: 'no 2026', scene: 'checkout', step: 2, action: 'click', screenshot: '/runs/x/error-2026.png' },
     };
@@ -166,10 +167,21 @@ describe('RunSecrets (R-RUN-17)', () => {
       markers: [{ name: 'm2026', t: 1, scene: 's2026', step: 0 }],
       events: [{ scene: 's2026', step: 0, action: 'pick', status: 'ok', data: { clicks: [{ role: 'option', strategy: 'real', desc: 'text="2026"' }], days: ['2026-06-14'], close: 'outside', clear: 'keys', rate: 'search' } }],
       tracks: [{ id: 'buyer', file: 'capture-buyer.mp4', frames_file: 'frames-buyer.jsonl', loading: [{ until: 'limit' }], cursor_effects: [{ type: 'icon', icon: 'ibeam' }] }],
+      // L1.7: names, enums, display bases and the clock are kept; real URLs and matched patterns are redacted.
+      environment: {
+        name: 'prod2026', production: true, access: 'read-only', allow_writes: true,
+        display: [{ page: 'shop2026', url: 'http://localhost:2026', display: 'https://shop2026.example' }],
+        clock: { at: '2026-11-02T10:24:00', epoch_ms: 1, timezone: 'Europe/Paris' },
+        writes: [{ t: 1, method: 'POST', url: 'http://localhost:2026/q', operation: 'Save2026', outcome: 'mocked', rule: 'POST shop2026:/q', status: 201, via: 'page' }],
+      },
     };
     const safeTl = pin.redactTimeline(tl as never) as unknown as typeof tl;
     expect(safeTl.events[0].data.clicks[0].desc).toBe('text="***"');
+    expect(safeTl.environment.display[0].url).toBe('http://localhost:***');
+    expect(safeTl.environment.writes[0]).toMatchObject({ url: 'http://localhost:***/q', rule: 'POST shop***:/q', operation: 'Save2026' });
     safeTl.events[0].data.clicks[0].desc = tl.events[0].data.clicks[0].desc;
+    safeTl.environment.display[0].url = tl.environment.display[0].url;
+    safeTl.environment.writes[0] = { ...safeTl.environment.writes[0], url: tl.environment.writes[0].url, rule: tl.environment.writes[0].rule };
     expect(safeTl).toEqual(tl);
   });
 

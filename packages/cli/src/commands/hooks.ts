@@ -1,8 +1,25 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { ScenarioError, hasErrors, loadScenario, loginMatchers, matchLoginUrl, newRunId, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, urlOriginPath } from '@demo-studio/core';
-import type { HookStep, LoadedProject, ResolvedPersona, Scenario } from '@demo-studio/core';
+import {
+  ScenarioError,
+  compileWritePolicy,
+  guardsWrites,
+  hasErrors,
+  isAccessError,
+  loadScenario,
+  loginMatchers,
+  matchLoginUrl,
+  newRunId,
+  parseHookFile,
+  planPersonas,
+  resolveEnvironment,
+  resolvePersonas,
+  resolveRunAccess,
+  runAccess,
+  urlOriginPath,
+} from '@demo-studio/core';
+import type { HookStep, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@demo-studio/core';
 import type { HookContext, HookPhase, HookResult } from '@demo-studio/hooks';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -19,6 +36,42 @@ export interface HookCommandOptions {
   yes?: boolean;
   /** Describe and security-check without executing. */
   dry?: boolean;
+  /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (L1.7). */
+  allowWrites?: boolean;
+}
+
+/**
+ * The access of a hooks command (L1.7): its environment's, with `--allow-writes` (a usage error on a read-only
+ * environment), and the hosts of the project's read-only environments it must not write to. Journal replays judge
+ * each entry by its own environment (`accessOf`).
+ */
+function commandAccess(project: LoadedProject, env: ReturnType<typeof resolveEnvironment>, allowWrites: boolean): { access: RunAccess; accessOf: (name: string) => RunAccess | undefined } {
+  let access: RunAccess;
+  try {
+    access = resolveRunAccess(env, { allowWrites, project });
+  } catch (e) {
+    if (isAccessError(e)) throw new UsageError(e.message);
+    throw e;
+  }
+  const accessOf = (name: string): RunAccess | undefined => {
+    try {
+      return runAccess(resolveEnvironment(project, name), allowWrites, project);
+    } catch {
+      return undefined; // an environment no longer in project.yaml: the command's access
+    }
+  };
+  return { access, accessOf };
+}
+
+/** ` · production · read-only` for a command header (nothing for an ordinary read-write environment). */
+function accessLabel(access: RunAccess): string {
+  const parts = [...(access.production ? ['production'] : []), ...(access.mode === 'read-only' ? ['read-only'] : access.production ? ['writes allowed'] : [])];
+  return parts.map((p) => ` · ${p}`).join('');
+}
+
+function printAccess(ui: Ui, access: RunAccess): void {
+  if (access.notice) ui.warn(access.notice);
+  if (access.warning) ui.warn(access.warning);
 }
 
 /**
@@ -33,13 +86,18 @@ async function hookContext(
   project: LoadedProject,
   opts: HookCommandOptions & { vars?: Record<string, string>; runId?: string; scenario?: Scenario },
   global: GlobalOptions,
-): Promise<{ ctx: HookContext; close: () => Promise<void>; interrupted: () => boolean }> {
+): Promise<{ ctx: HookContext; access: RunAccess; close: () => Promise<void>; interrupted: () => boolean }> {
   const env = resolveEnvironment(project, opts.env);
+  const { access, accessOf } = commandAccess(project, env, opts.allowWrites === true);
   const personas = resolvePersonas(project, env.name);
   const sessions = new Map<string, Promise<import('@demo-studio/runner-web').BrowserSession>>();
   const command = loginCommandFor(global);
   const runId = opts.runId ?? newRunId('hooks');
   const planned = opts.scenario ? planPersonas(opts.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
+  // A read-only command (L1.7): a js hook's tab stops its writes (never mocked); its browser is guarded like a run's.
+  // Any command: writes to the hosts of the project's read-only environments (production) are stopped too.
+  const policy = compileWritePolicy(env, { access });
+  const writes = guardsWrites(policy) ? { policy, onWrite: (w: { label: string; outcome: string }) => ctx.log('debug', `js hook tab: ${w.label} ${w.outcome}`) } : undefined;
   /**
    * The persona a js hook tab of page `key` is signed in as: the scenario's binding of that page, else the one whose
    * pages list it, else the legacy one (undefined: none).
@@ -64,6 +122,7 @@ async function hookContext(
       kit: rw.kitConfigFor(undefined),
       browser: rw.projectBrowser(project),
       log: (level, msg) => ctx.log(level, msg),
+      ...(writes ? { writes: { policy: writes.policy } } : {}),
       ...(persona ? { realms: prepared.map((p) => p.realm), hookRealmOf: () => persona.name } : {}),
     });
   };
@@ -74,6 +133,8 @@ async function hookContext(
     runId: opts.runId,
     dryRun: opts.dry === true,
     saved: {},
+    access,
+    accessOf,
     log: (level, msg) => {
       // A failing hook is listed with its error by printResults: its error log would print it a second time.
       if (level === 'error') ui.debug(msg);
@@ -103,7 +164,7 @@ async function hookContext(
           ? `js hook page "${key}" (persona ${persona.name}) landed on the sign-in page (${urlOriginPath(url)}): its session expired — sign in again: ${command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) })}`
           : null;
       // The guarded hook tab of that page (hosts outside the allow-list are blocked), reused by later js hooks.
-      return rw.evalHookInPage(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}) }, pageKey, code);
+      return rw.evalHookInPage(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code);
     },
   };
   const closeSessions = async () => {
@@ -114,7 +175,7 @@ async function hookContext(
     await closeSessions();
     stop.dispose();
   };
-  return { ctx, close, interrupted: () => stop.interrupted };
+  return { ctx, access, close, interrupted: () => stop.interrupted };
 }
 
 function printResults(ui: Ui, results: readonly HookResult[]): void {
@@ -188,9 +249,10 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   const hooks = await import('@demo-studio/hooks');
   const runId = newRunId(`hooks-${sel.label}`);
   const journalFile = hooks.standaloneJournalFile(project.dir, runId);
-  const { ctx, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global);
+  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global);
   const c = ui.c;
-  ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
+  ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
+  printAccess(ui, access);
   try {
     const journal = await hooks.Journal.open(journalFile);
     const res = await hooks.runHooks(sel.hooks, ctx, { phase: sel.phase, journal });
@@ -217,7 +279,8 @@ export async function hooksRollbackCommand(
   opts: HookCommandOptions,
 ): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
-  const { ctx, close, interrupted } = await hookContext(ui, project, opts, global);
+  const { ctx, access, close, interrupted } = await hookContext(ui, project, opts, global);
+  printAccess(ui, access);
   try {
     const ok = runId === undefined ? await rollbackAllPending(ui, project, ctx) : await rollbackRun(ui, project, ctx, runId);
     if (interrupted()) return EXIT.interrupted;
@@ -277,9 +340,10 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
   const project = await openProject(ws, projectArg);
   const hooks = await import('@demo-studio/hooks');
   const runId = newRunId('env-reset');
-  const { ctx, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global);
+  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global);
   const c = ui.c;
-  ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${opts.dry ? ' · dry' : ''}`)}`);
+  ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''}`)}`);
+  printAccess(ui, access);
   try {
     let ok = await rollbackAllPending(ui, project, ctx);
     const reset = project.config.reset ?? [];

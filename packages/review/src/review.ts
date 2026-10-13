@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
-import { captionRegion, checkCamera, checkCaptions, checkCursor, checkDurations, checkLongScenes, checkRender, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, segmentDurations } from './checks.js';
+import { captionRegion, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
@@ -290,6 +290,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       ...checkTransitionsOnClicks(ctx),
       ...checkTutorial(ctx),
       ...checkOverlayCover(ctx),
+      ...checkEnvironment(ctx),
       ...checkPixels(ctx, { analyses, sources, sourceSigs, sceneSamples, sampleSpacing_s: 0.5 }),
       ...(diff ? diffFindings(diff) : []),
     ]);
@@ -364,6 +365,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       report_md: join(finalDir, 'report.md'),
     };
     if (diffSheet) files.diff_sheet = fin(diffSheet);
+    const environment = reviewEnvironment(timeline, plan);
     const result: Omit<ReviewResult, 'thumbnails'> = {
       version: 1,
       render: {
@@ -385,6 +387,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       counts,
       findings,
       durations: { total_s: round(D / F, 3), segments: durations },
+      ...(environment ? { environment } : {}),
       ...(diff ? { diff } : {}),
       files,
     };

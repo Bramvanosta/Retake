@@ -49,7 +49,7 @@ export {
   renderVideo,
 } from './render/render.js';
 export type { RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
-export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runScenario, takenVersions } from './render/runs.js';
+export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions } from './render/runs.js';
 export type { RunRef } from './render/runs.js';
 export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
 export type { AssetServer } from './render/asset-server.js';
@@ -83,6 +83,7 @@ export {
   TARGET_FOCUS_HALF,
   actingWeights,
   cornerOf,
+  drawsUrl,
   fitTop,
   focusBox,
   growRect,
