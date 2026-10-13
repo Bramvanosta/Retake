@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
-import { delimiter, dirname, join } from 'node:path';
-import { WORKSPACE_FILE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment } from '@demo-studio/core';
+import { delimiter, dirname, join, relative } from 'node:path';
+import { WORKSPACE_FILE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, studioHome } from '@demo-studio/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ChromiumProbe } from '@demo-studio/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -10,6 +10,8 @@ import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
+import { checkedText, loginCommandFor, projectPersonaStates, studioCommand, tildePath } from './auth.js';
+import type { PersonaState } from './auth.js';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -231,7 +233,9 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
   return out;
 }
 
-async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string): Promise<DoctorCheck[]> {
+async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string, global: GlobalOptions): Promise<DoctorCheck[]> {
+  // The commands of the hints, with `-C <root>` when the command line named the workspace root.
+  const loginCommand = loginCommandFor(global);
   let project: LoadedProject;
   try {
     project = await openProject(ws, slug);
@@ -247,32 +251,43 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string)
       return envNames[0];
     }
   })();
-  // Browser profile(s): global auth, or one per environment.
-  const { resolveAuth } = await import('@demo-studio/runner-web');
+  // Browser profile(s) of the single-account form (auth.profile / storage_state): global, or one per environment.
+  const rw = await import('@demo-studio/runner-web');
   const seen = new Set<string>();
   for (const env of envNames.length ? envNames : ['']) {
-    const auth = resolveAuth(project, env);
+    const auth = rw.resolveAuth(project, env);
     const label = envNames.length > 1 ? `Profile (${env})` : 'Profile';
     if (auth.profileDir && !seen.has(auth.profileDir)) {
       seen.add(auth.profileDir);
-      if (!p.exists(auth.profileDir)) {
-        out.push({ status: 'warn', name: label, detail: `${auth.profileDir} does not exist yet`, hint: `sign in once: studio login ${slug}${env ? ` --env ${env}` : ''}` });
-      } else if (p.exists(join(auth.profileDir, 'SingletonLock'))) {
-        out.push({ status: 'warn', name: label, detail: `${auth.profileDir} is in use by a browser`, hint: 'close the login window (or the other run) before capturing' });
+      const lock = p.exists(auth.profileDir) ? await rw.profileLock(auth.profileDir) : null;
+      if (!lock) {
+        out.push({ status: 'warn', name: label, detail: `${auth.profileDir} does not exist yet`, hint: `sign in once: ${loginCommand({ project: slug, env })}` });
+      } else if (lock.state === 'live') {
+        out.push({ status: 'warn', name: label, detail: `${auth.profileDir} is in use by a browser${lock.pid ? ` (pid ${lock.pid})` : ''}`, hint: 'close the login window (or the other run) before capturing' });
       } else {
-        out.push({ status: 'ok', name: label, detail: auth.profileDir });
+        out.push((await gitPlacement(p, auth.profileDir, true, label, auth.profileDir)) ?? { status: 'ok', name: label, detail: auth.profileDir });
       }
     }
     if (auth.storageState && !seen.has(auth.storageState)) {
       seen.add(auth.storageState);
+      const name = label.replace('Profile', 'Storage state');
       out.push(
         p.exists(auth.storageState)
-          ? { status: 'ok', name: label.replace('Profile', 'Storage state'), detail: auth.storageState }
-          : { status: 'fail', name: label.replace('Profile', 'Storage state'), detail: `${auth.storageState} not found`, hint: 'export it again, or use auth.profile + studio login' },
+          ? ((await gitPlacement(p, auth.storageState, false, name, auth.storageState)) ?? { status: 'ok', name, detail: auth.storageState })
+          : { status: 'fail', name, detail: `${auth.storageState} not found`, hint: 'export it again, or name the account in auth.personas + studio login' },
       );
     }
   }
-  if (!seen.size) out.push({ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' });
+  // Personas (L1.6): their sessions live under the studio home, never in the project.
+  const home = studioHome(p.env as NodeJS.ProcessEnv);
+  const personas = (await projectPersonaStates(project, loginCommand, undefined, home)).filter((x) => !x.state.legacy);
+  if (personas.length) {
+    const where = `${tildePath(home)}${p.env.DEMO_STUDIO_HOME ? ' (DEMO_STUDIO_HOME)' : ''}`;
+    out.push((await gitPlacement(p, home, true, 'Session home', where)) ?? { status: 'ok', name: 'Session home', detail: `${where} · outside any git work tree` });
+    for (const { state } of personas) out.push(await personaCheck(p, state, home, `${studioCommand(global)} auth status --project ${slug} --check`));
+  } else if (!seen.size) {
+    out.push({ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' });
+  }
 
   // Hosts of every environment page: HEAD with a 5 s timeout. An unreachable default environment is a failure.
   for (const env of envNames) {
@@ -294,15 +309,64 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string)
   return out;
 }
 
+/** The git work tree a path sits in (walking up from it), or null. */
+function gitWorkTree(p: DoctorProbes, path: string): string | null {
+  for (let d = path; ; ) {
+    if (p.exists(join(d, '.git'))) return d;
+    const up = dirname(d);
+    if (up === d) return null;
+    d = up;
+  }
+}
+
+/**
+ * A session (a profile, a snapshot, the studio home) in a git work tree (R-AUTH-02): a WARN when git does not ignore
+ * it — a commit could publish a signed-in session —, an OK naming the work tree when it is ignored; null when it is
+ * outside any work tree. `detail` is the line's detail otherwise.
+ */
+async function gitPlacement(p: DoctorProbes, path: string, dir: boolean, name: string, detail: string): Promise<DoctorCheck | null> {
+  const root = gitWorkTree(p, path);
+  if (!root) return null;
+  const rel = relative(root, path) || '.';
+  const res = await p.exec('git', ['-C', root, 'check-ignore', '-q', dir && rel !== '.' ? `${rel}/` : rel], 5000);
+  if (res && res.code === 0) return { status: 'ok', name, detail: `${detail} · in the git work tree ${tildePath(root)}, ignored by git` };
+  return {
+    status: 'warn',
+    name,
+    detail: `${tildePath(path)} is inside the git work tree ${tildePath(root)}${res ? ', not ignored' : ' (git not found: cannot tell whether it is ignored)'}: a commit could publish a signed-in session`,
+    hint: name === 'Session home' ? 'set DEMO_STUDIO_HOME to a folder outside any repository (or ignore it in that repository)' : 'keep sessions outside repositories: name the account in auth.personas (its session then lives in ~/.demo-studio), or ignore the path',
+  };
+}
+
+/** One persona's line: its saved session (never signed in, expired, in use…), its last check, a nested work tree. */
+async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, recheck: string): Promise<DoctorCheck> {
+  const name = `Persona ${s.env}·${s.persona}`;
+  const where = s.session === 'profile' ? 'profile' : 'snapshot';
+  if (s.status === 'never') return { status: 'warn', name, detail: 'never signed in', hint: `sign in once: ${s.command}` };
+  if (s.in_use) {
+    return { status: 'warn', name, detail: `its profile is in use by a browser${s.in_use.pid ? ` (pid ${s.in_use.pid})` : ''}`, hint: 'close the studio login window (or the other browser) before capturing' };
+  }
+  if (s.status === 'expired') return { status: 'warn', name, detail: `expired · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `sign in again: ${s.command}` };
+  if (s.status === 'error') return { status: 'warn', name, detail: `could not be checked · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `is the app running? Then sign in again if needed: ${s.command}` };
+  const detail = s.status === 'valid' ? `valid · ${checkedText(s)} · ${where}` : `${where} saved, not checked yet (${recheck})`;
+  // A git work tree nested in the studio home (the home itself is reported once).
+  const file = s.session === 'profile' ? s.profile : s.snapshot;
+  if (file && gitWorkTree(p, file) !== gitWorkTree(p, home)) {
+    const nested = await gitPlacement(p, file, s.session === 'profile', name, detail);
+    if (nested) return nested;
+  }
+  return { status: 'ok', name, detail };
+}
+
 /** Every doctor check, in display order. */
-export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string } = {}): Promise<DoctorCheck[]> {
+export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
   out.push(await chromiumCheck(probes, ws.browser));
   out.push(await mediaTool(probes, 'ffmpeg', ws.ffmpeg));
   out.push(await mediaTool(probes, 'ffprobe', ws.ffmpeg));
   out.push(displayCheck(probes), secretsCheck(probes), notifyCheck(probes));
   out.push(...(await workspaceChecks(probes, ws)));
-  if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project)));
+  if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));
   return out;
 }
 
@@ -314,7 +378,7 @@ export interface DoctorOptions {
 /** `studio doctor [--project slug]`: check the machine, the workspace and optionally a project. Exit 1 on any FAIL. */
 export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorOptions, probes: DoctorProbes = systemProbes()): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const checks = await doctorChecks(probes, ws, { project: opts.project });
+  const checks = await doctorChecks(probes, ws, { project: opts.project, global });
   const fails = checks.filter((c) => c.status === 'fail').length;
   const warns = checks.filter((c) => c.status === 'warn').length;
   if (opts.json) {

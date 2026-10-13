@@ -1,14 +1,18 @@
-import { CancelledError } from './errors.js';
+import { CancelledError, RunnerError } from './errors.js';
 
 /** Wall clock in epoch ms with sub-millisecond precision (monotonic within a run). */
 export function wallNow(): number {
   return performance.timeOrigin + performance.now();
 }
 
+/**
+ * Throw when the run was aborted: a runner error given as the reason as is (a cancel, or the sign-in guard's
+ * LoginPageError, which fails the run rather than cancelling it), anything else as a cancel.
+ */
 export function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
     const r: unknown = signal.reason;
-    throw r instanceof CancelledError ? r : new CancelledError(r instanceof Error ? r.message : 'run cancelled');
+    throw r instanceof RunnerError ? r : new CancelledError(r instanceof Error ? r.message : 'run cancelled');
   }
 }
 

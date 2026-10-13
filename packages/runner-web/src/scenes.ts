@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   TemplateError,
@@ -229,6 +229,26 @@ export function trimSnippet(html: string, max: number): string {
 
 async function errorArtifacts(rt: Runtime, scene: string, step: number, e: unknown): Promise<{ screenshot?: string; dom?: string }> {
   const base = join(rt.screenshotsDir, `error-${fileSlug(scene)}-${step}`);
+  const out: { screenshot?: string; dom?: string } = await errorFiles(rt, scene, step, e, base);
+  // Never a picture or the DOM of a sign-in page (L1.6): a landing seen while they were taken removes them.
+  if (rt.guard && guardFired(rt)) {
+    await Promise.all([out.screenshot, out.dom].filter((f): f is string => !!f).map((f) => rm(f, { force: true }).catch(() => undefined)));
+    return {};
+  }
+  return out;
+}
+
+/** Whether a filmed page is (or was) on a sign-in page: the landing is then recorded by the guard. */
+function guardFired(rt: Runtime): boolean {
+  try {
+    rt.assertSignedIn();
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+async function errorFiles(rt: Runtime, scene: string, step: number, e: unknown, base: string): Promise<{ screenshot?: string; dom?: string }> {
   const out: { screenshot?: string; dom?: string } = {};
   try {
     await rt.page.screenshot({ path: `${base}.png`, timeout: 10_000 });
@@ -258,11 +278,18 @@ async function errorArtifacts(rt: Runtime, scene: string, step: number, e: unkno
 
 async function dryScreenshot(rt: Runtime, opts: SceneLoopOptions, scene: string, step: NormalizedStep): Promise<void> {
   const file = join(rt.screenshotsDir, `${fileSlug(scene)}-${pad(step.index, 2)}-${step.action}.png`);
+  rt.assertSignedIn();
   try {
     await rt.page.screenshot({ path: file, timeout: 10_000 });
     opts.record.screenshots.push(file);
   } catch (e) {
     rt.log('warn', `dry-run screenshot failed: ${errorMessage(e)}`);
+  }
+  // A sign-in page that showed while the picture was taken (L1.6): never kept.
+  if (rt.guard && guardFired(rt)) {
+    await rm(file, { force: true }).catch(() => undefined);
+    opts.record.screenshots = opts.record.screenshots.filter((f) => f !== file);
+    rt.assertSignedIn();
   }
 }
 
@@ -272,6 +299,8 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   // Never act on a page whose load the capture holds (R-ISS-08): one the app started itself, or — in a multi-page scene —
   // another page's (cut from every page of the scene). Not part of the step's time.
   await rt.awaitShownLoaded();
+  // …nor on a sign-in page (L1.6).
+  rt.assertSignedIn();
   const ctx: StepContext = {
     rt,
     scene: { id: scene.id, index: sceneIndex },
@@ -286,7 +315,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   rt.pendingPopup = null;
   if (pending && pending.ev.scene === scene.id) {
     await settleLatePopup(ctx, pending, primaryTarget(step)).catch((e: unknown) => {
-      if (isCancelled(e)) throw e;
+      if (isCancelled(e) || rt.loginGuardError()) throw rt.loginGuardError() ?? e;
       return false;
     });
   }
@@ -388,8 +417,12 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   } catch (e) {
     ev.t_end = rt.now();
     ev.status = 'failed';
-    ev.error = errorMessage(e);
+    // A step that failed because its page landed on a sign-in page (L1.6) — a target missing there, an abort — fails
+    // the run with the landing: never tolerated as optional, no screenshot or DOM of that page.
+    const landing = rt.loginGuardError() ?? (guardFired(rt) ? rt.loginGuardError() : null);
+    ev.error = errorMessage(landing ?? e);
     message = ev.error;
+    if (landing) throw landing;
     if (isCancelled(e)) throw e;
     const art = await errorArtifacts(rt, scene.id, step.index, e);
     if (step.optional) {
@@ -490,6 +523,8 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       } else if (fresh) {
         rt.warn(`scene ${id} starts on a blank "${pageKey}" page (add \`open\`)`);
       }
+      // A scene never starts on a sign-in page (L1.6).
+      rt.assertSignedIn();
       // Scene-start cursor (scene key `cursor`): placed while the page loads, or glided during the still — never a jump.
       const stillS = scene.still ?? rt.pacing.scene_start_still;
       const placed = await placeSceneCursor(rt, scene, {
@@ -502,8 +537,9 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
         await rt.sleep(TELEPORT_SETTLE_MS);
         await rt.painted();
       }
-      // The still starts on a painted page (R-ISS-08), never on a load the capture still holds.
+      // The still starts on a painted page (R-ISS-08), never on a load the capture still holds — nor on a sign-in page.
       await rt.awaitLoaded();
+      rt.assertSignedIn();
       ts.url = rt.page.url();
       const still: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_still', t_start: rt.now(), t_end: rt.now(), status: 'ok' };
       rt.timeline.addEvent(still);
@@ -549,6 +585,8 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       ts.t_end = rt.now();
     }
   }
+  // The last frames never show a sign-in page either (L1.6).
+  rt.assertSignedIn();
 }
 
 /**
@@ -602,6 +640,7 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
         rt.warn(`scene ${id}: page "${pg.id}" starts blank (give it \`open\`)`);
       }
     }
+    rt.assertSignedIn();
     // Each page's cursor: next to that page's first target (its own steps), never on it.
     const stillS = scene.still ?? rt.pacing.scene_start_still;
     const glides: Array<{ id: string; glide: () => Promise<void> }> = [];
@@ -622,8 +661,9 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
       await rt.sleep(TELEPORT_SETTLE_MS);
       for (const pg of pages) await rt.painted(panes.get(pg.id)!.page);
     }
-    // The still starts with every page painted (R-ISS-08).
+    // The still starts with every page painted (R-ISS-08), none on a sign-in page.
     await rt.awaitShownLoaded();
+    rt.assertSignedIn();
     // The page of the first step acts from the start (no switch pause before it).
     const firstRaw = (scene.steps ?? [])[0] as { on?: string } | undefined;
     const firstActing = firstRaw?.on !== undefined && pages.some((p) => p.id === firstRaw.on) ? firstRaw.on : pages[0].id;

@@ -25,6 +25,8 @@ import { Pointer } from './pointer.js';
 import type { RunSecrets } from './secrets.js';
 import type { Jitter } from './motion.js';
 import { RunnerError, StepError } from './errors.js';
+import type { LoginPageError } from './errors.js';
+import type { LoginGuard } from './auth.js';
 import { fileSlug, throwIfAborted } from './util.js';
 import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
@@ -51,6 +53,10 @@ export interface RuntimeInit {
   secrets: RunSecrets;
   recorder: ScreencastRecorder | null;
   log: (level: LogLevel, message: string) => void;
+  /** Watches the filmed pages for a sign-in page (L1.6; null: the environment has no sign-in to watch). */
+  guard?: LoginGuard | null;
+  /** The persona each page id is planned with (core planPersonas): a page created in another one is reported. */
+  plannedPersonas?: ReadonlyMap<string, string | null>;
 }
 
 /** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
@@ -102,6 +108,8 @@ export class Runtime {
   readonly secrets: RunSecrets;
   readonly log: (level: LogLevel, message: string) => void;
   recorder: ScreencastRecorder | null;
+  readonly guard: LoginGuard | null;
+  private readonly plannedPersonas: ReadonlyMap<string, string | null> | undefined;
   /** Captured emails, documents and web notifications (runs/<id>/artefacts/). */
   readonly artefacts: ArtefactStore;
   readonly cursorHidden: boolean;
@@ -144,6 +152,8 @@ export class Runtime {
     this.recorder = init.recorder;
     this.cursorHidden = init.cursorHidden === true;
     this.log = init.log;
+    this.guard = init.guard ?? null;
+    this.plannedPersonas = init.plannedPersonas;
     this.artefacts = new ArtefactStore(init.runDir, (m) => this.warn(m));
     // What each page's cursor shows (icon, press, ripple; L2.13) goes with the capture that films that page.
     this.session.onCursorEffect = (page, p) => this.cursorEffect(page, p);
@@ -456,12 +466,43 @@ export class Runtime {
     return id;
   }
 
-  /** Track URL changes of a page for the timeline page segments. */
+  /** The run's sign-in landing (L1.6), once a filmed page landed on a sign-in page. */
+  loginGuardError(): LoginPageError | null {
+    return this.guard?.error ?? null;
+  }
+
+  /**
+   * Never go on — act, take a screenshot, start a still — on a sign-in page (L1.6): every filmed page's current URL is
+   * checked (a landing the navigation event did not report yet, a tab that opened on one); the landing is thrown.
+   */
+  assertSignedIn(): void {
+    if (!this.guard) return;
+    for (const [id, page] of this.session.pages) {
+      if (page.isClosed()) continue;
+      const e = this.guard.check(id, page);
+      if (e) throw e;
+    }
+    const e = this.guard.error;
+    if (e) throw e;
+  }
+
+  /** Track URL changes of a page for the timeline page segments (and the sign-in guard, L1.6). */
   private track(id: string, page: Page): void {
     if (this.tracked.has(page)) return;
     this.tracked.add(page);
+    if (this.plannedPersonas?.has(id)) {
+      const planned = this.plannedPersonas.get(id) ?? '';
+      const actual = this.session.realmName(page);
+      if (actual !== undefined && actual !== planned) {
+        // The static plan (core planPersonas) and the run walked the scenario differently: a bug worth a report.
+        this.log('warn', `page ${id} is filmed ${actual ? `as persona ${actual}` : 'without a persona'} but was planned ${planned ? `as ${planned}` : 'without one'} (the persona plan missed a page switch)`);
+      }
+    }
+    this.guard?.check(id, page);
     page.on('framenavigated', (frame) => {
       if (frame !== page.mainFrame()) return;
+      // A filmed page landing on a sign-in page fails the run at once (same-document routes included).
+      this.guard?.check(this.session.idOf(page) ?? id, page, frame.url());
       if (this.session.pages.get(id) !== page) return;
       // A page of a multi-page scene: its own track's URL segments; otherwise the main capture's.
       const t = this.tracks.get(id);

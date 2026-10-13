@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-13, end of lot **L1.2 (runner robustness)**, after L1.5, L5.1 and L1.3 — phases 1 and 2 are done;
+Last updated: 2026-10-13, end of lot **L1.6 (sessions & personas)**, after L1.5, L5.1, L1.3 and L1.2 — phases 1 and 2 are done;
 the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
@@ -23,17 +23,23 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-59); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-62); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.2)
+## State (after L1.6)
+- **L1.6 done (2026-10-13)**: personas per environment (`auth.personas`), one browser per persona on a per-run copy of
+  its signed-in profile, a session preflight before every dry run and capture (automated off-camera login when
+  `login:` steps exist, else the exact `studio login` command), a sign-in guard that fails a run and keeps nothing,
+  `studio login --persona [--auto]`, `studio auth status`, interactive `studio new`, doctor persona lines; the fixture
+  has a signed-in side (env `signed-in`, personas supplier and buyer). Tests on the Mac: **1212 — 1204 pass, 8 skipped (≈ 4 m 40 s; the 8th: the headed sign-in test without DEMO_STUDIO_TEST_HEADED)**.
+  Requirements: 618 tracked — 456 done, 40 partial, 114 todo, 8 n/a-here.
 - **L1.2 done (2026-10-13)**: the runner finds targets in open shadow roots and same-origin iframes, never films a
   loading page (frames held until the new page paints, `timeline.loading`, cut in the edit), templates every scenario
   string with secrets resolved up front and redacted from every run file, checks the hosts of shell and js hooks, and
   gained choreography helpers (`date`, `park`, adaptive typing, robust `clear`, menu re-click). Tests on the Mac:
-  **1142 — 1135 pass, 7 skipped (≈ 4 m)**. Requirements: 618 tracked — 448 done, 40 partial, 122 todo, 8 n/a-here.
+  **1142 — 1135 pass, 7 skipped (≈ 4 m)**.
 - **L1.3 done (2026-10-12)**: the cursor waits for flowing frames after a scroll (stalls after scrolls gone) and
   before a press, the motion check warns on stalls ≥ 150 ms. Two limits stay partial: closing a dialog with a blurred
   overlay still freezes ≈ 0.26 s during the click ripple (R-ISS-12; `browser.frame_rate_limit: false` avoids it, not
@@ -63,7 +69,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox),
+- **Not built yet**: L1.4 (coverage), L1.7–L1.8 (display URLs / safety, sandbox),
   phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
@@ -113,13 +119,13 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~ — done 2026-10-13. Chain asked by the user (2026-10-12): L1.3
-   (stalls) → L1.2 (runner robustness) → **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
+2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~ — done 2026-10-13. Chain asked by the user (2026-10-12):
+   L1.3 (stalls) → L1.2 (runner robustness) → L1.6 (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
    → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.6 — Sessions & personas**, then L1.7, L1.8, L1.4 — see "Order of the next lots".
+**L1.7 — Display URLs, read-only & production safety, frozen clock**, then L1.8, L1.4 — see "Order of the next lots".
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -697,6 +703,42 @@ terminal, and a visible window for `--headed` runs and `studio login`.
   email artefacts, by design); quote's js hook tab still fires the captured notification; scratch calendar / clear /
   park captures looked at frame by frame; renders reports-v2, live-quote-v1, catalogue-v1, embedded-v1 and
   choreo-check-v1 reviewed clean of blank / loading findings. 1142 tests: 1135 pass, 7 skipped. No dependency added.
+- **L1.6 done** (sessions & personas; R-AUTH-01..08 done). Planned by a design agent, criticised by an adversarial
+  review (14 defects, ≈ 20 % cut), built in two parts (runtime, then user-facing), reviewed by three independent
+  reviewers (25 findings) and fixed in three passes (runtime, CLI, a temp-profile sweep). **Model**: `auth.personas`
+  per environment (`session: profile | storage_state`, `check`, `login_url` patterns, `login:` steps, `pages`);
+  scenes and multi-page specs take `persona:` (`none` for a public page); core `planPersonas` binds every page,
+  tab and js hook tab (explicit, then already bound, then the persona's pages, then the legacy `default`); no paths
+  in project.yaml — masters under `~/.demo-studio/profiles/<project>/<env>/<persona>/`, snapshots and statuses under
+  `~/.demo-studio/sessions/…` (0600 files, 0700 folders; `DEMO_STUDIO_HOME` moves the root). **Runtime**
+  (runner-web auth.ts): one browser per persona; each run works on a copy of the master (caches, `Singleton*`,
+  `Login Data*`, `Web Data*` skipped; ≈ 20–60 ms for 10 MB) plus the snapshot's cookies — a session cookie without
+  expiry survives only in the snapshot; a locked master is refused (a copy of an open profile carries no cookie);
+  nothing is written back (BL-59). Preflight after the secrets prefetch, before setup hooks and the recorder:
+  every persona the scenario uses is checked off camera; on failure the `login:` steps sign in automatically (secret
+  refs resolved lazily, redacted), else `PreflightError` with the exact `studio login … --env … --persona …`. Login
+  guard: any filmed page (tabs, downloads, hook tabs, panes) landing on a sign-in pattern fails the run and keeps
+  nothing (frames, capture, timeline, screenshots, artefacts, error files); a tab landing on another persona's
+  sign-in says so; the status file becomes `expired` (`by: run`). Copies are registered, removed on close, on a second
+  Ctrl-C (sync) and by a sweep of stale `demo-studio-session-*` / `-login-*` / `-profile-*` folders. **CLI**: `studio
+  login <p> [--env] [--persona] [--auto]` (headed window opened with the saved cookies; closing it signed out never
+  replaces a valid snapshot; `--auto` checks first and keeps a valid session), `studio auth status [--project]
+  [--check] [--json]`, interactive `studio new` (environments, personas, sign in now or later; validated before the
+  questions), `doctor` persona lines (never / expired / in use / git-tracked), SIGINT handling (exit 130, copies
+  removed) in every command that opens a session. **Fixture**: sign-in listeners :4403 (console) / :4404 (shop) in the
+  same process, cookie `northfield_session` (console: no expiry), invented accounts, `POST /api/auth/expire`; the
+  project's env `signed-in` (personas supplier, buyer; passwords from `NORTHFIELD_SUPPLIER_PASSWORD` /
+  `NORTHFIELD_BUYER_PASSWORD`); env `local` and every scenario unchanged. Acceptance (Mac, scratch DEMO_STUDIO_HOME):
+  `studio login --auto` for both personas (1.6–1.7 s), live-quote signed in 20261013-133904 / -141530 / -152036
+  (frames: buyer pane as Demo Café, supplier as Maja Lindqvist; no sign-in URL in any timeline; track frames within
+  3 % of env local, the same two ripple warnings), quote signed in 20261013-134020 / -152115 / -155049 (the js hook
+  tab ran as supplier and fired the captured notification; PDF fetched as buyer); expired sessions → catalogue
+  20261013-134239 failed in 520 ms at 0/21 before any hook with the command; a session expired mid-run →
+  20261013-134306 failed at step 3 with nothing kept; reports twice in parallel on one persona + embedded at once all
+  succeeded, master untouched; env local quote / catalogue unchanged; `auth status --check` after `curl expire`
+  showed both expired (exit 1); `studio new` through a pseudo-terminal. Not proven by a person: a headed `studio login`
+  typed by hand (MACOS-CHECKLIST step 8b; the gated `DEMO_STUDIO_TEST_HEADED=1` test drives it by code). 1212 tests: 1204 pass, 8 skipped.
+  No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -926,6 +968,29 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.6:
+- Tests and probes ALWAYS set `DEMO_STUDIO_HOME` to a temp folder: the real `~/.demo-studio` holds the user's own
+  signed-in profile (from L1.5). Never launch a browser on it, never touch the Keychain.
+- Sign in the fixture personas for a signed-in capture: start the fixture, then
+  `NORTHFIELD_SUPPLIER_PASSWORD=… NORTHFIELD_BUYER_PASSWORD=… studio login northfield-fixture --env signed-in
+  --persona supplier --auto` (and `buyer`; values in fixtures/wholesale/README.md), then `run … --env signed-in`.
+  Expire sessions with `curl -X POST localhost:4403/api/auth/expire` (`/api/reset` does not touch them).
+- The lock check relies on Chromium taking a `SingletonLock`: runs launch with channel chromium (`launchTarget`);
+  Playwright's default headless shell takes none. `signIn` waits for the browser pid to exit before copying a master
+  (Chromium keeps writing the profile after its lock is gone).
+- A run that signed in automatically leaves the stored status `expired` with a warning ("signed in automatically for
+  run X") — by design: the master was not refreshed. A sign-in screen shown without a URL change is caught only when
+  a step fails (then the check re-runs off camera and the message says the session expired). Tokens kept in
+  sessionStorage are lost between runs; rotating refresh tokens are not written back (BL-59).
+- Bindings: a tab keeps its opener's persona (film another persona's app on its own page); a page id keeps one persona
+  per run; `persona: none` pages and their tabs are never guarded; js hook tabs take the persona their page is filmed
+  with. Diagnose: persona debug lines in log.jsonl (copy time, check result), statuses in
+  `$DEMO_STUDIO_HOME/sessions/<project>/<env>/`, leftover copies `$TMPDIR/demo-studio-session-*`.
+- A legacy `auth.profile` (persona `default`) never fails the preflight and is now copied per run (rolling refreshes
+  are no longer saved back); a missing legacy `storage_state` file still fails the run. The user's own workspace uses
+  the legacy form: it keeps working, signed in through the copy.
+- Two runs started in the same second get distinct folders (the later one takes the next free second).
+
 Notes from L1.2:
 - Kit, cross-realm rule: no `instanceof`, bare `getComputedStyle` or top-realm constructors on elements that may live
   in a frame — `isA`, `styleOf`, `winOf`. Composed order: a host or frame before what it holds, shadow content before

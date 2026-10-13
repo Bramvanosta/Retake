@@ -28,6 +28,8 @@ export interface ResolvedScenePage {
   viewport: ResolvedViewport;
   label?: string;
   cursor?: SceneCursor;
+  /** The persona written on the page (L1.6; the runner binds every page from its static plan, core auth.ts). */
+  persona?: string;
 }
 
 /** Whether a scene films several pages at the same time. */
@@ -118,6 +120,7 @@ export function resolveScenePages(
     const label = s.label ?? prev?.label;
     if (label !== undefined) out.label = label;
     if (s.cursor !== undefined) out.cursor = s.cursor;
+    if (s.persona !== undefined) out.persona = s.persona;
     return out;
   });
 }

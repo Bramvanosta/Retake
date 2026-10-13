@@ -7,8 +7,9 @@ import { doctorCommand } from './commands/doctor.js';
 import type { DoctorOptions } from './commands/doctor.js';
 import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
 import type { HookCommandOptions } from './commands/hooks.js';
-import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, loginCommand, schemaCommand } from './commands/misc.js';
-import type { LoginOptions } from './commands/misc.js';
+import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, schemaCommand } from './commands/misc.js';
+import { authStatusCommand, loginCommand } from './commands/auth.js';
+import type { AuthStatusOptions, LoginOptions } from './commands/auth.js';
 import { exportCommand } from './commands/export.js';
 import { exportCaptureCommand } from './commands/export-capture.js';
 import type { ExportCaptureCommandOptions } from './commands/export-capture.js';
@@ -71,7 +72,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('new')
-    .description('create a project (README.md, project.yaml, scenarios/, hooks/, assets/)')
+    .description('create a project (README.md, project.yaml, scenarios/, hooks/, assets/); on a terminal without --env it asks for environments and personas, and offers to sign each one in')
     .argument('<slug>', 'project folder name: lower-case letters, digits and "-"')
     .option('--name <name>', 'display name (default: the slug)')
     .option('--template <name>', 'template name or ./path (default: default)')
@@ -278,7 +279,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
   program
     .command('doctor')
     .description('check this machine for Demo Studio: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, template fonts')
-    .option('--project <slug>', "also check a project: its browser profile and its environments' hosts (HEAD, 5 s timeout)")
+    .option('--project <slug>', "also check a project: its personas' sessions (never signed in, expired, in use, inside a git work tree) and its environments' hosts (HEAD, 5 s timeout)")
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: DoctorOptions) => doctorCommand(u, g, o)));
 
@@ -290,12 +291,24 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('login')
-    .description("open a headed browser on the project's persistent profile to sign in once")
+    .description("sign a persona in and save its session (a browser window; --auto: its login steps, headless)")
     .argument('<project>', 'project slug or directory')
-    .option('--env <name>', 'environment (selects the profile when auth is per environment)')
-    .option('--page <key>', 'environment page to open (default: the first one)')
-    .option('--url <url>', 'explicit URL to open')
+    .option('--env <name>', 'environment (default: the project default)')
+    .option('--persona <name>', 'persona to sign in (needed when the environment has several)')
+    .option('--auto', "sign in with the persona's login steps, headless (no window: CI, tests, a quick refresh)")
+    .option('--page <key>', 'environment page the window opens (default: the persona check page)')
+    .option('--url <url>', 'explicit URL the window opens')
     .action(action((u, g, p: string, o: LoginOptions) => loginCommand(u, g, p, o)));
+
+  const auth = program.command('auth').description('signed-in sessions of personas');
+  auth
+    .command('status')
+    .description('every persona: valid, expired or never signed in, and when it was last checked (--check: check now)')
+    .option('--project <slug>', 'only this project')
+    .option('--env <name>', 'with --project: only this environment')
+    .option('--check', 'check each saved session now (headless, without signing in) and save the result; exit 1 when one is not valid')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, o: AuthStatusOptions) => authStatusCommand(u, g, o)));
 
   for (const later of LATER_COMMANDS) {
     program

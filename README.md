@@ -6,8 +6,9 @@ in sync by construction), records the screen through the Chrome DevTools screenc
 step. Later phases edit that capture automatically into a finished video (themes, components, captions,
 intro/outro), produce review artefacts, and expose everything to an AI agent through an MCP server.
 
-The tool is generic: it is not tied to any product or brand. Your projects, themes, logos, scripts, hooks and browser
-profiles live in **your own workspace folder**, never in this repository.
+The tool is generic: it is not tied to any product or brand. Your projects, themes, logos, scripts and hooks live in
+**your own workspace folder**, never in this repository; signed-in sessions stay on your computer, outside any project
+(`~/.demo-studio`).
 
 - [How it works](#how-it-works)
 - [Requirements](#requirements)
@@ -19,7 +20,7 @@ profiles live in **your own workspace folder**, never in this repository.
 - [Your own media and motion](#your-own-media-and-motion)
 - [Editing: the edit plan](#editing-the-edit-plan)
 - [Rendering](#rendering)
-- [Signing in once: pre-authenticated profiles](#signing-in-once-pre-authenticated-profiles)
+- [Signing in: personas and sessions](#signing-in-personas-and-sessions)
 - [Security](#security)
 - [Outputs of a run](#outputs-of-a-run)
 - [Repository layout](#repository-layout)
@@ -123,12 +124,14 @@ studio validate acme-demo
 
 `studio new` writes `README.md` (a skeleton to describe the product, audience, goals, tone and accounts — by
 reference, never passwords), `project.yaml`, `scenarios/`, `hooks/`, `assets/` and a `.gitignore` for generated
-folders.
+folders. On a terminal, `studio new <slug>` without `--env` asks instead: the environments, then whether each one
+needs a sign-in and the accounts the videos are filmed as, and offers to sign each one in (see
+[Signing in](#signing-in-personas-and-sessions)).
 
 ## Command line
 
 ```
-studio new <slug> [--name N] [--template T] [--env name=key:url,...]
+studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
 studio list [--json]                                  # projects (with scenarios) and templates
 studio validate <project> [scenario|file] [--env E] [--until REF] [--json]
 studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--json]
@@ -153,7 +156,8 @@ studio review <project> <render-id|file|latest> [--scenario S] [--fps 1|2] [--pr
 studio export-capture <project> <run-id|dir|latest> [--scenario S] [--format mp4|prores] [--fps 30|60]
               [--cursor baked|none|layer] [--layer prores|webm] [--selects] [--no-cuts] [--out DIR] [--json]
 studio schema [scenario|project|template|timeline]    # JSON Schema on stdout
-studio login <project> [--env E] [--page KEY] [--url URL]
+studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
+studio auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
 ```
 
@@ -173,12 +177,17 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   every pending journal (captures' and standalone ones), then runs the `reset` hooks (journaled in
   `.demo-studio/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
   asked on a terminal, or they are refused).
+- **login** signs a persona in and saves its session: a visible browser window (sign in, then close it) or, with
+  `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,
+  or checked now with `--check`) — see [Signing in](#signing-in-personas-and-sessions).
 - **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
   version and a real new-headless launch), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
   (`osascript`, `notify-send`), the workspace root and its projects, and the fonts of every template (the starter
   templates included). With
-  `--project <slug>` it also checks that project's browser profile(s) (present, not in use) and sends a `HEAD`
+  `--project <slug>` it also checks that project's sessions — one line per persona (never signed in, expired, in use
+  by a browser, its last check), the studio home (a warning when it, or a session, sits inside a git work tree that
+  does not ignore it), the profile of the single-account form — and sends a `HEAD`
   request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
   failure, of another environment a warning. It exits with `1` when any check fails; `--json` prints the checks.
 - **components** lists, validates and scaffolds components — see [Components](#components).
@@ -197,7 +206,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
-invalid command line.
+invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a session or running js hooks.
 
 ```
 $ studio doctor --project northfield-fixture        # Linux container without a desktop, fixture running
@@ -217,10 +226,16 @@ studio doctor
   OK    Template editorial          fonts present (4 files)
   OK    Template motion             fonts present (4 files)
   OK    Project northfield-fixture  /home/user/Video/projects/northfield-fixture
-  OK    Profile                     none configured (a fresh temporary profile per run)
+  OK    Session home                ~/.demo-studio · outside any git work tree
+  WARN  Persona signed-in·supplier  never signed in
+                                    → sign in once: studio login northfield-fixture --env signed-in --persona supplier
+  WARN  Persona signed-in·buyer     never signed in
+                                    → sign in once: studio login northfield-fixture --env signed-in --persona buyer
   OK    Host local·console          http://localhost:4401 → HTTP 200 (56 ms)
   OK    Host local·shop             http://localhost:4402 → HTTP 200 (7 ms)
-✓ 0 failures, 3 warnings
+  OK    Host signed-in·console      http://localhost:4403 → HTTP 302 (2 ms)
+  OK    Host signed-in·shop         http://localhost:4404 → HTTP 302 (1 ms)
+✓ 0 failures, 5 warnings
 ```
 
 ## Project layout
@@ -228,7 +243,7 @@ studio doctor
 ```
 projects/<slug>/
   README.md            # the product, audience, goals, tone, links, accounts by reference, do/don't
-  project.yaml         # environments, capture size, template, auth profile, hooks allow-list, reset hooks
+  project.yaml         # environments, capture size, template, personas, hooks allow-list, reset hooks
   scenarios/<name>.yaml
   hooks/               # sql / http / js / sh files used by hooks
   assets/              # files used by scenarios (drop_file, eval, music…)
@@ -246,8 +261,11 @@ environments:                  # environment → page key → base URL ({{app}} 
     app: https://app.staging.example.com
     admin: https://admin.staging.example.com
 default_env: staging
-auth:                          # never passwords; global, or keyed by environment name
-  profile: ~/.demo-studio/profiles/acme-staging
+auth:                          # the accounts videos are filmed as: never a password, never a path (see Signing in)
+  staging:                     # global, or keyed by environment name
+    login_url: /login
+    personas:
+      admin: {pages: [admin, app], check: {url: "app:/", expect_text: Jane Example}}
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → real 3840×2160 frames from a 1080p viewport (4K)
 frame: card                    # raw | card | browser | laptop | phone | tablet (| split | pip: multi-page scenes), or a layout component id
 template: default              # a workspace template, a starter (default, editorial, motion), or a path like ./theme
@@ -323,7 +341,8 @@ scenes:
 every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck, loop}`, see
 [the music bed](#music-bed)), `scenes`.
 
-**Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `steps`, `speed` (edit-time),
+**Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `persona` (the account the page is
+signed in as, `none` for none: see [Signing in](#signing-in-personas-and-sessions)), `steps`, `speed` (edit-time),
 `still` (seconds still at the start, default 1.6), `cursor` (where the cursor rests at the start, see below),
 `transition` (`crossfade`, `cut`, `fade-black`), `frame` (a frame style or a layout component id), `irreversible`,
 `skip`, `note`. A scene without `page` continues on the previous scene's page; a scene without `open` continues from
@@ -574,8 +593,9 @@ scenes:
 ```
 
 A password field shows bullets; any other field shows what is typed, so typing a secret there warns
-(`types the value of a secret reference into a visible field`). For real credentials prefer signing in beforehand
-(`studio login`, `auth.storage_state`); put values the video may show in `vars`.
+(`types the value of a secret reference into a visible field`). For real credentials prefer signing in beforehand —
+personas, `studio login`, or their automated `login:` steps off camera (see
+[Signing in](#signing-in-personas-and-sessions)); put values the video may show in `vars`.
 
 ## Your own media and motion
 
@@ -1075,6 +1095,7 @@ pages:
 | `viewport` | page | `desktop` (the capture size, the default), `laptop` 1440×900, `tablet` 820×1180 (mobile, touch), `mobile` 390×844 (mobile, touch, mobile user agent), or `{width, height, mobile?, touch?}`; a page keeps one viewport for the whole run |
 | `label` | page | shown above its pane by `studio/layout-split` |
 | `cursor` | page | that page's scene-start cursor (as a scene's `cursor`) |
+| `persona` | page | the account it is signed in as (default: the persona whose `pages` list its environment page; `none`: none) — one browser per persona, so the supplier and the buyer of one site film side by side ([Signing in](#signing-in-personas-and-sessions)); a page keeps one persona for the whole run |
 | `on` | step | the page the step acts on (default the scene's first page); only inside a multi-page scene |
 
 Validation is positioned (line:column): unknown page ids (with a suggestion), `on:` outside a multi-page scene or
@@ -1512,23 +1533,153 @@ thumbnail_px?, rules?, out?})` → `ReviewResult` (the report plus `thumbnails`:
 — the contact sheet pages and the marker key frames by default, every sheet and key frame with `'all'`). A review of a
 one-minute 1080p render takes ≈ 10 s.
 
-## Signing in once: pre-authenticated profiles
+## Signing in: personas and sessions
 
-Scenarios never contain passwords. Give the project a persistent browser profile and sign in by hand once:
+Scenarios never contain passwords, and `project.yaml` never contains the path of a session. A project names its
+**personas** — the accounts its videos are filmed as — per environment (or for all of them); each one's session stays
+on this computer, in the studio home `~/.demo-studio` (`DEMO_STUDIO_HOME` moves it), outside every project and
+repository:
 
 ```yaml
-# project.yaml
-auth:
-  staging: {profile: ~/.demo-studio/profiles/acme-staging}   # or one global {profile: …}
+# project.yaml (the fixture project's environment signed-in)
+auth:                                  # global, or keyed by environment name (as here)
+  signed-in:
+    login_url: /sign-in                # sign-in pages: a path prefix, "<page>:/path", a URL prefix or {regex, flags}
+    personas:
+      supplier:
+        pages: [console]               # environment pages it is signed into (a page belongs to one persona)
+        check: {url: "console:/products", expect_text: Maja Lindqvist}   # off camera, before every run
+        login:                         # optional: automated login, off camera (secret references only)
+          - open: "console:/sign-in"
+          - type: {into: {label: Email}, text: maja@northfield.example}
+          - type: {into: {label: Password}, text: "{{env:NORTHFIELD_SUPPLIER_PASSWORD}}"}   # or {{keychain:…}}
+          - click: {role: button, name: Sign in}
+          - wait_for: {text: Maja Lindqvist}
+      buyer:
+        pages: [shop]
+        check: {url: "shop:/", expect_text: Demo Café}
 ```
+
+A persona's keys: `pages`, `session` (`profile`, the default: a Chromium profile; `storage_state`: cookies and
+localStorage only), `check` (`url`: `"<page>:/path"`, a path or a URL, default its first page's `/`; `expect_text`: a
+text only shown when signed in — without it, signed in means "loads off the sign-in pages"; `expect_not_url`: more
+sign-in pages; `timeout`, default 10 s), `login_url` (its own sign-in pages, with `auth.login_url`) and `login` (steps
+`open`, `click`, `type`, `press`, `wait_for`, `wait` in scenario syntax; `{{hooks.…}}` is not available there).
+
+**Sign in once** with `studio login`:
 
 ```sh
-studio login acme-demo --env staging     # opens a visible browser on that profile; sign in, then close the window
-studio run acme-demo onboarding          # later runs reuse the signed-in profile, headless
+studio login northfield-fixture --env signed-in --persona supplier          # a browser window: sign in (SSO, 2FA…), close it
+studio login northfield-fixture --env signed-in --persona buyer --auto      # or its login steps, headless (CI, tests)
+studio auth status                                                           # every persona, and its last check
 ```
 
-A profile can be used by one browser at a time: close the login window before running. `auth.storage_state`
-(a Playwright storage-state JSON with cookies and local storage) is an alternative to a profile.
+`studio login` opens a visible Chromium window on the persona's own profile
+(`~/.demo-studio/profiles/<project>/<env>/<persona>/`), on its check page (`--page KEY` / `--url URL` to choose),
+with the session saved so far — still signed in when it still works. Sign in, then close the window (or quit the
+browser). It saves a snapshot of the session (`~/.demo-studio/sessions/<project>/<env>/<persona>.json`: the cookies —
+session cookies too, which a profile loses when it closes — and localStorage, readable only by you), checks the
+session the way a run will see it and prints
+`✓ supplier (env signed-in) signed in: console:/products shows "Maja Lindqvist" — runs use a copy of this session`
+(else "still signed out … did the sign-in finish?", exit 1). A window that ends signed out never replaces a saved
+session that still works (it is kept, and said so). A new profile never offers to save a password; a first sign-in
+that fails leaves no profile behind. Ctrl-C closes the window and saves nothing (exit 130). `--persona` is needed when
+the environment has several personas; `--auto` runs the persona's `login:` steps headless instead of a window — after
+checking the saved session the way a run sees it: one still valid is kept as is, no step runs. A profile a browser
+still holds (another login window) is refused. On a terminal, `studio new` asks for the personas (a persona whose
+environment pages all have one already films none by default: a scene picks it with `persona:`) and offers to sign
+each one in (no answer: later).
+
+**Who films which page.** A page is signed in as the persona whose `pages` list its environment page;
+`persona: <name>` on a scene — or on a page of a multi-page scene, `pages.<id>.persona` — chooses another one, and
+`persona: none` none (a fresh browser: a sign-up, a public page). A page id keeps the persona it is first filmed with
+for the whole run: another account on the same environment page needs a page id of its own (a multi-page scene's
+`pages`). A `new_tab` is signed in as the page that opened it (a tab of a `persona: none` page has none either);
+`persona: none` written on a later scene for a page filmed without a persona so far leaves it unguarded for the run. A
+`js` hook runs as the persona its page is filmed with in the scenario (`none` included), else as that page's default —
+`studio hooks run <project> <scenario>:setup` binds it the same way. Each persona gets its own browser (its own
+cookies): a multi-page scene films the supplier and the buyer of one site side by side, each signed in as itself.
+Validation names an unknown persona and a page asked for two. An environment without personas behaves as before.
+
+**Before every run** — dry runs too, once the secrets are read, before any setup hook or recording — each persona the
+run films is checked off camera, in a tab of its own browser. A persona that is not signed in and has `login:` steps
+signs in automatically (off camera; the run warns, and its saved session stays expired: `studio login` saves one runs
+can reuse). Otherwise the run stops before anything happens, with the exact command:
+
+```
+✗ run failed in 762 ms · 0/19 steps
+  error     session preflight failed — nothing was recorded:
+              persona buyer (env signed-in): expired — shop:/ landed on the sign-in page (http://localhost:4404/sign-in)
+                sign in again: studio login northfield-fixture --env signed-in --persona buyer
+```
+
+**During the run**, a filmed page that lands on a sign-in page — `auth.login_url`, the persona's `login_url` or
+`check.expect_not_url`, matched on the URL's origin and path (never its query; `/sign-in` also matches `/sign-in/…`,
+not `/sign-in-help`; `"<page>:/path"` and URLs also after an http → https or apex → www redirect) — fails the run at
+once, and the run keeps nothing: no frame, video, screenshot, artefact or timeline (a step failing meanwhile reports
+the landing, even an `optional` one). A `download` whose document opens on a sign-in page fails the same way (it is
+never saved). Pages without a persona are guarded by `auth.login_url` too, unless written `persona: none`. A landing
+right after the setup hooks says a hook may have reset the sessions; a tab that reaches the sign-in page of another
+persona's page says so (`… that is page "shop", filmed as persona buyer: a tab keeps the persona of the page it is
+opened from — film "shop" on its own page`); after a step fails on a persona's page, one check says whether its
+session expired. An expiry seen during a run is saved: `studio auth status` shows `expired` (`expired during run …`).
+Validation refuses a sign-in pattern that would match every page (`/`, `"<page>:"`, an environment page's URL, a
+regex matching any URL) and the regex flags `g` / `y`, and warns about `{regex: "^/…"}` (a regex sees `http://host/…`)
+and `/sign-in/i` (a path, not a regex: write `{regex: sign-in, flags: i}`).
+
+**Copies.** A run never opens a persona's profile: it runs on a copy (copy-on-write where the disk allows; caches,
+locks and saved passwords left out) plus the snapshot's cookies, in the system temp folder, removed at the end. Runs
+of one persona can therefore run at the same time; a profile a login window still holds is refused (close it first).
+A `storage_state` persona runs on a fresh profile plus its snapshot. A second Ctrl-C removes the run's copies before
+it quits; Ctrl-C in `studio login`, `auth status --check` or js hooks (`hooks run`, `hooks rollback`, `env reset`)
+closes their browser and its copies, then exits 130; copies a killed process left behind (`demo-studio-session-*`,
+`demo-studio-login-*`, `demo-studio-profile-*`, no browser on them for 10 minutes) are removed by the next run. Ctrl-C during the preflight's
+check or automated login cancels at once.
+
+**Status.** `studio auth status [--project P [--env E]] [--json]` lists every persona from what is stored — `valid`,
+`expired`, `never` (no session saved), `unchecked` (saved, never checked), `error` (could not be checked) — with when
+and by what it was last checked (a run's preflight, a run it expired during, `studio login`, `auth status --check`),
+whether a browser holds its profile, and the command for any that is not valid:
+
+```
+northfield-fixture · env signed-in
+  supplier  valid     checked 2 min ago (preflight of run 20261013-141530-live-quote)
+  buyer     expired   checked just now (auth status --check): shop:/ landed on the sign-in page (http://localhost:4404/sign-in)
+            → sign in again: studio login northfield-fixture --env signed-in --persona buyer
+```
+
+`--check` checks each saved session now (headless, one after the other, without signing in), saves the result and
+exits with 1 when one is not valid; a profile a browser holds is not checked (`not checked · in use by a browser`:
+close that browser first). `studio doctor --project P` shows the same per persona, and warns when the studio
+home — or a session — sits inside a git work tree that does not ignore it.
+
+**The fixture** serves its two apps behind a sign-in too (:4403 / :4404, invented accounts and passwords in
+`fixtures/wholesale/README.md`): the fixture project's environment `signed-in` runs every scenario signed in.
+
+```sh
+export NORTHFIELD_SUPPLIER_PASSWORD=… NORTHFIELD_BUYER_PASSWORD=…     # from fixtures/wholesale/README.md
+pnpm studio login northfield-fixture --env signed-in --persona supplier --auto
+pnpm studio login northfield-fixture --env signed-in --persona buyer --auto
+pnpm studio run northfield-fixture live-quote --env signed-in        # each pane signed in as its persona
+```
+
+**One account, the older form.** `auth: {profile: ~/…}` (or `storage_state: file.json`), global or per environment,
+still works as the persona `default` on every page, with a validation warning (a path that only exists on one
+computer): `studio login <project> [--env E]` opens a window on that profile as before, and runs use a copy of it. As
+before, a missing profile starts signed out and a missing `storage_state` file fails the run before anything runs
+(`studio auth status` says to export it again: `studio login` has no window for it).
+
+**Limits.**
+- Nothing is written back from a run: an app that rotates its refresh token on every use may ask to sign in again
+  sooner (each run refreshes a copy); `studio login` again then.
+- Tokens kept in sessionStorage are lost between runs; IndexedDB travels in a `profile` persona's copy, not in a
+  `storage_state` snapshot.
+- A sign-in screen an app shows without changing its URL is caught only when a step fails (the frames until then are
+  filmed): give such an app a `check` with `expect_text`, and steps that wait for signed-in content.
+- Signing out on camera fails the run (the guard sees the sign-in page).
+- A session belongs to the computer that saved it (a snapshot from another one is warned about); sessions are kept
+  per project slug, so two workspaces with a project of the same slug share them.
+- A copy starts with cold caches: its first page loads are slower (held, and cut by the edit).
 
 ## Security
 

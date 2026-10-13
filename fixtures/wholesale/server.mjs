@@ -3,11 +3,15 @@
 // on two ports, sharing one in-memory store and JSON API (/api on both ports).
 //
 //   node server.mjs [--console-port 4401] [--shop-port 4402] [--host 127.0.0.1] [--no-build]
+//                   [--auth-console-port 4403] [--auth-shop-port 4404] [--no-auth]
 //   env: NORTHFIELD_CONSOLE_PORT, NORTHFIELD_SHOP_PORT, NORTHFIELD_HOST,
+//        NORTHFIELD_AUTH_CONSOLE_PORT, NORTHFIELD_AUTH_SHOP_PORT,
 //        NORTHFIELD_ENRICH_MS (default 4000), NORTHFIELD_IMPORT_MS (default 2000),
 //        NORTHFIELD_REPORT_MS (default 400), NORTHFIELD_REPORT_DATA_MS (default 1200)
 //
-// Also importable: `const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close()`.
+// The same two apps also run on a signed-in side (:4403 / :4404 by default, same store): every page there needs an
+// account (server/auth.mjs). Also importable: `const fx = await startFixture({ consolePort: 0, shopPort: 0,
+// auth: { consolePort: 0, shopPort: 0 } }); … await fx.close()` (no `auth`: no signed-in side).
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -16,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { build, bundleState, bundleVersion, OUT_DIR } from './build.mjs';
 import { handleApi } from './server/api.mjs';
+import { Sessions, handleSignIn, redirectToSignIn, signedIn } from './server/auth.mjs';
 import { renderShippingEmbed } from './server/embed.mjs';
 import { sendError, sendJson, sendText } from './server/http.mjs';
 import { Mailbox, handleMailbox } from './server/mailbox.mjs';
@@ -73,6 +78,10 @@ async function serveBuildFile(res, pathname) {
   }
 }
 
+/**
+ * One app (console or shop) of one side. On the signed-in side (`ctx.signIn`) every page needs a session of that app
+ * — else 302 to /sign-in — except the API, the mailbox, the bundle and the icons (hooks and tests keep working).
+ */
 function appHandler(appKey, ctx) {
   return async (req, res) => {
     let url;
@@ -84,12 +93,14 @@ function appHandler(appKey, ctx) {
     const path = url.pathname;
     if (path === '/api' || path.startsWith('/api/')) return handleApi(req, res, url, ctx);
     if ((path === '/mailbox' || path.startsWith('/mailbox/')) && handleMailbox(req, res, url, ctx.mailbox)) return;
+    if (ctx.signIn && (await handleSignIn(req, res, url, ctx.sessions, appKey))) return;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return sendError(res, 405, 'method_not_allowed', `${req.method} is only supported under /api`);
     }
     if (path.startsWith('/build/')) return serveBuildFile(res, path);
     if (path === '/favicon.svg' || path === '/favicon.ico') return sendText(res, 200, 'image/svg+xml', FAVICON);
     if (path === '/app-icon.svg') return sendText(res, 200, 'image/svg+xml', FAVICON);
+    if (ctx.signIn && !signedIn(req, ctx.sessions, appKey)) return redirectToSignIn(res, url);
     if (appKey === 'console') {
       // "Sales reports": server-rendered pages, every link a full page load (R-ISS-08).
       if (path === '/reports' || path === '/reports/') return sendText(res, 200, 'text/html; charset=utf-8', renderReportList(), { 'cache-control': 'no-store' });
@@ -180,7 +191,7 @@ async function listenAll(handler, port, hosts, label) {
       if (optionalV6) continue;
       for (const s of servers) s.close();
       if (err.code === 'EADDRINUSE') {
-        throw new Error(`Port ${actual} (${label}) is already in use on ${host}; pick another one with --${label}-port or NORTHFIELD_${label.toUpperCase()}_PORT`);
+        throw new Error(`Port ${actual} (${label}) is already in use on ${host}; pick another one with --${label}-port or NORTHFIELD_${label.toUpperCase().replace(/-/g, '_')}_PORT`);
       }
       throw new Error(`Cannot listen on ${host}:${actual} (${label}): ${err.message}`);
     }
@@ -189,8 +200,9 @@ async function listenAll(handler, port, hosts, label) {
 }
 
 /**
- * Starts both apps. Ports may be 0 (ephemeral).
- * @param {{ consolePort?: number, shopPort?: number, host?: string, build?: boolean, enrichMs?: number, importMs?: number, reportMs?: number, reportDataMs?: number, log?: (msg: string) => void }} [opts]
+ * Starts both apps, and their signed-in side when `auth` is given. Ports may be 0 (ephemeral). A busy signed-in port
+ * with `auth.optional` is reported through `log` and the open side keeps running.
+ * @param {{ consolePort?: number, shopPort?: number, host?: string, build?: boolean, enrichMs?: number, importMs?: number, reportMs?: number, reportDataMs?: number, auth?: { consolePort?: number, shopPort?: number, optional?: boolean }, log?: (msg: string) => void }} [opts]
  */
 export async function startFixture(opts = {}) {
   const log = opts.log ?? (() => {});
@@ -205,9 +217,11 @@ export async function startFixture(opts = {}) {
   const hosts = opts.host ? [opts.host] : ['127.0.0.1', '::1'];
   const urlHost = !opts.host || opts.host === '127.0.0.1' || opts.host === '::1' || opts.host === '0.0.0.0' || opts.host === '::' ? 'localhost' : opts.host;
   const store = new Store({ enrichMs: opts.enrichMs, importMs: opts.importMs });
+  const sessions = new Sessions();
   const ctx = {
     store,
     mailbox: new Mailbox(),
+    sessions,
     urls: { console: '', shop: '' },
     version: await bundleVersion(),
     reports: { ms: opts.reportMs ?? REPORT_MS, dataMs: opts.reportDataMs ?? REPORT_DATA_MS },
@@ -223,11 +237,37 @@ export async function startFixture(opts = {}) {
   ctx.urls.console = `http://${urlHost}:${consoleSide.port}`;
   ctx.urls.shop = `http://${urlHost}:${shopSide.port}`;
   const servers = [...consoleSide.servers, ...shopSide.servers];
+  // The signed-in side: same store, mailbox and API; its own URLs (the shop's "Supplier console" link, e-mail links).
+  let signedIn = null;
+  if (opts.auth) {
+    const side = { ...ctx, urls: { console: '', shop: '' }, signIn: true };
+    const started = [];
+    try {
+      const c = await listenAll(appHandler('console', side), opts.auth.consolePort ?? 4403, hosts, 'auth-console');
+      started.push(...c.servers);
+      const sh = await listenAll(appHandler('shop', side), opts.auth.shopPort ?? 4404, hosts, 'auth-shop');
+      started.push(...sh.servers);
+      side.urls.console = `http://${urlHost}:${c.port}`;
+      side.urls.shop = `http://${urlHost}:${sh.port}`;
+      signedIn = side.urls;
+      servers.push(...started);
+    } catch (err) {
+      for (const s of started) s.close();
+      if (!opts.auth.optional) {
+        for (const s of servers) s.close();
+        throw err;
+      }
+      log(`Signed-in side not started: ${err instanceof Error ? err.message : err}`);
+    }
+  }
   let closing;
   return {
-    urls: ctx.urls,
+    urls: { ...ctx.urls, ...(signedIn ? { signedIn } : {}) },
     store,
     mailbox: ctx.mailbox,
+    sessions,
+    /** End every session of the signed-in side, or one persona's (supplier, buyer); returns how many ended. */
+    expireSessions: (persona) => sessions.expire(persona),
     close() {
       closing ??= Promise.all([
         closePdfBrowser(),
@@ -264,13 +304,16 @@ async function main() {
     options: {
       'console-port': { type: 'string' },
       'shop-port': { type: 'string' },
+      'auth-console-port': { type: 'string' },
+      'auth-shop-port': { type: 'string' },
+      'no-auth': { type: 'boolean' },
       host: { type: 'string' },
       'no-build': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
   if (values.help) {
-    console.log('Usage: node server.mjs [--console-port 4401] [--shop-port 4402] [--host 127.0.0.1] [--no-build]');
+    console.log('Usage: node server.mjs [--console-port 4401] [--shop-port 4402] [--auth-console-port 4403] [--auth-shop-port 4404] [--no-auth] [--host 127.0.0.1] [--no-build]');
     return;
   }
   const fixture = await startFixture({
@@ -282,11 +325,22 @@ async function main() {
     importMs: msOption(process.env.NORTHFIELD_IMPORT_MS, 'NORTHFIELD_IMPORT_MS'),
     reportMs: msOption(process.env.NORTHFIELD_REPORT_MS, 'NORTHFIELD_REPORT_MS'),
     reportDataMs: msOption(process.env.NORTHFIELD_REPORT_DATA_MS, 'NORTHFIELD_REPORT_DATA_MS'),
+    // The signed-in side is on by default; a busy port only skips it (the open side keeps working).
+    auth: values['no-auth']
+      ? undefined
+      : {
+          consolePort: portOption(values['auth-console-port'] ?? process.env.NORTHFIELD_AUTH_CONSOLE_PORT, 'auth console port') ?? 4403,
+          shopPort: portOption(values['auth-shop-port'] ?? process.env.NORTHFIELD_AUTH_SHOP_PORT, 'auth shop port') ?? 4404,
+          optional: true,
+        },
     log: (m) => console.log(m),
   });
   console.log('Northfield fixture is running');
   console.log(`  Console  ${fixture.urls.console}`);
   console.log(`  Shop     ${fixture.urls.shop}`);
+  if (fixture.urls.signedIn) {
+    console.log(`  Signed in: console ${fixture.urls.signedIn.console}, shop ${fixture.urls.signedIn.shop}  (accounts: fixtures/wholesale/README.md; POST /api/auth/expire signs everyone out)`);
+  }
   console.log(`  API      ${fixture.urls.console}/api  (same store on both ports; POST /api/reset restores the seed)`);
   console.log(`  Mailbox  ${fixture.urls.console}/mailbox  (Mailpit-compatible API: /mailbox/api/v1/messages)`);
   const stop = (signal) => {

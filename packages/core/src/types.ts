@@ -741,6 +741,8 @@ export interface ScenePageSpec {
   label?: string;
   /** Where this page's cursor rests at the scene start (default 'auto'). */
   cursor?: SceneCursor;
+  /** The persona this page is signed in as (L1.6; `none`: no persona). Default: the persona whose `pages` list its environment page. */
+  persona?: string;
 }
 
 /**
@@ -791,6 +793,11 @@ export interface Scene {
    * and a supplier, or one site on desktop and mobile. Steps act on the first page unless they say `on: <page>`.
    */
   pages?: ScenePages;
+  /**
+   * The persona this scene's page is signed in as (L1.6; `none`: no persona). Default: the persona whose `pages` list the
+   * environment page. A page keeps one persona for the whole run. Multi-page scenes bind each page: `pages.<id>.persona`.
+   */
+  persona?: string;
   steps: Step[];
   /** Edit-time speed for the whole scene. */
   speed?: number;
@@ -1102,11 +1109,67 @@ export const DEFAULT_PACING: Pacing = {
   park_scroll_hold: 3.2,
 };
 
+/**
+ * What a sign-in page looks like (L1.6), matched against a page's origin + path (never its query or fragment): a path
+ * prefix ("/sign-in" — also "/sign-in/…", not "/sign-in-help"), "<environment page>:<path>" (that page's origin and
+ * path), an absolute URL prefix ("https://sso.example.com" — every page there), or {regex, flags?}.
+ */
+export type LoginPattern = string | { regex: string; flags?: string };
+
+/** How the runner tells a persona is signed in (L1.6), off camera before every run. */
+export interface PersonaCheck {
+  /** "<env page>:/path", a path (on the persona's first page) or an absolute URL. Default: the first page's "/". */
+  url?: string;
+  /** Text visible only when signed in (e.g. the account name). Without it: signed in when the page loads off the sign-in page. */
+  expect_text?: string;
+  /** Pages the check must NOT end on (also sign-in pages for the run's guard). */
+  expect_not_url?: LoginPattern | LoginPattern[];
+  /** Seconds (default 10). */
+  timeout?: number;
+}
+
+/**
+ * One step of an automated login (L1.6): open, click, type, press, wait_for or wait (scenario syntax), run off camera in
+ * a tab of its own. Typed secrets come from {{env:…}} / {{keychain:…}} references.
+ */
+export type LoginStep = (
+  | { open: string | OpenArgs }
+  | { click: TargetSpec }
+  | { type: { into?: TargetSpec; text: string; enter?: boolean } }
+  | { press: string | PressArgs }
+  | { wait_for: string | WaitForArgs }
+  | { wait: number }
+) & {
+  /** Seconds before the step fails (default 15). */
+  timeout?: number;
+  note?: string;
+};
+
+/**
+ * One account the videos are filmed as (L1.6): its session lives outside the project, in
+ * ~/.demo-studio/profiles|sessions/<project>/<env>/<persona> (DEMO_STUDIO_HOME moves it) — never a path here.
+ */
+export interface PersonaConfig {
+  /** Environment pages this persona is signed into by default (a page is in at most one persona's list). */
+  pages?: string[];
+  /** profile (default): a Chromium profile kept by `studio login`, copied for each run; storage_state: cookies + localStorage only. */
+  session?: 'profile' | 'storage_state';
+  check?: PersonaCheck;
+  /** Sign-in pages of this persona (with auth.login_url and check.expect_not_url). */
+  login_url?: LoginPattern | LoginPattern[];
+  /** Automated login, off camera: used when the saved session is missing or expired. */
+  login?: LoginStep[];
+}
+
 export interface AuthConfig {
-  /** Persistent, pre-authenticated Chromium profile directory (~ expanded). */
+  /** Legacy single account: persistent, pre-authenticated Chromium profile directory (~ expanded). Prefer `personas`. */
   profile?: string;
-  /** Playwright storageState JSON (alternative to profile). */
+  /** Legacy single account: Playwright storageState JSON (alternative to profile). Prefer `personas`. */
   storage_state?: string;
+  /** Sign-in pages of every persona (and of pages without one): landing there during a run fails it. */
+  login_url?: LoginPattern | LoginPattern[];
+  /** Named accounts (L1.6). */
+  personas?: Record<string, PersonaConfig>;
 }
 
 export interface DatabaseConfig {

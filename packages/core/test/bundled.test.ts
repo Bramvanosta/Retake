@@ -12,6 +12,8 @@ import {
   loadScenario,
   loadTemplate,
   parseTemplateYaml,
+  planPersonas,
+  resolvePersonas,
   resolveThemeComponents,
   COMPONENT_KINDS,
   COMPONENT_ID_RE,
@@ -68,6 +70,25 @@ describe('bundled fixture project', () => {
       const loaded = await loadScenario(project, name, { template: template.template });
       expect(errorsOf(loaded.issues), name).toEqual([]);
     }
+  });
+
+  it('env signed-in (L1.6): every scenario films each page as the persona of its environment page, env local as none', async () => {
+    const project = await loadProject('northfield-fixture', ROOT);
+    const personas = resolvePersonas(project, 'signed-in', { home: '/nonexistent-home' });
+    expect(personas.map((p) => [p.name, p.pages, p.loginPatterns])).toEqual([
+      ['supplier', ['console'], ['/sign-in']],
+      ['buyer', ['shop'], ['/sign-in']],
+    ]);
+    expect(resolvePersonas(project, 'local')).toEqual([]);
+    const used: Record<string, string> = {};
+    for (const name of project.scenarios) {
+      const { scenario } = await loadScenario(project, name);
+      const plan = planPersonas(scenario, { env: 'signed-in', envPages: project.config.environments['signed-in'], personas, hooks: true });
+      expect(plan.issues, name).toEqual([]);
+      expect(plan.needsDefault, name).toBe(false);
+      used[name] = plan.used.join(',');
+    }
+    expect(used).toMatchObject({ catalogue: 'supplier', reports: 'supplier', quote: 'supplier,buyer', 'live-quote': 'supplier,buyer', signup: 'buyer', 'phone-and-desktop': 'buyer' });
   });
 
   it('the quote scenario shows the phase-2 syntax: a card entry and a step overlay with a target', async () => {

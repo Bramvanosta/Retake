@@ -143,6 +143,8 @@ export interface CreateProjectInput {
   /** Full README.md content (default: a skeleton with the expected sections). */
   readme?: string;
   environments?: ProjectConfig['environments'];
+  /** Personas (L1.6): global, or keyed by environment name. */
+  auth?: ProjectConfig['auth'];
   template?: string;
   capture?: Partial<CaptureSettings>;
   frame?: FrameStyle;
@@ -178,8 +180,8 @@ export function readmeSkeleton(name: string, environments: ProjectConfig['enviro
     '',
     '## Accounts (by reference — never passwords)',
     '',
-    '<!-- Which account each scenario uses and where its credentials live: password manager entry,',
-    '     keychain item (keychain:service/account) or pre-authenticated browser profile. -->',
+    '<!-- Which account each scenario uses (the personas of project.yaml) and where its credentials live: password',
+    '     manager entry or keychain item (keychain:service/account). `studio login` keeps sessions in ~/.demo-studio. -->',
     '',
     "## Do / Don't",
     '',
@@ -194,6 +196,7 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
   const data: Record<string, unknown> = {
     name: input.name,
     environments: input.environments ?? {},
+    ...(input.auth ? { auth: input.auth } : {}),
     capture: { width, height, scale, fps, ...input.capture },
     frame: input.frame ?? DEFAULT_FRAME,
     template: input.template ?? DEFAULT_TEMPLATE_NAME,
@@ -201,14 +204,19 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
   return [
     `# Demo Studio project "${slug}"`,
     stringify(data, { lineWidth: 0 }).trimEnd(),
-    '# auth:            # never passwords: a pre-authenticated browser profile (or per environment)',
-    `#   profile: ~/.demo-studio/profiles/${slug}`,
+    ...(input.auth
+      ? []
+      : [
+          '# auth:              # the accounts the videos are filmed as (global, or keyed by environment); never a password or a path:',
+          `#   personas:         # \`studio login ${slug} --persona admin\` keeps a session in ~/.demo-studio`,
+          '#     admin: {pages: [app], check: {url: "app:/", expect_text: Your account name}}',
+        ]),
     '',
   ].join('\n');
 }
 
-/** Create projects/<slug>/ with README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore. */
-export async function createProject(root: string, input: CreateProjectInput): Promise<LoadedProject> {
+/** What createProject checks before writing anything: the slug, the folder (absent or empty), the project.yaml. */
+async function newProjectPlan(root: string, input: CreateProjectInput): Promise<{ wsRoot: string; dir: string; file: string; yamlText: string }> {
   const ws = await loadWorkspaceConfig(root);
   const slug = input.slug ?? slugify(input.name);
   if (!PROJECT_SLUG_RE.test(slug)) {
@@ -223,7 +231,17 @@ export async function createProject(root: string, input: CreateProjectInput): Pr
   const yamlText = projectYamlText(input, slug);
   const { issues } = parseProjectYaml(yamlText, file);
   if (hasErrors(issues)) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
+  return { wsRoot: ws.root, dir, file, yamlText };
+}
 
+/** Throws what createProject would refuse, writing nothing (`studio new` checks before asking its questions). */
+export async function checkNewProject(root: string, input: CreateProjectInput): Promise<void> {
+  await newProjectPlan(root, input);
+}
+
+/** Create projects/<slug>/ with README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore. */
+export async function createProject(root: string, input: CreateProjectInput): Promise<LoadedProject> {
+  const { wsRoot, dir, file, yamlText } = await newProjectPlan(root, input);
   for (const sub of ['scenarios', 'hooks', 'assets']) {
     await mkdir(join(dir, sub), { recursive: true });
     await writeFile(join(dir, sub, '.gitkeep'), '');
@@ -232,7 +250,7 @@ export async function createProject(root: string, input: CreateProjectInput): Pr
   const readme = input.readme ?? readmeSkeleton(input.name, input.environments);
   await writeTextAtomic(join(dir, README_FILE), readme.endsWith('\n') ? readme : `${readme}\n`);
   await writeTextAtomic(join(dir, '.gitignore'), PROJECT_GITIGNORE.join('\n') + '\n');
-  return loadProject(dir, ws.root);
+  return loadProject(dir, wsRoot);
 }
 
 /** Replace README.md (atomically) and update `project.readme`. */

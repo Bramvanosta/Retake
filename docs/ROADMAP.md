@@ -16,7 +16,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
   `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
   it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 (done 2026-10-12) → L1.2
-  (done 2026-10-13) → L1.6 → L1.7 → L1.8 → L1.4, stopping before phase 3 (L3.1).
+  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 → L1.8 → L1.4, stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -35,8 +35,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **done** (2 partial: dialog close with a blur — an option fixes it —, hover hitches) |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
-| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **next** |
-| L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | todo |
+| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **done** |
+| L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | **next** |
 | L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
@@ -162,6 +162,14 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   onboarding in `studio new` (R-AUTH-01..08).
 - **Acceptance:** fixture gets a sign-in (two personas: supplier, buyer); an expired session is caught by the preflight;
   a run lands on login → explicit error; concurrent runs on one persona work.
+- **Done (2026-10-13):** `auth.personas` per environment (profile or storage_state, check, sign-in patterns, optional
+  `login:` steps), pages / scenes bound to a persona (`none` for public pages), masters and snapshots under
+  `~/.demo-studio` (never in project.yaml or git; doctor warns), one browser per persona on a per-run copy (parallel
+  runs safe, nothing written back — BL-59), preflight before every dry run and capture (automated off-camera login,
+  else the exact `studio login` command), a sign-in guard that fails the run and keeps nothing, `studio login --persona
+  [--auto]`, `studio auth status [--check]`, interactive `studio new`. Fixture: signed-in side (:4403 / :4404, env
+  `signed-in`, personas supplier and buyer); every acceptance item checked on the Mac. A headed sign-in typed by a
+  person is the user's MACOS-CHECKLIST step 8b.
 
 ### L1.7 — Display URLs, read-only & production safety, frozen clock (M) — after L1.6
 - **Scope:** environment pages `{url, display}` (never localhost on screen); `production` + `access: read-only |

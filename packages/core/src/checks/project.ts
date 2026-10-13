@@ -3,12 +3,12 @@ import { KEY_RE, SLUG_RE } from '../schemas/primitives.js';
 import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
 import { CheckContext, isObj } from './context.js';
+import { checkAuth, checkPersonaPaths } from './auth.js';
 import { checkHooks } from './hooks.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
 
 /** Template roots that a page key would shadow. */
 const RESERVED_PAGE_KEYS = new Set(['vars', 'hooks', 'run', 'env', 'keychain', 'secret', 'response']);
-const AUTH_KEYS = new Set(['profile', 'storage_state']);
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 /** user:password@ in a connection URL, unless the password is a {{secret}} reference. */
@@ -59,20 +59,9 @@ export function checkProject(
     );
   }
 
-  if (isObj(value.auth) && !ctx.broken(['auth'])) {
-    const keys = Object.keys(value.auth);
-    const perEnv = keys.some((k) => !AUTH_KEYS.has(k));
-    if (perEnv) {
-      for (const k of keys) {
-        if (!Object.hasOwn(envs, k)) {
-          ctx.error(['auth'], `auth key "${k}" is not an environment${suggestion(k, envNames)} (available: ${envNames.join(', ') || 'none'})`, {
-            path: ['auth', k],
-            key: true,
-          });
-        }
-      }
-    }
-  }
+  // Sessions & personas (L1.6): a persona's session path is refused even where the schema already failed.
+  checkPersonaPaths(value.auth, ctx);
+  checkAuth(value.auth, envs, ctx, { vars: new Set(isObj(value.vars) ? Object.keys(value.vars) : []) });
 
   if (isObj(value.databases)) {
     for (const [name, db] of Object.entries(value.databases)) {

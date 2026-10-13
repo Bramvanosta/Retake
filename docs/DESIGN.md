@@ -217,11 +217,16 @@ RunOptions = {
   headed?: boolean; runId?: string; runsDir?: string /* default <project>/runs */;
   onProgress?: (e: RunProgress) => void; signal?: AbortSignal;
   browser?: BrowserConfig;  // overrides project.browser
+  resolveSecret?: (ref) => Promise<string>;   // {{env:…}} / {{keychain:…}} reader (tests inject one)
+  loginCommand?: ({project, env, persona?}) => string;   // the fix command messages print (§3.6)
 }
 openSession(opts): Promise<BrowserSession>     // lower-level: launch + kit injection (used by tests, MCP live preview later)
 evalHookInPage(session, { project, env, log }, pageKey, code): Promise<unknown>   // a js hook in its guarded tab (§2)
 encodeFrames(framesDir, index: FrameIndexEntry[], out: string, opts: { fps; crf; endT }): Promise<void>
 kitSource(config: KitConfig): string           // the in-page script (for debugging / other runners)
+signIn({project, env, persona, mode: 'headed'|'auto', page?, url?, resolveSecret?, onOpen?, drive?, headless?, signal?})
+  : Promise<{persona, check, profileDir?, snapshot?, cookies, origins, url, alreadySignedIn?, kept?}>   // `studio login` (§3.6)
+checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>   // a saved session checked as a run sees it
 ```
 
 ### 3.1 Browser
@@ -229,8 +234,9 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
   viewport: { width, height }, deviceScaleFactor: scale, locale, timezoneId, colorScheme })`.
   `locale` (navigator.language, Accept-Language, Intl) = `browser.locale`, else the project `locale`, else the
   studio.yaml `browser.locale` default (`projectBrowser(project)`).
-  Profile = `project.auth.profile` (per env if keyed by env name), else a fresh temp profile;
-  `storage_state` is loaded into the context when given. Executable: config → `$DEMO_STUDIO_CHROMIUM` → Playwright default.
+  Without personas (§3.6): one context on a fresh temp profile. With personas: one context per persona the run films
+  ("realms", each its own Chromium process and cookie jar) on a per-run copy of its session, plus the default context
+  when some page has no persona. Executable: config → `$DEMO_STUDIO_CHROMIUM` → Playwright default.
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
   re-evaluated on the current page when the runner starts.
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
@@ -509,10 +515,130 @@ kitSource(config: KitConfig): string           // the in-page script (for debugg
 `log.jsonl` (every RunProgress event), `screenshots/`, `hooks-journal.json`, `scenario.yaml` (snapshot, tokens as
 written). Secret values appear as `***` in run.json, log.jsonl, timeline.json (except `artefacts`) and error-*.html.
 
+### 3.6 Sessions & personas (L1.6; core `auth.ts`, runner `auth.ts`)
+- **Model.** `auth` (global, or keyed by environment) names personas: `{pages?, session?: profile | storage_state,
+  check?: {url?, expect_text?, expect_not_url?, timeout?}, login_url?, login?: steps}`, plus `auth.login_url` for
+  every persona. Sign-in patterns (`LoginPattern`) match a URL's origin + path, never its query: a path prefix at a
+  segment boundary (`/sign-in` ≠ `/sign-in-help`), `<page>:<path>`, an absolute URL prefix (these two also on the same
+  host after an http → https or apex → www redirect), or `{regex, flags?}` (flags `g` / `y` never applied). Validation
+  refuses a pattern that matches every page (`/`, `<page>:` / `<page>:/`, an environment page's URL, a regex matching
+  any URL) and flags `g` / `y`; it warns about `{regex: "^/…"}` (never matches origin + path) and a `/…/flags` path.
+  No path in project.yaml: core `personaPaths(studioHome(), project, env, persona)` →
+  `profiles/<project>/<env>/<persona>/` (the master Chromium profile, written only by `studio login`),
+  `sessions/<project>/<env>/<persona>.json` (snapshot: Playwright storage state + `demo_studio: {version, project,
+  env, persona, machine, created_at, how}`) and `….status.json` (`{version, status: valid|expired|error, checked_at,
+  by: preflight|login|auth-status|run, run?, at?, detail?}`; "never" is not stored). `loginCommand` adds `--persona`
+  whenever one is given: callers leave it out for the legacy persona (keyed on `legacy`, never on the name `default`).
+  `studioHome()` = `$DEMO_STUDIO_HOME` else `~/.demo-studio`. The legacy `auth.profile` / `storage_state` (validation
+  warning: a path of one computer; never mixed with `personas`) is the implicit persona `default` on every page, its
+  paths as written.
+- **Binding** (core `planPersonas`, pure; the validation, the runner and the CLI share it): a page id's persona is
+  fixed the first time it is filmed — `persona` of the single-page scene or of `pages.<id>` (`none` = no persona),
+  else the persona whose `pages` list its environment page (a multi-page page's environment page: `page`, the `open`
+  prefix, the origin of an absolute `open`), else the legacy `default`, else none; `new_tab` inherits its page's (a
+  tab of a `persona: none` page is in `none` too), `switch_page: previous` follows the walk's page history (pages
+  closed by `close_current` aside); `persona: none` written later on a page bound without one adds it to `none`; js
+  hook tabs (when hooks run) take the persona their key is filmed with (`none` included), else their key's default —
+  `studio hooks run <scenario>:setup|teardown` binds them with the same plan. Another persona later for the same id is
+  an error (validation, per environment with personas; the runner re-plans for its environment and stops before the
+  browser opens). `persona` on a multi-page scene is an error. In an environment without personas nothing is bound.
+  `used` = the personas to check.
+- **Per-run sessions** (`prepareSessions`): a `profile` persona runs on a copy of its master (`fs.cp`, copy-on-write
+  clones; leaves out `Singleton*`, caches, `Crashpad`, `BrowserMetrics*`, `Login Data*`, `Web Data*`) + its snapshot's
+  cookies only (a session cookie is lost when a profile closes; the snapshot keeps it; localStorage travels in the
+  profile — an init script would bring back keys the app removed); the legacy form applies the whole storage state, as
+  before. No master: a fresh profile + the snapshot; neither: a fresh profile ("never"). A `storage_state` persona: a
+  fresh profile + its snapshot (cookies + localStorage). A master locked by a live process (`profileLock`: the
+  `SingletonLock` symbolic link `host-pid`, a dangling link) is refused: Chromium writes cookies lazily. Copies are
+  `$TMPDIR/demo-studio-session-<run>-<persona>-*` (0700), removed when the session closes or a launch fails
+  (`BrowserSession.open` launches every realm at once and closes them all when one fails); a master path that is a
+  symbolic link is copied from its target. Each copy (and `studio login`'s temp profile) is registered in the process:
+  `removeSessionCopiesSync()` removes them at once — a run's second SIGINT / SIGTERM does before killing the process;
+  the CLI can call it. `sweepStaleSessionCopies()` (at every `prepareSessions`; exported) removes the
+  `demo-studio-session-*` / `demo-studio-login-*` / `demo-studio-profile-*` (a browser's throwaway profile, where a
+  `storage_state` persona's cookies end up) folders a killed process left: ours, untouched for 10 min, no live
+  Chromium lock, not this process's. Runs never open, lock or write a master; nothing is written back (a refreshed
+  token stays in the copy). The legacy `auth.storage_state` file must exist (`PreflightError`, as before L1.6).
+- **Preflight** (`preflight`), in every dry run and capture, after the secrets prefetch and the browser launch, before
+  setup hooks, notifications, the mailbox snapshot and any recorder: each used persona is checked in a tab of its own
+  browser (closed after; never a capture page): open `check.url` (default its first page's `/`); expired when it lands
+  on a sign-in page or answers 401 / 403, or `expect_text` does not show within `timeout` (10 s); valid when it shows
+  (without one: 0.5 s after load, off every sign-in page); error when it cannot load. Not valid + `login` steps →
+  automated login (secrets prefetched one persona after the other, then the logins in parallel) and a second check.
+  Each check's status is saved (0600 in 0700 folders; an automated login leaves `expired` + "signed in automatically
+  for run X"). Any persona not valid → `PreflightError` listing each one with `sign in again|once: studio login
+  <project> --env <env> --persona <name>` (`RunOptions.loginCommand` may rewrite it); the run keeps nothing (no
+  timeline). Legacy `default` never fails for a missing or unchecked session (it starts signed out, warned) — except a
+  missing `storage_state` file (above). A cancel (Ctrl-C) during a check or an automated login cancels the run at
+  once: their `goto` closes its tab on abort; nothing is written about the session.
+- **Automated login** (`autoLogin`): steps `open`, `click`, `type` (field cleared first), `press`, `wait_for`, `wait`,
+  templated with the run's pages, vars and secrets (`{{hooks.…}}` is not available), real input through the kit's
+  targets, in a tab of the persona's browser. Messages name the step as written (`login step 3 (type into
+  label="Password")`), never a typed value, and are redacted.
+- **Guard** (`LoginGuard`, `Runtime.track` / `assertSignedIn`): every filmed page is checked on each main-frame
+  navigation (same-document routes included) and its current URL at every step start, scene start and still, before a
+  dry-run screenshot and at the end: a page of a persona against that persona's patterns (auth.login_url, its
+  login_url, check.expect_not_url), a page without one against auth.login_url unless written `persona: none` (or
+  opened by `new_tab` from such a page: `BrowserSession.openerOf`). A `download`'s document is checked too (the
+  download URL, the tab's URL and the fetched document's final URL, with the opener page's patterns). A landing aborts
+  the run with a `LoginPageError` (the abort reason: `throwIfAborted` rethrows runner errors as they are, so the run
+  fails, not cancelled); a step failing meanwhile reports the landing (never tolerated as `optional`, no error
+  screenshot or DOM; a landing seen while the run ends takes precedence over its failure or cancel); teardown runs;
+  the run discards frames, track frames, screenshots, artefacts, the video and the timeline. A landing on the sign-in
+  page of an environment page another persona (or none) is filmed as — a tab or link that left the persona's pages —
+  says so and names that page instead of "session expired". A landing before the first step after setup hooks says a
+  hook may have reset the sessions. A js hook tab on its persona's sign-in page (at its load, or reused by a later
+  hook) fails the hook with the command. After a non-optional step failure on a persona page, one check (abortable)
+  says whether that session is still valid. A landing on the persona's own sign-in page, a hook landing and an expired
+  diagnosis write the status `expired`, `by: run`, `run: <id>`. A sign-in screen shown without a URL change is caught
+  only when a step fails.
+- **Concurrent runs** of one scenario never share a folder: without an explicit run id, a run takes the next free
+  second.
+- **`studio login`** (`signIn`, runner `login.ts`): refuses a master a live browser holds; signs in on the master (a
+  `storage_state` persona: a temp profile, only the snapshot is kept), seeding a new profile's `Default/Preferences`
+  with `credentials_enable_service: false` / `profile.password_manager_enabled: false` (Playwright's mock keychain
+  would keep a saved password in the clear). Both modes start from the saved session as a run applies it (the
+  snapshot's cookies on the master; all of it — cookies + localStorage — for a `storage_state` persona; nothing for
+  the legacy form): a session-cookie persona, whose master alone never holds its cookie, is seen signed in. `headed`:
+  a visible persistent context (`viewport: null`, Playwright's SIGINT / SIGTERM handlers off: the CLI's) on `--url`,
+  else `--page`, else the check URL; every 1.5 s it reads `context.cookies()` and the localStorage of the open pages
+  (no extra tab; a quit browser cannot be read any more; origins not open keep the saved localStorage), once more
+  when the last page closes (then closes the browser); `drive` plays the person in tests. `auto`: a realm on the
+  master — check first (still valid: the snapshot is kept as it is, `alreadySignedIn`, no step runs), else `autoLogin`
+  and `context.storageState()` (Playwright reads the localStorage of the origins visited, closed tabs included). Then
+  it waits for the browser process to exit (Chromium writes its profile for a moment after its lock is gone: a copy
+  taken then fails on vanished temp files), writes the snapshot (`how: manual | auto`; never for the legacy form,
+  whose files are the user's) and checks the session as a run sees it (`checkSavedSession`: `prepareSessions` copy +
+  snapshot cookies, its own headless browser) → status `by: login`. A headed window over a saved session (with a
+  check) never replaces a session that still works with a signed-out one: the window's session is written to
+  `<snapshot>.new` (0600) and checked; not valid while the saved one still is → the saved one is kept (`kept`), else
+  renamed over it. `signal` (the CLI's Ctrl-C) closes the window / browser, removes the temp profile and throws a
+  `CancelledError`: nothing is written. A first sign-in that fails or is cancelled removes the master it created
+  (`auth status` says `never`, not `unchecked`).
+- **CLI side.** `studio auth status` reads, without a browser, each persona's master (non-empty), snapshot, lock and
+  status file: `never` (neither), `unchecked` (no status file), else the stored status; `--check` runs
+  `checkSavedSession` one persona after the other and writes `by: auth-status` — a persona whose master a browser
+  holds is not checked (`error`, `not checked`, no time or origin of an older check; "close that browser first"). The
+  legacy `auth.storage_state` form has no `command` (`studio login` refuses it) but a `fix`: export the file again.
+  `studio doctor --project` shows the same per persona plus the studio home's git placement (walk up for `.git`, then
+  `git -C <root> check-ignore -q <rel>[/]`: ignored = OK). CLI js hooks (`studio hooks run`, `hooks rollback`, `env
+  reset`) open one browser per persona of their page key, on a `prepareSessions` copy (`failure`: the first line of a
+  failure that is not a run's), with the hook tab's sign-in landing check. `studio new` on a terminal (`Io.ask` /
+  `Io.confirm`; `memoryIo({answers})` scripts them) checks the slug, folder and template first (core
+  `checkNewProject`), asks environments, then per environment a sign-in page and personas (name, pages — none when
+  every page has a persona already —, a signed-in text → `check: {url: "<first page>:/", expect_text}`), writes them
+  with `createProject({auth})`, re-opens the project with the workspace's browser settings and offers `signIn`
+  (headed) for each (no answer: that one and the next ones later). Messages print `studio -C <root> …` when `--root`
+  was given (`RunOptions.loginCommand`; doctor's hints too). **Interrupts** (`interrupt.ts` `onInterrupt`): `studio
+  login`, `auth status --check`, the sign-ins of `studio new` and the js hooks of the hook commands handle SIGINT /
+  SIGTERM — the first aborts the command's `signal` (login, check: the browser closes, its copies go) or, for the
+  hooks (not abortable), closes their browsers then exits; the command exits 130; a second signal removes the copies
+  synchronously (`removeSessionCopiesSync`) and exits. `BrowserSession.close()` called twice waits for the first.
+
 ## 4. CLI (`studio`)
 
 ```
-studio new <slug> [--name N] [--template T] [--env name=key:url,...]
+studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
 studio list                                   # projects
 studio validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
 studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--json]
@@ -520,9 +646,11 @@ studio hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [-
 studio hooks rollback <project> [id]          # replay pending rollback journals (run id or journal id)
 studio env reset <project>                    # project.reset hooks + pending journals
 studio schema [scenario|project|template|timeline]  # print JSON Schema
-studio login <project> [--env E] [--page KEY]  # headed browser on the persistent profile to sign in once
+studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in (§3.6)
+studio auth status [--project P [--env E]] [--check] [--json]   # personas: valid / expired / never / unchecked / error
 studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Chromium launch, ffmpeg/ffprobe, display,
-                                              # keychain, notifications, workspace, template fonts; project profile + hosts)
+                                              # keychain, notifications, workspace, template fonts; project personas
+                                              # (never / expired / in use / in a git work tree), session home + hosts)
 studio render / review / export / mcp         # phases 2–3
 ```
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
@@ -532,7 +660,8 @@ studio render / review / export / mcp         # phases 2–3
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:
 "Northfield", a fictional B2B specialty-coffee wholesale platform. Built with **real Radix UI and Base UI
 components** (the quirks in the brief come from mixing them), bundled with esbuild, served by a tiny Node server:
-supplier console on :4401 and buyer shop on :4402 (configurable via env). In-memory data + JSON API with
+supplier console on :4401 and buyer shop on :4402 (configurable via env), and the same apps behind a sign-in on :4403 /
+:4404 (L1.6: invented accounts, one cookie name, `POST /api/auth/expire`; fixtures/wholesale/README.md). In-memory data + JSON API with
 `POST /api/reset` and endpoints used by http hooks. Screens exercise every interaction pattern of the brief:
 imports (New import dialog → organisation combobox → file drop zone → Start import → "921 offers created"),
 product availability by region (row action menus with Pause + confirm, Edit dialog with multi-select pickers incl.

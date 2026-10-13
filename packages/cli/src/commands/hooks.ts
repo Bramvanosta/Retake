@@ -1,15 +1,17 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { ScenarioError, hasErrors, loadScenario, newRunId, parseHookFile, resolveEnvironment } from '@demo-studio/core';
-import type { HookStep, LoadedProject } from '@demo-studio/core';
+import { ScenarioError, hasErrors, loadScenario, loginMatchers, matchLoginUrl, newRunId, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, urlOriginPath } from '@demo-studio/core';
+import type { HookStep, LoadedProject, ResolvedPersona, Scenario } from '@demo-studio/core';
 import type { HookContext, HookPhase, HookResult } from '@demo-studio/hooks';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
+import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural, truncate } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
+import { loginCommandFor } from './auth.js';
 
 export interface HookCommandOptions {
   env?: string;
@@ -19,14 +21,52 @@ export interface HookCommandOptions {
   dry?: boolean;
 }
 
-/** A hook context for CLI commands; js hooks get a headless browser opened on first use. */
+/**
+ * A hook context for CLI commands; js hooks get a headless browser opened on first use — signed in as the persona of
+ * their page (L1.6: a copy of its session, as in a run; a tab landing on its sign-in page fails the hook), one browser
+ * per persona. A scenario's hooks bind their tabs as its run does (core planPersonas: the persona its scenes film the
+ * page with, `none` included). Until `close`, Ctrl-C / SIGTERM close those browsers (their copies hold a persona's
+ * cookies) and exit 130 (the journal keeps what ran: `studio hooks rollback`).
+ */
 async function hookContext(
   ui: Ui,
   project: LoadedProject,
-  opts: HookCommandOptions & { vars?: Record<string, string>; runId?: string },
-): Promise<{ ctx: HookContext; close: () => Promise<void> }> {
+  opts: HookCommandOptions & { vars?: Record<string, string>; runId?: string; scenario?: Scenario },
+  global: GlobalOptions,
+): Promise<{ ctx: HookContext; close: () => Promise<void>; interrupted: () => boolean }> {
   const env = resolveEnvironment(project, opts.env);
-  let session: import('@demo-studio/runner-web').BrowserSession | null = null;
+  const personas = resolvePersonas(project, env.name);
+  const sessions = new Map<string, Promise<import('@demo-studio/runner-web').BrowserSession>>();
+  const command = loginCommandFor(global);
+  const runId = opts.runId ?? newRunId('hooks');
+  const planned = opts.scenario ? planPersonas(opts.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
+  /**
+   * The persona a js hook tab of page `key` is signed in as: the scenario's binding of that page, else the one whose
+   * pages list it, else the legacy one (undefined: none).
+   */
+  const personaOf = (key: string): ResolvedPersona | undefined => {
+    if (planned?.has(key)) {
+      const name = planned.get(key);
+      return name === null ? undefined : personas.find((p) => p.name === name);
+    }
+    return personas.find((p) => !p.legacy && p.pages.includes(key)) ?? personas.find((p) => p.legacy);
+  };
+  const open = async (persona: ResolvedPersona | undefined) => {
+    const rw = await import('@demo-studio/runner-web');
+    const capture = project.config.capture;
+    const prepared = persona
+      ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
+      : [];
+    return rw.openSession({
+      width: capture.width,
+      height: capture.height,
+      scale: capture.scale,
+      kit: rw.kitConfigFor(undefined),
+      browser: rw.projectBrowser(project),
+      log: (level, msg) => ctx.log(level, msg),
+      ...(persona ? { realms: prepared.map((p) => p.realm), hookRealmOf: () => persona.name } : {}),
+    });
+  };
   const ctx: HookContext = {
     project,
     env,
@@ -50,26 +90,31 @@ async function hookContext(
     },
     evalInPage: async (pageKey, code) => {
       const rw = await import('@demo-studio/runner-web');
-      if (!session) {
-        const capture = project.config.capture;
-        const auth = rw.resolveAuth(project, env.name);
-        session = await rw.openSession({
-          width: capture.width,
-          height: capture.height,
-          scale: capture.scale,
-          kit: rw.kitConfigFor(undefined),
-          browser: rw.projectBrowser(project),
-          profileDir: auth.profileDir,
-          storageState: auth.storageState,
-          log: (level, msg) => ctx.log(level, msg),
-        });
-      }
       if (!Object.keys(env.pages).length) throw new CliError(`environment "${env.name}" declares no pages for the js hook to run in`);
+      const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
+      let session = sessions.get(persona?.name ?? '');
+      if (!session) {
+        session = open(persona);
+        sessions.set(persona?.name ?? '', session);
+      }
+      const matchers = persona ? loginMatchers(persona.loginPatterns, env.pages) : [];
+      const loginLanding = (key: string, url: string): string | null =>
+        persona && matchLoginUrl(url, matchers)
+          ? `js hook page "${key}" (persona ${persona.name}) landed on the sign-in page (${urlOriginPath(url)}): its session expired — sign in again: ${command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) })}`
+          : null;
       // The guarded hook tab of that page (hosts outside the allow-list are blocked), reused by later js hooks.
-      return rw.evalHookInPage(session, { project, env, log: (level, msg) => ctx.log(level, msg) }, pageKey, code);
+      return rw.evalHookInPage(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}) }, pageKey, code);
     },
   };
-  return { ctx, close: async () => void (await session?.close()) };
+  const closeSessions = async () => {
+    for (const s of sessions.values()) await (await s.catch(() => null))?.close();
+  };
+  const stop = await onInterrupt(ui, { exit: closeSessions });
+  const close = async () => {
+    await closeSessions();
+    stop.dispose();
+  };
+  return { ctx, close, interrupted: () => stop.interrupted };
 }
 
 function printResults(ui: Ui, results: readonly HookResult[]): void {
@@ -77,8 +122,11 @@ function printResults(ui: Ui, results: readonly HookResult[]): void {
   for (const r of results) {
     const icon = r.status === 'ok' ? c.green('✓') : r.status === 'dry' ? c.cyan('◦') : c.red('✗');
     const phase = r.phase === 'rollback' ? c.dim('rollback ') : '';
-    const detail = r.ok ? c.dim(r.message ?? '') : c.red(r.error ?? r.status);
-    ui.line(`  ${icon} ${phase}${truncate(r.description, 90)}  ${detail} ${c.dim(formatMs(r.ms))}`);
+    const color = r.ok ? c.dim : c.red;
+    // A message of several lines: the time ends its first line, the others follow indented.
+    const [first, ...more] = (r.ok ? (r.message ?? '') : (r.error ?? r.status)).split('\n');
+    ui.line(`  ${icon} ${phase}${truncate(r.description, 90)}  ${color(first)} ${c.dim(formatMs(r.ms))}`);
+    for (const l of more) ui.line(`      ${color(l)}`);
   }
 }
 
@@ -88,6 +136,8 @@ interface HookSelection {
   phase: HookPhase;
   vars?: Record<string, string>;
   env?: string;
+  /** The scenario of `<scenario>:setup|teardown` (its js hook tabs are bound as in its run). */
+  scenario?: Scenario;
 }
 
 async function selectHooks(project: LoadedProject, spec: string, envOpt?: string): Promise<HookSelection> {
@@ -102,7 +152,7 @@ async function selectHooks(project: LoadedProject, spec: string, envOpt?: string
     const loaded = await loadScenario(project, name, { env: envOpt });
     const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
     if (!hooks.length) throw new CliError(`scenario "${loaded.name}" has no ${which} hooks`);
-    return { label: `${loaded.name}-${which}`, hooks, phase: which as HookPhase, vars: loaded.scenario.vars, env: loaded.scenario.env };
+    return { label: `${loaded.name}-${which}`, hooks, phase: which as HookPhase, vars: loaded.scenario.vars, env: loaded.scenario.env, scenario: loaded.scenario };
   }
   if (/\.ya?ml$/i.test(spec)) {
     const candidates = isAbsolute(spec) ? [spec] : [resolve(project.dir, spec), resolve(spec)];
@@ -138,7 +188,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   const hooks = await import('@demo-studio/hooks');
   const runId = newRunId(`hooks-${sel.label}`);
   const journalFile = hooks.standaloneJournalFile(project.dir, runId);
-  const { ctx, close } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId });
+  const { ctx, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global);
   const c = ui.c;
   ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
   try {
@@ -149,6 +199,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
     if (pending && !opts.dry) {
       ui.line(c.dim(`  journal ${ui.path(journalFile)} (${plural(pending, 'pending rollback')}: studio hooks rollback ${project.slug} ${runId})`));
     }
+    if (interrupted()) return EXIT.interrupted;
     if (res.ok) ui.ok(`${sel.label}: ${opts.dry ? 'checked (nothing executed)' : 'done'}`);
     else ui.error(`${sel.label}: failed`);
     return res.ok ? EXIT.ok : EXIT.failure;
@@ -166,9 +217,10 @@ export async function hooksRollbackCommand(
   opts: HookCommandOptions,
 ): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
-  const { ctx, close } = await hookContext(ui, project, opts);
+  const { ctx, close, interrupted } = await hookContext(ui, project, opts, global);
   try {
     const ok = runId === undefined ? await rollbackAllPending(ui, project, ctx) : await rollbackRun(ui, project, ctx, runId);
+    if (interrupted()) return EXIT.interrupted;
     return ok ? EXIT.ok : EXIT.failure;
   } finally {
     await close();
@@ -225,7 +277,7 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
   const project = await openProject(ws, projectArg);
   const hooks = await import('@demo-studio/hooks');
   const runId = newRunId('env-reset');
-  const { ctx, close } = await hookContext(ui, project, { ...opts, runId });
+  const { ctx, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global);
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${opts.dry ? ' · dry' : ''}`)}`);
   try {
@@ -240,6 +292,7 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
     } else {
       ui.line(c.dim('no reset hooks in project.yaml'));
     }
+    if (interrupted()) return EXIT.interrupted;
     if (ok) ui.ok(opts.dry ? 'environment reset checked (nothing executed)' : 'environment reset');
     else ui.error('environment reset finished with failures');
     return ok ? EXIT.ok : EXIT.failure;

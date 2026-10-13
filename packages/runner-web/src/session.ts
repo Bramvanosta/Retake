@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import type { BrowserConfig } from '@demo-studio/core';
+import { registerSessionCopy } from './copies.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
 import type {
@@ -42,6 +43,43 @@ export interface SessionOptions {
   storageState?: string;
   headed?: boolean;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
+  /**
+   * One browser per persona (L1.6, "realms"): each launched like the single context above, on its own profile. Without
+   * it the session is that single context (profileDir / storageState / a temp profile) — the realm named "".
+   */
+  realms?: RealmSpec[];
+  /** The realm a capture page id is created in (default: ""). A tab opened by a page goes to that page's realm. */
+  realmOf?: (pageId: string) => string;
+  /** The realm of a js hook tab (environment page key; default: ""). */
+  hookRealmOf?: (key: string) => string;
+}
+
+/** Playwright storage state: cookies + localStorage per origin. */
+export interface StorageStateFile {
+  cookies?: Parameters<BrowserContext['addCookies']>[0];
+  origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }> }>;
+}
+
+/** One persona's browser (L1.6): a persistent context of its own. */
+export interface RealmSpec {
+  /** The persona; "" = the default browser (pages without a persona). */
+  name: string;
+  /** Chromium user-data-dir (a per-run copy of the persona's profile). Default: a fresh temporary profile. */
+  userDataDir?: string;
+  /** Applied at launch: an object, or a storage-state file (cookies + localStorage). */
+  storageState?: StorageStateFile | string;
+  /** Directories removed when the session closes (the per-run copy), or when the launch fails. */
+  cleanup?: string[];
+}
+
+interface Realm {
+  name: string;
+  context: BrowserContext;
+  /** The context's initial tab, reused by the first page created in this realm. */
+  spare: Page[];
+  /** Temporary profile created for the realm (removed on close). */
+  temp: string | null;
+  cleanup: string[];
 }
 
 /** Chromium flags for clean, uninterrupted captures (background tabs keep rendering). */
@@ -109,11 +147,6 @@ export function launchTarget(b: BrowserConfig = {}): { executablePath?: string; 
   const executablePath = b.executable ?? process.env.DEMO_STUDIO_CHROMIUM ?? undefined;
   const channel = executablePath ? undefined : b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
   return { executablePath, channel };
-}
-
-interface StorageStateFile {
-  cookies?: Parameters<BrowserContext['addCookies']>[0];
-  origins?: Array<{ origin: string; localStorage?: Array<{ name: string; value: string }> }>;
 }
 
 function isContextDestroyed(e: unknown): boolean {
@@ -308,8 +341,10 @@ export class KitClient {
 }
 
 /**
- * A persistent Chromium context with the kit injected in every document, and named pages:
- * one per environment page key (created lazily) plus tabs opened during the run.
+ * Persistent Chromium contexts with the kit injected in every document, and named pages: one per environment page key
+ * (created lazily) plus tabs opened during the run. A run signed in as personas has one context per persona (L1.6,
+ * "realms": each its own browser process and cookie jar), plus the default one for pages without a persona; without
+ * personas there is one context, as before.
  */
 export class BrowserSession {
   readonly pages = new Map<string, Page>();
@@ -320,25 +355,29 @@ export class BrowserSession {
   readonly hookPages = new Map<string, Page>();
   private readonly history: string[] = [];
   private readonly clients = new WeakMap<Page, KitClient>();
+  private readonly openers = new WeakMap<Page, Page>();
   private readonly waiters = new Set<(p: Page) => void>();
-  private readonly spare: Page[] = [];
   private activeKey: string | null = null;
   private closed = false;
+  private closing: Promise<void> | null = null;
   /** Pages with their own viewport (multi-page scenes, L2.11): the CDP session that keeps it, for the whole run. */
   private readonly emulations = new Map<Page, { session: CDPSession; key: string; ua?: string }>();
+  private readonly realms: Realm[] = [];
+  /** A realm launched after the others (the default browser for a page no plan foresaw). */
+  private readonly launching = new Map<string, Promise<Realm>>();
   /** Called for every web notification a page of the session shows (set by the runner). */
   onNotification: ((page: Page, n: NotificationPayload) => void) | null = null;
   /** Called for every cursor effect (icon, press, ripple) a page's kit reports (set by the runner, L2.13). */
   onCursorEffect: ((page: Page, e: CursorEffectPayload) => void) | null = null;
 
   private constructor(
-    readonly context: BrowserContext,
     readonly options: SessionOptions,
     readonly source: string,
-    private readonly tempProfile: string | null,
-  ) {
-    for (const p of context.pages()) this.spare.push(p);
-    context.on('page', (p) => {
+  ) {}
+
+  private adopt(realm: Realm): void {
+    this.realms.push(realm);
+    realm.context.on('page', (p) => {
       if (this.waiters.size > 0) {
         for (const w of [...this.waiters]) w(p);
       }
@@ -346,61 +385,67 @@ export class BrowserSession {
   }
 
   static async open(opts: SessionOptions): Promise<BrowserSession> {
-    const b = opts.browser ?? {};
-    const tempProfile = opts.profileDir ? null : await mkdtemp(join(tmpdir(), 'demo-studio-profile-'));
-    const userDataDir = opts.profileDir ?? tempProfile!;
-    const { executablePath, channel } = launchTarget(b);
-    let context: BrowserContext;
-    try {
-      context = await chromium.launchPersistentContext(userDataDir, {
-        headless: opts.headed ? false : (b.headless ?? true),
-        channel,
-        executablePath,
-        viewport: { width: opts.width, height: opts.height },
-        screen: { width: opts.width, height: opts.height },
-        deviceScaleFactor: opts.scale,
-        locale: b.locale,
-        timezoneId: b.timezone,
-        colorScheme: b.color_scheme,
-        args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
-        acceptDownloads: true,
-        handleSIGINT: false,
-        handleSIGTERM: false,
-        handleSIGHUP: false,
-      });
-    } catch (e) {
-      if (tempProfile) await rm(tempProfile, { recursive: true, force: true }).catch(() => undefined);
-      const m = e instanceof Error ? e.message : String(e);
-      const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m)
-        ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)`
-        : '';
-      throw new RunnerError(`could not launch Chromium${hint}: ${m.split('\n')[0]}`, { cause: e });
-    }
     const source = kitSource(opts.kit);
-    // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.
-    await context.grantPermissions(['notifications']).catch(() => undefined);
-    let session: BrowserSession | null = null;
-    await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: NotificationPayload) => {
-      try {
-        if (session?.onNotification && src.page) session.onNotification(src.page, payload);
-      } catch {
-        /* a listener error must not reach the page */
-      }
-    });
-    await context.exposeBinding(CURSOR_BINDING, (src, payload: CursorEffectPayload) => {
-      try {
-        if (session?.onCursorEffect && src.page) session.onCursorEffect(src.page, payload);
-      } catch {
-        /* a listener error must not reach the page */
-      }
-    });
-    await context.addInitScript({ content: source });
-    if (opts.storageState) await applyStorageState(context, opts.storageState);
-    session = new BrowserSession(context, opts, source, tempProfile);
-    for (const p of context.pages()) await session.kit(p).install().catch(() => undefined);
+    const session = new BrowserSession(opts, source);
+    const specs: RealmSpec[] = opts.realms?.length ? opts.realms : [{ name: '', userDataDir: opts.profileDir, storageState: opts.storageState }];
+    // Every realm at once; when one fails, the launched ones are closed and every copy removed before throwing.
+    const launched = await Promise.allSettled(specs.map((spec) => launchRealm(opts, spec, source, session)));
+    const failed = launched.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) {
+      for (const r of launched) if (r.status === 'fulfilled') await closeRealm(r.value);
+      for (const spec of specs) for (const dir of spec.cleanup ?? []) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      throw failed.reason;
+    }
+    for (const r of launched) if (r.status === 'fulfilled') session.adopt(r.value);
+    for (const realm of session.realms) for (const p of realm.context.pages()) await session.kit(p).install().catch(() => undefined);
     return session;
   }
 
+  /** The default realm's context (else the first realm's): js tools and tests that want "the" browser context. */
+  get context(): BrowserContext {
+    return (this.realms.find((r) => r.name === '') ?? this.realms[0]).context;
+  }
+
+  /** Every context of the session (one per realm). */
+  get contexts(): BrowserContext[] {
+    return this.realms.map((r) => r.context);
+  }
+
+  /** The realm (persona; "" = none) a page belongs to; undefined for a page of another browser. */
+  realmName(page: Page): string | undefined {
+    const ctx = page.context();
+    return this.realms.find((r) => r.context === ctx)?.name;
+  }
+
+  /** The context of a realm, launched now when the run did not foresee it (the default browser only). */
+  async contextOf(realm: string): Promise<BrowserContext> {
+    return (await this.realm(realm)).context;
+  }
+
+  /** The context a js hook tab of environment page `key` opens in. */
+  hookContext(key: string): Promise<BrowserContext> {
+    return this.contextOf(this.options.hookRealmOf?.(key) ?? '');
+  }
+
+  private async realm(name: string): Promise<Realm> {
+    const known = this.realms.find((r) => r.name === name);
+    if (known) return known;
+    if (this.closed) throw new RunnerError('the browser session is closed');
+    if (name !== '') {
+      this.options.log?.('warn', `no browser was prepared for persona "${name}": the page opens without a persona`);
+      return this.realm('');
+    }
+    let p = this.launching.get(name);
+    if (!p) {
+      this.options.log?.('debug', 'opening the default browser for a page without a persona');
+      p = launchRealm(this.options, { name }, this.source, this).then((r) => {
+        this.adopt(r);
+        return r;
+      });
+      this.launching.set(name, p);
+    }
+    return p;
+  }
   /** The page being recorded and acted on. */
   get active(): Page {
     if (!this.activeKey) throw new RunnerError('no active page');
@@ -438,12 +483,16 @@ export class BrowserSession {
     return !!p && !p.isClosed();
   }
 
-  /** Page by id; created (blank) when missing. The first page reuses the persistent context's initial tab. */
+  /**
+   * Page by id; created (blank) when missing, in its realm (`realmOf`). The first page of a realm reuses its persistent
+   * context's initial tab.
+   */
   async page(id: string): Promise<Page> {
     const existing = this.pages.get(id);
     if (existing && !existing.isClosed()) return existing;
-    const spare = this.spare.shift();
-    const page = spare && !spare.isClosed() ? spare : await this.context.newPage();
+    const realm = await this.realm(this.options.realmOf?.(id) ?? '');
+    const spare = realm.spare.shift();
+    const page = spare && !spare.isClosed() ? spare : await realm.context.newPage();
     this.register(id, page);
     return page;
   }
@@ -504,7 +553,7 @@ export class BrowserSession {
     let e = this.emulations.get(page);
     if (e?.key === key) return;
     if (!e) {
-      e = { session: await this.context.newCDPSession(page), key: '' };
+      e = { session: await page.context().newCDPSession(page), key: '' };
       this.emulations.set(page, e);
       page.on('close', () => this.emulations.delete(page));
     }
@@ -532,18 +581,100 @@ export class BrowserSession {
     return this.emulations.has(page);
   }
 
-  async newPage(id: string): Promise<Page> {
-    const page = await this.context.newPage();
+  /** A new tab named `id`: in the realm of `like` (the page it is opened from), else in `id`'s realm. */
+  async newPage(id: string, opts: { like?: Page } = {}): Promise<Page> {
+    const context = opts.like ? opts.like.context() : (await this.realm(this.options.realmOf?.(id) ?? '')).context;
+    const page = await context.newPage();
+    if (opts.like) this.opened(page, opts.like);
     this.register(id, page);
     return page;
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return;
-    this.closed = true;
-    await this.context.close().catch(() => undefined);
-    if (this.tempProfile) await rm(this.tempProfile, { recursive: true, force: true }).catch(() => undefined);
+  /** Remember the page a tab was opened from (new_tab): a tab of a `persona: none` page is not guarded either (L1.6). */
+  opened(page: Page, opener: Page): void {
+    this.openers.set(page, opener);
   }
+
+  /** The page a tab was opened from (new_tab), if any. */
+  openerOf(page: Page): Page | undefined {
+    return this.openers.get(page);
+  }
+
+  /** Close every browser and remove its copies; a second call waits for the first (an interrupt and the command both close). */
+  close(): Promise<void> {
+    this.closed = true;
+    this.closing ??= (async () => {
+      const late = await Promise.all([...this.launching.values()].map((p) => p.catch(() => null)));
+      for (const r of late) if (r && !this.realms.includes(r)) this.realms.push(r);
+      await Promise.all(this.realms.map((r) => closeRealm(r)));
+    })();
+    return this.closing;
+  }
+}
+
+/** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */
+async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {
+  const b = opts.browser ?? {};
+  const temp = spec.userDataDir ? null : await mkdtemp(join(tmpdir(), 'demo-studio-profile-'));
+  if (temp) registerSessionCopy(temp);
+  const userDataDir = spec.userDataDir ?? temp!;
+  const { executablePath, channel } = launchTarget(b);
+  let context: BrowserContext;
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      headless: opts.headed ? false : (b.headless ?? true),
+      channel,
+      executablePath,
+      viewport: { width: opts.width, height: opts.height },
+      screen: { width: opts.width, height: opts.height },
+      deviceScaleFactor: opts.scale,
+      locale: b.locale,
+      timezoneId: b.timezone,
+      colorScheme: b.color_scheme,
+      args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
+      acceptDownloads: true,
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
+    });
+  } catch (e) {
+    if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+    const m = e instanceof Error ? e.message : String(e);
+    const hint = /ProcessSingleton|profile.*in use|SingletonLock/i.test(m)
+      ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)`
+      : '';
+    throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
+  }
+  const realm: Realm = { name: spec.name, context, spare: [...context.pages()], temp, cleanup: spec.cleanup ?? [] };
+  try {
+    // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.
+    await context.grantPermissions(['notifications']).catch(() => undefined);
+    await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: NotificationPayload) => {
+      try {
+        if (session.onNotification && src.page) session.onNotification(src.page, payload);
+      } catch {
+        /* a listener error must not reach the page */
+      }
+    });
+    await context.exposeBinding(CURSOR_BINDING, (src, payload: CursorEffectPayload) => {
+      try {
+        if (session.onCursorEffect && src.page) session.onCursorEffect(src.page, payload);
+      } catch {
+        /* a listener error must not reach the page */
+      }
+    });
+    await context.addInitScript({ content: source });
+    if (spec.storageState) await applyStorageState(context, spec.storageState);
+  } catch (e) {
+    await closeRealm(realm);
+    throw e;
+  }
+  return realm;
+}
+
+async function closeRealm(r: Realm): Promise<void> {
+  await r.context.close().catch(() => undefined);
+  for (const dir of [...(r.temp ? [r.temp] : []), ...r.cleanup]) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
 }
 
 /**
@@ -556,13 +687,16 @@ export function mobileUserAgent(ua: string): string {
   return out;
 }
 
-async function applyStorageState(context: BrowserContext, file: string): Promise<void> {
+/** Apply a storage state to a context: its cookies, and its localStorage by an init script (keys the app set are kept). */
+export async function applyStorageState(context: BrowserContext, from: StorageStateFile | string): Promise<void> {
   let state: StorageStateFile;
-  try {
-    state = JSON.parse(await readFile(file, 'utf8')) as StorageStateFile;
-  } catch (e) {
-    throw new RunnerError(`cannot read storage_state ${file}: ${(e as Error).message}`);
-  }
+  if (typeof from === 'string') {
+    try {
+      state = JSON.parse(await readFile(from, 'utf8')) as StorageStateFile;
+    } catch (e) {
+      throw new RunnerError(`cannot read storage_state ${from}: ${(e as Error).message}`);
+    }
+  } else state = from;
   if (state.cookies?.length) await context.addCookies(state.cookies);
   const origins = (state.origins ?? []).filter((o) => o.localStorage?.length);
   if (origins.length) {

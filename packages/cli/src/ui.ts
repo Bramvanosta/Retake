@@ -50,12 +50,14 @@ export class Ui {
     this.line(`${this.c.green('✓')} ${text}`);
   }
 
+  /** A warning; the lines of a multi-line one stay under its first line (after the icon). */
   warn(text: string): void {
-    this.line(`${this.c.yellow('!')} ${this.c.yellow(text)}`);
+    this.line(`${this.c.yellow('!')} ${this.c.yellow(hangingIndent(text))}`);
   }
 
+  /** An error; the lines of a multi-line one stay under its first line (after the icon). */
   error(text: string): void {
-    this.line(`${this.c.red('✗')} ${this.c.red(text)}`);
+    this.line(`${this.c.red('✗')} ${this.c.red(hangingIndent(text))}`);
   }
 
   info(text: string): void {
@@ -79,6 +81,11 @@ export class Ui {
     const where = formatPath(i.path);
     return `${loc ? `${this.c.dim(loc)} ` : ''}${sev} ${where ? `${this.c.bold(where)}: ` : ''}${i.message}`;
   }
+}
+
+/** Continuation lines indented by the width of a status icon and its space ("✗ "). */
+function hangingIndent(text: string): string {
+  return text.replace(/\n/g, '\n  ');
 }
 
 export function displayPath(p: string): string {

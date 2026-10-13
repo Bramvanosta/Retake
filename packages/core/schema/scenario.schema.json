@@ -1088,6 +1088,11 @@
         "pages": {
           "$ref": "#/$defs/ScenePages"
         },
+        "persona": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "The persona this scene's page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list the environment page; a page keeps one persona for the whole run."
+        },
         "steps": {
           "type": "array",
           "items": {
@@ -1222,6 +1227,11 @@
                   },
                   "cursor": {
                     "$ref": "#/$defs/SceneCursor"
+                  },
+                  "persona": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                    "description": "The persona this page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list its environment page."
                   }
                 },
                 "additionalProperties": false
@@ -1230,7 +1240,7 @@
           }
         }
       ],
-      "description": "Pages filmed at the same time (instead of `page` / `open`): a map page id → {page?, open?, viewport?, label?, cursor?}, or a list of environment page keys / {id?, page, open?, viewport?…} (default id: the page key, plus \"-<preset>\" for another viewport than desktop)."
+      "description": "Pages filmed at the same time (instead of `page` / `open`): a map page id → {page?, open?, viewport?, label?, cursor?, persona?}, or a list of environment page keys / {id?, page, open?, viewport?…} (default id: the page key, plus \"-<preset>\" for another viewport than desktop)."
     },
     "ScenePage": {
       "type": "object",
@@ -1255,6 +1265,11 @@
         },
         "cursor": {
           "$ref": "#/$defs/SceneCursor"
+        },
+        "persona": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "The persona this page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list its environment page."
         }
       },
       "additionalProperties": false,

@@ -6,7 +6,38 @@ environments:
   local:
     console: http://localhost:4401
     shop: http://localhost:4402
+  # The same apps behind a sign-in (the fixture serves them on :4403 / :4404): every scenario runs signed in with
+  # `--env signed-in`, as the persona whose `pages` list each page (L1.6).
+  signed-in:
+    console: http://localhost:4403
+    shop: http://localhost:4404
 default_env: local
+# Personas of the signed-in environment. Their sessions live in ~/.demo-studio (never in this file):
+# `studio login northfield-fixture --env signed-in --persona supplier` signs one in; a run without a valid session signs
+# in automatically, off camera, with the `login` steps (the passwords come from the environment: see
+# fixtures/wholesale/README.md).
+auth:
+  signed-in:
+    login_url: /sign-in
+    personas:
+      supplier:
+        pages: [console]
+        check: {url: "console:/products", expect_text: Maja Lindqvist}
+        login:
+          - open: "console:/sign-in"
+          - type: {into: {label: Email}, text: maja@northfield.example}
+          - type: {into: {label: Password}, text: "{{env:NORTHFIELD_SUPPLIER_PASSWORD}}"}
+          - click: {role: button, name: Sign in}
+          - wait_for: {text: Maja Lindqvist}
+      buyer:
+        pages: [shop]
+        check: {url: "shop:/", expect_text: Demo Café}
+        login:
+          - open: "shop:/sign-in"
+          - type: {into: {label: Email}, text: orders@demo-cafe.example}
+          - type: {into: {label: Password}, text: "{{env:NORTHFIELD_BUYER_PASSWORD}}"}
+          - click: {role: button, name: Sign in}
+          - wait_for: {text: Demo Café}
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}
 frame: card
 template: editorial

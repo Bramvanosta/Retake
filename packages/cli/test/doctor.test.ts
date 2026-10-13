@@ -151,7 +151,8 @@ describe('studio doctor (mocked environment)', () => {
       'acme',
     );
     expect(code).toBe(EXIT.failure);
-    expect(byName(list, 'Profile (prod)')).toMatchObject({ status: 'warn', hint: 'sign in once: studio login acme --env prod' });
+    // The hints name the workspace root the command line gave (-C).
+    expect(byName(list, 'Profile (prod)')).toMatchObject({ status: 'warn', hint: `sign in once: studio -C ${ws} login acme --env prod` });
     expect(byName(list, 'Host staging·app')).toMatchObject({ status: 'ok', detail: expect.stringContaining('HTTP 302') });
     expect(byName(list, 'Host staging·admin')).toMatchObject({ status: 'fail', detail: expect.stringContaining('ENOTFOUND') });
     expect(byName(list, 'Host prod·app')).toMatchObject({ status: 'warn' });
@@ -199,5 +200,90 @@ describe('studio doctor (this machine)', () => {
     const closed = await p.head(`http://127.0.0.1:${port}/`, 5000);
     expect(closed.status).toBeUndefined();
     expect(closed.error).toBeTruthy();
+  });
+});
+
+describe('studio doctor --project: personas (R-AUTH-02)', () => {
+  it('one line per persona (never signed in, valid, in use, expired) and where the sessions live (a git work tree)', async () => {
+    const { writeStatus } = await import('@demo-studio/runner-web');
+    const { personaPaths } = await import('@demo-studio/core');
+    const root = await mkdtemp(join(tmpdir(), 'studio-doctor-personas-'));
+    try {
+      const home = join(root, 'repo', 'home');
+      await mkdir(home, { recursive: true });
+      await mkdir(join(ws, 'projects', 'shop', 'scenarios'), { recursive: true });
+      await writeFile(
+        join(ws, 'projects', 'shop', 'project.yaml'),
+        [
+          'name: Shop',
+          'environments:',
+          '  staging: {app: "https://app.staging.example.com", admin: "https://admin.staging.example.com"}',
+          'auth:',
+          '  staging:',
+          '    login_url: /login',
+          '    personas:',
+          '      editor: {pages: [app], check: {expect_text: Jane}}',
+          '      viewer: {pages: [admin], check: {expect_text: Joe}}',
+          '      ops: {session: storage_state, check: {url: "app:/ops", expect_text: Ops}}',
+          '      newbie: {check: {url: "app:/", expect_text: New}}',
+          '      quiet: {session: storage_state, check: {url: "app:/", expect_text: Quiet}}',
+          '',
+        ].join('\n'),
+      );
+      const files = (persona: string) => personaPaths(home, 'shop', 'staging', persona);
+      for (const persona of ['editor', 'viewer']) {
+        await mkdir(files(persona).profileDir, { recursive: true });
+        await writeFile(join(files(persona).profileDir, 'Local State'), '{}');
+      }
+      await writeStatus(files('editor').statusFile, { status: 'valid', by: 'preflight', run: '20261013-101010-quote', detail: 'app:/ shows "Jane"' });
+      await writeFile(join(files('viewer').profileDir, 'SingletonLock'), '');
+      await writeFile(files('ops').snapshot, '{"cookies":[],"origins":[]}');
+      await writeStatus(files('ops').statusFile, { status: 'expired', by: 'auth-status', detail: 'app:/ops landed on the sign-in page (https://app.staging.example.com/login)' });
+      await writeFile(files('quiet').snapshot, '{"cookies":[],"origins":[]}');
+      const real = systemProbes();
+      const probes = macProbes({ env: { DEMO_STUDIO_HOME: home }, exec: (cmd, args, ms) => (cmd === 'git' ? real.exec(cmd, args, ms) : macProbes().exec(cmd, args, ms)) });
+      const outside = await checks(probes, 'shop');
+      expect(byName(outside.checks, 'Session home')).toMatchObject({ status: 'ok', detail: `${home} (DEMO_STUDIO_HOME) · outside any git work tree` });
+      expect(byName(outside.checks, 'Persona staging·editor')).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^valid · checked (just now|\d+ s ago) \(preflight of run 20261013-101010-quote\) · profile$/) });
+      expect(byName(outside.checks, 'Persona staging·viewer')).toMatchObject({ status: 'warn', detail: 'its profile is in use by a browser', hint: expect.stringContaining('close the studio login window') });
+      expect(byName(outside.checks, 'Persona staging·ops')).toMatchObject({
+        status: 'warn',
+        detail: expect.stringMatching(/^expired · checked .* \(auth status --check\): app:\/ops landed on the sign-in page/),
+        hint: `sign in again: studio -C ${ws} login shop --env staging --persona ops`,
+      });
+      expect(byName(outside.checks, 'Persona staging·newbie')).toMatchObject({ status: 'warn', detail: 'never signed in', hint: `sign in once: studio -C ${ws} login shop --env staging --persona newbie` });
+      expect(byName(outside.checks, 'Persona staging·quiet')).toMatchObject({ status: 'ok', detail: `snapshot saved, not checked yet (studio -C ${ws} auth status --project shop --check)` });
+      expect(outside.checks.find((c) => c.name === 'Profile')).toBeUndefined();
+      // The studio home inside a git work tree: a warning, unless git ignores it.
+      await real.exec('git', ['init', '-q', join(root, 'repo')], 10_000);
+      const inside = await checks(probes, 'shop');
+      expect(byName(inside.checks, 'Session home')).toMatchObject({ status: 'warn', detail: expect.stringContaining('is inside the git work tree'), hint: expect.stringContaining('DEMO_STUDIO_HOME') });
+      expect(byName(inside.checks, 'Session home').detail).toContain('not ignored');
+      expect(byName(inside.checks, 'Persona staging·editor').status).toBe('ok');
+      await writeFile(join(root, 'repo', '.gitignore'), 'home/\n');
+      const ignored = await checks(probes, 'shop');
+      expect(byName(ignored.checks, 'Session home')).toMatchObject({ status: 'ok', detail: expect.stringContaining(', ignored by git') });
+    } finally {
+      await rm(join(ws, 'projects', 'shop'), { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('a profile of the single-account form in a git work tree, not ignored: a warning', async () => {
+    const real = systemProbes();
+    const repo = await mkdtemp(join(tmpdir(), 'studio-doctor-git-'));
+    try {
+      await real.exec('git', ['init', '-q', repo], 10_000);
+      const inRepo = join(repo, 'profiles', 'acme');
+      await mkdir(inRepo, { recursive: true });
+      await mkdir(join(ws, 'projects', 'legacy', 'scenarios'), { recursive: true });
+      await writeFile(join(ws, 'projects', 'legacy', 'project.yaml'), `name: Legacy\nenvironments:\n  prod: {app: "https://app.example.com"}\nauth: {profile: ${JSON.stringify(inRepo)}}\n`);
+      const probes = macProbes({ exec: (cmd, args, ms) => (cmd === 'git' ? real.exec(cmd, args, ms) : macProbes().exec(cmd, args, ms)) });
+      const list = (await checks(probes, 'legacy')).checks;
+      expect(byName(list, 'Profile')).toMatchObject({ status: 'warn', detail: expect.stringContaining('is inside the git work tree'), hint: expect.stringContaining('auth.personas') });
+    } finally {
+      await rm(join(ws, 'projects', 'legacy'), { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 });

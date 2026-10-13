@@ -37,11 +37,15 @@ export async function writeJson(file: string, value: unknown): Promise<void> {
   await writeTextAtomic(file, JSON.stringify(value, null, 2) + '\n');
 }
 
-/** Atomic text write (tmp file + rename); creates the parent directory. */
-export async function writeTextAtomic(file: string, text: string): Promise<void> {
-  await mkdir(dirname(file), { recursive: true });
+/**
+ * Atomic text write (tmp file + rename); creates the parent directory. `mode` / `dirMode` restrict who may read them
+ * (a session snapshot: 0o600 / 0o700) — the tmp file is created with that mode, so the content is never readable by
+ * others, even for a moment.
+ */
+export async function writeTextAtomic(file: string, text: string, opts: { mode?: number; dirMode?: number } = {}): Promise<void> {
+  await mkdir(dirname(file), { recursive: true, ...(opts.dirMode !== undefined ? { mode: opts.dirMode } : {}) });
   const tmp = `${file}.${randomBytes(4).toString('hex')}.tmp`;
-  await writeFile(tmp, text, 'utf8');
+  await writeFile(tmp, text, { encoding: 'utf8', ...(opts.mode !== undefined ? { mode: opts.mode } : {}) });
   await rename(tmp, file);
 }
 

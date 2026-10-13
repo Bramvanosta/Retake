@@ -55,6 +55,9 @@ const scenePageShape = {
   viewport: ViewportSchema.optional(),
   label: nonEmpty().describe('Name a layout may show next to the page ("Buyer").').optional(),
   cursor: SceneCursorSchema.optional(),
+  persona: slugString('persona')
+    .describe('The persona this page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list its environment page.')
+    .optional(),
 };
 
 export const ScenePageSchema = z.strictObject(scenePageShape).meta({ id: 'ScenePage', description: 'One page of a multi-page scene.' });
@@ -67,7 +70,7 @@ export const ScenePagesSchema = z
   .meta({
     id: 'ScenePages',
     description:
-      'Pages filmed at the same time (instead of `page` / `open`): a map page id → {page?, open?, viewport?, label?, cursor?}, or a list of ' +
+      'Pages filmed at the same time (instead of `page` / `open`): a map page id → {page?, open?, viewport?, label?, cursor?, persona?}, or a list of ' +
       'environment page keys / {id?, page, open?, viewport?…} (default id: the page key, plus "-<preset>" for another viewport than desktop).',
   });
 
@@ -80,6 +83,11 @@ export const SceneSchema = z
       .optional(),
     open: nonEmpty().describe("Path or URL opened at scene start. Omit to continue from the previous scene's state.").optional(),
     pages: ScenePagesSchema.optional(),
+    persona: slugString('persona')
+      .describe(
+        "The persona this scene's page is signed in as (project auth.personas), or none. Default: the persona whose `pages` list the environment page; a page keeps one persona for the whole run.",
+      )
+      .optional(),
     steps: z.array(StepSchema).describe('Actions, in order.'),
     speed: speedSchema().describe('Edit-time speed for the whole scene, in (0, 8].').optional(),
     still: seconds().describe('Seconds of stillness at scene start (default pacing.scene_start_still).').optional(),

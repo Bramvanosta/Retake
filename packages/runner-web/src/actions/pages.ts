@@ -64,11 +64,12 @@ export async function newTab(ctx: StepContext, args: NewTabArgs): Promise<Action
     }
     if (page) {
       how = 'popup';
+      rt.session.opened(page, opener);
     } else {
       // Synthetic clicks and prevented defaults never open tabs: follow the link ourselves.
       const href = args.href ?? r.href;
       if (!href) throw new StepError(`new_tab: clicking ${r.desc} opened no page and it has no href (pass \`href\`)`);
-      page = await rt.session.newPage(id);
+      page = await rt.session.newPage(id, { like: opener });
       await rt.activate(id, page);
       await navigate(rt, page, new URL(href, opener.url()).toString());
       how = 'href';
@@ -76,7 +77,7 @@ export async function newTab(ctx: StepContext, args: NewTabArgs): Promise<Action
   } else if (args.href !== undefined) {
     const href = args.href;
     const url = /^[a-z][a-z0-9+.-]*:/i.test(href) ? href : new URL(href, opener.url()).toString();
-    page = await rt.session.newPage(id);
+    page = await rt.session.newPage(id, { like: opener });
     await rt.activate(id, page);
     await navigate(rt, page, url);
     how = 'href';

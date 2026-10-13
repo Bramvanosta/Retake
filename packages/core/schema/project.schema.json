@@ -221,16 +221,524 @@
         "profile": {
           "type": "string",
           "minLength": 1,
-          "description": "Persistent, pre-authenticated Chromium profile directory (~ expanded)."
+          "description": "Legacy single account: pre-authenticated Chromium profile directory (~ expanded). Prefer personas."
         },
         "storage_state": {
           "type": "string",
           "minLength": 1,
-          "description": "Playwright storageState JSON (alternative to profile)."
+          "description": "Legacy single account: Playwright storageState JSON. Prefer personas."
+        },
+        "login_url": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LoginPattern"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LoginPattern"
+              }
+            }
+          ],
+          "description": "Sign-in pages of every persona (and of pages without one): landing there during a run fails it."
+        },
+        "personas": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Persona"
+          },
+          "description": "Named accounts: supplier, buyer, admin…"
         }
       },
       "additionalProperties": false,
-      "description": "Never a password: a pre-authenticated profile or storage state."
+      "description": "Never a password: named personas (sessions kept outside the project), or a legacy pre-authenticated profile."
+    },
+    "LoginPattern": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "regex": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Regular expression tested against the origin + path of the URL (never its query)."
+            },
+            "flags": {
+              "type": "string",
+              "pattern": "^[dgimsuyv]*$"
+            }
+          },
+          "required": [
+            "regex"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "A sign-in page, matched against the origin + path of a URL (never its query): a path prefix (\"/sign-in\"; also \"/sign-in/…\", not \"/sign-in-help\"), \"<environment page>:<path>\", an absolute URL prefix (\"https://sso.example.com\") or {regex, flags?}."
+    },
+    "Persona": {
+      "type": "object",
+      "properties": {
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+          },
+          "description": "Environment pages this persona is signed into by default (a page belongs to at most one persona)."
+        },
+        "session": {
+          "type": "string",
+          "enum": [
+            "profile",
+            "storage_state"
+          ],
+          "description": "profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only."
+        },
+        "check": {
+          "$ref": "#/$defs/PersonaCheck"
+        },
+        "login_url": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LoginPattern"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LoginPattern"
+              }
+            }
+          ],
+          "description": "Sign-in pages of this persona (with auth.login_url)."
+        },
+        "login": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LoginStep"
+          },
+          "description": "Automated login, off camera, when the saved session is missing or expired (secret refs only)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "One account the videos are filmed as. Its session lives in ~/.demo-studio (DEMO_STUDIO_HOME), never in the project: no path here."
+    },
+    "PersonaCheck": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Page the check opens: \"<environment page>:<path>\", a path on the persona's first page or a URL (default: the first page's \"/\")."
+        },
+        "expect_text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text visible only when signed in (the account name…). Without it: signed in when the page loads off the sign-in pages."
+        },
+        "expect_not_url": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LoginPattern"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LoginPattern"
+              }
+            }
+          ],
+          "description": "Pages the check must not end on (sign-in pages for the run's guard too)."
+        },
+        "timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds (default 10)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the runner tells this persona is signed in, off camera before every run."
+    },
+    "LoginStep": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "open": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Path (resolved against the page base URL) or absolute URL."
+                    },
+                    "page": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                      "description": "Environment page key to open in (default: current page)."
+                    },
+                    "wait_until": {
+                      "type": "string",
+                      "enum": [
+                        "load",
+                        "domcontentloaded",
+                        "networkidle",
+                        "commit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Path on the persona's first page, \"<environment page>:<path>\" or a URL."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "open"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "click": {
+              "description": "Element to click.",
+              "$ref": "#/$defs/TargetSpec"
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "click"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "object",
+              "properties": {
+                "into": {
+                  "description": "Field to click into first (it is cleared: a copied profile may have filled it).",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Text to type: a password comes from {{env:VAR}} or {{keychain:service/account}}."
+                },
+                "enter": {
+                  "type": "boolean",
+                  "description": "Press Enter afterwards."
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "press": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Key in Playwright syntax: \"Enter\", \"Escape\", \"Meta+A\"."
+                    },
+                    "times": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "press"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait_for": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text present."
+                    },
+                    "not_text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text absent."
+                    },
+                    "target": {
+                      "description": "Element visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "gone": {
+                      "description": "Element no longer visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "URL substring or /regex/."
+                    },
+                    "network_idle": {
+                      "type": "boolean"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Seconds (default 15)."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "wait_for"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "wait"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "One login action (open, click, type, press, wait_for, wait), run off camera."
+    },
+    "TargetObject": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ],
+          "description": "Element whose text contains ALL these strings; the innermost such element wins."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accessible name, used together with `role`."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Form control whose label text matches."
+        },
+        "aria": {
+          "type": "string",
+          "minLength": 1,
+          "description": "aria-label value (exact first, then substring)."
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "placeholder attribute."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Raw CSS selector."
+        },
+        "testid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "data-testid value."
+        },
+        "in": {
+          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+          "$ref": "#/$defs/ScopeSpec"
+        },
+        "nth": {
+          "type": "integer",
+          "description": "0-based index among visible matches (negative = from the end)."
+        },
+        "last_visible": {
+          "type": "boolean",
+          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Disable the substring fallback of text/name/aria/label."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Element locator. Combine keys to narrow the match (e.g. {text: Save, in: dialog})."
+    },
+    "ScopeSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "dialog",
+            "menu",
+            "listbox",
+            "popover",
+            "page"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "row": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text contained in the row."
+            }
+          },
+          "required": [
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: \"text\"} or a target object."
+    },
+    "TargetSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Visible text (\"Save\"), a CSS selector string (\"#id\", \".class\", \"[attr]\", \"a > b\") or a target object."
     },
     "CaptureOverrides": {
       "type": "object",

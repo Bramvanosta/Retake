@@ -1,6 +1,8 @@
 import { z } from 'zod';
-import type { AuthConfig, BrowserConfig, CaptureSettings, Pacing } from '../types.js';
-import { millis, nonEmpty, positiveSeconds, seconds } from './primitives.js';
+import type { AuthConfig, BrowserConfig, CaptureSettings, LoginPattern, LoginStep, Pacing, PersonaCheck, PersonaConfig } from '../types.js';
+import { keyedUnion } from './keyed.js';
+import { TargetSpecSchema, keyString, millis, nonEmpty, positiveSeconds, seconds, slugString } from './primitives.js';
+import { ACTION_ARG_SCHEMAS } from './steps.js';
 
 export const CaptureSettingsSchema = z
   .strictObject({
@@ -58,12 +60,83 @@ export const PacingPartialSchema = PacingSchema.partial().meta({
   description: 'Deterministic pacing overrides (merged over the field-tested defaults).',
 });
 
+export const LoginPatternSchema = z
+  .union([
+    nonEmpty(),
+    z.strictObject({
+      regex: nonEmpty().describe('Regular expression tested against the origin + path of the URL (never its query).'),
+      flags: z.string().regex(/^[dgimsuyv]*$/, { error: 'flags are regular expression flags (i, u…)' }).optional(),
+    }),
+  ])
+  .meta({
+    id: 'LoginPattern',
+    description:
+      'A sign-in page, matched against the origin + path of a URL (never its query): a path prefix ("/sign-in"; also "/sign-in/…", not "/sign-in-help"), ' +
+      '"<environment page>:<path>", an absolute URL prefix ("https://sso.example.com") or {regex, flags?}.',
+  }) satisfies z.ZodType<LoginPattern>;
+
+const LoginPatternsSchema = z.union([LoginPatternSchema, z.array(LoginPatternSchema).min(1)]);
+
+export const PersonaCheckSchema = z
+  .strictObject({
+    url: nonEmpty().describe('Page the check opens: "<environment page>:<path>", a path on the persona\'s first page or a URL (default: the first page\'s "/").').optional(),
+    expect_text: nonEmpty().describe('Text visible only when signed in (the account name…). Without it: signed in when the page loads off the sign-in pages.').optional(),
+    expect_not_url: LoginPatternsSchema.describe('Pages the check must not end on (sign-in pages for the run\'s guard too).').optional(),
+    timeout: positiveSeconds().describe('Seconds (default 10).').optional(),
+  })
+  .meta({ id: 'PersonaCheck', description: 'How the runner tells this persona is signed in, off camera before every run.' }) satisfies z.ZodType<PersonaCheck>;
+
+const loginCommon = {
+  timeout: positiveSeconds().describe('Seconds before the step fails (default 15).').optional(),
+  note: z.string().optional(),
+};
+const LOGIN_ACTIONS = ['open', 'click', 'type', 'press', 'wait_for', 'wait'] as const;
+
+/** A login step: one of six actions (scenario syntax), run off camera. Narrow on purpose (the project schema stays small). */
+export const LoginStepSchema = keyedUnion(
+  [
+    z.strictObject({ open: ACTION_ARG_SCHEMAS.open.describe('Path on the persona\'s first page, "<environment page>:<path>" or a URL.'), ...loginCommon }),
+    z.strictObject({ click: TargetSpecSchema.describe('Element to click.'), ...loginCommon }),
+    z.strictObject({
+      type: z.strictObject({
+        into: TargetSpecSchema.describe('Field to click into first (it is cleared: a copied profile may have filled it).').optional(),
+        text: z.string().describe('Text to type: a password comes from {{env:VAR}} or {{keychain:service/account}}.'),
+        enter: z.boolean().describe('Press Enter afterwards.').optional(),
+      }),
+      ...loginCommon,
+    }),
+    z.strictObject({ press: ACTION_ARG_SCHEMAS.press, ...loginCommon }),
+    z.strictObject({ wait_for: ACTION_ARG_SCHEMAS.wait_for, ...loginCommon }),
+    z.strictObject({ wait: seconds().describe('Seconds.'), ...loginCommon }),
+  ],
+  { noun: 'login step', label: 'action', keys: LOGIN_ACTIONS, common: Object.keys(loginCommon), example: 'e.g. "open: console:/sign-in" or "click: Sign in"' },
+  { id: 'LoginStep', description: `One login action (${LOGIN_ACTIONS.join(', ')}), run off camera.` },
+) as unknown as z.ZodType<LoginStep>;
+
+export const PersonaSchema = z
+  .strictObject({
+    pages: z.array(keyString('page')).describe('Environment pages this persona is signed into by default (a page belongs to at most one persona).').optional(),
+    session: z
+      .enum(['profile', 'storage_state'])
+      .describe('profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only.')
+      .optional(),
+    check: PersonaCheckSchema.optional(),
+    login_url: LoginPatternsSchema.describe('Sign-in pages of this persona (with auth.login_url).').optional(),
+    login: z.array(LoginStepSchema).min(1).describe('Automated login, off camera, when the saved session is missing or expired (secret refs only).').optional(),
+  })
+  .meta({
+    id: 'Persona',
+    description: 'One account the videos are filmed as. Its session lives in ~/.demo-studio (DEMO_STUDIO_HOME), never in the project: no path here.',
+  }) satisfies z.ZodType<PersonaConfig>;
+
 export const AuthConfigSchema = z
   .strictObject({
-    profile: nonEmpty().describe('Persistent, pre-authenticated Chromium profile directory (~ expanded).').optional(),
-    storage_state: nonEmpty().describe('Playwright storageState JSON (alternative to profile).').optional(),
+    profile: nonEmpty().describe('Legacy single account: pre-authenticated Chromium profile directory (~ expanded). Prefer personas.').optional(),
+    storage_state: nonEmpty().describe('Legacy single account: Playwright storageState JSON. Prefer personas.').optional(),
+    login_url: LoginPatternsSchema.describe('Sign-in pages of every persona (and of pages without one): landing there during a run fails it.').optional(),
+    personas: z.record(slugString('persona name'), PersonaSchema).describe('Named accounts: supplier, buyer, admin…').optional(),
   })
-  .meta({ id: 'AuthConfig', description: 'Never a password: a pre-authenticated profile or storage state.' }) satisfies z.ZodType<AuthConfig>;
+  .meta({ id: 'AuthConfig', description: 'Never a password: named personas (sessions kept outside the project), or a legacy pre-authenticated profile.' }) satisfies z.ZodType<AuthConfig>;
 
 export const BrowserConfigSchema = z
   .strictObject({

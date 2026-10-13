@@ -5,15 +5,15 @@
 export { motionWarnings, runScenario } from './run.js';
 export type { RunOptions } from './run.js';
 export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './session.js';
-export type { SessionOptions } from './session.js';
+export type { RealmSpec, SessionOptions, StorageStateFile } from './session.js';
 export { encodeFrames, cfrSchedule } from './encode.js';
 export type { EncodeOptions } from './encode.js';
 export type { FrameIndexEntry, RecorderOptions } from './recorder.js';
 export { ScreencastRecorder } from './recorder.js';
 export { kitSource, kitConfigFor, DEFAULT_CURSOR_SIZE, DEFAULT_RIPPLE_COLOR, CURSOR_STORAGE_KEY } from './kit/source.js';
 export type * from './kit/types.js';
-export { openLoginBrowser } from './login.js';
-export type { LoginOptions } from './login.js';
+export { checkSavedSession, openLoginBrowser, seedProfilePreferences, signIn } from './login.js';
+export type { LoginOptions, SignInOptions, SignInResult } from './login.js';
 export { mergePacing, mergeCapture, mergeBrowser, projectBrowser, resolveAuth } from './config.js';
 export { CaptureClock, STALL_MIN_S, TimelineBuilder, computeIdle, motionCapture } from './timeline.js';
 export type { CaptureStall, MotionCapture } from './timeline.js';
@@ -21,7 +21,29 @@ export { moveDuration, arcPath, easeInOutCubic, isNudge } from './motion.js';
 export { evalInPage } from './actions/misc.js';
 export { evalHookInPage } from './hook-page.js';
 export type { HookPageOptions } from './hook-page.js';
-export { RunnerError, StepError, CancelledError, EncodeError } from './errors.js';
+export { RunnerError, StepError, CancelledError, EncodeError, PreflightError, LoginPageError } from './errors.js';
+export {
+  LoginGuard,
+  autoLogin,
+  checkPersona,
+  copyProfile,
+  describeLoginStep,
+  ensurePrivateDir,
+  preflight,
+  prepareSessions,
+  profileLock,
+  readSnapshot,
+  readStatus,
+  registerSessionCopy,
+  removeSessionCopiesSync,
+  skippedInCopy,
+  sweepStaleSessionCopies,
+  SESSION_COPY_PREFIXES,
+  STALE_COPY_AGE_MS,
+  writeSnapshot,
+  writeStatus,
+} from './auth.js';
+export type { CheckDeps, GuardTarget, Landing, LoginDeps, PersonaCheckResult, PersonaStatusRecord, PreflightDeps, PreparedSession, ProfileLock, SessionSnapshot, SnapshotMeta } from './auth.js';
 export { StepFailure, describeStep, trimSnippet, DEFAULT_STEP_TIMEOUT_S, ERROR_DOM_MAX } from './scenes.js';
 export { RunSecrets, TIMELINE_POLICY, RECORD_POLICY, PROGRESS_POLICY } from './secrets.js';
 export type { RedactPolicy } from './secrets.js';

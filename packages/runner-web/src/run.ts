@@ -1,11 +1,18 @@
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import type { Page } from 'playwright-core';
 import {
+  ARTEFACTS_DIR,
+  environmentLoginPatterns,
   isCaptureScene,
   listSteps,
+  loginCommand as defaultLoginCommand,
+  loginMatchers,
   scenePageEntries,
   newRunId,
+  planPersonas,
   resolveEnvironment,
+  resolvePersonas,
   resolveStepRef,
   sceneId,
   templateVideo,
@@ -21,15 +28,19 @@ import type {
   RunError,
   RunMode,
   RunProgress,
+  PersonaPlan,
+  ResolvedPersona,
   RunRecord,
   Scenario,
   TemplateContext,
 } from '@demo-studio/core';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { watchNotifications } from './notifications.js';
-import { mergeCapture, mergePacing, projectBrowser, resolveAuth } from './config.js';
+import { mergeCapture, mergePacing, projectBrowser } from './config.js';
 import { encodeFrames } from './encode.js';
-import { CancelledError, EncodeError, RunnerError, errorMessage, isCancelled } from './errors.js';
+import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
+import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, writeStatus } from './auth.js';
+import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
 import type { HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
@@ -74,9 +85,16 @@ export interface RunOptions {
    * cursor is drawn in the pictures. The timeline says so (`capture.cursor: hidden`).
    */
   hideCursor?: boolean;
+  /** Resolves `{{env:…}}` / `{{keychain:…}}` references (default core resolveSecretRef; tests inject one). */
+  resolveSecret?: (ref: string) => Promise<string>;
+  /** The command that signs a persona in again, as messages print it (default `studio login <project> --env … --persona …`). */
+  loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
 }
 
-/** SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process. */
+/**
+ * SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process — after removing the session
+ * copies it made (they hold a persona's cookies; L1.6).
+ */
 function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void): () => void {
   let count = 0;
   const handler = (sig: NodeJS.Signals) => {
@@ -86,6 +104,7 @@ function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void): () => v
       return;
     }
     remove();
+    removeSessionCopiesSync();
     process.kill(process.pid, sig);
   };
   const remove = () => {
@@ -171,8 +190,24 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       );
     }
   }
-  const runId = opts.runId ?? newRunId(loaded.name);
-  const dir = resolve(opts.runsDir ?? join(project.dir, 'runs'), runId);
+  const runsDir = resolve(opts.runsDir ?? join(project.dir, 'runs'));
+  let runId = opts.runId ?? newRunId(loaded.name);
+  let dir = join(runsDir, runId);
+  if (opts.runId === undefined) {
+    // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
+    // takes the next free second (run ids keep their format and their order).
+    await mkdir(runsDir, { recursive: true });
+    for (let k = 1; ; k++) {
+      try {
+        await mkdir(dir);
+        break;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EEXIST' || k > 120) throw e;
+        runId = newRunId(loaded.name, new Date(Date.now() + k * 1000));
+        dir = join(runsDir, runId);
+      }
+    }
+  }
   const screenshotsDir = join(dir, 'screenshots');
   const framesDir = join(dir, 'frames');
   await mkdir(screenshotsDir, { recursive: true });
@@ -204,7 +239,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   if (opts.hideCursor) record.options.cursor = 'hidden';
   // Secret values ({{env:…}}, {{keychain:…}}) are masked wherever the run writes: run.json, log.jsonl, the progress
   // events, timeline.json, error snippets and the returned record (R-RUN-17).
-  const secrets = new RunSecrets();
+  const secrets = new RunSecrets(opts.resolveSecret);
   const files = new RunFiles(dir, record, (r) => secrets.redactRecord(r));
   const emit = (e: RunProgress) => {
     const safe = secrets.redactProgress(e);
@@ -238,6 +273,18 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const readsMail = project.config.mailbox !== undefined && toRun.some((l) => l.step.action === 'wait_for_email');
 
   let session: BrowserSession | null = null;
+  let prepared: PreparedSession[] = [];
+  let personas: ResolvedPersona[] = [];
+  /** The `studio login` command of a persona (the legacy one has no --persona). */
+  const commandOf = (persona: string): string =>
+    (opts.loginCommand ?? defaultLoginCommand)({ project: project.slug, env: env.name, persona: personas.find((p) => p.name === persona)?.legacy ? undefined : persona });
+  /** Personas whose session expired during the run: their status says so at the end (`studio auth status`). */
+  const expiredDuring = new Map<string, { at: string; detail: string }>();
+  const expire = (persona: string, at: string, detail: string): void => {
+    if (!expiredDuring.has(persona)) expiredDuring.set(persona, { at, detail });
+  };
+  let guard: LoginGuard | null = null;
+  let planned: PersonaPlan | null = null;
   let rt: Runtime | null = null;
   let notifications: { settled: () => Promise<void> } | null = null;
   let recorder: ScreencastRecorder | null = null;
@@ -251,17 +298,49 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // Every secret the run uses, before the browser opens and the setup hooks run: a keychain prompt never stalls the
     // capture, and a missing one fails the run up front.
     await prefetchSecrets(secrets, sc, until, readsMail ? project : null);
-    const auth = resolveAuth(project, env.name);
+    // Sessions & personas (L1.6): which persona films each page, each one's browser on a copy of its session, checked
+    // off camera before anything runs — no setup hook, no recorder yet.
+    personas = resolvePersonas(project, env.name);
+    const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run' });
+    if (plan.issues.length) throw new RunnerError(plan.issues.map((i) => `${formatIssuePath(i.path)}: ${i.message}`).join('\n'));
+    planned = plan;
+    prepared = await prepareSessions(personas.filter((p) => plan.used.includes(p.name)), { runId, log });
+    const realmOf = personaOf(plan, personas, env, () => rt);
     session = await BrowserSession.open({
       width: capture.width,
       height: capture.height,
       scale: capture.scale,
       kit: kitConfigFor(opts.template, opts.hideCursor ? { hidden: true } : undefined),
       browser: projectBrowser(project, opts.browser),
-      profileDir: auth.profileDir,
-      storageState: auth.storageState,
       headed: opts.headed,
       log,
+      ...(prepared.length
+        ? {
+            realms: [...prepared.map((p) => p.realm), ...(plan.needsDefault ? [{ name: '' }] : [])],
+            realmOf: (id: string) => realmOf(id) ?? '',
+            hookRealmOf: (key: string) => (plan.hookPages.has(key) ? (plan.hookPages.get(key) ?? '') : (personaOfKey(personas, key) ?? '')),
+          }
+        : {}),
+    });
+    if (prepared.length) {
+      await preflight(session, prepared, {
+        project: project.slug,
+        env: env.name,
+        envPages: env.pages,
+        runId,
+        secrets,
+        template,
+        kitSource: session.source,
+        log,
+        signal,
+        ...(opts.loginCommand ? { loginCommand: opts.loginCommand } : {}),
+      });
+    }
+    guard = signInGuard(project, env, personas, plan, () => session, {
+      command: commandOf,
+      hooksJustRan: () => record.steps_done === 0 && record.hooks.setup === 'ok',
+      redact: (t) => secrets.redactText(t),
+      abort: (e) => abort.abort(e),
     });
     rt = new Runtime({
       session,
@@ -279,6 +358,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       recorder: null,
       cursorHidden: opts.hideCursor === true,
       log,
+      guard,
+      ...(prepared.length ? { plannedPersonas: plan.pages } : {}),
     });
 
     if (opts.hideCursor) log('info', 'capturing without the in-page cursor (raw export): its track, icon, presses and ripples are recorded as data');
@@ -291,7 +372,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       if (sc.setup?.length) record.hooks.setup = 'skipped';
       if (sc.teardown?.length) record.hooks.teardown = 'skipped';
     } else if (hasHooks) {
-      hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record });
+      hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record, hookLanding: hookLanding(guard, personas, env, session, commandOf, expire) });
     }
     // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
     const meta = timeline.meta;
@@ -331,10 +412,13 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       emit,
       save: () => void files.saveRecord(),
     });
+    rt.assertSignedIn();
   } catch (e) {
-    failure = e;
+    // A step that failed because its page landed on a sign-in page reports the landing (L1.6).
+    failure = guard?.error ?? e;
   } finally {
     endT = clock.now();
+    if (failure === null && guard?.error) failure = guard.error;
     if (rt) {
       for (const [id, t] of rt.tracks) {
         if (!t.recorder) continue;
@@ -367,6 +451,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         log('error', `stopping the recorder failed: ${errorMessage(e)}`);
       }
     }
+    // A landing seen while the run was ending (after a step failed, or a cancel): nothing of the capture is kept either.
+    if (guard?.error) failure = guard.error;
+    // A step failure on a persona's page: was it the session? One check, off camera, now that nothing is filmed (L1.6).
+    if (failure instanceof StepFailure && session && prepared.length) failure = await diagnoseSession(failure, session, rt, prepared, env.pages, secrets, commandOf, signal, expire);
     if (hooks) {
       try {
         record.hooks.teardown = await teardownHooks(hooks, sc.teardown ?? [], emit, log);
@@ -378,7 +466,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     await notifications?.settled().catch(() => undefined);
     await session?.close().catch((e: unknown) => log('warn', `closing the browser failed: ${errorMessage(e)}`));
     // Artefact images (emails, PDF pages, icons, project documents) are rendered after the capture, in a clean browser.
-    if (rt && !(failure !== null && isCancelled(failure))) {
+    if (rt && !(failure !== null && (isCancelled(failure) || failure instanceof LoginPageError))) {
       try {
         await rt.artefacts.finalize({ browser: projectBrowser(project, opts.browser), scenario: sc, project });
       } catch (e) {
@@ -389,10 +477,30 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     removeSignals();
   }
 
+  // The session of a persona whose page landed on its own sign-in page expired during the run (L1.6).
+  const landing = guard?.landing;
+  if (landing?.persona && failure instanceof LoginPageError && !foreignSignIn(landing.url, landing.persona, env.pages, personas, planned)) {
+    expire(landing.persona, landing.url, `page ${landing.pageId} landed on the sign-in page during run ${runId}`);
+  }
+  for (const [name, x] of expiredDuring) {
+    const persona = prepared.find((p) => p.persona.name === name)?.persona;
+    if (!persona) continue;
+    await writeStatus(persona.statusFile, { status: 'expired', by: 'run', run: runId, ...(x.at ? { at: x.at } : {}), detail: secrets.redactText(x.detail) }).catch((e: unknown) =>
+      log('warn', `persona ${name}: its status could not be saved: ${errorMessage(e)}`),
+    );
+  }
   const cancelled = failure !== null && isCancelled(failure);
+  // Nothing of a run that landed on a sign-in page is kept (L1.6): no frames, no video, no screenshot, no timeline (so
+  // `render latest` never picks it); a preflight failure recorded nothing either.
+  const discard = failure instanceof LoginPageError || failure instanceof PreflightError;
+  if (discard) {
+    frames = [];
+    await discardCapture(dir, screenshotsDir);
+    record.screenshots = [];
+  }
   // Per-page tracks of multi-page scenes (L2.11): their frames, encoded on the same CFR grid as capture.mp4.
   const trackFrames = new Map<string, FrameIndexEntry[]>();
-  if (rt && mode === 'capture') {
+  if (rt && mode === 'capture' && !discard) {
     for (const [id, t] of rt.tracks) {
       if (!t.recorder) continue;
       const list = [...t.recorder.frames].sort((a, b) => a.t - b.t);
@@ -413,12 +521,12 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const allTrackFrames = [...trackFrames.values()].flat();
   // A scenario made only of multi-page scenes has no main capture of its own: capture.mp4 is its first page's track.
   const mainFromTrack = mode === 'capture' && frames.length === 0 && allTrackFrames.length > 0 ? [...trackFrames.keys()].find((k) => trackFrames.get(k)!.length > 0) : undefined;
-  if (mode === 'capture' && !cancelled && failure === null && frames.length === 0 && !mainFromTrack) {
+  if (mode === 'capture' && !cancelled && !discard && failure === null && frames.length === 0 && !mainFromTrack) {
     // A capture without a single frame is a failed capture, never a "succeeded" run without capture.mp4.
     const why = timeline.warnings.find((w) => w.startsWith('screencast frames stay'));
     failure = new EncodeError(`the capture recorded no frame${why ? ` (${why}: every frame was dropped)` : ''}`);
   }
-  if (mode === 'capture' && !cancelled && frames.length > 0) {
+  if (mode === 'capture' && !cancelled && !discard && frames.length > 0) {
     const out = join(dir, 'capture.mp4');
     emit({ type: 'encode', status: 'start', message: `${frames.length} frames → ${out}` });
     try {
@@ -439,7 +547,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       failure ??= e;
     }
   }
-  if (rt && mode === 'capture' && !cancelled) {
+  if (rt && mode === 'capture' && !cancelled && !discard) {
     for (const [id, t] of rt.tracks) {
       const list = trackFrames.get(id) ?? [];
       if (list.length === 0) {
@@ -484,11 +592,13 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     ...(mainFromTrack && rt?.tracks.get(mainFromTrack) ? { size: { width: rt.tracks.get(mainFromTrack)!.viewport.width, height: rt.tracks.get(mainFromTrack)!.viewport.height } } : {}),
   });
   const timelineFile = join(dir, 'timeline.json');
-  try {
-    await writeJson(timelineFile, secrets.redactTimeline(tl));
-    record.timeline = timelineFile;
-  } catch (e) {
-    failure ??= e;
+  if (!discard) {
+    try {
+      await writeJson(timelineFile, secrets.redactTimeline(tl));
+      record.timeline = timelineFile;
+    } catch (e) {
+      failure ??= e;
+    }
   }
 
   record.warnings = [...timeline.warnings];
@@ -551,6 +661,188 @@ interface SetupDeps {
   emit: (e: RunProgress) => void;
   log: (level: LogLevel, message: string) => void;
   record: RunRecord;
+  /** Refuses a js hook tab that landed on its persona's sign-in page (L1.6). */
+  hookLanding?: (key: string, url: string) => string | null;
+}
+
+function formatIssuePath(path: ReadonlyArray<string | number>): string {
+  return path.reduce<string>((s, seg) => (typeof seg === 'number' ? `${s}[${seg}]` : s ? `${s}.${seg}` : seg), '');
+}
+
+/** The persona whose `pages` list an environment page (else the legacy one), or null. */
+function personaOfKey(personas: readonly ResolvedPersona[], key: string | undefined): string | null {
+  if (key !== undefined) {
+    const p = personas.find((x) => !x.legacy && x.pages.includes(key));
+    if (p) return p.name;
+  }
+  return personas.find((x) => x.legacy)?.name ?? null;
+}
+
+/**
+ * The persona a capture page id is created in: the static plan's, else (a page the plan did not foresee) its
+ * environment page's persona, else none. Tabs are created in the realm of the page that opens them (session.newPage).
+ */
+function personaOf(plan: PersonaPlan, personas: readonly ResolvedPersona[], env: { pages: Record<string, string> }, rt: () => Runtime | null): (id: string) => string | null {
+  return (id) => {
+    if (plan.pages.has(id)) return plan.pages.get(id) ?? null;
+    const key = Object.hasOwn(env.pages, id) ? id : rt()?.declaredPages.get(id)?.page;
+    return personaOfKey(personas, key);
+  };
+}
+
+/** The persona an environment page is filmed as: the plan's binding of that page, else its default. */
+function ownerOfKey(key: string, personas: readonly ResolvedPersona[], plan: PersonaPlan | null): string | null {
+  return plan?.pages.has(key) ? (plan.pages.get(key) ?? null) : personaOfKey(personas, key);
+}
+
+/**
+ * The environment page whose sign-in page a page of `persona` reached when that is another persona's app (a tab or a
+ * link that left this persona's pages): its key and the persona it is filmed as. Null when the URL is on one of this
+ * persona's pages (its own sign-in page: its session expired) or on no environment page.
+ */
+function foreignSignIn(
+  url: string,
+  persona: string,
+  envPages: Record<string, string>,
+  personas: readonly ResolvedPersona[],
+  plan: PersonaPlan | null,
+): { key: string; owner: string | null } | null {
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return null;
+  }
+  const keys = Object.keys(envPages).filter((k) => {
+    try {
+      return new URL(envPages[k]).origin === origin;
+    } catch {
+      return false;
+    }
+  });
+  if (keys.length === 0 || keys.some((k) => ownerOfKey(k, personas, plan) === persona)) return null;
+  return { key: keys[0], owner: ownerOfKey(keys[0], personas, plan) };
+}
+
+/**
+ * The sign-in guard of a run (L1.6): a page filmed as a persona is guarded with that persona's sign-in patterns; a page
+ * without one with the environment's (auth.login_url) unless written `persona: none` — or opened (new_tab) from such a
+ * page. Null when there is nothing to watch.
+ */
+function signInGuard(
+  project: LoadedProject,
+  env: { name: string; pages: Record<string, string> },
+  personas: readonly ResolvedPersona[],
+  plan: PersonaPlan,
+  session: () => BrowserSession | null,
+  o: { command: (persona: string) => string; hooksJustRan: () => boolean; redact: (t: string) => string; abort: (e: LoginPageError) => void },
+): LoginGuard | null {
+  const byPersona = new Map(personas.map((p) => [p.name, loginMatchers(p.loginPatterns, env.pages)]));
+  const envMatchers = loginMatchers(environmentLoginPatterns(project.config, env.name), env.pages);
+  if (envMatchers.length === 0 && [...byPersona.values()].every((m) => m.length === 0)) return null;
+  // Pages seen as `persona: none` (a tab keeps it after its opener closed).
+  const none = new WeakSet<Page>();
+  const isNone = (id: string | undefined, page: Page, depth = 0): boolean => {
+    if (none.has(page)) return true;
+    const s = session();
+    const opener = s?.openerOf(page);
+    if ((id !== undefined && plan.none.has(id)) || (opener !== undefined && depth < 32 && s?.realmName(opener) === '' && isNone(s.idOf(opener), opener, depth + 1))) {
+      none.add(page);
+      return true;
+    }
+    return false;
+  };
+  return new LoginGuard({
+    targetOf: (id, page) => {
+      const realm = session()?.realmName(page);
+      if (realm) return { persona: realm, matchers: byPersona.get(realm) ?? envMatchers };
+      if (isNone(id, page)) return null;
+      return { persona: null, matchers: envMatchers };
+    },
+    describe: ({ pageId, page, persona, url, what }) => {
+      const s = session();
+      const opener = s?.openerOf(page);
+      const from = opener ? s?.idOf(opener) : undefined;
+      const who = `${what ? `${what} on ` : ''}page "${pageId}"${persona ? ` (persona ${persona}${from ? `, opened from page "${from}"` : ''})` : from ? ` (opened from page "${from}")` : ''}`;
+      const foreign = persona ? foreignSignIn(url, persona, env.pages, personas, plan) : null;
+      return o.redact(
+        `${who} landed on the sign-in page (${url}) — ` +
+          (foreign
+            ? `that is page "${foreign.key}", filmed ${foreign.owner ? `as persona ${foreign.owner}` : 'without a persona'}: a ${from ? 'tab keeps the persona of the page it is opened from' : 'page keeps one persona for the whole run'} — film "${foreign.key}" on its own page (\`page: ${foreign.key}\`, or \`switch_page: ${foreign.key}\`); nothing of the capture was kept`
+            : persona
+              ? `the session expired during the run${o.hooksJustRan() ? ' (a setup hook ran just before: it may have reset the sessions)' : ''}; nothing of the capture was kept. Sign in again: ${o.command(persona)}`
+              : `this page has no persona: bind it to one (auth.personas.<name>.pages, or \`persona:\` on the scene); nothing of the capture was kept`),
+      );
+    },
+    onLanding: (e) => o.abort(e),
+  });
+}
+
+/** A js hook tab's landing check: its persona's sign-in patterns (the guard's), or null when not guarded. */
+function hookLanding(
+  guard: LoginGuard | null,
+  personas: readonly ResolvedPersona[],
+  env: { name: string; pages: Record<string, string> },
+  session: BrowserSession,
+  command: (persona: string) => string,
+  expire: (persona: string, at: string, detail: string) => void,
+): ((key: string, url: string) => string | null) | undefined {
+  if (!guard) return undefined;
+  return (key, url) => {
+    const tab = session.hookPages.get(key);
+    const persona = tab ? session.realmName(tab) : undefined;
+    const p = personas.find((x) => x.name === persona);
+    if (!p) return null;
+    const m = loginMatchers(p.loginPatterns, env.pages).find((x) => x.test(url));
+    if (!m) return null;
+    const at = url.split(/[?#]/)[0];
+    expire(p.name, at, `js hook page ${key} landed on the sign-in page`);
+    return `js hook page "${key}" (persona ${p.name}) landed on the sign-in page (${at}): its session expired — sign in again: ${command(p.name)}`;
+  };
+}
+
+/**
+ * After a step failure on a persona's page, check that persona once (off camera, in its own browser; a cancel stops
+ * it): when its session is no longer valid, the failure says so and how to fix it.
+ */
+async function diagnoseSession(
+  failure: StepFailure,
+  session: BrowserSession,
+  rt: Runtime | null,
+  prepared: readonly PreparedSession[],
+  envPages: Record<string, string>,
+  secrets: RunSecrets,
+  command: (persona: string) => string,
+  signal: AbortSignal,
+  expire: (persona: string, at: string, detail: string) => void,
+): Promise<StepFailure> {
+  const id = rt?.activeId;
+  const page = id ? session.pages.get(id) : undefined;
+  const realm = page && !page.isClosed() ? session.realmName(page) : undefined;
+  const p = prepared.find((x) => x.persona.name === realm);
+  if (!p?.persona.check) return failure;
+  const r = await checkPersona(await session.contextOf(p.persona.name), p.persona, { envPages, kitSource: session.source, signal }).catch(() => null);
+  if (!r || r.status !== 'expired') return failure;
+  expire(p.persona.name, r.at ?? '', `${r.detail} (checked after step ${failure.scene}.${failure.step} failed)`);
+  const message = `${failure.message} — the session of persona ${p.persona.name} is no longer valid (${secrets.redactText(r.detail)}): sign in again: ${command(p.persona.name)}`;
+  return new StepFailure(message, failure.scene, failure.step, failure.action, failure.screenshot, failure.dom);
+}
+
+/** Remove what a run filmed: frames (main and per page), their indexes, the screenshots and the artefacts. */
+async function discardCapture(dir: string, screenshotsDir: string): Promise<void> {
+  let names: string[] = [];
+  try {
+    names = await readdir(dir);
+  } catch {
+    /* nothing there */
+  }
+  for (const n of names) {
+    if (n === 'frames' || n === 'frames.jsonl' || n === ARTEFACTS_DIR || /^frames-.+/.test(n) || /^capture(-.+)?\.mp4$/.test(n)) {
+      await rm(join(dir, n), { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+  await rm(screenshotsDir, { recursive: true, force: true }).catch(() => undefined);
+  await mkdir(screenshotsDir, { recursive: true }).catch(() => undefined);
 }
 
 async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> {
@@ -569,7 +861,7 @@ async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> 
     dryRun: false,
     log: (level, msg) => d.log(level, msg),
     // js hooks run in a guarded tab of their own, kept for the run (hook-page.ts), never in a capture tab.
-    evalInPage: (pageKey, code) => evalHookInPage(d.session, { project: d.project, env: d.env, log: d.log }, pageKey, code),
+    evalInPage: (pageKey, code) => evalHookInPage(d.session, { project: d.project, env: d.env, log: d.log, ...(d.hookLanding ? { loginLanding: d.hookLanding } : {}) }, pageKey, code),
     saved,
   };
   const state: HooksState = { mod, journal, ctx };

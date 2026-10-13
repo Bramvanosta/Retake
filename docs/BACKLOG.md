@@ -583,6 +583,45 @@ L1.2 ships the choreography helpers in their minimal form. Left out:
 - **Value:** Fewer scripted moves for apps whose widgets the helpers do not cover.
 - **Hard parts:** Locale-aware date parsing without a dependency; parking choices that read well on any layout.
 
+### BL-59 — Session write-back after a run (rotating refresh tokens)
+*S–M · found in L1.6 (R-AUTH-07) · builds on: L1.6*
+
+L1.6 runs every persona on a copy of its session and never writes anything back: a token the app refreshed during a
+run dies with the copy. An app that rotates its refresh token on every use (with reuse detection) may then revoke the
+saved one, and the persona has to sign in again (`studio login`) more often. Write the copy's cookies (and the
+profile's changed session files) back to the master after a successful run, under a lock, only when no other run of
+the persona started meanwhile.
+
+- **Value:** Long-lived sessions for apps with rotating refresh tokens.
+- **Hard parts:** Concurrent runs (last writer wins, or a merge); never writing back a session that landed on a
+  sign-in page.
+
+### BL-60 — Sessions of a workspace: path overrides and namespaces
+*S · deferred in L1.6 · builds on: L1.6*
+
+L1.6 derives every session path under the studio home (`~/.demo-studio/…/<project>/<env>/<persona>`;
+`DEMO_STUDIO_HOME` moves all of them). Not done: a per-persona override in a git-ignored `project.local.yaml` or a user
+config (the guard-rail allowed it), and a namespace per workspace — two workspaces with a project of the same slug
+share their sessions today.
+
+- **Value:** Several workspaces (clients) on one machine without collisions; a profile kept elsewhere on purpose.
+- **Hard parts:** A second config file to validate and document.
+
+### BL-61 — Persona choices beyond L1.6
+*M · deferred in L1.6 · builds on: L1.6*
+
+L1.6 ships personas in their minimal form. Left out:
+- Another account on the same page id later in a run (re-binding a page per scene: a new browser, its tabs closed).
+- A scenario-level `persona` default (cut from L1.6: it would also move a scenario's js hooks to that persona).
+- Filming a sign-in or a sign-out: a step allowed to land on a sign-in page (today the guard fails the run; `persona:
+  none` pages are the way to film a sign-up).
+- sessionStorage and IndexedDB restored for `storage_state` personas (only cookies and localStorage today).
+- `studio new` flags for the non-interactive path (`--persona name=page,…`, `--login-url`); `auth status --check` in
+  parallel and a `--persona` filter; the personas of a run in `run.json` and a progress event for the preflight.
+
+- **Value:** Fewer workarounds for multi-account and sign-in demos; scripted onboarding.
+- **Hard parts:** Each one widens what the static persona plan must predict.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -590,8 +629,9 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L1.2** — Close R-RUN-17: redact `{{env:…}}` and keychain values from timeline, log.jsonl and run.json. Today values in open URLs are written in clear. *Why:* Runs will later be shared through review links, the library, CI artefacts and sync, and any secret left in a run file leaks.
 - **L1.3** — Treat L1.3 as a decision gate and write the result down: either CPU-only capture reaches 24 fps or more with time dilation, or it doesn't and the limit is documented. *Why:* That result decides whether CI runners, self-hosted runners and hosted capture (BL-05, BL-08) are viable, and whether 4K can be sold.
 - **L1.4** — Finish R-PRIN-13: add a `version` field to scenario, project.yaml, template.yaml, studio.yaml and run.json. Also record the engine version, Chromium version, OS and installed font set in run.json. *Why:* Files will meet clients of different versions through sync, CI and a hosted UI, and differences between local and CI captures must be explainable.
-- **L1.6** — Reference personas by name. Resolve profile and storage-state paths from user config (~/.demo-studio) or a git-ignored project.local.yaml, never from project.yaml. Mark storage states as tied to one machine. *Why:* SPEC §4 currently puts `auth.profile: ~/.demo-studio/...` in project.yaml, so a path specific to one user would sync and break on every other machine.
-- **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs.
+- **L1.6** — Reference personas by name. Resolve profile and storage-state paths from user config (~/.demo-studio) or a git-ignored project.local.yaml, never from project.yaml. Mark storage states as tied to one machine. *Why:* SPEC §4 currently puts `auth.profile: ~/.demo-studio/...` in project.yaml, so a path specific to one user would sync and break on every other machine. *Applied in L1.6:* personas by name, paths derived under `~/.demo-studio` (`DEMO_STUDIO_HOME`), snapshots stamped with the machine; the `project.local.yaml` override is BL-60.
+- **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs. *Applied in L1.6:* `login:` steps run headless with no profile at all (in a run's preflight, or `studio login --auto`).
+- **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run.
 - **L1.8** — Keep host paths out of the sandbox manifest, so the same file runs on a laptop, a VPS or in CI. *Why:* A cloud or CI sandbox (BL-05, BL-08) can then reuse the manifest unchanged.
 - **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI.
 - **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports.

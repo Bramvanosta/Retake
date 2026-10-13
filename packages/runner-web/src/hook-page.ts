@@ -15,7 +15,7 @@ import type { CDPSession, Page } from 'playwright-core';
 import { HostRefusedError, isHostAllowed, networkHost } from '@demo-studio/core';
 import type { LoadedProject } from '@demo-studio/core';
 import { evalInPage } from './actions/misc.js';
-import { RunnerError, errorMessage } from './errors.js';
+import { LoginPageError, RunnerError, errorMessage } from './errors.js';
 import type { BrowserSession } from './session.js';
 
 export interface HookPageOptions {
@@ -24,6 +24,11 @@ export interface HookPageOptions {
   /** The environment whose page the tab opens. */
   env: { name: string; pages: Record<string, string> };
   log: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
+  /**
+   * Sessions & personas (L1.6): the tab opens in the browser of its page's persona (BrowserSession.hookContext); a load
+   * that lands on that persona's sign-in page is refused with this message (null: not a sign-in page).
+   */
+  loginLanding?: (key: string, url: string) => string | null;
 }
 
 /** What the tab is doing: blocked hosts are reported according to it. */
@@ -59,9 +64,10 @@ class HookTab {
   ) {}
 
   static async open(session: BrowserSession, key: string, o: HookPageOptions): Promise<HookTab> {
-    const page = await session.context.newPage();
+    const context = await session.hookContext(key);
+    const page = await context.newPage();
     try {
-      const cdp = await session.context.newCDPSession(page);
+      const cdp = await context.newCDPSession(page);
       const tab = new HookTab(key, page, cdp, o);
       await tab.guard();
       return tab;
@@ -161,16 +167,23 @@ class HookTab {
     }
     const host = this.refused(this.page.url());
     if (host) throw new HostRefusedError([host], this.o.project, `js hook page "${this.key}" redirected to it`);
+    const signIn = this.o.loginLanding?.(this.key, this.page.url());
+    if (signIn) throw new LoginPageError(signIn);
     if (this.blocked.size) {
       this.o.log('info', `js hook page "${this.key}": blocked ${[...this.blocked].join(', ')} while loading (not in the allow-list; add to allow_hosts what the page needs)`);
     }
   }
 
-  /** Evaluate a hook's code: a request it makes to a host outside the allow-list fails like a network error. */
+  /**
+   * Evaluate a hook's code: a request it makes to a host outside the allow-list fails like a network error. A tab a
+   * previous hook left on its persona's sign-in page is refused (L1.6).
+   */
   async run(code: string): Promise<unknown> {
     if (!isWebPage(this.page.url()) && this.navBlocked) {
       throw new HostRefusedError([this.navBlocked], this.o.project, `js hook page "${this.key}" redirected to it`);
     }
+    const signIn = this.o.loginLanding?.(this.key, this.page.url());
+    if (signIn) throw new LoginPageError(signIn);
     this.start('run');
     try {
       const value = await evalInPage(this.page, code);

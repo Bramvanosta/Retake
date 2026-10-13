@@ -15,7 +15,7 @@ function signup(ctx, body) {
   return { id: s.id, cafe: s.cafe, email: s.email, status: s.status };
 }
 
-/** @typedef {{ store: import('./store.mjs').Store, urls: { console: string, shop: string }, mailbox?: import('./mailbox.mjs').Mailbox }} ApiContext */
+/** @typedef {{ store: import('./store.mjs').Store, urls: { console: string, shop: string }, mailbox?: import('./mailbox.mjs').Mailbox, sessions?: import('./auth.mjs').Sessions }} ApiContext */
 
 class Created {
   constructor(value) {
@@ -28,6 +28,7 @@ const ROUTES = [
   ['GET', '/api', 'This list', (_p, _b, _q, ctx) => ({ routes: ROUTES.map(([m, path, doc]) => ({ method: m, path, doc })), urls: ctx.urls })],
   ['GET', '/api/health', 'Liveness + app URLs', (_p, _b, _q, ctx) => ({ ok: true, name: 'northfield-fixture', urls: ctx.urls, now: ctx.store.now() })],
   ['POST', '/api/reset', 'Restore the seed data (and the demo clock); empty the mailbox', (_p, _b, _q, ctx) => (ctx.store.reset(), ctx.mailbox?.clear(), { ok: true, now: ctx.store.now() })],
+  ['POST', '/api/auth/expire', 'Sign-in side (:4403 / :4404): end every session, or one persona\'s {persona: supplier | buyer} — for tests and demos of an expired session', (_p, b, _q, ctx) => ({ ok: true, expired: ctx.sessions?.expire(typeof b?.persona === 'string' ? b.persona : undefined) ?? 0 })],
   ['POST', '/api/signup', 'Open a café account {cafe, name, email} → sends a confirmation email to the mailbox (/mailbox/api/v1)', (_p, b, _q, ctx) => created(signup(ctx, b))],
   ['POST', '/api/signup/confirm', 'Confirm a signup {token} ("latest" = the most recent one)', (_p, b, _q, ctx) => ctx.store.confirmSignup(String(b?.token ?? ''))],
   ['GET', '/api/session', 'Demo date, signed-in supplier user and buyer account, option lists', (_p, _b, _q, ctx) => ctx.store.session()],

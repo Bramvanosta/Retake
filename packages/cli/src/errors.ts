@@ -5,6 +5,8 @@ export const EXIT = {
   failure: 1,
   /** Bad command line (unknown command/option, missing argument, invalid value). */
   usage: 2,
+  /** Interrupted (Ctrl-C, SIGTERM) while holding a persona's browser: closed first (interrupt.ts). */
+  interrupted: 130,
 } as const;
 
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
@@ -38,6 +40,8 @@ const KNOWN = new Set([
   'TemplateError',
   'StepError',
   'RunnerError',
+  'PreflightError',
+  'LoginPageError',
   'EncodeError',
   'CancelledError',
   'HookError',

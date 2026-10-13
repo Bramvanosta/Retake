@@ -9,6 +9,7 @@ import { formatMs, plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { printIssues } from './validate.js';
+import { loginCommandFor } from './auth.js';
 import { parseRawFlags, rawExportOfRun } from './export-capture.js';
 import type { RawFlags } from './export-capture.js';
 
@@ -92,6 +93,8 @@ export async function runCommand(
       hooks: opts.hooks,
       headed: opts.headed,
       ffmpeg: ws.ffmpeg,
+      // The fix of an expired session names this workspace when the command line did (-C).
+      loginCommand: loginCommandFor(global),
       ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
       onProgress: json ? emitJson : (e) => printer.handle(e),
     });
@@ -136,7 +139,8 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
   ui.line(`${r.status === 'succeeded' ? c.green('✓') : c.red('✗')} ${runStatusText(ui, r)} in ${formatMs(elapsedMs)} ${c.dim('·')} ${r.steps_done}/${plural(r.steps_total, 'step')}`);
   if (r.error) {
     const where = r.error.scene !== undefined ? `${r.error.scene}.${r.error.step ?? '?'} ${r.error.action ?? ''}: ` : '';
-    ui.line(`  ${c.red('error')}     ${where}${r.error.message}`);
+    // A multi-line message (the session preflight lists each persona) keeps its own indentation under the first line.
+    ui.line(`  ${c.red('error')}     ${where}${r.error.message.replace(/\n/g, `\n${' '.repeat(12)}`)}`);
     if (r.error.screenshot) ui.line(`  ${c.dim('screenshot')} ${ui.path(r.error.screenshot)}`);
     if (r.error.dom) ui.line(`  ${c.dim('dom')}       ${ui.path(r.error.dom)}`);
   }

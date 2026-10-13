@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
-import { DEFAULT_CAPTURE, DEFAULT_PACING, expandHome } from '@demo-studio/core';
-import type { AuthConfig, BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@demo-studio/core';
+import { DEFAULT_CAPTURE, DEFAULT_PACING, authFor, expandHome } from '@demo-studio/core';
+import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@demo-studio/core';
 
 function defined<T extends object>(o: Partial<T> | undefined): Partial<T> {
   const out: Partial<T> = {};
@@ -36,22 +36,17 @@ export function projectBrowser(project: LoadedProject, override?: BrowserConfig)
   return b;
 }
 
-function isAuthConfig(v: unknown): v is AuthConfig {
-  if (!v || typeof v !== 'object') return false;
-  const o = v as Record<string, unknown>;
-  return typeof o.profile === 'string' || typeof o.storage_state === 'string';
-}
-
 function projectPath(project: LoadedProject, p: string): string {
   const e = expandHome(p);
   return isAbsolute(e) ? e : resolve(project.dir, e);
 }
 
-/** Profile / storage state for an environment: `auth` is global, or keyed by environment name. */
+/**
+ * The legacy single-account profile / storage state of an environment (`auth` global, or keyed by environment name).
+ * Runs use personas (core resolvePersonas: the legacy form is persona "default"); kept for `studio login` and hooks.
+ */
 export function resolveAuth(project: LoadedProject, envName: string): { profileDir?: string; storageState?: string } {
-  const a = project.config.auth;
-  if (!a) return {};
-  const cfg = isAuthConfig(a) ? a : (a as Record<string, AuthConfig>)[envName];
+  const cfg = authFor(project.config, envName);
   if (!cfg) return {};
   return {
     profileDir: cfg.profile ? projectPath(project, cfg.profile) : undefined,

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import { PERSONA_NONE, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -106,6 +107,7 @@ class ScenarioChecker {
     checkHooks(this.s.teardown, ['teardown'], this.ctx, { pages: pageKeys, saved, project });
     this.tokens(saved);
     this.misc();
+    this.personas();
     return this.ctx.out;
   }
 
@@ -183,6 +185,9 @@ class ScenarioChecker {
       }
       if (entry.skip !== true) capturable++;
       this.tutorial(entry.tutorial, [...p, 'tutorial'], 'scene');
+      if (entry.persona !== undefined && entry.pages !== undefined) {
+        this.ctx.error([...p, 'persona'], 'a multi-page scene binds each page: write `persona` on the page (`pages.<id>.persona`)');
+      } else this.personaName(entry.persona, [...p, 'persona']);
 
       if (entry.pages !== undefined) {
         const first = this.multiPageScene(entry, p, visited);
@@ -293,6 +298,7 @@ class ScenarioChecker {
         this.ctx.warning(ep, `page "${e.id}" is filmed for the first time but has no \`open\`: it starts blank`);
       }
       if (s.cursor !== undefined) this.sceneCursor({ cursor: s.cursor }, ep, false);
+      this.personaName(s.persona, [...ep, 'persona']);
       if (envPage !== undefined) this.scenePageEnv.set(e.id, envPage);
       if (entry.skip !== true) this.pageViewport(e.id, s.viewport, ep);
     }
@@ -316,6 +322,42 @@ class ScenarioChecker {
       this.step(step, sp);
     });
     return entries[0]?.id;
+  }
+
+  /** A scene's or a page's `persona`: one the project declares (in any environment), or `none`. */
+  private personaName(v: unknown, path: IssuePath): void {
+    if (typeof v !== 'string' || v === PERSONA_NONE || !this.opts.project || this.ctx.broken(path)) return;
+    const names = projectPersonaNames(this.opts.project.config);
+    if (names.includes(v)) return;
+    this.ctx.error(
+      path,
+      names.length
+        ? `unknown persona "${v}"${suggestion(v, names)} (personas: ${names.join(', ')}; or ${PERSONA_NONE})`
+        : `unknown persona "${v}": project "${this.opts.project.slug}" declares no personas (auth.personas in project.yaml)`,
+    );
+  }
+
+  /**
+   * Personas (L1.6): in every environment that declares some, a page keeps one persona for the whole run (core
+   * planPersonas — the walk the runner makes). Unknown names were reported by personaName (across environments); the
+   * runner re-plans for the environment it runs on and stops before the browser opens.
+   */
+  private personas(): void {
+    const project = this.opts.project;
+    if (!project || !this.ctx.structurallyValid) return;
+    const seen = new Set<string>();
+    for (const env of Object.keys(project.config.environments ?? {})) {
+      const personas = resolvePersonas(project, env, { home: '/' });
+      if (personas.length === 0) continue;
+      const plan = planPersonas(this.s as unknown as Scenario, { env, envPages: project.config.environments[env], personas, hooks: true });
+      for (const i of plan.issues) {
+        if (i.kind !== 'conflict') continue;
+        const key = `${formatPath(i.path)} ${i.message}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        this.ctx.error(i.path, `${i.message}${Object.keys(project.config.environments).length > 1 ? ` (environment ${env})` : ''}`);
+      }
+    }
   }
 
   /** `card:` — something to show: a component, or the `title` slot of the theme's card component. */

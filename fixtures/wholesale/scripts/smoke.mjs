@@ -382,6 +382,40 @@ async function shopFlow(context, page, S) {
   await shot(page, 'shop-quotes');
 }
 
+/** The signed-in side (L1.6): every page needs an account of its app; one cookie name on both apps; expiry. */
+async function signInFlow(browser, C, S) {
+  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, locale: 'en-GB' });
+  const page = await context.newPage();
+  const signIn = async (email, password) => {
+    await click(page, page.getByLabel('Email'));
+    await page.keyboard.type(email);
+    await click(page, page.getByLabel('Password'));
+    await page.keyboard.type(password);
+    await click(page, page.getByRole('button', { name: 'Sign in' }));
+    await page.waitForLoadState('load');
+  };
+  await page.goto(`${C}/products`);
+  check(new URL(page.url()).pathname === '/sign-in', 'signed-in console: a page without a session goes to /sign-in');
+  await shot(page, 'console-sign-in');
+  await signIn('maja@northfield.example', 'not-the-password');
+  await visibleText(page, 'Wrong email or password.');
+  check(true, 'signed-in console: a wrong password shows an error');
+  await page.getByLabel('Email').fill('');
+  await signIn('maja@northfield.example', 'roast-lot-2026');
+  await visibleText(page, 'Maja Lindqvist');
+  check(new URL(page.url()).pathname === '/products', 'signed-in console: signing in goes back to the page asked for');
+  await page.goto(`${S}/`);
+  check(new URL(page.url()).pathname === '/sign-in', 'signed-in shop: the console account does not open the shop');
+  await signIn('orders@demo-cafe.example', 'filter-bloom-2026');
+  await visibleText(page, 'Demo Café');
+  await page.goto(`${C}/products`);
+  check(new URL(page.url()).pathname === '/sign-in', 'one cookie name on both apps: signing in to the shop signed the console out');
+  await api(C, 'POST', '/api/auth/expire');
+  await page.goto(`${S}/`);
+  check(new URL(page.url()).pathname === '/sign-in', 'POST /api/auth/expire ends every session');
+  await context.close();
+}
+
 async function main() {
   await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
@@ -389,7 +423,7 @@ async function main() {
   let C = args.console;
   let S = args.shop;
   if (!C || !S) {
-    fixture = await startFixture({ consolePort: 0, shopPort: 0, log: (m) => console.log(m) });
+    fixture = await startFixture({ consolePort: 0, shopPort: 0, auth: { consolePort: 0, shopPort: 0 }, log: (m) => console.log(m) });
     C = fixture.urls.console;
     S = fixture.urls.shop;
   }
@@ -407,6 +441,7 @@ async function main() {
     });
     await consoleFlow(page, C);
     await shopFlow(context, page, S);
+    if (fixture?.urls.signedIn) await signInFlow(browser, fixture.urls.signedIn.console, fixture.urls.signedIn.shop);
     check(errors.length === 0, `no page errors (${errors.join(' | ') || 'none'})`);
   } catch (err) {
     const page = browser.contexts()[0]?.pages()[0];

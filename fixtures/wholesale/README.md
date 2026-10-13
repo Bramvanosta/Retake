@@ -17,16 +17,46 @@ shared in-memory store:
 ```sh
 node server.mjs                       # builds public/build/ if missing or stale, then serves
 node server.mjs --console-port 5501 --shop-port 5502 [--host 127.0.0.1] [--no-build]
+node server.mjs --auth-console-port 5503 --auth-shop-port 5504   # move the signed-in side (below); --no-auth: none
 node build.mjs [--dev]                # build only
 node scripts/smoke.mjs [--out DIR]    # end-to-end check with real mouse input + screenshots
 ```
 
-Environment: `NORTHFIELD_CONSOLE_PORT`, `NORTHFIELD_SHOP_PORT`, `NORTHFIELD_HOST`,
+Environment: `NORTHFIELD_CONSOLE_PORT`, `NORTHFIELD_SHOP_PORT`, `NORTHFIELD_AUTH_CONSOLE_PORT`, `NORTHFIELD_AUTH_SHOP_PORT`, `NORTHFIELD_HOST`,
 `NORTHFIELD_ENRICH_MS` (default 4000), `NORTHFIELD_IMPORT_MS` (default 2000), `NORTHFIELD_REPORT_MS` (default 400) and
 `NORTHFIELD_REPORT_DATA_MS` (default 1200: the Sales reports, below). The server prints its
 URLs and exits cleanly on SIGTERM/SIGINT. It listens on 127.0.0.1 and ::1 by default so `localhost`
 works whichever address a client resolves first. Programmatic use:
-`const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close();`
+`const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close();` (add
+`auth: { consolePort: 0, shopPort: 0 }` for the signed-in side: `fx.urls.signedIn`, `fx.expireSessions(persona?)`).
+
+## Signed-in side (sessions & personas, Demo Studio L1.6)
+
+The same process also serves both apps behind a sign-in — same store, same API, same mailbox:
+
+| App | Default URL | Account (invented) | Password | Cookie |
+| --- | --- | --- | --- | --- |
+| Supplier console | http://localhost:4403 | `maja@northfield.example` (Maja Lindqvist) | `roast-lot-2026` | no expiry: lost when the browser closes |
+| Buyer shop | http://localhost:4404 | `orders@demo-cafe.example` (Demo Café) | `filter-bloom-2026` | 7 days |
+
+- Every page there needs a session of its app — the console account does not open the shop and the other way round
+  — else it answers `302 /sign-in?next=<path>`; the API, the mailbox, the bundle and the icons stay open (hooks keep
+  working). `/sign-in` is a server-rendered form (labelled **Email** and **Password**, a **Sign in** button) that
+  comes back to `next`; `/sign-out` ends the session.
+- Both apps use one cookie name (`northfield_session`) on one host: a browser holds one account at a time, so a scene
+  that films the supplier and the buyer side by side needs two browsers — what Demo Studio's personas give.
+- Sessions live in memory: a restart signs everyone out. `POST /api/auth/expire` (`{persona: supplier | buyer}`, or no
+  body for every session) ends them on purpose, e.g. `curl -X POST localhost:4403/api/auth/expire` — tests and demos of
+  an expired session. `POST /api/reset` restores the data but never touches sessions.
+- A busy port only skips the signed-in side (the open side keeps running); `--no-auth` never starts it.
+
+The fixture project's environment `signed-in` points at these ports with personas `supplier` and `buyer`; their
+automated login reads the passwords from `NORTHFIELD_SUPPLIER_PASSWORD` and `NORTHFIELD_BUYER_PASSWORD`:
+
+```sh
+export NORTHFIELD_SUPPLIER_PASSWORD=roast-lot-2026 NORTHFIELD_BUYER_PASSWORD=filter-bloom-2026
+node packages/cli/dist/bin.js run northfield-fixture live-quote --env signed-in
+```
 
 ## Why real Radix UI *and* Base UI
 
@@ -92,6 +122,8 @@ span the width. `projects/northfield-fixture/scenarios/mobile-quote.yaml` captur
 ## API (shared by both ports; `GET /api` lists every route)
 
 - `POST /api/reset` — restore the seed data and restart the demo clock (2 Nov 2026, 10:24); empty the mailbox.
+- `POST /api/auth/expire` — end every session of the signed-in side, or one persona's `{persona}` (sessions are not data:
+  `/api/reset` leaves them).
 - `POST /api/signup` — `{cafe, name, email}` opens a café account and sends its confirmation email;
   `POST /api/signup/confirm` — `{token}` (`latest` = the most recent sign-up).
 - `GET /api/products`, `GET|POST /api/products[/:slug]`, `POST /api/products/:slug/publish`

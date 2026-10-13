@@ -123,33 +123,45 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
     context.off('page', onPage);
   }
 
+  // Never a sign-in page saved as the document (L1.6): the URL of the download, of the tab and of the fetched document
+  // are checked like the page's own (its persona's sign-in pages) — a landing fails the run, which keeps nothing.
+  const signIn = (u: string): void => {
+    const e = rt.guard?.check(rt.activeId ?? '', page, u, `the document of download "${args.as}"`);
+    if (e) throw e;
+  };
   let bytes: Buffer;
   let fileName: string;
   let contentType = '';
   let url: string | undefined;
-  if (captured.via === 'download') {
-    const d = captured.download;
-    url = d.url();
-    fileName = d.suggestedFilename();
-    const path = await d.path().catch((e: unknown) => {
-      throw new StepError(`download: the file could not be downloaded (${errorMessage(e)})`);
-    });
-    bytes = await readFile(path);
-  } else {
-    url = captured.page.url();
-    const res = await context.request.get(url, { timeout: timeoutMs }).catch((e: unknown) => {
-      throw new StepError(`download: the document at ${url} could not be fetched with the session (${errorMessage(e)})`);
-    });
-    if (!res.ok()) throw new StepError(`download: the document at ${url} answered HTTP ${res.status()}`);
-    bytes = await res.body();
-    contentType = res.headers()['content-type'] ?? '';
-    const disposition = res.headers()['content-disposition'] ?? '';
-    const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-    fileName = named ? decodeURIComponent(named[1]) : basename(new URL(url).pathname) || args.as;
+  try {
+    if (captured.via === 'download') {
+      const d = captured.download;
+      url = d.url();
+      signIn(url);
+      fileName = d.suggestedFilename();
+      const path = await d.path().catch((e: unknown) => {
+        throw new StepError(`download: the file could not be downloaded (${errorMessage(e)})`);
+      });
+      bytes = await readFile(path);
+    } else {
+      url = captured.page.url();
+      signIn(url);
+      const res = await context.request.get(url, { timeout: timeoutMs }).catch((e: unknown) => {
+        throw new StepError(`download: the document at ${url} could not be fetched with the session (${errorMessage(e)})`);
+      });
+      signIn(res.url());
+      if (!res.ok()) throw new StepError(`download: the document at ${url} answered HTTP ${res.status()}`);
+      bytes = await res.body();
+      contentType = res.headers()['content-type'] ?? '';
+      const disposition = res.headers()['content-disposition'] ?? '';
+      const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+      fileName = named ? decodeURIComponent(named[1]) : basename(new URL(url).pathname) || args.as;
+    }
+  } finally {
+    // Close the tabs the click opened: the recording stays on this page.
+    for (const t of tabs) await t.close().catch(() => undefined);
+    if (tabs.length) await page.bringToFront().catch(() => undefined);
   }
-  // Close the tabs the click opened: the recording stays on this page.
-  for (const t of tabs) await t.close().catch(() => undefined);
-  if (tabs.length) await page.bringToFront().catch(() => undefined);
 
   const mime = sniffMime(bytes, fileName, contentType);
   const file = await rt.artefacts.writeDocument(args.as, bytes, mime, fileName);

@@ -33,3 +33,4 @@ export { SHELL_OPERATORS, shellWords, shellCommands, commandName, nestedShellScr
 export type { ShellCommand, Heredoc } from './shell-words.js';
 export { shellHostRefs } from './shell-hosts.js';
 export type { ShellHostRef, ShellHostOptions } from './shell-hosts.js';
+export * from './auth.js';

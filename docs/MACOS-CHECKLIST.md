@@ -37,7 +37,8 @@ pnpm test            # optional, ~2.5 min on an M4: the end-to-end tests start t
 ```
 
 - **Expected:** `pnpm build` prints nothing and exits 0; `pnpm test` ends with every test passed (6 Postgres tests
-  skipped unless `DEMO_STUDIO_TEST_PG` is set, 1 unless `DEMO_STUDIO_TEST_OLD_NODE` points to an old `node`).
+  skipped unless `DEMO_STUDIO_TEST_PG` is set, 1 unless `DEMO_STUDIO_TEST_OLD_NODE` points to an old `node`, 1 unless
+  `DEMO_STUDIO_TEST_HEADED=1`: it opens real login windows, see step 8b).
 - **Send back:** the `Test Files … Tests …` summary lines, and the full output of any failing test.
 
 ## 3. `studio doctor`
@@ -60,8 +61,10 @@ pnpm studio doctor --project northfield-fixture   # terminal 2
 ```
 
 - **Expected:** terminal 1 prints "Northfield fixture is running" with the console on http://localhost:4401 and the
-  shop on http://localhost:4402 (both open in Safari). The doctor adds `Project northfield-fixture`, `Profile`
-  ("none configured") and `Host local·console` / `Host local·shop` → HTTP 200, all `OK`.
+  shop on http://localhost:4402 (both open in Safari), and their signed-in side on :4403 / :4404. The doctor adds
+  `Project northfield-fixture`, `Session home` (`~/.demo-studio · outside any git work tree`), `Persona
+  signed-in·supplier` / `signed-in·buyer` (`WARN never signed in` until step 8b) and `Host local·console` /
+  `Host local·shop` → HTTP 200, `Host signed-in·…` → HTTP 302 (to the sign-in page).
 - **Send back:** the doctor lines from `Project` down.
 
 ## 5. Dry run
@@ -109,7 +112,7 @@ the cursor moves frame by frame (← / → keys).
 - **Send back:** OK / not OK for each bullet, with the video time (mm:ss) of anything wrong. Optionally three frames:
   `ffmpeg -ss 00:00:03 -i runs/<id>/capture.mp4 -frames:v 1 frame-3s.png`.
 
-## 8. `studio login` on a real profile
+## 8. `studio login` on a real site
 
 Use a site where you have an account (a personal one, nothing confidential), in your own workspace — never in the
 repository:
@@ -119,10 +122,13 @@ mkdir -p ~/demo-check && cd ~/demo-check && echo "projects_dir: projects" > stud
 node <repo>/packages/cli/dist/bin.js new site-check --env "prod=app:https://<the site>"
 ```
 
-Add to `~/demo-check/projects/site-check/project.yaml`:
+Add to `~/demo-check/projects/site-check/project.yaml` (a persona: the account, by name — its session is kept in
+`~/.demo-studio`, never in the project):
 
 ```yaml
-auth: {profile: ~/.demo-studio/profiles/site-check}
+auth:
+  personas:
+    me: {pages: [app], check: {url: "app:/", expect_text: <a text only visible when signed in, e.g. your account name>}}
 ```
 
 and write `~/demo-check/projects/site-check/scenarios/signed-in.yaml`:
@@ -134,21 +140,46 @@ scenes:
     page: app
     open: /
     steps:
-      - assert: {text: <a text only visible when signed in, e.g. your account name or "Sign out">}
+      - assert: {text: <the same text>}
 ```
 
 ```sh
-node <repo>/packages/cli/dist/bin.js login site-check     # a Chromium window opens on the site
+node <repo>/packages/cli/dist/bin.js login site-check --persona me     # a Chromium window opens on the site
 # sign in by hand, then close the window
+node <repo>/packages/cli/dist/bin.js auth status --project site-check
 node <repo>/packages/cli/dist/bin.js doctor --project site-check
 node <repo>/packages/cli/dist/bin.js run site-check signed-in --dry
 ```
 
-- **Expected:** `login` opens a visible Chromium window and, once you close it, prints `profile saved: …`; the doctor
-  shows `Profile` `OK` (a `WARN … in use by a browser` if the window is still open) and the host `OK`; the headless
-  dry run succeeds (the assert passes because the profile is signed in).
-- **Send back:** the three outputs with the site name and account details removed. Delete the profile afterwards
-  if you wish: `rm -rf ~/.demo-studio/profiles/site-check`.
+- **Expected:** `login` opens a visible Chromium window and, once you close it, prints `✓ me (env prod) signed in:
+  app:/ shows "<your text>" — runs use a copy of this session`; `auth status` shows `me  valid  checked just now
+  (studio login)`; the doctor shows `Session home` and `Persona prod·me` `OK` (a `WARN … in use by a browser` if the
+  window is still open) and the host `OK`; the headless dry run succeeds (no "signed in automatically" line).
+- **Send back:** the four outputs with the site name and account details removed. Delete the session afterwards if
+  you wish: `rm -rf ~/.demo-studio/profiles/site-check ~/.demo-studio/sessions/site-check`.
+
+## 8b. Personas on the fixture: a headed `studio login --persona` (L1.6)
+
+With the fixture running (step 4), sign the fixture's two personas in **by hand**, then film both side by side:
+
+```sh
+pnpm studio login northfield-fixture --env signed-in --persona supplier   # a window on the console's sign-in page
+#   email maja@northfield.example, password from fixtures/wholesale/README.md; once the console shows, close the window
+pnpm studio login northfield-fixture --env signed-in --persona buyer      # the shop: orders@demo-cafe.example
+pnpm studio auth status
+pnpm studio run northfield-fixture live-quote --env signed-in
+curl -X POST localhost:4403/api/auth/expire                              # sign everyone out on the server
+pnpm studio auth status --check
+DEMO_STUDIO_TEST_HEADED=1 npx vitest run packages/runner-web/test/login.test.ts   # optional: the same windows, driven
+```
+
+- **Expected:** each `login` opens a visible Chromium window on the app's sign-in page; after you sign in and close
+  it (closing the last tab, or quitting with ⌘Q, both work), `✓ supplier (env signed-in) signed in: console:/products
+  shows "Maja Lindqvist"` (buyer: `shop:/ shows "Demo Café"`). The browser never offers to save the password.
+  `auth status` lists both `valid (studio login)`; the capture succeeds without any "signed in automatically" line and
+  its two panes show the console as Maja Lindqvist and the shop as Demo Café; after the `curl`, `auth status --check`
+  lists both `expired` with the `studio login` command, and exits 1.
+- **Send back:** the outputs of the two `login` commands, of both `auth status`, and the summary block of the run.
 
 ## 9. `--headed` run
 

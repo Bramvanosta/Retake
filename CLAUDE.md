@@ -36,9 +36,9 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~2.5 min on the Mac, 5–10 in the cloud; 7 skip by default: 6 Postgres without DEMO_STUDIO_TEST_PG, 1 without DEMO_STUDIO_TEST_OLD_NODE)
+pnpm test                            # = vitest run, full suite (~2.5 min on the Mac, 5–10 in the cloud; 8 skip by default: 6 Postgres without DEMO_STUDIO_TEST_PG, 1 without DEMO_STUDIO_TEST_OLD_NODE, 1 without DEMO_STUDIO_TEST_HEADED)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file
-node fixtures/wholesale/server.mjs & # fixture product (console :4401, shop :4402); stop it with kill <its pid>
+node fixtures/wholesale/server.mjs & # fixture product (console :4401, shop :4402; signed in: :4403, :4404); stop it with kill <its pid>
                                      # (`kill $!`; not `pkill -f`: it also matches the shell running it)
 node packages/cli/dist/bin.js doctor                         # = pnpm studio doctor: is this machine ready?
 node packages/cli/dist/bin.js run northfield-fixture quote   # capture (fixture running)

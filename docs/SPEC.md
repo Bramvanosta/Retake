@@ -101,8 +101,12 @@ environments:
   staging:
     console: https://console.staging.example.com
     shop: https://shop.staging.example.com
-auth:            # never store passwords in clear; use keychain refs or a pre-authenticated browser profile
-  profile: ~/.demo-studio/profiles/northfield-staging
+auth:            # personas by name: never a password, never a path (sessions stay in ~/.demo-studio, kept by `studio login`)
+  staging:
+    login_url: /sign-in
+    personas:
+      supplier: {pages: [console], check: {url: "console:/", expect_text: Maja Lindqvist}}
+      buyer: {pages: [shop], check: {url: "shop:/", expect_text: Demo Café}}
 capture: {width: 1920, height: 1080, scale: 1, fps: 30}
 frame: browser   # raw | browser | laptop | phone | card
 template: editorial
