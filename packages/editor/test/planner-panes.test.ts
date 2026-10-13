@@ -309,3 +309,28 @@ describe('multi-page clips: layout choice and variants', () => {
     expect(sa.x).toBeLessThan(sb.x);
   });
 });
+
+describe('multi-page clips: held page loads (R-ISS-08)', () => {
+  it('a multi-page run cuts the loads its own tracks held, not the main capture’s', async () => {
+    const t = load('live-quote');
+    // A load held on the buyer's track during the "request" scene's steps, and one on the main capture at another time.
+    const buyer = t.tracks!.find((tr) => tr.id === 'buyer')!;
+    buyer.loading = [{ t_start: 5.3, t_end: 6.1, page: 'buyer', until: 'paint', held_frames: 40 }];
+    t.loading = [{ t_start: 8, t_end: 9, page: 'buyer', until: 'paint', held_frames: 50 }];
+    const p = await plan(t);
+    const request = clipOf(p, 'request');
+    expect(request.trims.map((x) => [x.src_from_s, x.src_to_s])).toEqual([[5.3, 6.1]]);
+    expect(p.notes).toContain('"request": page load 5.30 s–6.10 s of the capture cut (the capture held the previous frame until the new page painted)');
+    // Without loads: no trim there.
+    expect(clipOf(await plan(load('live-quote')), 'request').trims).toEqual([]);
+  });
+
+  it('a load held on one page is not cut where another page acts: the buyer’s steps play on, the supplier keeps its frame', async () => {
+    const t = load('live-quote');
+    // The supplier's page loads during the buyer's clicks (steps 0 and 1, 3.47–6.86 s): nothing of it is cut.
+    t.tracks!.find((tr) => tr.id === 'supplier')!.loading = [{ t_start: 5, t_end: 5.4, page: 'supplier', until: 'paint', held_frames: 20 }];
+    const p = await plan(t);
+    expect(clipOf(p, 'request').trims).toEqual([]);
+    expect(p.notes.some((n) => n.includes('page load 5.00 s'))).toBe(false);
+  });
+});

@@ -261,6 +261,34 @@ During capture, read the app's design tokens (CSS custom properties such as prim
 - **Value:** Videos look on-brand with no setup; a competitor already does it automatically.
 - **Hard parts:** Apps without tokens; telling brand colours from incidental ones.
 
+### BL-55 — Frames and components beyond the same-origin case
+*M · found in L1.2 (R-ISS-07) · builds on: L1.2*
+
+L1.2 reaches open shadow roots and same-origin iframes from the top kit. Still out of reach: cross-origin iframes
+(payment, chat, embedded third-party widgets — they need per-frame kit routing through Playwright frames,
+frame-qualified refs and node-side coordinate translation), closed shadow roots, drag events into a frame
+(`drop_file` uses the zone's file input there), frames under a CSS transform or zoom (offsets ignore transforms),
+a `>>>`-style piercing selector, an app-shell scroll container inside a full-page iframe (`scroll` without a target),
+declarative popovers inside shadow roots raising the cursor overlay (`toggle` is not composed), and error DOM snippets
+with shadow or frame content.
+
+- **Value:** Products that embed third-party widgets or are built as an app inside an iframe can be filmed end to end.
+- **Hard parts:** Cross-origin frames have their own kit and coordinate space; the runner would have to route every
+  kit call and merge the results.
+
+### BL-56 — Templating extras
+*S · found in L1.2 (R-RUN-16/17) · builds on: L1.2*
+
+L1.2 templates every scene string and treats every `{{env:…}}` / `{{keychain:…}}` as a secret. Left out: an escape for
+a literal `{{ }}` in typed text; `{{captured.<as>}}` tokens reading a `capture_text` value in later steps; templated
+`vars` values (a `{{…}}` in one is a validation error until then; a var built from `{{env:…}}` would let a value from
+the environment show in the video, which an env ref cannot: it is masked and warned about when typed into a visible
+field); a `secret: true` on a hook's `save_as` so a
+token saved by a setup hook (`{{hooks.login.json.token}}`) is masked in the run files like an env secret.
+
+- **Value:** Fewer workarounds for CI-provided values and hook-made credentials.
+- **Hard parts:** Keeping the "values the video may show" vs "secrets" line simple to explain.
+
 ## Outputs
 
 ### BL-30 — SRT / WebVTT subtitles
@@ -506,7 +534,7 @@ It covers:
 ### BL-43 — Redaction and privacy masking
 *M · proposed in review · builds on: L1.2 (secret redaction), L2.6*
 
-Declarative masking of form inputs, text patterns and screen regions in captures, frames, contact sheets and exports. It is applied before anything leaves the machine: AI review, review links, the cloud library. Element bounding boxes from the timeline drive moving masks.
+Declarative masking of form inputs, text patterns and screen regions in captures, frames, contact sheets and exports. It is applied before anything leaves the machine: AI review, review links, the cloud library. Element bounding boxes from the timeline drive moving masks. A first case: an edit-time blur over a visible field a secret was typed into (L1.2 warns about it; the type event has the field's box and `t_type` / `t_typed`).
 
 - **Value:** Lets security-sensitive buyers use AI review and share links, and reduces GDPR exposure for every cloud feature.
 - **Hard parts:** Masks must be frame-accurate on moving content, and completeness is hard to prove.
@@ -518,6 +546,42 @@ SSO and SCIM, an audit log, an admin console, a private component registry, and 
 
 - **Value:** Opens a Business tier priced by quote for larger buyers.
 - **Hard parts:** SOC 2 costs about $25–50k in the first year for most startups (Drata estimate), which is heavy for a solo founder.
+
+### BL-57 — Network isolation for hooks
+*L · found in L1.2 (R-SEC-06) · builds on: L1.2*
+
+L1.2 reads a shell hook's command line for the hosts it names (a best-effort reading of the shell text: URLs, the
+script's own variables, command substitutions, inline interpreter code, proxies, database / ssh / git / nc targets)
+and blocks the js hook tab's requests to hosts outside the allow-list. Not covered: what a hook's programs do on their
+own — connecting from their own configuration (`pnpm run seed` reading `DATABASE_URL` from a `.env` file, the host
+behind an ssh alias, kubectl contexts, cloud CLI profiles, PGSERVICE, docker compose service names), script files they
+run, hosts they compute or read (URLs read from files or stdin, `fetch(process.env.API)` in inline code), code they
+download or pipe into a shell (`curl … | sh`), commands run in a container or on another machine (`docker exec`,
+`kubectl exec`, a remote ssh command), network tools the scanner does not know (socat, ncat, ftp…); in the hook tab,
+WebSockets opened by workers, service and shared workers already running for the origin or started by the hook,
+WebTransport / WebRTC, preconnect hints, redirect hops inside a cross-site frame, the first request of a popup a link
+opens. An OS-level sandbox for hook
+processes (macOS Seatbelt, Linux bubblewrap or a network namespace) allowing only localhost and an allow-list proxy
+would hold the allow-list for every program a hook runs; the browser side would need a browser-level request guard.
+
+- **Value:** The allow-list holds for what hooks do, not only for what they name.
+- **Hard parts:** Hostname filtering needs a proxy, and clients that ignore proxies (psql) need another route;
+  platform-specific code on macOS and Linux.
+
+### BL-58 — Choreography extras
+*S–M · found in L1.2 (R-CHO-13/18/21/24) · builds on: L1.2*
+
+L1.2 ships the choreography helpers in their minimal form. Left out:
+- A scenario-wide automatic parking switch (`pacing.auto_park`: park after every scroll to a target and before every
+  `hold`), instead of a `park` per step; a parking spot that also avoids text next to the target (today a spot below
+  a heading can sit over the next card's title).
+- Parking that sees changes inside shadow roots and frames (the change record watches the top document).
+- `date`: dates in other languages than English (matched by label only today, paged forward), a time of day, month /
+  year dropdowns.
+- An author-given point for a row's menu trigger (`trigger: {x, y}` relative to the row).
+
+- **Value:** Fewer scripted moves for apps whose widgets the helpers do not cover.
+- **Hard parts:** Locale-aware date parsing without a dependency; parking choices that read well on any layout.
 
 ## Guard-rails for planned lots (no new scope)
 

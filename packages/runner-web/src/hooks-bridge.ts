@@ -7,8 +7,10 @@ export interface HookContextLike {
   env: ResolvedEnvironment;
   vars: Record<string, string>;
   runId?: string;
+  runDir?: string;
   dryRun?: boolean;
   log: (level: 'debug' | 'info' | 'warn' | 'error', msg: string) => void;
+  /** Runs a js hook through evalHookInPage (hook-page.ts): the guarded hook tab of the page key. */
   evalInPage?: (pageKey: string | undefined, code: string) => Promise<unknown>;
   saved: Record<string, unknown>;
 }

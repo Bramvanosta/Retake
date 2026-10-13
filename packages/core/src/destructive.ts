@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { commandName, nestedShellScript, shellCommands, shellWords } from './shell-words.js';
+import { commandName, heredocs, nestedShellScript, shellCommands, shellWords } from './shell-words.js';
 import type { HookKind, HookStep, HttpHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 
 const SQL_WRITE = new Set(['DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'UPDATE']);
@@ -113,8 +113,6 @@ function psqlArgsReason(args: readonly string[], opts: DestructiveOptions): stri
   return null;
 }
 
-const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_][\w]*)\1[^\n]*\n([\s\S]*?)\n[ \t]*\2[ \t]*(?:\n|$)/g;
-
 /**
  * Destructive SQL sent to psql: `psql -c "DELETE …"`, `psql -f file.sql` (read from the project dir),
  * a heredoc fed to psql, `echo "DROP …" | psql`, also inside `sh -c "…"`.
@@ -141,8 +139,8 @@ export function psqlDestructiveStatement(cmd: string, opts: DestructiveOptions =
     }
   }
   if (usesPsql) {
-    for (const m of cmd.matchAll(HEREDOC)) {
-      const kw = sqlDestructiveKeyword(m[3]);
+    for (const h of heredocs(cmd)) {
+      const kw = sqlDestructiveKeyword(h.body);
       if (kw) return `psql heredoc ${kw}`;
     }
   }

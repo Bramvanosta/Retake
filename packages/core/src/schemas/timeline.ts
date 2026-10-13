@@ -89,6 +89,18 @@ const TimelineSceneSchema = z.strictObject({
   status: z.enum(['ok', 'failed', 'skipped', 'partial']),
 });
 
+const LoadingSchema = z
+  .strictObject({
+    t_start: t(),
+    t_end: t(),
+    page: z.string().optional(),
+    until: z.enum(['paint', 'load', 'limit', 'left', 'end']),
+    held_frames: z.number().int().min(0),
+  })
+  .describe(
+    'A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
+  );
+
 const TimelineTrackSchema = z
   .strictObject({
     id: nonEmpty(),
@@ -106,6 +118,7 @@ const TimelineTrackSchema = z
     pages: z.array(PageSegmentSchema),
     cursor: z.array(CursorSampleSchema),
     cursor_effects: z.array(CursorEffectSchema).optional(),
+    loading: z.array(LoadingSchema).describe('Page loads this track did not show.').optional(),
   })
   .describe('A page recorded on its own track (multi-page scenes), on the capture clock.');
 
@@ -267,6 +280,7 @@ export const TimelineSchema = z
     cursor: z.array(CursorSampleSchema),
     cursor_effects: z.array(CursorEffectSchema).describe('Icon changes, presses and click ripples of the in-page cursor of `capture`.').optional(),
     idle: z.array(z.strictObject({ t_start: t(), t_end: t() })),
+    loading: z.array(LoadingSchema).describe('Page loads `capture` did not show (the previous frame held until the new page painted).').optional(),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
     warnings: z.array(z.string()),

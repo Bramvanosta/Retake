@@ -1,6 +1,7 @@
+import { isHostRefusedError } from '@demo-studio/core';
 import type { JsHookSpec } from '@demo-studio/core';
 import { describeJs } from '../describe.js';
-import { HookError } from '../errors.js';
+import { HookError, HookSecurityError } from '../errors.js';
 import { redactText } from '../secrets.js';
 import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
 import type { HookContext, RollbackAction } from '../types.js';
@@ -19,7 +20,14 @@ function checkPage(ctx: HookContext, page: string | undefined): void {
 
 async function evaluate(ctx: HookContext, page: string | undefined, code: string): Promise<string> {
   if (!ctx.evalInPage) throw new HookError(JS_NEEDS_PAGE);
-  const value = await ctx.evalInPage(page, code);
+  let value: unknown;
+  try {
+    value = await ctx.evalInPage(page, code);
+  } catch (e) {
+    // The runner's hook tab blocked a host outside the allow-list (R-SEC-06): a refusal, like http and sql.
+    if (isHostRefusedError(e)) throw new HookSecurityError(e.message, 'host');
+    throw e;
+  }
   if (value === undefined) return 'done';
   let shown: string;
   try {

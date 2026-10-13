@@ -1,3 +1,4 @@
+import { parseDay } from '../dates.js';
 import type { IssuePath } from '../issues.js';
 import { hasLocator, isPoint, pickTarget } from '../targets.js';
 import type { NormalizedStep, TargetObject } from '../types.js';
@@ -66,6 +67,20 @@ export function checkActionArgs(step: NormalizedStep, sp: IssuePath, ctx: CheckC
       target(a.row, 'row');
       target(a.trigger, 'trigger');
       break;
+    case 'date': {
+      target(a.field, 'field');
+      target(a.next, 'next');
+      target(a.previous, 'previous');
+      const days = Array.isArray(a.day) ? (a.day as unknown[]) : [a.day];
+      days.forEach((d, i) => {
+        if (typeof d !== 'string' || d.includes('{{') || parseDay(d) !== null) return;
+        // Not a date the runner reads (ISO, English long forms): matched as words of the day labels.
+        const path = typeof rawArg === 'string' ? ap : Array.isArray(a.day) ? [...ap, 'day', i] : [...ap, 'day'];
+        const what = /\b(1[89]|2\d)\d{2}\b/.test(d) ? 'is not a date the runner reads (2027-01-10, 10 January 2027, January 10, 2027)' : 'has no year';
+        ctx.warning(path, `"${d}" ${what}: it is matched by its label only, and the calendar can only be paged forward to find it`);
+      });
+      break;
+    }
     case 'scroll': {
       if (a.to === undefined && a.by === undefined) ctx.error(ap, 'scroll needs `to` or `by`');
       else if (a.to !== undefined && a.by !== undefined) ctx.error(ap, 'scroll takes `to` or `by`, not both');

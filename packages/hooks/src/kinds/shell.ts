@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { allowedHosts } from '@demo-studio/core';
 import type { ShellHookSpec } from '@demo-studio/core';
+import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
 import { shellDestructiveReason } from '../destructive.js';
 import { HookError } from '../errors.js';
@@ -113,8 +115,15 @@ function hookEnv(ctx: HookContext, extra: Record<string, string> | undefined): N
     DEMO_STUDIO_PROJECT_DIR: ctx.project.dir,
     DEMO_STUDIO_ENV: ctx.env.name,
     ...(ctx.runId ? { DEMO_STUDIO_RUN_ID: ctx.runId } : {}),
+    // The project's allow-list, so a script can check the hosts it computes itself.
+    DEMO_STUDIO_ALLOWED_HOSTS: allowedHosts(ctx.project).join(','),
     ...extra,
   };
+}
+
+/** The allow-list check of a templated command: with the environment sh will get (R-SEC-06). */
+function checkHosts(ctx: HookContext, cmd: ShellCommand): void {
+  checkShellHosts(cmd.run, hookEnv(ctx, cmd.env), cmd.env, ctx.project);
 }
 
 async function execute(
@@ -143,6 +152,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv): Pr
   const forward: ShellCommand = { run: s.run, cwd: s.cwd, env: s.env };
   const cmd = renderDeep(forward, await hookTemplateContext(ctx, forward));
   await resolveCwd(ctx, cmd.cwd);
+  checkHosts(ctx, cmd);
   const timeout = s.timeout ?? DEFAULT_SHELL_TIMEOUT_S;
 
   ignoreRollback(k, s.rollback !== undefined);
@@ -151,6 +161,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv): Pr
     const template: ShellCommand = { run: s.rollback, cwd: s.cwd, env: s.env };
     const tpl = await hookTemplateContext(ctx, template);
     const rb = renderDeep(template, tpl);
+    checkHosts(ctx, rb);
     rollback = {
       kind: 'shell',
       run: s.rollback,
@@ -173,5 +184,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv): Pr
 export async function rollbackShell(action: Extract<RollbackAction, { kind: 'shell' }>, r: RollbackEnv): Promise<string> {
   const template: ShellCommand = { run: action.run, cwd: action.cwd, env: action.env };
   const cmd = renderDeep(template, await snapshotTemplateContext(r.ctx, action.data, template));
+  // Checked again when replayed: a journal may be rolled back later (`studio env reset`), with another environment.
+  checkHosts(r.ctx, cmd);
   return execute(r.ctx, r.log, cmd, action.timeout ?? DEFAULT_SHELL_TIMEOUT_S);
 }

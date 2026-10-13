@@ -140,7 +140,7 @@ export function rawMarkers(plan: RawPlan): RawMarker[] {
         duration: 1,
         capture_t: c.to,
         scene: clip.scene,
-        step: c.wait_step,
+        ...((c.wait_step ?? c.after_step) !== undefined ? { step: c.wait_step ?? c.after_step } : {}),
         ...(c.page ? { page: c.page } : {}),
       });
     }

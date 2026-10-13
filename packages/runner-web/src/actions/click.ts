@@ -204,13 +204,16 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       await rt.sleep(afterStart + total - wallNow());
     }
     await nav.settle(ctx);
+    // The new document painted (R-ISS-08): until then the capture holds the previous frame.
+    if (nav.started()) await rt.awaitLoaded(page);
   } finally {
     nav.stop();
   }
   const pageChanged = nav.started() || (urlBefore !== '' && pageUrl(page) !== urlBefore);
   if (pageChanged && opts.after_ms === undefined) {
-    // Field notes: hold 1.5–2.8 s after an action that changes the page, so the viewer sees the new page.
-    const left = clickWall + pacing.after_navigation_ms - wallNow();
+    // Field notes: hold 1.5–2.8 s after an action that changes the page, so the viewer sees the new page. A load the
+    // capture held (R-ISS-08) is cut by the edit: it must not eat the new page's screen time.
+    const left = clickWall + pacing.after_navigation_ms + rt.heldMs(page, clickWall) - wallNow();
     if (left > 0) await rt.sleep(left);
   }
   const run: ClickRun = {
@@ -347,6 +350,7 @@ export function clickData(ctx: StepContext): Array<Record<string, unknown>> {
 
 function clickResult(run: ClickRun, ctx: StepContext): ActionResult {
   const out: ActionResult = {
+    ref: run.resolved.ref,
     target: { desc: run.resolved.desc, bbox: run.resolved.bbox },
     point: run.point,
     t_click: run.t_click,

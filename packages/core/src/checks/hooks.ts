@@ -1,6 +1,8 @@
 import { destructiveReason, hookKind, sqlSource } from '../destructive.js';
+import { allowedHosts, isHostAllowed } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
-import type { HookStep, JsHookSpec, SqlHookSpec } from '../types.js';
+import { shellHostRefs } from '../shell-hosts.js';
+import type { HookStep, JsHookSpec, LoadedProject, ShellHookSpec, SqlHookSpec } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
 import type { CheckContext } from './context.js';
 import { isObj } from './context.js';
@@ -10,6 +12,28 @@ export interface HookCheckOptions {
   pages?: readonly string[];
   /** `save_as` names seen so far (shared across setup / teardown); filled by this check. */
   saved: Set<string>;
+  /** The project whose allow-list shell hooks are checked against (undefined → not checked). */
+  project?: Pick<LoadedProject, 'config'>;
+}
+
+/**
+ * Hosts a shell hook names in its literal text that the allow-list refuses (R-SEC-06). Parts computed at run time
+ * (`$VAR`, `$(…)`, `{{…}}`) are skipped here: the runtime check expands them and may refuse more.
+ */
+function checkShellHosts(spec: string | ShellHookSpec, kp: IssuePath, ctx: CheckContext, project: Pick<LoadedProject, 'config'>): void {
+  const s: ShellHookSpec = typeof spec === 'string' ? { run: spec } : spec;
+  const at = (key: 'run' | 'rollback') => (typeof spec === 'string' ? kp : [...kp, key]);
+  const report = (refs: ReturnType<typeof shellHostRefs>, path: (envKey?: string) => IssuePath) => {
+    for (const r of refs) {
+      if (r.unresolved || isHostAllowed(r.host, project)) continue;
+      ctx.error(
+        path(r.envKey),
+        `shell hook names host ${r.host} (${r.via}): it is not allowed: use localhost, an environment host, or add it to allow_hosts (allowed: ${allowedHosts(project).join(', ')})`,
+      );
+    }
+  };
+  report(shellHostRefs(s.run, { env: s.env }), (envKey) => (envKey ? [...kp, 'env', envKey] : at('run')));
+  if (s.rollback !== undefined) report(shellHostRefs(s.rollback), () => at('rollback'));
 }
 
 /** Semantic checks of a list of hooks (schema-valid entries only). */
@@ -62,6 +86,7 @@ export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, op
         break;
       }
       case 'shell':
+        if (opts.project) checkShellHosts((hook as { shell: string | ShellHookSpec }).shell, kp, ctx, opts.project);
         break;
     }
     const reason = destructiveReason(hook, { projectDir: ctx.projectDir });

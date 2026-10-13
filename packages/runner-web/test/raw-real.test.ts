@@ -2,7 +2,8 @@
  * L2.13 raw export, for real: a tiny product (a button, a link to a page that shows a yellow loading screen for 1.2 s
  * before a green "Loaded" one) captured twice with the debug cursor (a magenta dot at its point) — once with the
  * cursor in the pictures, once without it (`hideCursor`, R-RAW-02) — then exported: clips with the load cut (no
- * yellow frame anywhere, the first frame after the cut green), ffprobe'd; no cursor pixel in the cursorless clips; the
+ * yellow frame anywhere — the capture itself holds the start page until "Loaded" paints, R-ISS-08 —, the first frame
+ * after the cut green), ffprobe'd; no cursor pixel in the cursorless clips; the
  * cursor effects the kit reported (icon, press, ripple); the transparent cursor layer drawn at the cursor's place,
  * on the baked cursor; interchange files written.
  */
@@ -135,7 +136,11 @@ describe('raw export (R-RAW-01…04)', () => {
     expect(m.clips.map((c) => c.file)).toEqual(['clips/01-start.mp4']);
     const c = m.clips[0];
     expect(c.cuts).toHaveLength(1);
-    expect(c.cuts[0]).toMatchObject({ reason: 'navigation', wait_step: 3 });
+    // The capture held the load (R-ISS-08: the yellow page paints no content), so the click step waited for it and
+    // `wait_for` found "Loaded" at once: the cut is the held load, ended by the paint, not by a wait step.
+    expect(c.cuts[0]).toMatchObject({ reason: 'navigation', after_step: 2 });
+    expect(c.cuts[0].wait_step).toBeUndefined();
+    expect(runs.hidden.tl.loading?.some((l) => l.until === 'paint' && l.t_end - l.t_start > 1)).toBe(true);
     const p = await probeVideo(join(none.dir, c.file), { count: true });
     expect(p).toMatchObject({ codec: 'h264', profile: 'High', pix_fmt: 'yuv420p', width: 800, height: 600, fps: 30, frames: c.frames, timecode: '00:00:00:00' });
     // The selects file is the sequence (one clip here).

@@ -5,11 +5,13 @@
  * the scene's still — the page load before it is never in a clip — to the scene's end, at real time (1×: speeds and
  * waits are the editor's job). Inside a scene, the LOADING is cut (`loadingCuts`): a run of wait steps that really
  * waited, from just after the action that started it (its press and ripple kept) to just after the awaited state was
- * seen — never a step's visible result, a hold, a mark or the opening still. Frames sit on the export grid: frame n
- * shows capture time n / fps, the screencast frame on screen then (never interpolated).
+ * seen — never a step's visible result, a hold, a mark or the opening still —, and every page load the capture held
+ * (R-ISS-08: the previous frame frozen from the commit until the new page painted). Frames sit on the export grid:
+ * frame n shows capture time n / fps, the screencast frame on screen then (never interpolated).
  */
+import { LOADING_CUT_MIN_S } from '@demo-studio/core';
 import { fileSlug } from '../util.js';
-import type { Timeline, TimelineEvent, TimelineScene, TimelinePageSegment } from '@demo-studio/core';
+import type { Timeline, TimelineEvent, TimelineLoading, TimelineScene, TimelinePageSegment } from '@demo-studio/core';
 
 /** Steps that wait for the product (their waiting is a loading state). */
 export const RAW_WAIT_ACTIONS: ReadonlySet<string> = new Set(['wait_for', 'wait_for_email']);
@@ -34,7 +36,10 @@ export const RAW_CUT = {
   result_margin_s: 0.2,
   paint_frames: 1.5,
   paint_max_s: 0.3,
-  /** A cut shorter than this is not made. */
+  /**
+   * A cut shorter than this is not made — but a page load the capture held is cut from LOADING_CUT_MIN_S (0.15 s): that
+   * cut sits on the page change itself, where the picture changes anyway.
+   */
   min_cut_s: 0.4,
   /**
    * The scene must go on at least this long after a cut (the awaited state on screen): a scene that ends on its
@@ -53,10 +58,13 @@ export interface RawLoading {
   from: number;
   to: number;
   reason: RawCutReason;
-  /** The step whose press started the loading (index in its scene), when it is the step right before the waits. */
+  /**
+   * The step whose press started the loading (index in its scene), when it is the step right before the waits; for a
+   * held page load, the step during which the page changed.
+   */
   after_step?: number;
-  /** The wait step whose end is the awaited state. */
-  wait_step: number;
+  /** The wait step whose end is the awaited state (absent for a held page load: the new page's paint ends it). */
+  wait_step?: number;
   page?: string;
 }
 
@@ -215,6 +223,10 @@ export function loadingCuts(
     nextFrame?: (page: string | undefined, t: number) => number | undefined;
     /** A loading that was not cut because the scene ends on its awaited state. */
     kept?: (loading: RawLoading) => void;
+    /** Page loads the capture held (`timeline.loading` / `tracks[].loading`, R-ISS-08): cut from commit to paint. */
+    held?: ReadonlyArray<Pick<TimelineLoading, 't_start' | 't_end' | 'page'>>;
+    /** Where the clip starts (its still's start): held loads are cut from there (default `stillEnd`). */
+    sceneStart?: number;
   },
 ): RawLoading[] {
   const steps = events.filter((e) => e.step >= 0 && e.action !== 'notification' && e.status !== 'skipped').sort((a, b) => a.t_start - b.t_start || a.step - b.step);
@@ -287,6 +299,67 @@ export function loadingCuts(
       continue;
     }
     out.push(loading);
+  }
+  // Page loads the capture held: the frozen previous frame is cut up to the first frame of the painted page — whole,
+  // also inside the still, a mark or a hold, and up to the scene end when the scene ends before the paint (as the edit
+  // does); one that overlaps a wait-based cut extends it.
+  for (const h of opts.held ?? []) {
+    const from = Math.max(h.t_start, opts.sceneStart ?? opts.stillEnd);
+    const to = Math.min(h.t_end, opts.sceneEnd);
+    if (to - from < LOADING_CUT_MIN_S - EPS) continue;
+    const over = out.find((l) => l.from < to - EPS && from < l.to - EPS);
+    if (over) {
+      over.from = round3(Math.min(over.from, from));
+      over.to = Math.max(over.to, Math.ceil(to * 1000 - EPS) / 1000);
+      if (over.reason === 'loading') over.reason = 'navigation';
+      continue;
+    }
+    const during = [...steps].reverse().find((e) => e.t_start <= from + EPS);
+    out.push({
+      from: round3(from),
+      to: Math.ceil(to * 1000 - EPS) / 1000,
+      reason: 'navigation',
+      ...(during ? { after_step: during.step } : {}),
+      ...(h.page !== undefined ? { page: h.page } : {}),
+    });
+  }
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/** A cut's note: what was cut, where, and what ends it (`sceneEnd`: a held load cut up to it ended with the scene). */
+function cutNote(scene: string, l: RawLoading, verb: 'cut' | 'kept', sceneEnd = Infinity): string {
+  const what = l.reason === 'navigation' ? 'page loading' : l.reason === 'mail' ? 'waiting for the email' : 'loading';
+  const span = `${l.from.toFixed(2)}–${l.to.toFixed(2)} s of the capture`;
+  if (l.wait_step === undefined) {
+    const why = l.to >= sceneEnd - 1e-3 ? 'the scene ended before the new page painted' : 'the capture held the previous page until the new one painted';
+    return `"${scene}": ${(l.to - l.from).toFixed(2)} s of ${what} ${verb} (${span}: ${why})`;
+  }
+  if (verb === 'cut') return `"${scene}": ${(l.to - l.from).toFixed(2)} s of ${what} cut (${span}, until step ${l.wait_step}'s awaited state)`;
+  return (
+    `"${scene}": ${(l.to - l.from).toFixed(2)} s of ${what} kept (${span}): the scene ends on the awaited state of step ${scene}.${l.wait_step}, ` +
+    'a cut would leave it out of the clip — give that step a `hold` to show the result and cut the loading'
+  );
+}
+
+/**
+ * Held loads of a multi-page scene that may be cut: its pages' clips share their frames, so a load held on one page is
+ * not cut where another page acts (a step through its hold) or during the opening still — that page's picture goes on,
+ * the loading page keeps its previous frame meanwhile.
+ */
+export function heldBesideOtherPages<T extends Pick<TimelineLoading, 't_start' | 't_end' | 'page'>>(held: readonly T[], events: readonly TimelineEvent[]): T[] {
+  const out: T[] = [];
+  for (const h of held) {
+    const busy = events
+      .filter((e) => e.status !== 'skipped' && (e.action === 'scene_still' || (e.step >= 0 && e.page !== undefined && e.page !== h.page)))
+      .map((e) => ({ a: e.t_start, b: stepEnd(e) }))
+      .filter((x) => x.b > h.t_start && x.a < h.t_end)
+      .sort((x, y) => x.a - y.a);
+    let a = h.t_start;
+    for (const x of busy) {
+      if (x.a > a) out.push({ ...h, t_start: a, t_end: x.a });
+      a = Math.max(a, x.b);
+    }
+    if (a < h.t_end) out.push({ ...h, t_start: a, t_end: h.t_end });
   }
   return out;
 }
@@ -421,11 +494,15 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
     const trackOf = (page: string | undefined) => (scene.pages ? (scene.pages.find((p) => p.id === page)?.track ?? scene.pages[0]?.track ?? 'main') : 'main');
     const frameInterval = (page: string | undefined, t: number) => localFrameInterval(opts.frameTimes?.(trackOf(page)), t) ?? 1 / cap.fps;
     const nextFrame = (page: string | undefined, t: number) => firstAtOrAfter(opts.frameTimes?.(trackOf(page)), t);
-    const kept = (l: RawLoading) =>
-      notes.push(
-        `"${scene.id}": ${(l.to - l.from).toFixed(2)} s of ${l.reason === 'navigation' ? 'page loading' : l.reason === 'mail' ? 'waiting for the email' : 'loading'} kept (${l.from.toFixed(2)}–${l.to.toFixed(2)} s of the capture): the scene ends on the awaited state of step ${scene.id}.${l.wait_step}, a cut would leave it out of the clip — give that step a \`hold\` to show the result and cut the loading`,
-      );
-    const loading = cutsOn ? loadingCuts(events, { stillEnd, sceneEnd: s1, pageChanges: pageChangesOf(timeline, scene), frameInterval, nextFrame, kept }) : [];
+    const kept = (l: RawLoading) => notes.push(cutNote(scene.id, l, 'kept'));
+    // The page loads the capture held: the main capture's, or the scene's pages' tracks' (not where another page acts).
+    const held = scene.pages
+      ? heldBesideOtherPages(
+          scene.pages.flatMap((pg) => (timeline.tracks?.find((t) => t.id === pg.track)?.loading ?? []).map((l) => ({ ...l, page: pg.id }))),
+          events,
+        )
+      : (timeline.loading ?? []);
+    const loading = cutsOn ? loadingCuts(events, { stillEnd, sceneStart: s0, sceneEnd: s1, pageChanges: pageChangesOf(timeline, scene), frameInterval, nextFrame, kept, held }) : [];
     const removed = loading.map((l) => ({ n0: frameAtOrAfter(l.from, fps), n1: frameAtOrAfter(l.to, fps) }));
     const spans = keptSpans(n0, n1, removed);
     const frames = spans.reduce((n, s) => n + (s.n1 - s.n0), 0);
@@ -483,9 +560,7 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
         events,
       });
     });
-    for (const l of loading) {
-      notes.push(`"${scene.id}": ${(l.to - l.from).toFixed(2)} s of ${l.reason === 'navigation' ? 'page loading' : l.reason === 'mail' ? 'waiting for the email' : 'loading'} cut (${l.from.toFixed(2)}–${l.to.toFixed(2)} s of the capture, until step ${l.wait_step}'s awaited state)`);
-    }
+    for (const l of loading) notes.push(cutNote(scene.id, l, 'cut', s1));
   }
   const sequence: RawPlan['sequence'] = [];
   let at = 0;

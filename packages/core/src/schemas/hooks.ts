@@ -53,7 +53,7 @@ const SqlHookSchema = z.union([
 ]);
 
 const ShellHookSchema = z.union([
-  nonEmpty().describe('Command run with sh -c in the project dir.'),
+  nonEmpty().describe('Command run with sh -c in the project dir; every host it names must be allowed.'),
   z.strictObject({
     run: nonEmpty(),
     cwd: nonEmpty().optional(),
@@ -64,11 +64,11 @@ const ShellHookSchema = z.union([
 ]);
 
 const JsHookSchema = z.union([
-  nonEmpty().describe('Inline JS evaluated in a page (function body).'),
+  nonEmpty().describe('Inline JS (function body) evaluated in the js hook tab of the first environment page.'),
   z.strictObject({
     code: nonEmpty().describe('Inline JS (function body; may return / await).').optional(),
     file: nonEmpty().describe('JS file relative to the project dir.').optional(),
-    page: keyString('page').describe('Environment page key whose page runs it (default: the first page).').optional(),
+    page: keyString('page').describe('Environment page key whose hook tab runs it (default: the first page).').optional(),
     rollback: nonEmpty().optional(),
   }),
 ]);
@@ -83,8 +83,8 @@ export const HookStepSchema = keyedUnion(
   [
     hookBranch('http', HttpHookSchema, 'HTTP request (fetch); response saved for templating; optional rollback request.'),
     hookBranch('sql', SqlHookSchema, 'SQL file or inline query run in a transaction (project.databases).'),
-    hookBranch('shell', ShellHookSchema, 'Shell command (sh -c) in the project dir.'),
-    hookBranch('js', JsHookSchema, 'JavaScript evaluated in a browser page (through the runner).'),
+    hookBranch('shell', ShellHookSchema, 'Shell command (sh -c) in the project dir; every host it names must be allowed.'),
+    hookBranch('js', JsHookSchema, 'JavaScript evaluated in its own tab on an environment page (through the runner); requests to unlisted hosts are blocked.'),
   ],
   {
     noun: 'hook',

@@ -7,6 +7,7 @@ import { Link } from '../../shared/router.jsx';
 import { session } from '../../shared/session.js';
 import { Avatar, Breadcrumbs, EmptyState, Skeleton } from '../../shared/ui.jsx';
 import { ProductCard } from '../components.jsx';
+import '../brew-guide.js';
 import { QuoteDialog } from './QuoteDialog.jsx';
 
 export function ProductPage({ params }) {
@@ -146,6 +147,18 @@ export function ProductPage({ params }) {
           </div>
         </section>
       ) : null}
+
+      {/* At the bottom of the page, below what the other scenarios film: a web component with an open shadow root and
+          a same-origin iframe widget (the `embedded` scenario films them, R-ISS-07). */}
+      <section className="pdp-extras">
+        <div className="shelf-head">
+          <h2 className="shelf-title">Before you order</h2>
+        </div>
+        <div className="pdp-extras-grid">
+          <nf-brew-guide coffee={p.name} />
+          <iframe className="ship-frame" title="Shipping estimate" src={`/embed/shipping?product=${encodeURIComponent(p.slug)}`} />
+        </div>
+      </section>
 
       {market ? <QuoteDialog product={p} market={market} open={quoting} onOpenChange={setQuoting} /> : null}
     </>

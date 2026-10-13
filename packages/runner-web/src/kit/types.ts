@@ -1,7 +1,9 @@
 /**
  * Contract between the node-side runner and the in-page kit (`window.__demoStudio`).
  * Everything crossing the boundary is JSON-serialisable; elements are referred to by `ref` ids
- * that the kit keeps in a WeakRef map.
+ * that the kit keeps in a WeakRef map. A ref may designate an element inside an open shadow root or a same-origin
+ * frame (R-ISS-07); every box and point crossing the boundary, both ways, is in top-level viewport CSS px (an element
+ * in a frame is offset by the frames' positions).
  */
 import type { BBox, PointSpec, TargetObject } from '@demo-studio/core';
 
@@ -51,6 +53,7 @@ export interface ResolveFound {
 
 export interface ResolveMissing {
   count: 0;
+  /** Why nothing was chosen: nth out of range, or the cross-origin frames that could not be searched. */
   desc: string;
   /** Matches that exist but are not visible (hidden, zero-size, transparent, clipped). */
   hidden: number;
@@ -69,6 +72,8 @@ export interface ElementInfo {
   text: string;
   href: string | null;
   popup_expected: boolean;
+  /** An <input>'s type (null for other elements). */
+  input_type: string | null;
 }
 
 export interface RestPlan extends PointSpec {
@@ -80,6 +85,52 @@ export interface RestPlan extends PointSpec {
 export interface RestAt {
   point?: PointSpec;
   ref?: string;
+  /** Boxes the drawn cursor must stay clear of too (parking: what changed, R-CHO-21). */
+  avoid?: BBox[];
+}
+
+export interface MenuTrigger {
+  ref: string | null;
+  hover: boolean;
+}
+
+export interface PositionalTrigger {
+  ref: string;
+  /** Where it was found: 'right end' or 'top-right corner'. */
+  where: string;
+}
+
+export type FieldKind = 'search' | 'multiline' | 'text';
+
+/** A day cell of the calendar on screen (R-CHO-24). */
+export interface CalendarDay {
+  ref: string;
+  /** Its aria-label, else its text. */
+  label: string;
+  /** The ISO date of its data-date / data-day / datetime / data-value attribute. */
+  iso: string | null;
+  disabled: boolean;
+  /** Marked as a day of an adjacent month. */
+  outside: boolean;
+}
+
+/** The calendar on screen: its popup (when it is a floating popup), its last visible month buttons and its days. */
+export interface CalendarInfo {
+  popup: number | null;
+  next: string | null;
+  prev: string | null;
+  days: CalendarDay[];
+}
+
+export interface FieldState {
+  editable: boolean;
+  empty: boolean;
+  kind: FieldKind;
+  /**
+   * The kit reads it: a shown input or textarea, or edited text (contenteditable, a frame's designMode body). False for
+   * an editor's hidden input (CodeMirror 5, Monaco, Ace: what the viewer sees is drawn elsewhere) and other elements.
+   */
+  known: boolean;
 }
 
 export interface PointInfo extends PointSpec {
@@ -89,7 +140,7 @@ export interface PointInfo extends PointSpec {
 }
 
 export interface ScrollOp {
-  /** Scroll container ref, or "" for the document scroller. */
+  /** Scroll container ref, or "" for the top document's scroller (a frame document's scroller is a ref). */
   container: string;
   top: number;
   left: number;
@@ -104,7 +155,7 @@ export interface ScrollInfo {
   max_top: number;
   max_left: number;
   client_height: number;
-  /** Top of `of` in the container's scroll coordinates (when asked). */
+  /** Top of `of` in the container's scroll coordinates (when asked), also for an element in a frame. */
   target_top?: number;
 }
 
@@ -164,6 +215,8 @@ export interface KitCursorApi {
   ripple(x: number, y: number): void;
   press(down: boolean): void;
   state(): CursorState;
+  /** Draw the cursor even though the document has not painted content of its own (R-ISS-08: the runner waited for its load). */
+  reveal(): void;
 }
 
 export interface KitGhostApi {
@@ -209,29 +262,52 @@ export interface KitApi {
    * Neutral scene-start point (not on an interactive element): at the right-centre of the viewport, or near its centre
    * (`centre`: a page idle in a multi-page scene — a picture-in-picture inset sits in a corner, never there).
    */
-  restPoint(where?: 'side' | 'centre'): PointSpec;
+  restPoint(where?: 'side' | 'centre', avoid?: BBox[]): PointSpec;
   /**
    * Neutral scene-start point near `box` (the scene's first pointer target) whose drawn cursor never covers it,
    * inside the viewport, preferably over a non-interactive spot; `restPoint()` when no candidate fits. With `at`: next
    * to the click point of a wide target (not its far corner) and inside the dialog that holds `at.ref`.
    */
   restNear(box: BBox, at?: RestAt): RestPlan;
+  /** Start (or restart) recording what changes on the page (parking, R-CHO-21). */
+  watchChanges(): void;
+  /** Boxes of what changed since watchChanges (merged, at most 12, clipped to the viewport); watching false on a new document. */
+  changedBoxes(): { watching: boolean; boxes: BBox[] };
+  /** Box of an element's text (narrower than a block's box), or null. */
+  textBox(ref: string): BBox | null;
   hasText(text: string): boolean;
   snapshot(ref: string | null, max: number): string;
   domClick(ref: string, x: number, y: number): void;
   pointerSequence(ref: string, x: number, y: number): void;
   rowFor(text: string): string | null;
-  menuTrigger(rowRef: string): string | null;
+  /**
+   * A row's menu trigger (R-CHO-13). `hover`: the row's last button is laid out but hidden (shown on hover) — hover
+   * the row, then ask again with `hovered`.
+   */
+  menuTrigger(rowRef: string, hovered?: boolean): MenuTrigger;
+  /** Positional last resort: the clickable element at the row's right end, else its top-right corner (R-CHO-13). */
+  positionalTrigger(rowRef: string): PositionalTrigger | null;
   fieldTrigger(label: string): string | null;
   confirmButton(text: string | null): string | null;
   fileInputFor(ref: string): string | null;
   selectNative(ref: string, option: string): { ok: boolean; label?: string; options: string[] };
   isTextInput(ref: string | null): boolean;
+  /** The field (`ref`, else the focused element): editable, empty (never its value) and kind (R-CHO-14/15). */
+  fieldState(ref: string | null): FieldState | null;
+  /** Clear a field with its prototype's value setter + `input` (contenteditable: editing commands); R-CHO-15. */
+  clearField(ref: string | null): 'setter' | 'editor' | null;
+  /** The calendar on screen (R-CHO-24), or null. */
+  calendar(): CalendarInfo | null;
+  /** Set a native input's value in place (realm value setter + input + change); true when it took it. */
+  setNativeValue(ref: string, value: string): boolean;
   describe(ref: string): string;
   info(ref: string): ElementInfo | null;
   textOf(ref: string): string;
   /** The element's rendered text (innerText; a field's value), whitespace collapsed, at most 2000 characters. */
   visibleText(ref: string): string;
-  /** The focused element (description and box), or null when nothing visible has the focus. */
-  focused(): { desc: string; bbox: BBox } | null;
+  /**
+   * The focused element (description, box and kind: an input's `type`, "textarea", "contenteditable" or the tag name),
+   * or null when nothing visible has the focus. Focus inside a frame's body (an editor drawn in a frame): the frame.
+   */
+  focused(): { desc: string; bbox: BBox; input_type: string } | null;
 }

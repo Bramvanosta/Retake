@@ -90,3 +90,28 @@ const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash']);
 export function nestedShellScript(args: readonly string[], i: number): string | undefined {
   return SHELLS.has(commandName(args[i] ?? '')) && args[i + 1] === '-c' ? args[i + 2] : undefined;
 }
+
+/** A here-document of a shell command (`<<EOF` … `EOF`, `<<-'EOF'`). */
+export interface Heredoc {
+  /** Index of the `<<` operator. */
+  start: number;
+  /** Index where the body starts (the line after the operator). */
+  bodyStart: number;
+  /** Index after the terminator line. */
+  end: number;
+  body: string;
+  /** The delimiter is quoted: the shell does not expand the body. */
+  quoted: boolean;
+}
+
+/** Here-documents of a command, in order (a fresh regex per call: no shared `lastIndex`). */
+export function heredocs(cmd: string): Heredoc[] {
+  const re = /(<<-?\s*(['"]?)([A-Za-z_][\w]*)\2[^\n]*\n)([\s\S]*?)\n[ \t]*\3[ \t]*(?:\n|$)/g;
+  return [...cmd.matchAll(re)].map((m) => ({
+    start: m.index,
+    bodyStart: m.index + m[1].length,
+    end: m.index + m[0].length,
+    body: m[4],
+    quoted: m[2] !== '',
+  }));
+}

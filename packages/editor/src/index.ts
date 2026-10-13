@@ -9,7 +9,24 @@ export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_
 export type { PlanEditInput, PlanInputFile } from './plan.js';
 export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 export { imageFileSize, planFileRefs, planInputFiles, themeFileRefs } from './inputs.js';
-export { DEFAULT_IDLE_THRESHOLD_S, IDLE_KEEP_S, MARK_WINDOW_S, SPEED_RAMP_S, WAIT_ACTIONS, WAIT_KEEP_S, WAIT_LOADING_MIN_S, WAIT_MIN_S, WAIT_SPEED, planRunTiming, protectedSpans, outFrameAt, waitingSpans } from './timing.js';
+export {
+  DEFAULT_IDLE_THRESHOLD_S,
+  IDLE_KEEP_S,
+  MARK_WINDOW_S,
+  QUICK_RUN_SPEED,
+  SPEED_RAMP_S,
+  WAIT_ACTIONS,
+  WAIT_KEEP_S,
+  WAIT_LOADING_MIN_S,
+  WAIT_MIN_S,
+  WAIT_SPEED,
+  loadsBesideOtherPages,
+  planRunTiming,
+  protectedSpans,
+  outFrameAt,
+  quickRunSpans,
+  waitingSpans,
+} from './timing.js';
 export type { MapPiece, ProtectedSpan, RunTiming, RunTimingInput } from './timing.js';
 export { MIN_ZOOM_EASE_S, REFRAME, cameraTrack, clampView, corridorSmooth, dampedSmooth, hintEase, leadingPart, reframeTrack } from './camera.js';
 export type { ReframeTarget, ZoomMove } from './camera.js';

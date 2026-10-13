@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { formatPath } from './issues.js';
+import type { IssuePath } from './issues.js';
 
 const execFileP = promisify(execFile);
 
@@ -127,7 +129,30 @@ export function interpolateDeep<T>(value: T, ctx: TemplateContext): T {
   return value;
 }
 
-/** All secret refs (env:/keychain:) used in a value, for prefetching. */
+/**
+ * interpolateDeep that knows where it is: a node for which `skip(path, value)` is true stays as written, and a
+ * TemplateError names the string that raised it ("scenes[2].steps[3].type.text: unknown template key …").
+ */
+export function interpolateAt<T>(value: T, ctx: TemplateContext, path: IssuePath, skip?: (path: IssuePath, value: unknown) => boolean): T {
+  if (skip?.(path, value)) return value;
+  if (typeof value === 'string') {
+    try {
+      return interpolate(value, ctx) as unknown as T;
+    } catch (e) {
+      if (e instanceof TemplateError && path.length) throw new TemplateError(`${formatPath(path)}: ${e.message}`);
+      throw e;
+    }
+  }
+  if (Array.isArray(value)) return value.map((v, i) => interpolateAt(v, ctx, [...path, i], skip)) as unknown as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = interpolateAt(v, ctx, [...path, k], skip);
+    return out as T;
+  }
+  return value;
+}
+
+/** All secret refs (env:/keychain:) used in a value, for prefetching. `note` fields are skipped (never templated). */
 export function collectSecretRefs(value: unknown, out = new Set<string>()): Set<string> {
   if (typeof value === 'string') {
     for (const m of value.matchAll(TOKEN)) {
@@ -137,7 +162,7 @@ export function collectSecretRefs(value: unknown, out = new Set<string>()): Set<
   } else if (Array.isArray(value)) {
     value.forEach((v) => collectSecretRefs(v, out));
   } else if (value && typeof value === 'object') {
-    Object.values(value).forEach((v) => collectSecretRefs(v, out));
+    for (const [k, v] of Object.entries(value)) if (k !== 'note') collectSecretRefs(v, out);
   }
   return out;
 }
@@ -198,6 +223,34 @@ export function redact(text: string, secrets: Iterable<string>): string {
     if (s && s.length >= 3) out = out.split(s).join('***');
   }
   return out;
+}
+
+/**
+ * The forms a secret value takes in logs, URLs and DOM snippets, for redaction: as is, URL-encoded (encodeURIComponent,
+ * the same with `+` for spaces, encodeURI), as a URL parser serialises it in a path (WHATWG URL in Node; Chrome also
+ * encodes `^` and `|` there) and in a query (spaces and `'` encoded, `{|^` kept), as a GET form submits it
+ * (URLSearchParams: `!'()~` encoded too), JSON-escaped and HTML-escaped (text and attribute, as outerHTML writes them).
+ * None under 3 characters: redact() ignores them (they would mangle every log).
+ */
+export function secretForms(value: string): string[] {
+  if (value.length < 3) return [];
+  const forms = [value, JSON.stringify(value).slice(1, -1)];
+  try {
+    const component = encodeURIComponent(value);
+    forms.push(component, component.replace(/%20/g, '+'), encodeURI(value));
+    const path = new URL(`http://h/${value}`).href.slice('http://h/'.length);
+    forms.push(
+      path,
+      path.replace(/\^/g, '%5E').replace(/\|/g, '%7C'),
+      new URL(`http://h/?${value}`).href.slice('http://h/?'.length),
+      new URLSearchParams({ k: value }).toString().slice(2),
+    );
+  } catch {
+    /* a lone surrogate cannot be URL-encoded: it cannot be in a URL either */
+  }
+  const html = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  forms.push(html, html.replace(/"/g, '&quot;'));
+  return [...new Set(forms)];
 }
 
 /** Resolve a path (or absolute URL) against an environment page base URL. */

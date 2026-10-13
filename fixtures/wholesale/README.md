@@ -22,7 +22,8 @@ node scripts/smoke.mjs [--out DIR]    # end-to-end check with real mouse input +
 ```
 
 Environment: `NORTHFIELD_CONSOLE_PORT`, `NORTHFIELD_SHOP_PORT`, `NORTHFIELD_HOST`,
-`NORTHFIELD_ENRICH_MS` (default 4000), `NORTHFIELD_IMPORT_MS` (default 2000). The server prints its
+`NORTHFIELD_ENRICH_MS` (default 4000), `NORTHFIELD_IMPORT_MS` (default 2000), `NORTHFIELD_REPORT_MS` (default 400) and
+`NORTHFIELD_REPORT_DATA_MS` (default 1200: the Sales reports, below). The server prints its
 URLs and exits cleanly on SIGTERM/SIGINT. It listens on 127.0.0.1 and ::1 by default so `localhost`
 works whichever address a client resolves first. Programmatic use:
 `const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close();`
@@ -51,7 +52,12 @@ Console: `/imports` (New import dialog: organisation select, drag & drop zone wi
 `<input type=file>`, progress, "921 offers created"), `/products` (catalogue, "Add a coffee" registry
 search → `/products/<slug>` with ~4 s "Enrichment in progress" then a staggered reveal down to
 **Awards**), `/availability/products/<slug>` (delivery-window overview + table by market, row menu
-Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"). While open, the console polls the quote list and
+Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"), **Sales reports** (`/reports`, a plain link in
+the sidebar: classic server-rendered pages outside the app, so every move between them and the app is a full page load
+— R-ISS-08; `/reports` lists October and September 2026 and links "Back to the console" → `/products`, the app's empty
+shell first; `/reports/<yyyy-mm>` answers after `NORTHFIELD_REPORT_MS` and paints only an animated skeleton — no text —
+while its script fetches `/reports/<yyyy-mm>/data`, answered after `NORTHFIELD_REPORT_DATA_MS`, then shows the month's
+"Total sales" and sales by market; figures in `server/reports.mjs`). While open, the console polls the quote list and
 shows a **web notification** (Notification API, tag `quote-request`, icon `/app-icon.svg`) for every new quote request
 (it asks for the permission once; Demo Studio's runner grants it).
 
@@ -63,6 +69,14 @@ name, work email → "Check your inbox"; the server sends a **confirmation email
 `/signup/confirm?token=…` (the email's link; `token=latest` confirms the most recent sign-up — a convenience for
 scenarios). While a shop page is open, its quote list and its notifications bell poll every second: a proposal the
 console sends shows on the bell (unread badge, the bell rings) about a second later.
+
+At the bottom of every product page, **Before you order** holds two widgets the runner must reach inside (R-ISS-07):
+a **Brew guide** — `<nf-brew-guide>`, a vanilla custom element with an *open* shadow root and its own stylesheet
+(method Filter / Espresso, "Less coffee" / "More coffee" stepper, recipe line such as "20 g coffee · 40 g out · 28 s",
+"Copy recipe" → "Recipe copied") — and a **Shipping estimate** — a same-origin iframe (`/embed/shipping?product=<slug>`,
+a self-contained page: a native "Destination" `<select>`, a "Bags" number field, "Estimate shipping" → e.g. "12 bags to
+Norway · €84.00 · 3–5 working days" from a fixed rate table in `server/embed.mjs`). Both sit below what the other shop
+scenarios film.
 
 **Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,

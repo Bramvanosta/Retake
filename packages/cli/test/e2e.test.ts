@@ -192,6 +192,50 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(r.err).toContain('title: done');
   });
 
+  it('refuses js and shell hooks that would reach a host outside the allow-list (R-SEC-06)', async () => {
+    const hooksDir = join(ws, 'projects', 'e2e', 'hooks');
+    await mkdir(hooksDir, { recursive: true });
+    await writeFile(join(hooksDir, 'leak.yaml'), '- name: leak\n  js: {code: "await fetch(\'http://elsewhere.invalid/x\')", page: console}\n');
+    const js = await studio('hooks', 'run', 'e2e', 'hooks/leak.yaml');
+    expect(js.code, js.err).toBe(EXIT.failure);
+    expect(js.err).toContain('refusing to contact elsewhere.invalid (blocked while the js hook ran)');
+    expect(js.err).toContain('the hook threw: TypeError: Failed to fetch');
+
+    await writeFile(join(hooksDir, 'curl.yaml'), '- name: reset-prod\n  shell: "touch ran.txt && curl -fsS https://elsewhere.invalid/reset"\n');
+    const shell = await studio('hooks', 'run', 'e2e', 'hooks/curl.yaml');
+    expect(shell.code, shell.err).toBe(EXIT.failure);
+    expect(shell.err).toMatch(/curl\.yaml:2:\d+ error \[0\]\.shell: shell hook names host elsewhere\.invalid \(URL\): it is not allowed/);
+    expect(existsSync(join(ws, 'projects', 'e2e', 'ran.txt'))).toBe(false);
+  });
+
+  it('clears the React search field of the shop when select-all is blocked (native value setter, R-CHO-15)', async () => {
+    await writeFile(
+      join(ws, 'projects', 'e2e', 'scenarios', 'clear.yaml'),
+      [
+        'video: clear',
+        'pacing: {scene_start_still: 0.2, after_click_ms: 150, after_navigation_ms: 300, settle_ms: 1000}',
+        'scenes:',
+        '  - id: shop',
+        '    page: shop',
+        '    open: /',
+        '    steps:',
+        '      - type: {into: {aria: Search coffees}, text: zzz, cps: 40}',
+        `      - eval: {js: "document.querySelector('[aria-label=\\"Search coffees\\"]').addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') e.preventDefault(); }, true)"}`,
+        '      - type: {into: {aria: Search coffees}, text: Selowa, clear: true, enter: true}',
+        '      - assert: {url: q=Selowa}',
+        '',
+      ].join('\n'),
+    );
+    const r = await studio('run', 'e2e', 'clear', '--dry', '--json');
+    const end = JSON.parse(r.out.trim().split('\n').pop()!) as { run: RunRecord };
+    expect(end.run.error?.message ?? '', r.err).toBe('');
+    expect(end.run.status).toBe('succeeded');
+    const tl = JSON.parse(await readFile(join(end.run.dir, 'timeline.json'), 'utf8')) as Timeline;
+    const typed = tl.events.filter((e) => e.action === 'type');
+    // React's state followed the clear: the search navigated to q=Selowa (not "zzSelowa"); typed at search speed.
+    expect(typed[1].data).toMatchObject({ clear: 'setter', rate: 'search', cps: 10 });
+  });
+
   it('dry-runs up to a step with a screenshot per step', async () => {
     const r = await studio('run', 'e2e', 'short', '--dry', '--until', 'import.1');
     expect(r.code, r.err).toBe(EXIT.ok);

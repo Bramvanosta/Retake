@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAMERA_EASINGS, cubicBezier } from '@demo-studio/components';
 import type { LoadedTemplate } from '@demo-studio/core';
-import { PlanError, mapSourceRect, planEdit, planRunTiming, viewOf } from '@demo-studio/editor';
+import { PlanError, loadsBesideOtherPages, mapSourceRect, planEdit, planRunTiming, viewOf } from '@demo-studio/editor';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
 import { clip, clips, fixtureProject, plan, seg, studioWorkspace, synthTimeline, template } from './helpers.js';
 import type { EntrySpec, PlanContext, Workspace } from './helpers.js';
@@ -249,6 +249,40 @@ describe('speeds', () => {
     expect(p.notes).toContain('scene "s": speed 1× (overrides.speeds)');
   });
 
+  it('plays the quick month runs of a date step at up to 3× (R-CHO-24); a step speed or a mark wins; off with trim_idle', () => {
+    const quickScene = (extra: Record<string, unknown> = {}): EntrySpec[] => [
+      {
+        id: 'q',
+        t_start: 0,
+        t_end: 12,
+        open_end: 0.5,
+        still: [0.5, 1.5],
+        steps: [
+          { action: 'click', t_start: 1.5, t_end: 2 },
+          { action: 'date', t_start: 2, t_end: 8, data: { days: ['2027-06-14'], quick_runs: [{ t_start: 3, t_end: 5.2, clicks: 21 }] }, ...extra },
+          { action: 'click', t_start: 8, t_end: 12 },
+        ],
+      },
+    ];
+    const fast = (p: ReturnType<typeof plan>) => clip(p, 'q').speeds.filter((x) => x.speed === 3 && x.to_speed === 3);
+    const p = plan(ctx, synthTimeline({ entries: quickScene(), duration: 12 }));
+    // Padded 0.1 s before the first press and 0.35 s after the last: [2.9, 5.55] s, ramped in and out.
+    const f = fast(p);
+    expect(f.length).toBe(1);
+    expect(p.notes.some((n) => n.includes('"q": month run 2.9') && n.includes('up to 3×'))).toBe(true);
+    const all = clip(p, 'q').speeds;
+    expect(all.find((x) => x.speed === 1 && x.to_speed === 3)).toBeDefined();
+    expect(all.find((x) => x.speed === 3 && x.to_speed === 1)).toBeDefined();
+    expect(fast(plan(ctx, synthTimeline({ entries: quickScene({ speed: 1.5 }), duration: 12 })))).toEqual([]);
+    const markedRun = plan(ctx, synthTimeline({ entries: quickScene({ mark: 'pick' }), duration: 12 }));
+    expect(fast(markedRun)).toEqual([]);
+    // Nothing sped up: no note says it is.
+    expect(markedRun.notes.some((n) => n.includes('month run'))).toBe(false);
+    const off = plan(ctx, synthTimeline({ entries: quickScene(), duration: 12 }), { trim_idle: false });
+    expect(fast(off)).toEqual([]);
+    expect(off.notes.some((n) => n.includes('month run'))).toBe(false);
+  });
+
   it('maps output frames to exact source frames at other output rates (60 fps: each frame twice)', () => {
     const p = plan(ctx, synthTimeline({ entries: contiguous(), duration: 16 }), { fps: 60 });
     const a = clip(p, 'a');
@@ -326,6 +360,105 @@ describe('idle trims', () => {
     expect(run.cuts).toHaveLength(1);
     expect(run.length).toBeCloseTo(300 - (174 - 66), 6);
     expect(run.pieces.filter((m) => m.cut).every((m) => m.q0 === m.q1)).toBe(true);
+  });
+});
+
+describe('held page loads (R-ISS-08)', () => {
+  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const run = (loading: Array<{ t_start: number; t_end: number }>, more: { idle?: Array<{ t_start: number; t_end: number }>; trimIdle?: boolean } = {}) =>
+    planRunTiming({
+      clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
+      srcFps: 30,
+      outFps: 30,
+      idle: more.idle ?? [],
+      trimIdle: more.trimIdle ?? true,
+      idleThresholdS: 1.2,
+      loading,
+    });
+
+  it('cuts a held load of 0.15 s or more whole — inside a mark window too — up to the first frame of the painted page', () => {
+    const r = run([{ t_start: 4.2, t_end: 5.01 }]);
+    expect(r.cuts).toEqual([expect.objectContaining({ a: 126, b: 151, reason: 'loading', clip: 0 })]);
+    // The mark window (3.4–5.6 s) stays at 1× around the cut; nothing of the frozen frame is shown.
+    expect(r.src.some((f) => f >= 126 && f < 151)).toBe(false);
+    expect(r.src).toContain(125);
+    expect(r.src).toContain(151);
+    expect(r.length).toBeCloseTo(300 - 25, 6);
+  });
+
+  it('a multi-page run: a load held on one page is cut only where no other page acts (a step, a mark window, the still)', () => {
+    const events = [
+      { scene: 'n', scene_index: 0, step: -1, action: 'scene_still', t_start: 0, t_end: 1, page: 'a', status: 'ok' as const },
+      { scene: 'n', scene_index: 0, step: 0, action: 'press', t_start: 4.6, t_end: 4.8, page: 'a', status: 'ok' as const },
+      { scene: 'n', scene_index: 0, step: 1, action: 'click', t_start: 5, t_end: 5.6, t_click: 5.4, page: 'b', mark: 'click-b', status: 'ok' as const },
+      { scene: 'n', scene_index: 0, step: 2, action: 'click', t_start: 8, t_end: 8.5, page: 'b', status: 'ok' as const },
+    ];
+    const loads = [
+      { t_start: 4.8, t_end: 6.5, page: 'a' },
+      { t_start: 7, t_end: 9, page: 'a' },
+      { t_start: 0.5, t_end: 1.5, page: 'b' },
+    ];
+    // Page a's first load keeps only what follows b's marked click and its mark window (5.6 + 0.6 s).
+    expect(loadsBesideOtherPages(loads, events).map((l) => [Math.round(l.t_start * 1000) / 1000, l.t_end, l.page])).toEqual([
+      [6.2, 6.5, 'a'],
+      [7, 8, 'a'],
+      [8.5, 9, 'a'],
+      [1, 1.5, 'b'],
+    ]);
+    // The other page's marked click (5.0–5.6 s, page a held 4.8–6.0 s) is shown whole.
+    const r = planRunTiming({ clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events }], srcFps: 30, outFps: 30, idle: [], trimIdle: true, idleThresholdS: 1.2, loading: loadsBesideOtherPages([{ t_start: 4.8, t_end: 6, page: 'a' }], events) });
+    expect(r.cuts).toEqual([]);
+    expect(r.src.filter((f) => f >= 150 && f < 168).length).toBe(18);
+  });
+
+  it('a shorter freeze is not cut, nor anything with trim_idle off', () => {
+    expect(run([{ t_start: 4.2, t_end: 4.33 }]).cuts).toEqual([]);
+    expect(run([{ t_start: 4.2, t_end: 5 }], { trimIdle: false }).cuts).toEqual([]);
+  });
+
+  it('an idle gap around a held load is shortened outside it: no overlapping cuts', () => {
+    const r = run([{ t_start: 6, t_end: 7 }], { idle: [{ t_start: 5.8, t_end: 9.5 }] });
+    expect(r.cuts.map((c) => [c.reason, c.a, c.b])).toEqual([
+      ['loading', 180, 210],
+      ['idle', 216, 279],
+    ]);
+  });
+
+  it('planEdit cuts it and says so; a page change inside it starts the visible loading at its end', () => {
+    const entries: EntrySpec[] = [
+      {
+        id: 'nav',
+        t_start: 0,
+        t_end: 12,
+        open_end: 0.5,
+        still: [0.5, 2],
+        steps: [
+          { action: 'click', t_start: 2, t_end: 5, t_click: 2.6 },
+          { action: 'wait_for', t_start: 5, t_end: 8 },
+          { action: 'hold', t_start: 8, t_end: 12 },
+        ],
+      },
+    ];
+    const tl = synthTimeline({ entries, duration: 12 });
+    tl.pages.push({ id: 'app', t_start: 2.9, t_end: 12, url: 'http://app.test/next' });
+    tl.pages[0].t_end = 2.9;
+    tl.loading = [{ t_start: 2.9, t_end: 4.1, page: 'app', until: 'paint', held_frames: 70 }];
+    const p = plan(ctx, tl);
+    const c = clip(p, 'nav');
+    expect(c.trims).toEqual([{ at: expect.any(Number), src_from_s: 2.9, src_to_s: 4.1 }]);
+    expect(p.notes).toContain('"nav": page load 2.90 s–4.10 s of the capture cut (the capture held the previous frame until the new page painted)');
+    // The waiting after the click (page change at 2.9, painted at 4.1) is played faster from 4.1 + WAIT_KEEP_S, not
+    // from inside the cut.
+    expect(p.notes.find((n) => n.includes('waiting'))).toMatch(/waiting 4\.60 s–8\.00 s/);
+    // The page change comes from the page's own event, the load from the recorder's: 1 ms apart either way (H4).
+    const early = structuredClone(tl);
+    early.pages[1].t_start = 2.899;
+    early.pages[0].t_end = 2.899;
+    expect(plan(ctx, early).notes.find((n) => n.includes('waiting'))).toMatch(/waiting 4\.60 s–8\.00 s/);
+    // Older timelines (no `loading`) plan as before.
+    const old = plan(ctx, { ...tl, loading: undefined });
+    expect(clip(old, 'nav').trims).toEqual([]);
+    expect(plan(ctx, tl, { trim_idle: false }).notes.some((n) => n.includes('page load 2.90 s'))).toBe(false);
   });
 });
 
@@ -451,6 +584,15 @@ describe('captions', () => {
     const q = plan(ctx, synthTimeline({ entries, duration: 10 }), undefined, none);
     expect(q.captions).toEqual([]);
     expect(clip(q, 'k').caption).toBeNull();
+  });
+
+  it('warns when the text the video shows still holds {{tokens}} (a run captured before scenario templating, L1.2)', () => {
+    const literal = (p: EditPlan) => p.warnings.filter((w) => w.includes('{{…}} tokens'));
+    expect(literal(plan(ctx, synthTimeline({ entries, duration: 10 })))).toEqual([]);
+    const old: EntrySpec[] = [{ ...entries[0], caption: { text: 'Hello {{vars.customer}}' } }];
+    const p = plan(ctx, synthTimeline({ entries: old, duration: 10 }));
+    expect(p.captions[0].text).toBe('Hello {{vars.customer}}');
+    expect(literal(p)).toEqual(['scene k still shows {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a `vars` value (inserted as written) — fix it and capture again']);
   });
 });
 

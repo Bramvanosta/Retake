@@ -32,7 +32,7 @@ const projectShape = {
   locale: nonEmpty().optional(),
   allow_hosts: z
     .array(nonEmpty())
-    .describe('Extra hosts hooks may target (environment hosts and localhost are always allowed).')
+    .describe('Extra hosts hooks (every kind) and the mailbox may contact; environment hosts and localhost are always allowed.')
     .optional(),
   databases: z
     .record(

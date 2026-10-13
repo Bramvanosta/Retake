@@ -7,16 +7,20 @@ import type { BrowserConfig } from '@demo-studio/core';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
 import type {
+  CalendarInfo,
   CursorEffectPayload,
   CursorState,
   DropOutcome,
   ElementInfo,
+  FieldState,
   FileSpec,
   FindOptions,
   KitConfig,
+  MenuTrigger,
   OutsidePlan,
   PointInfo,
   PopupEntry,
+  PositionalTrigger,
   ResolveResult,
   RestAt,
   RestPlan,
@@ -195,8 +199,18 @@ export class KitClient {
   outsidePlan(near: PointSpec, avoid: number[]): Promise<OutsidePlan | null> {
     return this.call('outsidePlan', near, avoid);
   }
-  restPoint(where?: 'side' | 'centre'): Promise<PointSpec> {
+  restPoint(where?: 'side' | 'centre', avoid?: BBox[]): Promise<PointSpec> {
+    if (avoid) return this.call('restPoint', where ?? 'side', avoid);
     return where ? this.call('restPoint', where) : this.call('restPoint');
+  }
+  watchChanges(): Promise<void> {
+    return this.call('watchChanges');
+  }
+  changedBoxes(): Promise<{ watching: boolean; boxes: BBox[] }> {
+    return this.call('changedBoxes');
+  }
+  textBox(ref: string): Promise<BBox | null> {
+    return this.call('textBox', ref);
   }
   restNear(box: BBox, at?: RestAt): Promise<RestPlan> {
     return at ? this.call('restNear', box, at) : this.call('restNear', box);
@@ -216,8 +230,11 @@ export class KitClient {
   rowFor(text: string): Promise<string | null> {
     return this.call('rowFor', text);
   }
-  menuTrigger(rowRef: string): Promise<string | null> {
-    return this.call('menuTrigger', rowRef);
+  menuTrigger(rowRef: string, hovered = false): Promise<MenuTrigger> {
+    return this.call('menuTrigger', rowRef, hovered);
+  }
+  positionalTrigger(rowRef: string): Promise<PositionalTrigger | null> {
+    return this.call('positionalTrigger', rowRef);
   }
   confirmButton(text: string | null): Promise<string | null> {
     return this.call('confirmButton', text);
@@ -231,6 +248,18 @@ export class KitClient {
   isTextInput(ref: string | null): Promise<boolean> {
     return this.call('isTextInput', ref);
   }
+  fieldState(ref: string | null): Promise<FieldState | null> {
+    return this.call('fieldState', ref);
+  }
+  clearField(ref: string | null): Promise<'setter' | 'editor' | null> {
+    return this.call('clearField', ref);
+  }
+  calendar(): Promise<CalendarInfo | null> {
+    return this.call('calendar');
+  }
+  setNativeValue(ref: string, value: string): Promise<boolean> {
+    return this.call('setNativeValue', ref, value);
+  }
   describe(ref: string): Promise<string> {
     return this.call('describe', ref);
   }
@@ -241,8 +270,8 @@ export class KitClient {
   visibleText(ref: string): Promise<string> {
     return this.call('visibleText', ref);
   }
-  /** The focused element (type steps without `into`: the field typed into). */
-  focused(): Promise<{ desc: string; bbox: BBox } | null> {
+  /** The focused element (type steps without `into`: the field typed into; `input_type`: a password field or not). */
+  focused(): Promise<{ desc: string; bbox: BBox; input_type: string } | null> {
     return this.call('focused');
   }
   cursorSet(x: number, y: number, show?: boolean): Promise<void> {
@@ -253,6 +282,10 @@ export class KitClient {
   }
   cursorState(): Promise<CursorState> {
     return this.call('cursor.state');
+  }
+  /** Draw the cursor of a document that has not painted content of its own (after the load the runner waited for). */
+  cursorReveal(): Promise<void> {
+    return this.call('cursor.reveal');
   }
   ripple(x: number, y: number): Promise<void> {
     return this.call('cursor.ripple', x, y);
@@ -280,6 +313,11 @@ export class KitClient {
  */
 export class BrowserSession {
   readonly pages = new Map<string, Page>();
+  /**
+   * Tabs of js hooks by environment page key (hook-page.ts): guarded tabs that live as long as the session, never
+   * capture pages (not in `pages`, never active or recorded).
+   */
+  readonly hookPages = new Map<string, Page>();
   private readonly history: string[] = [];
   private readonly clients = new WeakMap<Page, KitClient>();
   private readonly waiters = new Set<(p: Page) => void>();
@@ -386,6 +424,12 @@ export class BrowserSession {
 
   idOf(page: Page): string | undefined {
     for (const [id, p] of this.pages) if (p === page) return id;
+    return undefined;
+  }
+
+  /** The page key of a js hook tab (`hookPages`). */
+  hookPageId(page: Page): string | undefined {
+    for (const [id, p] of this.hookPages) if (p === page) return id;
     return undefined;
   }
 

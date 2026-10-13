@@ -46,6 +46,8 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
     }
   }
   if (body === undefined) throw new StepError('eval: give `js` (function body) or `file`');
+  // Scene templating leaves `eval` alone: its code (a file's too) and arg are templated now, their secrets resolved.
+  await rt.secrets.prefetch([body, args.arg]);
   const code = interpolate(body, rt.template);
   const arg = args.arg === undefined ? null : interpolateDeep(args.arg, rt.template);
   try {

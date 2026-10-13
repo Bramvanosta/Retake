@@ -69,7 +69,7 @@
         "type": "string",
         "minLength": 1
       },
-      "description": "Extra hosts hooks may target (environment hosts and localhost are always allowed)."
+      "description": "Extra hosts hooks (every kind) and the mailbox may contact; environment hosts and localhost are always allowed."
     },
     "databases": {
       "type": "object",
@@ -398,7 +398,7 @@
         "type_cps": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Typing speed, characters per second (9–24)."
+          "description": "Typing speed, characters per second (~14); a type step without cps adapts it: search fields ≤ 10, long free text up to 24."
         },
         "page_switch_ms": {
           "type": "number",
@@ -424,6 +424,16 @@
           "type": "number",
           "minimum": 0,
           "description": "After navigation: wait for network idle up to this many ms."
+        },
+        "park_hold": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds a step's `park: true` holds the cursor still on the result (1.5–2.6)."
+        },
+        "park_scroll_hold": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds a scroll's `park: true` holds the cursor next to the target (3–3.5)."
         }
       },
       "additionalProperties": false,
@@ -723,7 +733,7 @@
                 {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Command run with sh -c in the project dir."
+                  "description": "Command run with sh -c in the project dir; every host it names must be allowed."
                 },
                 {
                   "type": "object",
@@ -785,7 +795,7 @@
           ],
           "additionalProperties": false,
           "title": "shell",
-          "description": "Shell command (sh -c) in the project dir."
+          "description": "Shell command (sh -c) in the project dir; every host it names must be allowed."
         },
         {
           "type": "object",
@@ -795,7 +805,7 @@
                 {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Inline JS evaluated in a page (function body)."
+                  "description": "Inline JS (function body) evaluated in the js hook tab of the first environment page."
                 },
                 {
                   "type": "object",
@@ -813,7 +823,7 @@
                     "page": {
                       "type": "string",
                       "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
-                      "description": "Environment page key whose page runs it (default: the first page)."
+                      "description": "Environment page key whose hook tab runs it (default: the first page)."
                     },
                     "rollback": {
                       "type": "string",
@@ -847,7 +857,7 @@
           ],
           "additionalProperties": false,
           "title": "js",
-          "description": "JavaScript evaluated in a browser page (through the runner)."
+          "description": "JavaScript evaluated in its own tab on an environment page (through the runner); requests to unlisted hosts are blocked."
         }
       ],
       "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional."

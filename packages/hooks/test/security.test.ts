@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -5,6 +7,7 @@ import {
   Journal,
   allowedHosts,
   checkHostAllowed,
+  checkShellHosts,
   destructiveReason,
   isDestructive,
   isHostAllowed,
@@ -12,7 +15,7 @@ import {
   shellWords,
 } from '@demo-studio/hooks';
 import type { HookStep } from '@demo-studio/core';
-import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
+import { makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
 beforeEach(async () => {
@@ -123,6 +126,135 @@ describe('allow-list', () => {
     );
     expect(res.ok).toBe(false);
     expect(res.results).toHaveLength(1);
+  });
+});
+
+describe('shell hosts (R-SEC-06)', () => {
+  const journalAt = () => Journal.open(join(tmp.dir, 'runs/r/hooks-journal.json'));
+
+  it('refuses a shell hook naming an unlisted host before anything runs', async () => {
+    const { ctx } = makeContext(makeProject(tmp.dir, { console: 'http://localhost:4401' }));
+    const journal = await journalAt();
+    const res = await runHooks(
+      [{ shell: 'touch ran.txt && curl -fsS https://console.production.example.com/api/reset' }],
+      ctx,
+      { phase: 'setup', journal },
+    );
+    expect(res.results[0]).toMatchObject({ ok: false, status: 'refused' });
+    expect(res.results[0].error).toMatch(/^refusing to contact console\.production\.example\.com \(URL in the shell hook\): it is not in the allow-list of project "northfield"/);
+    expect(existsSync(join(tmp.dir, 'ran.txt'))).toBe(false);
+    expect(journal.entries).toMatchObject([{ status: 'failed', error: res.results[0].error }]);
+  });
+
+  it('runs a shell hook whose hosts are allowed', async () => {
+    const api = await startApi();
+    try {
+      const { ctx } = makeContext(makeProject(tmp.dir, { console: api.base }));
+      const res = await runHooks([{ shell: 'curl -fsS -X POST -d "{}" {{console}}/api/replies > reply.json' }], ctx, { phase: 'teardown', journal: await journalAt() });
+      expect(res.results[0]).toMatchObject({ ok: true, status: 'ok', message: 'exit 0' });
+      expect(api.requests.map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/replies']);
+    } finally {
+      await api.close();
+    }
+  });
+
+  it('expands $VARS from the environment sh gets, and refuses hosts computed at run time', async () => {
+    process.env.NF_TARGET = 'https://elsewhere.example.net';
+    try {
+      const { ctx } = makeContext(makeProject(tmp.dir, {}));
+      const journal = await journalAt();
+      const res = await runHooks(
+        [
+          { shell: 'curl -fsS "$NF_TARGET/x" > out.txt' },
+          { shell: { run: 'curl -fsS "$OWN/x"', env: { OWN: 'https://own.example.org' } } },
+          { shell: 'curl -fsS "https://$(cat host.txt)/x"' },
+          // A substitution is scanned as a command; a variable the script assigns is expanded (L1.2 review: S1, S2).
+          { shell: 'TOKEN=$(curl -s -X POST https://auth.example.net/token) && echo ok > out.txt' },
+          { shell: 'BASE=reset.example.net\ncurl -X POST "https://$BASE/api/reset" > out.txt' },
+        ],
+        ctx,
+        { phase: 'teardown', journal },
+      );
+      expect(res.results.map((r) => [r.status, r.error?.replace(/: it is not in the allow-list.*$/, '')])).toEqual([
+        ['refused', 'refusing to contact elsewhere.example.net ($NF_TARGET in the shell hook)'],
+        ['refused', 'refusing to contact own.example.org (env OWN in the shell hook)'],
+        ['refused', 'refusing a shell command whose host is computed at run time (URL): write the host, or use an http hook'],
+        ['refused', 'refusing to contact auth.example.net (URL in the shell hook)'],
+        ['refused', 'refusing to contact reset.example.net ($BASE in the shell hook)'],
+      ]);
+      expect(existsSync(join(tmp.dir, 'out.txt'))).toBe(false);
+    } finally {
+      delete process.env.NF_TARGET;
+    }
+  });
+
+  it('checks a rollback when the hook is prepared, and again when a journal replays it', async () => {
+    const { ctx } = makeContext(makeProject(tmp.dir, {}));
+    const journal = await journalAt();
+    const res = await runHooks([{ shell: { run: 'touch ran.txt', rollback: 'ssh deploy@db.prod.example.com cleanup' } }], ctx, { phase: 'setup', journal });
+    expect(res.results[0]).toMatchObject({ status: 'refused' });
+    expect(res.results[0].error).toMatch(/^refusing to contact db\.prod\.example\.com \(ssh in the shell hook\):/);
+    expect(existsSync(join(tmp.dir, 'ran.txt'))).toBe(false);
+
+    // A journal written elsewhere (or before the allow-list changed): the pending rollback is refused, not run.
+    const replay = await Journal.open(join(tmp.dir, 'runs/r2/hooks-journal.json'));
+    replay.add({
+      kind: 'shell',
+      phase: 'setup',
+      description: 'shell "touch seeded.txt"',
+      started_at: '2026-10-13T08:00:00.000Z',
+      finished_at: '2026-10-13T08:00:01.000Z',
+      status: 'ok',
+      rollback: { kind: 'shell', run: 'touch undone.txt && curl -fsS https://elsewhere.example.net/undo', data: {}, description: 'shell "curl …"' },
+    });
+    const results = await replay.rollbackAll(ctx);
+    expect(results[0]).toMatchObject({ phase: 'rollback', status: 'refused' });
+    expect(results[0].error).toMatch(/^refusing to contact elsewhere\.example\.net \(URL in the shell hook\):/);
+    expect(existsSync(join(tmp.dir, 'undone.txt'))).toBe(false);
+  });
+
+  it('optional does not tolerate a shell refusal; a dry run reports it', async () => {
+    const { ctx } = makeContext(makeProject(tmp.dir, {}));
+    const journal = await journalAt();
+    const hooks: HookStep[] = [{ optional: true, shell: 'psql -h db.prod.example.com -c "select 1"' }, { shell: 'echo ran > ran.txt' }];
+    const res = await runHooks(hooks, ctx, { phase: 'setup', journal });
+    expect(res.ok).toBe(false);
+    expect(res.results).toHaveLength(1);
+    expect(res.results[0].error).toMatch(/^refusing to contact db\.prod\.example\.com \(psql -h in the shell hook\):/);
+
+    const dry = makeContext(makeProject(tmp.dir, {}), { dryRun: true }).ctx;
+    const d = await runHooks(hooks, dry, { phase: 'setup', journal });
+    expect(d.results.map((r) => r.status)).toEqual(['refused']);
+    expect(d.results[0].error).toMatch(/^refusing to contact db\.prod\.example\.com/);
+    expect(existsSync(join(tmp.dir, 'ran.txt'))).toBe(false);
+  });
+
+  it('gives shell hooks $DEMO_STUDIO_ALLOWED_HOSTS', async () => {
+    const project = makeProject(tmp.dir, {}, { allow_hosts: ['api.partner.example.net'] });
+    const res = await runHooks([{ shell: 'echo "$DEMO_STUDIO_ALLOWED_HOSTS" > hosts.txt' }], makeContext(project).ctx, {
+      phase: 'teardown',
+      journal: await journalAt(),
+    });
+    expect(res.ok).toBe(true);
+    expect((await readFile(join(tmp.dir, 'hosts.txt'), 'utf8')).trim()).toBe(
+      'localhost,127.0.0.1,::1,console.staging.example.com,shop.staging.example.com,api.partner.example.net',
+    );
+  });
+
+  it('checkShellHosts names the host, never the URL or its credentials', () => {
+    const project = makeProject(tmp.dir, {});
+    let error: unknown;
+    try {
+      checkShellHosts('psql postgres://app:hunter2-secret@db.prod.example.com/northfield', {}, undefined, project);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(HookSecurityError);
+    expect((error as HookSecurityError).reason).toBe('host');
+    expect((error as Error).message).not.toContain('hunter2');
+    expect((error as Error).message).not.toContain('postgres://');
+    expect(() => checkShellHosts('psql -h localhost -c "select 1"', { PGHOST: 'db.prod.example.com' }, undefined, project)).not.toThrow();
+    expect(() => checkShellHosts('psql -c "select 1"', { PGHOST: 'db.prod.example.com' }, undefined, project)).toThrow(/PGHOST for psql in the shell hook/);
   });
 });
 

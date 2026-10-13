@@ -17,7 +17,7 @@ export function tokensIn(value: unknown, out: string[] = []): string[] {
 
 /**
  * Template context of a hook: environment pages, vars (ctx.vars over project vars), saved hook
- * results, run id, optional extra roots ({{response…}}), and the secrets used by `value`.
+ * results, run id and folder, optional extra roots ({{response…}}), and the secrets used by `value`.
  */
 export async function hookTemplateContext(
   ctx: HookContext,
@@ -29,7 +29,7 @@ export async function hookTemplateContext(
     pages: ctx.env.pages,
     vars: { ...(ctx.project.config.vars ?? {}), ...ctx.vars },
     hooks: dry ? { ...ctx.saved, ...dry } : ctx.saved,
-    run: ctx.runId ? { id: ctx.runId } : undefined,
+    run: ctx.runId ? { id: ctx.runId, ...(ctx.runDir ? { dir: ctx.runDir } : {}) } : undefined,
     extra,
     secrets: await secretResolver(ctx, value),
   };

@@ -19,8 +19,12 @@ export { CaptureClock, STALL_MIN_S, TimelineBuilder, computeIdle, motionCapture 
 export type { CaptureStall, MotionCapture } from './timeline.js';
 export { moveDuration, arcPath, easeInOutCubic, isNudge } from './motion.js';
 export { evalInPage } from './actions/misc.js';
+export { evalHookInPage } from './hook-page.js';
+export type { HookPageOptions } from './hook-page.js';
 export { RunnerError, StepError, CancelledError, EncodeError } from './errors.js';
-export { StepFailure, describeStep, DEFAULT_STEP_TIMEOUT_S, ERROR_DOM_MAX } from './scenes.js';
+export { StepFailure, describeStep, trimSnippet, DEFAULT_STEP_TIMEOUT_S, ERROR_DOM_MAX } from './scenes.js';
+export { RunSecrets, TIMELINE_POLICY, RECORD_POLICY, PROGRESS_POLICY } from './secrets.js';
+export type { RedactPolicy } from './secrets.js';
 export { probeChromium, chromiumExecutable } from './probe.js';
 export type { ChromiumProbe } from './probe.js';
 export { ArtefactStore, artefactSlug, previewText, htmlText, sniffMime, extensionFor, imageSize, projectDocuments, EMAIL_PREVIEW_CHARS } from './artefacts/store.js';

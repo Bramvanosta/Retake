@@ -39,12 +39,17 @@ export const PacingSchema = z
       'How long a click gets to show that an expected popup opened (aria-expanded / new popup, polled) before the next click strategy.',
     ),
     popup_timeout_ms: millis().describe('How long the last click strategy waits for an expected popup before reporting it missing.'),
-    type_cps: z.number().gt(0).describe('Typing speed, characters per second (9–24).'),
+    type_cps: z
+      .number()
+      .gt(0)
+      .describe('Typing speed, characters per second (~14); a type step without cps adapts it: search fields ≤ 10, long free text up to 24.'),
     page_switch_ms: millis().describe('Multi-page scenes: pause before a step that acts on another page than the previous step (its cursor then glides from where it rests).'),
     scroll_duration: positiveSeconds().describe('Smooth scroll duration in seconds (1.5–2).'),
     scroll_offset: z.number().describe('Default scroll offset with a target (−140 ⇒ the target ends 140 px below the top).'),
     jitter: z.number().min(0).max(0.5).describe('Deterministic ±fraction jitter applied to durations (0 = none).'),
     settle_ms: millis().describe('After navigation: wait for network idle up to this many ms.'),
+    park_hold: seconds().describe("Seconds a step's `park: true` holds the cursor still on the result (1.5–2.6)."),
+    park_scroll_hold: seconds().describe("Seconds a scroll's `park: true` holds the cursor next to the target (3–3.5)."),
   })
   .meta({ id: 'Pacing' }) satisfies z.ZodType<Pacing>;
 

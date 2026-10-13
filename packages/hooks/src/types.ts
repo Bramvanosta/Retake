@@ -13,11 +13,17 @@ export interface HookContext {
   vars: Record<string, unknown>;
   /** `{{run.id}}`; also stored in journal entries. */
   runId?: string;
+  /** `{{run.dir}}`: the run folder of a capture (absent for `studio hooks run`, which has no run folder). */
+  runDir?: string;
   /** Describe (and security-check) what would run, without executing anything. */
   dryRun?: boolean;
   /** Every message is redacted of the secret values resolved so far for this context. */
   log: (level: HookLogLevel, msg: string) => void;
-  /** Provided by the runner: evaluates a function body in the page of an environment page key. */
+  /**
+   * Provided by the runner: evaluates a function body in the js hook tab of an environment page key (runner-web
+   * `evalHookInPage`: a tab of the run's browser where requests to hosts outside the allow-list are blocked). Throws
+   * core `HostRefusedError` when the tab's page or the hook's code reached such a host.
+   */
   evalInPage?: (pageKey: string | undefined, code: string) => Promise<unknown>;
   /** `save_as` results, exposed to templating as `{{hooks.<name>.status|headers|body|json…}}`. Mutated in place. */
   saved: Record<string, unknown>;

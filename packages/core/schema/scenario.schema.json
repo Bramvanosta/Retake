@@ -530,7 +530,7 @@
                 {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Command run with sh -c in the project dir."
+                  "description": "Command run with sh -c in the project dir; every host it names must be allowed."
                 },
                 {
                   "type": "object",
@@ -592,7 +592,7 @@
           ],
           "additionalProperties": false,
           "title": "shell",
-          "description": "Shell command (sh -c) in the project dir."
+          "description": "Shell command (sh -c) in the project dir; every host it names must be allowed."
         },
         {
           "type": "object",
@@ -602,7 +602,7 @@
                 {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Inline JS evaluated in a page (function body)."
+                  "description": "Inline JS (function body) evaluated in the js hook tab of the first environment page."
                 },
                 {
                   "type": "object",
@@ -620,7 +620,7 @@
                     "page": {
                       "type": "string",
                       "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
-                      "description": "Environment page key whose page runs it (default: the first page)."
+                      "description": "Environment page key whose hook tab runs it (default: the first page)."
                     },
                     "rollback": {
                       "type": "string",
@@ -654,7 +654,7 @@
           ],
           "additionalProperties": false,
           "title": "js",
-          "description": "JavaScript evaluated in a browser page (through the runner)."
+          "description": "JavaScript evaluated in its own tab on an environment page (through the runner); requests to unlisted hosts are blocked."
         }
       ],
       "description": "Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional."
@@ -825,7 +825,7 @@
         "type_cps": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Typing speed, characters per second (9–24)."
+          "description": "Typing speed, characters per second (~14); a type step without cps adapts it: search fields ≤ 10, long free text up to 24."
         },
         "page_switch_ms": {
           "type": "number",
@@ -851,6 +851,16 @@
           "type": "number",
           "minimum": 0,
           "description": "After navigation: wait for network idle up to this many ms."
+        },
+        "park_hold": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds a step's `park: true` holds the cursor still on the result (1.5–2.6)."
+        },
+        "park_scroll_hold": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds a scroll's `park: true` holds the cursor next to the target (3–3.5)."
         }
       },
       "additionalProperties": false,
@@ -1550,6 +1560,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -1630,6 +1652,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -1709,6 +1743,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -1876,6 +1922,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -1975,6 +2033,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -2069,6 +2139,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -2165,6 +2247,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -2287,6 +2381,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -2398,6 +2504,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -2409,6 +2527,151 @@
           "additionalProperties": false,
           "title": "menu",
           "description": "Open a row's action menu, choose an item and optionally confirm."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "$ref": "#/$defs/TargetObject"
+                        }
+                      ],
+                      "description": "The date field (its label, or a target) whose calendar opens; omit for a calendar already on screen."
+                    },
+                    "day": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      ],
+                      "description": "Day(s) to click, matched by aria-label or date attribute: \"10 January 2027\", \"2027-01-10\", or a list (a range)."
+                    },
+                    "next": {
+                      "description": "Next-month button (default: the last visible one of the calendar).",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "previous": {
+                      "description": "Previous-month button (default: the last visible one of the calendar).",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "close": {
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "outside",
+                        "escape",
+                        "none"
+                      ],
+                      "description": "After the last day: auto (default) waits for the calendar to close by itself, then clicks outside; or outside, escape, none."
+                    }
+                  },
+                  "required": [
+                    "day"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Pick a day (or a range) in a date picker: waits for a previous date popover to close, opens the field, pages months with the last visible month buttons (quick runs), clicks the days by label; fills a native date input in place."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged but does not abort the run."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "date"
+          ],
+          "additionalProperties": false,
+          "title": "date",
+          "description": "Pick a day (or a range) in a date picker: waits for a previous date popover to close, opens the field, pages months with the last visible month buttons (quick runs), clicks the days by label; fills a native date input in place."
         },
         {
           "type": "object",
@@ -2448,7 +2711,7 @@
                     },
                     "offset": {
                       "type": "number",
-                      "description": "With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default -120."
+                      "description": "With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default pacing.scroll_offset (-140)."
                     },
                     "duration": {
                       "type": "number",
@@ -2517,6 +2780,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -2615,6 +2890,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -2735,6 +3022,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -2807,6 +3106,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -2922,6 +3233,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -2989,6 +3312,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -3119,6 +3454,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -3212,6 +3559,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -3313,6 +3672,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -3406,6 +3777,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -3503,6 +3886,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -3596,6 +3991,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -3686,6 +4093,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -3795,6 +4214,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -3898,6 +4329,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -3990,6 +4433,18 @@
             "irreversible": {
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
             },
             "note": {
               "type": "string",
@@ -4084,6 +4539,18 @@
               "type": "boolean",
               "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
             },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
             "note": {
               "type": "string",
               "description": "Free-form note (ignored)."
@@ -4097,7 +4564,7 @@
           "description": "Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`)."
         }
       ],
-      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, on, mark, timeout, optional, irreversible, note)."
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, date, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, on, mark, timeout, optional, irreversible, park, note)."
     },
     "CameraHint": {
       "type": "object",

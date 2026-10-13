@@ -19,6 +19,10 @@ Northfield connects coffee roasters with the cafés they supply.
 - Roasters and green-coffee traders evaluating the supplier console (video: `catalogue`).
 - Café owners and head baristas who order coffee (video: `quote`; on a phone: `mobile-quote`, the shop at 390 × 844
   framed with the phone layout).
+- The same café owners planning the brew and the delivery before they order (video: `embedded` — its targets live
+  inside a web component and an iframe on the product page).
+- Roasters following their sales (video: `reports` — the console's server-rendered Sales reports: every move between
+  them and the app is a full page load, a slow report paints an empty skeleton first).
 
 ## Goals
 

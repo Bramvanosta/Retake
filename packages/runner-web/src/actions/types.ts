@@ -12,6 +12,8 @@ export interface ActionResult {
   data?: unknown;
   /** The whole step is a hold (stillness the editor must not trim). */
   hold?: boolean;
+  /** Kit ref of the element acted on (parking measures it; never written to the timeline). */
+  ref?: string;
   /**
    * A plain click that showed no popup within after_click_ms: popups open then (wall-clock ms of the press), for the
    * next step to notice a popup that opens late on a slow or loaded machine (settleLatePopup).

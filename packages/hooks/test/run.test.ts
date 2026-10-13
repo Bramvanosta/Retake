@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JS_NEEDS_PAGE, Journal, runHooks } from '@demo-studio/hooks';
+import { HostRefusedError } from '@demo-studio/core';
 import type { HookStep } from '@demo-studio/core';
 import { makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 
@@ -57,6 +58,20 @@ describe('runHooks: setup', () => {
     expect(journal.pending().map((e) => e.name)).toEqual(['a', 'b']);
     expect(journal.pending()[0]).toMatchObject({ phase: 'setup', run_id: '20261011-142233-catalogue', env: 'local' });
     expect(logText()).toContain('info setup hook 1/2: a: shell "echo a >> order.log"');
+  });
+
+  it('templates {{run.id}} and {{run.dir}}: a capture has a run folder, `studio hooks run` none (L1.2 review: D4)', async () => {
+    const project = makeProject(tmp.dir, { console: api.base });
+    const runDir = join(tmp.dir, 'runs/20261011-142233-catalogue');
+    const { ctx } = makeContext(project, { runId: '20261011-142233-catalogue', runDir });
+    const journal = await Journal.open(journalFile());
+    const res = await runHooks([{ shell: 'echo "{{run.id}} {{run.dir}}" > run.txt' }], ctx, { phase: 'teardown', journal });
+    expect(res.ok).toBe(true);
+    expect(await lines('run.txt')).toEqual([`20261011-142233-catalogue ${runDir}`]);
+    const standalone = makeContext(project, { runId: 'hooks-local' }).ctx;
+    const res2 = await runHooks([{ shell: 'echo "{{run.dir}}" > run2.txt' }], standalone, { phase: 'teardown', journal });
+    expect(res2.results[0].error).toMatch(/unknown template key \{\{run\.dir\}\}/);
+    expect(existsSync(join(tmp.dir, 'run2.txt'))).toBe(false);
   });
 
   it('stops at the first failure and rolls back the completed hooks in reverse order', async () => {
@@ -231,6 +246,34 @@ describe('js hooks', () => {
       [undefined, 'return { count: document.querySelectorAll("cookie-banner").length }'],
       ['console', 'localStorage.removeItem("cookie-banner")'],
     ]);
+  });
+
+  it('a host the runner\'s hook tab blocked is a refusal (R-SEC-06): kept message, not tolerated by optional, rollbacks too', async () => {
+    const { ctx, project } = env();
+    const blocked = () => new HostRefusedError(['elsewhere.example.net'], project, 'blocked while the js hook ran', { detail: 'the hook threw: TypeError: Failed to fetch' });
+    ctx.evalInPage = async (_page, code) => {
+      if (code.includes('fetch')) throw blocked();
+      return undefined;
+    };
+    const journal = await Journal.open(journalFile());
+    const res = await runHooks(
+      [
+        { js: { code: 'localStorage.setItem("seeded", "1")', rollback: 'await fetch("https://elsewhere.example.net/undo")' } },
+        { optional: true, js: 'await fetch("https://elsewhere.example.net/x")' },
+        step('never'),
+      ],
+      ctx,
+      { phase: 'setup', journal },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.results.map((r) => [r.phase, r.status])).toEqual([
+      ['setup', 'ok'],
+      ['setup', 'refused'],
+      ['rollback', 'refused'],
+    ]);
+    expect(res.results[1].error).toBe(blocked().message);
+    expect(res.results[1].error).toMatch(/^refusing to contact elsewhere\.example\.net \(blocked while the js hook ran\): .*; the hook threw: TypeError: Failed to fetch$/);
+    expect(res.results[2].error).toBe(blocked().message);
   });
 
   it('teardown js hooks without a page fail with a clear error', async () => {

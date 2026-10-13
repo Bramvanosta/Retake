@@ -1,4 +1,4 @@
-import { collectSecretRefs, redact, resolveSecretRef } from '@demo-studio/core';
+import { collectSecretRefs, redact, resolveSecretRef, secretForms } from '@demo-studio/core';
 import type { SecretResolver } from '@demo-studio/core';
 import type { HookContext, HookLogLevel } from './types.js';
 import { isRecord } from './util.js';
@@ -15,15 +15,10 @@ function secretSet(ctx: HookContext): Set<string> {
   return set;
 }
 
-/** Register a secret value (and its URL-encoded / JSON-escaped forms) for redaction. */
+/** Register a secret value (and its URL-encoded / JSON-escaped / HTML-escaped forms, core secretForms) for redaction. */
 export function addSecret(ctx: HookContext, value: string): void {
-  if (value.length < 3) return; // core redact() ignores shorter values (they would mangle every log)
   const set = secretSet(ctx);
-  set.add(value);
-  const encoded = encodeURIComponent(value);
-  if (encoded !== value) set.add(encoded);
-  const escaped = JSON.stringify(value).slice(1, -1);
-  if (escaped !== value) set.add(escaped);
+  for (const form of secretForms(value)) set.add(form);
 }
 
 /** Replace every known secret value by "***" (longest first, so overlapping secrets are fully masked). */

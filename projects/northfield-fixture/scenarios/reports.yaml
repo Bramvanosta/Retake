@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Full-page navigations (R-ISS-08). The console's Sales reports are classic server-rendered pages: leaving the app for
+# them, opening a slow report (an empty skeleton first, the figures 1.2 s later) and coming back to the app (its empty
+# shell paints once its data arrived) are full page loads, mid-scene — and the `september` scene opens on a slow report.
+# The capture keeps the previous picture until each new page has painted content of its own, so no blank or skeleton
+# frame is filmed; the edit cuts those held loads.
+video: reports
+title: {kicker: For suppliers, text: "Your sales, market by market"}
+outro: {tagline: "Every month, at a glance."}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+scenes:
+  - id: reports
+    caption: {kicker: Sales reports, text: "Each month's sales by market, one click from your catalogue."}
+    page: console
+    open: /products
+    steps:
+      - click: Sales reports
+      - click: October 2026
+      - wait_for: {text: Total sales}
+        mark: report
+        hold: 1.5
+      - click: Back to the console
+      - wait_for: {text: Add a coffee}
+      - hold: 1
+
+  - id: september
+    caption: {kicker: Last month, text: "Compare with September in one click."}
+    open: /reports/2026-09
+    steps:
+      - wait_for: {text: Total sales}
+      - hold: 2

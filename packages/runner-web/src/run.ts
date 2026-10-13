@@ -1,6 +1,5 @@
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { Page } from 'playwright-core';
 import {
   isCaptureScene,
   listSteps,
@@ -8,6 +7,8 @@ import {
   newRunId,
   resolveEnvironment,
   resolveStepRef,
+  sceneId,
+  templateVideo,
   timelineVideo,
   writeJson,
 } from '@demo-studio/core';
@@ -21,23 +22,26 @@ import type {
   RunMode,
   RunProgress,
   RunRecord,
+  Scenario,
   TemplateContext,
 } from '@demo-studio/core';
-import { evalInPage } from './actions/misc.js';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { watchNotifications } from './notifications.js';
 import { mergeCapture, mergePacing, projectBrowser, resolveAuth } from './config.js';
 import { encodeFrames } from './encode.js';
 import { CancelledError, EncodeError, RunnerError, errorMessage, isCancelled } from './errors.js';
+import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
 import type { HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
+import { HOLD_MAX_MS } from './hold.js';
 import { kitConfigFor } from './kit/source.js';
 import { ScreencastRecorder } from './recorder.js';
 import type { FrameIndexEntry } from './recorder.js';
 import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { LogLevel } from './runtime.js';
-import { StepFailure, runScenes } from './scenes.js';
+import { StepFailure, runScenes, templated, untilSteps } from './scenes.js';
+import { RunSecrets } from './secrets.js';
 import { BrowserSession } from './session.js';
 import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
 import type { MotionCapture } from './timeline.js';
@@ -101,6 +105,23 @@ interface HooksState {
 
 
 /**
+ * A hold the recorder ended at its time limit (R-ISS-08): a page load that painted nothing within HOLD_MAX_MS, or a
+ * fresh tab left blank that long — from then on the page is filmed as it is. Names the page and the capture time,
+ * never the URL.
+ */
+function warnLimitedLoads(rec: ScreencastRecorder, timeline: TimelineBuilder, log: (level: LogLevel, message: string) => void): void {
+  const limit = HOLD_MAX_MS / 1000;
+  for (const l of rec.limitedLoads()) {
+    const message =
+      l.kind === 'blank'
+        ? `page ${l.page ?? '?'}: a new page stayed blank from ${l.t.toFixed(1)} s for ${limit} s (nothing opened in it) — it is filmed blank from then on: give it \`open\``
+        : `page ${l.page ?? '?'}: a page load at ${l.t.toFixed(1)} s painted nothing within ${limit} s — its blank or loading frames are in the capture from then on`;
+    timeline.warn(message);
+    log('warn', message);
+  }
+}
+
+/**
  * Run warnings about the motion a capture shows: moves below `minFps` (slow rendering) and stalls — the capture froze
  * ≥ STALL_MIN_S (150 ms) while the cursor moved or a click ripple played (L1.3). Null (cursor hidden): nothing can be
  * judged.
@@ -158,9 +179,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   await writeFile(join(dir, 'scenario.yaml'), loaded.text);
 
   const listed = listSteps(sc);
-  const total = until
-    ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex)).length
-    : listed.length;
+  // The steps this run executes (all, or up to --until).
+  const toRun = until
+    ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex))
+    : listed;
+  const total = toRun.length;
   const record: RunRecord = {
     id: runId,
     project: project.slug,
@@ -179,11 +202,15 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   };
   if (opts.until !== undefined) record.options.until = opts.until;
   if (opts.hideCursor) record.options.cursor = 'hidden';
-  const files = new RunFiles(dir, record);
+  // Secret values ({{env:…}}, {{keychain:…}}) are masked wherever the run writes: run.json, log.jsonl, the progress
+  // events, timeline.json, error snippets and the returned record (R-RUN-17).
+  const secrets = new RunSecrets();
+  const files = new RunFiles(dir, record, (r) => secrets.redactRecord(r));
   const emit = (e: RunProgress) => {
-    files.progress(e);
+    const safe = secrets.redactProgress(e);
+    files.progress(safe);
     try {
-      opts.onProgress?.(e);
+      opts.onProgress?.(safe);
     } catch {
       /* a listener error must not break the run */
     }
@@ -206,7 +233,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) },
     run: { id: runId, dir },
     hooks: {},
+    secrets: secrets.resolver,
   };
+  const readsMail = project.config.mailbox !== undefined && toRun.some((l) => l.step.action === 'wait_for_email');
 
   let session: BrowserSession | null = null;
   let rt: Runtime | null = null;
@@ -219,6 +248,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
 
   try {
     throwIfAborted(signal);
+    // Every secret the run uses, before the browser opens and the setup hooks run: a keychain prompt never stalls the
+    // capture, and a missing one fails the run up front.
+    await prefetchSecrets(secrets, sc, until, readsMail ? project : null);
     const auth = resolveAuth(project, env.name);
     session = await BrowserSession.open({
       width: capture.width,
@@ -243,6 +275,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       runDir: dir,
       screenshotsDir,
       template,
+      secrets,
       recorder: null,
       cursorHidden: opts.hideCursor === true,
       log,
@@ -251,7 +284,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     if (opts.hideCursor) log('info', 'capturing without the in-page cursor (raw export): its track, icon, presses and ripples are recorded as data');
     notifications = watchNotifications(rt);
     // wait_for_email takes only the messages that arrive during the run: remember those already there (before setup).
-    if (project.config.mailbox && listed.some((l) => l.step.action === 'wait_for_email')) await snapshotMailbox(rt);
+    if (readsMail) await snapshotMailbox(rt);
 
     const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0;
     if (hasHooks && hooksMode === 'skip') {
@@ -260,6 +293,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     } else if (hasHooks) {
       hooks = await setupHooks(sc.setup ?? [], { rt, session, project, env, template, runId, dir, emit, log, record });
     }
+    // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
+    const meta = timeline.meta;
+    if (meta.video) meta.video = templated(() => templateVideo(meta.video!, template), record);
 
     const captured = sc.scenes.filter(isCaptureScene).filter((s) => !s.skip);
     const firstScene = captured[0];
@@ -281,6 +317,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         scale: capture.scale,
         clock,
         onError: (m) => timeline.warn(m),
+        pageId: (p) => session?.idOf(p),
       });
       if (firstPage) await recorder.start(rt.page);
       else await recorder.prepare();
@@ -303,6 +340,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         if (!t.recorder) continue;
         try {
           t.builder.frames = (await t.recorder.stop()).length;
+          t.builder.loading = t.recorder.loadingIntervals();
+          warnLimitedLoads(t.recorder, timeline, log);
         } catch (e) {
           log('error', `stopping the recorder of page ${id} failed: ${errorMessage(e)}`);
         }
@@ -311,13 +350,15 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     if (recorder) {
       try {
         frames = await recorder.stop();
+        timeline.loading = recorder.loadingIntervals();
+        warnLimitedLoads(recorder, timeline, log);
         const st = recorder.stats();
         if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
         const minFps = Math.min(capture.fps, 30) * 0.6;
         // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
         const motion = opts.hideCursor
           ? null
-          : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps, timeline.cursorEffects, timeline.pages.map((p) => p.t_start));
+          : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps, timeline.cursorEffects, timeline.pages.map((p) => p.t_start), timeline.loading);
         for (const message of motionWarnings(motion, minFps, '')) {
           timeline.warn(message);
           log('warn', message);
@@ -362,7 +403,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const minFps = Math.min(capture.fps, 30) * 0.6;
       const motion = opts.hideCursor
         ? null
-        : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps, t.builder.cursorEffects, t.builder.pages.map((p) => p.t_start));
+        : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps, t.builder.cursorEffects, t.builder.pages.map((p) => p.t_start), t.builder.loading);
       for (const message of motionWarnings(motion, minFps, `page ${id}: `)) {
         timeline.warn(message);
         log('warn', message);
@@ -444,7 +485,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   });
   const timelineFile = join(dir, 'timeline.json');
   try {
-    await writeJson(timelineFile, tl);
+    await writeJson(timelineFile, secrets.redactTimeline(tl));
     record.timeline = timelineFile;
   } catch (e) {
     failure ??= e;
@@ -469,7 +510,34 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   }
   emit({ type: 'run_end', run: { ...record } });
   await files.close().catch(() => undefined);
-  return record;
+  return secrets.redactRecord(record);
+}
+
+/**
+ * Resolve the secret references of the scenes this run reaches (skipped scenes and the steps after --until excluded)
+ * and of the mailbox headers when the run reads mail. A missing one fails the run naming where it is used.
+ */
+async function prefetchSecrets(
+  secrets: RunSecrets,
+  sc: Scenario,
+  until: { sceneIndex: number; stepIndex: number } | null,
+  mailbox: LoadedProject | null,
+): Promise<void> {
+  const last = until ? until.sceneIndex : sc.scenes.length - 1;
+  for (let si = 0; si <= last; si++) {
+    const entry = sc.scenes[si];
+    if (isCaptureScene(entry) && entry.skip) continue;
+    try {
+      await secrets.prefetch(untilSteps(entry, si, until));
+    } catch (e) {
+      throw new RunnerError(`scene ${sceneId(entry, si)}: ${errorMessage(e)}`);
+    }
+  }
+  try {
+    await secrets.prefetch(mailbox?.config.mailbox?.headers);
+  } catch (e) {
+    throw new RunnerError(`mailbox headers: ${errorMessage(e)}`);
+  }
 }
 
 interface SetupDeps {
@@ -495,19 +563,13 @@ async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> 
     env: d.env,
     vars: Object.fromEntries(Object.entries(d.template.vars ?? {}).map(([k, v]) => [k, String(v)])),
     runId: d.runId,
+    runDir: d.dir,
     // Hooks only get here when they are enabled; in a dry run that takes an explicit `hooks: 'run'`, so they
     // really execute: the dry run then sees the same prepared data as a capture.
     dryRun: false,
     log: (level, msg) => d.log(level, msg),
-    evalInPage: async (pageKey, code) => {
-      const key = pageKey ?? Object.keys(d.env.pages)[0];
-      if (!key) throw new RunnerError('js hook: the environment declares no pages');
-      const page: Page = await d.session.page(key);
-      if ((page.url() === 'about:blank' || page.url() === '') && d.env.pages[key]) {
-        await page.goto(d.env.pages[key], { waitUntil: 'load', timeout: 60_000 });
-      }
-      return evalInPage(page, code);
-    },
+    // js hooks run in a guarded tab of their own, kept for the run (hook-page.ts), never in a capture tab.
+    evalInPage: (pageKey, code) => evalHookInPage(d.session, { project: d.project, env: d.env, log: d.log }, pageKey, code),
     saved,
   };
   const state: HooksState = { mod, journal, ctx };

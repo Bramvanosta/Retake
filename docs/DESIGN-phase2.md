@@ -235,8 +235,9 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   warning). `camera` targets follow the same rule (tested on the SPEC example: scroll to "Awards" with a camera on
   "Awards" records the post-scroll box).
 - `Timeline.video = { title?, intro?, outro?, frame?, template?, music? }` (`timelineVideo()` in core): the scenario's
-  edit info as written, the effective default `frame` (scenario, else project) and the template the run used — the
-  editor never re-reads scenario.yaml. Optional in the schema so older timelines stay valid.
+  edit info as written (its strings templated by the runner after the setup hooks since L1.2, `templateVideo`), the
+  effective default `frame` (scenario, else project) and the template the run used — the editor never re-reads
+  scenario.yaml. Optional in the schema so older timelines stay valid.
 
 ### 1.6 Artefacts: mails, documents, notifications (L2.9)
 - **Capture** (runner-web): `wait_for_email` (project `mailbox`, Mailpit API or the generic JSON shape; only messages
@@ -443,12 +444,28 @@ listRenders(project): Promise<RenderRecord[]>
   pause after a navigation that precedes waits which really waited (≥ `WAIT_LOADING_MIN_S` = 0.3 s) — is a loading
   state: after its first `WAIT_KEEP_S` = 0.5 s it plays at up to `WAIT_SPEED` = 4× (only spans ≥ `WAIT_MIN_S`; a step
   speed wins; protected spans stay 1×; `overrides.trim_idle: false` disables it and gives a marked wait step back its
-  whole 1× mark window). Noted per scene. This is the root
+  whole 1× mark window). Noted per scene when some of it plays faster (none when a mark or a hold covers it). This is the root
   cause fix of the catalogue's `long-wait` warning: the import's 3.8 s loading spinner was protected at 1× by its
   marked wait step.
-- Idle trimming: the part of a timeline.idle interval outside the protected spans (still, hold, mark window), when
-  longer than `idle_threshold` (1.2 s), is shortened to 0.4 s (0.2 s kept on each side of the cut). Nothing changes on
-  screen during idle, so the trim is invisible.
+- Quick month runs (R-CHO-24, L1.2; `timing.ts` `quickRunSpans`, `planRunTiming` input `quick`): the `data.quick_runs`
+  of a `date` step (≥ 5 month clicks ~110 ms apart), from 0.1 s before the first press to 0.35 s after the last (its
+  ripple), play at up to `QUICK_RUN_SPEED` = 3× — ramped like any speed change, so a short run never reaches the full
+  speed —; a step speed wins, protected spans stay 1×, `overrides.trim_idle: false` disables it. Noted per scene when
+  some of it plays faster ("month run a–b of the capture played at up to 3×"; none when a mark or a hold covers it).
+- Held page loads (R-ISS-08, L1.2; `timing.ts` `planRunTiming` input `loading`): a page load the capture held
+  (`timeline.loading` — a multi-page run uses its pages' `tracks[].loading`) of ≥ `LOADING_CUT_MIN_S` (0.15 s, core)
+  is cut whole, `[t_start·fps, ceil(t_end·fps))` — up to the first source frame of the painted page —, inside
+  protected spans too (a frozen frame is never what a mark or a hold shows); `RunCut.reason: 'loading'`, noted
+  ("page load a–b of the capture cut"); off with `overrides.trim_idle: false`. A multi-page run's time map is shared
+  by its pages: a load held on one page is cut only where no other page acts (`loadsBesideOtherPages`: another page's
+  step through its hold, ±0.6 s around a marked one, the opening still) — that page keeps its previous frame
+  meanwhile; the runner never starts a step while any page of the scene is held. A page change inside a held load —
+  or up to `LOAD_START_SLACK_S` (50 ms) before its start: the URL segment and the hold come from two listeners of the
+  same commit — counts from the load's end for `waitingSpans`. Timing shift (L1.2): the paint wait of a navigation is in the navigating
+  step now, a `wait_for` after it waits less — the wait compression sees less, the cut takes its place.
+- Idle trimming: the part of a timeline.idle interval outside the protected spans (still, hold, mark window) and the
+  held page loads, when longer than `idle_threshold` (1.2 s), is shortened to 0.4 s (0.2 s kept on each side of the
+  cut; `RunCut.reason: 'idle'`). Nothing changes on screen during idle, so the trim is invisible.
 - Camera: static by default. Zooms only from step `camera` hints: zoom clamped to theme max_zoom, focus = event
   camera bbox centre (else point, else cursor), eased with the hint's `ease` (else the theme zoom_ease) from the
   step's output start over max(0.8 s, duration) of OUTPUT time (duration defaults to the step's output length),
@@ -559,7 +576,17 @@ own files with `planFileRefs` / `themeFileRefs`). project.yaml `raw` (core `RawS
   idle page sends no frame, its last one is final). So the first frame after the cut is a frame painted after it, at
   any export rate. A cut must leave ≥ `min_tail_s` (0.2 s) of its scene after it: a scene that ends on its awaited
   state keeps its loading (a note says so — add a `hold`), else the result would be in no clip. Never into the
-  opening still, a hold or a marked step; ≥ 0.4 s or not at all; reasons `navigation`, `loading`, `mail`. Markers at
+  opening still, a hold or a marked step; ≥ 0.4 s or not at all; reasons `navigation`, `loading`, `mail`. A **held
+  page load** (R-ISS-08: `timeline.loading`, or the scene's pages' `tracks[].loading`; option `held`) clipped to
+  `[clip start, scene end)` is a `navigation` cut from its commit to its end (the first frame of the painted page) from
+  `LOADING_CUT_MIN_S` (0.15 s — the cut sits on the page change, where the picture changes anyway), inside the still, a
+  hold or a mark too; it has no `wait_step` (manifest and markers: `after_step`, the step during which the page
+  changed); one overlapping a wait-based cut extends that cut; one reaching the scene end is cut up to it, as the edit
+  does (noted "the scene ended before the new page painted"). A multi-page scene's clips share their frames: its held
+  loads are cut only where no other page acts (`heldBesideOtherPages`: another page's step through its hold, the
+  opening still). Timing shift (L1.2): a
+  navigating click now includes the paint wait, so the `wait_for` after it often waited < 0.3 s and makes no cut — the
+  held-load cut replaces it (raw-real: `{navigation, after_step: 2}`, no `wait_step`). Markers at
   the very end of a scene land on the clip's last frame (never dropped). Clip names `NN-<scene>[-<page>]`. `clipFrameAt` maps capture times (a time inside a cut → the
   frame after it); the sequence = the primary clips back to back.
 - **Encoding** (`encode.ts`): `cfrSchedule(frames.jsonl, duration, fps)` at the EXPORT rate (60 fps = the

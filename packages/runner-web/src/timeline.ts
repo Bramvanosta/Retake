@@ -7,6 +7,7 @@ import type {
   RunMode,
   Timeline,
   TimelineEvent,
+  TimelineLoading,
   TimelineMarker,
   TimelinePageSegment,
   TimelineArtefact,
@@ -81,7 +82,8 @@ export interface MotionCapture {
  * lower of the screencast frames and the cursor positions dispatched per second. Moves below `minFps` look choppy;
  * slow rendering is the usual cause (no GPU, heavy effects). Also reports the stalls: frame gaps of STALL_MIN_S or
  * more inside a motion or a click ripple (`effects`), which a per-move average hides — except around a page change
- * (`pageChanges`: the new page renders) and an isolated 1 px nudge (the cursor waiting for a fresh frame).
+ * (`pageChanges`: the new page renders), over a page load the recorder held (`held`, R-ISS-08) and an isolated 1 px
+ * nudge (the cursor waiting for a fresh frame).
  */
 export function motionCapture(
   frameTimes: readonly number[],
@@ -89,6 +91,7 @@ export function motionCapture(
   minFps: number,
   effects: readonly CursorEffect[] = [],
   pageChanges: readonly number[] = [],
+  held: ReadonlyArray<{ t_start: number; t_end: number }> = [],
 ): MotionCapture {
   const ts = [...frameTimes].sort((a, b) => a - b);
   // 1 px nudges (Runtime.awaitFreshFrame probing the capture while the cursor rests) are no motion: a step under 2 px
@@ -138,8 +141,10 @@ export function motionCapture(
     const a = ts[i - 1];
     const b = ts[i];
     if (b - a < STALL_MIN_S) continue;
-    // A page that changes (navigation, new route) renders its new content: that wait is the product's loading.
+    // A page that changes (navigation, new route) renders its new content: that wait is the product's loading. A page
+    // load the recorder held (R-ISS-08: no frame until it painted) is that loading too.
     if (pageChanges.some((t) => t > a - 0.3 && t < b)) continue;
+    if (held.some((h) => h.t_start < b && h.t_end >= a)) continue;
     let best: CaptureStall | undefined;
     for (const [x, y, during] of busy) {
       const ov = Math.min(b, y) - Math.max(a, x);
@@ -186,6 +191,8 @@ export class TrackBuilder {
   readonly cursor: CursorSample[] = [];
   /** Icon changes, presses and ripples of this page's cursor (L2.13). */
   readonly cursorEffects: CursorEffect[] = [];
+  /** Page loads its recorder held (R-ISS-08), set when the run ends. */
+  loading: TimelineLoading[] = [];
   frames = 0;
   private since: number | null = null;
 
@@ -263,6 +270,7 @@ export class TrackBuilder {
       pages: this.pages,
       cursor: this.cursor,
       ...(this.cursorEffects.length ? { cursor_effects: sortedEffects(this.cursorEffects) } : {}),
+      ...(this.loading.length ? { loading: this.loading } : {}),
     };
     return out;
   }
@@ -295,6 +303,8 @@ export class TimelineBuilder {
   artefacts: TimelineArtefact[] = [];
   /** Per-page tracks of multi-page scenes (L2.11), in the order they were first recorded. */
   readonly tracks: TrackBuilder[] = [];
+  /** Page loads the main capture held (R-ISS-08), set when the run ends. */
+  loading: TimelineLoading[] = [];
 
   constructor(
     public readonly meta: TimelineMeta,
@@ -381,6 +391,7 @@ export class TimelineBuilder {
       cursor: this.cursor,
       ...(this.cursorEffects.length ? { cursor_effects: sortedEffects(this.cursorEffects) } : {}),
       idle: this.meta.mode === 'capture' ? computeIdle(capture.idleFrameTimes ?? capture.frameTimes, end) : [],
+      ...(this.loading.length ? { loading: this.loading } : {}),
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),
       warnings: this.warnings,

@@ -35,6 +35,7 @@ const COMMON_KEYS: ReadonlyArray<keyof StepCommon> = [
   'timeout',
   'optional',
   'irreversible',
+  'park',
   'note',
 ];
 
@@ -73,6 +74,8 @@ function normalizeArgs(action: ActionName, v: unknown): NormalizedArgsMap[Action
     case 'drag':
     case 'drop_file':
       return { ...(v as object) } as NormalizedArgsMap['select'];
+    case 'date':
+      return typeof v === 'string' ? { day: v } : { ...(v as NormalizedArgsMap['date']) };
     case 'scroll':
       if (typeof v === 'number') return { to: v };
       if (typeof v === 'string') return v === 'top' || v === 'bottom' ? { to: v } : { to: normalizeTarget(v) };

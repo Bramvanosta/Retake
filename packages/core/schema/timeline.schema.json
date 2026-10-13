@@ -621,6 +621,7 @@
               "select",
               "pick",
               "menu",
+              "date",
               "scroll",
               "drag",
               "drop_file",
@@ -1078,6 +1079,50 @@
         ],
         "additionalProperties": false
       }
+    },
+    "loading": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "page": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "load",
+              "limit",
+              "left",
+              "end"
+            ]
+          },
+          "held_frames": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end",
+          "until",
+          "held_frames"
+        ],
+        "additionalProperties": false,
+        "description": "A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
+      },
+      "description": "Page loads `capture` did not show (the previous frame held until the new page painted)."
     },
     "artefacts": {
       "type": "array",
@@ -1603,6 +1648,50 @@
               "additionalProperties": false,
               "description": "What the in-page cursor showed besides its position: icon change, press, release or click ripple (CSS px)."
             }
+          },
+          "loading": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "t_start": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "t_end": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Capture time in seconds."
+                },
+                "page": {
+                  "type": "string"
+                },
+                "until": {
+                  "type": "string",
+                  "enum": [
+                    "paint",
+                    "load",
+                    "limit",
+                    "left",
+                    "end"
+                  ]
+                },
+                "held_frames": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "t_start",
+                "t_end",
+                "until",
+                "held_frames"
+              ],
+              "additionalProperties": false,
+              "description": "A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold)."
+            },
+            "description": "Page loads this track did not show."
           }
         },
         "required": [

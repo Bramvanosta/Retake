@@ -200,6 +200,7 @@ describe('parseProjectYaml semantic checks', () => {
       'reset:',
       '  - sql: "TRUNCATE offers"',
       '  - http: {url: "{{console}}/api/reset", method: POST}',
+      'vars: {agent: "{{env:AGENT_EMAIL}}", plain: Harbour Coffee Co.}',
     ].join('\n');
     const { config, issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml');
     expect(config).toBeUndefined();
@@ -209,6 +210,24 @@ describe('parseProjectYaml semantic checks', () => {
       '8 auth key "stagin" is not an environment (did you mean "staging"?) (available: staging)',
       '10 connection URL contains a clear-text password: use {{env:VAR}} or {{keychain:service/account}}',
       '13 destructive hook (SQL TRUNCATE) requires "confirm: true"',
+      // vars values are inserted as written (L1.2 review: D5).
+      '15 {{env:AGENT_EMAIL}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
+    ]);
+  });
+
+  it('reset shell hooks are checked against the project\'s own environments and allow_hosts (R-SEC-06)', () => {
+    const text = [
+      'name: Northfield',
+      'environments:',
+      '  staging: {console: https://console.staging.example.com}',
+      'allow_hosts: [db.staging.example.com]',
+      'reset:',
+      '  - shell: "psql -h db.staging.example.com -c \'select 1\' && curl -fsS https://console.staging.example.com/api/reset"',
+      '  - shell: "pg_restore --host db.prod.example.com demo.dump"',
+    ].join('\n');
+    const { issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml');
+    expect(errors(issues).map((i) => `${i.line} ${i.message}`)).toEqual([
+      '7 shell hook names host db.prod.example.com (pg_restore -h): it is not allowed: use localhost, an environment host, or add it to allow_hosts (allowed: localhost, 127.0.0.1, ::1, console.staging.example.com, db.staging.example.com)',
     ]);
   });
 });

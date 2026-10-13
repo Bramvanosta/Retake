@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_PACING } from '@demo-studio/core';
+import { DEFAULT_CAPTURE, DEFAULT_PACING, TimelineSchema, isoDay, parseDay } from '@demo-studio/core';
 import type { LoadedProject } from '@demo-studio/core';
 import {
   arcPath,
@@ -21,6 +21,12 @@ import {
   resolveAuth,
 } from '../src/index.js';
 import { imageSize } from '../src/recorder.js';
+import { LONG_TEXT_MAX_CPS, SEARCH_MAX_CPS, typingRate } from '../src/actions/keyboard.js';
+import { matchDay, monthDirection } from '../src/actions/calendar.js';
+import type { CalendarDay } from '../src/kit/types.js';
+import { parkPlan } from '../src/park.js';
+import { normalizeStep } from '@demo-studio/core';
+import { CaptureClock, TimelineBuilder, TrackBuilder } from '../src/timeline.js';
 import { MAX_TICK_ADVANCE_MS, Pointer, TICK_MS } from '../src/pointer.js';
 import type { PointerHost } from '../src/pointer.js';
 import { execFileP, ffprobeDuration, frameAt, makeProject, tempDir } from './helpers.js';
@@ -252,6 +258,9 @@ describe('timeline helpers', () => {
     expect(motionWarnings(null, 18, '')).toEqual([]);
     // A gap while the page changes (navigation, new route) is the product's loading, not a stall.
     expect(motionCapture(frames, cursor, 18, effects, [1.3]).stalls.map((s) => s.during)).toEqual(['ripple']);
+    // Nor a page load the recorder held (R-ISS-08): no frame until the new page painted.
+    expect(motionCapture(frames, cursor, 18, effects, [], [{ t_start: 3.1, t_end: 3.46 }]).stalls.map((s) => s.during)).toEqual(['move']);
+    expect(motionCapture(frames, cursor, 18, effects, [], [{ t_start: 5, t_end: 6 }]).stalls).toHaveLength(2);
     // Shorter gaps (a hover hitch of 120 ms) are not reported.
     const hitch = [...Array.from({ length: 13 }, (_, i) => 1 + i / 60), ...Array.from({ length: 20 }, (_, i) => 1.32 + i / 60)];
     expect(motionCapture(hitch, move, 18).stalls).toEqual([]);
@@ -280,6 +289,24 @@ describe('timeline helpers', () => {
       ...glide.slice(1),
     ];
     expect(motionCapture(frames, quickBack, 18).stalls).toEqual([]);
+  });
+
+  it('timeline and tracks list the page loads the capture held only when there are some (R-ISS-08)', () => {
+    const clock = new CaptureClock(0);
+    const meta = { run_id: 'r', project: 'p', scenario: 's', mode: 'capture' as const, capture: { ...DEFAULT_CAPTURE, width: 800, height: 600 } };
+    const capture = { file: 'capture.mp4', duration: 5, frames: 1, frameTimes: [0.1] };
+    const tb = new TimelineBuilder(meta, clock);
+    const track = new TrackBuilder({ id: 'app', file: 'capture-app.mp4', frames_file: 'frames-app.jsonl', width: 800, height: 600, scale: 1, fps: 30 }, clock);
+    tb.tracks.push(track);
+    let tl = tb.build(capture);
+    expect(tl).not.toHaveProperty('loading');
+    expect(tl.tracks![0]).not.toHaveProperty('loading');
+    tb.loading = [{ t_start: 1, t_end: 1.8, page: 'main', until: 'paint', held_frames: 40 }];
+    track.loading = [{ t_start: 2, t_end: 2.3, page: 'app', until: 'load', held_frames: 3 }];
+    tl = tb.build(capture);
+    expect(tl.loading).toEqual(tb.loading);
+    expect(tl.tracks![0].loading).toEqual(track.loading);
+    expect(TimelineSchema.safeParse(tl).success).toBe(true);
   });
 
   it('keeps Chromium\'s frame rate limiter unless the project turns it off (L1.3)', () => {
@@ -366,5 +393,73 @@ describe('configuration', () => {
     expect(src).toContain('"arrow-light"');
     expect(src).toContain('rgba(1,2,3,.4)');
     expect(kitConfigFor().cursor).toEqual({ style: 'arrow-dark', size: 26, ripple_color: 'rgba(0,0,0,.25)' });
+  });
+});
+
+describe('choreography helpers (pure)', () => {
+  it('adapts the typing rate to the field: search ≤ 10, default, long free text up to 24 (R-CHO-14)', () => {
+    expect(SEARCH_MAX_CPS).toBe(10);
+    expect(LONG_TEXT_MAX_CPS).toBe(24);
+    expect(typingRate('search', 12, 14)).toEqual({ cps: 10, rate: 'search' });
+    expect(typingRate('search', 200, 8)).toEqual({ cps: 8, rate: 'search' });
+    expect(typingRate('search', 12, 60)).toEqual({ cps: 10, rate: 'search' });
+    expect([30, 40, 80, 120, 200].map((n) => typingRate('text', n, 14).cps)).toEqual([14, 14, 19, 24, 24]);
+    expect(typingRate('multiline', 80, 14)).toEqual({ cps: 19, rate: 'long' });
+    expect(typingRate(null, 30, 14)).toEqual({ cps: 14, rate: 'default' });
+    expect(typingRate('text', 200, 60)).toEqual({ cps: 60, rate: 'default' });
+  });
+
+  it('reads days in ISO and English long forms, anywhere in a label (R-CHO-24)', () => {
+    const d = parseDay('2027-01-10');
+    expect(d).not.toBeNull();
+    for (const s of ['10 January 2027', 'Sunday, 10 January 2027', 'January 10th, 2027', 'Jan 10, 2027', 'Choose Sunday, January 10, 2027', '10th of January 2027', 'Today, 10\u00a0Jan 2027']) {
+      expect(parseDay(s), s).toBe(d);
+    }
+    expect(isoDay(d!)).toBe('2027-01-10');
+    expect(parseDay('10 janvier 2027')).toBeNull();
+    expect(parseDay('31 February 2027')).toBeNull();
+    expect(parseDay('January 2027')).toBeNull();
+  });
+
+  it('matches a day as a date, never a longer number; pages towards it (R-CHO-24)', () => {
+    const cell = (label: string, extra: Partial<CalendarDay> = {}): CalendarDay => ({ ref: label, label, iso: null, disabled: false, outside: false, ...extra });
+    const days = [
+      cell('Friday, 1 January 2027'),
+      cell('Monday, 11 January 2027'),
+      cell('Thursday, 21 January 2027'),
+      cell('Sunday, 31 January 2027'),
+      cell('Monday, 1 February 2027', { outside: true }),
+    ];
+    expect(matchDay(days, '1 January 2027')?.label).toBe('Friday, 1 January 2027');
+    expect(matchDay(days, '2027-01-11')?.label).toBe('Monday, 11 January 2027');
+    expect(matchDay(days, 'January 31st, 2027')?.label).toBe('Sunday, 31 January 2027');
+    expect(matchDay(days, '1 March 2027')).toBeNull();
+    // Date attributes win over labels; a label query matches whole words.
+    expect(matchDay([cell('7', { iso: '2027-03-07' })], '7 March 2027')?.iso).toBe('2027-03-07');
+    expect(matchDay([cell('Lundi 1 janvier'), cell('Lundi 11 janvier')], '1 janvier')?.label).toBe('Lundi 1 janvier');
+    // An outside-month copy only when nothing else matches.
+    expect(matchDay([cell('Monday, 1 February 2027', { outside: true }), cell('Monday, 1 February 2027', { ref: 'in' })], '1 February 2027')?.ref).toBe('in');
+    // A day shown only as a disabled copy from the next month is not shown: the calendar pages to it (review fix K5).
+    expect(matchDay([...days, cell('Wednesday, 3 February 2027', { outside: true, disabled: true })], '3 February 2027')).toBeNull();
+    expect(monthDirection([...days, cell('Wednesday, 3 February 2027', { outside: true, disabled: true })], '3 February 2027')).toBe('next');
+    expect(matchDay([cell('Monday, 1 February 2027', { disabled: true })], '1 February 2027')?.disabled).toBe(true);
+    expect(monthDirection(days, '2026-12-24')).toBe('previous');
+    expect(monthDirection(days, '2027-03-02')).toBe('next');
+    expect(monthDirection(days, '2027-01-15')).toBe('inside');
+    expect(monthDirection(days, 'someday')).toBe('next');
+  });
+
+  it('parks only when a step asks: next to a scroll target, else away from the result; holds (R-CHO-18/21)', () => {
+    const plan = (step: Record<string, unknown>) => parkPlan(normalizeStep(step as never, 0), DEFAULT_PACING);
+    expect(plan({ click: 'Save' })).toBeNull();
+    expect(plan({ click: 'Save', park: false })).toBeNull();
+    expect(plan({ click: 'Save', park: true })).toEqual({ kind: 'result', when: 'after', hold_s: 2 });
+    expect(plan({ click: 'Save', park: true, hold: 1.2 })).toEqual({ kind: 'result', when: 'after', hold_s: 1.2 });
+    expect(plan({ click: 'Save', park: 2.5, hold: 1 })).toEqual({ kind: 'result', when: 'after', hold_s: 2.5 });
+    expect(plan({ scroll: 'Awards', park: true })).toEqual({ kind: 'scroll', when: 'after', hold_s: 3.2 });
+    expect(plan({ scroll: { to: '#awards' }, park: true })).toEqual({ kind: 'scroll', when: 'after', hold_s: 3.2 });
+    expect(plan({ scroll: { by: 400 }, park: true })).toEqual({ kind: 'result', when: 'after', hold_s: 2 });
+    expect(plan({ wait_for: 'Saved', park: 0 })).toEqual({ kind: 'result', when: 'after', hold_s: 0 });
+    expect(plan({ hold: 2, park: true })).toEqual({ kind: 'result', when: 'before', hold_s: 0 });
   });
 });

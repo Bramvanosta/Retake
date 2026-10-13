@@ -30,6 +30,8 @@ describe('normalizeStep shorthands', () => {
     [{ select: { combobox: '#org', option: 'A' } }, 'select', { combobox: '#org', option: 'A' }],
     [{ pick: { field: 'Bag sizes', option: '1 kg' } }, 'pick', { field: 'Bag sizes', option: '1 kg' }],
     [{ menu: { row: 'Iceland', item: 'Pause' } }, 'menu', { row: 'Iceland', item: 'Pause' }],
+    [{ date: '14 March 2027' }, 'date', { day: '14 March 2027' }],
+    [{ date: { field: 'Delivery window', day: ['10 January 2027', '24 January 2027'], close: 'none' } }, 'date', { field: 'Delivery window', day: ['10 January 2027', '24 January 2027'], close: 'none' }],
     [{ scroll: 560 }, 'scroll', { to: 560 }],
     [{ scroll: 'bottom' } as unknown as Step, 'scroll', { to: 'bottom' }],
     [{ scroll: 'Awards' } as unknown as Step, 'scroll', { to: { text: 'Awards' } }],
@@ -74,8 +76,8 @@ describe('normalizeStep shorthands', () => {
   });
 
   it('keeps the common modifiers', () => {
-    const n = normalizeStep({ click: 'Save', id: 'save', hold: 1.2, mark: 'saved', speed: 1.5, camera: { zoom: 1.2 } }, 0);
-    expect(n).toMatchObject({ action: 'click', id: 'save', hold: 1.2, mark: 'saved', speed: 1.5, camera: { zoom: 1.2 } });
+    const n = normalizeStep({ click: 'Save', id: 'save', hold: 1.2, mark: 'saved', speed: 1.5, camera: { zoom: 1.2 }, park: true }, 0);
+    expect(n).toMatchObject({ action: 'click', id: 'save', hold: 1.2, mark: 'saved', speed: 1.5, camera: { zoom: 1.2 }, park: true });
   });
 
   it('a hold action is not also a hold modifier', () => {

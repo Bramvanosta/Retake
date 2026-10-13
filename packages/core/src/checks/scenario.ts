@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
+import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
 import { normalizeStep, resolveStepRef } from '../steps.js';
 import { isDesktopViewport, resolveViewport, scenePageEntries, splitPageOpen } from '../pages.js';
 import type { ResolvedViewport } from '../pages.js';
@@ -17,7 +18,8 @@ import { checkActionArgs, checkTarget } from './actions.js';
 import { CheckContext, isObj } from './context.js';
 import { checkHooks } from './hooks.js';
 import { checkMediaFields } from './media.js';
-import { checkTokens } from './tokens.js';
+import { checkTokens, checkVarsValues } from './tokens.js';
+import type { TokenRules } from './tokens.js';
 
 export interface ScenarioCheckOptions {
   project?: LoadedProject;
@@ -99,8 +101,9 @@ class ScenarioChecker {
     this.scenes();
     const saved = new Set<string>();
     const pageKeys = this.pages ? Object.keys(this.pages) : undefined;
-    checkHooks(this.s.setup, ['setup'], this.ctx, { pages: pageKeys, saved });
-    checkHooks(this.s.teardown, ['teardown'], this.ctx, { pages: pageKeys, saved });
+    const project = this.opts.project;
+    checkHooks(this.s.setup, ['setup'], this.ctx, { pages: pageKeys, saved, project });
+    checkHooks(this.s.teardown, ['teardown'], this.ctx, { pages: pageKeys, saved, project });
     this.tokens(saved);
     this.misc();
     return this.ctx.out;
@@ -562,6 +565,11 @@ class ScenarioChecker {
     if (step.overlay?.slots) this.slotRefs(step.overlay.slots, [...sp, 'overlay', 'slots']);
     if (step.overlay) this.overlay(step, [...sp, 'overlay']);
     if (step.tutorial !== undefined) this.tutorial(step.tutorial, [...sp, 'tutorial'], 'step', step.action);
+    if (typeof step.park === 'number' && step.action === 'hold') {
+      this.ctx.warning([...sp, 'park'], 'on a `hold` step the cursor parks, then the hold step sets the time: give `park: true`');
+    } else if (typeof step.park === 'number' && step.hold !== undefined) {
+      this.ctx.warning([...sp, 'hold'], '`park: <seconds>` sets the hold after the park: `hold` is ignored');
+    }
     const facts = checkActionArgs(step, sp, this.ctx);
     if (facts.artefact) {
       const known = this.artefacts[facts.artefact.kind];
@@ -595,7 +603,7 @@ class ScenarioChecker {
       this.ctx.warning([...op, 'scale'], `\`scale\` is ignored: ${o.rect !== undefined ? '`rect` sets the size' : '`anchor: screen` fills the visible capture'}`);
     }
     if (typeof o.at === 'string' && o.at.startsWith('mark:')) this.atMarks.push({ name: o.at.slice(5), path: [...op, 'at'] });
-    const clicks = ['click', 'double_click', 'menu', 'pick', 'select', 'drag', 'drop_file', 'download'];
+    const clicks = ['click', 'double_click', 'menu', 'date', 'pick', 'select', 'drag', 'drop_file', 'download'];
     if (o.at === 'click' && !clicks.includes(step.action)) {
       this.ctx.warning([...op, 'at'], `a ${step.action} step has no click: the overlay starts at the end of the step`);
     }
@@ -613,12 +621,22 @@ class ScenarioChecker {
       varsComplete: this.opts.project !== undefined,
       saved,
     };
+    // Scenes are templated when they run (R-RUN-16): no token in a literal name, no secret in what the video shows.
+    const sceneRules: TokenRules = {
+      literal: (p, v) => isLiteralPath(p.slice(2), v),
+      noSecret: (p) => isEditTextPath(p.slice(2)),
+    };
     for (const key of ['setup', 'teardown', 'scenes'] as const) {
       const list = this.s[key];
       if (!Array.isArray(list)) continue;
       list.forEach((v, i) => {
-        if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], scope, this.ctx);
+        if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], scope, this.ctx, false, key === 'scenes' ? sceneRules : undefined);
       });
+    }
+    if (this.s.vars !== undefined && !this.ctx.broken(['vars'])) checkVarsValues(this.s.vars, ['vars'], this.ctx);
+    // The video's title, intro, outro and tutorial switches are templated too (shown in the video: no secrets).
+    for (const key of ['title', 'intro', 'outro', 'tutorial'] as const) {
+      if (this.s[key] !== undefined && !this.ctx.broken([key])) checkTokens(this.s[key], [key], scope, this.ctx, false, { noSecret: () => true });
     }
   }
 

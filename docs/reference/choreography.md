@@ -28,6 +28,8 @@ existed (cursor overlay injected into the page + one async function per scene). 
 ## Typing
 - 8–11 chars/s in search fields, ~14 by default, up to 24 for long free-text messages; ±30 % per-character jitter.
 - Clear a field before typing (select-all + delete, or native value setter + `input` event on React inputs).
+- Type real secrets only into password fields (bullets on screen); a visible field shows them in the video (the runner
+  warns) — sign in beforehand or type a showable value from `vars`.
 
 ## Scrolling & attention
 - Eased scrolls of 1.5–2.2 s; scroll so the target sits ~140 px below the top; then park the cursor next to the target

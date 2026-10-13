@@ -1,6 +1,6 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-12, end of lot **L1.3 (capture smoothness)**, after L1.5 and L5.1 — phases 1 and 2 are done;
+Last updated: 2026-10-13, end of lot **L1.2 (runner robustness)**, after L1.5, L5.1 and L1.3 — phases 1 and 2 are done;
 the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
@@ -23,17 +23,22 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-55); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-59); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.3)
+## State (after L1.2)
+- **L1.2 done (2026-10-13)**: the runner finds targets in open shadow roots and same-origin iframes, never films a
+  loading page (frames held until the new page paints, `timeline.loading`, cut in the edit), templates every scenario
+  string with secrets resolved up front and redacted from every run file, checks the hosts of shell and js hooks, and
+  gained choreography helpers (`date`, `park`, adaptive typing, robust `clear`, menu re-click). Tests on the Mac:
+  **1142 — 1135 pass, 7 skipped (≈ 4 m)**. Requirements: 618 tracked — 448 done, 40 partial, 122 todo, 8 n/a-here.
 - **L1.3 done (2026-10-12)**: the cursor waits for flowing frames after a scroll (stalls after scrolls gone) and
   before a press, the motion check warns on stalls ≥ 150 ms. Two limits stay partial: closing a dialog with a blurred
   overlay still freezes ≈ 0.26 s during the click ripple (R-ISS-12; `browser.frame_rate_limit: false` avoids it, not
   the default: rAF at thousands of Hz, 2–6× CPU), and hover-effect hitches (100–400 ms, now and then; R-ISS-02).
-  Tests on the Mac: **896 — 889 pass, 7 skipped** (≈ 2 m 35 s). Requirements: 618 tracked — 435 done, 49 partial, 126 todo, 8 n/a-here.
+  Tests on the Mac: **896 — 889 pass, 7 skipped** (≈ 2 m 35 s).
 - **L5.1 done (2026-10-12)**: the CLI tells an old Node.js which version it needs, a new workspace uses the starter
   templates, one-line keychain errors (printed once), `doctor` checks ffmpeg ≥ 5.1, scene rest points next to the
   click point and inside the target's dialog, continuing scenes glide next to a far first target, late popups caught
@@ -58,7 +63,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: L1.2 (runner robustness), L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox),
+- **Not built yet**: L1.4 (coverage), L1.6–L1.8 (personas, display URLs / safety, sandbox),
   phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
@@ -108,14 +113,13 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12. Chain asked by the user (2026-10-12): L1.3 (stalls) → **L1.2** (runner
-   robustness) → **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
+2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~ — done 2026-10-13. Chain asked by the user (2026-10-12): L1.3
+   (stalls) → L1.2 (runner robustness) → **L1.6** (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
    → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.2 — Runner robustness for any site** (shadow DOM and iframes, loading frames, templating and secrets everywhere,
-host policy for shell/js hooks, choreography helpers), then L1.6, L1.7, L1.8, L1.4 — see "Order of the next lots".
+**L1.6 — Sessions & personas**, then L1.7, L1.8, L1.4 — see "Order of the next lots".
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -649,6 +653,50 @@ host policy for shell/js hooks, choreography helpers), then L1.6, L1.7, L1.8, L1
   896 tests: 889 pass, 7 skipped (the e2e capture test now tolerates a freeze during a click ripple only, R-ISS-12). A review workflow checked the lot (fixed: the default flag, useless 0.9 s press waits,
   the click-time skew of the late-popup window, a press after cancel, nudges counted as motion, the raw-real flakes,
   a stale doc comment). No dependency added.
+- **L1.2 done** (runner robustness for any site; R-ISS-07, R-ISS-08, R-RUN-16, R-RUN-17, R-SEC-06, R-CHO-10/13/14/15/18/
+  21/24 done, R-KIT-11 closed on the way). Built in five areas, each by a subagent from a design plan and its
+  adversarial critique (design workflow), then reviewed by four independent reviewers (≈ 40 findings, one high: shell
+  hosts inside `$(…)` were never checked) and fixed in three passes, each finding with a regression test.
+  **A — shadow DOM and frames (R-ISS-07)**: everything in the top kit (kit.ts "trees" section: winOf / styleOf / isA /
+  deepHit / deepActive / composed order); boxes and points cross the kit boundary in top-level CSS px both ways; refs
+  may point into same-origin frames (stale after the frame navigates); ensureInView 6 layers; a missing target behind
+  cross-origin frames says "N cross-origin frame(s) not searched"; the text tier is chosen in the searched document
+  first (a same-origin widget frame no longer steals a page match). Fixture: "Before you order" at the bottom of every
+  product page (`<nf-brew-guide>` with an open shadow root, `/embed/shipping` iframe), scenario `embedded`; tests
+  kit.test (shadow, frames, R-KIT-11 forwarding), deep.test (real capture). **B — full-page loads (R-ISS-08)**:
+  hold.ts `LoadHold` + recorder (frameNavigated / lifecycle events): frames of a loading document are held until the
+  page's own first contentful paint (or load + grace, or the 10 s limit, warned), released frames stamped at the
+  release; `timeline.loading` / `tracks[].loading` (`until`, `held_frames`); the kit draws the cursor on a new document
+  only after the page's first paint (the cursor faking the first paint was the cause of the blank catalogue shell);
+  Runtime `awaitLoaded` / `awaitShownLoaded` before and right after every step (all panes of a multi-page scene), a
+  fresh tab's blank hold never awaited; the recorder restarts the screencast when Chromium stops sending frames after
+  a paint and asks for a fresh frame after one dropped by the size check (the navigation-test flake); the edit cuts
+  held loads ≥ 0.15 s whole (`LOADING_CUT_MIN_S`) except where another page acts, the raw export makes them
+  `navigation` cuts. Fixture: "Sales reports" (plain links, a slow report), scenario `reports`. **C — templating and
+  secrets (R-RUN-16/17)**: core scenario-template.ts templates each scene / card / interstitial once when reached
+  (steps before normalizeStep; the video block after the setup hooks; emit and screenshot names stay literal; a token
+  in a `vars` value is a validation error until BL-56); every `{{env:…}}` / `{{keychain:…}}` is a secret, resolved
+  before the browser opens; runner-web secrets.ts redacts by path policy (timeline, run record, progress events:
+  ids, enums, files and timestamps kept at known positions, everything else masked, incl. URL-encoded forms as Chrome
+  serialises them); step descriptions from a fully redacted copy; typing a secret into a visible field warns; hooks
+  get `{{run.dir}}`. **D — hook host policy (R-SEC-06)**: js hooks run in a guarded tab per page key (CDP Fetch +
+  page.route + routeWebSocket + service-worker bypass + no popups), kept for the session; shell hooks: core
+  shell-hosts.ts reads the script command by command (its own assignments, `$(…)` / backticks / heredocs scanned as
+  scripts, inline interpreter code, curl / wget / HTTPie / database clients / ssh / git remotes, proxies) at validation
+  and again at run time with the real env; a host computed at run time is refused; what it cannot see is listed in the
+  README and BL-57. **E — choreography (R-CHO-*)**: re-click of a menu trigger when nothing opened in 3 s, row-action
+  trigger fallbacks (hover reveal, positional last resort), adaptive typing rate (search ≈ 10, default 14, long text
+  24 cps), `clear` with keys / native setter / editor fallbacks (frames included), new `date` action (last visible
+  month buttons inside the calendar, days compared as dates, quick month runs played up to 3× in the edit), opt-in
+  `park` modifier (after a scroll or a result, away from what changed, never away from a menu the step opened).
+  Acceptance (Mac): embedded 20261012-225230 (14/14, no warning, worst 54.5 fps); reports 20261013-120620 (5 held
+  loads, 1.38 s mid-scene, 1.36 s at scene open), live-quote -120643, phone-and-desktop -120721, catalogue -120752,
+  quote -120904 — no frame under 20 KB (the old catalogue 20261012-211826 had 4 blank ones), no frame inside a held
+  load, durations within 0.25 s of earlier runs, only the known R-ISS-12 ripple warnings; signup 20261013-001611 typed
+  its `vars`; a scratch env-secret run kept the secret out of log.jsonl / run.json / timeline.json (except captured
+  email artefacts, by design); quote's js hook tab still fires the captured notification; scratch calendar / clear /
+  park captures looked at frame by frame; renders reports-v2, live-quote-v1, catalogue-v1, embedded-v1 and
+  choreo-check-v1 reviewed clean of blank / loading findings. 1142 tests: 1135 pass, 7 skipped. No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -668,6 +716,8 @@ and the 4K run 20261011-234009-quote-4k of a scale-2 copy of the quote scenario)
 that runs it):
 ```
 node packages/cli/dist/bin.js run northfield-fixture signup              # mail, phone cards, tap-open, tutorial overlays (≈ 45 s)
+node packages/cli/dist/bin.js run northfield-fixture embedded            # shadow DOM widget + iframe on a product page (≈ 25 s)
+node packages/cli/dist/bin.js run northfield-fixture reports             # full-page loads, a slow report held until painted (≈ 20 s)
 node packages/cli/dist/bin.js run northfield-fixture highlights          # capture_text + every story card (≈ 46 s)
 node packages/cli/dist/bin.js run northfield-fixture live-quote          # shop + console at once (split, ≈ 1 m 15 s)
 node packages/cli/dist/bin.js run northfield-fixture phone-and-desktop   # desktop + phone at once (pip, ≈ 50 s)
@@ -876,6 +926,42 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.2:
+- Kit, cross-realm rule: no `instanceof`, bare `getComputedStyle` or top-realm constructors on elements that may live
+  in a frame — `isA`, `styleOf`, `winOf`. Composed order: a host or frame before what it holds, shadow content before
+  slotted content; on pages with components or frames, counts / `nth` / `last_visible` include deep matches. Run the
+  `embedded` scenario after any kit change touching frames or shadow DOM.
+- `topDialog`, `popupState` and the menu / listbox scopes are deep: a visible role=dialog inside a same-origin iframe
+  can win `in: dialog` when nothing is `:modal`. `blankAt` refuses points over frames. A move inside a frame reaches
+  the overlay one postMessage later per nesting level.
+- Never draw contentful overlay content on a new document before the page's own first paint (kit `revealed` gate):
+  Chromium counts it as the page's first paint. Diagnose a hold with `timeline.loading` / `tracks[].loading`
+  (`until`: paint / load / limit / left / end; `held_frames`): no frame lies in [t_start, t_end). Chromium can stop
+  sending frames after a page paints until the next input; the recorder restarts the screencast. Constants: hold.ts
+  8 / 40 / 120 ms, 3 s / 0.5 s grace, 10 s limit; kit reveal fallback 10 s.
+- Timing shift: a navigation's paint wait is inside the click (or the step that navigated) — a `wait_for` right after
+  it waits ≈ 0 s, so fewer wait-based raw cuts and less wait compression; the held-load cut replaces them. In a
+  multi-page scene no step starts while any of its pages is held; a page's held load is cut only beside the other
+  pages' inactivity. Known gaps (R-ISS-08): an iframe's own navigation is not held, an app's loading UI after its first
+  paint is not (use `wait_for`), a navigation whose request starts after the step returns is awaited at the next step.
+- Secrets: every `{{env:…}}` / `{{keychain:…}}` is a secret; values the video may show go in `vars` (literal values:
+  a token inside a `vars` value is refused until BL-56). A new timeline or RunRecord string field must be added to the
+  path policy in runner-web/src/secrets.ts, or it is redacted. Grep the run folder for a value to check; captured
+  email artefacts keep theirs by design. No real Keychain item was used in a step (agents cannot write to the
+  Keychain): the user can try one with `security add-generic-password` and a `{{keychain:…}}` step.
+- js hooks run in their own guarded tab per page key (not in `session.pages`, never recorded): scenes must `open`
+  their page; sessionStorage and page state do not carry over; teardown js hooks do not see the last page. New
+  `context.on('page')` / `context.route` code (L1.7) must ignore `session.hookPages`. Shell hooks: a variable in a host
+  position after `source`, `read`, `for` or `eval` of computed text is refused as computed; an ssh alias is checked as
+  written (list it in `allow_hosts`). Refusals say how the host was reached and name hosts, never URLs.
+- `park` is opt-in per step; the change record (MutationObserver, top document, last 500 elements) runs only when a
+  step of the scenario parks. `type` without `cps` adapts its rate (fixture scenarios all set `cps`). `date`: English
+  and ISO days, the native `input[type=date]` path, no time of day; `kit.calendar()` lists the days it reads.
+  `menuTrigger` returns `{ref, hover}`. Kit VERSION 1.2.0.
+- Disk: `keep_frames` defaults to true and a capture keeps ≈ 300–400 MB of JPEGs; the Mac's disk filled up during
+  L1.2 (29 GB of runs) and the frames of the 2026-10-12/13 runs were deleted with the user's OK. Prune `runs/*/frames`
+  now and then.
+
 Notes from L1.3:
 - Heavy background work (another project's tests, Spotlight, updaters: load averages of 15–27 seen) slows a capture
   (the catalogue took 1 m 37 s instead of 1 m 12 s) and its motion; the run warns when the capture froze ≥ 150 ms.

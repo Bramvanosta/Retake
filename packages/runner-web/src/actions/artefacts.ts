@@ -224,7 +224,9 @@ export async function captureText(ctx: StepContext, args: NormalizedArgsMap['cap
     await rt.sleep(150);
   }
   const where = rt.current ? { scene: rt.current.scene, step: rt.current.step } : {};
-  const a = await rt.artefacts.addText(args.as, { value, text, target: r.desc, bbox: r.bbox, ...(args.pattern ? { pattern: args.pattern } : {}) }, rt.now(), where);
+  // The target description comes from the scenario (a secret in its target spec): artefacts are kept as captured.
+  const target = rt.secrets.redactText(r.desc);
+  const a = await rt.artefacts.addText(args.as, { value, text, target, bbox: r.bbox, ...(args.pattern ? { pattern: args.pattern } : {}) }, rt.now(), where);
   rt.log('info', `capture_text: "${value}" from ${r.desc} as ${args.as}`);
   return { target: { desc: r.desc, bbox: r.bbox }, data: { artefact: 'text', name: args.as, file: a.file, value } };
 }

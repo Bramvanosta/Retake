@@ -36,8 +36,10 @@ profiles live in **your own workspace folder**, never in this repository.
 3. Setup hooks prepare the data first (HTTP, SQL, shell, in-page JS) and are journaled with their rollback;
    teardown hooks always run, then pending rollbacks are replayed.
 4. The run produces `capture.mp4` (constant frame rate, H.264) and `timeline.json` (every scene and step with its
-   start/end/click times in capture time, target boxes, markers, page/URL segments, the cursor track and idle
-   intervals) — the inputs of the editor.
+   start/end/click times in capture time, target boxes, markers, page/URL segments, the cursor track, idle intervals
+   and the page loads the capture held) — the inputs of the editor. The capture never shows a page that has not
+   painted yet: during a full page load it keeps the previous picture until the new page has painted content of its
+   own.
 
 Because the browser is headless and offscreen, a capture does not take over your screen: keep working while it runs.
 
@@ -250,7 +252,7 @@ capture: {width: 1920, height: 1080, scale: 1, fps: 30}   # scale 2 → real 384
 frame: card                    # raw | card | browser | laptop | phone | tablet (| split | pip: multi-page scenes), or a layout component id
 template: default              # a workspace template, a starter (default, editorial, motion), or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
-allow_hosts: [api.staging.example.com]                    # extra hosts hooks may call
+allow_hosts: [api.staging.example.com]                    # extra hosts hooks (every kind) may reach
 databases:
   main: {url: "postgres://demo@db.staging.example.com/app?password={{keychain:acme/db}}"}
 vars: {customer: Northfield Roasters}
@@ -275,11 +277,12 @@ Run `studio schema project` for the full schema (also in `packages/core/schema/`
 | `nudge_px`, `nudge_ms`, `nudge_hover_ms` | 60, 250, 120 | Moves shorter than `nudge_px` (repeated clicks on almost the same spot) take 60–100 % of `nudge_ms` (150–250 ms) and hover `nudge_hover_ms`; a zero-length move takes 0 ms |
 | `hover_ms`, `press_ms` | 200, 90 | Hover before pressing; mousedown → mouseup |
 | `after_click_ms`, `after_popup_ms` | 350, 800 | Pause after a click; after a click that opened a menu/popover/dialog |
-| `after_navigation_ms` | 1500 | Minimum time between a click that changed the page (document navigation or new URL) and the next step |
+| `after_navigation_ms` | 1500 | Minimum time between a click that changed the page (document navigation or new URL) and the next step; a page load the capture held (cut by the edit) does not count, the request before it does |
 | `page_switch_ms` | 500 | Multi-page scenes: the pause when the next step acts on another page than the previous one (the eye moves), before that page's cursor glides |
 | `popup_fallback_ms` | 300 | How long a click gets to show that an expected popup opened (`aria-expanded="true"` or a new popup, polled every 40 ms) before the next strategy (DOM click, then pointer sequence) is tried |
 | `popup_timeout_ms` | 700 | How long the last strategy waits for the popup before the step reports it missing; also how long after the press of a plain click the next step waits for a popup that opens late, while that step's target is not on screen yet |
-| `type_cps` | 14 | Typing speed (search fields are capped at 10) |
+| `type_cps` | 14 | Typing speed. A `type` step without `cps` adapts it to the field: a search field (type=search, searchbox, combobox, autocomplete, inside a search form or an open popover, or named like one) at most 10, long free text (over 40 characters) up to 24 at 120 characters; ±30 % per character |
+| `park_hold`, `park_scroll_hold` | 2, 3.2 | Seconds a step's `park: true` holds the cursor still on the result; after a scroll to a target |
 | `scroll_duration`, `scroll_offset` | 1.6, −140 | Scroll animation seconds; default `scroll.offset` with a target (it ends 140 px below the top) |
 | `jitter`, `settle_ms` | 0.08, 3000 | Deterministic ±jitter on durations; network-idle wait after a navigation |
 
@@ -343,6 +346,21 @@ The capture never shows the cursor jump: a scene that opens a page places it whi
 that part); a scene that continues from the current state glides there, eased, during its still. The choice is
 recorded as `data.cursor` of the scene's `scene_still` event.
 
+**Full page loads.** A navigation to another document — a link, a form, `open`, a new tab, a redirect — shows nothing
+of the new page until it has painted content of its own (text, an image or an SVG: its first contentful paint). The
+capture keeps the previous picture meanwhile, so a blank page, an app's empty shell or a skeleton without text is
+never filmed; a drawn cursor appears with the first painted picture. The runner waits for that paint before the next
+step and before a scene's still (in a multi-page scene, for every page it films): a step that navigated — a click,
+an Enter, `open` (also with `wait_until: commit`), a new tab — ends with the new page painted, so its `hold`, its
+`park` and a `wait_for` right after it start on the painted page. A page that never paints content (only solid
+colours) is shown 3 s after its network went idle (a PDF: 0.5 s); one that paints nothing within 10 s is shown as it
+is from then on, with a run warning. A new tab or page still blank (nothing opened in it yet) is not waited for — the
+step that opens a page there is what fills it —; it is not shown until that page paints (a run warning after 10 s).
+Ctrl-C does not wait for a held load. Each held load is in `timeline.loading`; the edit and the raw export cut it
+(a multi-page scene's pages share their timing: a load held on one page is not cut while another page acts — that
+page keeps its previous picture meanwhile). What the app shows once it has painted — a spinner with a label, a table
+filling in — is the product: wait for its result with `wait_for`.
+
 ### Actions
 
 Every step has exactly one action; shorthand forms are shown first.
@@ -351,14 +369,15 @@ Every step has exactly one action; shorthand forms are shown first.
 |---|---|---|
 | `open` | `open: /settings` · `{url, page, wait_until}` | Navigate the current (or given) page |
 | `click` | `click: Save` · `{text: Save, in: dialog}` | Cursor travels, hovers, presses; popup-aware fallbacks |
-| `click` (outside) | `click: {outside: true}` | Close the open popover by clicking the dialog title or a blank area |
+| `click` (outside) | `click: {outside: true}` | Close the open popover by clicking the dialog title or a blank area; with a listbox open over a floating popover, the listbox closes first (a click on the popover's title), the popover on the next one |
 | `double_click` | `double_click: {text: Report.pdf}` | Double click |
 | `hover` | `hover: {text: Pricing, ms: 900}` | Move onto an element and rest |
-| `type` | `type: {into: {label: Email}, text: hi@example.com, cps: 12, clear: true, enter: true}` | Type character by character |
+| `type` | `type: {into: {label: Email}, text: hi@example.com, cps: 12, clear: true, enter: true}` | Type character by character; without `cps` the rate adapts to the field (search ≤ 10, long text up to 24; `data.rate`); `clear` selects all + deletes, and when the field still holds text (select-all blocked, a React input that restored its value) uses the native value setter + an `input` event (`data.clear`); an editor the runner cannot read (in a frame from another origin, or typing into a hidden input: CodeMirror 5, Monaco) gets the keys only, unchecked |
 | `press` | `press: Enter` · `{key: ArrowDown, times: 3}` | Press a key (Playwright key names) |
 | `select` | `select: {field: Country, option: Sweden, search: Swe}` · `{combobox: "#country", option: …}` | Native select or combobox listbox |
-| `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg, close: outside}` | Multi-select popover, closed without Escape |
-| `menu` | `menu: {row: Iceland, item: Pause, confirm: Pause}` · `{trigger: …, item: …}` | Row action menu, optional confirmation |
+| `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg, close: outside}` | Multi-select popover, closed without Escape; only what the step opened is closed (a popover holding the field stays open) |
+| `menu` | `menu: {row: Iceland, item: Pause, confirm: Pause}` · `{trigger: …, item: …}` | Row action menu, optional confirmation. The trigger: an `aria-haspopup` element, a button named like a menu, else the row's last button; actions shown on hover are revealed by hovering the row's right end; a row without any button: the clickable element at its right end, else its top-right corner (warned: give `trigger:`) |
+| `date` | `date: {field: Delivery window, day: [10 January 2027, 24 January 2027]}` · `date: 14 March 2027` · `{next, previous, close}` | Date picker: waits for a previous date popover to close, opens the field, pages months with the calendar's **last visible** month button — a button or an element classed next / prev above or beside the days, never one below them nor a form's submit (a wizard's Next) — (the first click ordinary, the next ones quick presses ~110 ms apart, each with its ripple; runs of 5+ play at up to 3× in the edit), clicks each day by its aria-label or date attribute (ISO or English dates with a year, compared as dates: "1 January 2027" never picks "11 January 2027"; a day without a year or written another way — `10/01/2027`, another language — is matched as words of the labels, so `1 January` does not match "January 1st", and is warned at validation), then closes what it opened (`close: auto` waits for it to close by itself, else clicks outside). A native `<input type=date>` is filled in place (a day outside its `min` / `max` fails the step) |
 | `scroll` | `scroll: 560` · `{to: {text: Awards}, offset: -140, duration: 2.2, in: …}` · `{by: 400}` | Animated scroll of the page or a container (a target ends 140 px below the top by default) |
 | `drag` | `drag: {from: {text: Card A}, to: {text: Done}, duration: 1.2}` | Press, eased move, release |
 | `drop_file` | `drop_file: {zone: {text: Drop files}, path: assets/list.xlsx, from: right}` | The cursor fetches the file at the screen edge, a file "ghost" travels to the zone, then a real drop (or the hidden file input) |
@@ -382,8 +401,19 @@ Every step has exactly one action; shorthand forms are shown first.
 `{zoom: 1.3, target: {text: Awards}, ease: slow, duration: 1.2, until: scene_end}`), `overlay` (an overlay component
 over the clip: `{component, slots, params, duration, target}`, see below), `tutorial` (this step's tutorial overlays,
 e.g. `{spotlight: false}` or `false`, see [Tutorial overlays](#tutorial-overlays-and-story-cards)), `timeout` (seconds, default 15),
-`optional` (a failure does not abort), `irreversible` (never executed in dry runs), `note`. The runner measures the
-`camera` and `overlay` targets at the **end** of the step — after a `scroll`, the box is where the element ended up.
+`optional` (a failure does not abort), `irreversible` (never executed in dry runs), `park`, `note`. The runner
+measures the `camera` and `overlay` targets at the **end** of the step — after a `scroll`, the box is where the
+element ended up.
+
+`park: true` (or a number of seconds) parks the cursor after the step, then holds it still: after a `scroll` to a
+target, next to the target and clear of its text (`pacing.park_scroll_hold`, 3.2 s); after any other step, away
+from what changed on the page since the last action started — added, removed or restyled elements, and the element
+the action used — (`pacing.park_hold`, 2 s; the step's `hold` when given). On a `hold` step the cursor parks first,
+then the hold runs. A park never leaves an open menu or listbox the step opened (by a click or by hovering). Off unless a step asks for it.
+
+When a select, pick or menu trigger opened nothing (no popup, not `aria-expanded`), the runner clicks it once more
+after 3 s; a popup that opened but is still filling is left alone, and a search is typed once, as soon as there is a
+field to type into.
 
 **Click options:** `strategy` (`auto` · `real` · `dom` · `pointer`), `expect_popup`, `outside`, `hover_ms`,
 `after_ms` (also replaces the `after_navigation_ms` minimum), `move_ms`, `button`, `modifiers` (`[Shift]`), `offset`
@@ -438,7 +468,7 @@ A plain string is visible text — or a CSS selector when it looks like one (`#i
 
 | Key | Example | Matches |
 |---|---|---|
-| `text` | `{text: Save}` | Visible text: exact first, then case-insensitive substring |
+| `text` | `{text: Save}` | Visible text: exact first, then case-insensitive substring (the page's own matches decide the tier: an exact match inside a frame does not beat a partial one on the page) |
 | `contains` | `{contains: [Finca Quenaro, "2026"]}` | Innermost element containing every string |
 | `role` + `name` | `{role: button, name: Request a quote}` | ARIA role (explicit or implicit) and accessible name |
 | `label` | `{label: Delivery window}` | Form control by its label (`for`, wrapping label, `aria-labelledby`) |
@@ -448,18 +478,41 @@ A plain string is visible text — or a CSS selector when it looks like one (`#i
 | `css` | `{css: "table tr:nth-child(2) button"}` | Raw CSS selector |
 | `in` | `{text: Save, in: dialog}` · `in: {row: Sweden}` · `in: {css: aside}` | Scope: `dialog`, `menu`, `listbox`, `popover`, `page`, a row, or a target |
 | `nth` | `{text: Edit, nth: -1}` | Index among visible matches (negative from the end) |
-| `last_visible` | `{role: listbox, last_visible: true}` | The most recently mounted visible match |
+| `last_visible` | `{role: listbox, last_visible: true}` | The most recently mounted visible match (calendars: a popover's month buttons come after the page's — prefer `date`, or `{aria: Next month, last_visible: true}` with plain clicks) |
 | `exact` | `{text: Save, exact: true}` | No substring fallback |
 
 Only visible elements count (not hidden, transparent, clipped or off-page); a match is promoted to its clickable
 ancestor. When a target is not found, the error lists the nearest visible texts and saves a screenshot and a DOM
 snippet next to the run.
 
+Web components and iframes count as part of the page: targets are found inside **open shadow roots** and inside
+**same-origin iframes** (nested ones too), and the cursor, its icon, clicks, typing, `select` on a native `<select>`
+and scrolling (inside the frame first, then the page) work there as anywhere else. Matches are counted in visual
+order: a component's content right after its host, a frame's content where the frame sits — so `nth` and
+`last_visible` see them too. A `css` selector is matched inside each tree on its own and never crosses a component
+or frame boundary; to search only inside one, scope it: `in: {css: my-widget}` or
+`in: {css: 'iframe[title="Shipping estimate"]'}`, and `scroll: {in: {css: iframe}}` scrolls inside the frame.
+Out of reach: **closed** shadow roots and **cross-origin** iframes (payment or chat widgets) — the not-found error
+says how many cross-origin frames it could not search. `drop_file` onto a zone inside a frame delivers the file
+through the zone's `<input type=file>` (no drag events into frames). See the fixture's `embedded` scenario.
+
 ### Templating and hooks
 
 Strings in scenarios and hooks accept `{{page}}` (an environment page base URL, e.g. `{{console}}`), `{{vars.x}}` or
-`{{x}}`, `{{env:VAR}}`, `{{keychain:service/account}}` (macOS Keychain, Linux `secret-tool`), `{{run.id}}`, and in
-hooks `{{hooks.<save_as>.json.id}}` (an earlier hook's response) or `{{response.json.id}}` (inside an http rollback).
+`{{x}}`, `{{env:VAR}}`, `{{keychain:service/account}}` (macOS Keychain, Linux `secret-tool`), `{{run.id}}` /
+`{{run.dir}}` (the run folder: hooks of `studio hooks run` have no run folder, only `{{run.id}}`),
+`{{hooks.<save_as>.json.id}}` (an earlier setup hook's response) and, inside an http rollback, `{{response.json.id}}`.
+
+**Every string of a scene is templated** — typed text, targets (`click: "Open {{vars.customer}}"`), `wait_for` /
+`assert` texts and URLs, `open`, `new_tab`, `select` / `menu` options, `notify`, `emit` data, `wait_for_email`
+filters, captions, overlays, page labels, cards, interstitials — and so are the video's `title`, `intro`, `outro` and
+`tutorial`. A scene is templated when the run reaches it, after the setup hooks (so `{{hooks.…}}` works in steps and
+captions; a dry run skips the hooks: add `--hooks run`, else the run stops on the first `{{hooks.…}}` with that
+hint). The timeline records the values, never the tokens. Not templated: names (ids, marks, `on`, `as`, page keys, an
+`emit` name, a `screenshot` name) and `note`s; `eval` is templated when it runs, its `file` included. Values are
+inserted as they are (not URL-encoded in a URL, not escaped in a `/…/` pattern); a string target is read after
+templating, so a value that looks like CSS (`#row-1`) is a CSS target. An unknown key is a validation error, and so
+is a `{{…}}` inside a `vars` value (vars values are not templated: they would be inserted as written).
 
 ```yaml
 setup:
@@ -485,6 +538,44 @@ Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `sav
 `rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`. Setup stops at the first failure and rolls
 back what it did; teardown hooks always run (even after a failure or Ctrl-C), then the pending setup rollbacks are
 replayed, most recent first.
+
+A `js` hook runs in a **tab of its own** in the run's browser, opened on its environment page (`page`, default the
+first one): cookies, localStorage and IndexedDB are shared with the capture, sessionStorage and page state are not,
+and the capture never shows that tab — so a scene must `open` its page (a setup hook no longer leaves the capture on
+it, and a teardown hook does not see the scenario's last page). The tab stays open for the whole run and later `js`
+hooks on the same page key reuse it: an app left running there keeps working in the background (the fixture's
+`quote` scenario keeps its console open that way, polling for the web notification the capture records). Every hook
+kind is held to the project's allow-list (see [Security](#security)).
+
+#### Secrets in steps
+
+`{{env:…}}` and `{{keychain:…}}` are secrets: the run resolves every one it will use **before the browser opens**
+(a keychain prompt never stalls the capture; a missing variable or item fails the run up front, naming the scene)
+and writes `***` instead of their values — raw, URL-encoded (also as the browser writes them in a URL's path or query
+and as a GET form submits them), JSON- or HTML-escaped — in `log.jsonl`, `run.json`, `timeline.json` (a URL with a
+secret shows `token=***`, in the browser frame of the edit too), `error-*.html` and the terminal (values under 3
+characters are not masked). Target descriptions, camera targets, `emit` data and `eval` values are masked wherever
+they appear; ids, names, file paths and timestamps are kept as written, so a short secret (a PIN `2026`) never
+corrupts them. Captured artefacts (an email, a document, a text) are kept as the app produced them — the description
+of the element a `capture_text` read is masked. A secret is a validation error where the video would show it:
+captions, overlays, cards, interstitials, scene transitions, page labels, the title.
+
+```yaml
+vars: {customer: Harbour Coffee Co., demo_email: agent@northfield.example}
+scenes:
+  - id: sign-in
+    caption: "Signing in to {{vars.customer}}"
+    open: /login
+    steps:
+      - type: {into: {label: Work email}, text: "{{vars.demo_email}}"}      # shown in the video: a var
+      - type: {into: {label: Password}, text: "{{keychain:northfield-demo/agent}}"}   # bullets on screen, *** in the files
+      - click: Sign in
+      - wait_for: "Welcome, {{vars.customer}}"
+```
+
+A password field shows bullets; any other field shows what is typed, so typing a secret there warns
+(`types the value of a secret reference into a visible field`). For real credentials prefer signing in beforehand
+(`studio login`, `auth.storage_state`); put values the video may show in `vars`.
 
 ## Your own media and motion
 
@@ -891,7 +982,7 @@ scenes:
 | Switch | Component | What it draws |
 |---|---|---|
 | `shortcuts` | `studio/overlay-shortcut` | key caps of every `press` step (and the Enter of `type: {enter: true}`) at the bottom of the capture (above a caption band drawn over it — the overlays receive it as `avoid`; in the top row when the bottom one would cover the current or next click target), going down on the **real key press** (the planner starts the overlay 0.3 s before it and hands the press frame as `moment`); macOS symbols ⌘ ⌥ ⇧ ⌃ ↩ ⇥ drawn as line glyphs, or `params: {platform: windows \| linux}` → Ctrl / Alt / Shift words; `press: {times: 3}` → a "× 3" chip |
-| `spotlight` | `studio/overlay-spotlight` | dims the capture (theme night tone) except a soft rounded cut-out around the step's target, mapped through layout, camera and reframe; `steps` (= `true`): every step with a target (click, type, select, pick, menu, hover, drag, drop_file, download) over the step — a click ends it soon after the click, one overlay per run of steps whose cut-out **glides** from target to target (a click that takes the page to another URL ends the run: the next step's spotlight comes in on the new page); `clicks`: around each click only. Drawn under the caption and the other overlays |
+| `spotlight` | `studio/overlay-spotlight` | dims the capture (theme night tone) except a soft rounded cut-out around the step's target, mapped through layout, camera and reframe; `steps` (= `true`): every step with a target (click, type, select, pick, menu, date, hover, drag, drop_file, download) over the step — a click ends it soon after the click, one overlay per run of steps whose cut-out **glides** from target to target (a click that takes the page to another URL ends the run: the next step's spotlight comes in on the new page); `clicks`: around each click only. Drawn under the caption and the other overlays |
 | `steps` | `studio/overlay-steps` | numbered badges (1, 2, 3… per scene, `params: {numbering: video}` across the video) beside each clicked target, never over it nor over the next click target (left, above, right or below, inside the capture), popping as the cursor arrives, a ring pulsing at the click, ~1 s after it |
 | `loupe` | `studio/overlay-loupe` | during `type` steps, a magnified **live** view of the field — the capture region around it rendered again at the capture's own resolution (crisp), at least 1.5 design px per CSS px so it reads in vertical / square — beside the field with a pointer (clear of a caption band over the screen and of the key caps' row; a lens gliding over several fields keeps one side of them); consecutive fields (type, Tab, type) are one lens moving from field to field — it cross-fades the two fields instead of panning over what lies between them. A `type` without `into` uses the focused field the runner measured |
 | `progress` | `studio/overlay-progress` | a thin chapter bar across the top of the frame over everything between the intro and the outro; `scenes` (= `true`): every scene and card is a chapter, `cards`: each card opens one; the current chapter fills in the accent (`params: {position: bottom, labels: true}`). Scenario level only |
@@ -1071,8 +1162,17 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   that really waited (the page was loading) — is a loading state: its first 0.5 s plays at 1×, the rest at up to 4×
   (a step `speed` wins; `overrides.trim_idle: false` keeps it at 1× — and a marked wait step's whole span at 1× again). A slow back end never shows as a long frozen
   spinner; the plan notes each span.
-- **Idle trims**: the part of a `timeline.idle` gap outside those protected spans, when longer than 1.2 s
-  (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on screen).
+- **Page loads**: a full page load the capture held (`timeline.loading`: the previous picture frozen from the new
+  document's commit until it painted) is cut whole when it lasts 0.15 s or more — also inside a mark window or a hold
+  (a frozen frame is never what they show); the cut sits on the page change, the plan notes each one. In a multi-page
+  clip only where no other page acts (a step through its hold, a mark window, the opening still): the other pages'
+  actions are never cut. `overrides.trim_idle: false` keeps them. The waiting after such a load counts from its end
+  (the painted page).
+  Since L1.2 the time a page took to paint is in the step that navigated (held, then cut), no longer in the
+  `wait_for` after it: that wait is sped up only for what the page shows once painted.
+- **Idle trims**: the part of a `timeline.idle` gap outside those protected spans and held page loads, when longer
+  than 1.2 s (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on
+  screen).
 - **Camera**: static unless a step has a `camera` hint, or the theme has a **default zoom** (below). The zoom is clamped to the theme `max_zoom` (noted), focused on
   the target box measured at the end of the step (else the hint's point, else the cursor), eased with the hint's
   `ease` (else the theme `zoom_ease`) over `max(0.8 s, duration)` of output time — `duration` defaults to the step's
@@ -1283,8 +1383,13 @@ studio run northfield-fixture quote --raw --cursor none                         
   changed after that press, and resumes once the awaited state is painted (the wait's end + 1.5 screencast intervals
   there, 0.2–0.3 s: new content reaches the screen up to ≈ 0.2 s after its DOM —, then on the next screencast frame when the page was still painting) — never a step's visible
   action or result, a hold, a mark or the opening still. A scene that ends on its awaited state (no `hold` after the
-  wait) keeps its loading, with a note: a cut there would leave the result out of the clip. `--no-cuts` keeps the
-  loading. Otherwise real time: speeds and shortened waits are the editor's job.
+  wait) keeps its loading, with a note: a cut there would leave the result out of the clip. A **page load the capture
+  held** (`timeline.loading`, from 0.15 s: the cut sits on the page change) is cut too, reason `navigation`, from the
+  commit to the first frame of the painted page — also inside the opening still, and up to the scene end when the
+  scene ends before the paint (as the edit does; noted); in a multi-page scene not while another page acts —; its
+  manifest cut has no `wait_step` (`after_step`: the step during which the page changed); one that overlaps a
+  wait-based cut extends it. `--no-cuts` keeps the loading. Otherwise
+  real time: speeds and shortened waits are the editor's job.
 - **Codecs** — `--format mp4` (default): H.264 high profile, CRF 14, yuv420p, 1-second GOP, faststart;
   `--format prores`: Apple ProRes 422 HQ (`prores_ks` profile 3), yuv422p10le, `.mov`. BT.709, limited range. Encoded
   once from the run's own screencast frames (not from `capture.mp4`). `--fps 30|60`: constant frame rate on the
@@ -1428,9 +1533,44 @@ A profile can be used by one browser at a time: close the login window before ru
 ## Security
 
 - **No secrets in files.** Use `{{env:VAR}}` or `{{keychain:service/account}}` references; validation flags database
-  URLs with a clear-text password. Resolved secret values are redacted from logs, results and journals.
-- **Allow-list.** `http` and `sql` hooks only reach the hosts of the project's environments, `allow_hosts` and
-  localhost; redirects are checked hop by hop and credentials are dropped when the origin changes.
+  URLs with a clear-text password. Resolved secret values are redacted from hook logs, results and journals, and from
+  the run's `log.jsonl`, `run.json`, `timeline.json` and error snippets (see "Secrets in steps").
+- **Allow-list.** Hooks of every kind only reach the hosts of the project's environments, `allow_hosts` and
+  localhost (a refusal names the host, never the URL, and `optional: true` does not tolerate it):
+  - `http` and `sql`: checked on the connection; redirects are checked hop by hop and credentials are dropped when
+    the origin changes.
+  - `js`: the hook's tab blocks every request to another host before it leaves the browser — navigations and each
+    redirect hop, fetch / XHR, beacons, EventSource, images, workers, frames, the page's WebSockets; service workers
+    are bypassed there and `window.open` is disabled. A page that redirects to another host, or a hook that fails
+    while a request was blocked, is refused (the message adds the hook's own error — the blocked request may be the
+    app's own background traffic: add its host to `allow_hosts`); a hook that catches the failed request and goes on
+    succeeds, with a warning naming the host.
+  - `shell`: before anything runs, the command line is read for the hosts it names — a best-effort reading of the
+    shell text, not a sandbox (dry runs report them; validation flags those written literally): URLs (also as
+    `--opt=URL`, in `NAME=URL` assignments and inside inline code: `node -e`, `python3 -c`, `ruby -e`, `perl -e`,
+    `php -r`, `deno eval`, `bun -e`, `mongosh --eval`), `$VARS` expanded from the script's own assignments and the
+    environment `sh` gets, `curl` / `wget` / HTTPie / `xh` targets without a scheme, proxies (`curl -x`, `--socks5…`,
+    `HTTPS_PROXY=`…) and `curl --resolve` / `--connect-to` addresses, database-client hosts (`psql -h`, `host=`,
+    PGHOST for a client given no host, `mysql -h`, `redis-cli -h`, `mongosh --host` or address), ssh / scp / rsync
+    destinations (`-J`, `-o HostName`, a ProxyCommand), git repositories (`clone`, `fetch`, `pull`, `push`,
+    `ls-remote`, `remote add`, `submodule add`), `nc` / `telnet` destinations, the hook's `env:` values — also inside
+    `sh -c`, `eval`, command substitutions (`$(…)`, backticks) and heredocs, here-strings or `echo` output fed to a
+    shell (other heredocs, SQL and JSON text are data). A host computed when the command runs is refused: built from
+    `$(…)`, from a variable the script reads (`read`, a `for` loop, a function argument) or may have set (after
+    `source`), a computed database, mongosh address or git repository; an ssh alias of `~/.ssh/config` is checked as
+    written (list it in `allow_hosts`). Shell hooks get `$DEMO_STUDIO_ALLOWED_HOSTS` (comma-separated) to check hosts
+    they compute themselves.
+  - **What the allow-list cannot see:** what a shell hook's programs do on their own — connecting from their own
+    configuration (`pnpm run seed` reading `DATABASE_URL` from a `.env` file, the real host behind an ssh alias,
+    kubectl contexts, cloud CLI profiles, PGSERVICE, docker compose service names), a script file they run, a host
+    they compute or read (URLs read from files or stdin, `xargs curl < urls.txt`, `fetch(process.env.API)` in inline
+    code), code they download or pipe into a shell (`curl … | sh`), commands run inside a container or on another
+    machine (`docker exec`, `kubectl exec`, `ssh host 'curl …'`), network tools the scanner does not know (`socat`,
+    `ncat`, `ftp`…); in the js hook tab, WebSockets opened by workers, service workers and shared workers already
+    running for the origin or started by the hook, WebTransport / WebRTC and preconnect hints, redirect hops inside a
+    cross-site frame, the first request of a popup a link opens (closed at once). Like an `http` hook to a local
+    server, the check covers what the hook names, not what that program does next (network isolation of hooks:
+    `docs/BACKLOG.md` BL-57).
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
   validation and refused at run time without it (`studio hooks run --yes` approves explicitly).
@@ -1446,7 +1586,7 @@ A profile can be used by one browser at a time: close the login window before ru
 | File | Content |
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
-| `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, artefacts, warnings |
+| `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
 | `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet), updated live |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
@@ -1457,11 +1597,13 @@ A profile can be used by one browser at a time: close the login window before ru
 | `scenario.yaml` | snapshot of the scenario that ran |
 | `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
 
-Composite steps (`select`, `pick`, `menu`, `drop_file`) keep every click in `data.clicks`:
+Composite steps (`select`, `pick`, `menu`, `date`, `drop_file`) keep every click in `data.clicks`:
 `{role, strategy, popup_opened, point, bbox, t_click, desc, popup_ms?}` with `role` one of `trigger`, `option`,
-`item`, `confirm`, `outside` (a click that closes a popover) or `search` (a click into a popover's search field); the
-event's own `t_click`, `point`, `target`, `strategy` and `popup_opened` describe the trigger click. A click that
-changed the page records `data.navigation` (`{kind: document|url, url}`). DOM snippets saved next to error
+`item`, `confirm`, `outside` (a click that closes a popover), `search` (a click into a popover's search field), `nav`
+(a calendar's month button) or `day`; the event's own `t_click`, `point`, `target`, `strategy` and `popup_opened`
+describe the trigger click (`data.retried` when it was clicked twice). A click that changed the page records
+`data.navigation` (`{kind: document|url, url}`). A `type` step records `data.rate` and `data.clear`, a `date` step
+`data.days`, `data.quick_runs` and `data.waited_close_ms`, a parked step `data.park`. DOM snippets saved next to error
 screenshots are capped at 64 KB. `studio schema timeline` prints the timeline schema.
 
 ## Repository layout

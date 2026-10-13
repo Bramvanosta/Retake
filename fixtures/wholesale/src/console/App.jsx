@@ -149,6 +149,11 @@ function Sidebar() {
         <NavLink to="/quotes" icon="inbox" match="/quotes" count={awaiting}>
           Quote requests
         </NavLink>
+        {/* A plain link, not the router's: the server-rendered reports are a full page load (R-ISS-08). */}
+        <a href="/reports">
+          <Icon name="receipt" size={18} />
+          Sales reports
+        </a>
       </nav>
       <div className="sidebar-foot">
         <a className="shop-link" href={urls.shop} target="_blank" rel="noreferrer">

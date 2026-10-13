@@ -520,6 +520,27 @@
   color: var(--text-2);
 }
 
+.pdp-extras {
+  margin-top: 56px;
+}
+
+.pdp-extras-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.ship-frame {
+  display: block;
+  width: 100%;
+  height: 292px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
 .spec-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1273,6 +1294,9 @@
   .pdp-info h1 {
     font-size: 40px;
   }
+  .pdp-extras-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .quote-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1356,6 +1380,9 @@
   }
 
   .shelf {
+    margin-top: 36px;
+  }
+  .pdp-extras {
     margin-top: 36px;
   }
   .shelf-head {

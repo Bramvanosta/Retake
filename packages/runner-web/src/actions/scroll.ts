@@ -44,7 +44,7 @@ export async function scroll(ctx: StepContext, args: ScrollArgs): Promise<Action
   const data = { container: container || 'document', from: Math.round(info.top), to: top };
   if (target) {
     const pt = await kit.point(target.ref);
-    return { target: { desc: target.desc, bbox: pt?.bbox ?? target.bbox }, data };
+    return { ref: target.ref, target: { desc: target.desc, bbox: pt?.bbox ?? target.bbox }, data };
   }
   return { target: { desc: `scrollTop ${top}` }, data };
 }

@@ -29,7 +29,7 @@ export function parseHookFile(
     (v, structural): LocatedIssue[] => {
       const ctx = new CheckContext(structural, projectDir);
       const saved = new Set<string>();
-      checkHooks(v, [], ctx, { pages, saved });
+      checkHooks(v, [], ctx, { pages, saved, project: opts.project });
       if (Array.isArray(v) && opts.project) {
         const scope = { pages, vars: new Set(Object.keys(opts.project.config.vars ?? {})), varsComplete: true, saved };
         v.forEach((h, i) => {

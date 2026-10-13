@@ -7,9 +7,11 @@
  */
 import type { BBox, PointSpec, ScopeSpec, TargetObject } from '@demo-studio/core';
 import type {
+  CalendarInfo,
   CursorKind,
   CursorState,
   DropOutcome,
+  FieldState,
   FileSpec,
   FindOptions,
   KitApi,
@@ -23,7 +25,7 @@ import type {
 } from './types.js';
 
 export function demoKit(config: KitConfig): void {
-  const VERSION = '1.0.0';
+  const VERSION = '1.2.0';
   // ── Web notifications (R-NTF-03): report every `new Notification(…)` and ServiceWorkerRegistration#showNotification
   // to the runner (binding `__demoStudioNotification`, else queued in `__demoStudioNotifications`), then let the page's
   // call proceed unchanged. Patched once per window (a re-installed kit keeps the first patch).
@@ -133,7 +135,221 @@ export function demoKit(config: KitConfig): void {
   function deref(id: string | null | undefined): Element | null {
     if (!id) return null;
     const el = refs.get(id)?.deref() ?? null;
-    return el && el.isConnected ? el : null;
+    // A frame that navigated or was removed keeps its old elements connected to a document without a window: gone.
+    return el && el.isConnected && el.ownerDocument.defaultView ? el : null;
+  }
+
+  // ─────────────────────── trees: open shadow roots and same-origin frames (R-ISS-07) ───────────────────────
+  // This kit (the top one) searches, hit-tests, scrolls and clicks inside open shadow roots and same-origin frames
+  // itself. Every coordinate crossing the kit boundary is in TOP-LEVEL viewport CSS px: an element in a frame is offset
+  // by the frames' content-box positions. Elements of a frame belong to another realm: no `instanceof`, no bare
+  // getComputedStyle, no top-realm constructors for them (isA, styleOf, winOf).
+  type Tree = Element | ShadowRoot;
+  const winOf = (n: Node): Window => (n.ownerDocument ?? (n as Document)).defaultView ?? window;
+  const styleOf = (el: Element): CSSStyleDeclaration => winOf(el).getComputedStyle(el);
+  /** Realm-safe `instanceof HTMLxxxElement`. */
+  function isA<K extends keyof HTMLElementTagNameMap>(el: unknown, name: K): el is HTMLElementTagNameMap[K] {
+    return !!el && (el as Node).nodeType === 1 && (el as Element).localName === name && (el as Element).namespaceURI === 'http://www.w3.org/1999/xhtml';
+  }
+  /** The document of a same-origin iframe/frame (null when cross-origin, sandboxed or not created yet). Never throws. */
+  function frameDoc(el: Element): Document | null {
+    if (el.localName !== 'iframe' && el.localName !== 'frame') return null;
+    try {
+      const d = (el as HTMLIFrameElement).contentDocument;
+      return d && d.documentElement ? d : null;
+    } catch {
+      return null;
+    }
+  }
+  /** The frame element holding a (non-top) document. */
+  function frameElOf(doc: Document): Element | null {
+    if (doc === document) return null;
+    try {
+      return doc.defaultView?.frameElement ?? null;
+    } catch {
+      return null;
+    }
+  }
+  /** The host of the node's shadow root, else the frame element of its document; null in the top document. */
+  function outerOf(n: Node): Element | null {
+    const root = n.getRootNode();
+    if (root.nodeType === 11) return (root as ShadowRoot).host;
+    return root.nodeType === 9 ? frameElOf(root as Document) : null;
+  }
+  /** Parent in the flat (rendered) tree within one document: a slotted element's slot, else its parent or host. */
+  function flatParent(el: Element): Element | null {
+    const slot = el.assignedSlot;
+    if (slot) return slot;
+    if (el.parentElement) return el.parentElement;
+    const p = el.parentNode;
+    return p && p.nodeType === 11 ? (p as ShadowRoot).host : null;
+  }
+  /** Parent or shadow host (no slot hop): the composed DOM parent within one document. */
+  function hostParent(el: Element): Element | null {
+    if (el.parentElement) return el.parentElement;
+    const p = el.parentNode;
+    return p && p.nodeType === 11 ? (p as ShadowRoot).host : null;
+  }
+  /** Flat-tree parent, going out of a frame document to its frame element. */
+  function upOf(el: Element): Element | null {
+    return flatParent(el) ?? (el === el.ownerDocument.documentElement ? frameElOf(el.ownerDocument) : null);
+  }
+  /** `outer` holds `inner`, through shadow roots, slots and frames. */
+  function deepContains(outer: Element, inner: Element | null): boolean {
+    if (!inner) return false;
+    if (outer.contains(inner)) return true;
+    for (let n: Element | null = upOf(inner), i = 0; n && i < 4096; n = upOf(n), i++) if (n === outer) return true;
+    return false;
+  }
+  /** `closest` along the flat tree, going out through shadow hosts, slots and frame elements. */
+  function deepClosest(el: Element | null, sel: string): Element | null {
+    for (let n = el, i = 0; n && i < 4096; n = upOf(n), i++) if (n.matches(sel)) return n;
+    return null;
+  }
+  /**
+   * The trees to search under `root`: the root itself, then every open shadow root and same-origin frame document
+   * (its body) found inside, recursively. Closed shadow roots (the kit's own overlay included) are invisible; frames
+   * that cannot be entered are counted (`cross`) for the not-found message.
+   */
+  function trees(root: Element): { list: Tree[]; cross: number } {
+    const list: Tree[] = [root];
+    let cross = 0;
+    const scan = (scope: Tree, depth: number) => {
+      const one = (el: Element) => {
+        const sr = el.shadowRoot;
+        if (sr && el !== host && depth < 16) {
+          list.push(sr);
+          scan(sr, depth + 1);
+        }
+        if (el.localName === 'iframe' || el.localName === 'frame') {
+          const d = frameDoc(el);
+          const b = d ? (d.body ?? d.documentElement) : null;
+          if (b && depth < 16) {
+            list.push(b);
+            scan(b, depth + 1);
+          } else if (!d) {
+            const src = el.getAttribute('src') ?? '';
+            if (src && !/^about:/i.test(src)) cross++;
+          }
+        }
+      };
+      if (scope.nodeType === 1) one(scope as Element);
+      const all = scope.querySelectorAll('*');
+      for (let i = 0; i < all.length; i++) one(all[i]);
+    };
+    scan(root, 0);
+    return { list, cross };
+  }
+  /** Anchors of an element from the top document down: [outermost host/frame, …, el]. */
+  function anchors(el: Element): Element[] {
+    const out = [el];
+    for (let o = outerOf(el), i = 0; o && i < 64; o = outerOf(o), i++) out.unshift(o);
+    return out;
+  }
+  /** Composed visual order: a host or frame precedes what it holds (its shadow content before its slotted content). */
+  function deepCompare(a: Element, b: Element): number {
+    if (a === b) return 0;
+    if (a.getRootNode() !== b.getRootNode()) {
+      const ca = anchors(a);
+      const cb = anchors(b);
+      let i = 0;
+      while (i < ca.length && i < cb.length && ca[i] === cb[i]) i++;
+      if (i === ca.length) return -1;
+      if (i === cb.length) return 1;
+      a = ca[i];
+      b = cb[i];
+    }
+    const pos = a.compareDocumentPosition(b);
+    return pos & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : pos & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0;
+  }
+  /** querySelectorAll in every tree under `root` (and `root` itself when `withRoot`), in composed order. */
+  function deepQsa(root: Element | Document, sel: string, withRoot = false): Element[] {
+    const start = root.nodeType === 9 ? (root as Document).documentElement : (root as Element);
+    if (!start) return [];
+    const { list } = trees(start);
+    const out: Element[] = withRoot && start.matches(sel) ? [start] : [];
+    if (list.length === 1) {
+      out.push(...Array.from(start.querySelectorAll(sel)));
+      return out;
+    }
+    for (const t of list) {
+      if (t !== start && t.nodeType === 1 && (t as Element).matches(sel)) out.push(t as Element);
+      out.push(...Array.from(t.querySelectorAll(sel)));
+    }
+    return out.sort(deepCompare);
+  }
+  /** Position of a frame's content box in its own document's viewport. */
+  function contentOffset(f: Element): { x: number; y: number } {
+    const r = f.getBoundingClientRect();
+    const cs = styleOf(f);
+    return { x: r.left + f.clientLeft + (parseFloat(cs.paddingLeft) || 0), y: r.top + f.clientTop + (parseFloat(cs.paddingTop) || 0) };
+  }
+  /** Offset of a node's document viewport in the top viewport (0 in the top document). */
+  function frameOffset(n: Node): { x: number; y: number } {
+    let x = 0;
+    let y = 0;
+    let doc = n.ownerDocument ?? (n as Document);
+    for (let i = 0; doc !== document && i < 16; i++) {
+      const f = frameElOf(doc);
+      if (!f) break;
+      const o = contentOffset(f);
+      x += o.x;
+      y += o.y;
+      doc = f.ownerDocument;
+    }
+    return { x, y };
+  }
+  interface Rect {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  }
+  /** getBoundingClientRect in top-level viewport px. */
+  function rectOf(el: Element): Rect {
+    const r = el.getBoundingClientRect();
+    if (el.ownerDocument === document) return r;
+    const o = frameOffset(el);
+    return { left: r.left + o.x, top: r.top + o.y, right: r.right + o.x, bottom: r.bottom + o.y, width: r.width, height: r.height };
+  }
+  /** elementFromPoint (top px) that pierces open shadow roots and same-origin frames: the innermost element. */
+  function deepHit(x: number, y: number): Element | null {
+    let hit = document.elementFromPoint(x, y);
+    let lx = x;
+    let ly = y;
+    for (let i = 0; hit && i < 32; i++) {
+      const sr = hit.shadowRoot;
+      if (sr && hit !== host) {
+        const inner = sr.elementFromPoint(lx, ly);
+        // Inside the shadow tree, or a slotted light descendant of the host.
+        if (inner && inner !== hit && (sr.contains(inner) || hit.contains(inner))) {
+          hit = inner;
+          continue;
+        }
+        break;
+      }
+      const d = frameDoc(hit);
+      if (!d) break;
+      const o = contentOffset(hit);
+      const inner = d.elementFromPoint(lx - o.x, ly - o.y);
+      if (!inner) break; // on the frame's border or padding
+      lx -= o.x;
+      ly -= o.y;
+      hit = inner;
+    }
+    return hit;
+  }
+  /** The focused element, through open shadow roots and same-origin frames. */
+  function deepActive(): Element | null {
+    let el: Element | null = document.activeElement;
+    for (let i = 0; el && i < 32; i++) {
+      const inner = el.shadowRoot?.activeElement ?? frameDoc(el)?.activeElement ?? null;
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    return el;
   }
 
   // ───────────────────────────── text helpers ─────────────────────────────
@@ -144,7 +360,7 @@ export function demoKit(config: KitConfig): void {
   const BUTTON_INPUT = 'input[type=button],input[type=submit],input[type=reset]';
 
   function textOf(el: Element): string {
-    if (el instanceof HTMLInputElement) {
+    if (isA(el, 'input')) {
       return el.matches(BUTTON_INPUT) ? norm(el.value) : '';
     }
     return norm(el.textContent);
@@ -162,20 +378,28 @@ export function demoKit(config: KitConfig): void {
     if (!exactOnly && ql.length > 0 && tl.includes(ql)) return 2;
     return -1;
   }
-  /** Keep the best non-empty tier (exact first, then case-insensitive, then substring). */
-  function bestTier<T>(items: T[], text: (t: T) => string, q: string, exactOnly: boolean): T[] {
+  /**
+   * Keep the best non-empty tier (exact first, then case-insensitive, then substring). With `own` (items of the
+   * searched document, not of a frame inside it), the tier is the best one of those items when there are any: an exact
+   * match in a widget frame does not beat a partial one on the page (the frame's matches of that tier still count).
+   */
+  function bestTier<T>(items: T[], text: (t: T) => string, q: string, exactOnly: boolean, own?: (t: T) => boolean): T[] {
     const tiers: T[][] = [[], [], []];
+    const mine = [false, false, false];
     const qn = norm(q);
     for (const it of items) {
       const t = tierOf(text(it), qn, exactOnly);
-      if (t >= 0) tiers[t].push(it);
+      if (t < 0) continue;
+      tiers[t].push(it);
+      if (own?.(it)) mine[t] = true;
     }
-    return tiers.find((t) => t.length > 0) ?? [];
+    const k = mine.includes(true) ? mine.indexOf(true) : tiers.findIndex((t) => t.length > 0);
+    return k >= 0 ? tiers[k] : [];
   }
 
   // ───────────────────────────── visibility ─────────────────────────────
   function isScrollable(el: Element): boolean {
-    const cs = getComputedStyle(el);
+    const cs = styleOf(el);
     const oy = cs.overflowY;
     const ox = cs.overflowX;
     const sy = (oy === 'auto' || oy === 'scroll' || oy === 'overlay') && el.scrollHeight > el.clientHeight + 1;
@@ -183,11 +407,14 @@ export function demoKit(config: KitConfig): void {
     return sy || sx;
   }
   function clipsContent(el: Element): boolean {
-    const cs = getComputedStyle(el);
+    const cs = styleOf(el);
     return cs.overflowX !== 'visible' || cs.overflowY !== 'visible';
   }
   function docScroller(): Element {
     return document.scrollingElement ?? document.documentElement;
+  }
+  function docScrollerOf(doc: Document): Element {
+    return doc.scrollingElement ?? doc.documentElement;
   }
 
   function isVisible(el: Element): boolean {
@@ -203,73 +430,111 @@ export function demoKit(config: KitConfig): void {
         return false;
       }
     } else {
-      const cs = getComputedStyle(el);
+      const cs = styleOf(el);
       if (cs.visibility === 'hidden' || cs.visibility === 'collapse' || cs.opacity === '0') return false;
     }
     // Outside the scrollable area of the document (e.g. left:-9999px).
-    const sx = window.scrollX;
-    const sy = window.scrollY;
+    const win = winOf(el);
+    const sx = win.scrollX;
+    const sy = win.scrollY;
     if (r.right + sx <= 0 || r.bottom + sy <= 0) return false;
     // Clipped away by a non-scrolling overflow ancestor (carousels, collapsed panels).
-    for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    const doc = el.ownerDocument;
+    for (let p = flatParent(el); p && p !== doc.body && p !== doc.documentElement; p = flatParent(p)) {
       if (!clipsContent(p)) continue;
-      const cs = getComputedStyle(p);
+      const cs = styleOf(p);
       const scrolls = /(auto|scroll|overlay)/.test(cs.overflowX + cs.overflowY);
       if (scrolls) continue;
       const pr = p.getBoundingClientRect();
       if (r.right <= pr.left || r.left >= pr.right || r.bottom <= pr.top || r.top >= pr.bottom) return false;
     }
-    return true;
+    // In a frame: the frame element must be visible too.
+    const f = frameElOf(doc);
+    return !f || isVisible(f);
   }
 
-  /** Product of the computed opacities of an element and its ancestors (animations included). */
+  /** Product of the computed opacities of an element and its ancestors (animations included), frames included. */
   function effectiveOpacity(el: Element): number {
     let o = 1;
-    for (let p: Element | null = el; p && o > 0; p = p.parentElement) o *= parseFloat(getComputedStyle(p).opacity) || 0;
+    for (let p: Element | null = el; p && o > 0; p = upOf(p)) o *= parseFloat(styleOf(p).opacity) || 0;
     return o;
+  }
+
+  /** Text of a node's own text children (text placed directly in a shadow root). */
+  function directText(n: Node): string {
+    return norm(
+      Array.from(n.childNodes)
+        .filter((c) => c.nodeType === 3)
+        .map((c) => c.textContent)
+        .join(' '),
+    );
   }
 
   /**
    * Whether `text` is visible to a viewer: the innermost elements containing it must be visible and at least half
    * opaque. `innerText` alone also counts text that is laid out but still transparent (staggered reveals, fade-ins).
+   * `body.innerText` leaves out open shadow roots and frames: each of them is searched the same way.
    */
   function textVisible(text: string): boolean {
     const needle = lc(norm(text));
     const body = document.body as HTMLElement | null;
     if (!needle) return true;
-    if (!body || !lc(norm(body.innerText ?? '')).includes(needle)) return false;
+    if (!body) return false;
     const has = (el: Element) => lc(norm(el.textContent ?? '')).includes(needle);
-    const hits: Element[] = [];
-    const visit = (el: Element) => {
-      let deeper = false;
-      for (const child of Array.from(el.children)) {
-        if (has(child)) {
-          deeper = true;
-          visit(child);
+    const seen = (el: Element) =>
+      isVisible(el) && effectiveOpacity(el) >= 0.5 && lc(norm((el as HTMLElement).innerText ?? el.textContent ?? '')).includes(needle);
+    const innermost = (from: Element): Element[] => {
+      const hits: Element[] = [];
+      const visit = (el: Element) => {
+        let deeper = false;
+        for (const child of Array.from(el.children)) {
+          if (has(child)) {
+            deeper = true;
+            visit(child);
+          }
         }
-      }
-      if (!deeper) hits.push(el);
+        if (!deeper) hits.push(el);
+      };
+      visit(from);
+      return hits;
     };
-    visit(body);
-    return hits.some(
-      (el) => isVisible(el) && effectiveOpacity(el) >= 0.5 && lc(norm((el as HTMLElement).innerText ?? el.textContent ?? '')).includes(needle),
-    );
+    if (lc(norm(body.innerText ?? '')).includes(needle) && innermost(body).some(seen)) return true;
+    for (const t of trees(body).list.slice(1)) {
+      if (t.nodeType === 1) {
+        // A frame's body.
+        if (lc(norm((t as HTMLElement).innerText ?? '')).includes(needle) && innermost(t as Element).some(seen)) return true;
+        continue;
+      }
+      const sr = t as ShadowRoot;
+      if (!lc(norm(sr.textContent)).includes(needle)) continue;
+      let deeper = false;
+      for (const c of Array.from(sr.children)) {
+        if (SKIP_TAGS.has(c.tagName) || !has(c)) continue;
+        deeper = true;
+        if (innermost(c).some(seen)) return true;
+      }
+      // Text placed directly in the shadow root: its host shows it.
+      if (!deeper && lc(directText(sr)).includes(needle) && isVisible(sr.host) && effectiveOpacity(sr.host) >= 0.5) return true;
+    }
+    return false;
   }
 
   function bboxOf(el: Element): BBox {
-    const r = el.getBoundingClientRect();
+    const r = rectOf(el);
     const rd = (n: number) => Math.round(n * 100) / 100;
     return { x: rd(r.left), y: rd(r.top), w: rd(r.width), h: rd(r.height) };
   }
 
-  /** Visible part of an element: rect ∩ viewport ∩ every clipping/scrolling ancestor. */
+  /** Visible part of an element (top px): rect ∩ viewport ∩ every clipping/scrolling ancestor ∩ its frames' parts. */
   function visibleRect(el: Element): { l: number; t: number; r: number; b: number } {
+    const doc = el.ownerDocument;
+    const win = winOf(el);
     const rc = el.getBoundingClientRect();
     let l = Math.max(rc.left, 0);
     let t = Math.max(rc.top, 0);
-    let r = Math.min(rc.right, window.innerWidth);
-    let b = Math.min(rc.bottom, window.innerHeight);
-    for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    let r = Math.min(rc.right, win.innerWidth);
+    let b = Math.min(rc.bottom, win.innerHeight);
+    for (let p = flatParent(el); p && p !== doc.body && p !== doc.documentElement; p = flatParent(p)) {
       if (!clipsContent(p)) continue;
       const pr = p.getBoundingClientRect();
       l = Math.max(l, pr.left + p.clientLeft);
@@ -277,7 +542,12 @@ export function demoKit(config: KitConfig): void {
       r = Math.min(r, pr.left + p.clientLeft + p.clientWidth);
       b = Math.min(b, pr.top + p.clientTop + p.clientHeight);
     }
-    return { l, t, r, b };
+    const f = frameElOf(doc);
+    if (!f) return { l, t, r, b };
+    // In a frame: into top px, clipped by the frame element's own visible part (top px too).
+    const o = frameOffset(el);
+    const fv = visibleRect(f);
+    return { l: Math.max(l + o.x, fv.l), t: Math.max(t + o.y, fv.t), r: Math.min(r + o.x, fv.r), b: Math.min(b + o.y, fv.b) };
   }
   function inView(el: Element): boolean {
     const rc = el.getBoundingClientRect();
@@ -285,7 +555,10 @@ export function demoKit(config: KitConfig): void {
     const vw = v.r - v.l;
     const vh = v.b - v.t;
     if (vw <= 0 || vh <= 0) return false;
-    return vw >= Math.min(rc.width, window.innerWidth * 0.8) - 1 && vh >= Math.min(rc.height, window.innerHeight * 0.8) - 1;
+    const win = winOf(el);
+    const W = Math.min(window.innerWidth, win.innerWidth);
+    const H = Math.min(window.innerHeight, win.innerHeight);
+    return vw >= Math.min(rc.width, W * 0.8) - 1 && vh >= Math.min(rc.height, H * 0.8) - 1;
   }
 
   // ───────────────────────────── roles & names ─────────────────────────────
@@ -352,35 +625,41 @@ export function demoKit(config: KitConfig): void {
       sels.push(`[role="${r}"]`, `[role^="${r} "]`);
       if (IMPLICIT[r]) sels.push(IMPLICIT[r]);
     }
+    const sel = sels.join(',');
     const out: Element[] = [];
-    const all = [root, ...Array.from(root.querySelectorAll(sels.join(',')))];
-    for (const el of all) if (el.matches(sels.join(',')) && hasRole(el, role)) out.push(el);
+    for (const el of deepQsa(root, sel, true)) if (hasRole(el, role)) out.push(el);
     return out;
   }
-  function idsText(ids: string): string {
+  /** The tree (document or shadow root) of a node: ids resolve there. */
+  function treeOf(n: Node): Document | ShadowRoot {
+    const r = n.getRootNode();
+    return r.nodeType === 9 || r.nodeType === 11 ? (r as Document | ShadowRoot) : n.ownerDocument ?? document;
+  }
+  function idsText(ids: string, from: Node = document): string {
+    const tree = treeOf(from);
     return norm(
       ids
         .split(/\s+/)
-        .map((id) => document.getElementById(id)?.textContent ?? '')
+        .map((id) => tree.getElementById(id)?.textContent ?? '')
         .join(' '),
     );
   }
   function accessibleName(el: Element): string {
     const lb = el.getAttribute('aria-labelledby');
     if (lb) {
-      const t = idsText(lb);
+      const t = idsText(lb, el);
       if (t) return t;
     }
     const al = el.getAttribute('aria-label');
     if (al && norm(al)) return norm(al);
-    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
+    if (isA(el, 'input') || isA(el, 'select') || isA(el, 'textarea')) {
       const labels = el.labels ? Array.from(el.labels).map((l) => norm(l.textContent)).filter(Boolean) : [];
       if (labels.length) return labels.join(' ');
-      if (el instanceof HTMLInputElement && el.matches(BUTTON_INPUT)) return norm(el.value);
+      if (isA(el, 'input') && el.matches(BUTTON_INPUT)) return norm(el.value);
       const t = el.getAttribute('title') ?? el.getAttribute('placeholder');
       return norm(t);
     }
-    if (el instanceof HTMLImageElement) return norm(el.alt);
+    if (isA(el, 'img')) return norm(el.alt);
     const t = textOf(el);
     if (t) return t;
     return norm(el.getAttribute('title'));
@@ -393,12 +672,13 @@ export function demoKit(config: KitConfig): void {
     for (let i = 0; cur && i <= 6; i++) {
       if (cur.matches(INTERACTIVE)) return cur;
       if (cur === root) break;
-      cur = cur.parentElement;
+      // Out of a shadow root to its host, never out of a frame.
+      cur = hostParent(cur);
     }
     return el;
   }
   function isInteractive(el: Element): boolean {
-    return el.closest(INTERACTIVE) !== null;
+    return deepClosest(el, INTERACTIVE) !== null;
   }
 
   // ───────────────────────────── scopes ─────────────────────────────
@@ -423,8 +703,8 @@ export function demoKit(config: KitConfig): void {
     for (const e of els) if (e !== host && ok(e) && isVisible(e)) last = e;
     return last;
   }
-  function topDialog(preferAlert: boolean): Element | null {
-    const all = Array.from(document.querySelectorAll(DIALOG_SEL)).filter((e) => isVisible(e));
+  function topDialog(preferAlert: boolean, skip?: (e: Element) => boolean): Element | null {
+    const all = deepQsa(document, DIALOG_SEL).filter((e) => isVisible(e) && !skip?.(e));
     if (!all.length) return null;
     if (preferAlert) {
       const alerts = all.filter((e) => e.matches('[role=alertdialog]'));
@@ -443,13 +723,13 @@ export function demoKit(config: KitConfig): void {
     return pool[pool.length - 1];
   }
   function topPopover(): Element | null {
-    const cands = Array.from(document.querySelectorAll(FLOATING_SEL)).filter(
+    const cands = deepQsa(document, FLOATING_SEL).filter(
       (e) => e !== host && !e.matches('[role=menubar]') && (!e.hasAttribute('popover') || isPopoverOpen(e)),
     );
     let last = lastVisible(cands);
     if (!last) return null;
     // Climb to the outermost floating layer of that group (popper wrapper around a listbox…).
-    for (let p = last.parentElement; p && p !== document.body; p = p.parentElement) {
+    for (let p = hostParent(last); p && p !== p.ownerDocument.body; p = hostParent(p)) {
       if (cands.includes(p)) last = p;
     }
     return last;
@@ -458,7 +738,7 @@ export function demoKit(config: KitConfig): void {
   function rowFor(text: string): Element | null {
     const q = norm(text);
     const ql = lc(q);
-    const rows = Array.from(document.querySelectorAll(ROW_SEL)).filter(
+    const rows = deepQsa(document, ROW_SEL).filter(
       (r) => lc(textOf(r)).includes(ql) && isVisible(r),
     );
     // Innermost rows only (a row containing a matching nested row is dropped).
@@ -472,7 +752,7 @@ export function demoKit(config: KitConfig): void {
     // Card layouts: climb from the text to the first ancestor that holds a button.
     const hits = textSearch(document.body, q, false).filter((h) => isVisible(h.el));
     for (const h of hits) {
-      for (let p: Element | null = h.el; p && p !== document.body; p = p.parentElement) {
+      for (let p: Element | null = h.el; p && p !== p.ownerDocument.body; p = hostParent(p)) {
         if (p.querySelector('button,[role=button],[aria-haspopup]') && p !== h.el) return p;
       }
     }
@@ -481,8 +761,8 @@ export function demoKit(config: KitConfig): void {
   function resolveScope(s: ScopeSpec | undefined): Element | null {
     if (s === undefined || s === 'page') return document.body ?? document.documentElement;
     if (s === 'dialog') return topDialog(false);
-    if (s === 'menu') return lastVisible(document.querySelectorAll('[role=menu]'));
-    if (s === 'listbox') return lastVisible(document.querySelectorAll('[role=listbox]'));
+    if (s === 'menu') return lastVisible(deepQsa(document, '[role=menu]'));
+    if (s === 'listbox') return lastVisible(deepQsa(document, '[role=listbox]'));
     if (s === 'popover') return topPopover();
     if (typeof s === 'object' && 'row' in s && typeof (s as { row: unknown }).row === 'string') {
       return rowFor((s as { row: string }).row);
@@ -496,7 +776,15 @@ export function demoKit(config: KitConfig): void {
     el: Element;
     tier: Tier;
   }
-  /** Innermost elements whose text contains `q`, with their match tier. */
+  /** Text of a shadow root without its style/script children (what it renders, as text). */
+  function shadowText(sr: ShadowRoot): string {
+    return norm(
+      Array.from(sr.childNodes)
+        .map((c) => (c.nodeType === 3 ? c.textContent : c.nodeType === 1 && !SKIP_TAGS.has((c as Element).tagName) ? c.textContent : ''))
+        .join(' '),
+    );
+  }
+  /** Innermost elements whose text contains `q`, with their match tier (in every tree under `root`). */
   function textSearch(root: Element, q: string, exactOnly: boolean): Hit[] {
     const qn = norm(q);
     const ql = lc(qn);
@@ -516,10 +804,28 @@ export function demoKit(config: KitConfig): void {
         if (t >= 0) out.push({ el, tier: t as Tier });
       }
     };
-    if (lc(norm(root.textContent)).includes(ql)) visit(root);
-    for (const inp of Array.from(root.querySelectorAll(BUTTON_INPUT))) {
-      const t = tierOf(textOf(inp), qn, exactOnly);
-      if (t >= 0) out.push({ el: inp, tier: t as Tier });
+    for (const tree of trees(root).list) {
+      if (tree.nodeType === 1) {
+        if (lc(norm(tree.textContent)).includes(ql)) visit(tree as Element);
+      } else {
+        const sr = tree as ShadowRoot;
+        if (!lc(shadowText(sr)).includes(ql)) continue;
+        let childHas = false;
+        for (const c of Array.from(sr.children)) {
+          if (SKIP_TAGS.has(c.tagName) || !lc(norm(c.textContent)).includes(ql)) continue;
+          childHas = true;
+          visit(c);
+        }
+        // Text placed directly in the shadow root: its host shows it.
+        if (!childHas) {
+          const t = tierOf(directText(sr), qn, exactOnly);
+          if (t >= 0) out.push({ el: sr.host, tier: t as Tier });
+        }
+      }
+      for (const inp of Array.from(tree.querySelectorAll(BUTTON_INPUT))) {
+        const t = tierOf(textOf(inp), qn, exactOnly);
+        if (t >= 0) out.push({ el: inp, tier: t as Tier });
+      }
     }
     return out;
   }
@@ -527,10 +833,11 @@ export function demoKit(config: KitConfig): void {
     const ps = parts.map((p) => lc(norm(p))).filter(Boolean);
     const out: Element[] = [];
     if (!ps.length) return out;
-    const has = (el: Element) => {
-      const t = lc(norm(el.textContent));
+    const holds = (text: string) => {
+      const t = lc(norm(text));
       return ps.every((p) => t.includes(p));
     };
+    const has = (el: Element) => holds(el.textContent ?? '');
     const visit = (el: Element) => {
       let childHas = false;
       for (const c of Array.from(el.children)) {
@@ -542,23 +849,37 @@ export function demoKit(config: KitConfig): void {
       }
       if (!childHas) out.push(el);
     };
-    if (has(root)) visit(root);
+    for (const tree of trees(root).list) {
+      if (tree.nodeType === 1) {
+        if (has(tree as Element)) visit(tree as Element);
+        continue;
+      }
+      const sr = tree as ShadowRoot;
+      if (!holds(shadowText(sr))) continue;
+      let childHas = false;
+      for (const c of Array.from(sr.children)) {
+        if (SKIP_TAGS.has(c.tagName) || !has(c)) continue;
+        childHas = true;
+        visit(c);
+      }
+      if (!childHas) out.push(sr.host);
+    }
     return out;
   }
   function labelPairs(root: Element): Array<{ control: Element; text: string }> {
     const out: Array<{ control: Element; text: string }> = [];
-    for (const lab of Array.from(root.querySelectorAll('label'))) {
+    for (const lab of deepQsa(root, 'label')) {
       const text = norm(lab.textContent);
       let control: Element | null = (lab as HTMLLabelElement).control;
       if (!control) {
         const f = lab.getAttribute('for');
-        if (f) control = document.getElementById(f);
+        if (f) control = treeOf(lab).getElementById(f);
       }
       if (!control) control = lab.querySelector('input,select,textarea,button,[role=combobox],[role=textbox],[contenteditable]');
       if (control) out.push({ control, text });
     }
-    for (const el of Array.from(root.querySelectorAll('[aria-labelledby]'))) {
-      out.push({ control: el, text: idsText(el.getAttribute('aria-labelledby') ?? '') });
+    for (const el of deepQsa(root, '[aria-labelledby]')) {
+      out.push({ control: el, text: idsText(el.getAttribute('aria-labelledby') ?? '', el) });
     }
     return out;
   }
@@ -573,21 +894,17 @@ export function demoKit(config: KitConfig): void {
     }
     return out;
   }
+  /** Document order; across shadow roots and frames, composed visual order (deepCompare). */
   function docOrder(els: Element[]): Element[] {
-    return els.sort((a, b) => {
-      if (a === b) return 0;
-      const pos = a.compareDocumentPosition(b);
-      return pos & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : pos & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0;
-    });
+    return els.sort(deepCompare);
   }
   function cssEscape(s: string): string {
     return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(s) : s.replace(/["\\]/g, '\\$&');
   }
+  /** `root` and its descendants matching `sel`, in every tree (a selector never crosses a shadow or frame boundary). */
   function safeQsa(root: Element, sel: string): Element[] {
     try {
-      const all = Array.from(root.querySelectorAll(sel));
-      if (root.matches(sel)) all.unshift(root);
-      return all;
+      return deepQsa(root, sel, true);
     } catch (e) {
       throw new Error(`invalid CSS selector ${JSON.stringify(sel)}: ${(e as Error).message}`);
     }
@@ -604,6 +921,9 @@ export function demoKit(config: KitConfig): void {
     let used: string;
     let hidden = 0;
     const vis0 = (e: Element) => e !== host && (opts.include_hidden === true || isVisible(e));
+    // Text tiers are chosen on the searched document's own matches first (bestTier `own`).
+    const home = root.ownerDocument;
+    const own = (e: Element) => e.ownerDocument === home;
     const keepVisible = (els: Element[]) => {
       const vis = els.filter(vis0);
       hidden += els.length - vis.length;
@@ -620,7 +940,7 @@ export function demoKit(config: KitConfig): void {
       used = 'role';
     } else if (t.label !== undefined) {
       const pairs = labelPairs(root).filter((p) => vis0(p.control));
-      let best = bestTier(pairs, (p) => p.text, t.label, exact).map((p) => p.control);
+      let best = bestTier(pairs, (p) => p.text, t.label, exact, (p) => own(p.control)).map((p) => p.control);
       if (!best.length) {
         const trig = fieldTriggerEl(t.label, root);
         if (trig) best = [trig];
@@ -629,11 +949,11 @@ export function demoKit(config: KitConfig): void {
       used = 'label';
     } else if (t.aria !== undefined) {
       const all = keepVisible(safeQsa(root, '[aria-label]'));
-      base = bestTier(all, (e) => norm(e.getAttribute('aria-label')), t.aria, exact);
+      base = bestTier(all, (e) => norm(e.getAttribute('aria-label')), t.aria, exact, own);
       used = 'aria';
     } else if (t.placeholder !== undefined) {
       const all = keepVisible(safeQsa(root, '[placeholder]'));
-      base = bestTier(all, (e) => norm(e.getAttribute('placeholder')), t.placeholder, exact);
+      base = bestTier(all, (e) => norm(e.getAttribute('placeholder')), t.placeholder, exact, own);
       used = 'placeholder';
     } else if (contains !== undefined) {
       const raw = containsSearch(root, contains);
@@ -644,8 +964,9 @@ export function demoKit(config: KitConfig): void {
       const hits = textSearch(root, t.text, exact);
       const visHits = hits.filter((h) => vis0(h.el));
       hidden += hits.length - visHits.length;
-      const tier = ([0, 1, 2] as Tier[]).map((k) => visHits.filter((h) => h.tier === k)).find((l) => l.length > 0) ?? [];
-      base = tier.map((h) => (opts.promote === false ? h.el : promote(h.el, root)));
+      const mine = visHits.filter((h) => own(h.el));
+      const best = Math.min(...(mine.length ? mine : visHits).map((h) => h.tier));
+      base = visHits.filter((h) => h.tier === best).map((h) => (opts.promote === false ? h.el : promote(h.el, root)));
       used = 'text';
     } else {
       return { visible: [root], hidden: 0 };
@@ -655,7 +976,7 @@ export function demoKit(config: KitConfig): void {
     if (used !== 'css' && t.css !== undefined) els = els.filter((e) => e.matches(t.css as string));
     if (used !== 'testid' && t.testid !== undefined) els = els.filter((e) => e.getAttribute('data-testid') === t.testid);
     if (used !== 'role' && t.role !== undefined) els = els.filter((e) => hasRole(e, (t.role as string).toLowerCase()));
-    if (t.name !== undefined) els = bestTier(els, accessibleName, t.name, exact);
+    if (t.name !== undefined) els = bestTier(els, accessibleName, t.name, exact, own);
     if (used !== 'label' && t.label !== undefined) {
       const pairs = labelPairs(root);
       els = els.filter((e) => pairs.some((p) => p.control === e && tierOf(p.text, norm(t.label), exact) >= 0));
@@ -693,7 +1014,7 @@ export function demoKit(config: KitConfig): void {
     const seen = new Set<string>();
     const scored: Array<{ t: string; s: number }> = [];
     let n = 0;
-    for (const el of Array.from(root.querySelectorAll(sel))) {
+    for (const el of deepQsa(root, sel)) {
       if (++n > 600) break;
       if (!isVisible(el)) continue;
       const t = short(accessibleName(el) || textOf(el), 60);
@@ -731,9 +1052,11 @@ export function demoKit(config: KitConfig): void {
     if (t.last_visible) index = n - 1;
     if (t.nth !== undefined) index = t.nth < 0 ? n + t.nth : t.nth;
     if (n === 0 || index < 0 || index >= n) {
+      // Frames this kit cannot enter (another origin): say so, a target inside one is not a mystery.
+      const cross = n > 0 ? 0 : trees(root).cross;
       return {
         count: 0,
-        desc: n > 0 ? `nth=${t.nth} out of range (${n} visible matches)` : '',
+        desc: n > 0 ? `nth=${t.nth} out of range (${n} visible matches)` : cross > 0 ? `${cross} cross-origin frame${cross > 1 ? 's' : ''} not searched` : '',
         hidden: m.hidden,
         scope_found: true,
         near: nearTexts(query, root),
@@ -757,11 +1080,11 @@ export function demoKit(config: KitConfig): void {
 
   // ───────────────────────────── points & hit testing ─────────────────────────────
   function hitInside(el: Element, x: number, y: number): boolean {
-    const hit = document.elementFromPoint(x, y);
+    const hit = deepHit(x, y);
     if (!hit) return false;
-    if (el.contains(hit)) return true;
+    if (deepContains(el, hit)) return true;
     // A <label> forwarding to its control, or a control that sits inside a label we hit.
-    return hit instanceof HTMLLabelElement && hit.control === el;
+    return isA(hit, 'label') && hit.control === el;
   }
   function pointFor(id: string, offset?: PointSpec | null): PointInfo | null {
     const el = deref(id);
@@ -789,61 +1112,94 @@ export function demoKit(config: KitConfig): void {
   }
 
   // ───────────────────────────── scrolling ─────────────────────────────
+  /**
+   * The next scroll that brings `id` into view, innermost container first: the scrollable ancestors in the element's
+   * document, then that document's scroller; then the same from its frame element in the parent document. The
+   * container is '' only for the top document's scroller (a frame document's scroller is a ref).
+   */
   function scrollPlan(id: string, margin: number): ScrollOp | null {
     const el = deref(id);
     if (!el) return null;
-    const containers: Element[] = [];
-    for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
-      if (isScrollable(p)) containers.push(p);
-    }
-    containers.push(docScroller());
-    const r = el.getBoundingClientRect();
-    for (const c of containers) {
-      const isDoc = c === docScroller();
-      let vt: number;
-      let vb: number;
-      let vl: number;
-      let vr: number;
-      if (isDoc) {
-        vt = 0;
-        vb = window.innerHeight;
-        vl = 0;
-        vr = window.innerWidth;
-      } else {
-        const cr = c.getBoundingClientRect();
-        vt = cr.top + c.clientTop;
-        vb = vt + c.clientHeight;
-        vl = cr.left + c.clientLeft;
-        vr = vl + c.clientWidth;
+    let from = el;
+    let r: Rect = el.getBoundingClientRect();
+    for (let layer = 0; layer < 16; layer++) {
+      const doc = from.ownerDocument;
+      const win = winOf(from);
+      const scroller = docScrollerOf(doc);
+      const containers: Element[] = [];
+      for (let p = flatParent(from); p && p !== doc.body && p !== doc.documentElement; p = flatParent(p)) {
+        if (isScrollable(p)) containers.push(p);
       }
-      const viewH = vb - vt;
-      const viewW = vr - vl;
-      const m = Math.min(margin, viewH / 4);
-      let dy = 0;
-      if (r.top < vt + m || r.bottom > vb - m) {
-        dy = r.height > viewH - 2 * m ? r.top - (vt + m) : r.top + r.height / 2 - (vt + viewH * 0.42);
+      containers.push(scroller);
+      for (const c of containers) {
+        const isDoc = c === scroller;
+        let vt: number;
+        let vb: number;
+        let vl: number;
+        let vr: number;
+        if (isDoc) {
+          vt = 0;
+          vb = win.innerHeight;
+          vl = 0;
+          vr = win.innerWidth;
+        } else {
+          const cr = c.getBoundingClientRect();
+          vt = cr.top + c.clientTop;
+          vb = vt + c.clientHeight;
+          vl = cr.left + c.clientLeft;
+          vr = vl + c.clientWidth;
+        }
+        const viewH = vb - vt;
+        const viewW = vr - vl;
+        const m = Math.min(margin, viewH / 4);
+        let dy = 0;
+        if (r.top < vt + m || r.bottom > vb - m) {
+          dy = r.height > viewH - 2 * m ? r.top - (vt + m) : r.top + r.height / 2 - (vt + viewH * 0.42);
+        }
+        let dx = 0;
+        if (r.left < vl || r.right > vr) {
+          dx = r.width > viewW ? r.left - vl : r.left + r.width / 2 - (vl + viewW / 2);
+        }
+        const maxTop = c.scrollHeight - c.clientHeight;
+        const maxLeft = c.scrollWidth - c.clientWidth;
+        const fromTop = c.scrollTop;
+        const fromLeft = c.scrollLeft;
+        const top = Math.max(0, Math.min(maxTop, Math.round(fromTop + dy)));
+        const left = Math.max(0, Math.min(maxLeft, Math.round(fromLeft + dx)));
+        if (Math.abs(top - fromTop) >= 1 || Math.abs(left - fromLeft) >= 1) {
+          return { container: isDoc && doc === document ? '' : ref(c), top, left, from_top: fromTop, from_left: fromLeft };
+        }
       }
-      let dx = 0;
-      if (r.left < vl || r.right > vr) {
-        dx = r.width > viewW ? r.left - vl : r.left + r.width / 2 - (vl + viewW / 2);
-      }
-      const maxTop = c.scrollHeight - c.clientHeight;
-      const maxLeft = c.scrollWidth - c.clientWidth;
-      const fromTop = c.scrollTop;
-      const fromLeft = c.scrollLeft;
-      const top = Math.max(0, Math.min(maxTop, Math.round(fromTop + dy)));
-      const left = Math.max(0, Math.min(maxLeft, Math.round(fromLeft + dx)));
-      if (Math.abs(top - fromTop) >= 1 || Math.abs(left - fromLeft) >= 1) {
-        return { container: isDoc ? '' : ref(c), top, left, from_top: fromTop, from_left: fromLeft };
-      }
+      // In view in this document: bring its frame into view in the parent document.
+      const f = frameElOf(doc);
+      if (!f) return null;
+      const o = contentOffset(f);
+      r = { left: r.left + o.x, right: r.right + o.x, top: r.top + o.y, bottom: r.bottom + o.y, width: r.width, height: r.height };
+      from = f;
     }
     return null;
   }
   function scrollContainerFor(id: string | null, fromParent = false): string {
     const el = deref(id);
     if (el) {
-      for (let p: Element | null = fromParent ? el.parentElement : el; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
-        if (isScrollable(p)) return ref(p);
+      // An <iframe> itself designates its document's scroller, when that scrolls.
+      const fd = fromParent ? null : frameDoc(el);
+      const fs = fd ? docScrollerOf(fd) : null;
+      if (fs && (fs.scrollHeight > fs.clientHeight + 1 || fs.scrollWidth > fs.clientWidth + 1)) return ref(fs);
+      let doc = el.ownerDocument;
+      let from: Element | null = fromParent ? flatParent(el) : el;
+      for (let layer = 0; layer < 16; layer++) {
+        for (let p = from; p && p !== doc.body && p !== doc.documentElement; p = flatParent(p)) {
+          if (isScrollable(p)) return ref(p);
+        }
+        if (doc === document) return '';
+        // A frame's document scroller, else the containers around the frame.
+        const se = docScrollerOf(doc);
+        if (se.scrollHeight > se.clientHeight + 1) return ref(se);
+        const f = frameElOf(doc);
+        if (!f) return '';
+        from = flatParent(f);
+        doc = f.ownerDocument;
       }
       return '';
     }
@@ -854,7 +1210,7 @@ export function demoKit(config: KitConfig): void {
     let bestArea = 0;
     for (const c of Array.from(document.body?.querySelectorAll('*') ?? [])) {
       if (c === host) continue;
-      const cs = getComputedStyle(c);
+      const cs = styleOf(c);
       if (!/(auto|scroll|overlay)/.test(cs.overflowY) || c.scrollHeight <= c.clientHeight + 1) continue;
       const v = visibleRect(c);
       const area = Math.max(0, v.r - v.l) * Math.max(0, v.b - v.t);
@@ -881,8 +1237,9 @@ export function demoKit(config: KitConfig): void {
     };
     const t = deref(of ?? null);
     if (t) {
-      const tr = t.getBoundingClientRect();
-      const top = c === docScroller() ? 0 : c.getBoundingClientRect().top + c.clientTop;
+      const tr = rectOf(t);
+      // Top of the container's viewport in top px: its frame's position for a document scroller.
+      const top = c === docScrollerOf(c.ownerDocument) ? frameOffset(c).y : rectOf(c).top + c.clientTop;
       info.target_top = Math.round(tr.top - top + c.scrollTop);
     }
     return info;
@@ -904,7 +1261,7 @@ export function demoKit(config: KitConfig): void {
   function scrollAnimate(id: string, top: number, left: number, ms: number): Promise<{ top: number; left: number }> {
     const c = containerEl(id);
     if (!c) return Promise.reject(new Error('scroll container is gone'));
-    const styleEl = (c === docScroller() ? document.documentElement : c) as HTMLElement;
+    const styleEl = (c === docScrollerOf(c.ownerDocument) ? c.ownerDocument.documentElement : c) as HTMLElement;
     const prev = styleEl.style.scrollBehavior;
     styleEl.style.scrollBehavior = 'auto';
     const fromTop = c.scrollTop;
@@ -934,7 +1291,7 @@ export function demoKit(config: KitConfig): void {
   let popupSeq = 0;
   function popupState(): PopupEntry[] {
     const out: PopupEntry[] = [];
-    for (const el of Array.from(document.querySelectorAll(POPUP_SEL))) {
+    for (const el of deepQsa(document, POPUP_SEL)) {
       if (el === host) continue;
       if (el.hasAttribute('popover') && !isPopoverOpen(el)) continue;
       if (!isVisible(el)) continue;
@@ -950,41 +1307,58 @@ export function demoKit(config: KitConfig): void {
   }
 
   function blankAt(x: number, y: number, avoid: Element[]): boolean {
-    const hit = document.elementFromPoint(x, y);
+    const hit = deepHit(x, y);
     if (!hit) return false;
+    // A click inside a frame never reaches this document's outside-click handlers.
+    if (hit.ownerDocument !== document || hit.localName === 'iframe' || hit.localName === 'frame') return false;
     if (isInteractive(hit)) return false;
-    if (avoid.some((a) => a.contains(hit))) return false;
-    if (hit.closest(POPUP_SEL.replace(',[role=dialog],[role=alertdialog],dialog[open]', ''))) return false;
+    if (avoid.some((a) => deepContains(a, hit))) return false;
+    if (deepClosest(hit, POPUP_SEL.replace(',[role=dialog],[role=alertdialog],dialog[open]', ''))) return false;
     return true;
   }
-  function textRectCentre(el: Element): PointSpec | null {
-    const range = document.createRange();
+  /** Box of an element's text (a Range over its contents), top px; null when it has none. */
+  function textBox(el: Element): BBox | null {
+    const range = el.ownerDocument.createRange();
     range.selectNodeContents(el);
     const r = range.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return null;
-    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    const o = frameOffset(el);
+    return { x: Math.round(r.left + o.x), y: Math.round(r.top + o.y), w: Math.round(r.width), h: Math.round(r.height) };
+  }
+  function textRectCentre(el: Element): PointSpec | null {
+    const b = textBox(el);
+    return b ? { x: Math.round(b.x + b.w / 2), y: Math.round(b.y + b.h / 2) } : null;
   }
   function outsidePlan(near: PointSpec, avoidIds: number[]): OutsidePlan | null {
-    const popupEls = Array.from(document.querySelectorAll(POPUP_SEL)).filter((e) => {
+    const allPopups = deepQsa(document, POPUP_SEL);
+    const popupEls = allPopups.filter((e) => {
       const id = popupIds.get(e);
       return id !== undefined && avoidIds.includes(id);
     });
-    const dlg = topDialog(true);
-    const avoid = popupEls.filter((p) => p !== dlg && !(dlg && p.contains(dlg)));
+    let dlg = topDialog(true);
+    // A floating dialog being closed (a date popover with role=dialog) holds nothing: the dialog under it holds the
+    // click, else a blank spot. Not when something else is being closed too (a listbox it opened, portaled out of it):
+    // then it holds that pick and stays open.
+    const closing = (e: Element) => popupEls.some((p) => p === e || deepContains(p, e));
+    if (dlg && isFloating(dlg) && closing(dlg)) {
+      const d = dlg;
+      if (popupEls.every((p) => p === d || deepContains(p, d) || deepContains(d, p))) dlg = topDialog(true, (e) => e === d || closing(e));
+    }
+    const avoid = popupEls.filter((p) => p !== dlg && !(dlg && deepContains(p, dlg)));
     const keepFor = (x: number, y: number): number[] => {
-      const hit = document.elementFromPoint(x, y);
+      const hit = deepHit(x, y);
       if (!hit) return [];
       const ids: number[] = [];
-      for (const el of Array.from(document.querySelectorAll(POPUP_SEL))) {
+      for (const el of allPopups) {
         const id = popupIds.get(el);
-        if (id !== undefined && el.contains(hit)) ids.push(id);
+        if (id !== undefined && deepContains(el, hit)) ids.push(id);
       }
       return ids;
     };
     const plan = (kind: OutsidePlan['kind'], x: number, y: number, r?: string): OutsidePlan => ({ kind, x, y, ref: r, keep: keepFor(x, y) });
     if (dlg) {
       const lb = dlg.getAttribute('aria-labelledby');
-      const byId = lb ? document.getElementById(lb.split(/\s+/)[0]) : null;
+      const byId = lb ? treeOf(dlg).getElementById(lb.split(/\s+/)[0]) : null;
       const title =
         (byId && dlg.contains(byId) ? byId : null) ??
         Array.from(dlg.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]')).find((h) => isVisible(h)) ??
@@ -992,7 +1366,7 @@ export function demoKit(config: KitConfig): void {
       if (title && isVisible(title)) {
         const c = textRectCentre(title) ?? pointFor(ref(title))!;
         if (c && blankAt(c.x, c.y, avoid)) return plan('dialog-title', c.x, c.y, ref(title));
-        const tb = title.getBoundingClientRect();
+        const tb = rectOf(title);
         for (let fx = 0.1; fx <= 0.9; fx += 0.1) {
           const x = Math.round(tb.left + tb.width * fx);
           const y = Math.round(tb.top + tb.height / 2);
@@ -1000,13 +1374,13 @@ export function demoKit(config: KitConfig): void {
         }
       }
       // Blank padding inside the dialog, top area first.
-      const dr = dlg.getBoundingClientRect();
+      const dr = rectOf(dlg);
       for (let fy = 0.04; fy <= 0.5; fy += 0.06) {
         for (let fx = 0.5; fx <= 0.96; fx += 0.08) {
           const x = Math.round(dr.left + dr.width * fx);
           const y = Math.round(dr.top + dr.height * fy);
-          const hit = document.elementFromPoint(x, y);
-          if (hit && dlg.contains(hit) && blankAt(x, y, avoid)) return plan('blank', x, y);
+          const hit = deepHit(x, y);
+          if (hit && deepContains(dlg, hit) && blankAt(x, y, avoid)) return plan('blank', x, y);
         }
       }
       return null;
@@ -1026,7 +1400,13 @@ export function demoKit(config: KitConfig): void {
     return plan('blank', pool[0].x, pool[0].y);
   }
 
-  function restPoint(where: 'side' | 'centre' = 'side'): PointSpec {
+  /** The drawn cursor at (x, y) overlaps one of `boxes` (with a `clear` margin). */
+  function coversAny(x: number, y: number, boxes: BBox[] | undefined, clear = 14): boolean {
+    if (!boxes || !boxes.length) return false;
+    const c = cursorBox(x, y);
+    return boxes.some((b) => c.r > b.x - clear && c.l < b.x + b.w + clear && c.b > b.y - clear && c.t < b.y + b.h + clear);
+  }
+  function restPoint(where: 'side' | 'centre' = 'side', avoid?: BBox[]): PointSpec {
     const W = window.innerWidth;
     const H = window.innerHeight;
     const cands: Array<[number, number]> =
@@ -1036,9 +1416,10 @@ export function demoKit(config: KitConfig): void {
     for (const [fx, fy] of cands) {
       const x = Math.round(W * fx);
       const y = Math.round(H * fy);
-      const hit = document.elementFromPoint(x, y);
+      if (coversAny(x, y, avoid)) continue;
+      const hit = deepHit(x, y);
       if (!hit || isInteractive(hit)) continue;
-      const cur = getComputedStyle(hit).cursor;
+      const cur = styleOf(hit).cursor;
       if (cur === 'pointer' || cur === 'text') continue;
       return { x, y };
     }
@@ -1050,7 +1431,7 @@ export function demoKit(config: KitConfig): void {
     const size = Math.max(12, config.cursor.size || 26);
     return { l: x - 6, t: y - 6, r: x + size * 0.8 + 4, b: y + size + 6 };
   }
-  function restNear(box: BBox, at: { point?: PointSpec; ref?: string } = {}): { x: number; y: number; side: string } {
+  function restNear(box: BBox, at: { point?: PointSpec; ref?: string; avoid?: BBox[] } = {}): { x: number; y: number; side: string } {
     const W = window.innerWidth;
     const H = window.innerHeight;
     const EDGE = 28;
@@ -1076,19 +1457,20 @@ export function demoKit(config: KitConfig): void {
       ['above-left', L - 72, box.y - 72],
     ];
     // Inside the dialog that holds the target: never out on its backdrop (the arrow extends right and down).
-    const host = (at.ref ? deref(at.ref) : null)?.closest('[role=dialog],[role=alertdialog],dialog,[aria-modal=true]');
-    const hr = host ? host.getBoundingClientRect() : null;
+    const at0 = at.ref ? deref(at.ref) : null;
+    const host = at0 ? deepClosest(at0, '[role=dialog],[role=alertdialog],dialog,[aria-modal=true]') : null;
+    const hr = host ? rectOf(host) : null;
     const inHost = (x: number, y: number) => !hr || (x >= hr.left + 12 && y >= hr.top + 12 && x <= hr.right - 12 - 20 && y <= hr.bottom - 12 - 28);
     const inside = (x: number, y: number) => x >= EDGE && y >= EDGE && x <= W - EDGE - 20 && y <= H - EDGE - 28;
     const covers = (x: number, y: number) => {
       const c = cursorBox(x, y);
-      return c.r > box.x - CLEAR && c.l < R0 + CLEAR && c.b > box.y - CLEAR && c.t < B + CLEAR;
+      return (c.r > box.x - CLEAR && c.l < R0 + CLEAR && c.b > box.y - CLEAR && c.t < B + CLEAR) || coversAny(x, y, at.avoid, CLEAR);
     };
     const neutral = (x: number, y: number) => {
-      const hit = document.elementFromPoint(x, y);
+      const hit = deepHit(x, y);
       if (!hit) return true;
-      if (isInteractive(hit) || hit.closest('a[href],button,input,select,textarea,[role=button],[role=link]')) return false;
-      const cur = getComputedStyle(hit).cursor;
+      if (isInteractive(hit) || deepClosest(hit, 'a[href],button,input,select,textarea,[role=button],[role=link]')) return false;
+      const cur = styleOf(hit).cursor;
       return cur !== 'pointer' && cur !== 'text';
     };
     const ok = cands.filter(([, x, y]) => inside(x, y) && !covers(x, y)).map(([side, x, y]) => ({ side, x: Math.round(x), y: Math.round(y) }));
@@ -1106,45 +1488,170 @@ export function demoKit(config: KitConfig): void {
     }
     const best = ok.find((p) => inHost(p.x, p.y)) ?? ok.find((p) => neutral(p.x, p.y)) ?? ok[0];
     if (best) return best;
-    return { ...restPoint(), side: 'fallback' };
+    return { ...restPoint('side', at.avoid), side: 'fallback' };
+  }
+
+  // ───────────────────────────── changes (parking, R-CHO-21) ─────────────────────────────
+  // What changed on the page since an action started: elements added, removed from, re-texted or restyled (top
+  // document; the cursor overlay ignored). Boxes are measured when asked; one over 40 % of the viewport (a page, an
+  // opened dialog) is not a "changed area" the cursor could stay clear of.
+  let watch: { obs: MutationObserver; els: Set<Element>; take: (list: MutationRecord[]) => void } | null = null;
+  const WATCH_ATTRS = ['class', 'style', 'hidden', 'open', 'disabled', 'value', 'aria-expanded', 'aria-selected', 'aria-checked', 'aria-pressed', 'data-state'];
+  cleanups.push(() => watch?.obs.disconnect());
+  function watchChanges(): void {
+    watch?.obs.disconnect();
+    const els = new Set<Element>();
+    // The 500 most recent elements: a change after a large re-render (a toast after a table) still counts.
+    const add = (n: Node | null) => {
+      const el = n && (n.nodeType === 1 ? (n as Element) : n.parentElement);
+      if (!el || el === host) return;
+      els.delete(el);
+      els.add(el);
+      if (els.size > 500) els.delete(els.values().next().value as Element);
+    };
+    const take = (list: MutationRecord[]) => {
+      for (const m of list) {
+        if (m.type === 'childList') {
+          m.addedNodes.forEach(add);
+          if (m.removedNodes.length) add(m.target);
+        } else {
+          add(m.target);
+        }
+      }
+    };
+    const obs = new MutationObserver(take);
+    obs.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: WATCH_ATTRS });
+    watch = { obs, els, take };
+  }
+  function changedBoxes(): { watching: boolean; boxes: BBox[] } {
+    if (!watch) return { watching: false, boxes: [] };
+    watch.take(watch.obs.takeRecords());
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const rects: Array<{ l: number; t: number; r: number; b: number }> = [];
+    for (const el of watch.els) {
+      if (!el.isConnected || el === host || el === document.body || el === document.documentElement) continue;
+      const rc = el.getBoundingClientRect();
+      const l = Math.max(0, rc.left);
+      const t = Math.max(0, rc.top);
+      const r = Math.min(W, rc.right);
+      const b = Math.min(H, rc.bottom);
+      if (r - l < 1 || b - t < 1 || (r - l) * (b - t) > 0.4 * W * H || !isVisible(el)) continue;
+      rects.push({ l, t, r, b });
+    }
+    // Merge overlapping boxes; keep the 12 largest.
+    for (let merged = true; merged; ) {
+      merged = false;
+      for (let i = 0; i < rects.length && !merged; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i];
+          const c = rects[j];
+          if (a.l <= c.r && c.l <= a.r && a.t <= c.b && c.t <= a.b) {
+            rects[i] = { l: Math.min(a.l, c.l), t: Math.min(a.t, c.t), r: Math.max(a.r, c.r), b: Math.max(a.b, c.b) };
+            rects.splice(j, 1);
+            merged = true;
+            break;
+          }
+        }
+      }
+    }
+    rects.sort((a, c) => (c.r - c.l) * (c.b - c.t) - (a.r - a.l) * (a.b - a.t));
+    return {
+      watching: true,
+      boxes: rects.slice(0, 12).map((x) => ({ x: Math.round(x.l), y: Math.round(x.t), w: Math.round(x.r - x.l), h: Math.round(x.b - x.t) })),
+    };
   }
 
   // ───────────────────────────── widgets ─────────────────────────────
   const TRIGGER_NAME = /\b(actions?|more|menu|options|manage|settings|row actions)\b|…|⋯|⋮|•••|\.\.\./i;
-  function menuTrigger(rowId: string): string | null {
+  /**
+   * The menu trigger of a row (R-CHO-13): an [aria-haspopup] element (a menu-like name first, else the last one), a
+   * button with a menu-like name, else the row's last button. When that last button is laid out but hidden (opacity or
+   * visibility: actions shown on hover) and the row was not hovered yet, `hover` asks the runner to hover the row and
+   * ask again (`hovered`), instead of taking a visible button of an earlier cell.
+   */
+  function menuTrigger(rowId: string, hovered = false): { ref: string | null; hover: boolean } {
     const row = deref(rowId);
-    if (!row) return null;
-    const vis = (sel: string) => Array.from(row.querySelectorAll(sel)).filter((e) => isVisible(e));
+    if (!row) return { ref: null, hover: false };
+    const vis = (sel: string) => deepQsa(row, sel).filter((e) => isVisible(e));
     const popupTriggers = vis('[aria-haspopup=menu],[aria-haspopup=true]');
     const named = (e: Element) => TRIGGER_NAME.test(`${e.getAttribute('aria-label') ?? ''} ${e.getAttribute('title') ?? ''} ${textOf(e)}`);
     const pick = popupTriggers.find(named) ?? popupTriggers[popupTriggers.length - 1];
-    if (pick) return ref(pick);
+    if (pick) return { ref: ref(pick), hover: false };
     const buttons = vis('button,[role=button]');
     const byName = buttons.find(named);
-    if (byName) return ref(byName);
+    if (byName) return { ref: ref(byName), hover: false };
+    if (!hovered) {
+      const laidOut = deepQsa(row, 'button,[role=button],[aria-haspopup]:not([aria-haspopup=false])').filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 1 && r.height > 1;
+      });
+      const lastOne = laidOut[laidOut.length - 1];
+      if (lastOne && !isVisible(lastOne)) return { ref: null, hover: true };
+    }
     const last = buttons[buttons.length - 1];
-    return last ? ref(last) : null;
+    return { ref: last ? ref(last) : null, hover: false };
+  }
+  const CELL_SEL = 'td,th,[role=cell],[role=gridcell],[role=columnheader],[role=rowheader]';
+  /** Clickable by itself: interactive, announcing a popup, an onclick attribute, or its own (not inherited) pointer cursor. */
+  function ownClickable(el: Element): boolean {
+    if (el.matches(INTERACTIVE) || el.matches('[aria-haspopup]:not([aria-haspopup=false]),[onclick]')) return true;
+    if (styleOf(el).cursor !== 'pointer') return false;
+    const p = upOf(el);
+    return !p || styleOf(p).cursor !== 'pointer';
+  }
+  /**
+   * Positional last resort for a row's menu trigger (R-CHO-13): the clickable element at the row's right end (a sweep
+   * from 8 to 64 px in from the right edge at mid-height), else at its top-right corner (18 px down: a card header's
+   * corner icon). A hit counts only when it is clickable by itself, never a cell or the row (a clickable row's
+   * inherited pointer cursor must not make a cell its "trigger"); the nearest clickable ancestor inside the row wins.
+   */
+  function positionalTrigger(rowId: string): { ref: string; where: string } | null {
+    const row = deref(rowId);
+    if (!row) return null;
+    const r = rectOf(row);
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const lines: Array<[string, number]> = [
+      ['right end', r.top + r.height / 2],
+      ['top-right corner', r.top + Math.min(18, r.height / 2)],
+    ];
+    for (const [where, ly] of lines) {
+      const y = Math.min(H - 1, Math.max(1, ly));
+      for (let dx = 8; dx <= 64; dx += 8) {
+        const x = Math.min(W - 1, Math.max(1, r.right - dx));
+        const hit = deepHit(x, y);
+        if (!hit || hit === row || !deepContains(row, hit)) continue;
+        for (let el: Element | null = hit, i = 0; el && el !== row && i < 12; el = upOf(el), i++) {
+          if (el.matches(CELL_SEL)) break;
+          if (ownClickable(el)) return { ref: ref(el), where };
+        }
+      }
+    }
+    return null;
   }
   function fieldTriggerEl(label: string, root: Element): Element | null {
     const q = norm(label);
-    const labels = Array.from(root.querySelectorAll('label,legend,[id],div,span,p,dt,th')).filter(
+    const labels = deepQsa(root, 'label,legend,[id],div,span,p,dt,th').filter(
       (e) => e.children.length <= 3 && tierOf(norm(e.textContent), q, false) >= 0 && isVisible(e),
     );
     const best = bestTier(labels, (e) => norm(e.textContent), q, false);
     const TRIG = '[role=combobox],[aria-haspopup]:not([aria-haspopup=false]),button,[role=button],input:not([type=hidden]),select,textarea';
     for (const lab of best) {
-      if (lab instanceof HTMLLabelElement) {
+      const tree = treeOf(lab);
+      if (isA(lab, 'label')) {
         const c = lab.control;
         if (c && isVisible(c)) return c;
         const f = lab.getAttribute('for');
-        const byFor = f ? document.getElementById(f) : null;
+        const byFor = f ? tree.getElementById(f) : null;
         if (byFor && isVisible(byFor)) return byFor;
       }
       if (lab.id) {
-        const lb = Array.from(document.querySelectorAll(`[aria-labelledby~="${cssEscape(lab.id)}"]`)).find((e) => isVisible(e));
+        const lb = Array.from(tree.querySelectorAll(`[aria-labelledby~="${cssEscape(lab.id)}"]`)).find((e) => isVisible(e));
         if (lb) return lb;
       }
-      for (let p = lab.parentElement, depth = 0; p && depth < 4 && p !== document.body; p = p.parentElement, depth++) {
+      const body = lab.ownerDocument.body;
+      for (let p = flatParent(lab), depth = 0; p && depth < 4 && p !== body; p = flatParent(p), depth++) {
         const cands = Array.from(p.querySelectorAll(TRIG)).filter((e) => e !== lab && !lab.contains(e) && isVisible(e));
         if (cands.length) {
           return cands.find((e) => e.matches('[role=combobox],[aria-haspopup]:not([aria-haspopup=false])')) ?? cands[0];
@@ -1157,7 +1664,7 @@ export function demoKit(config: KitConfig): void {
   function confirmButton(text: string | null): string | null {
     const dlg = topDialog(true);
     if (!dlg) return null;
-    const buttons = Array.from(dlg.querySelectorAll('button,[role=button],input[type=submit],input[type=button]')).filter((e) => isVisible(e));
+    const buttons = deepQsa(dlg, 'button,[role=button],input[type=submit],input[type=button]').filter((e) => isVisible(e));
     if (text !== null) {
       const best = bestTier(buttons, (e) => accessibleName(e), text, false);
       return best.length ? ref(best[0]) : null;
@@ -1168,13 +1675,13 @@ export function demoKit(config: KitConfig): void {
   function fileInputFor(id: string): string | null {
     const zone = deref(id);
     if (!zone) return null;
-    const isFile = (e: Element | null): e is HTMLInputElement => e instanceof HTMLInputElement && e.type === 'file';
+    const isFile = (e: Element | null): e is HTMLInputElement => isA(e, 'input') && e.type === 'file';
     if (isFile(zone)) return ref(zone);
     const inside = zone.querySelector('input[type=file]');
     if (inside) return ref(inside);
     const lab = zone.closest('label');
     if (lab && isFile(lab.control)) return ref(lab.control);
-    for (let p = zone.parentElement, d = 0; p && d < 3 && p !== document.body; p = p.parentElement, d++) {
+    for (let p = zone.parentElement, d = 0; p && d < 3 && p !== zone.ownerDocument.body; p = p.parentElement, d++) {
       const all = p.querySelectorAll('input[type=file]');
       if (all.length === 1) return ref(all[0]);
       if (all.length > 1) break;
@@ -1183,46 +1690,282 @@ export function demoKit(config: KitConfig): void {
   }
   function selectNative(id: string, option: string): { ok: boolean; label?: string; options: string[] } {
     const el = deref(id);
-    if (!(el instanceof HTMLSelectElement)) return { ok: false, options: [] };
+    if (!isA(el, 'select')) return { ok: false, options: [] };
     const opts = Array.from(el.options);
     const labels = opts.map((o) => norm(o.label || o.text));
     const best = bestTier(opts, (o) => norm(o.label || o.text), option, false);
     const o = best[0] ?? opts.find((x) => x.value === option);
     if (!o) return { ok: false, options: labels };
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+    // The element's own realm (a <select> in a frame): its prototype's setter and its Event constructor.
+    const realm = winOf(el) as Window & typeof globalThis;
+    const setter = Object.getOwnPropertyDescriptor(realm.HTMLSelectElement.prototype, 'value')?.set;
     if (setter) setter.call(el, o.value);
     else el.value = o.value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.dispatchEvent(new realm.Event('input', { bubbles: true }));
+    el.dispatchEvent(new realm.Event('change', { bubbles: true }));
     return { ok: true, label: norm(o.label || o.text), options: labels };
   }
-  function isTextInput(id: string | null): boolean {
-    const el = id ? deref(id) : document.activeElement;
-    if (!el) return false;
-    if (el instanceof HTMLTextAreaElement) return true;
-    if (el instanceof HTMLInputElement) {
+  function textField(el: Element): boolean {
+    if (isA(el, 'textarea')) return true;
+    if (isA(el, 'input')) {
       return ['', 'text', 'search', 'email', 'url', 'tel', 'password', 'number'].includes(el.type);
     }
     return (el as HTMLElement).isContentEditable === true;
   }
+  function isTextInput(id: string | null): boolean {
+    const el = id ? deref(id) : deepActive();
+    return !!el && textField(el);
+  }
+  /** Words of a field's name, id, placeholder, label or title that make it a search field (camelCase / snake_case split). */
+  const SEARCH_WORDS = /\b(search|filter|find|look ?up|recherche[r]?|filtrer|such(e|en)|buscar|cerca)\b/i;
+  /** The body of a document edited in place (contenteditable or designMode: the rich-text editors drawn in a frame). */
+  function editableBody(el: Element): boolean {
+    const doc = el.ownerDocument;
+    if (el !== doc.body && el !== doc.documentElement) return false;
+    return (el as HTMLElement).isContentEditable === true || doc.designMode === 'on';
+  }
+  /**
+   * A field the viewer can see some of: visible, and not clipped to a sliver by an `overflow: hidden` ancestor (the
+   * hidden input of an editor that draws its text elsewhere sits in a 0–3 px box). Scrolling ancestors are ignored.
+   */
+  function shownField(el: Element): boolean {
+    if (!isVisible(el)) return false;
+    const rc = el.getBoundingClientRect();
+    let [l, t, r, b] = [rc.left, rc.top, rc.right, rc.bottom];
+    const doc = el.ownerDocument;
+    for (let p = flatParent(el); p && p !== doc.body && p !== doc.documentElement; p = flatParent(p)) {
+      const cs = styleOf(p);
+      if (!/(hidden|clip)/.test(cs.overflowX + cs.overflowY) || /(auto|scroll|overlay)/.test(cs.overflowX + cs.overflowY)) continue;
+      const pr = p.getBoundingClientRect();
+      [l, t, r, b] = [Math.max(l, pr.left), Math.max(t, pr.top), Math.min(r, pr.right), Math.min(b, pr.bottom)];
+    }
+    return r - l >= 4 && b - t >= 4;
+  }
+  const LIST_SEL = '[role=listbox],[role=menu]';
+  /**
+   * The field typed into (R-CHO-14, R-CHO-15): editable or not, empty or not (never its value: it may be a secret)
+   * and its kind — `search` (type=search, searchbox, combobox, autocomplete list, inside a search landmark or an open
+   * floating popover that lists options, or named like one), `multiline` (textarea, contenteditable, a frame's edited
+   * body) or `text`. `known`: the kit reads it — a shown input or textarea, or edited text; an editor's hidden input
+   * (clipped or a pixel wide: what the viewer sees is drawn elsewhere) or any other element is not read (its `empty`
+   * means nothing).
+   */
+  function fieldState(id: string | null): FieldState | null {
+    const el = id ? deref(id) : deepActive();
+    if (!el) return null;
+    const body = el === el.ownerDocument.body || el === el.ownerDocument.documentElement;
+    if (body && !editableBody(el)) return null;
+    const ce = body || (!isA(el, 'input') && !isA(el, 'textarea') && (el as HTMLElement).isContentEditable === true);
+    const field = isA(el, 'input') || isA(el, 'textarea');
+    const editable = (ce || (field && textField(el))) && !(field && ((el as HTMLInputElement).disabled || (el as HTMLInputElement).readOnly));
+    const empty = field ? (el as HTMLInputElement).value === '' : norm(el.textContent) === '';
+    const known = ce || (field && shownField(el));
+    if (isA(el, 'textarea') || ce) return { editable, empty, kind: 'multiline', known };
+    const role = explicitRole(el);
+    const attr = (n: string) => lc(el.getAttribute(n) ?? '');
+    let search = (isA(el, 'input') && el.type === 'search') || role === 'searchbox' || role === 'combobox';
+    search ||= attr('aria-autocomplete') === 'list' || attr('aria-autocomplete') === 'both' || attr('enterkeyhint') === 'search';
+    search ||= deepClosest(el, '[role=search],search') !== null;
+    // Inside an open floating popover that lists options (a listbox's filter); never a modal or anchored dialog, nor a
+    // popover holding a small form (a rename field): their fields are not searches.
+    const pop = deepClosest(el, FLOATING_SEL);
+    search ||=
+      pop !== null &&
+      !pop.matches('dialog,[aria-modal=true],[role=dialog]:not([data-side]),[role=alertdialog]') &&
+      (pop.matches(LIST_SEL) || deepQsa(pop, LIST_SEL).length > 0);
+    if (!search) {
+      const names = ['name', 'id', 'placeholder', 'aria-label', 'title'].map((n) => el.getAttribute(n) ?? '');
+      names.push(accessibleName(el));
+      search = names.some((n) => SEARCH_WORDS.test(n.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ')));
+    }
+    return { editable, empty, kind: search ? 'search' : 'text', known };
+  }
+  /**
+   * Clear the field when select-all + delete did not (R-CHO-15): the value setter of the element's own prototype (what
+   * React's value tracker sees as a change) + an `input` event; contenteditable: selectAll + delete commands.
+   */
+  function clearField(id: string | null): 'setter' | 'editor' | null {
+    const el = id ? deref(id) : deepActive();
+    if (!el) return null;
+    const realm = winOf(el) as Window & typeof globalThis;
+    if (isA(el, 'input') || isA(el, 'textarea')) {
+      const proto = isA(el, 'input') ? realm.HTMLInputElement.prototype : realm.HTMLTextAreaElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) setter.call(el, '');
+      else el.value = '';
+      el.dispatchEvent(new realm.Event('input', { bubbles: true }));
+      return 'setter';
+    }
+    if ((el as HTMLElement).isContentEditable || editableBody(el)) {
+      (el as HTMLElement).focus();
+      el.ownerDocument.execCommand('selectAll');
+      el.ownerDocument.execCommand('delete');
+      return 'editor';
+    }
+    return null;
+  }
+
+  // ───────────────────────────── calendars (R-CHO-24) ─────────────────────────────
+  const DAY_ATTRS = ['data-date', 'data-day', 'datetime', 'data-value'];
+  const ISO_DAY = /\b\d{4}-\d{2}-\d{2}\b/;
+  const YEAR_RE = /\b(1[89]|2\d)\d{2}\b/;
+  const NEXT_NAV = /\b(next|following|forward|suivant|n[aä]chste[rn]?|siguiente|successivo)\b|^\s*[›»→>]\s*$|chevron right|arrow right/i;
+  const PREV_NAV = /\b(prev(ious)?|back|earlier|pr[eé]c[eé]dent|vorherige[rn]?|anterior|precedente)\b|^\s*[‹«←<]\s*$|chevron left|arrow left/i;
+  function dayIso(el: Element): string | null {
+    for (const a of DAY_ATTRS) {
+      const m = el.getAttribute(a)?.match(ISO_DAY);
+      if (m) return m[0];
+    }
+    return null;
+  }
+  /** A day cell, on any tag: a date attribute, or a short aria-label with a year and a day number. */
+  function isDayCell(el: Element): boolean {
+    if (el === host) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width > 140 || r.height > 140) return false;
+    if (dayIso(el)) return true;
+    const al = el.getAttribute('aria-label');
+    return !!al && al.length <= 80 && YEAR_RE.test(al) && /\b\d{1,2}(st|nd|rd|th)?\b/.test(al.replace(YEAR_RE, ' '));
+  }
+  /** Texts a month button is known by: its name, title and class words. */
+  function navTexts(el: Element): string[] {
+    const cls = el.getAttribute('class') ?? '';
+    return [accessibleName(el), el.getAttribute('title') ?? '', cls.replace(/[-_]+/g, ' ')];
+  }
+  function dayFlag(c: Element, sel: string): boolean {
+    const cell = deepClosest(c, CELL_SEL);
+    return c.matches(sel) || (cell !== null && cell !== c && cell.matches(sel));
+  }
+  const NAV_BUTTON = 'button,[role=button],a[href]';
+  /** A button that would submit or reset its form (a wizard's "Next"): never a month button. */
+  function formButton(b: Element): boolean {
+    if (!isA(b, 'button') && !isA(b, 'input')) return false;
+    const el = b as HTMLInputElement;
+    return el.form !== null && ['submit', 'reset', 'image'].includes(el.type);
+  }
+  /**
+   * The calendar on screen: the innermost floating popup holding day cells (the last one opened), else the inline
+   * calendar around the last visible day cells — from there up to the first ancestor holding a month button (≤ 10
+   * levels, never onto a form or the body; from a floating popup, never out of the popup layer: a library that makes
+   * each month a listbox keeps its month buttons in the popup around them). A month button is a button, link or
+   * element classed next / prev (not inside a button) near the days — above them or beside them, never below (a
+   * wizard's Back / Next) — and never a form's submit. The LAST visible ones count (a month name first, never a year
+   * button when another exists); its days in composed order, with their aria-label (or text), the date of their
+   * attributes, disabled and outside-month flags.
+   */
+  function calendar(): CalendarInfo | null {
+    popupState(); // popup ids
+    const all = deepQsa(document, '[aria-label],[data-date],[data-day],[datetime],[data-value]').filter((e) => isDayCell(e) && isVisible(e));
+    const cells = all.filter((c) => !all.some((o) => o !== c && deepContains(c, o)));
+    if (!cells.length) return null;
+    const isNav = (b: Element) => navTexts(b).some((t) => NEXT_NAV.test(t) || PREV_NAV.test(t));
+    const navs = (root: Element) => {
+      const mine = cells.filter((c) => deepContains(root, c));
+      if (!mine.length) return [];
+      const rs = mine.map(rectOf);
+      const box = { l: Math.min(...rs.map((r) => r.left)), t: Math.min(...rs.map((r) => r.top)), r: Math.max(...rs.map((r) => r.right)), b: Math.max(...rs.map((r) => r.bottom)) };
+      const near = (b: Element) => {
+        const r = rectOf(b);
+        const cx = (r.left + r.right) / 2;
+        const cy = (r.top + r.bottom) / 2;
+        return cx >= box.l - 80 && cx <= box.r + 80 && cy >= box.t - 160 && cy <= box.b;
+      };
+      return deepQsa(root, `${NAV_BUTTON},[class*=next i],[class*=prev i]`).filter(
+        (b) =>
+          (b.matches(NAV_BUTTON) || (isNav(b) && !deepClosest(upOf(b), NAV_BUTTON) && !b.querySelector(NAV_BUTTON))) &&
+          !cells.includes(b) &&
+          !cells.some((c) => deepContains(b, c)) &&
+          !formButton(b) &&
+          isVisible(b) &&
+          near(b),
+      );
+    };
+    const floats = deepQsa(document, FLOATING_SEL).filter(
+      (e) => e !== host && (!e.hasAttribute('popover') || isPopoverOpen(e)) && cells.some((c) => deepContains(e, c)) && isVisible(e),
+    );
+    const LAYER = `${POPUP_SEL},${FLOATING_SEL}`;
+    const climb = (start: Element, inPopup: boolean): Element => {
+      let r = start;
+      for (let i = 0; i < 10; i++) {
+        if (navs(r).some(isNav)) return r;
+        const up = upOf(r);
+        if (!up || up === up.ownerDocument.body || up === up.ownerDocument.documentElement || up.matches('form,[role=form]')) break;
+        if (inPopup && !deepClosest(up, LAYER)) break;
+        r = up;
+      }
+      return inPopup ? start : r;
+    };
+    const float = floats.length ? floats[floats.length - 1] : null;
+    const first = float ?? upOf(cells[cells.length - 1]);
+    const root = first ? climb(first, float !== null) : null;
+    if (!root) return null;
+    const mine = cells.filter((c) => deepContains(root, c));
+    const own = navs(root);
+    const pickNav = (re: RegExp): string | null => {
+      const m = own.filter((b) => navTexts(b).some((t) => re.test(t)));
+      const month = m.filter((b) => navTexts(b).some((t) => /month|mois|monat|\bmes\b/i.test(t)));
+      const notYear = m.filter((b) => !navTexts(b).some((t) => /year|ann[ée]e|jahr|a[ñn]o\b/i.test(t)));
+      const pool = month.length ? month : notYear.length ? notYear : m;
+      return pool.length ? ref(pool[pool.length - 1]) : null;
+    };
+    const popEl = floats.length ? deepClosest(root, POPUP_SEL) : null;
+    return {
+      popup: popEl ? (popupIds.get(popEl) ?? null) : null,
+      next: pickNav(NEXT_NAV),
+      prev: pickNav(PREV_NAV),
+      days: mine.map((c) => ({
+        ref: ref(c),
+        label: norm(c.getAttribute('aria-label')) || short(textOf(c), 40),
+        iso: dayIso(c),
+        disabled:
+          (c as HTMLButtonElement).disabled === true ||
+          dayFlag(c, '[aria-disabled=true],[data-disabled]:not([data-disabled=false])'),
+        outside: dayFlag(c, '[data-outside],[data-outside-month],[class*=outside],[class*=other-month],[class*=adjacent]'),
+      })),
+    };
+  }
+  /**
+   * Set a native input (type=date…) in place: its realm's value setter, then `input` and `change`. A value it would not
+   * take — out of its min / max or step, not a value of its type — is refused before anything is set (checked on a copy).
+   */
+  function setNativeValue(id: string, value: string): boolean {
+    const el = deref(id);
+    if (!isA(el, 'input')) return false;
+    const probe = el.cloneNode(false) as HTMLInputElement;
+    probe.value = value;
+    const v = probe.validity;
+    if (probe.value !== value || v.rangeUnderflow || v.rangeOverflow || v.stepMismatch || v.badInput) return false;
+    const realm = winOf(el) as Window & typeof globalThis;
+    const setter = Object.getOwnPropertyDescriptor(realm.HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(el, value);
+    else el.value = value;
+    el.dispatchEvent(new realm.Event('input', { bubbles: true }));
+    el.dispatchEvent(new realm.Event('change', { bubbles: true }));
+    return el.value === value;
+  }
 
   // ───────────────────────────── synthetic clicks ─────────────────────────────
   function innerTarget(el: Element, x: number, y: number): Element {
-    const hit = document.elementFromPoint(x, y);
-    return hit && el.contains(hit) ? hit : el;
+    const hit = deepHit(x, y);
+    return hit && deepContains(el, hit) ? hit : el;
   }
   function flashPress(): void {
     cursorApi.press(true);
     setTimeout(() => cursorApi.press(false), 110);
   }
+  // Synthetic events go to the element's realm at its frame-local coordinates; the ripple stays in top px.
   function domClick(id: string, x: number, y: number): void {
     const el = deref(id);
     if (!el) throw new Error('element is gone');
     const t = innerTarget(el, x, y);
     cursorApi.ripple(x, y);
     flashPress();
-    if (t instanceof HTMLElement) t.click();
-    else t.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, view: window, detail: 1 }));
+    if (typeof (t as HTMLElement).click === 'function') (t as HTMLElement).click();
+    else {
+      const realm = winOf(t) as Window & typeof globalThis;
+      const o = frameOffset(t);
+      t.dispatchEvent(new realm.MouseEvent('click', { bubbles: true, cancelable: true, composed: true, clientX: x - o.x, clientY: y - o.y, view: realm, detail: 1 }));
+    }
   }
   function pointerSequence(id: string, x: number, y: number): void {
     const el = deref(id);
@@ -1230,22 +1973,25 @@ export function demoKit(config: KitConfig): void {
     const t = innerTarget(el, x, y);
     cursorApi.ripple(x, y);
     flashPress();
-    const base = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, screenX: x, screenY: y, view: window, detail: 1, button: 0 };
+    const realm = winOf(t) as Window & typeof globalThis;
+    const o = frameOffset(t);
+    const base = { bubbles: true, cancelable: true, composed: true, clientX: x - o.x, clientY: y - o.y, screenX: x, screenY: y, view: realm, detail: 1, button: 0 };
     const ptr = { ...base, pointerId: 1, pointerType: 'mouse', isPrimary: true, width: 1, height: 1 };
-    t.dispatchEvent(new PointerEvent('pointerover', { ...ptr, buttons: 0 }));
-    t.dispatchEvent(new MouseEvent('mouseover', { ...base, buttons: 0 }));
-    const downOk = t.dispatchEvent(new PointerEvent('pointerdown', { ...ptr, buttons: 1, pressure: 0.5 }));
+    t.dispatchEvent(new realm.PointerEvent('pointerover', { ...ptr, buttons: 0 }));
+    t.dispatchEvent(new realm.MouseEvent('mouseover', { ...base, buttons: 0 }));
+    const downOk = t.dispatchEvent(new realm.PointerEvent('pointerdown', { ...ptr, buttons: 1, pressure: 0.5 }));
     let mdOk = true;
-    if (downOk) mdOk = t.dispatchEvent(new MouseEvent('mousedown', { ...base, buttons: 1 }));
+    if (downOk) mdOk = t.dispatchEvent(new realm.MouseEvent('mousedown', { ...base, buttons: 1 }));
     if (downOk && mdOk) {
-      const focusable = t.closest(
+      const focusable = deepClosest(
+        t,
         'button,a[href],input,select,textarea,[tabindex],[contenteditable=""],[contenteditable=true]',
       ) as HTMLElement | null;
       focusable?.focus?.({ preventScroll: true });
     }
-    t.dispatchEvent(new PointerEvent('pointerup', { ...ptr, buttons: 0, pressure: 0 }));
-    if (downOk) t.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0 }));
-    t.dispatchEvent(new MouseEvent('click', { ...base, buttons: 0 }));
+    t.dispatchEvent(new realm.PointerEvent('pointerup', { ...ptr, buttons: 0, pressure: 0 }));
+    if (downOk) t.dispatchEvent(new realm.MouseEvent('mouseup', { ...base, buttons: 0 }));
+    t.dispatchEvent(new realm.MouseEvent('click', { ...base, buttons: 0 }));
   }
 
   // ───────────────────────────── file drag ─────────────────────────────
@@ -1404,6 +2150,16 @@ export function demoKit(config: KitConfig): void {
   const state: CursorState = { x: 0, y: 0, visible: false, known: false, kind: 'arrow', pressed: false };
   let wantVisible = true;
   let ghostOn = false;
+  /**
+   * A new document draws its cursor only once the page painted content of its own (R-ISS-08): the cursor's SVG would
+   * otherwise be the document's first contentful paint — a cursor restored from sessionStorage drawn on an empty page
+   * ends Chromium's paint holding and the recorder's hold of the load, and the empty page is filmed. The runner reveals
+   * it after a load it waited for (`cursor.reveal`); a page that never paints content (no text, image or SVG) nobody
+   * waits for shows it REVEAL_FALLBACK_MS after its load (the recorder's longest hold: an app's empty shell may wait
+   * that long for its data). Only the drawing waits: the cursor's state is unchanged.
+   */
+  let revealed = true;
+  const REVEAL_FALLBACK_MS = 10_000;
 
   function buildOverlay(): void {
     host.setAttribute('aria-hidden', 'true');
@@ -1471,10 +2227,37 @@ export function demoKit(config: KitConfig): void {
     if (!cursorEl) return;
     const on = state.known && wantVisible;
     state.visible = on;
-    cursorEl.classList.toggle('on', on);
+    cursorEl.classList.toggle('on', on && revealed);
     cursorEl.style.transform = `translate3d(${state.x}px,${state.y}px,0)`;
     cursorEl.dataset.k = state.kind;
     if (ghostEl && ghostOn) ghostEl.style.transform = `translate3d(${state.x - 30}px,${state.y - 22}px,0) rotate(-3deg)`;
+  }
+  function reveal(): void {
+    if (revealed || disposed) return;
+    revealed = true;
+    render();
+  }
+  /** Hide the cursor until the document's first contentful paint (see `revealed`), when it has not happened yet. */
+  function awaitFirstPaint(): void {
+    try {
+      if (performance.getEntriesByName('first-contentful-paint').length > 0) return;
+      const po = new PerformanceObserver((list) => {
+        if (list.getEntriesByName('first-contentful-paint').length === 0) return;
+        po.disconnect();
+        reveal();
+      });
+      po.observe({ type: 'paint', buffered: true });
+      cleanups.push(() => po.disconnect());
+    } catch {
+      return; // no paint timing: draw at once
+    }
+    revealed = false;
+    const fallback = () => {
+      const t = setTimeout(reveal, REVEAL_FALLBACK_MS);
+      cleanups.push(() => clearTimeout(t));
+    };
+    if (document.readyState === 'complete') fallback();
+    else on(window, 'load', fallback);
   }
   let lastSave = 0;
   function save(force = false): void {
@@ -1504,14 +2287,15 @@ export function demoKit(config: KitConfig): void {
   }
   let lastKind = 0;
   function computeKind(): CursorKind {
-    const el = document.elementFromPoint(state.x, state.y);
+    // The innermost element under the pointer, through open shadow roots and same-origin frames.
+    const el = deepHit(state.x, state.y);
     if (!el) return 'arrow';
-    const cur = getComputedStyle(el).cursor;
+    const cur = styleOf(el).cursor;
     if (cur === 'pointer') return 'hand';
     if (cur === 'text' || cur === 'vertical-text') return 'ibeam';
     if (cur === 'auto') {
-      const ed = el.closest('input,textarea,[contenteditable=""],[contenteditable=true]');
-      if (ed instanceof HTMLInputElement) {
+      const ed = deepClosest(el, 'input,textarea,[contenteditable=""],[contenteditable=true]');
+      if (isA(ed, 'input')) {
         return ['', 'text', 'search', 'email', 'url', 'tel', 'password', 'number'].includes(ed.type) ? 'ibeam' : 'arrow';
       }
       return ed ? 'ibeam' : 'arrow';
@@ -1590,6 +2374,7 @@ export function demoKit(config: KitConfig): void {
     ripple,
     press,
     state: (): CursorState => ({ ...state }),
+    reveal,
   };
 
   const EXT_COLORS: Record<string, string> = {
@@ -1628,6 +2413,7 @@ export function demoKit(config: KitConfig): void {
 
   if (isTop) {
     buildOverlay();
+    awaitFirstPaint();
     restore();
     if (carried?.known) {
       state.x = carried.x;
@@ -1722,18 +2508,26 @@ export function demoKit(config: KitConfig): void {
     on(window, 'pointerdown', fwd('down'));
     on(window, 'pointerup', fwd('up'));
   }
+  // The frame element a forwarding window lives in (also inside open shadow roots), cached per source window.
+  const frameFor = new WeakMap<object, Element>();
+  function sourceFrame(src: MessageEventSource | null): Element | null {
+    if (!src) return null;
+    const known = frameFor.get(src);
+    if (known && known.isConnected && (known as HTMLIFrameElement).contentWindow === src) return known;
+    const isSrc = (f: Element) => (f as HTMLIFrameElement).contentWindow === src;
+    const f = Array.from(document.querySelectorAll('iframe,frame')).find(isSrc) ?? deepQsa(document, 'iframe,frame').find(isSrc) ?? null;
+    if (f) frameFor.set(src, f);
+    return f;
+  }
   on(window, 'message', (ev: Event) => {
     const e = ev as MessageEvent;
     const d = e.data as { __demoStudioPtr?: number; type?: string; x?: number; y?: number } | null;
     if (!d || d.__demoStudioPtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
-    const frame = Array.from(document.querySelectorAll('iframe,frame')).find(
-      (f) => (f as HTMLIFrameElement).contentWindow === e.source,
-    ) as HTMLIFrameElement | undefined;
+    const frame = sourceFrame(e.source);
     if (!frame) return;
-    const r = frame.getBoundingClientRect();
-    const cs = getComputedStyle(frame);
-    const x = d.x + r.left + frame.clientLeft + parseFloat(cs.paddingLeft || '0');
-    const y = d.y + r.top + frame.clientTop + parseFloat(cs.paddingTop || '0');
+    const o = contentOffset(frame);
+    const x = d.x + o.x;
+    const y = d.y + o.y;
     if (!isTop) {
       try {
         window.parent.postMessage({ ...d, x, y }, '*');
@@ -1795,6 +2589,12 @@ export function demoKit(config: KitConfig): void {
     dragGhost: ghost,
     restPoint,
     restNear,
+    watchChanges,
+    changedBoxes,
+    textBox: (id) => {
+      const el = deref(id);
+      return el ? textBox(el) : null;
+    },
     hasText: textVisible,
     snapshot: (id, max) => {
       const el = id ? deref(id) : document.body;
@@ -1813,6 +2613,7 @@ export function demoKit(config: KitConfig): void {
       return r ? ref(r) : null;
     },
     menuTrigger,
+    positionalTrigger,
     fieldTrigger: (label) => {
       const el = fieldTriggerEl(label, document.body);
       return el ? ref(el) : null;
@@ -1821,6 +2622,10 @@ export function demoKit(config: KitConfig): void {
     fileInputFor,
     selectNative,
     isTextInput,
+    fieldState,
+    clearField,
+    calendar,
+    setNativeValue,
     describe: (id) => {
       const el = deref(id);
       return el ? describeEl(el) : '(gone)';
@@ -1836,6 +2641,7 @@ export function demoKit(config: KitConfig): void {
         text: short(textOf(el)),
         href: a ? a.href : null,
         popup_expected: popupExpected(el),
+        input_type: isA(el, 'input') ? el.type : null,
       };
     },
     textOf: (id) => {
@@ -1843,16 +2649,21 @@ export function demoKit(config: KitConfig): void {
       return el ? short(textOf(el), 200) : '';
     },
     focused: () => {
-      // The focused field (type steps without `into`): its description and box, when it is visible.
-      let el: Element | null = document.activeElement;
-      while (el && el.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-      if (!el || el === document.body || el === document.documentElement || !isVisible(el)) return null;
-      return { desc: describeEl(el), bbox: bboxOf(el) };
+      // The focused field (type steps without `into`): its description and box, when it is visible; `input_type` tells
+      // a password field (its text shows as bullets) from a field that shows what is typed.
+      let el = deepActive();
+      let edited = el !== null && editableBody(el);
+      // The body of a frame (an editor drawn in a frame, or a frame holding the focus): the frame is what is seen.
+      if (el && el.ownerDocument !== document && (el === el.ownerDocument.body || el === el.ownerDocument.documentElement)) el = frameElOf(el.ownerDocument);
+      if (!el || el === el.ownerDocument.body || el === el.ownerDocument.documentElement || !isVisible(el)) return null;
+      edited ||= (el as HTMLElement).isContentEditable === true;
+      const input_type = isA(el, 'input') ? el.type : edited ? 'contenteditable' : el.tagName.toLowerCase();
+      return { desc: describeEl(el), bbox: bboxOf(el), input_type };
     },
     visibleText: (id) => {
       const el = deref(id);
       if (!el) return '';
-      const raw = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : el instanceof HTMLElement ? el.innerText : el.textContent;
+      const raw = isA(el, 'input') || isA(el, 'textarea') ? el.value : typeof (el as HTMLElement).innerText === 'string' ? (el as HTMLElement).innerText : el.textContent;
       return norm(raw).slice(0, 2000);
     },
   };

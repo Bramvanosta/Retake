@@ -8,7 +8,7 @@ import type { Runtime } from './runtime.js';
 import { clamp, wallNow } from './util.js';
 
 /** Steps that travel to an element: the cursor should rest near the first one at the scene start. */
-const POINTER_ACTIONS = new Set(['click', 'double_click', 'hover', 'type', 'select', 'pick', 'menu', 'drag', 'drop_file', 'new_tab']);
+const POINTER_ACTIONS = new Set(['click', 'double_click', 'hover', 'type', 'select', 'pick', 'menu', 'date', 'drag', 'drop_file', 'new_tab']);
 /** Steps that change what is on screen before any pointer step: no anchor can be predicted across them. */
 const PAGE_CHANGING = new Set(['open', 'new_tab', 'switch_page', 'press', 'eval']);
 /** How long a scene that opened a page waits for its first target to render before falling back. */
@@ -48,13 +48,18 @@ interface Anchor {
   ref?: string;
 }
 
-/** The first pointer step, and the document scroll that precedes it (if any). Null when a page change comes first. */
+/**
+ * The first pointer step, and the document scroll that precedes it (if any). Null when a page change comes first, or a
+ * pointer step whose target is not known before it runs (a `date` without `field`).
+ */
 export function firstPointerStep(steps: NormalizedStep[]): { step: NormalizedStep; scrolls: ScrollArgs[] } | null {
   const scrolls: ScrollArgs[] = [];
   for (const step of steps) {
     if (step.action === 'cursor') return null; // the scenario moves the cursor itself
     if (POINTER_ACTIONS.has(step.action)) {
       if (step.action === 'type' && (step.args as { into?: unknown }).into === undefined) continue;
+      // A date without a field clicks days of the calendar on screen: its target is not known before the run.
+      if (step.action === 'date' && (step.args as { field?: unknown }).field === undefined) return null;
       if (step.action === 'new_tab' && (step.args as { target?: unknown }).target === undefined) return null;
       return { step, scrolls };
     }
@@ -83,7 +88,7 @@ async function anchorBox(rt: Runtime, step: NormalizedStep): Promise<Anchor | nu
     const a = step.args as MenuArgs;
     if (a.trigger === undefined && typeof a.row === 'string') {
       const rowRef = await kit.rowFor(a.row);
-      const trig = rowRef ? await kit.menuTrigger(rowRef) : null;
+      const trig = rowRef ? (await kit.menuTrigger(rowRef)).ref : null;
       const pt = trig ? await kit.point(trig) : null;
       if (!pt || !trig) return null;
       const point = pt.hit ? { x: pt.x, y: pt.y } : { x: pt.bbox.x + pt.bbox.w / 2, y: pt.bbox.y + pt.bbox.h / 2 };

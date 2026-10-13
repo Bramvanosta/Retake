@@ -8,6 +8,8 @@ video: signup
 title: {kicker: For cafés, text: Open your café account in a minute}
 outro: {tagline: "From sign-up to first quote, in one place."}
 tutorial: {shortcuts: true, spotlight: steps, steps: true, loupe: true, progress: scenes}
+# The café that signs up: typed below and matched by the mailbox ({{vars.…}} works in every scene string).
+vars: {cafe: Café Lumen, contact: Noa Brandt, email: noa@cafe-lumen.example}
 
 setup:
   - name: reset
@@ -23,16 +25,16 @@ scenes:
     page: shop
     open: /signup
     steps:
-      - type: {into: {label: Café name}, text: Café Lumen, cps: 10}
+      - type: {into: {label: Café name}, text: "{{vars.cafe}}", cps: 10}
       # Tab to the next field: the key caps show ⇥, the loupe and the spotlight follow the focused field.
       - press: Tab
-      - type: {text: Noa Brandt, cps: 10}
+      - type: {text: "{{vars.contact}}", cps: 10}
       - press: Tab
-      - type: {text: noa@cafe-lumen.example, cps: 16}
+      - type: {text: "{{vars.email}}", cps: 16}
       - click: {text: Create account}
       - wait_for: {text: Check your inbox}
       # The confirmation email, captured from the mailbox; a mail notification slides in when it lands.
-      - wait_for_email: {to: noa@cafe-lumen.example, subject: Confirm, timeout: 20, as: welcome}
+      - wait_for_email: {to: "{{vars.email}}", subject: Confirm, timeout: 20, as: welcome}
         caption: {kicker: Confirmation, text: "The confirmation email lands a second later."}
         overlay:
           component: studio/mail-notification

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { isDesktopViewport, resolvePageUrl } from '@demo-studio/core';
+import { LOADING_CUT_MIN_S, isDesktopViewport, resolvePageUrl } from '@demo-studio/core';
 import type {
   ResolvedScenePage,
   ResolvedViewport,
@@ -17,16 +17,19 @@ import type {
 import type { TemplateContext } from '@demo-studio/core';
 import type { BrowserSession, KitClient } from './session.js';
 import type { CursorEffectPayload } from './kit/types.js';
+import { HOLD_MAX_MS } from './hold.js';
 import { ScreencastRecorder } from './recorder.js';
 import { TrackBuilder } from './timeline.js';
 import type { TimelineBuilder } from './timeline.js';
 import { Pointer } from './pointer.js';
+import type { RunSecrets } from './secrets.js';
 import type { Jitter } from './motion.js';
 import { RunnerError, StepError } from './errors.js';
-import { fileSlug } from './util.js';
+import { fileSlug, throwIfAborted } from './util.js';
 import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
 import type { PendingPopup } from './actions/click.js';
+import type { Acted } from './park.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -44,6 +47,8 @@ export interface RuntimeInit {
   runDir: string;
   screenshotsDir: string;
   template: TemplateContext;
+  /** The run's secret values (resolved up front, redacted where the run writes). */
+  secrets: RunSecrets;
   recorder: ScreencastRecorder | null;
   log: (level: LogLevel, message: string) => void;
 }
@@ -94,6 +99,7 @@ export class Runtime {
   readonly runDir: string;
   readonly screenshotsDir: string;
   readonly template: TemplateContext;
+  readonly secrets: RunSecrets;
   readonly log: (level: LogLevel, message: string) => void;
   recorder: ScreencastRecorder | null;
   /** Captured emails, documents and web notifications (runs/<id>/artefacts/). */
@@ -103,10 +109,16 @@ export class Runtime {
   current: { scene: string; scene_index: number; step: number } | null = null;
   /** The last plain click of the scene, while the popup it may open late is not ruled out (settleLatePopup). */
   pendingPopup: PendingPopup | null = null;
+  /** Some step of the scenario parks the cursor (R-CHO-18/21): acting steps record what changes on the page. */
+  parkWatch = false;
+  /** The element the last acting step used (parking keeps clear of it). */
+  lastActed: Acted | null = null;
   private tabSeq = 1;
   private readonly tracked = new WeakSet<Page>();
   /** Per-page tracks of multi-page scenes, by page id (kept for the whole run). */
   readonly tracks = new Map<string, PageTrack>();
+  /** Per recorder, the holds it had ended when the runner last revealed the cursor after one (awaitLoaded). */
+  private readonly revealedAt = new WeakMap<ScreencastRecorder, number>();
   /** Every page filmed by a multi-page scene so far, with its own cursor (kept across scenes). */
   private readonly panes = new Map<string, ScenePane>();
   /** The pages of the multi-page scene running now (null: a single-page scene). */
@@ -128,6 +140,7 @@ export class Runtime {
     this.runDir = init.runDir;
     this.screenshotsDir = init.screenshotsDir;
     this.template = init.template;
+    this.secrets = init.secrets;
     this.recorder = init.recorder;
     this.cursorHidden = init.cursorHidden === true;
     this.log = init.log;
@@ -198,7 +211,8 @@ export class Runtime {
   async awaitFreshFrame(): Promise<void> {
     const rec = this.filming;
     const pointer = this.pointer;
-    if (!rec || this.cursorHidden || !pointer.known || !pointer.visible) return;
+    // A held page load (R-ISS-08) writes no frame however the cursor moves.
+    if (!rec || rec.holding || this.cursorHidden || !pointer.known || !pointer.visible) return;
     const home = pointer.pos();
     const dx = home.x + 1 < this.viewport.width ? 1 : -1;
     const deadline = Date.now() + FRESH_FRAME_TIMEOUT_MS;
@@ -224,12 +238,59 @@ export class Runtime {
   async awaitCaughtUp(page: Page, pointer: Pointer): Promise<void> {
     if (this.cursorHidden || !pointer.visible) return;
     const moved = pointer.lastMoveAt;
-    const rec = this.recorder?.recordingPage === page ? this.recorder : [...this.tracks.values()].find((t) => t.recorder?.recordingPage === page)?.recorder;
-    if (!rec || moved === 0 || rec.lastFrameAt >= moved - CAUGHT_UP_SLACK_MS) return;
+    const rec = this.recorderFor(page);
+    if (!rec || rec.holding || moved === 0 || rec.lastFrameAt >= moved - CAUGHT_UP_SLACK_MS) return;
     const left = moved + STALL_GIVE_UP_MS - Date.now();
     if (left <= 0 || !(await rec.waitFrameAfter(moved - CAUGHT_UP_SLACK_MS, left))) {
       this.log('debug', `press: no frame since the cursor's last move ${Date.now() - moved} ms ago; pressing (the press resumes the capture)`);
     }
+  }
+
+  /** The recorder filming `page` right now: the main capture, or that page's track (none in a dry run). */
+  recorderFor(page: Page): ScreencastRecorder | null {
+    if (this.recorder?.recordingPage === page) return this.recorder;
+    return [...this.tracks.values()].find((t) => t.recorder?.recordingPage === page)?.recorder ?? null;
+  }
+
+  /**
+   * Never act on, or open a scene still on, a page whose load the capture is holding (R-ISS-08): wait until it painted
+   * (at most HOLD_MAX_MS and a second; a cancelled run stops waiting). A fresh tab's about:blank is not waited for:
+   * only a step or the scene can open a page there (its frames stay held until then). After a hold, the page's cursor
+   * is revealed — the kit draws a cursor restored on a new document only once the page painted content of its own (its
+   * SVG would count as the page's first paint), and a page that never paints content (no text, image or SVG) gets it
+   * here. Free when nothing is held.
+   */
+  async awaitLoaded(page: Page = this.page): Promise<void> {
+    const rec = this.recorderFor(page);
+    if (!rec) return;
+    if (rec.holding && rec.holdKind !== 'blank') {
+      const ended = await rec.waitLoaded(HOLD_MAX_MS + 1000, this.signal);
+      throwIfAborted(this.signal);
+      if (!ended) this.log('debug', 'a page load is still held; going on');
+    }
+    if (this.revealedAt.get(rec) === rec.holdsEnded) return;
+    this.revealedAt.set(rec, rec.holdsEnded);
+    await this.session.kit(page).cursorReveal().catch(() => undefined);
+  }
+
+  /**
+   * `awaitLoaded` for every page the edit shows now: each page of the multi-page scene running now (a load held on one
+   * page is cut from all of them — no page may act meanwhile; one may start loading while another is waited for), else
+   * the active page.
+   */
+  async awaitShownLoaded(): Promise<void> {
+    const panes = this.scenePanes;
+    if (panes.length === 0) return this.awaitLoaded();
+    const held = () => panes.some((p) => this.recorderFor(p.page)?.holdKind === 'navigation');
+    for (let round = 0; round < 3; round++) {
+      for (const pane of panes) await this.awaitLoaded(pane.page);
+      if (!held()) return;
+    }
+  }
+
+  /** Ms of page loads the capture of `page` held since wall time `sinceWall` (only those the edit cuts: ≥ LOADING_CUT_MIN_S). */
+  heldMs(page: Page, sinceWall: number): number {
+    return this.recorderFor(page)?.heldSince(sinceWall, LOADING_CUT_MIN_S * 1000) ?? 0;
   }
 
   /** Viewport (CSS px) of the acting page: a multi-page scene's page has its own, else the capture size. */
@@ -317,6 +378,7 @@ export class Runtime {
                 mobile: pg.viewport.mobile,
                 clock: this.timeline.clock,
                 onError: (m) => this.timeline.warn(`page ${pg.id}: ${m}`),
+                pageId: () => pg.id,
               })
             : null;
         track = { builder, recorder, started: false, viewport: pg.viewport };
@@ -483,9 +545,10 @@ export class Runtime {
 /**
  * Role of a pointer interaction inside a step: the click that opens the widget (trigger; also the only click of a
  * plain click, the drop of a drop_file, the press of a drag), an option of a listbox/popover, a menu item, the
- * confirmation button, a click outside that closes a popover, or a click into a popover's search field.
+ * confirmation button, a click outside that closes a popover, a click into a popover's search field, a calendar's
+ * month button (nav) or one of its days (day).
  */
-export type ClickRole = 'trigger' | 'option' | 'item' | 'confirm' | 'outside' | 'search';
+export type ClickRole = 'trigger' | 'option' | 'item' | 'confirm' | 'outside' | 'search' | 'nav' | 'day';
 
 /** One recorded pointer interaction inside a step. */
 export interface ClickRecord {

@@ -3,10 +3,14 @@
  * transition). The run is planned as ONE continuous piece of footage so that speeds, ramps, trims and the camera
  * continue across the joins, then split back into clips.
  *
+ * Cuts (with idle trimming on): page loads the capture held (R-ISS-08: the previous frame frozen until the new page
+ * painted) are cut whole; idle gaps outside protected spans and those loads are shortened to IDLE_KEEP_S.
+ *
  * Units: source positions `p` are capture frames (float; frame n of the CFR capture shows capture time n / fps),
  * output positions `q` are output frames (float). Speeds `v` are playback speeds (×); `u`/`w` are the slopes
  * dp/dq = v · srcFps / outFps at the start / end of a map piece (linear in q on a ramp, constant otherwise).
  */
+import { LOADING_CUT_MIN_S } from '@demo-studio/core';
 import type { TimelineEvent } from '@demo-studio/core';
 import type { Interval } from './util.js';
 import { intersect, mergeIntervals, stepEnd, subtractIntervals } from './util.js';
@@ -35,6 +39,15 @@ export const WAIT_MIN_S = 0.3;
 export const WAIT_LOADING_MIN_S = 0.3;
 /** Steps that wait for the product. */
 export const WAIT_ACTIONS: ReadonlySet<string> = new Set(['wait_for', 'wait_for_email']);
+/**
+ * Quick month runs of a `date` step (R-CHO-24, `data.quick_runs`: presses ~110 ms apart) are played at up to
+ * QUICK_RUN_SPEED, from QUICK_RUN_PAD_BEFORE_S before the first press to QUICK_RUN_PAD_AFTER_S after the last (its
+ * ripple), ramped like any speed change (a short run never reaches the full speed); a step's own `speed` wins, marks
+ * and holds stay at 1×.
+ */
+export const QUICK_RUN_SPEED = 3;
+export const QUICK_RUN_PAD_BEFORE_S = 0.1;
+export const QUICK_RUN_PAD_AFTER_S = 0.35;
 
 const EPS = 1e-6;
 
@@ -62,6 +75,13 @@ export interface RunTimingInput {
    * protected spans). Absent / empty: no compression.
    */
   waits?: ReadonlyArray<{ t_start: number; t_end: number }>;
+  /** Quick month runs (`quickRunSpans`, capture seconds): played at QUICK_RUN_SPEED (outside protected spans). */
+  quick?: ReadonlyArray<{ t_start: number; t_end: number }>;
+  /**
+   * Page loads the capture held (`timeline.loading`, R-ISS-08: the previous frame frozen from the commit until the new
+   * page painted): with `trimIdle`, those of at least LOADING_CUT_MIN_S are cut whole.
+   */
+  loading?: ReadonlyArray<{ t_start: number; t_end: number }>;
 }
 
 /** Why a span is played at 1× whatever the speeds. */
@@ -95,7 +115,9 @@ export interface MapPiece {
 
 export interface RunCut extends Interval {
   clip: number;
-  /** The idle piece (outside protected spans) the cut was taken from. */
+  /** `idle`: a shortened idle gap; `loading`: a page load the capture held, cut whole. */
+  reason: 'idle' | 'loading';
+  /** The idle piece (outside protected spans) the cut was taken from (a held load: the load itself). */
   idle: Interval;
   /** First output frame (run) after the cut. */
   at: number;
@@ -185,10 +207,30 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
       if (x && x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(WAIT_SPEED, c.baseSpeed) });
     });
   }
+  for (const w of input.quick ?? []) {
+    clips.forEach((c) => {
+      const x = intersect({ a: w.t_start * srcFps, b: w.t_end * srcFps }, { a: c.A, b: c.B });
+      if (x && x.b - x.a > 1) stepSpeeds.push({ ...x, v: Math.max(QUICK_RUN_SPEED, c.baseSpeed) });
+    });
+  }
 
-  // Idle trims: the part of an idle interval outside protected spans, when longer than the threshold.
-  const cuts: Array<Interval & { clip: number; idle: Interval }> = [];
+  const cuts: Array<Interval & { clip: number; idle: Interval; reason: RunCut['reason'] }> = [];
   if (input.trimIdle) {
+    // Page loads the capture held (R-ISS-08): cut whole — inside protected spans too, a frozen frame is never what a mark
+    // or a hold shows —, up to the first source frame showing the painted page (no frozen frame after the cut).
+    const held: Interval[] = [];
+    const loads = (input.loading ?? []).filter((l) => l.t_end - l.t_start >= LOADING_CUT_MIN_S - EPS);
+    // Several pages' loads (a multi-page run) may overlap: one cut each.
+    for (const h of mergeIntervals(loads.map((l) => ({ a: l.t_start * srcFps, b: Math.ceil(l.t_end * srcFps - EPS) })))) {
+      clips.forEach((c, ci) => {
+        const x = intersect(h, { a: c.A, b: c.B });
+        if (!x || x.b - x.a < EPS) return;
+        cuts.push({ ...x, clip: ci, idle: x, reason: 'loading' });
+        held.push(x);
+      });
+    }
+    // Idle trims: the part of an idle interval outside protected spans and held loads, when longer than the threshold.
+    const kept = mergeIntervals([...protMerged, ...held]);
     const minLen = input.idleThresholdS * srcFps;
     const keepHalf = (IDLE_KEEP_S / 2) * srcFps;
     for (const gap of input.idle) {
@@ -196,8 +238,8 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
       clips.forEach((c, ci) => {
         const x = intersect(g, { a: c.A, b: c.B });
         if (!x) return;
-        for (const piece of subtractIntervals(x, protMerged)) {
-          if (piece.b - piece.a > minLen + EPS) cuts.push({ a: piece.a + keepHalf, b: piece.b - keepHalf, clip: ci, idle: piece });
+        for (const piece of subtractIntervals(x, kept)) {
+          if (piece.b - piece.a > minLen + EPS) cuts.push({ a: piece.a + keepHalf, b: piece.b - keepHalf, clip: ci, idle: piece, reason: 'idle' });
         }
       });
     }
@@ -377,6 +419,39 @@ export function waitingSpans(events: readonly TimelineEvent[], pageChanges: read
     const a = m.a + WAIT_KEEP_S;
     const b = m.b - 0.1;
     if (b - a >= WAIT_MIN_S) out.push({ t_start: Math.round(a * 1e4) / 1e4, t_end: Math.round(b * 1e4) / 1e4 });
+  }
+  return out;
+}
+
+/**
+ * Held page loads a multi-page run may cut (R-ISS-08): the time map is shared by every page the run shows, so a load
+ * held on one page is not cut where another page acts — a step through its hold, ±MARK_WINDOW_S around a marked one —
+ * nor during the opening still: that page's picture goes on, the loading page keeps its previous frame meanwhile. Pure.
+ */
+export function loadsBesideOtherPages<T extends { t_start: number; t_end: number; page?: string }>(loads: readonly T[], events: readonly TimelineEvent[]): T[] {
+  const out: T[] = [];
+  for (const l of loads) {
+    const busy = events
+      .filter((e) => e.status !== 'skipped' && (e.action === 'scene_still' || (e.step >= 0 && e.page !== undefined && e.page !== l.page)))
+      .map((e) => (e.mark ? { a: e.t_start - MARK_WINDOW_S, b: stepEnd(e) + MARK_WINDOW_S } : { a: e.t_start, b: stepEnd(e) }));
+    for (const x of subtractIntervals({ a: l.t_start, b: l.t_end }, busy)) out.push({ ...l, t_start: x.a, t_end: x.b });
+  }
+  return out;
+}
+
+/** The quick month runs of `date` steps (`data.quick_runs`), padded around their presses (capture seconds). */
+export function quickRunSpans(events: readonly TimelineEvent[]): Array<{ t_start: number; t_end: number }> {
+  const out: Array<{ t_start: number; t_end: number }> = [];
+  for (const e of events) {
+    if (e.step < 0 || e.action !== 'date' || (typeof e.speed === 'number' && e.speed > 0)) continue;
+    const runs = (e.data as { quick_runs?: unknown } | undefined)?.quick_runs;
+    if (!Array.isArray(runs)) continue;
+    for (const r of runs as Array<{ t_start?: unknown; t_end?: unknown }>) {
+      if (typeof r.t_start !== 'number' || typeof r.t_end !== 'number' || r.t_end < r.t_start) continue;
+      const a = Math.max(e.t_start, r.t_start - QUICK_RUN_PAD_BEFORE_S);
+      const b = Math.min(e.t_end, r.t_end + QUICK_RUN_PAD_AFTER_S);
+      if (b > a) out.push({ t_start: Math.round(a * 1e4) / 1e4, t_end: Math.round(b * 1e4) / 1e4 });
+    }
   }
   return out;
 }

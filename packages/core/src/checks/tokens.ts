@@ -18,12 +18,21 @@ export interface TokenScope {
 
 const SECRET = /^(env|keychain|secret):/;
 
+/** Where tokens are not allowed (scenario scenes and video text, R-RUN-16/17). */
+export interface TokenRules {
+  /** A name the runner uses as written (an `emit` name): any token is an error. */
+  literal?(path: IssuePath, value: string): boolean;
+  /** Text the edited video shows (captions, overlays, cards, the title…): a secret reference is an error. */
+  noSecret?(path: IssuePath): boolean;
+}
+
 function checkToken(expr: string, path: IssuePath, scope: TokenScope, inRollback: boolean, ctx: CheckContext): void {
   if (SECRET.test(expr)) return;
   const parts = expr.split('.').map((s) => s.trim());
   const [head, second] = parts;
   switch (head) {
     case 'run':
+      if (second !== 'id' && second !== 'dir') ctx.error(path, `unknown template key {{${expr}}}; available: run.id, run.dir`);
       return;
     case 'vars':
       if (scope.varsComplete && (second === undefined || !scope.vars.has(second))) {
@@ -51,18 +60,47 @@ function checkToken(expr: string, path: IssuePath, scope: TokenScope, inRollback
 }
 
 /**
- * Check every {{token}} found in the strings of `value` (recursively). `note` fields are skipped;
- * `{{response.*}}` is accepted under a `rollback` key.
+ * `vars` values are inserted as written, never templated (BL-56): a {{token}} in one would reach the page or the video
+ * as `{{…}}` (or, for a secret reference, could carry an environment value into what the video shows).
  */
-export function checkTokens(value: unknown, path: IssuePath, scope: TokenScope, ctx: CheckContext, inRollback = false): void {
+export function checkVarsValues(vars: unknown, path: IssuePath, ctx: CheckContext): void {
+  if (typeof vars === 'string') {
+    const exprs = listTemplateTokens(vars);
+    if (exprs.length) {
+      ctx.error(path, `{{${exprs[0]}}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used`);
+    }
+  } else if (Array.isArray(vars)) vars.forEach((v, i) => checkVarsValues(v, [...path, i], ctx));
+  else if (isObj(vars)) for (const [k, v] of Object.entries(vars)) checkVarsValues(v, [...path, k], ctx);
+}
+
+/**
+ * Check every {{token}} found in the strings of `value` (recursively). `note` fields are skipped;
+ * `{{response.*}}` is accepted under a `rollback` key; `rules` forbids tokens or secrets at some paths.
+ */
+export function checkTokens(value: unknown, path: IssuePath, scope: TokenScope, ctx: CheckContext, inRollback = false, rules?: TokenRules): void {
   if (typeof value === 'string') {
-    for (const expr of listTemplateTokens(value)) checkToken(expr, path, scope, inRollback, ctx);
+    const exprs = listTemplateTokens(value);
+    if (exprs.length && rules?.literal?.(path, value)) {
+      ctx.error(path, `{{${exprs[0]}}} is not templated here: this name is used as written`);
+      return;
+    }
+    for (const expr of exprs) {
+      if (SECRET.test(expr) && rules?.noSecret?.(path)) {
+        ctx.error(
+          path,
+          `{{${expr}}} would be shown in the video and kept in clear in timeline.json: secret references belong in step ` +
+            'arguments (typed text, URLs, targets) — use {{vars.…}} for text the video may show',
+        );
+        continue;
+      }
+      checkToken(expr, path, scope, inRollback, ctx);
+    }
   } else if (Array.isArray(value)) {
-    value.forEach((v, i) => checkTokens(v, [...path, i], scope, ctx, inRollback));
+    value.forEach((v, i) => checkTokens(v, [...path, i], scope, ctx, inRollback, rules));
   } else if (isObj(value)) {
     for (const [k, v] of Object.entries(value)) {
       if (k === 'note') continue;
-      checkTokens(v, [...path, k], scope, ctx, inRollback || k === 'rollback');
+      checkTokens(v, [...path, k], scope, ctx, inRollback || k === 'rollback', rules);
     }
   }
 }

@@ -15,8 +15,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 - The user picks how many lots to chain. Phases 1 and 2 were built autonomously in a cloud session (through L2.14,
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
   `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
-  it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 → L1.2 → L1.6 → L1.7 → L1.8 →
-  L1.4, stopping before phase 3 (L3.1).
+  it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 (done 2026-10-12) → L1.2
+  (done 2026-10-13) → L1.6 → L1.7 → L1.8 → L1.4, stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -31,11 +31,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 |---|---|---|---|
 | P1 | Phase 1 — core, runner-web, hooks, CLI, fixture, starter templates | — | **done** (commit `0df4a29`) |
 | L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
-| L1.2 | Runner robustness for any site | M | **next** |
+| L1.2 | Runner robustness for any site | M | **done** |
 | L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **done** (2 partial: dialog close with a blur — an option fixes it —, hover hitches) |
 | L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
-| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | todo |
+| L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **next** |
 | L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | todo |
 | L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | todo |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
@@ -101,6 +101,14 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   React-safe clear, menu trigger re-click and positional last resort (R-CHO-10/13/14/15/18/21/24).
 - **Acceptance:** new fixture pages (web component with shadow DOM, iframe widget, full-page navigation) captured
   cleanly; tests per item.
+- **Done (2026-10-13):** targets in open shadow roots and same-origin iframes (all in the top kit, top-level px);
+  full-page loads held until the new page paints (`timeline.loading`, cut in the edit, `navigation` cuts in the raw
+  export; no blank frame left in the fixture captures); every scenario string templated, `{{env:…}}` /
+  `{{keychain:…}}` secrets resolved before the browser opens and redacted by path policy from every run file; shell
+  and js hooks host-checked (js in a guarded tab, shell scripts read command by command, the unseen cases listed in the
+  README / BL-57); `date` action, opt-in `park`, adaptive typing rate, robust `clear`, menu re-click and trigger
+  fallbacks. Auto-park is opt-in per step (a scenario-wide switch went to BL-58). Fixture: `embedded`, `reports`
+  scenarios. Reviewed by four independent reviewers, ≈ 40 findings fixed with regression tests.
 
 ### L1.3 — Capture smoothness under load (M, spike)
 - **Goal:** smooth cursor motion even when the page renders slowly (R-ISS-01) and an exact cursor track (R-ISS-02).

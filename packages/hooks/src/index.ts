@@ -14,7 +14,7 @@ export {
   standaloneJournalFile,
 } from './journal.js';
 export type { JournalLocations, JournalRollback } from './journal.js';
-export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
+export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, checkShellHosts, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
 export { describeHook, hookKindOf } from './describe.js';
 export { databaseTarget } from './db-url.js';

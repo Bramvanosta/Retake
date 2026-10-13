@@ -1,4 +1,4 @@
-import { LOCAL_HOSTS, allowedHosts, isHostAllowed, normalizeAllowEntry, normalizeHost } from '@demo-studio/core';
+import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, shellHostRefs } from '@demo-studio/core';
 import type { LoadedProject } from '@demo-studio/core';
 
 /** The pure allow-list helpers live in @demo-studio/core (project validation uses them too). */
@@ -6,13 +6,8 @@ export { LOCAL_HOSTS, allowedHosts, isHostAllowed, normalizeAllowEntry, normaliz
 import { databaseTarget, isDatabaseUrl } from './db-url.js';
 import { HookSecurityError } from './errors.js';
 
-function refuse(host: string, project: Pick<LoadedProject, 'config'> & { slug?: string }): HookSecurityError {
-  const name = project.slug ?? project.config.name;
-  return new HookSecurityError(
-    `refusing to contact ${host}: it is not in the allow-list of project "${name}" ` +
-      `(allowed: ${allowedHosts(project).join(', ')}); add it to allow_hosts in project.yaml if it is a staging host`,
-    'host',
-  );
+function refuse(host: string, project: Pick<LoadedProject, 'config'> & { slug?: string }, via?: string): HookSecurityError {
+  return new HookSecurityError(hostRefusalMessage(host, project, via), 'host');
 }
 
 /**
@@ -40,4 +35,23 @@ export function checkHostAllowed(url: string, project: Pick<LoadedProject, 'conf
   }
   if (!host) throw new HookSecurityError('refusing a URL without a host', 'host');
   if (!isHostAllowed(host, project)) throw refuse(normalizeHost(host), project);
+}
+
+/**
+ * Throws HookSecurityError when a shell command names a host outside the allow-list (core shellHostRefs: URLs,
+ * `$VARS` expanded from `vars` — the environment sh gets —, database-client hosts and PGHOST, ssh / scp / rsync
+ * destinations, the hook's own `env` values), or a host computed when it runs (`$(…)`, backticks).
+ */
+export function checkShellHosts(
+  cmd: string,
+  vars: NodeJS.ProcessEnv,
+  env: Record<string, string> | undefined,
+  project: Pick<LoadedProject, 'config'> & { slug?: string },
+): void {
+  for (const ref of shellHostRefs(cmd, { vars, env })) {
+    if (ref.unresolved) {
+      throw new HookSecurityError(`refusing a shell command whose host is computed at run time (${ref.via}): write the host, or use an http hook`, 'host');
+    }
+    if (!isHostAllowed(ref.host, project)) throw refuse(ref.host, project, `${ref.via} in the shell hook`);
+  }
 }

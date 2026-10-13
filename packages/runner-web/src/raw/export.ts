@@ -87,7 +87,8 @@ export interface RawManifestClip {
   seq_start_tc: string;
   /** Capture seconds it covers (cuts inside). */
   capture: { from: number; to: number };
-  cuts: Array<{ at_frame: number; at_tc: string; capture_from: number; capture_to: number; seconds: number; reason: string; wait_step: number }>;
+  /** `wait_step`: the wait step whose awaited state ends the cut (absent for a page load the capture held, R-ISS-08). */
+  cuts: Array<{ at_frame: number; at_tc: string; capture_from: number; capture_to: number; seconds: number; reason: string; wait_step?: number; after_step?: number }>;
   layer?: { file: string; codec: string; profile?: string; pix_fmt: string; alpha: boolean; frames: number; size_bytes: number };
 }
 
@@ -391,7 +392,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
           seq_start_frame: start,
           seq_start_tc: timecode(start, s.fps),
           capture: { from: c.t0, to: c.t1 },
-          cuts: c.cuts.map((x) => ({ at_frame: x.at, at_tc: timecode(start + x.at, s.fps), capture_from: x.from, capture_to: x.to, seconds: round3(x.to - x.from), reason: x.reason, wait_step: x.wait_step })),
+          cuts: c.cuts.map((x) => ({ at_frame: x.at, at_tc: timecode(start + x.at, s.fps), capture_from: x.from, capture_to: x.to, seconds: round3(x.to - x.from), reason: x.reason, ...(x.wait_step !== undefined ? { wait_step: x.wait_step } : {}), ...(x.after_step !== undefined ? { after_step: x.after_step } : {}) })),
           ...(lp ? { layer: { file: layerRel(c), codec: lp.codec, ...(lp.profile ? { profile: lp.profile } : {}), pix_fmt: lp.alpha && !/^yuva/.test(lp.pix_fmt) ? `${lp.pix_fmt} + alpha` : lp.pix_fmt, alpha: lp.alpha, frames: lp.frames, size_bytes: lp.size_bytes } } : {}),
         };
       }),

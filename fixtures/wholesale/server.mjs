@@ -4,7 +4,8 @@
 //
 //   node server.mjs [--console-port 4401] [--shop-port 4402] [--host 127.0.0.1] [--no-build]
 //   env: NORTHFIELD_CONSOLE_PORT, NORTHFIELD_SHOP_PORT, NORTHFIELD_HOST,
-//        NORTHFIELD_ENRICH_MS (default 4000), NORTHFIELD_IMPORT_MS (default 2000)
+//        NORTHFIELD_ENRICH_MS (default 4000), NORTHFIELD_IMPORT_MS (default 2000),
+//        NORTHFIELD_REPORT_MS (default 400), NORTHFIELD_REPORT_DATA_MS (default 1200)
 //
 // Also importable: `const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close()`.
 
@@ -15,9 +16,11 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { build, bundleState, bundleVersion, OUT_DIR } from './build.mjs';
 import { handleApi } from './server/api.mjs';
-import { sendError, sendText } from './server/http.mjs';
+import { renderShippingEmbed } from './server/embed.mjs';
+import { sendError, sendJson, sendText } from './server/http.mjs';
 import { Mailbox, handleMailbox } from './server/mailbox.mjs';
 import { quotePdfFileName, renderNotFoundPdf, renderQuotePdf, renderQuotePrint } from './server/pdf.mjs';
+import { REPORT_DATA_MS, REPORT_MS, renderReport, renderReportList, reportFragment } from './server/reports.mjs';
 import { closePdfBrowser, htmlToPdf } from './server/pdfgen.mjs';
 import { Store } from './server/store.mjs';
 
@@ -87,7 +90,30 @@ function appHandler(appKey, ctx) {
     if (path.startsWith('/build/')) return serveBuildFile(res, path);
     if (path === '/favicon.svg' || path === '/favicon.ico') return sendText(res, 200, 'image/svg+xml', FAVICON);
     if (path === '/app-icon.svg') return sendText(res, 200, 'image/svg+xml', FAVICON);
+    if (appKey === 'console') {
+      // "Sales reports": server-rendered pages, every link a full page load (R-ISS-08).
+      if (path === '/reports' || path === '/reports/') return sendText(res, 200, 'text/html; charset=utf-8', renderReportList(), { 'cache-control': 'no-store' });
+      const month = /^\/reports\/([^/]+)(\/data)?\/?$/.exec(path);
+      if (month) {
+        const key = decodeURIComponent(month[1]);
+        await new Promise((resolve) => setTimeout(resolve, month[2] ? ctx.reports.dataMs : ctx.reports.ms));
+        const html = month[2] ? reportFragment(key) : renderReport(key);
+        if (!html) return sendError(res, 404, 'not_found', `No sales report for ${key}`);
+        if (month[2]) return sendJson(res, 200, { month: key, html });
+        return sendText(res, 200, 'text/html; charset=utf-8', html, { 'cache-control': 'no-store' });
+      }
+    }
     if (appKey === 'shop') {
+      // The product page's "Shipping estimate" widget, shown in a same-origin iframe (R-ISS-07).
+      if (path === '/embed/shipping') {
+        let product = null;
+        try {
+          product = ctx.store.getProduct(url.searchParams.get('product') ?? '');
+        } catch {
+          /* unknown product: a generic estimate */
+        }
+        return sendText(res, 200, 'text/html; charset=utf-8', renderShippingEmbed(product), { 'cache-control': 'no-store' });
+      }
       // A real PDF of the quote (printed by Chromium from the quote document), shown inline in a new tab.
       const real = /^\/quotes\/([^/]+)\/quote\.pdf$/.exec(path);
       if (real) {
@@ -164,7 +190,7 @@ async function listenAll(handler, port, hosts, label) {
 
 /**
  * Starts both apps. Ports may be 0 (ephemeral).
- * @param {{ consolePort?: number, shopPort?: number, host?: string, build?: boolean, enrichMs?: number, importMs?: number, log?: (msg: string) => void }} [opts]
+ * @param {{ consolePort?: number, shopPort?: number, host?: string, build?: boolean, enrichMs?: number, importMs?: number, reportMs?: number, reportDataMs?: number, log?: (msg: string) => void }} [opts]
  */
 export async function startFixture(opts = {}) {
   const log = opts.log ?? (() => {});
@@ -179,7 +205,13 @@ export async function startFixture(opts = {}) {
   const hosts = opts.host ? [opts.host] : ['127.0.0.1', '::1'];
   const urlHost = !opts.host || opts.host === '127.0.0.1' || opts.host === '::1' || opts.host === '0.0.0.0' || opts.host === '::' ? 'localhost' : opts.host;
   const store = new Store({ enrichMs: opts.enrichMs, importMs: opts.importMs });
-  const ctx = { store, mailbox: new Mailbox(), urls: { console: '', shop: '' }, version: await bundleVersion() };
+  const ctx = {
+    store,
+    mailbox: new Mailbox(),
+    urls: { console: '', shop: '' },
+    version: await bundleVersion(),
+    reports: { ms: opts.reportMs ?? REPORT_MS, dataMs: opts.reportDataMs ?? REPORT_DATA_MS },
+  };
   const consoleSide = await listenAll(appHandler('console', ctx), opts.consolePort ?? 4401, hosts, 'console');
   let shopSide;
   try {
@@ -248,6 +280,8 @@ async function main() {
     build: !values['no-build'],
     enrichMs: msOption(process.env.NORTHFIELD_ENRICH_MS, 'NORTHFIELD_ENRICH_MS'),
     importMs: msOption(process.env.NORTHFIELD_IMPORT_MS, 'NORTHFIELD_IMPORT_MS'),
+    reportMs: msOption(process.env.NORTHFIELD_REPORT_MS, 'NORTHFIELD_REPORT_MS'),
+    reportDataMs: msOption(process.env.NORTHFIELD_REPORT_DATA_MS, 'NORTHFIELD_REPORT_DATA_MS'),
     log: (m) => console.log(m),
   });
   console.log('Northfield fixture is running');

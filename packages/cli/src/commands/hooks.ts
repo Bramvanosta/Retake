@@ -64,13 +64,9 @@ async function hookContext(
           log: (level, msg) => ctx.log(level, msg),
         });
       }
-      const key = pageKey ?? Object.keys(env.pages)[0];
-      if (!key) throw new CliError(`environment "${env.name}" declares no pages for the js hook to run in`);
-      const page = await session.page(key);
-      if ((page.url() === 'about:blank' || page.url() === '') && env.pages[key]) {
-        await page.goto(env.pages[key], { waitUntil: 'load', timeout: 60_000 });
-      }
-      return rw.evalInPage(page, code);
+      if (!Object.keys(env.pages).length) throw new CliError(`environment "${env.name}" declares no pages for the js hook to run in`);
+      // The guarded hook tab of that page (hosts outside the allow-list are blocked), reused by later js hooks.
+      return rw.evalHookInPage(session, { project, env, log: (level, msg) => ctx.log(level, msg) }, pageKey, code);
     },
   };
   return { ctx, close: async () => void (await session?.close()) };

@@ -1,27 +1,36 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Page } from 'playwright-core';
-import type { TargetObject } from '@demo-studio/core';
+import type { Locator, Page } from 'playwright-core';
+import type { BBox, TargetObject } from '@demo-studio/core';
 import { ERROR_DOM_MAX, openSession, kitConfigFor } from '../src/index.js';
-import type { BrowserSession, KitClient, ResolveMissing } from '../src/index.js';
-import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE } from './pages.js';
+import type { BrowserSession, CursorEffectPayload, CursorState, KitClient, ResolveFound, ResolveMissing } from '../src/index.js';
+import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTENT_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE, deepPage, latePaintPage } from './pages.js';
 import { startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
 
 let server: TestServer;
+/** Another origin (another port) serving the frame page: its content must stay out of reach. */
+let cross: TestServer;
 let session: BrowserSession;
 let page: Page;
 let kit: KitClient;
 
 beforeAll(async () => {
+  cross = await startServer({ '/frame.html': FRAME_PAGE });
   server = await startServer({
+    '/deep.html': deepPage(cross.url),
+    '/frame.html': FRAME_PAGE,
     '/resolver.html': RESOLVER_PAGE,
     '/overlay-a.html': OVERLAY_A,
     '/overlay-b.html': OVERLAY_B,
+    '/late.html': latePaintPage(1000),
+    '/plain.html': NO_CONTENT_PAGE,
     '/ripple.html': RIPPLE_PAGE,
     '/cursor.html': CURSOR_PAGE,
     '/cursor-dialog.html': CURSOR_DIALOG_PAGE,
     '/cursor-form.html': CURSOR_FORM_PAGE,
     '/big.html': `<!doctype html><html><body>${'<section><h2>Region</h2><p>Lorem ipsum dolor sit amet</p><button>Act</button></section>'.repeat(3000)}</body></html>`,
+    '/widget.html': `<!doctype html><html><body><main><button id="top-save">Save changes</button><input id="nd" type="date" min="2026-10-01" max="2026-12-31">
+      <iframe id="w" srcdoc="<button id='fr-save'>Save</button>"></iframe><div id="many" hidden></div></main></body></html>`,
   });
   session = await openSession({ width: 1000, height: 700, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
   page = await session.page('main');
@@ -31,6 +40,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await session?.close();
   await server?.close();
+  await cross?.close();
 });
 
 async function idOf(t: TargetObject): Promise<string | null> {
@@ -144,10 +154,95 @@ describe('resolver', () => {
     const iceland = await kit.rowFor('Iceland');
     expect(iceland).not.toBeNull();
     const trig = await kit.menuTrigger(iceland!);
-    expect(await page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element } }).__demoStudio.el(ref).id, trig!)).toBe('iceland-menu');
+    expect(trig.hover).toBe(false);
+    expect(await page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element } }).__demoStudio.el(ref).id, trig.ref!)).toBe('iceland-menu');
     const sweden = await kit.rowFor('Sweden');
     const trig2 = await kit.menuTrigger(sweden!);
-    expect(await page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element } }).__demoStudio.el(ref).id, trig2!)).toBe('sweden-more');
+    expect(await page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element } }).__demoStudio.el(ref).id, trig2.ref!)).toBe('sweden-more');
+  });
+});
+
+describe('typed fields (R-CHO-14, R-CHO-15)', () => {
+  it('fieldState tells search fields (type, role, landmark, floating popover, name) from form fields, never reading values', async () => {
+    await page.goto(`${server.url}/resolver.html`);
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div id="fs"><input id="fs-orders" name="orderSearch"><input id="fs-query" placeholder="Your query">
+         <div role="search"><input id="fs-landmark"></div><div role="listbox"><input id="fs-pop"></div>
+         <div role="dialog" aria-modal="true"><input id="fs-dlg" aria-label="Message" value="secret-ish"></div>
+         <div role="dialog" data-side="bottom"><input id="fs-rename" aria-label="Lot name"></div>
+         <div role="dialog" data-side="bottom"><input id="fs-tagq" aria-label="Tag"><div role="listbox"><div role="option">Washed</div></div></div>
+         <div style="overflow:hidden;position:relative;width:3px;height:0"><textarea id="fs-proxy" style="position:absolute;bottom:-1em;width:1000px;height:1em"></textarea></div>
+         <div id="fs-widget" tabindex="0">grid</div>
+         <textarea id="fs-ta"></textarea><div id="fs-ce" contenteditable="true">x</div><input id="fs-ro" readonly value="1"></div>`,
+      );
+    });
+    const state = async (css: string) => {
+      const r = (await kit.find({ css })) as ResolveFound;
+      return kit.fieldState(r.ref);
+    };
+    expect(await state('#i-ph')).toEqual({ editable: true, empty: true, kind: 'search', known: true });
+    expect((await state('#fs-orders'))!.kind).toBe('search');
+    expect((await state('#fs-query'))!.kind).toBe('text');
+    expect((await state('#fs-landmark'))!.kind).toBe('search');
+    expect((await state('#fs-pop'))!.kind).toBe('search');
+    expect(await state('#fs-dlg')).toEqual({ editable: true, empty: false, kind: 'text', known: true });
+    // A popover holding a small form is no search; one listing options is (review fix K10).
+    expect((await state('#fs-rename'))!.kind).toBe('text');
+    expect((await state('#fs-tagq'))!.kind).toBe('search');
+    // An editor's hidden input (clipped to a 3 × 0 px box) and a focusable widget are not read (review fix K4).
+    await page.focus('#fs-proxy');
+    expect(await kit.fieldState(null)).toMatchObject({ editable: true, empty: true, known: false });
+    await page.focus('#fs-widget');
+    expect(await kit.fieldState(null)).toMatchObject({ editable: false, known: false });
+    expect((await state('#cb-region'))!.editable).toBe(false);
+    expect(await state('#fs-ta')).toEqual({ editable: true, empty: true, kind: 'multiline', known: true });
+    expect(await state('#fs-ce')).toEqual({ editable: true, empty: false, kind: 'multiline', known: true });
+    expect((await state('#fs-ro'))!.editable).toBe(false);
+    // Nothing focused: null.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(await kit.fieldState(null)).toBeNull();
+    await page.evaluate(() => document.getElementById('fs')!.remove());
+  });
+});
+
+describe('review fixes K9, K11, K12', () => {
+  beforeAll(async () => {
+    await page.goto(`${server.url}/widget.html`);
+    await page.frameLocator('#w').locator('#fr-save').waitFor();
+  });
+
+  it("chooses the text tier on the page's own matches: an exact match in a widget frame does not beat a partial one", async () => {
+    expect(await idOf({ text: 'Save' })).toBe('top-save');
+    expect((await kit.find({ text: 'Save' })).count).toBe(1);
+    expect(await idOf({ role: 'button', name: 'Save' })).toBe('top-save');
+    // Inside the frame (or when the page has no match), the frame's own tiers.
+    expect(await idOf({ text: 'Save', in: { css: '#w' } })).toBe('fr-save');
+    expect(await idOf({ text: 'Save', exact: true })).toBe('fr-save');
+  });
+
+  it('a native date input never takes a day outside its min / max', async () => {
+    const d = (await kit.find({ css: '#nd' })) as ResolveFound;
+    expect(await kit.setNativeValue(d.ref, '2026-11-03')).toBe(true);
+    expect(await kit.setNativeValue(d.ref, '2027-03-01')).toBe(false);
+    expect(await kit.setNativeValue(d.ref, '2026-09-30')).toBe(false);
+    expect(await page.locator('#nd').inputValue()).toBe('2026-11-03');
+  });
+
+  it('keeps the latest changes after a large re-render', async () => {
+    await kit.watchChanges();
+    await page.evaluate(() => {
+      const many = document.getElementById('many')!;
+      for (let i = 0; i < 600; i++) many.appendChild(document.createElement('span'));
+      const toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.textContent = 'Saved';
+      toast.style.cssText = 'position:fixed;right:16px;bottom:16px;width:120px;height:40px;background:#222;color:#fff';
+      document.body.appendChild(toast);
+    });
+    const { boxes } = await kit.changedBoxes();
+    expect(boxes.some((b) => Math.abs(b.x - (1000 - 16 - 120)) <= 1 && Math.abs(b.y - (700 - 16 - 40)) <= 1)).toBe(true);
   });
 });
 
@@ -184,6 +279,29 @@ describe('cursor overlay', () => {
     await page.evaluate(() => document.querySelector('demo-studio-cursor')!.remove());
     await page.waitForTimeout(20);
     expect(await page.evaluate(() => document.querySelector('demo-studio-cursor')?.isConnected === true)).toBe(true);
+  });
+
+  it('a cursor carried to a new document is drawn once the page painted content of its own, or when revealed (R-ISS-08)', async () => {
+    await page.goto(`${server.url}/overlay-a.html`);
+    await page.mouse.move(300, 260);
+    await page.waitForTimeout(50);
+    expect(await magentaAt(300, 260)).toBe(true);
+    // A page that paints only a skeleton for 1 s: the restored cursor would be its first contentful paint — not drawn.
+    await page.goto(`${server.url}/late.html`);
+    await page.waitForTimeout(300);
+    expect(await kit.cursorState()).toMatchObject({ x: 300, y: 260, known: true, visible: true });
+    expect(await magentaAt(300, 260)).toBe(false);
+    expect(await page.evaluate(() => performance.getEntriesByName('first-contentful-paint').length)).toBe(0);
+    await page.waitForFunction(() => document.body.innerText.includes('Report ready'));
+    await page.waitForTimeout(150);
+    expect(await magentaAt(300, 260)).toBe(true);
+    // A page that never paints content: drawn when the runner reveals it (after the load it waited for).
+    await page.goto(`${server.url}/plain.html`);
+    await page.waitForTimeout(200);
+    expect(await magentaAt(300, 260)).toBe(false);
+    await kit.cursorReveal();
+    await page.waitForTimeout(50);
+    expect(await magentaAt(300, 260)).toBe(true);
   });
 
   it('is drawn above a modal dialog and above a [popover]', async () => {
@@ -382,5 +500,244 @@ describe('scene-start rest point and DOM snippets', () => {
     const small = await kit.snapshot(null, ERROR_DOM_MAX);
     expect(small).toContain('Far away');
     expect(small).not.toContain('trimmed');
+  });
+});
+
+describe('open shadow roots and same-origin frames (R-ISS-07, R-KIT-11)', () => {
+  const ship = () => page.frameLocator('#ship');
+  /** The deep page with every frame loaded (the cross-origin one included: it then counts as not searchable). */
+  async function openDeep(): Promise<void> {
+    await page.goto(`${server.url}/deep.html`);
+    await ship().locator('#estimate').waitFor();
+    await ship().frameLocator('#nested').locator('#nested-btn').waitFor();
+    await page.frameLocator('#cross').locator('#estimate').waitFor();
+    await page.locator('nf-embed').locator('#emb-frame').contentFrame().locator('#emb').waitFor();
+  }
+  async function found(t: TargetObject): Promise<ResolveFound> {
+    const r = await kit.find(t);
+    expect(r.count, JSON.stringify(t)).toBeGreaterThan(0);
+    return r as ResolveFound;
+  }
+  /** The kit's box (top-level px) equals Playwright's box of the same element (main-frame px) within 0.5 px. */
+  async function sameBox(box: BBox, loc: Locator, what: string): Promise<void> {
+    const pw = (await loc.boundingBox())!;
+    expect(pw, what).not.toBeNull();
+    for (const [a, b] of [[box.x, pw.x], [box.y, pw.y], [box.w, pw.width], [box.h, pw.height]]) expect(Math.abs(a - b), `${what} ${JSON.stringify({ box, pw })}`).toBeLessThanOrEqual(0.5);
+  }
+  async function cursorAt(x: number, y: number, kind?: CursorState['kind']): Promise<CursorState> {
+    let st = await kit.cursorState();
+    for (let i = 0; i < 100 && !(st.x === x && st.y === y && (!kind || st.kind === kind)); i++) {
+      await page.waitForTimeout(20);
+      st = await kit.cursorState();
+    }
+    return st;
+  }
+
+  beforeAll(openDeep);
+
+  it('finds targets inside open shadow roots (nested, slotted), never inside a closed one', async () => {
+    expect(await idOf({ text: 'Add bag' })).toBe('sh-addbag');
+    expect((await kit.find({ text: 'Add bag' })).count).toBe(2); // + the component inside the frame
+    expect(await idOf({ role: 'button', name: 'Remove bag' })).toBe('sh-remove');
+    expect(await idOf({ aria: 'Remove bag' })).toBe('sh-remove');
+    expect(await idOf({ label: 'Note' })).toBe('sh-note');
+    expect(await idOf({ placeholder: 'Tasting note' })).toBe('sh-note');
+    expect(await idOf({ testid: 'sh-tid' })).toBe('sh-tidspan');
+    expect(await idOf({ css: '#sh-add' })).toBe('sh-add');
+    expect(await idOf({ text: 'Deep badge' })).toBe('deep-badge');
+    expect(await idOf({ text: 'Slotted title' })).toBe('slotted');
+    expect((await kit.find({ text: 'Closed action' })).count).toBe(0);
+    const hidden = (await kit.find({ text: 'Shadow hidden' })) as ResolveMissing;
+    expect(hidden.count).toBe(0);
+    expect(hidden.hidden).toBeGreaterThan(0);
+  });
+
+  it('finds targets inside same-origin frames, nested frames and a frame inside a shadow root; not across origins', async () => {
+    expect(await idOf({ text: 'Estimate' })).toBe('estimate');
+    expect((await kit.find({ text: 'Estimate' })).count).toBe(1); // the cross-origin copy is out of reach
+    expect((await found({ label: 'Destination' })).tag).toBe('select');
+    expect(await idOf({ label: 'Bags' })).toBe('fbags');
+    expect(await idOf({ role: 'button', name: 'Nested frame button' })).toBe('nested-btn');
+    expect(await idOf({ text: 'Embedded' })).toBe('emb');
+    expect(await idOf({ text: 'Add bag', nth: 1 })).toBe('fsh-addbag'); // a shadow root inside the frame
+    const missing = (await kit.find({ text: 'Nowhere to be found' })) as ResolveMissing;
+    expect(missing.count).toBe(0);
+    expect(missing.desc).toBe('1 cross-origin frame not searched');
+  });
+
+  it('counts matches in composed order and scopes into a frame or a component', async () => {
+    const order: Array<string | null> = [];
+    for (let i = 0; i < 4; i++) order.push(await idOf({ text: 'Add', exact: true, nth: i }));
+    expect(order).toEqual(['light-add', 'sh-add', 'fr-add', 'fsh-add']);
+    expect((await kit.find({ text: 'Add', exact: true })).count).toBe(4);
+    expect(await idOf({ text: 'Add', exact: true, last_visible: true })).toBe('fsh-add');
+    expect((await kit.find({ text: 'Add', exact: true, in: { css: '#ship' } })).count).toBe(2);
+    expect(await idOf({ text: 'Add', exact: true, in: { css: '#ship' } })).toBe('fr-add');
+    expect((await kit.find({ text: 'Add', exact: true, in: { css: 'nf-stepper' } })).count).toBe(1);
+    expect(await idOf({ text: 'Add', exact: true, in: { css: 'nf-stepper' } })).toBe('sh-add');
+    expect(await idOf({ text: 'Confirm', in: 'dialog' })).toBe('sh-confirm');
+    const dlg = (await page.locator('#sh-dlg').boundingBox())!;
+    const popups = await kit.popupState();
+    expect(popups.some((p) => Math.abs(p.bbox.x - dlg.x) <= 0.5 && Math.abs(p.bbox.y - dlg.y) <= 0.5 && p.kind === 'dialog')).toBe(true);
+  });
+
+  it('boxes and points are in top-level px (frame borders, padding, page and frame scroll); hit tests pierce', async () => {
+    const est = await found({ text: 'Estimate' });
+    const nested = await found({ text: 'Nested frame button' });
+    const shAdd = await found({ css: '#sh-add' });
+    await sameBox(est.bbox, ship().locator('#estimate'), 'estimate');
+    await sameBox(nested.bbox, ship().frameLocator('#nested').locator('#nested-btn'), 'nested');
+    await sameBox(shAdd.bbox, page.locator('#sh-add'), 'sh-add');
+    expect((await kit.point(est.ref))!.hit).toBe(true);
+    expect((await kit.point(shAdd.ref))!.hit).toBe(true);
+    expect((await kit.point((await found({ text: 'Embedded' })).ref))!.hit).toBe(true);
+    // A slotted label inside a shadow button: the button is hit through its slot.
+    const pill = await found({ css: 'button', in: { css: 'nf-pill' } });
+    expect(await idOf({ css: 'button', in: { css: 'nf-pill' } })).toBe('pill-btn');
+    expect((await kit.point(pill.ref))!.hit).toBe(true);
+    // Covered by a page element over the frame: not hit.
+    await page.evaluate(() => void (document.getElementById('cover')!.style.display = 'block'));
+    expect((await kit.point(est.ref))!.hit).toBe(false);
+    await page.evaluate(() => void (document.getElementById('cover')!.style.display = 'none'));
+    // Page and frame scrolled.
+    await page.evaluate(() => window.scrollTo(0, 40));
+    await ship().locator('body').evaluate(() => window.scrollTo(0, 30));
+    for (const [t, loc, what] of [
+      [{ text: 'Estimate' }, ship().locator('#estimate'), 'estimate scrolled'],
+      [{ text: 'Nested frame button' }, ship().frameLocator('#nested').locator('#nested-btn'), 'nested scrolled'],
+      [{ css: '#sh-add' }, page.locator('#sh-add'), 'sh-add scrolled'],
+    ] as Array<[TargetObject, Locator, string]>) {
+      await sameBox((await found(t)).bbox, loc, what);
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await ship().locator('body').evaluate(() => window.scrollTo(0, 0));
+  });
+
+  it('hasText reads shadow roots and frames; a native <select> in a frame is set in its own realm', async () => {
+    expect(await kit.hasText('3 bags')).toBe(true);
+    expect(await kit.hasText('Shadow hidden')).toBe(false);
+    expect(await kit.hasText('Closed action')).toBe(false);
+    const dest = await found({ label: 'Destination' });
+    expect(await kit.selectNative(dest.ref, 'Norway')).toMatchObject({ ok: true, label: 'Norway' });
+    expect(await ship().locator('#dest').inputValue()).toBe('Norway');
+    expect(await kit.hasText('dest=Norway')).toBe(true);
+  });
+
+  it('the focused field is found inside a frame and inside a shadow root', async () => {
+    await ship().locator('#fbags').focus();
+    expect(await kit.isTextInput(null)).toBe(true);
+    await sameBox((await kit.focused())!.bbox, ship().locator('#fbags'), 'focused frame field');
+    await page.locator('#sh-note').focus();
+    expect(await kit.isTextInput(null)).toBe(true);
+    const f = (await kit.focused())!;
+    expect(f.desc).toContain('Note');
+    await sameBox(f.bbox, page.locator('#sh-note'), 'focused shadow field');
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  });
+
+  it('synthetic click strategies dispatch at frame-local coordinates in the frame realm', async () => {
+    await ship().locator('#fbags').fill('7');
+    const est = await found({ text: 'Estimate' });
+    const pt = (await kit.point(est.ref))!;
+    await kit.pointerSequence(est.ref, pt.x, pt.y);
+    const box = (await page.locator('#ship').boundingBox())!;
+    const last = await ship().locator('body').evaluate(() => (window as unknown as { lastClick: { x: number; y: number; view: boolean; trusted: boolean } }).lastClick);
+    expect(last).toMatchObject({ view: true, trusted: false });
+    // #ship: 6 px border + 10 px padding.
+    expect(Math.abs(last.x - (pt.x - (box.x + 16)))).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(last.y - (pt.y - (box.y + 16)))).toBeLessThanOrEqual(0.5);
+    expect(await ship().locator('#out').textContent()).toMatch(/^7 bags to /);
+    await ship().locator('#out').evaluate((el) => void (el.textContent = '-'));
+    await kit.domClick(est.ref, pt.x, pt.y);
+    expect(await ship().locator('#out').textContent()).toMatch(/^7 bags to /);
+  });
+
+  it('scrolls inside a frame, then the page around it (innermost first); scroll containers and positions', async () => {
+    await openDeep();
+    const far = await found({ text: 'Far in frame' });
+    expect(far.in_view).toBe(false);
+    const ops = [];
+    for (let i = 0; i < 6; i++) {
+      const op = await kit.scrollPlan(far.ref, 80);
+      if (!op) break;
+      ops.push(op);
+      await kit.scrollAnimate(op.container, op.top, op.left, 0);
+    }
+    expect(ops.length).toBeGreaterThan(0);
+    expect(ops[0].container).not.toBe(''); // the frame's own scroller first
+    expect((await found({ text: 'Far in frame' })).in_view).toBe(true);
+    expect((await kit.point(far.ref))!.hit).toBe(true);
+    const sc = await kit.scrollContainerFor(far.ref, true);
+    expect(sc).not.toBe('');
+    expect(await kit.scrollContainerFor((await found({ css: '#ship' })).ref)).toBe(sc); // an iframe designates its document's scroller
+    const info = await kit.scrollInfo(sc, far.ref);
+    const inDoc = await ship().locator('#far').evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    expect(Math.abs(info.target_top! - inDoc)).toBeLessThanOrEqual(1);
+    // A frame below the page fold: the page scrolls.
+    const low = await found({ text: 'Low button' });
+    expect(low.in_view).toBe(false);
+    expect((await kit.scrollPlan(low.ref, 80))!.container).toBe('');
+  });
+
+  it('the drawn cursor follows real input into frames (nested, inside a shadow root) with the right icon; presses ripple', async () => {
+    await openDeep();
+    const at = async (t: TargetObject) => (await kit.point((await found(t)).ref))!;
+    const est = await at({ text: 'Estimate' });
+    await page.mouse.move(est.x, est.y);
+    expect(await cursorAt(est.x, est.y, 'hand')).toMatchObject({ x: est.x, y: est.y, kind: 'hand' });
+    const bags = await at({ label: 'Bags' });
+    await page.mouse.move(bags.x, bags.y);
+    expect(await cursorAt(bags.x, bags.y, 'ibeam')).toMatchObject({ x: bags.x, y: bags.y, kind: 'ibeam' });
+    const shAdd = await at({ css: '#sh-add' }); // cursor:pointer comes from the shadow stylesheet
+    await page.mouse.move(shAdd.x, shAdd.y);
+    expect(await cursorAt(shAdd.x, shAdd.y, 'hand')).toMatchObject({ x: shAdd.x, y: shAdd.y, kind: 'hand' });
+    const emb = await at({ text: 'Embedded' }); // a frame inside a web component's shadow root
+    await page.mouse.move(emb.x, emb.y);
+    expect(await cursorAt(emb.x, emb.y, 'hand')).toMatchObject({ x: emb.x, y: emb.y, kind: 'hand' });
+    await ship().locator('body').evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const nested = await at({ text: 'Nested frame button' });
+    expect(nested.hit).toBe(true);
+    await page.mouse.move(nested.x, nested.y);
+    expect(await cursorAt(nested.x, nested.y)).toMatchObject({ x: nested.x, y: nested.y });
+    // A real press inside the frame: press and ripple reported at the press point.
+    const effects: CursorEffectPayload[] = [];
+    session.onCursorEffect = (_p, e) => effects.push(e);
+    try {
+      await page.mouse.move(emb.x, emb.y);
+      await cursorAt(emb.x, emb.y);
+      await page.mouse.down();
+      await page.mouse.up();
+      for (let i = 0; i < 50 && !effects.some((e) => e.type === 'ripple'); i++) await page.waitForTimeout(20);
+    } finally {
+      session.onCursorEffect = null;
+    }
+    expect(effects.some((e) => e.type === 'press')).toBe(true);
+    const rp = effects.find((e) => e.type === 'ripple')!;
+    expect(Math.abs(rp.x! - emb.x)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(rp.y! - emb.y)).toBeLessThanOrEqual(0.5);
+  });
+
+  it('never picks a click-outside point inside a frame', async () => {
+    await openDeep();
+    await page.locator('#sh-dlg').evaluate((el) => void ((el as HTMLElement).style.display = 'none'));
+    const shipBox = (await page.locator('#ship').boundingBox())!;
+    const near = { x: Math.round(shipBox.x + shipBox.width / 2), y: Math.round(shipBox.y + shipBox.height / 2) };
+    const plan = (await kit.outsidePlan(near, []))!;
+    expect(plan).not.toBeNull();
+    const under = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.localName, [plan.x, plan.y] as const);
+    expect(['iframe', 'nf-embed']).not.toContain(under);
+  });
+
+  it('a ref into a frame that navigated reads as gone', async () => {
+    await openDeep();
+    const est = await found({ text: 'Estimate' });
+    expect(await kit.call<boolean>('alive', est.ref)).toBe(true);
+    await page.locator('#ship').evaluate((f) => void ((f as HTMLIFrameElement).src = '/frame.html?n=2'));
+    let alive = true;
+    for (let i = 0; i < 100 && alive; i++) {
+      await page.waitForTimeout(20);
+      alive = await kit.call<boolean>('alive', est.ref);
+    }
+    expect(alive).toBe(false);
   });
 });

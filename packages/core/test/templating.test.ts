@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   TemplateError,
+  collectSecretRefs,
   interpolate,
+  interpolateAt,
   interpolateDeep,
   listTemplateTokens,
   redact,
+  secretForms,
   resolveEnvironment,
   resolvePageUrl,
   resolveSecretRef,
@@ -58,6 +61,42 @@ describe('interpolate', () => {
       headers: ['finca-lirandel-geisha'],
       n: 3,
     });
+  });
+
+  it('interpolateAt names the string a TemplateError comes from and leaves skipped nodes as written', () => {
+    const value = { steps: [{ type: { text: '{{vars.nope}}' } }] };
+    expect(() => interpolateAt(value, ctx, ['scenes', 1])).toThrow(/^scenes\[1\]\.steps\[0\]\.type\.text: unknown template key \{\{vars\.nope\}\}; available: /);
+    const skipped = interpolateAt({ a: '{{vars.product}}', note: '{{nope}}' }, ctx, [], (path) => path[path.length - 1] === 'note');
+    expect(skipped).toEqual({ a: 'finca-lirandel-geisha', note: '{{nope}}' });
+  });
+
+  it('collectSecretRefs skips notes (never templated)', () => {
+    const refs = collectSecretRefs({ steps: [{ type: '{{env:A}}', note: 'uses {{env:B}}' }], open: '/?k={{secret:keychain:s/a}}' });
+    expect([...refs]).toEqual(['env:A', 'keychain:s/a']);
+  });
+
+  it('secretForms: as is, URL-encoded (component, + for spaces, URI), JSON- and HTML-escaped; none under 3 chars (R-RUN-17)', () => {
+    expect(secretForms('p@ss wörd"/<x>&')).toEqual([
+      'p@ss wörd"/<x>&',
+      'p@ss wörd\\"/<x>&',
+      'p%40ss%20w%C3%B6rd%22%2F%3Cx%3E%26',
+      'p%40ss+w%C3%B6rd%22%2F%3Cx%3E%26',
+      'p@ss%20w%C3%B6rd%22/%3Cx%3E&',
+      'p@ss wörd"/&lt;x&gt;&amp;',
+      'p@ss wörd&quot;/&lt;x&gt;&amp;',
+    ]);
+    expect(secretForms('S3cret-pw-42')).toEqual(['S3cret-pw-42']);
+    expect(secretForms('ab')).toEqual([]);
+  });
+
+  it('secretForms: as Chrome writes a URL path and query, and as a GET form submits it (L1.2 review: S6)', () => {
+    // Measured in Chromium: the path encodes `^ | { } \`` and spaces, keeps `'`; the query encodes `'` and spaces, keeps
+    // `{ | ^ \``; a GET form encodes everything but `*-._` and writes spaces as `+`.
+    const forms = secretForms("it's x|y^`{ ü!~");
+    expect(forms).toContain("it's%20x%7Cy%5E%60%7B%20%C3%BC!~"); // path (Chrome)
+    expect(forms).toContain('it%27s%20x|y^`{%20%C3%BC!~'); // query
+    expect(forms).toContain('it%27s+x%7Cy%5E%60%7B+%C3%BC%21%7E'); // GET form
+    expect(redact("GET /q?k=it%27s+x%7Cy%5E%60%7B+%C3%BC%21%7E&p=it's%20x%7Cy%5E%60%7B%20%C3%BC!~", forms)).toBe('GET /q?k=***&p=***');
   });
 
   it('listTemplateTokens', () => {

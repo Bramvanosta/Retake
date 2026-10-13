@@ -132,4 +132,32 @@ describe('zod schemas', () => {
     };
     expect(RunRecordSchema.safeParse(run).success).toBe(true);
   });
+
+  it('Timeline: page loads the capture held (R-ISS-08), on capture and on a track', () => {
+    const base = {
+      version: 1 as const,
+      run_id: 'r',
+      project: 'p',
+      scenario: 's',
+      created_at: '2026-10-12T20:00:00.000Z',
+      mode: 'capture' as const,
+      capture: { file: 'capture.mp4', width: 800, height: 600, scale: 1, fps: 30, duration: 9, t0_wall: 1, frames: 10 },
+      scenes: [],
+      events: [],
+      markers: [],
+      pages: [],
+      cursor: [],
+      idle: [],
+      warnings: [],
+    };
+    const loading = [{ t_start: 2.1, t_end: 3.3, page: 'app', until: 'paint' as const, held_frames: 70 }];
+    const track = { id: 'app', file: 'capture-app.mp4', frames_file: 'frames-app.jsonl', width: 800, height: 600, scale: 1, fps: 30, frames: 5, recording: [], pages: [], cursor: [] };
+    const timeline: Timeline = { ...base, loading, tracks: [{ ...track, loading: [{ t_start: 1, t_end: 1.4, until: 'load', held_frames: 0 }] }] };
+    expect(TimelineSchema.safeParse(timeline).success).toBe(true);
+    // Older timelines have none.
+    expect(TimelineSchema.safeParse(base).success).toBe(true);
+    expect(TimelineSchema.safeParse({ ...base, loading: [{ ...loading[0], url: 'https://x.test' }] }).success).toBe(false);
+    expect(TimelineSchema.safeParse({ ...base, loading: [{ ...loading[0], until: 'later' }] }).success).toBe(false);
+    expect(TimelineSchema.safeParse({ ...base, tracks: [{ ...track, loading: [{ t_start: 1, t_end: 2, until: 'paint', held_frames: -1 }] }] }).success).toBe(false);
+  });
 });

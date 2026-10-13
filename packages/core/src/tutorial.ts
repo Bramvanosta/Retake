@@ -81,9 +81,9 @@ export function tutorialFeaturesNamed(sw: TutorialSwitch | undefined, level: Tut
 }
 
 /** Actions whose target a spotlight follows (the step's target box, as the runner measured it). */
-export const SPOTLIGHT_ACTIONS: readonly string[] = ['click', 'double_click', 'hover', 'type', 'select', 'pick', 'menu', 'drag', 'drop_file', 'download'];
+export const SPOTLIGHT_ACTIONS: readonly string[] = ['click', 'double_click', 'hover', 'type', 'select', 'pick', 'menu', 'date', 'drag', 'drop_file', 'download'];
 /** Actions that click a target: each gets a numbered badge (a `type` step only when it clicks into a field first). */
-export const BADGE_ACTIONS: readonly string[] = ['click', 'double_click', 'type', 'select', 'pick', 'menu', 'download'];
+export const BADGE_ACTIONS: readonly string[] = ['click', 'double_click', 'type', 'select', 'pick', 'menu', 'date', 'download'];
 /** Actions a shortcut overlay shows (the keys of a `press` step). */
 export const SHORTCUT_ACTIONS: readonly string[] = ['press'];
 /** Actions a typing loupe magnifies (the focused field). */

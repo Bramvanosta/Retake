@@ -2,6 +2,7 @@ import { hasLocator, normalizeTarget, pickTarget } from '@demo-studio/core';
 import type { NormalizedStep, TargetSpec } from '@demo-studio/core';
 import { click, doubleClick, hover } from './click.js';
 import { captureText, download, waitForEmail } from './artefacts.js';
+import { date } from './calendar.js';
 import { drag, dropFile } from './drag.js';
 import { press, type } from './keyboard.js';
 import { cursor, emit, evalStep, notify, screenshot } from './misc.js';
@@ -24,6 +25,7 @@ export const ACTIONS: ActionTable = {
   select,
   pick,
   menu,
+  date,
   scroll,
   drag,
   drop_file: dropFile,
@@ -61,6 +63,8 @@ export function primaryTarget(step: NormalizedStep): TargetSpec | null {
       return typeof a.field === 'string' ? { label: a.field } : ((a.field as TargetSpec | undefined) ?? null);
     case 'menu':
       return (a.trigger as TargetSpec | undefined) ?? (typeof a.row === 'string' ? { text: a.row } : ((a.row as TargetSpec | undefined) ?? null));
+    case 'date':
+      return typeof a.field === 'string' ? { label: a.field } : ((a.field as TargetSpec | undefined) ?? null);
     case 'drag':
       return (a.from as TargetSpec | undefined) ?? null;
     case 'drop_file':

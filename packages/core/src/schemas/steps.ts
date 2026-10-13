@@ -92,6 +92,12 @@ export const stepCommonShape = {
   timeout: positiveSeconds().describe('Seconds before the step fails (default 15).').optional(),
   optional: z.boolean().describe('A failure is logged but does not abort the run.').optional(),
   irreversible: z.boolean().describe('Not executed in dry-run: the runner hovers the target, screenshots and stops the scene.').optional(),
+  park: z
+    .union([z.boolean(), seconds()])
+    .describe(
+      'Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds.',
+    )
+    .optional(),
   note: z.string().describe('Free-form note (ignored).').optional(),
 };
 
@@ -178,6 +184,25 @@ const MenuArgsSchema = z.strictObject({
     .optional(),
 });
 
+const DateArgsSchema = z.union([
+  nonEmpty(),
+  z.strictObject({
+    field: z
+      .union([nonEmpty(), TargetObjectSchema])
+      .describe('The date field (its label, or a target) whose calendar opens; omit for a calendar already on screen.')
+      .optional(),
+    day: z
+      .union([nonEmpty(), z.array(nonEmpty()).min(1)])
+      .describe('Day(s) to click, matched by aria-label or date attribute: "10 January 2027", "2027-01-10", or a list (a range).'),
+    next: TargetSpecSchema.describe('Next-month button (default: the last visible one of the calendar).').optional(),
+    previous: TargetSpecSchema.describe('Previous-month button (default: the last visible one of the calendar).').optional(),
+    close: z
+      .enum(['auto', 'outside', 'escape', 'none'])
+      .describe("After the last day: auto (default) waits for the calendar to close by itself, then clicks outside; or outside, escape, none.")
+      .optional(),
+  }),
+]);
+
 const ScrollArgsSchema = z.union([
   z.number().min(0).describe('Absolute scrollTop in px.'),
   z.strictObject({
@@ -188,7 +213,7 @@ const ScrollArgsSchema = z.union([
     by: z.number().describe('Relative scroll in px (alternative to `to`).').optional(),
     offset: z
       .number()
-      .describe('With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default -120.')
+      .describe('With a target: final scrollTop = targetTop + offset (-140 ⇒ target ends 140 px below the top). Default pacing.scroll_offset (-140).')
       .optional(),
     duration: seconds().describe('Seconds (default pacing.scroll_duration).').optional(),
     in: TargetSpecSchema.describe('Scroll container (default: nearest scrollable ancestor, else the main scroller).').optional(),
@@ -329,6 +354,7 @@ export const ACTION_ARG_SCHEMAS = {
   select: SelectArgsSchema,
   pick: PickArgsSchema,
   menu: MenuArgsSchema,
+  date: DateArgsSchema,
   scroll: ScrollArgsSchema,
   drag: DragArgsSchema,
   drop_file: DropFileArgsSchema,
@@ -358,6 +384,8 @@ export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
   select: 'Choose an option in a native select or a combobox listbox.',
   pick: 'Tick one or more options in a multi-select popover field, then close it.',
   menu: "Open a row's action menu, choose an item and optionally confirm.",
+  date:
+    'Pick a day (or a range) in a date picker: waits for a previous date popover to close, opens the field, pages months with the last visible month buttons (quick runs), clicks the days by label; fills a native date input in place.',
   scroll: 'Animated in-page scroll to a position, an element, or by an amount.',
   drag: 'Press on an element, move with an eased path and release.',
   drop_file: 'Drag a file ghost onto a drop zone and drop a real or placeholder file.',

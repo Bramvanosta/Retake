@@ -1,5 +1,4 @@
 import type { Page } from 'playwright-core';
-import { interpolate } from '@demo-studio/core';
 import type { NewTabArgs, OpenArgs, SwitchPageArgs } from '@demo-studio/core';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
@@ -30,7 +29,7 @@ export async function navigate(rt: Runtime, page: Page, url: string, waitUntil: 
 export async function open(ctx: StepContext, args: OpenArgs): Promise<ActionResult> {
   const { rt } = ctx;
   if (args.page !== undefined && args.page !== rt.activeId) await rt.activate(args.page);
-  const url = rt.resolveUrl(interpolate(args.url, rt.template));
+  const url = rt.resolveUrl(args.url);
   await navigate(rt, rt.page, url, args.wait_until);
   return { target: { desc: url }, data: { url: rt.page.url() } };
 }
@@ -67,7 +66,7 @@ export async function newTab(ctx: StepContext, args: NewTabArgs): Promise<Action
       how = 'popup';
     } else {
       // Synthetic clicks and prevented defaults never open tabs: follow the link ourselves.
-      const href = args.href !== undefined ? interpolate(args.href, rt.template) : r.href;
+      const href = args.href ?? r.href;
       if (!href) throw new StepError(`new_tab: clicking ${r.desc} opened no page and it has no href (pass \`href\`)`);
       page = await rt.session.newPage(id);
       await rt.activate(id, page);
@@ -75,7 +74,7 @@ export async function newTab(ctx: StepContext, args: NewTabArgs): Promise<Action
       how = 'href';
     }
   } else if (args.href !== undefined) {
-    const href = interpolate(args.href, rt.template);
+    const href = args.href;
     const url = /^[a-z][a-z0-9+.-]*:/i.test(href) ? href : new URL(href, opener.url()).toString();
     page = await rt.session.newPage(id);
     await rt.activate(id, page);

@@ -1,6 +1,20 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describeTarget, interpolate, isCard, isInterstitial, isPoint, normalizeStep, normalizeTarget, overlayUseOf, resolvePageUrl, resolveScenePages, sceneId } from '@demo-studio/core';
+import {
+  TemplateError,
+  describeTarget,
+  isCaptureScene,
+  isCard,
+  isInterstitial,
+  isPoint,
+  normalizeStep,
+  normalizeTarget,
+  overlayUseOf,
+  resolvePageUrl,
+  resolveScenePages,
+  sceneId,
+  templateSceneEntry,
+} from '@demo-studio/core';
 import type {
   CameraHint,
   CaptionSpec,
@@ -11,6 +25,7 @@ import type {
   RunRecord,
   Scenario,
   Scene,
+  SceneEntry,
   TargetSpec,
   TimelineEvent,
   TimelineScene,
@@ -20,10 +35,12 @@ import type { ActionResult } from './actions/types.js';
 import { approach, settleLatePopup } from './actions/click.js';
 import { menuTriggerFor } from './actions/widgets.js';
 import { navigate } from './actions/pages.js';
-import { StepError, errorMessage, isCancelled } from './errors.js';
+import { RunnerError, StepError, errorMessage, isCancelled } from './errors.js';
 import { Jitter } from './motion.js';
 import { resolveTarget } from './resolve.js';
 import type { Runtime, StepContext } from './runtime.js';
+import { ACTING_ACTIONS, parkCursor, parkPlan } from './park.js';
+import type { ParkRecord } from './park.js';
 import { placeSceneCursor } from './scene-cursor.js';
 import { fileSlug, pad, throwIfAborted, wallNow } from './util.js';
 
@@ -61,6 +78,26 @@ export interface SceneLoopOptions {
   save: () => void;
 }
 
+/**
+ * Template part of the scenario (R-RUN-16): a TemplateError fails the run; a {{hooks.…}} token that cannot resolve
+ * because the setup hooks were skipped says how to run them.
+ */
+export function templated<T>(fn: () => T, record: RunRecord): T {
+  try {
+    return fn();
+  } catch (e) {
+    if (!(e instanceof TemplateError)) throw e;
+    const skipped = record.hooks.setup === 'skipped' && /\{\{\s*hooks\./.test(e.message);
+    throw new RunnerError(skipped ? `${e.message} — the setup hooks were skipped (a dry run skips them: add --hooks run)` : e.message);
+  }
+}
+
+/** A scene entry as far as the run goes: with --until, the steps of its scene after the last one to run are left out. */
+export function untilSteps<T extends SceneEntry>(entry: T, si: number, until: SceneLoopOptions['until']): T {
+  if (!until || until.sceneIndex !== si || !isCaptureScene(entry)) return entry;
+  return { ...entry, steps: (entry.steps ?? []).slice(0, until.stepIndex + 1) } as T;
+}
+
 function caption(c: CaptionSpec | undefined): { kicker?: string; text: string } | undefined {
   if (c === undefined) return undefined;
   return typeof c === 'string' ? { text: c } : { ...c };
@@ -88,6 +125,8 @@ export function describeStep(step: NormalizedStep): string {
       return `${JSON.stringify(a.option)} in ${td}`;
     case 'menu':
       return `${td} → ${JSON.stringify(a.item)}${a.confirm ? ' + confirm' : ''}`;
+    case 'date':
+      return `${JSON.stringify(a.day)}${td ? ` in ${td}` : ''}`;
     case 'scroll':
       return a.to !== undefined ? `to ${typeof a.to === 'object' ? describeTarget(a.to as TargetSpec) : a.to}` : `by ${a.by}`;
     case 'wait_for':
@@ -173,6 +212,21 @@ async function overlayFor(ctx: StepContext, spec: OverlaySpec, res: ActionResult
   return out;
 }
 
+const TRIM_NOTE = /\n<!-- … trimmed to \d+ of (\d+) chars -->$/;
+
+/**
+ * A DOM snippet cut to `max` characters after its last complete tag within the cap (a cut inside a tag would be
+ * unreadable), with the kit's note on what was left out; a snippet the kit already trimmed keeps the original length.
+ */
+export function trimSnippet(html: string, max: number): string {
+  const note = TRIM_NOTE.exec(html);
+  const body = note ? html.slice(0, note.index) : html;
+  if (body.length <= max) return html;
+  let cut = body.lastIndexOf('>', max - 1) + 1;
+  if (cut < max * 0.75) cut = max;
+  return `${body.slice(0, cut)}\n<!-- … trimmed to ${cut} of ${note ? note[1] : body.length} chars -->`;
+}
+
 async function errorArtifacts(rt: Runtime, scene: string, step: number, e: unknown): Promise<{ screenshot?: string; dom?: string }> {
   const base = join(rt.screenshotsDir, `error-${fileSlug(scene)}-${step}`);
   const out: { screenshot?: string; dom?: string } = {};
@@ -184,12 +238,14 @@ async function errorArtifacts(rt: Runtime, scene: string, step: number, e: unkno
   }
   try {
     const ref = e instanceof StepError ? e.domRef : null;
-    const html = await rt.kit.snapshot(ref, ERROR_DOM_MAX);
+    // Secret values are masked before the snippet is trimmed (a cut must not keep the start of one): the kit trims at
+    // twice the size, the final cut is made here.
+    const html = trimSnippet(rt.secrets.redactText(await rt.kit.snapshot(ref, ERROR_DOM_MAX * 2)), ERROR_DOM_MAX);
     const header = [
       '<!-- Demo Studio step failure',
       `  scene: ${scene}  step: ${step}`,
-      `  url: ${rt.page.url()}`,
-      `  error: ${errorMessage(e).replace(/--/g, '—')}`,
+      `  url: ${rt.secrets.redactText(rt.page.url())}`,
+      `  error: ${rt.secrets.redactText(errorMessage(e)).replace(/--/g, '—')}`,
       '-->',
     ].join('\n');
     await writeFile(`${base}.html`, `${header}\n${html}\n`);
@@ -213,6 +269,9 @@ async function dryScreenshot(rt: Runtime, opts: SceneLoopOptions, scene: string,
 type StepOutcome = 'ok' | 'failed-optional' | 'stop-scene';
 
 async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneIndex: number, step: NormalizedStep): Promise<StepOutcome> {
+  // Never act on a page whose load the capture holds (R-ISS-08): one the app started itself, or — in a multi-page scene —
+  // another page's (cut from every page of the scene). Not part of the step's time.
+  await rt.awaitShownLoaded();
   const ctx: StepContext = {
     rt,
     scene: { id: scene.id, index: sceneIndex },
@@ -221,7 +280,8 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     jitter: new Jitter(`${opts.scenarioName}:${scene.id}:${step.index}`, rt.pacing.jitter),
     clicks: [],
   };
-  const desc = describeStep(step);
+  // Described from a fully redacted copy (describeStep cuts long arguments: no prefix of a secret may survive the cut).
+  const desc = describeStep(rt.secrets.redactDeep(step));
   const pending = rt.pendingPopup;
   rt.pendingPopup = null;
   if (pending && pending.ev.scene === scene.id) {
@@ -275,8 +335,21 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
       message = 'irreversible step not executed in dry-run';
       return (outcome = 'stop-scene');
     }
+    const park = parkPlan(step, rt.pacing);
+    let parked: ParkRecord | undefined;
+    // Parking before a `hold` step: the hold starts once the cursor rests (R-CHO-21).
+    if (park?.when === 'before') parked = await parkCursor(ctx, park, rt.lastActed);
+    const holdFrom = parked ? rt.now() : ev.t_start;
+    let popupsBefore: number[] | undefined;
+    if (rt.parkWatch && ACTING_ACTIONS.has(step.action)) {
+      await rt.kit.watchChanges().catch(() => undefined);
+      popupsBefore = await rt.kit.popupState().then((ps) => ps.map((p) => p.id), () => undefined);
+    }
     const handler = ACTIONS[step.action] as (c: StepContext, a: unknown) => Promise<ActionResult>;
     const res = await handler(ctx, step.args);
+    // A navigation the step started (an `open` up to its commit, an Enter, a new tab, a click) ends with the new page
+    // painted (R-ISS-08): its park, hold and overlays never fall inside the held load the edit cuts.
+    await rt.awaitShownLoaded();
     ev.t_end = rt.now();
     if (res.target) ev.target = res.target;
     if (res.point) ev.point = { x: res.point.x, y: res.point.y };
@@ -285,13 +358,31 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     if (res.popup_opened !== undefined) ev.popup_opened = res.popup_opened;
     if (res.pending_popup) rt.pendingPopup = { ...res.pending_popup, ev, page: rt.page };
     if (res.data !== undefined) ev.data = res.data;
-    if (res.hold) ev.hold = { t_start: ev.t_start, t_end: ev.t_end };
+    if (res.hold) ev.hold = { t_start: holdFrom, t_end: ev.t_end };
+    if (ACTING_ACTIONS.has(step.action)) {
+      rt.lastActed = {
+        ...(res.target?.bbox ? { bbox: res.target.bbox } : {}),
+        ...(res.ref ? { ref: res.ref } : {}),
+        popup_opened: res.popup_opened === true,
+        ...(popupsBefore ? { popups_before: popupsBefore } : {}),
+        page: rt.page,
+      };
+    }
     if (step.camera) ev.camera = await cameraFor(ctx, step.camera, res);
     if (step.overlay) ev.overlay = await overlayFor(ctx, step.overlay, res);
-    if (step.hold !== undefined && step.hold > 0) {
+    if (park?.when === 'after') {
+      // The park move belongs to the step (its speed, its tutorial window); its hold replaces the `hold` modifier.
+      parked = await parkCursor(ctx, park, rt.lastActed);
+      ev.t_end = rt.now();
+      if (park.hold_s > 0) {
+        await rt.sleep(park.hold_s * 1000);
+        ev.hold = { t_start: ev.t_end, t_end: rt.now() };
+      }
+    } else if (step.hold !== undefined && step.hold > 0) {
       await rt.sleep(step.hold * 1000);
       ev.hold = { t_start: ev.t_end, t_end: rt.now() };
     }
+    if (parked) ev.data = { ...(ev.data !== null && typeof ev.data === 'object' ? (ev.data as Record<string, unknown>) : {}), park: parked };
     if (rt.mode === 'dry') await dryScreenshot(rt, opts, scene.id, step);
     return outcome;
   } catch (e) {
@@ -333,28 +424,35 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
   const envKeys = Object.keys(rt.env.pages);
   let pageKey: string | null = null;
   const scenes = opts.scenario.scenes;
+  // Parking (R-CHO-21) needs what changed since the last action: recorded only when some step parks.
+  rt.parkWatch = scenes.some((e) => {
+    const steps = (e as { steps?: unknown }).steps;
+    return Array.isArray(steps) && steps.some((st) => st !== null && typeof st === 'object' && (st as { park?: unknown }).park !== undefined && (st as { park?: unknown }).park !== false);
+  });
   for (let si = 0; si < scenes.length; si++) {
     throwIfAborted(rt.signal);
     const entry = scenes[si];
     const id = sceneId(entry, si);
+    // Every string of the entry is templated now, once (R-RUN-16): what the timeline records holds values, not tokens.
+    const templateEntry = <T extends SceneEntry>(e: T): T => templated(() => templateSceneEntry(untilSteps(e, si, opts.until), si, rt.template), opts.record);
     if (isInterstitial(entry)) {
       const t = rt.now();
-      rt.timeline.addScene({ id, index: si, kind: 'interstitial', t_start: t, t_end: t, interstitial: structuredClone(entry.interstitial), status: 'ok' });
+      rt.timeline.addScene({ id, index: si, kind: 'interstitial', t_start: t, t_end: t, interstitial: templateEntry(entry).interstitial, status: 'ok' });
       continue;
     }
     if (isCard(entry)) {
       // A card takes no capture time: the editor shows it between the clips around it.
       const t = rt.now();
-      rt.timeline.addScene({ id, index: si, kind: 'card', t_start: t, t_end: t, card: structuredClone(entry.card), status: 'ok' });
+      rt.timeline.addScene({ id, index: si, kind: 'card', t_start: t, t_end: t, card: templateEntry(entry).card, status: 'ok' });
       continue;
     }
-    const scene = entry;
-    if (scene.skip) {
+    if (entry.skip) {
       const t = rt.now();
       rt.timeline.addScene({ id, index: si, kind: 'scene', t_start: t, t_end: t, status: 'skipped' });
       continue;
     }
     opts.emit({ type: 'scene_start', scene: id, index: si });
+    const scene = templateEntry(entry);
     if (scene.pages !== undefined) {
       const stop = await runPagesScene(rt, opts, scene, si, id);
       // A next single-page scene without `page` continues on this scene's first page.
@@ -383,7 +481,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       if (scene.open !== undefined) {
         const ev: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_open', t_start: rt.now(), t_end: rt.now(), status: 'ok' };
         rt.timeline.addEvent(ev);
-        const url = rt.resolveUrl(interpolate(scene.open, rt.template), pageKey);
+        const url = rt.resolveUrl(scene.open, pageKey);
         ev.target = { desc: url };
         await navigate(rt, rt.page, url);
         ev.t_end = rt.now();
@@ -404,6 +502,8 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
         await rt.sleep(TELEPORT_SETTLE_MS);
         await rt.painted();
       }
+      // The still starts on a painted page (R-ISS-08), never on a load the capture still holds.
+      await rt.awaitLoaded();
       ts.url = rt.page.url();
       const still: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_still', t_start: rt.now(), t_end: rt.now(), status: 'ok' };
       rt.timeline.addEvent(still);
@@ -491,8 +591,7 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
       if (pg.open) {
         const ev: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_open', t_start: rt.now(), t_end: rt.now(), page: pg.id, status: 'ok' };
         rt.timeline.addEvent(ev);
-        const raw = interpolate(pg.open.url, rt.template);
-        const url = pg.open.absolute || pg.page === undefined ? raw : resolvePageUrl(rt.env.pages[pg.page], raw);
+        const url = pg.open.absolute || pg.page === undefined ? pg.open.url : resolvePageUrl(rt.env.pages[pg.page], pg.open.url);
         ev.target = { desc: url };
         await navigate(rt, pane.page, url);
         await pane.pointer.syncPage();
@@ -523,6 +622,8 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
       await rt.sleep(TELEPORT_SETTLE_MS);
       for (const pg of pages) await rt.painted(panes.get(pg.id)!.page);
     }
+    // The still starts with every page painted (R-ISS-08).
+    await rt.awaitShownLoaded();
     // The page of the first step acts from the start (no switch pause before it).
     const firstRaw = (scene.steps ?? [])[0] as { on?: string } | undefined;
     const firstActing = firstRaw?.on !== undefined && pages.some((p) => p.id === firstRaw.on) ? firstRaw.on : pages[0].id;

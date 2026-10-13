@@ -2,6 +2,7 @@ export * from './types.js';
 export * from './targets.js';
 export * from './steps.js';
 export * from './templating.js';
+export * from './scenario-template.js';
 export * from './env.js';
 export * from './hosts.js';
 export * from './util.js';
@@ -17,6 +18,7 @@ export * from './tutorial.js';
 export * from './pages.js';
 export * from './media.js';
 export * from './destructive.js';
+export { isoDay, parseDay } from './dates.js';
 export { didYouMean, editDistance, suggestion } from './validation/suggest.js';
 /** Building blocks for other packages' YAML formats (component.yaml…): positioned, friendly issues. */
 export { checkYamlDocument, brokenUnder } from './validation/document.js';
@@ -27,5 +29,7 @@ export { parseYaml, attachPositions, locateOffset } from './validation/yaml-sour
 export type { ParsedYaml, YamlSource } from './validation/yaml-source.js';
 export { zodIssues, describeValue } from './validation/zod-issues.js';
 export { HookFileSchema, parseHookFile } from './hookfile.js';
-export { SHELL_OPERATORS, shellWords, shellCommands, commandName, nestedShellScript } from './shell-words.js';
-export type { ShellCommand } from './shell-words.js';
+export { SHELL_OPERATORS, shellWords, shellCommands, commandName, nestedShellScript, heredocs } from './shell-words.js';
+export type { ShellCommand, Heredoc } from './shell-words.js';
+export { shellHostRefs } from './shell-hosts.js';
+export type { ShellHostRef, ShellHostOptions } from './shell-hosts.js';

@@ -6,7 +6,8 @@ import type { RunProgress, RunRecord } from '@demo-studio/core';
 
 /**
  * runs/<id>/run.json (RunRecord, rewritten atomically as the run progresses) and log.jsonl (every progress
- * event with a timestamp). Writes are queued so the action loop never waits on the disk.
+ * event with a timestamp). Writes are queued so the action loop never waits on the disk. `redact` masks the run's
+ * secret values in run.json when it is written (progress events arrive redacted).
  */
 export class RunFiles {
   private chain: Promise<void> = Promise.resolve();
@@ -17,6 +18,7 @@ export class RunFiles {
   constructor(
     readonly dir: string,
     readonly record: RunRecord,
+    private readonly redact: (record: RunRecord) => RunRecord = (r) => r,
   ) {
     this.log = createWriteStream(join(dir, 'log.jsonl'), { flags: 'a' });
     this.log.on('error', (e) => (this.lastError = e));
@@ -33,7 +35,7 @@ export class RunFiles {
     this.chain = this.chain.then(async () => {
       this.dirty = false;
       try {
-        await writeJson(join(this.dir, 'run.json'), this.record);
+        await writeJson(join(this.dir, 'run.json'), this.redact(this.record));
       } catch (e) {
         this.lastError = e as Error;
       }

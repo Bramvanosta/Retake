@@ -69,11 +69,14 @@ export function notFoundError(target: TargetObject, last: ResolveMissing | null,
   });
 }
 
-/** Scroll every container of `ref` (innermost first) with eased in-page animations until it is in view. */
+/**
+ * Scroll every container of `ref` (innermost first) with eased in-page animations until it is in view. Up to six
+ * layers: a container in a frame, the frame's document, a container around the frame, the page (R-ISS-07).
+ */
 export async function ensureInView(ctx: StepContext, ref: string): Promise<boolean> {
   const { kit, pacing } = ctx.rt;
   let scrolled = false;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     const op = await kit.scrollPlan(ref, VIEW_MARGIN);
     if (!op) break;
     const dist = Math.hypot(op.top - op.from_top, op.left - op.from_left);

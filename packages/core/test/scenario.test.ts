@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatIssues, parseScenario, validateScenario } from '@demo-studio/core';
+import { formatIssues, formatPath, parseScenario, validateScenario } from '@demo-studio/core';
 import type { ValidationIssue } from '@demo-studio/core';
 import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
@@ -281,6 +281,37 @@ describe('semantic checks', () => {
     expect(errs[0].line).toBe(lineOf(text, 'DELETE FROM'));
   });
 
+  it('shell hooks may only name allowed hosts (R-SEC-06): literal text, positioned on run / rollback / env', () => {
+    const head = [
+      'vars: {host: unknown-until-run.example.com}',
+      'setup:',
+      '  - shell: "curl -fsS https://api.prod.example.com/reset"',
+      '  - shell: "curl -fsS {{console}}/api/reset && curl https://console.staging.example.com/x"',
+      '  - shell: {run: "true", env: {DATABASE_URL: "postgres://x@db.prod.example.com/d"}}',
+      '  - shell: {run: "psql -h localhost demo", rollback: "ssh deploy@other.example.net cleanup"}',
+      '  - shell: "curl https://$TARGET/x && curl https://{{vars.host}}/y"',
+      // A command substitution is a command; the script's own variables are expanded (L1.2 review: S1, S2).
+      `  - shell: 'TOKEN=$(curl -s https://auth.prod.example.com/t); BASE=other.prod.example.com; curl "https://$BASE/x"'`,
+      '',
+    ].join('\n');
+    const text = scenario('      - hold: 1\n', head);
+    const errs = errors(parseScenario(text, { project }).issues);
+    expect(errs.map((i) => `${i.path.join('.')}: ${i.message.replace(/ \(allowed: .*\)$/, '')}`)).toEqual([
+      'setup.0.shell: shell hook names host api.prod.example.com (URL): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
+      'setup.2.shell.env.DATABASE_URL: shell hook names host db.prod.example.com (env DATABASE_URL): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
+      'setup.3.shell.rollback: shell hook names host other.example.net (ssh): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
+      'setup.5.shell: shell hook names host auth.prod.example.com (URL): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
+      'setup.5.shell: shell hook names host other.prod.example.com ($BASE): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
+    ]);
+    expect(errs[0].message).toMatch(/\(allowed: localhost, 127\.0\.0\.1, ::1, console\.staging\.example\.com, shop\.staging\.example\.com\)$/);
+    expect(errs[0].line).toBe(lineOf(text, 'api.prod.example.com'));
+    // Without a project there is no allow-list to check against.
+    expect(errors(parseScenario(text).issues)).toEqual([]);
+    // allow_hosts admits the host.
+    const allowed = fakeProject(project.dir, { allow_hosts: ['api.prod.example.com', '*.example.com', 'other.example.net'] });
+    expect(errors(parseScenario(text, { project: allowed }).issues)).toEqual([]);
+  });
+
   it('SQL files are inspected when the project dir exists', async () => {
     const { dir, cleanup } = await tempDir();
     try {
@@ -353,14 +384,106 @@ describe('semantic checks', () => {
     ]);
   });
 
+  it('date and park rules (R-CHO-24, R-CHO-18/21)', () => {
+    const text = scenario(
+      [
+        '      - date: {field: {in: dialog}, day: 2027-01-10}',
+        '      - date: {field: Delivery window, day: [10 January 2027, 24 janvier]}',
+        '      - date: 14 March',
+        '      - date: {day: "2027-02-14", next: "#next", close: none}',
+        '      - date: {field: Roast date, day: [10/01/2027, mardi 12 janvier 2027, "{{vars.day}}"]}',
+        '      - click: Save',
+        '        park: 1.5',
+        '        hold: 2',
+        '      - hold: 2',
+        '        park: 1',
+        '      - scroll: {to: Awards}',
+        '        park: true',
+        '',
+      ].join('\n'),
+      'vars: {day: 3 March 2027}\n',
+    );
+    const issues = parseScenario(text, { project }).issues;
+    expect(errors(issues).map((i) => `${i.path.slice(3).join('.')}: ${i.message}`)).toEqual([
+      '0.date.field: target needs at least one of text, contains, role, label, aria, placeholder, css or testid',
+    ]);
+    expect(warnings(issues).map((i) => `${i.path.slice(3).join('.')}: ${i.message}`)).toEqual([
+      '1.date.day.1: "24 janvier" has no year: it is matched by its label only, and the calendar can only be paged forward to find it',
+      '2.date: "14 March" has no year: it is matched by its label only, and the calendar can only be paged forward to find it',
+      '4.date.day.0: "10/01/2027" is not a date the runner reads (2027-01-10, 10 January 2027, January 10, 2027): it is matched by its label only, and the calendar can only be paged forward to find it',
+      '4.date.day.1: "mardi 12 janvier 2027" is not a date the runner reads (2027-01-10, 10 January 2027, January 10, 2027): it is matched by its label only, and the calendar can only be paged forward to find it',
+      '5.hold: `park: <seconds>` sets the hold after the park: `hold` is ignored',
+      '6.park: on a `hold` step the cursor parks, then the hold step sets the time: give `park: true`',
+    ]);
+  });
+
   it('template tokens must exist', () => {
-    const head = 'vars: {product: geisha}\nsetup:\n  - http: {method: POST, url: "{{consle}}/api/{{vars.prodct}}/{{env:TOKEN}}"}\n';
+    const head = 'vars: {product: geisha}\nsetup:\n  - http: {method: POST, url: "{{consle}}/api/{{vars.prodct}}/{{env:TOKEN}}/{{run.id}}/{{run.dir}}/{{run.name}}"}\n';
     const msgs = errors(parseScenario(scenario('      - open: "/p/{{vars.product}}"\n', head), { project }).issues).map(
       (i) => i.message,
     );
     expect(msgs).toEqual([
       'unknown template key {{consle}} (did you mean "console"?); available: console, shop, vars.product, env:VAR, keychain:service/account',
       'unknown variable {{vars.prodct}} (did you mean "product"?); declared: product',
+      'unknown template key {{run.name}}; available: run.id, run.dir',
+    ]);
+    // vars values are inserted as written (L1.2 review: D5): a token in one is an error, positioned on the value.
+    const text = scenario('      - click: "{{vars.who}}"\n', 'vars: {pw: "{{env:DEMO_PW}}", who: "Agent {{vars.pw}}", plain: Harbour}\n');
+    expect(errors(parseScenario(text, { project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
+      'vars.pw: {{env:DEMO_PW}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
+      'vars.who: {{vars.pw}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
+    ]);
+  });
+
+  it('secret references: allowed in step arguments, errors in what the video shows; tokens in an emit or screenshot name are errors (R-RUN-16/17)', () => {
+    const text = [
+      'video: demo',
+      'title: {kicker: "{{env:KICKER}}", text: Demo}',
+      'outro: {tagline: "{{vars.nope}}"}',
+      'vars: {customer: Harbour Coffee Co.}',
+      'scenes:',
+      '  - id: main',
+      '    page: console',
+      '    open: "/login?token={{env:TOKEN}}"',
+      '    caption: "Signed in as {{env:EMAIL}}"',
+      '    transition: {component: studio/transition-tap-open, params: {label: "{{env:EMAIL}}"}}',
+      '    note: "{{env:IN_A_NOTE}} is fine"',
+      '    steps:',
+      '      - type: {into: {label: Password}, text: "{{keychain:northfield/agent}}"}',
+      '      - click: "{{env:BUTTON}}"',
+      '      - wait_for: {text: "Welcome, {{env:EMAIL}}"}',
+      '        caption: {kicker: "{{vars.customer}}", text: "{{keychain:northfield/agent}}"}',
+      '      - click: Save',
+      '        overlay: {component: studio/callout, slots: {text: "{{env:EMAIL}}"}}',
+      '      - emit: {name: "{{vars.customer}}", data: {who: "{{env:EMAIL}}"}}',
+      '      - emit: "{{vars.customer}}"',
+      '  - card: {slots: {title: "{{env:EMAIL}}"}}',
+      '  - interstitial: {text: "{{secret:env:EMAIL}}"}',
+      '  - id: both',
+      '    pages: {buyer: {page: shop, open: "/q?k={{env:TOKEN}}", label: "{{env:EMAIL}}"}, seller: {page: console}}',
+      '    steps:',
+      '      - wait: 1',
+    ].join('\n');
+    const es = errors(parseScenario(text, { project }).issues).map((i) => `${formatPath(i.path)}: ${i.message.replace(/: secret references belong.*$/, '')}`);
+    const shown = (expr: string) => `{{${expr}}} would be shown in the video and kept in clear in timeline.json`;
+    expect(es).toEqual([
+      `title.kicker: ${shown('env:KICKER')}`,
+      'outro.tagline: unknown variable {{vars.nope}}; declared: customer',
+      `scenes[0].caption: ${shown('env:EMAIL')}`,
+      `scenes[0].transition.params.label: ${shown('env:EMAIL')}`,
+      `scenes[0].steps[2].caption.text: ${shown('keychain:northfield/agent')}`,
+      `scenes[0].steps[3].overlay.slots.text: ${shown('env:EMAIL')}`,
+      'scenes[0].steps[4].emit.name: {{vars.customer}} is not templated here: this name is used as written',
+      'scenes[0].steps[5].emit: {{vars.customer}} is not templated here: this name is used as written',
+      `scenes[1].card.slots.title: ${shown('env:EMAIL')}`,
+      `scenes[2].interstitial.text: ${shown('secret:env:EMAIL')}`,
+      `scenes[3].pages.buyer.label: ${shown('env:EMAIL')}`,
+    ]);
+    // A screenshot name is a file name used as written: a token there is not slug-like.
+    const shot = scenario('      - screenshot: {name: "shot-{{vars.customer}}"}\n      - screenshot: "{{vars.customer}}"\n', 'vars: {customer: x}\n');
+    expect(errors(parseScenario(shot, { project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
+      'scenes[0].steps[0].screenshot.name: screenshot name must be slug-like: letters, digits, "-" or "_", starting with a letter or digit',
+      'scenes[0].steps[1].screenshot: screenshot name must be slug-like: letters, digits, "-" or "_", starting with a letter or digit',
     ]);
   });
 

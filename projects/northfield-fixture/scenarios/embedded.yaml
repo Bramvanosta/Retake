@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Targets inside a web component and an iframe (R-ISS-07). The product page's "Before you order" section holds a
+# Brew guide — a custom element with an OPEN shadow root and its own stylesheet — and a Shipping estimate — a
+# same-origin iframe widget (/embed/shipping). The runner scrolls to, clicks, selects and types inside both exactly as
+# anywhere else on the page: the drawn cursor shows the hand over their buttons and the ripples land on them.
+video: embedded
+title: {kicker: For cafés, text: Plan the brew and the delivery}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{shop}}/api/reset"}
+
+scenes:
+  - id: brew
+    caption: {kicker: Brew guide, text: "Dial in the recipe for your bar before you order."}
+    page: shop
+    open: /products/selowa-ridge
+    steps:
+      - wait_for: {text: Brew guide}
+      - scroll: {to: {text: Brew guide}, offset: -150, duration: 1.4}
+      - click: Espresso
+      - click: {aria: More coffee}
+      - click: {aria: More coffee}
+      - wait_for: {text: "20 g coffee"}
+      - click: Copy recipe
+      - wait_for: {text: Recipe copied}
+      - hold: 1.2
+
+  - id: shipping
+    caption: {kicker: Shipping, text: "Estimate the delivery to your café, right on the product page."}
+    steps:
+      - select: {field: Destination, option: Norway}
+      - type: {into: {label: Bags}, text: "12", clear: true}
+      - click: Estimate shipping
+      - wait_for: {text: "12 bags to Norway"}
+      - hold: 2

@@ -3,7 +3,7 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join } from 'node:path';
-import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, fileExtension, mediaSegmentUse, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
+import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, fileExtension, hasTokens, mediaSegmentUse, parseFrameRef, timelineVideo, tutorialOff } from '@demo-studio/core';
 import type {
   ComponentKind,
   FrameSpec,
@@ -56,7 +56,7 @@ import type {
 } from './plan-types.js';
 import { ComponentResolver, transitionKindOf } from './resolve.js';
 import type { Candidate } from './resolve.js';
-import { DEFAULT_IDLE_THRESHOLD_S, WAIT_SPEED, outFrameAt, planRunTiming, waitingSpans } from './timing.js';
+import { DEFAULT_IDLE_THRESHOLD_S, QUICK_RUN_SPEED, WAIT_SPEED, loadsBesideOtherPages, outFrameAt, planRunTiming, quickRunSpans, waitingSpans } from './timing.js';
 import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
 import { INSET_GROW, cornerOf, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
@@ -123,6 +123,11 @@ export class PlanError extends Error {
 export const MUSIC_DEFAULTS = { volume: 0.6, duck: 0.5, duck_ramp_s: 0.5, fadeIn_s: 1, fadeOut_s: 2, loop: true, crossfade_s: 1 } as const;
 /** Two scenes are contiguous in the capture when the second starts within this many seconds of the first's end. */
 export const CONTIGUOUS_GAP_S = 0.1;
+/**
+ * A page change (a URL segment) this long before a held load's start belongs to that load (R-ISS-08): both come from
+ * the same commit, through two event listeners (measured 1 ms apart).
+ */
+export const LOAD_START_SLACK_S = 0.05;
 
 /**
  * The theme default zoom (motion.default_zoom, style_bias balanced / motion — R-ED-22): a very slow zoom-in on the first
@@ -212,6 +217,24 @@ function shortHash(v: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
+/**
+ * Where the text the video shows still holds {{tokens}}: runs captured before scenario templating (L1.2) recorded
+ * captions, cards, labels and the title as written; a token inside a `vars` value is inserted as written (validation
+ * flags it since; BL-56). An unresolved token fails a new run.
+ */
+function literalTokens(timeline: Timeline, video: TimelineVideo): string[] {
+  const has = (v: unknown) => v !== undefined && hasTokens(JSON.stringify(v));
+  const out: string[] = [];
+  if (has([video.title, video.intro, video.outro, video.tutorial])) out.push('the title, intro or outro');
+  for (const s of timeline.scenes) {
+    if (has([s.caption, s.card, s.interstitial, s.tutorial, s.pages?.map((p) => p.label)])) out.push(`scene ${s.id}`);
+  }
+  for (const e of timeline.events) {
+    if (has([e.caption, e.overlay?.slots, e.overlay?.params, e.tutorial])) out.push(`step ${e.scene}.${e.step}`);
+  }
+  return out.length > 4 ? [...out.slice(0, 4), '…'] : out;
+}
+
 function centre(b: { x: number; y: number; w: number; h: number }): { x: number; y: number } {
   return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
 }
@@ -276,6 +299,10 @@ export function planEdit(input: PlanEditInput): EditPlan {
   }
   if (video.template && video.template !== template.name && video.template !== t.name) {
     notes.add(`theme "${template.name}" (the run was captured with "${video.template}"): the scenario is unchanged`);
+  }
+  const literal = literalTokens(timeline, video);
+  if (literal.length) {
+    warnings.add(`${literal.join(', ')} still ${literal.length > 1 ? 'show' : 'shows'} {{…}} tokens as written: a run captured before scenario templating (L1.2), or a token inside a \`vars\` value (inserted as written) — fix it and capture again`);
   }
 
   const assets: Record<string, string> = {};
@@ -640,10 +667,29 @@ export function planEdit(input: PlanEditInput): EditPlan {
     else runs.push([e]);
   }
   const runOf = new Map<ClipEntry, { run: RunTiming; index: number; entries: ClipEntry[] }>();
-  // Page changes (URL segments of the main capture and of every page track): a wait right after one shows loading.
-  const pageChanges = [...timeline.pages.map((pg) => pg.t_start), ...(timeline.tracks ?? []).flatMap((tr) => tr.pages.map((pg) => pg.t_start))].sort((a, b) => a - b);
+  // Page loads the capture held (R-ISS-08): the main capture's, and each page track's.
+  const heldLoads = [...(timeline.loading ?? []), ...(timeline.tracks ?? []).flatMap((tr) => tr.loading ?? [])];
+  // Page changes (URL segments of the main capture and of every page track): a wait right after one shows loading. A
+  // change inside a held load shows when the load ends (the painted page): the loading the edit keeps starts there. The
+  // segment comes from the page's own navigation event, the load from the recorder's event of the same commit: a few
+  // ms apart, either way.
+  const pageChanges = [...timeline.pages, ...(timeline.tracks ?? []).flatMap((tr) => tr.pages)]
+    .map((pg) => heldLoads.find((l) => (l.page === undefined || l.page === pg.id) && pg.t_start >= l.t_start - LOAD_START_SLACK_S && pg.t_start < l.t_end)?.t_end ?? pg.t_start)
+    .sort((a, b) => a - b);
+  /** Some of a capture span plays faster than its clip's own speed in a run's time map (a span a mark or a hold covers does not). */
+  const sped = (run: RunTiming, w: { t_start: number; t_end: number }, clips: ClipEntry[]) =>
+    run.pieces.some((p) => !p.cut && p.p1 > w.t_start * srcFps + 1e-6 && p.p0 < w.t_end * srcFps - 1e-6 && p.v > (clips[p.clip]?.speed ?? 1) + 1e-9);
   for (const runEntries of runs) {
     const waits = trimIdle ? runEntries.flatMap((e) => waitingSpans(e.events, pageChanges)) : [];
+    const quick = trimIdle ? runEntries.flatMap((e) => quickRunSpans(e.events)) : [];
+    // A multi-page run shows its pages' tracks: their held loads, not where another page acts; else the main capture's.
+    const runPages = runEntries[0].pages;
+    const loading = runPages
+      ? loadsBesideOtherPages(
+          runPages.flatMap((pg) => (timeline.tracks?.find((tr) => tr.id === pg.track)?.loading ?? []).map((l) => ({ ...l, page: pg.id }))),
+          runEntries.flatMap((e) => e.events),
+        )
+      : (timeline.loading ?? []);
     const run = planRunTiming({
       clips: runEntries.map((e) => ({ scene: e.scene.id, A: e.A, B: e.B, baseSpeed: e.speed, events: e.events })),
       srcFps,
@@ -652,13 +698,25 @@ export function planEdit(input: PlanEditInput): EditPlan {
       trimIdle,
       idleThresholdS: idleThreshold,
       waits,
+      quick,
+      loading,
     });
     for (const w of waits) {
+      if (!sped(run, w, runEntries)) continue;
       const sc = runEntries.find((e) => w.t_start >= e.s0 - 1e-6 && w.t_start < e.s1)?.scene.id ?? runEntries[0].scene.id;
       notes.add(`"${sc}": waiting ${secs(w.t_start)}–${secs(w.t_end)} of the capture played at up to ${WAIT_SPEED}× (a loading state; marks and holds stay at 1×)`);
     }
+    for (const w of quick) {
+      if (!sped(run, w, runEntries)) continue;
+      const sc = runEntries.find((e) => w.t_start >= e.s0 - 1e-6 && w.t_start < e.s1)?.scene.id ?? runEntries[0].scene.id;
+      notes.add(`"${sc}": month run ${secs(w.t_start)}–${secs(w.t_end)} of the capture played at up to ${QUICK_RUN_SPEED}×`);
+    }
     runEntries.forEach((e, index) => runOf.set(e, { run, index, entries: runEntries }));
     for (const c of run.cuts) {
+      if (c.reason === 'loading') {
+        notes.add(`"${runEntries[c.clip].scene.id}": page load ${secs(c.a / srcFps)}–${secs(c.b / srcFps)} of the capture cut (the capture held the previous frame until the new page painted)`);
+        continue;
+      }
       const kept = (c.idle.b - c.idle.a - (c.b - c.a)) / srcFps;
       notes.add(`"${runEntries[c.clip].scene.id}": idle ${secs((c.idle.b - c.idle.a) / srcFps)} at ${secs(c.idle.a / srcFps)} of the capture shortened to ${secs(kept)}`);
     }

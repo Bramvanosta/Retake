@@ -51,3 +51,54 @@ export function isHostAllowed(host: string, project: Pick<LoadedProject, 'config
   if (!h) return false;
   return allowedHosts(project).some((p) => (p.startsWith('*.') ? h.endsWith(p.slice(1)) && h.length > p.length - 1 : h === p));
 }
+
+/**
+ * Why a host is refused (hooks of every kind, R-SEC-06). Names the host, never a URL (it may carry credentials).
+ * `via` says how the host was reached ("URL in the shell hook", "blocked while the js hook ran"…).
+ */
+export function hostRefusalMessage(host: string, project: Pick<LoadedProject, 'config'> & { slug?: string }, via?: string): string {
+  const name = project.slug ?? project.config.name;
+  return (
+    `refusing to contact ${host}${via ? ` (${via})` : ''}: it is not in the allow-list of project "${name}" ` +
+    `(allowed: ${allowedHosts(project).join(', ')}); add it to allow_hosts in project.yaml if it is a staging host`
+  );
+}
+
+/**
+ * A host outside the allow-list was refused by the runner's guarded js hook tab (runner-web hook-page.ts).
+ * @demo-studio/hooks turns it into a `HookSecurityError` (status `refused`). `detail` is appended to the message.
+ */
+export class HostRefusedError extends Error {
+  readonly hosts: string[];
+  constructor(
+    hosts: readonly string[],
+    project: Pick<LoadedProject, 'config'> & { slug?: string },
+    via?: string,
+    options?: { cause?: unknown; detail?: string },
+  ) {
+    const detail = options?.detail ? `; ${options.detail}` : '';
+    super(`${hostRefusalMessage(hosts.join(', '), project, via)}${detail}`, options?.cause === undefined ? undefined : { cause: options.cause });
+    this.name = 'HostRefusedError';
+    this.hosts = [...hosts];
+  }
+}
+
+/** Whether an error is a `HostRefusedError` (also across module copies: checked by name). */
+export function isHostRefusedError(e: unknown): e is HostRefusedError {
+  return e instanceof HostRefusedError || (e instanceof Error && e.name === 'HostRefusedError');
+}
+
+/**
+ * The network host a browser request to `url` contacts (lower-case, no brackets), or null for URLs that reach no
+ * host: data:, blob:, about:, javascript:, file:, chrome-internal pages.
+ */
+export function networkHost(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!/^(https?|wss?|ftp):$/.test(u.protocol)) return null;
+  return u.hostname ? normalizeHost(u.hostname) : null;
+}

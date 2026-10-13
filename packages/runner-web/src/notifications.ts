@@ -30,7 +30,8 @@ export function watchNotifications(rt: Runtime): { settled: () => Promise<void> 
   rt.session.onNotification = (page: Page, n: NotificationPayload) => {
     const t = rt.now();
     const cur = rt.current;
-    const pageId = rt.session.idOf(page);
+    // A js hook tab (the quote scenario's console polling in the background) is named by its page key too.
+    const pageId = rt.session.idOf(page) ?? rt.session.hookPageId(page);
     const icon = n.icon
       ? fetchIcon(page, n.icon).catch((e: unknown) => {
           rt.warn(`notification "${n.title}": its icon ${n.icon} could not be fetched (${errorMessage(e)})`);

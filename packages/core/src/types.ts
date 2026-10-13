@@ -204,6 +204,26 @@ export interface MenuArgs {
   confirm?: string | boolean;
 }
 
+/**
+ * The date-picker helper (R-CHO-24). `day` is matched against each day cell's aria-label (or its date attribute): an
+ * ISO date or an English long date ("10 January 2027", "January 10, 2027", with or without the weekday).
+ */
+export interface DateArgs {
+  /** The date field (its label, or a target) whose calendar opens; omit for a calendar already on screen. */
+  field?: string | TargetObject;
+  /** Day(s) to click in order: one day, or a list (a range: its first and last day). */
+  day: string | string[];
+  /** Next-month button (default: the last visible next-month button of the calendar). */
+  next?: TargetSpec;
+  /** Previous-month button (default: the last visible previous-month button of the calendar). */
+  previous?: TargetSpec;
+  /**
+   * After the last day: `auto` (default) waits for a calendar the step opened to close by itself, else clicks outside;
+   * `outside`, `escape` or `none` as with `pick`.
+   */
+  close?: 'auto' | 'outside' | 'escape' | 'none';
+}
+
 export interface ScrollArgs {
   /** Absolute scrollTop (px), a target, or 'top'/'bottom'. */
   to?: number | TargetSpec | 'top' | 'bottom';
@@ -393,6 +413,13 @@ export interface StepCommon {
    * page). Only that page's cursor moves; the others rest where they are.
    */
   on?: string;
+  /**
+   * Park the cursor after the step (R-CHO-18, R-CHO-21): after a scroll to a target, next to it and clear of its
+   * text; after any other step, away from what changed on the page since the last action started (and from the
+   * element it used). `true` then holds pacing.park_scroll_hold / park_hold seconds (or the step's `hold`); a number
+   * holds that many seconds. On a `hold` step the cursor parks first, then the hold runs. Default: no parking.
+   */
+  park?: boolean | number;
   /** Free-form note (ignored). */
   note?: string;
 }
@@ -550,6 +577,7 @@ export interface ActionArgsMap {
   select: SelectArgs;
   pick: PickArgs;
   menu: MenuArgs;
+  date: string | DateArgs;
   scroll: number | ScrollArgs;
   drag: DragArgs;
   drop_file: DropFileArgs;
@@ -581,6 +609,7 @@ export const ACTION_NAMES: readonly ActionName[] = [
   'select',
   'pick',
   'menu',
+  'date',
   'scroll',
   'drag',
   'drop_file',
@@ -625,6 +654,7 @@ export interface NormalizedArgsMap {
   select: SelectArgs;
   pick: PickArgs;
   menu: MenuArgs;
+  date: DateArgs;
   scroll: ScrollArgs;
   drag: DragArgs;
   drop_file: DropFileArgs;
@@ -1022,7 +1052,10 @@ export interface Pacing {
   popup_fallback_ms: number;
   /** How long the last click strategy waits for an expected popup before the step reports it missing. */
   popup_timeout_ms: number;
-  /** Typing speed, characters per second (9–24). */
+  /**
+   * Typing speed, characters per second (field notes: ~14). A `type` step without `cps` adapts it (R-CHO-14): search
+   * fields at most 10, long free text up to 24.
+   */
   type_cps: number;
   /** Smooth scroll duration in seconds (1.5–2). */
   scroll_duration: number;
@@ -1037,6 +1070,10 @@ export interface Pacing {
    * starts to move (the viewer's eye moves to the other page; no cursor ever jumps).
    */
   page_switch_ms: number;
+  /** Seconds a step's `park: true` holds the cursor still on the result (field notes 1.5–2.6). */
+  park_hold: number;
+  /** Seconds a scroll's `park: true` holds the cursor next to the target (field notes 3–3.5). */
+  park_scroll_hold: number;
 }
 
 export const DEFAULT_PACING: Pacing = {
@@ -1061,6 +1098,8 @@ export const DEFAULT_PACING: Pacing = {
   jitter: 0.08,
   settle_ms: 3000,
   page_switch_ms: 500,
+  park_hold: 2,
+  park_scroll_hold: 3.2,
 };
 
 export interface AuthConfig {
@@ -1316,7 +1355,37 @@ export interface TimelineTrack {
   cursor: CursorSample[];
   /** Icon changes, presses and click ripples of this page's cursor (L2.13). */
   cursor_effects?: CursorEffect[];
+  /** Page loads this track did not show (R-ISS-08; absent when none). */
+  loading?: TimelineLoading[];
 }
+
+/**
+ * A full-page load the capture did not show (R-ISS-08, L1.2): from a new document's commit — or the recorder attaching
+ * to a page that had painted nothing yet (a fresh tab, a page still loading) — the recorder kept the previous frame on
+ * screen until the new document's first contentful paint. `t_end` is the first frame written after it (the moment
+ * the hold ended when no frame came then): no frame of the capture (frames.jsonl) lies in [t_start, t_end).
+ */
+export interface TimelineLoading {
+  t_start: number;
+  t_end: number;
+  /** Page id. */
+  page?: string;
+  /**
+   * What ended it: the page's first contentful paint (`paint`); its load without one — no text, image or SVG, a PDF
+   * viewer — once its network was idle, plus a grace (`load`: shown from then); the 10 s limit (`limit`: the page is
+   * filmed as it is from then, with a run warning — also a fresh tab left blank); the recorder leaving the page — a page
+   * switch, a multi-page scene's pause — (`left`); the end of the run (`end`).
+   */
+  until: 'paint' | 'load' | 'limit' | 'left' | 'end';
+  /** Screencast frames not written. */
+  held_frames: number;
+}
+
+/**
+ * Held page loads (`TimelineLoading`) at least this long are cut by the edit and the raw export; a shorter freeze of
+ * the previous frame is invisible (the same bound as the L1.3 capture stalls). The cut sits on the page change itself.
+ */
+export const LOADING_CUT_MIN_S = 0.15;
 
 /** Step `overlay` as recorded by the runner: the spec plus the target measured at the END of the step. */
 export interface TimelineOverlay {
@@ -1582,6 +1651,8 @@ export interface Timeline {
    * tracks, a frame of any of them counts.
    */
   idle: Array<{ t_start: number; t_end: number }>;
+  /** Page loads `capture` did not show (R-ISS-08, L1.2; absent when none — and in older runs). */
+  loading?: TimelineLoading[];
   /**
    * Emails, documents and web notifications (L2.9) and texts (`capture_text`, L2.10) captured by the run; files are
    * relative to the run directory.

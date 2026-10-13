@@ -20,6 +20,7 @@ import {
   easeOut,
   fcpTime,
   gridFrameOf,
+  heldBesideOtherPages,
   loadingCuts,
   localFrameInterval,
   markersCsv,
@@ -181,6 +182,84 @@ describe('loading cuts (R-RAW-01)', () => {
   });
 });
 
+describe('held page loads (R-ISS-08)', () => {
+  const still = { stillEnd: 2, sceneEnd: 20 };
+  const click = ev({ step: 0, action: 'click', t_start: 3, t_end: 6, t_click: 3.4 });
+  const quick = ev({ step: 1, action: 'wait_for', t_start: 6, t_end: 6.01 });
+  const holdStep = ev({ step: 2, action: 'hold', t_start: 6.01, t_end: 8, hold: { t_start: 6.01, t_end: 8 } });
+
+  it('a load the capture held is a navigation cut from the commit to the painted page, with no wait step', () => {
+    const cuts = loadingCuts([click, quick, holdStep], { ...still, held: [{ t_start: 3.6, t_end: 4.8, page: 'app' }] });
+    expect(cuts).toEqual([{ from: 3.6, to: 4.8, reason: 'navigation', after_step: 0, page: 'app' }]);
+    // Before the still or shorter than LOADING_CUT_MIN_S (0.15 s): no cut.
+    expect(loadingCuts([click], { ...still, held: [{ t_start: 0.5, t_end: 1.8 }] })).toEqual([]);
+    expect(loadingCuts([click], { ...still, held: [{ t_start: 3.6, t_end: 3.72 }] })).toEqual([]);
+    // From 0.15 s on, under the 0.4 s of the wait-based cuts: the cut sits on the page change itself.
+    expect(loadingCuts([click], { ...still, held: [{ t_start: 3.6, t_end: 3.8 }] })).toHaveLength(1);
+  });
+
+  it('a held load reaching the scene end is cut up to it, as the edit does; one covering the still from the clip start', () => {
+    expect(loadingCuts([click], { stillEnd: 2, sceneEnd: 4.5, held: [{ t_start: 3.6, t_end: 4.6 }] })).toEqual([{ from: 3.6, to: 4.5, reason: 'navigation', after_step: 0 }]);
+    // A fresh page opened by the scene's first step: held from before the still (its frames are the previous page's).
+    const open = ev({ step: 0, action: 'open', t_start: 2, t_end: 2.6 });
+    expect(loadingCuts([open], { stillEnd: 2, sceneStart: 1.5, sceneEnd: 8, held: [{ t_start: 0.4, t_end: 2.5 }] })).toEqual([{ from: 1.5, to: 2.5, reason: 'navigation' }]);
+  });
+
+  it('a multi-page scene: a load held on one page is not cut where another page acts or during the still', () => {
+    const still = ev({ step: -1, action: 'scene_still', t_start: 1, t_end: 2, page: 'a' });
+    const onA = ev({ step: 0, action: 'press', t_start: 4.6, t_end: 4.8, page: 'a' });
+    const onB = ev({ step: 1, action: 'click', t_start: 5, t_end: 5.6, t_click: 5.4, page: 'b', mark: 'click-b' });
+    const held = [{ t_start: 4.8, t_end: 6, page: 'a' }, { t_start: 0.5, t_end: 1.5, page: 'b' }];
+    expect(heldBesideOtherPages(held, [still, onA, onB])).toEqual([
+      { t_start: 4.8, t_end: 5, page: 'a' },
+      { t_start: 5.6, t_end: 6, page: 'a' },
+      { t_start: 0.5, t_end: 1, page: 'b' },
+    ]);
+    // Its own page's steps do not keep it.
+    expect(heldBesideOtherPages([{ t_start: 4.7, t_end: 4.9, page: 'a' }], [onA])).toEqual([{ t_start: 4.7, t_end: 4.9, page: 'a' }]);
+  });
+
+  it('a held load overlapping a wait-based cut extends it (one cut); sorted by time', () => {
+    const wait = ev({ step: 1, action: 'wait_for', t_start: 6, t_end: 9 });
+    const one = loadingCuts([click, wait, holdStep], { ...still, held: [{ t_start: 5.5, t_end: 9.5 }] });
+    expect(one).toEqual([{ from: 3.7, to: 9.5, reason: 'navigation', after_step: 0, wait_step: 1 }]);
+    const later = ev({ step: 3, action: 'click', t_start: 12, t_end: 14, t_click: 12.5 });
+    const two = loadingCuts([click, wait, later], { ...still, held: [{ t_start: 12.7, t_end: 13.5 }] });
+    expect(two.map((c) => [c.from, c.after_step, c.wait_step])).toEqual([
+      [3.7, 0, 1],
+      [12.7, 3, undefined],
+    ]);
+  });
+
+  it('the plan, its notes and markers: a held cut on the clip, the marker at its step', () => {
+    const tl = {
+      run_id: 'r',
+      mode: 'capture',
+      scenario: 'x',
+      capture: { file: 'capture.mp4', width: 1920, height: 1080, scale: 1, fps: 30, duration: 11, frames: 330 },
+      scenes: [{ id: 's', index: 0, kind: 'scene', t_start: 0, t_end: 10, status: 'ok' }],
+      events: [ev({ step: -1, action: 'scene_still', t_start: 1, t_end: 2 }), click, quick, holdStep],
+      pages: [{ id: 'main', t_start: 0, t_end: 3.6 }, { id: 'main', t_start: 3.6, t_end: 11 }],
+      loading: [{ t_start: 3.6, t_end: 4.8, page: 'main', until: 'paint', held_frames: 70 }],
+      cursor: [],
+      markers: [],
+      idle: [],
+      warnings: [],
+    } as unknown as Timeline;
+    const plan = planRawExport(tl, { fps: 30 });
+    const c = plan.clips[0];
+    expect(c.cuts).toEqual([{ from: 3.6, to: 4.8, reason: 'navigation', after_step: 0, page: 'main', n0: 108, n1: 144, at: 108 - 30 }]);
+    expect(plan.notes).toContain('"s": 1.20 s of page loading cut (3.60–4.80 s of the capture: the capture held the previous page until the new one painted)');
+    expect(rawMarkers(plan).find((m) => m.kind === 'cut')).toMatchObject({ step: 0, frame: 78 });
+    // --no-cuts keeps it.
+    expect(planRawExport(tl, { fps: 30, cuts: false }).clips[0].cuts).toEqual([]);
+    // A load the scene ends in (H7): cut up to the scene end, as the edit does, and noted.
+    const ending = planRawExport({ ...tl, loading: [{ t_start: 9.6, t_end: 10.5, page: 'main', until: 'left', held_frames: 3 }] }, { fps: 30 });
+    expect(ending.clips[0].cuts).toMatchObject([{ from: 9.6, to: 10, reason: 'navigation', after_step: 2, n0: 288, n1: 300 }]);
+    expect(ending.notes).toContain('"s": 0.40 s of page loading cut (9.60–10.00 s of the capture: the scene ended before the new page painted)');
+  });
+});
+
 describe('clip plan on real timelines (R-RAW-01)', () => {
   it('quote: one clip per scene from its still (the page load out), contiguous on the sequence, real time', () => {
     const tl = fixture('quote');
@@ -223,6 +302,7 @@ describe('clip plan on real timelines (R-RAW-01)', () => {
     for (const x of cuts) {
       const clip = plan.clips.find((c) => c.name === x.clip)!;
       const wait = clip.events.find((e) => e.step === x.wait_step)!;
+      expect(x.wait_step).toBeDefined();
       expect(['wait_for', 'wait_for_email']).toContain(wait.action);
       // The awaited state is kept: the cut ends after the wait's end.
       expect(x.to).toBeGreaterThan(wait.t_end);

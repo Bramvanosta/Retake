@@ -210,5 +210,8 @@ describe('scene-start cursor (R-ISS-04)', () => {
     expect(firstPointerStep(steps([{ open: '/x' }, { click: 'Save' }]))).toBeNull();
     expect(firstPointerStep(steps([{ cursor: 'hide' }, { click: 'Save' }]))).toBeNull();
     expect(firstPointerStep(steps([{ wait: 1 }]))).toBeNull();
+    // A date without a field clicks the days on screen: not known before it runs, so no later target stands in for it.
+    expect(firstPointerStep(steps([{ date: '3 March 2027' }, { click: 'Save' }]))).toBeNull();
+    expect(firstPointerStep(steps([{ date: { field: 'Delivery', day: '3 March 2027' } }]))?.step.action).toBe('date');
   });
 });
