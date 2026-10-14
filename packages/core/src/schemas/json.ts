@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { ProjectFileSchema } from './project.js';
+import { SandboxFileSchema } from './sandbox.js';
 import { ScenarioSchema } from './scenario.js';
 import { TemplateFileSchema } from './template.js';
 import { TimelineSchema } from './timeline.js';
@@ -123,11 +124,17 @@ export function timelineJsonSchema(): JsonSchema {
   return cached('timeline', TimelineSchema);
 }
 
+/** JSON Schema of a sandbox.yaml (version 1, L1.8). */
+export function sandboxJsonSchema(): JsonSchema {
+  return cached('sandbox', SandboxFileSchema);
+}
+
 export const JSON_SCHEMAS = {
   scenario: scenarioJsonSchema,
   project: projectJsonSchema,
   template: templateJsonSchema,
   timeline: timelineJsonSchema,
+  sandbox: sandboxJsonSchema,
 } as const;
 
 export type JsonSchemaName = keyof typeof JSON_SCHEMAS;

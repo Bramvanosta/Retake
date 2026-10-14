@@ -261,6 +261,11 @@ class Converter {
       let explained = false;
       for (const k of keys) {
         if (info.common.includes(k)) continue;
+        if (info.refused?.keys.includes(k)) {
+          this.error([...path, k], info.refused.message(k), { path: [...path, k], key: true });
+          explained = true;
+          continue;
+        }
         const s = didYouMean(k, info.keys);
         if (s !== undefined) {
           this.error(path, `unknown ${info.label} "${k}" (did you mean "${s}"?)`, { path: [...path, k], key: true });

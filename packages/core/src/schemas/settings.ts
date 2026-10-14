@@ -75,7 +75,7 @@ export const LoginPatternSchema = z
       '"<environment page>:<path>", an absolute URL prefix ("https://sso.example.com") or {regex, flags?}.',
   }) satisfies z.ZodType<LoginPattern>;
 
-const LoginPatternsSchema = z.union([LoginPatternSchema, z.array(LoginPatternSchema).min(1)]);
+export const LoginPatternsSchema = z.union([LoginPatternSchema, z.array(LoginPatternSchema).min(1)]);
 
 export const PersonaCheckSchema = z
   .strictObject({
@@ -113,17 +113,20 @@ export const LoginStepSchema = keyedUnion(
   { id: 'LoginStep', description: `One login action (${LOGIN_ACTIONS.join(', ')}), run off camera.` },
 ) as unknown as z.ZodType<LoginStep>;
 
+/** The fields of a persona (also of a sandbox account, which adds username and password). */
+export const personaShape = {
+  pages: z.array(keyString('page')).describe('Environment pages this persona is signed into by default (a page belongs to at most one persona).').optional(),
+  session: z
+    .enum(['profile', 'storage_state'])
+    .describe('profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only.')
+    .optional(),
+  check: PersonaCheckSchema.optional(),
+  login_url: LoginPatternsSchema.describe('Sign-in pages of this persona (with auth.login_url).').optional(),
+  login: z.array(LoginStepSchema).min(1).describe('Automated login, off camera, when the saved session is missing or expired (secret refs only).').optional(),
+};
+
 export const PersonaSchema = z
-  .strictObject({
-    pages: z.array(keyString('page')).describe('Environment pages this persona is signed into by default (a page belongs to at most one persona).').optional(),
-    session: z
-      .enum(['profile', 'storage_state'])
-      .describe('profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only.')
-      .optional(),
-    check: PersonaCheckSchema.optional(),
-    login_url: LoginPatternsSchema.describe('Sign-in pages of this persona (with auth.login_url).').optional(),
-    login: z.array(LoginStepSchema).min(1).describe('Automated login, off camera, when the saved session is missing or expired (secret refs only).').optional(),
-  })
+  .strictObject(personaShape)
   .meta({
     id: 'Persona',
     description: 'One account the videos are filmed as. Its session lives in ~/.demo-studio (DEMO_STUDIO_HOME), never in the project: no path here.',

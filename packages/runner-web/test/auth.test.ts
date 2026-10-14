@@ -324,6 +324,26 @@ describe('automated login (R-AUTH-05)', () => {
     });
     expect(missing.rec.error?.message).toContain('persona supplier (env test): never signed in; its automated login cannot run: environment variable DEMO_STUDIO_TEST_UNSET_PW is not set');
   });
+
+  it('a sandbox account (L1.8): its plain password is a secret once its login runs (masked everywhere); signing in is info, not a warning', async () => {
+    // As loadProject builds it from a sandbox.yaml: the password substituted into the login steps, listed as a secret.
+    const p = await project({ test: authConfig({ supplier: login(ACCOUNTS.supplier.password) }) } as unknown as AuthConfig);
+    p.sandboxes = {
+      test: { env: 'test', file: join(p.dir, 'sandbox.yaml'), dir: p.dir, manifest: { version: 1, provider: 'process', services: {} }, issues: [], secrets: { supplier: [ACCOUNTS.supplier.password] } },
+    };
+    const { rec, events, dir } = await run(p, 'sandbox-account', {
+      // A step whose description holds the password's text: the run masks it.
+      scenes: [{ id: 'a', page: 'app', open: '/home', steps: [{ assert: { not_text: ACCOUNTS.supplier.password } }, { hold: 0.2 }] }],
+    });
+    expect(rec.error?.message).toBeUndefined();
+    expect(rec.status).toBe('succeeded');
+    expect(logs(events).find((l) => l.includes('signed in automatically'))).toBe('info: persona supplier (env test): signed in automatically, off camera (never signed in; a sandbox account)');
+    expect(logs(events).filter((l) => l.startsWith('warn:'))).toEqual([]);
+    const log = await readFile(join(dir, 'log.jsonl'), 'utf8');
+    expect(log).toContain('not_text');
+    expect(log).toContain('***');
+    for (const f of ['run.json', 'log.jsonl']) expect(await readFile(join(dir, f), 'utf8')).not.toContain(ACCOUNTS.supplier.password);
+  });
 });
 
 describe('read-only environments and the product clock with personas (L1.7)', () => {

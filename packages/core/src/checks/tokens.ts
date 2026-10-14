@@ -14,7 +14,15 @@ export interface TokenScope {
   varsComplete: boolean;
   /** `save_as` names of http hooks ({{hooks.<name>…}}). */
   saved: ReadonlySet<string>;
+  /**
+   * `{{account.username}}` / `{{account.password}}` (sandbox.yaml, L1.8): `login` in an account's login steps (where
+   * they are substituted), `elsewhere` in the rest of a sandbox.yaml (refused); absent: not a special root.
+   */
+  account?: 'login' | 'elsewhere';
 }
+
+/** The fields of a sandbox account a login step may use as {{account.<field>}}. */
+export const ACCOUNT_TOKEN_FIELDS: readonly string[] = ['username', 'password'];
 
 const SECRET = /^(env|keychain|secret):/;
 
@@ -30,6 +38,13 @@ function checkToken(expr: string, path: IssuePath, scope: TokenScope, inRollback
   if (SECRET.test(expr)) return;
   const parts = expr.split('.').map((s) => s.trim());
   const [head, second] = parts;
+  if (head === 'account' && parts.length > 1 && scope.account) {
+    if (scope.account === 'elsewhere') ctx.error(path, `{{${expr}}} is only available in the login steps of an account (accounts.<name>.login)`);
+    else if (parts.length !== 2 || !ACCOUNT_TOKEN_FIELDS.includes(second)) {
+      ctx.error(path, `unknown template key {{${expr}}}; available: ${ACCOUNT_TOKEN_FIELDS.map((f) => `account.${f}`).join(', ')}`);
+    }
+    return;
+  }
   switch (head) {
     case 'run':
       if (second !== 'id' && second !== 'dir') ctx.error(path, `unknown template key {{${expr}}}; available: run.id, run.dir`);

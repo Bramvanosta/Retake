@@ -1254,6 +1254,163 @@ export interface EnvironmentSettings {
   /** Page key → display base, normalised (`https://host[:port][/path]`, no trailing slash). */
   display?: Record<string, string>;
   read_only?: ReadOnlySettings;
+  /** A sandbox environment (L1.8): its manifest and provider. A sandbox is never production and always read-write. */
+  sandbox?: EnvironmentSandbox;
+  /** The sandbox's own test mailbox (core mailboxFor: it replaces the project's `mailbox` on this environment). */
+  mailbox?: MailboxConfig;
+  /** The sandbox's databases (core databasesFor: merged over the project's `databases` on this environment). */
+  databases?: Record<string, DatabaseConfig>;
+}
+
+// ── Sandbox mode (L1.8) ─────────────────────────────────────────────────────────
+
+/** How a sandbox starts its services: `docker compose` on its compose files, or local processes. */
+export const SANDBOX_PROVIDERS = ['docker-compose', 'process'] as const;
+export type SandboxProvider = (typeof SANDBOX_PROVIDERS)[number];
+
+/** How a sandbox goes back to its seed before a take: run the seed again, or restore a database snapshot. */
+export const SANDBOX_RESET_STRATEGIES = ['reseed', 'snapshot'] as const;
+export type SandboxResetStrategy = (typeof SANDBOX_RESET_STRATEGIES)[number];
+
+/** The version of sandbox.yaml this Demo Studio reads. */
+export const SANDBOX_VERSION = 1;
+
+/**
+ * How a sandbox tells a service is up: an http(s) GET (`path` on the service's `url`, or an absolute local `url`; ok on
+ * 200–399 or `status`, optionally containing `text`) or, for a process service, a TCP connect to `tcp`.
+ */
+export interface SandboxHealthSpec {
+  path?: string;
+  url?: string;
+  /** A port on this machine (process services only: a port Docker publishes always accepts a connection). */
+  tcp?: number;
+  status?: number | number[];
+  text?: string;
+  /** Seconds before the service counts as not healthy. */
+  timeout_s?: number;
+  /** Delay between two tries (ms). */
+  interval_ms?: number;
+}
+
+/** `false`: no health check; a string: a path on the service's `url` (or an absolute local URL). */
+export type SandboxHealth = false | string | SandboxHealthSpec;
+
+/** One service of a sandbox: a compose service (docker-compose) or a process to start (process). */
+export interface SandboxService {
+  /** Base URL on this machine (loopback only): the default health check GETs it. */
+  url?: string;
+  /** Environment pages it serves: page key → URL, or {url, display} (the URL the video shows). */
+  pages?: Record<string, EnvironmentPageSpec>;
+  health?: SandboxHealth;
+  /** process only: argv (a first word `node` runs the CLI's own Node) or a string run by `sh -c`. */
+  command?: string | string[];
+  /** process only: working directory, relative to sandbox.yaml (default its folder). */
+  cwd?: string;
+  /** process only: extra environment variables ({{env:VAR}} references are expanded). */
+  env?: Record<string, string>;
+  /** process only: seconds between SIGTERM and SIGKILL when it stops (default 10). */
+  stop_timeout_s?: number;
+}
+
+/** A seed step that runs a command inside a compose service (`docker compose exec`): docker-compose sandboxes only. */
+export interface ExecStepSpec {
+  service: string;
+  command: string | string[];
+  env?: Record<string, string>;
+  /** Seconds (default 300). */
+  timeout_s?: number;
+}
+
+/** One step of a sandbox seed: an http, sql or shell hook (no js: there is no browser), or `exec`. */
+export type SeedStep = HookCommon &
+  (
+    | { http: HttpHookSpec }
+    | { sql: string | SqlHookSpec }
+    | { shell: string | ShellHookSpec }
+    | { exec: ExecStepSpec }
+  );
+
+/** A demo account the seed creates, bound to the persona of the same name on the sandbox's environment. */
+export interface SandboxAccount extends PersonaConfig {
+  /** `{{account.username}}` in its login steps. */
+  username?: string;
+  /** `{{account.password}}` in its login steps: plain (every sandbox URL is local; redacted) or {{env:…}} / {{keychain:…}}. */
+  password?: string;
+}
+
+/** The sandbox's test mailbox: the project mailbox's fields, and whether a reset empties it (default true). */
+export interface SandboxMailbox extends MailboxConfig {
+  clear?: boolean;
+  /** The sandbox does not serve it, and it is the sandbox's alone: emptied at every reset all the same. */
+  external?: boolean;
+}
+
+/** A database of sandbox.yaml. */
+export interface SandboxDatabase extends DatabaseConfig {
+  /** The sandbox does not start its server, and it is the sandbox's alone: sql seed steps may rewrite it. */
+  external?: boolean;
+}
+
+/** sandbox.yaml (version 1, L1.8): how to start a disposable copy of the product, seed it and reset it before a take. */
+export interface SandboxManifest {
+  version: typeof SANDBOX_VERSION;
+  provider: SandboxProvider;
+  /** docker-compose only: the compose files (relative to sandbox.yaml; default [compose.yaml]) and the project name. */
+  compose?: { files?: string[]; project?: string };
+  services: Record<string, SandboxService>;
+  /** The steps that build the demo data (paths relative to sandbox.yaml). */
+  seed?: SeedStep[];
+  reset?: {
+    /** Default reseed. */
+    strategy?: SandboxResetStrategy;
+    /** snapshot: the Postgres database (a key of `databases`, default the first) snapshotted after seeding. */
+    snapshot?: { database?: string };
+    /** Services restarted after each reset (apps that do not survive a database swap). */
+    restart?: string[];
+  };
+  databases?: Record<string, SandboxDatabase>;
+  mailbox?: SandboxMailbox;
+  /** Sign-in pages of every account (auth.login_url of the sandbox's environment). */
+  login_url?: LoginPattern | LoginPattern[];
+  accounts?: Record<string, SandboxAccount>;
+}
+
+/** Which sandbox an environment is (EnvironmentSettings / ResolvedEnvironment). */
+export interface EnvironmentSandbox {
+  /** Absolute path of its sandbox.yaml. */
+  file: string;
+  provider: SandboxProvider;
+}
+
+/** A sandbox as loadProject reads it (LoadedProject.sandboxes, keyed by its environment name). */
+export interface LoadedSandbox {
+  /** Its environment name (the key of project.yaml `sandboxes:`). */
+  env: string;
+  /** Absolute path of sandbox.yaml. */
+  file: string;
+  /** Its folder: every path of the manifest is relative to it. */
+  dir: string;
+  manifest: SandboxManifest;
+  /** Warnings of sandbox.yaml. */
+  issues: ValidationIssue[];
+  /** The plain passwords of its accounts, by persona: registered as secret values when one signs in (never printed). */
+  secrets: Record<string, string[]>;
+}
+
+/** The sandbox of a run (run.json and timeline.json `environment.sandbox`): the reset made before the take, if any. */
+export interface RunSandbox {
+  /** The sandbox's environment. */
+  name: string;
+  provider: SandboxProvider;
+  /** Absent: no reset before this take (`--env <sandbox>` without `--sandbox`). */
+  strategy?: SandboxResetStrategy;
+  /** A snapshot was restored (rather than the seed run again). */
+  restored?: boolean;
+  reset_ms?: number;
+  /** The seed's hash (12 characters). */
+  seed_hash?: string;
+  /** When the reset finished (ISO). */
+  at?: string;
 }
 
 /**
@@ -1337,6 +1494,11 @@ export interface ProjectConfig {
   mailbox?: MailboxConfig;
   /** Defaults of the raw capture export for editors (`studio export-capture`, `studio run --raw`; L2.13). */
   raw?: RawSettings;
+  /**
+   * Sandbox environments (L1.8), as written: environment name → its sandbox.yaml, relative to the project dir. loadProject
+   * adds each one to `environments` (its pages), `environment_settings` and `auth` (its accounts).
+   */
+  sandboxes?: Record<string, string>;
 }
 
 // ── Raw capture export for editors (L2.13) ────────────────────────────────────
@@ -1852,6 +2014,8 @@ export interface TimelineEnvironment {
   clock?: ResolvedClock;
   /** Writes the read-only guard stopped, answered or let through, and writes that went to hosts it does not guard. */
   writes?: TimelineWrite[];
+  /** A sandbox environment (L1.8): its provider and the reset made before the take. */
+  sandbox?: RunSandbox;
 }
 
 /** A write request seen on a read-only run (L1.7). */
@@ -1912,7 +2076,7 @@ export interface RunRecord {
    * The environment's safety (L1.7): production, the run's effective access, the product's clock (as written, the zone
    * a time without an offset is read in, frozen or not).
    */
-  environment?: { production?: true; access: EnvironmentAccess; clock?: { at: string; timezone?: string; freeze?: true } };
+  environment?: { production?: true; access: EnvironmentAccess; clock?: { at: string; timezone?: string; freeze?: true }; sandbox?: RunSandbox };
   steps_total: number;
   steps_done: number;
   current?: { scene: string; step: number; action: string };
@@ -2039,6 +2203,8 @@ export interface LoadedProject {
   file: string;
   /** Non-blocking issues (warnings) of project.yaml, set by loadProject. */
   issues?: ValidationIssue[];
+  /** The sandboxes of project.yaml `sandboxes:` (L1.8), by environment name; absent when it declares none. */
+  sandboxes?: Record<string, LoadedSandbox>;
 }
 
 export interface LoadedScenario {
@@ -2062,4 +2228,6 @@ export interface ResolvedEnvironment {
   /** As written in project.yaml; absent: read-only in production, else read-write (core environmentAccess). */
   access?: EnvironmentAccess;
   read_only?: ReadOnlySettings;
+  /** A sandbox environment (L1.8): never production, always read-write. */
+  sandbox?: EnvironmentSandbox;
 }

@@ -46,18 +46,28 @@ afterAll(async () => {
 const FFMPEG_VERSION = 'ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers\nbuilt with Apple clang\n';
 const FFPROBE_VERSION = 'ffprobe version 7.1 Copyright (c) 2007-2024 the FFmpeg developers\n';
 
+/** docker on a healthy Mac: Compose 2.29, the daemon running, context orbstack. */
+async function dockerAnswers(cmd: string, args: string[]): Promise<ExecResult | null> {
+  if (cmd !== '/usr/local/bin/docker') return null;
+  const a = args.join(' ');
+  if (a === 'compose version --short') return { code: 0, stdout: '2.29.1\n', stderr: '' };
+  if (a.startsWith('info')) return { code: 0, stdout: '27.3.1\n', stderr: '' };
+  if (a === 'context show') return { code: 0, stdout: 'orbstack\n', stderr: '' };
+  return null;
+}
+
 /** A healthy Mac: everything present, every host answers. */
 function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
-  const bins: Record<string, string> = { security: '/usr/bin/security', osascript: '/usr/bin/osascript' };
+  const bins: Record<string, string> = { security: '/usr/bin/security', osascript: '/usr/bin/osascript', docker: '/usr/local/bin/docker' };
   return {
     platform: 'darwin',
     nodeVersion: '22.12.0',
     env: {},
     which: (cmd) => bins[cmd] ?? null,
-    exec: async (cmd): Promise<ExecResult | null> => {
+    exec: async (cmd, args): Promise<ExecResult | null> => {
       if (cmd === '/opt/media/bin/ffmpeg') return { code: 0, stdout: FFMPEG_VERSION, stderr: '' };
       if (cmd === '/opt/media/bin/ffprobe') return { code: 0, stdout: FFPROBE_VERSION, stderr: '' };
-      return null;
+      return dockerAnswers(cmd, args);
     },
     exists: (p) => existsSync(p),
     chromium: async (): Promise<ChromiumProbe> => ({
@@ -93,13 +103,14 @@ describe('studio doctor (mocked environment)', () => {
     const r = await doctor(macProbes(), { project: 'acme' });
     await rm(prodProfile, { recursive: true });
     expect(r.code, r.err).toBe(EXIT.ok);
-    for (const name of ['Node.js', 'Chromium', 'ffmpeg', 'ffprobe', 'Display', 'Secrets', 'Notifications', 'Workspace', 'Template default', 'Project acme']) {
+    for (const name of ['Node.js', 'Chromium', 'ffmpeg', 'ffprobe', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', 'Template default', 'Project acme']) {
       expect(r.err).toMatch(new RegExp(`OK +${name.replace('.', '\\.')} `));
     }
     expect(r.err).toContain('141.0.7390.37');
     expect(r.err).toContain('7.1 · /opt/media/bin/ffprobe'); // next to the configured ffmpeg
     expect(r.err).toContain('macOS Keychain via security');
     expect(r.err).toContain('osascript');
+    expect(r.err).toMatch(/OK +Docker +27\.3\.1 · Compose 2\.29\.1 · context orbstack · \/usr\/local\/bin\/docker/);
     expect(r.err).toMatch(/OK +Profile \(staging\) +.*profiles\/acme$/m);
     expect(r.err).toMatch(/OK +Host staging·app +https:\/\/app\.staging\.example\.com → HTTP 200/);
     expect(r.err).toMatch(/0 failures/);
@@ -143,6 +154,54 @@ describe('studio doctor (mocked environment)', () => {
     expect(byName((await checks(versioned('2025-03-10-git-9d4b1a6ab2'))).checks, 'ffmpeg').status).toBe('ok');
     const missing = await checks(macProbes({ chromium: async () => ({ path: null, source: 'playwright', exists: false, launched: false }) }));
     expect(byName(missing.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('playwright-core install chromium') });
+  });
+
+  it('Docker (L1.8): missing, too old or stopped is a warning — a failure only when the --project\'s default sandbox is a docker-compose one (I6)', async () => {
+    const noDocker = macProbes({ which: (c) => (c === 'docker' ? null : `/usr/bin/${c}`), exists: () => false });
+    // Not on PATH: the places the sandbox package looks in too — OrbStack's xbin among them (K10).
+    const xbin = '/Applications/OrbStack.app/Contents/MacOS/xbin/docker';
+    const orb = macProbes({
+      which: (c) => (c === 'docker' ? null : `/usr/bin/${c}`),
+      exists: (p) => p === xbin,
+      exec: async (cmd, args) => (cmd === xbin ? dockerAnswers('/usr/local/bin/docker', args) : null),
+    });
+    expect(byName((await checks(orb)).checks, 'Docker')).toMatchObject({ status: 'ok', detail: `27.3.1 · Compose 2.29.1 · context orbstack · ${xbin}` });
+    expect(byName((await checks(noDocker)).checks, 'Docker')).toMatchObject({
+      status: 'warn',
+      detail: 'not found — only needed by docker-compose sandboxes',
+      hint: expect.stringContaining('Docker Desktop or OrbStack'),
+    });
+    const answer = (over: Record<string, ExecResult>) =>
+      macProbes({ exec: async (cmd, args) => over[args.join(' ').split(' ').slice(0, 2).join(' ')] ?? (await dockerAnswers(cmd, args)) });
+    expect(byName((await checks(answer({ 'compose version': { code: 0, stdout: '2.12.0', stderr: '' } }))).checks, 'Docker')).toMatchObject({
+      status: 'warn',
+      detail: expect.stringContaining('Compose 2.12.0 (needs 2.17.0+)'),
+    });
+    const stopped = answer({ 'info --format': { code: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock.' } });
+    expect(byName((await checks(stopped)).checks, 'Docker')).toMatchObject({ status: 'warn', detail: expect.stringMatching(/^Compose 2\.29\.1, but the daemon is not running \(Cannot connect/), hint: 'start Docker Desktop or OrbStack' });
+    // A project with a docker-compose sandbox needs it.
+    const dir = join(ws, 'projects', 'boxed');
+    await mkdir(join(dir, 'sandbox'), { recursive: true });
+    await writeFile(join(dir, 'project.yaml'), 'name: Boxed\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {demo: sandbox/sandbox.yaml}\n');
+    await writeFile(join(dir, 'sandbox', 'compose.yaml'), 'services:\n  app: {image: busybox:1.38.0}\n');
+    await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), 'version: 1\nprovider: docker-compose\nservices:\n  app: {url: "http://localhost:4600", pages: {app: "http://localhost:4600"}}\n');
+    try {
+      const r = await checks(stopped, 'boxed');
+      expect(r.code).toBe(EXIT.failure);
+      expect(byName(r.checks, 'Docker')).toMatchObject({ status: 'fail', detail: expect.stringMatching(/the daemon is not running .* — needed by the docker-compose sandbox demo of project boxed$/) });
+      expect(byName((await checks(macProbes(), 'boxed')).checks, 'Docker').status).toBe('ok');
+      // A process sandbox first (the default one), the docker-compose one optional — the fixture's layout: a warning.
+      await mkdir(join(dir, 'sandbox', 'local'), { recursive: true });
+      await writeFile(join(dir, 'sandbox', 'local', 'sandbox.yaml'), 'version: 1\nprovider: process\nservices:\n  app: {command: x, url: "http://localhost:4610", pages: {app: "http://localhost:4610"}}\n');
+      await writeFile(join(dir, 'project.yaml'), 'name: Boxed\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {box: sandbox/local/sandbox.yaml, demo: sandbox/sandbox.yaml}\n');
+      const optional = await checks(stopped, 'boxed');
+      expect(byName(optional.checks, 'Docker')).toMatchObject({ status: 'warn', detail: expect.stringMatching(/the daemon is not running .* — needed by the docker-compose sandbox demo of project boxed$/) });
+      // default_env naming the docker-compose one makes it the default sandbox again.
+      await writeFile(join(dir, 'project.yaml'), 'name: Boxed\nenvironments:\n  local: {app: "http://localhost:9"}\nsandboxes: {box: sandbox/local/sandbox.yaml, demo: sandbox/sandbox.yaml}\ndefault_env: demo\n');
+      expect(byName((await checks(stopped, 'boxed')).checks, 'Docker').status).toBe('fail');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('--project: missing profile → warn (studio login), unreachable default environment → fail, other environment → warn', async () => {

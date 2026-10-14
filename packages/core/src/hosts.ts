@@ -9,6 +9,17 @@ import type { LoadedProject } from './types.js';
 /** Always allowed. */
 export const LOCAL_HOSTS: readonly string[] = ['localhost', '127.0.0.1', '::1'];
 
+/**
+ * A loopback host: localhost, `*.localhost`, 127.0.0.0/8 or ::1 (brackets, case and a trailing dot aside). The only
+ * hosts a sandbox URL may name (L1.8): a sandbox is reset — its databases dropped and recreated — before every take.
+ */
+export function isLoopbackHost(host: string): boolean {
+  const h = normalizeHost(host);
+  if (h === 'localhost' || h.endsWith('.localhost') || h === '::1' || h === '0:0:0:0:0:0:0:1') return true;
+  const m = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  return m !== null && m.slice(1).every((n) => Number(n) <= 255);
+}
+
 /** Lower-case, without IPv6 brackets or a trailing dot. */
 export function normalizeHost(host: string): string {
   let h = host.trim().toLowerCase();
@@ -80,11 +91,26 @@ export function hostMatches(host: string, pattern: string): boolean {
   return pattern === '*' || (pattern.startsWith('*.') ? host.endsWith(pattern.slice(1)) && host.length > pattern.length - 1 : host === pattern);
 }
 
-/** Hosts a project may contact: localhost, the hosts of every project environment, project.allow_hosts. */
+/**
+ * Hosts a project may contact: localhost, the hosts of every project environment, project.allow_hosts, and the
+ * loopback hosts of its sandboxes' mailboxes and databases (L1.8: `db.localhost`, `127.0.0.2`… — validated loopback).
+ */
 export function allowedHosts(project: Pick<LoadedProject, 'config'>): string[] {
   const out = new Set<string>(LOCAL_HOSTS);
   for (const h of environmentHosts(project)) out.add(normalizeHost(h));
   for (const e of project.config.allow_hosts ?? []) out.add(normalizeAllowEntry(e));
+  for (const s of Object.values(project.config.environment_settings ?? {})) {
+    if (!s.sandbox) continue;
+    for (const url of [s.mailbox?.url, ...Object.values(s.databases ?? {}).map((d) => d.url)]) {
+      if (url === undefined) continue;
+      try {
+        const host = normalizeHost(new URL(url).hostname);
+        if (host && isLoopbackHost(host)) out.add(host);
+      } catch {
+        /* validation reports it */
+      }
+    }
+  }
   return [...out];
 }
 

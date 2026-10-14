@@ -546,7 +546,7 @@
                 {
                   "type": "string",
                   "minLength": 1,
-                  "description": "A .sql file relative to the project dir, or an inline query."
+                  "description": "A .sql file relative to the project dir (a sandbox seed: to sandbox.yaml), or an inline query."
                 },
                 {
                   "type": "object",
@@ -554,7 +554,7 @@
                     "file": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "SQL file relative to the project dir."
+                      "description": "SQL file relative to the project dir (a sandbox seed: to sandbox.yaml)."
                     },
                     "query": {
                       "type": "string",
@@ -631,7 +631,7 @@
                 {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Command run with sh -c in the project dir; every host it names must be allowed."
+                  "description": "Command run with sh -c in the project dir (a sandbox seed: the folder of sandbox.yaml); every host it names must be allowed."
                 },
                 {
                   "type": "object",

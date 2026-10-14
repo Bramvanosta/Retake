@@ -1,3 +1,5 @@
+import { isAbsolute } from 'node:path';
+import { AUTH_KEYS } from '../auth.js';
 import { environmentAccess, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
@@ -11,14 +13,19 @@ import { checkHooks } from './hooks.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
 
 /** Template roots that a page key would shadow. */
-const RESERVED_PAGE_KEYS = new Set(['vars', 'hooks', 'run', 'env', 'keychain', 'secret', 'response']);
+export const RESERVED_PAGE_KEYS: ReadonlySet<string> = new Set(['vars', 'hooks', 'run', 'env', 'keychain', 'secret', 'response']);
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 /** user:password@ in a connection URL, unless the password is a {{secret}} reference. */
-function clearTextPassword(url: string): { host: string } | null {
+export function clearTextPassword(url: string): { host: string; password: string } | null {
   const m = /^[a-z][a-z0-9+.-]*:\/\/[^/@:]*:([^@/]+)@([^/:?]+)/i.exec(url);
   if (!m || m[1].includes('{{')) return null;
-  return { host: m[2].toLowerCase() };
+  return { host: m[2].toLowerCase(), password: m[1] };
+}
+
+/** A path written in a file that only exists on one computer (absolute, or under the home directory). */
+export function machinePath(p: string): boolean {
+  return p.startsWith('~') || isAbsolute(p) || /^[A-Za-z]:[\\/]/.test(p);
 }
 
 /** Every string of a value that contains `{{` (mocks are served as written: nothing in them is templated). */
@@ -83,6 +90,29 @@ function checkReadOnly(env: Record<string, unknown>, envName: string, pages: rea
   }
 }
 
+/**
+ * project.yaml `sandboxes:` (L1.8): environment name → its sandbox.yaml. A name is slug-like, not an environment of
+ * project.yaml nor an `auth` key; the path is relative to the project and the file exists (when the project dir is
+ * known). Returns the sandbox names (the valid and the refused ones: other checks then know them).
+ */
+function checkSandboxEntries(sandboxes: unknown, envs: Record<string, unknown>, ctx: CheckContext): string[] {
+  if (!isObj(sandboxes) || ctx.broken(['sandboxes'])) return [];
+  for (const [name, rel] of Object.entries(sandboxes)) {
+    const at: IssuePath = ['sandboxes', name];
+    const loc = { path: at, key: true };
+    if (!SLUG_RE.test(name)) ctx.error(['sandboxes'], `sandbox name "${name}" must be slug-like (letters, digits, "-" or "_"): it is an environment name`, loc);
+    else if (Object.hasOwn(envs, name)) {
+      ctx.error(['sandboxes'], `"${name}" is already an environment of project.yaml: a sandbox is an environment of its own — give it another name`, loc);
+    } else if (AUTH_KEYS.includes(name)) {
+      ctx.error(['sandboxes'], `sandbox name "${name}" is also an \`auth\` key (${AUTH_KEYS.join(', ')}): rename the sandbox`, loc);
+    }
+    if (typeof rel !== 'string') continue;
+    if (machinePath(rel)) ctx.error(at, `"${rel}" only exists on this computer: write the path of sandbox.yaml relative to the project`);
+    else ctx.file(rel, at, 'sandbox manifest', 'error');
+  }
+  return Object.keys(sandboxes);
+}
+
 /** Semantic checks of a project.yaml value; `projectDir` resolves hook files. */
 export function checkProject(
   value: unknown,
@@ -98,7 +128,9 @@ export function checkProject(
   const envNames = Object.keys(envs);
   const pageKeys = new Set<string>();
 
-  if (!ctx.broken(['environments']) && (value.environments === undefined || envNames.length === 0)) {
+  // Sandbox environments (L1.8): their pages, personas, mailbox and databases come from their sandbox.yaml.
+  const sandboxNames = checkSandboxEntries(value.sandboxes, envs, ctx);
+  if (!ctx.broken(['environments']) && (value.environments === undefined || envNames.length === 0) && sandboxNames.length === 0) {
     ctx.warning(['environments'], 'no environments yet: add environments.<env>.<page>: <url> before running scenarios');
   }
   for (const [envName, { pages, pagesPath }] of Object.entries(raw)) {
@@ -121,16 +153,17 @@ export function checkProject(
     if (isObj(written[envName]) && raw[envName].long) checkReadOnly(written[envName], envName, Object.keys(pages), ctx);
   }
 
-  if (typeof value.default_env === 'string' && !Object.hasOwn(envs, value.default_env)) {
+  if (typeof value.default_env === 'string' && !Object.hasOwn(envs, value.default_env) && !sandboxNames.includes(value.default_env)) {
+    const all = [...envNames, ...sandboxNames];
     ctx.error(
       ['default_env'],
-      `unknown environment "${value.default_env}"${suggestion(value.default_env, envNames)} (available: ${envNames.join(', ') || 'none'})`,
+      `unknown environment "${value.default_env}"${suggestion(value.default_env, all)} (available: ${all.join(', ') || 'none'})`,
     );
   }
 
   // Sessions & personas (L1.6): a persona's session path is refused even where the schema already failed.
   checkPersonaPaths(value.auth, ctx);
-  checkAuth(value.auth, envs, ctx, { vars: new Set(isObj(value.vars) ? Object.keys(value.vars) : []) });
+  checkAuth(value.auth, envs, ctx, { vars: new Set(isObj(value.vars) ? Object.keys(value.vars) : []) }, { sandboxes: sandboxNames });
 
   if (isObj(value.databases)) {
     for (const [name, db] of Object.entries(value.databases)) {

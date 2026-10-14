@@ -84,6 +84,13 @@ export interface ResolvedPersona {
   snapshot?: string;
   /** The status of the last check (written by the preflight, `studio login`, `studio auth status --check`). */
   statusFile: string;
+  /**
+   * An account of a sandbox (L1.8, `accounts:` of its sandbox.yaml): signed in by its login steps whenever its session is
+   * missing (every take after a reset), which is expected rather than a warning.
+   */
+  sandbox?: true;
+  /** Values its login steps type that are secrets as written (a sandbox account's plain password): masked like {{env:…}} values. */
+  secrets?: string[];
 }
 
 /** Where a persona's files live under the studio home. */
@@ -104,14 +111,15 @@ function projectPath(dir: string, p: string): string {
   return isAbsolute(e) ? e : resolve(dir, e);
 }
 
-/** The personas of an environment (none when it declares no auth). */
+/** The personas of an environment (none when it declares no auth); on a sandbox, its accounts (L1.8). */
 export function resolvePersonas(
-  project: Pick<LoadedProject, 'slug' | 'dir' | 'config'>,
+  project: Pick<LoadedProject, 'slug' | 'dir' | 'config'> & Partial<Pick<LoadedProject, 'sandboxes'>>,
   env: string,
   opts: { home?: string } = {},
 ): ResolvedPersona[] {
   const auth = authFor(project.config, env);
   if (!auth) return [];
+  const sandbox = project.sandboxes && Object.hasOwn(project.sandboxes, env) ? project.sandboxes[env] : undefined;
   const home = opts.home ?? studioHome();
   const envPages = Object.keys(project.config.environments?.[env] ?? {});
   const common = asList(auth.login_url);
@@ -145,6 +153,8 @@ export function resolvePersonas(
       ...(session === 'profile' ? { profileDir: files.profileDir } : {}),
       snapshot: files.snapshot,
       statusFile: files.statusFile,
+      ...(sandbox ? { sandbox: true as const } : {}),
+      ...(sandbox?.secrets[name]?.length ? { secrets: [...sandbox.secrets[name]] } : {}),
     };
   });
 }

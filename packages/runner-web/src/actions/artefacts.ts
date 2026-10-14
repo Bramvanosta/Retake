@@ -6,6 +6,7 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { Download, Page } from 'playwright-core';
+import { mailboxFor, sandboxOf } from '@demo-studio/core';
 import type { DocumentArtefact, NormalizedArgsMap, WaitForEmailArgs } from '@demo-studio/core';
 import { MailboxClient, formatAddress, mailMatches } from '../artefacts/mailbox.js';
 import type { MailSummary } from '../artefacts/mailbox.js';
@@ -22,11 +23,18 @@ import type { ActionResult } from './types.js';
 /** Default seconds of wait_for_email / download. */
 export const ARTEFACT_TIMEOUT_S = 30;
 
-/** The project's mailbox client (created once per run). */
+/** The mailbox client of the run's environment (created once per run). */
 export function mailboxOf(rt: Runtime): MailboxClient {
   if (rt.artefacts.mailbox) return rt.artefacts.mailbox;
-  const cfg = rt.project.config.mailbox;
-  if (!cfg) throw new StepError(`wait_for_email: project "${rt.project.slug}" has no \`mailbox\` (add mailbox: {provider: mailpit, url: …} to project.yaml)`);
+  // The environment's mailbox (L1.8): a sandbox's own, else the project's.
+  const cfg = mailboxFor(rt.project, rt.env.name);
+  if (!cfg) {
+    throw new StepError(
+      sandboxOf(rt.project, rt.env.name)
+        ? `wait_for_email: sandbox ${rt.env.name} has no \`mailbox\` (add mailbox: {provider: mailpit, url: …} to its sandbox.yaml)`
+        : `wait_for_email: project "${rt.project.slug}" has no \`mailbox\` (add mailbox: {provider: mailpit, url: …} to project.yaml)`,
+    );
+  }
   rt.artefacts.mailbox = new MailboxClient(cfg, rt.project, rt.template);
   return rt.artefacts.mailbox;
 }

@@ -88,6 +88,7 @@ projects/<slug>/
   template/            # or reference to templates/<name>
   scenarios/<name>.yaml
   hooks/               # sql/http/js/sh used by scenarios
+  sandbox/             # optional: sandbox.yaml (+ compose.yaml, seed/) of a local, disposable copy of the product
   assets/              # logos, fonts, product images, music
   runs/<timestamp>/    # capture.mp4, frames/, timeline.json, logs, screenshots on error
   renders/<name>-vN.mp4
@@ -115,7 +116,13 @@ frame: browser   # raw | browser | laptop | phone | card
 template: editorial
 locale: en
 mailbox: {provider: mailpit, url: http://localhost:8025}   # optional test mailbox for wait_for_email (host must be allowed)
+sandboxes: {sandbox: sandbox/sandbox.yaml}   # L1.8: a sandbox environment (process or docker-compose), reset before each take
 ```
+
+A sandbox (L1.8) is an environment Demo Studio starts, seeds and resets itself: its `sandbox.yaml` declares the
+services (pages, display URLs, health), the seed, the reset strategy (reseed, or a Postgres snapshot), the databases,
+the mailbox (Mailpit) and demo accounts — the personas of that environment. `studio sandbox up | down | reset | status
+| logs | init`; `studio run … --sandbox` resets it before the take, so every take starts from the same data.
 
 ## 5. Template (brand & motion style)
 
@@ -282,6 +289,11 @@ A client of the same packages (the MCP keeps working without it). Served locally
 - Production and read-only environments (L1.7): the run's browsers stop mutating requests to the environment's hosts
   (or answer them with a mock), hooks that write are refused; writing to production needs `access: read-write` in
   project.yaml and `--allow-writes`. A video never shows a local URL: pages declare display URLs.
+- Sandboxes (L1.8) are local only (every URL loopback), never production; their plain demo passwords are masked like
+  secrets; a reset only rewrites what the sandbox owns — a snapshot drops a database only when a container of its own
+  compose project, made from its folder, publishes it and no other container publishes that port (on any address),
+  connecting to the published address, never to `localhost`; a compose project of the same name from another
+  checkout is never touched.
 
 ## 14. Phases & acceptance
 

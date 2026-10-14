@@ -14,6 +14,11 @@ export interface HookCheckOptions {
   saved: Set<string>;
   /** The project whose allow-list shell hooks are checked against (undefined → not checked). */
   project?: Pick<LoadedProject, 'config'>;
+  /**
+   * Destructive hooks need no `confirm: true` (sandbox seeds, L1.8: they rebuild a local, disposable copy). Their files
+   * are read from the check context's directory (the sandbox folder) either way.
+   */
+  destructiveOk?: boolean;
 }
 
 /**
@@ -96,7 +101,7 @@ export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, op
         { path: [...p, 'writes'], key: true },
       );
     }
-    const reason = destructiveReason(hook, { projectDir: ctx.projectDir });
+    const reason = opts.destructiveOk ? null : destructiveReason(hook, { projectDir: ctx.projectDir });
     if (reason && hook.confirm !== true) {
       ctx.error(p, `destructive hook (${reason}) requires "confirm: true"`, { path: kp, key: true });
     }

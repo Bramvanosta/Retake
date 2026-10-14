@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ACTION_NAMES, CURSOR_ICONS, ENVIRONMENT_ACCESS } from '../types.js';
+import { ACTION_NAMES, CURSOR_ICONS, ENVIRONMENT_ACCESS, SANDBOX_PROVIDERS, SANDBOX_RESET_STRATEGIES } from '../types.js';
 import type { RunRecord, Timeline } from '../types.js';
 import {
   BBoxSchema,
@@ -272,6 +272,19 @@ const TimelineWriteSchema = z.strictObject({
   protected_by: z.string().describe('The other, read-only environment whose host it went to.').optional(),
 });
 
+/** The sandbox of a run (L1.8): its provider, and the reset made before the take. */
+const RunSandboxSchema = z
+  .strictObject({
+    name: nonEmpty().describe('The sandbox\'s environment.'),
+    provider: z.enum(SANDBOX_PROVIDERS),
+    strategy: z.enum(SANDBOX_RESET_STRATEGIES).describe('Absent: no reset before this take (--env <sandbox> without --sandbox).').optional(),
+    restored: z.boolean().describe('A snapshot was restored (rather than the seed run again).').optional(),
+    reset_ms: z.number().min(0).optional(),
+    seed_hash: z.string().describe('The seed\'s hash (12 characters).').optional(),
+    at: z.string().describe('When the reset finished (ISO).').optional(),
+  })
+  .describe('A sandbox environment (L1.8): its provider and the reset made before the take.');
+
 const TimelineEnvironmentSchema = z
   .strictObject({
     name: nonEmpty(),
@@ -284,6 +297,7 @@ const TimelineEnvironmentSchema = z
       .optional(),
     clock: ResolvedClockSchema.optional(),
     writes: z.array(TimelineWriteSchema).describe('Writes the read-only guard stopped, answered or let through, and writes to hosts it does not guard.').optional(),
+    sandbox: RunSandboxSchema.optional(),
   })
   .describe('The environment of the run (L1.7): access, display URLs, clock, writes seen on a read-only run.');
 
@@ -352,6 +366,7 @@ export const RunRecordSchema = z
           .strictObject({ at: nonEmpty(), timezone: z.string().optional(), freeze: z.literal(true).optional() })
           .describe('The product clock: as written, the zone a time without an offset is read in, frozen or not.')
           .optional(),
+        sandbox: RunSandboxSchema.optional(),
       })
       .describe("The environment's safety: production, the run's effective access, the clock.")
       .optional(),

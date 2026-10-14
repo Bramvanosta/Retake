@@ -1,0 +1,1245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sandbox.schema.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1,
+      "description": "Version of this file's format (1)."
+    },
+    "provider": {
+      "type": "string",
+      "enum": [
+        "docker-compose",
+        "process"
+      ],
+      "description": "docker-compose: `docker compose` on the compose files; process: local processes started by Demo Studio."
+    },
+    "compose": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Compose files, relative to sandbox.yaml (default [compose.yaml])."
+        },
+        "project": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "description": "Compose project name (default demo-studio-<project>-<environment>-<hash of the folder>)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "docker-compose only."
+    },
+    "services": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Base URL of the service on this machine (localhost only); the default health check GETs it."
+          },
+          "pages": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "display": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The URL the video shows instead (address bar, captions): a host such as shop.example.com (https implied) or an http(s) URL."
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "description": "Environment pages this service serves: page key → URL (localhost only), or {url, display} (the URL the video shows)."
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "const": false,
+                "description": "No health check."
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "A path on the service's url (e.g. \"/up\"), or an absolute local URL."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Path on the service's url (default \"/\")."
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "An absolute local URL instead of a path."
+                  },
+                  "tcp": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535,
+                    "description": "process services only: a port that must accept a connection."
+                  },
+                  "status": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 599
+                      },
+                      {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        }
+                      }
+                    ],
+                    "description": "Expected status code(s) (default 200–399)."
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Text the answer must contain."
+                  },
+                  "timeout_s": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Seconds before the service counts as not healthy (default 60 for a process, 120 for compose)."
+                  },
+                  "interval_ms": {
+                    "type": "integer",
+                    "minimum": 50,
+                    "maximum": 10000,
+                    "description": "Delay between two tries in ms (default 250)."
+                  }
+                },
+                "additionalProperties": false
+              }
+            ],
+            "description": "How the sandbox tells this service is up (default: GET its url)."
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ],
+            "description": "process only: argv (a first word \"node\" runs the CLI's own Node), or a string run by sh -c (PATH lookup)."
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "description": "process only: working directory, relative to sandbox.yaml (default its folder)."
+          },
+          "env": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "process only: extra environment variables ({{env:VAR}} references are expanded)."
+          },
+          "stop_timeout_s": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "process only: seconds between SIGTERM and SIGKILL when it stops (default 10)."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A compose service (docker-compose) or a process to start (process)."
+      },
+      "description": "service name → its URL, pages, health (and command, for process)."
+    },
+    "seed": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SeedStep"
+      },
+      "description": "Steps that build the demo data (paths relative to sandbox.yaml); they stop at the first failure."
+    },
+    "reset": {
+      "type": "object",
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "reseed",
+            "snapshot"
+          ],
+          "description": "reseed (default): run the seed again before each take; snapshot: restore a Postgres snapshot taken after the seed (docker-compose)."
+        },
+        "snapshot": {
+          "type": "object",
+          "properties": {
+            "database": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Key of `databases` (default the first one): dropped and recreated at every reset."
+            }
+          },
+          "additionalProperties": false
+        },
+        "restart": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Services restarted after each reset (apps that do not survive a database swap)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "databases": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Connection URL on this machine (loopback); the password may be plain or a {{env:VAR}} / {{keychain:service/account}} reference."
+          },
+          "external": {
+            "type": "boolean",
+            "description": "The sandbox does not start this database's server (your own Postgres) and the database is the sandbox's alone: sql seed steps may rewrite it. Without it they are refused unless a service of the sandbox serves its port."
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Databases of the sandbox (sql seeds, and the sql hooks of scenarios on this environment); local only."
+    },
+    "mailbox": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "mailpit",
+            "http"
+          ],
+          "description": "mailpit: the Mailpit API; http: the generic JSON shape (see the README)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed)."
+        },
+        "poll_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Polling interval in ms (default 500)."
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra request headers, e.g. an API token ({{env:VAR}} references are expanded)."
+        },
+        "clear": {
+          "type": "boolean",
+          "description": "Empty it at every reset (default true; Mailpit only)."
+        },
+        "external": {
+          "type": "boolean",
+          "description": "Another program serves this mailbox (a Mailpit you run) and it is the sandbox's alone: emptied at every reset all the same. Without it, a reset that empties it is refused unless a service of the sandbox serves its port."
+        }
+      },
+      "required": [
+        "provider",
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "The test mailbox of the sandbox (read by wait_for_email on this environment instead of the project's)."
+    },
+    "login_url": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginPattern"
+        },
+        {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LoginPattern"
+          }
+        }
+      ],
+      "description": "Sign-in pages of every account."
+    },
+    "accounts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "description": "{{account.username}} in its login steps."
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "description": "{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}."
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+            },
+            "description": "Environment pages this persona is signed into by default (a page belongs to at most one persona)."
+          },
+          "session": {
+            "type": "string",
+            "enum": [
+              "profile",
+              "storage_state"
+            ],
+            "description": "profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only."
+          },
+          "check": {
+            "$ref": "#/$defs/PersonaCheck"
+          },
+          "login_url": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/LoginPattern"
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/LoginPattern"
+                }
+              }
+            ],
+            "description": "Sign-in pages of this persona (with auth.login_url)."
+          },
+          "login": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/LoginStep"
+            },
+            "description": "Automated login, off camera, when the saved session is missing or expired (secret refs only)."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A demo account the seed creates: the persona of the same name on this sandbox's environment (signed in automatically by its login steps)."
+      },
+      "description": "Demo accounts the seed creates, each one the persona of the same name on this environment."
+    }
+  },
+  "required": [
+    "version",
+    "provider",
+    "services"
+  ],
+  "additionalProperties": false,
+  "title": "Demo Studio sandbox",
+  "description": "sandbox.yaml (version 1): a disposable, local copy of the product, seeded and reset before each take.",
+  "$defs": {
+    "SeedStep": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "http": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "HEAD"
+                  ],
+                  "description": "Default GET."
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…)."
+                },
+                "headers": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "json": {
+                  "description": "JSON body."
+                },
+                "body": {
+                  "type": "string",
+                  "description": "Raw body."
+                },
+                "expect": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599
+                    },
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 599
+                      }
+                    }
+                  ],
+                  "description": "Expected status code(s). Default: any 2xx."
+                },
+                "save_as": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                  "description": "Store the response as {{hooks.<save_as>.status|body|json.<path>}}."
+                },
+                "rollback": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "HEAD"
+                      ],
+                      "description": "Default GET."
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Request URL; templated ({{page}}, {{vars.x}}, {{env:VAR}}…)."
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "json": {
+                      "description": "JSON body."
+                    },
+                    "body": {
+                      "type": "string",
+                      "description": "Raw body."
+                    },
+                    "expect": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 599
+                          }
+                        }
+                      ],
+                      "description": "Expected status code(s). Default: any 2xx."
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Request that undoes this one (templated after the request: {{response.json.id}})."
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "additionalProperties": false
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
+            }
+          },
+          "required": [
+            "http"
+          ],
+          "additionalProperties": false,
+          "title": "http",
+          "description": "HTTP request (an API that creates the demo data)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A .sql file relative to the project dir (a sandbox seed: to sandbox.yaml), or an inline query."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "SQL file relative to the project dir (a sandbox seed: to sandbox.yaml)."
+                    },
+                    "query": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Inline SQL."
+                    },
+                    "db": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Database key from project.databases (default: the first one)."
+                    },
+                    "rollback": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "file": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "query": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "SQL that undoes this hook: a *.sql file or inline SQL."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "additionalProperties": false,
+          "title": "sql",
+          "description": "SQL file (relative to sandbox.yaml) or inline query, run in a transaction on a database of the sandbox."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "shell": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Command run with sh -c in the project dir (a sandbox seed: the folder of sandbox.yaml); every host it names must be allowed."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "cwd": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "env": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "rollback": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Command that undoes this one."
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
+            }
+          },
+          "required": [
+            "shell"
+          ],
+          "additionalProperties": false,
+          "title": "shell",
+          "description": "Shell command (sh -c), run in the folder of sandbox.yaml."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "exec": {
+              "type": "object",
+              "properties": {
+                "service": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The compose service the command runs in."
+                },
+                "command": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  ],
+                  "description": "A string run by sh -c in the service, or argv."
+                },
+                "env": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "timeout_s": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Seconds (default 300)."
+                }
+              },
+              "required": [
+                "service",
+                "command"
+              ],
+              "additionalProperties": false
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name shown in logs and journals."
+            },
+            "confirm": {
+              "type": "boolean",
+              "description": "Required (true) for destructive hooks."
+            },
+            "destructive": {
+              "type": "boolean",
+              "description": "Declare the hook destructive explicitly (also auto-detected)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "Continue even if this hook fails."
+            },
+            "writes": {
+              "type": "boolean",
+              "description": "Shell hooks only: false declares that the command only reads, so it may run on a read-only environment."
+            }
+          },
+          "required": [
+            "exec"
+          ],
+          "additionalProperties": false,
+          "title": "exec",
+          "description": "docker-compose only: a command run inside a compose service (docker compose exec)."
+        }
+      ],
+      "description": "Exactly one of http, sql, shell, exec, plus name / optional (no rollback: a seed is never undone)."
+    },
+    "LoginPattern": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "regex": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Regular expression tested against the origin + path of the URL (never its query)."
+            },
+            "flags": {
+              "type": "string",
+              "pattern": "^[dgimsuyv]*$"
+            }
+          },
+          "required": [
+            "regex"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "A sign-in page, matched against the origin + path of a URL (never its query): a path prefix (\"/sign-in\"; also \"/sign-in/…\", not \"/sign-in-help\"), \"<environment page>:<path>\", an absolute URL prefix (\"https://sso.example.com\") or {regex, flags?}."
+    },
+    "PersonaCheck": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Page the check opens: \"<environment page>:<path>\", a path on the persona's first page or a URL (default: the first page's \"/\")."
+        },
+        "expect_text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text visible only when signed in (the account name…). Without it: signed in when the page loads off the sign-in pages."
+        },
+        "expect_not_url": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LoginPattern"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LoginPattern"
+              }
+            }
+          ],
+          "description": "Pages the check must not end on (sign-in pages for the run's guard too)."
+        },
+        "timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds (default 10)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the runner tells this persona is signed in, off camera before every run."
+    },
+    "LoginStep": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "open": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Path (resolved against the page base URL) or absolute URL."
+                    },
+                    "page": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+                      "description": "Environment page key to open in (default: current page)."
+                    },
+                    "wait_until": {
+                      "type": "string",
+                      "enum": [
+                        "load",
+                        "domcontentloaded",
+                        "networkidle",
+                        "commit"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Path on the persona's first page, \"<environment page>:<path>\" or a URL."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "open"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "click": {
+              "description": "Element to click.",
+              "$ref": "#/$defs/TargetSpec"
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "click"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "object",
+              "properties": {
+                "into": {
+                  "description": "Field to click into first (it is cleared: a copied profile may have filled it).",
+                  "$ref": "#/$defs/TargetSpec"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Text to type: a password comes from {{env:VAR}} or {{keychain:service/account}}."
+                },
+                "enter": {
+                  "type": "boolean",
+                  "description": "Press Enter afterwards."
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "press": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Key in Playwright syntax: \"Enter\", \"Escape\", \"Meta+A\"."
+                    },
+                    "times": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "press"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait_for": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text present."
+                    },
+                    "not_text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Visible text absent."
+                    },
+                    "target": {
+                      "description": "Element visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "gone": {
+                      "description": "Element no longer visible.",
+                      "$ref": "#/$defs/TargetSpec"
+                    },
+                    "url": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "URL substring or /regex/."
+                    },
+                    "network_idle": {
+                      "type": "boolean"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Seconds (default 15)."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "wait_for"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default 15)."
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "wait"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "One login action (open, click, type, press, wait_for, wait), run off camera."
+    },
+    "TargetObject": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Visible text, whitespace-normalised. Exact match first, then case-insensitive substring (unless `exact`)."
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ],
+          "description": "Element whose text contains ALL these strings; the innermost such element wins."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ARIA role (explicit or implicit): button, link, textbox, combobox, checkbox, option, menuitem, row, dialog, tab…"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Accessible name, used together with `role`."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Form control whose label text matches."
+        },
+        "aria": {
+          "type": "string",
+          "minLength": 1,
+          "description": "aria-label value (exact first, then substring)."
+        },
+        "placeholder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "placeholder attribute."
+        },
+        "css": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Raw CSS selector."
+        },
+        "testid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "data-testid value."
+        },
+        "in": {
+          "description": "Restrict the search to a scope: dialog, menu, listbox, popover, page, {row: \"text\"} or a target.",
+          "$ref": "#/$defs/ScopeSpec"
+        },
+        "nth": {
+          "type": "integer",
+          "description": "0-based index among visible matches (negative = from the end)."
+        },
+        "last_visible": {
+          "type": "boolean",
+          "description": "Pick the LAST visible match (e.g. the most recently mounted popover)."
+        },
+        "exact": {
+          "type": "boolean",
+          "description": "Disable the substring fallback of text/name/aria/label."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Element locator. Combine keys to narrow the match (e.g. {text: Save, in: dialog})."
+    },
+    "ScopeSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "dialog",
+            "menu",
+            "listbox",
+            "popover",
+            "page"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "row": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text contained in the row."
+            }
+          },
+          "required": [
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Scope keyword (topmost visible dialog/menu/listbox/popover, or the whole page), {row: \"text\"} or a target object."
+    },
+    "TargetSpec": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/$defs/TargetObject"
+        }
+      ],
+      "description": "Visible text (\"Save\"), a CSS selector string (\"#id\", \".class\", \"[attr]\", \"a > b\") or a target object."
+    }
+  }
+}

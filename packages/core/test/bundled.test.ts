@@ -91,6 +91,63 @@ describe('bundled fixture project', () => {
     expect(used).toMatchObject({ catalogue: 'supplier', reports: 'supplier', quote: 'supplier,buyer', 'live-quote': 'supplier,buyer', signup: 'buyer', 'phone-and-desktop': 'buyer' });
   });
 
+  it('its process sandbox (L1.8) is environment sandbox: the signed-in side on 4503 / 4504, the supplier and buyer accounts, its own mailbox', async () => {
+    const project = await loadProject('northfield-fixture', ROOT);
+    const sandbox = project.sandboxes?.sandbox;
+    expect(sandbox?.issues).toEqual([]);
+    expect(sandbox?.manifest).toMatchObject({ provider: 'process', services: { fixture: { url: 'http://localhost:4501', health: '/api/health' } } });
+    expect(sandbox?.manifest.services.fixture.command).toEqual(['node', 'server.mjs', '--console-port', '4501', '--shop-port', '4502', '--auth-console-port', '4503', '--auth-shop-port', '4504']);
+    expect(project.config.environments.sandbox).toEqual({ console: 'http://localhost:4503', shop: 'http://localhost:4504' });
+    expect(project.config.environment_settings?.sandbox).toMatchObject({
+      display: { console: 'https://console.northfield.example', shop: 'https://shop.northfield.example' },
+      sandbox: { provider: 'process' },
+      mailbox: { provider: 'mailpit', url: 'http://localhost:4501/mailbox' },
+    });
+    const personas = resolvePersonas(project, 'sandbox', { home: '/nonexistent-home' });
+    expect(personas.map((p) => [p.name, p.pages, p.sandbox, p.secrets])).toEqual([
+      ['supplier', ['console'], true, ['roast-lot-2026']],
+      ['buyer', ['shop'], true, ['filter-bloom-2026']],
+    ]);
+    const { scenario, issues } = await loadScenario(project, 'sandbox-quote');
+    expect(errorsOf(issues)).toEqual([]);
+    expect(scenario.env).toBe('sandbox');
+    expect(scenario.setup ?? []).toEqual([]);
+    expect(planPersonas(scenario, { env: 'sandbox', envPages: project.config.environments.sandbox, personas, hooks: true }).used).toEqual(['buyer']);
+  });
+
+  it('its Docker sandbox (L1.8) is environment sandbox-docker: the fixture image on 4511–4514, a real Mailpit on 4525, the same accounts', async () => {
+    const project = await loadProject('northfield-fixture', ROOT);
+    const sandbox = project.sandboxes?.['sandbox-docker'];
+    expect(sandbox?.issues).toEqual([]);
+    expect(sandbox?.manifest).toMatchObject({ provider: 'docker-compose', compose: { files: ['compose.yaml'] }, services: { fixture: { url: 'http://localhost:4511', health: '/api/health' } } });
+    expect(project.config.environments['sandbox-docker']).toEqual({ console: 'http://localhost:4513', shop: 'http://localhost:4514' });
+    expect(project.config.environment_settings?.['sandbox-docker']).toMatchObject({
+      display: { console: 'https://console.northfield.example', shop: 'https://shop.northfield.example' },
+      sandbox: { provider: 'docker-compose' },
+      mailbox: { provider: 'mailpit', url: 'http://localhost:4525' },
+    });
+    // The compose file publishes every port of the manifest (and Mailpit's) on 127.0.0.1 only, builds the fixture
+    // from fixtures/wholesale and relays its mails to Mailpit, pinned to an exact version.
+    const compose = parse(await readFile(new URL('../../../projects/northfield-fixture/sandbox/docker/compose.yaml', import.meta.url), 'utf8')) as {
+      services: Record<string, { build?: string; image?: string; init?: boolean; ports: string[]; environment: Record<string, string> }>;
+    };
+    expect(compose.services.fixture).toMatchObject({ build: '../../../../fixtures/wholesale', init: true, environment: { NORTHFIELD_SMTP: 'mailpit:1025', NORTHFIELD_CONSOLE_PORT: '4511' } });
+    expect(compose.services.fixture.image).toBeUndefined();
+    expect(compose.services.mailpit.image).toBe('axllent/mailpit:v1.29.4');
+    expect(Object.values(compose.services).flatMap((s) => s.ports)).toEqual(['127.0.0.1:4511:4511', '127.0.0.1:4512:4512', '127.0.0.1:4513:4513', '127.0.0.1:4514:4514', '127.0.0.1:4525:8025']);
+    const personas = resolvePersonas(project, 'sandbox-docker', { home: '/nonexistent-home' });
+    expect(personas.map((p) => [p.name, p.pages, p.sandbox])).toEqual([
+      ['supplier', ['console'], true],
+      ['buyer', ['shop'], true],
+    ]);
+    // sandbox-quote and signup (wait_for_email through Mailpit) validate on it; neither needs the quote PDF.
+    for (const name of ['sandbox-quote', 'signup']) {
+      const { issues, text } = await loadScenario(project, name, { env: 'sandbox-docker' });
+      expect(errorsOf(issues), name).toEqual([]);
+      expect(text, name).not.toMatch(/quote\.pdf|download/);
+    }
+  });
+
   it('the quote scenario shows the phase-2 syntax: a card entry and a step overlay with a target', async () => {
     const project = await loadProject('northfield-fixture', ROOT);
     const { scenario } = await loadScenario(project, 'quote');

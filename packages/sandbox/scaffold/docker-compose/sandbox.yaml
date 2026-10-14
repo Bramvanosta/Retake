@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=__SCHEMA__
+# Sandbox __ENV__ (written by `studio sandbox init`): a disposable, local copy of the product that Demo Studio starts
+# with docker compose, seeds with demo data and resets before every take. README.md next to this file says how to put
+# your application in it. Every path here is relative to this file; every URL is on this machine.
+#
+#   studio sandbox up __PROJECT____ENV_FLAG__
+#       start (compose up), wait until healthy, seed, take the snapshot
+#   studio run __PROJECT__ <scenario> --sandbox__ENV_FLAG__
+#       up if needed, restore the snapshot, then the take
+version: 1
+provider: docker-compose
+compose:
+  files: [compose.yaml]
+services:
+  # The service of compose.yaml that serves the product (a placeholder now). `health`: a page that answers once the
+  # app is ready (better: one that reads the database). `pages`: {{app}} / `page: app` in scenarios ({url, display}
+  # shows another URL in the video).
+  app:
+    url: http://localhost:__APP_PORT__
+    health: /
+    pages:
+      app: http://localhost:__APP_PORT__
+# What builds the demo data (stops at the first failure).
+seed:
+  - name: demo-data
+    sql: {file: seed/01-demo-data.sql, db: main}
+  # Your application's own seed, run inside its container:
+  # - exec: {service: app, command: "bin/rails db:seed", timeout_s: 300}
+# snapshot: a copy of the seeded database is restored before every take (reseed: the seed runs again instead).
+# Uncomment `restart` when the app's database pool does not reconnect cleanly after the database is swapped.
+reset:
+  strategy: snapshot
+  # restart: [app]
+# The seed's sql steps, and the sql hooks of scenarios on this environment (a plain demo password is fine: local only).
+databases:
+  main: {url: "postgres://demo:__DB_PASSWORD__@localhost:__DB_PORT__/app"}
+# wait_for_email on this environment reads it; emptied at every reset.
+mailbox: {provider: mailpit, url: http://localhost:__MAIL_PORT__}
+# Demo accounts the seed creates, signed in off camera by their login steps (the personas of this environment):
+# login_url: /sign-in
+# accounts:
+#   admin:
+#     pages: [app]
+#     username: admin@example.com
+#     password: sandbox-admin-__APP_PORT__
+#     check: {url: "app:/", expect_text: Dashboard}
+#     login:
+#       - open: "app:/sign-in"
+#       - type: {into: {label: Email}, text: "{{account.username}}"}
+#       - type: {into: {label: Password}, text: "{{account.password}}"}
+#       - click: {role: button, name: Sign in}

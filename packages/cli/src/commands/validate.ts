@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import {
   ConfigError,
+  SandboxConfigError,
   ScenarioError,
   errorsOf,
   loadProjectTemplate,
@@ -23,7 +24,7 @@ export interface ValidateOptions {
 }
 
 interface FileReport {
-  kind: 'project' | 'template' | 'scenario';
+  kind: 'project' | 'sandbox' | 'template' | 'scenario';
   name: string;
   file?: string;
   issues: ValidationIssue[];
@@ -36,8 +37,9 @@ export function printIssues(ui: Ui, issues: readonly ValidationIssue[], file?: s
 }
 
 /**
- * `studio validate <project> [scenario|file]`: project.yaml, the project template and the scenario (or every
- * scenario when none is given). Prints `file:line:col severity path: message`; exit 1 when any error.
+ * `studio validate <project> [scenario|file]`: project.yaml, its sandboxes' sandbox.yaml (L1.8), the project template
+ * and the scenario (or every scenario when none is given). Prints `file:line:col severity path: message`; exit 1 when
+ * any error.
  */
 export async function validateCommand(
   ui: Ui,
@@ -52,10 +54,19 @@ export async function validateCommand(
     project = await openProject(await openWorkspace(global), projectArg);
   } catch (e) {
     const issues = e instanceof ConfigError ? e.issues : [];
-    reports.push({ kind: 'project', name: projectArg, file: e instanceof ConfigError ? e.file : undefined, issues, ...(issues.length ? {} : { error: errorMessage(e) }) });
+    // A broken sandbox.yaml (L1.8) is reported under its own file.
+    const sandbox = e instanceof SandboxConfigError ? e.env : undefined;
+    reports.push({
+      kind: sandbox !== undefined ? 'sandbox' : 'project',
+      name: sandbox ?? projectArg,
+      file: e instanceof ConfigError ? e.file : undefined,
+      issues,
+      ...(issues.length ? {} : { error: errorMessage(e) }),
+    });
     return finish(ui, reports, opts);
   }
   reports.push({ kind: 'project', name: project.slug, file: project.file, issues: project.issues ?? [] });
+  for (const s of Object.values(project.sandboxes ?? {})) reports.push({ kind: 'sandbox', name: s.env, file: s.file, issues: s.issues });
 
   let template: Template | undefined;
   try {

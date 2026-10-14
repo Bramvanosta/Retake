@@ -49,6 +49,7 @@ export {
   BrowserConfigSchema,
 } from './schemas/settings.js';
 export { ProjectFileSchema, ProjectConfigSchema, WorkspaceFileSchema } from './schemas/project.js';
+export { SandboxFileSchema, SeedStepSchema, SEED_KINDS } from './schemas/sandbox.js';
 export { TemplateSchema, TemplateFileSchema } from './schemas/template.js';
 export { TimelineSchema, RunRecordSchema } from './schemas/timeline.js';
 export {
@@ -56,6 +57,7 @@ export {
   projectJsonSchema,
   templateJsonSchema,
   timelineJsonSchema,
+  sandboxJsonSchema,
   writeJsonSchemas,
   toJsonSchema,
   JSON_SCHEMAS,

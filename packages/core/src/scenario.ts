@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
+import { parse as parseYamlText } from 'yaml';
 import { checkScenario } from './checks/scenario.js';
 import type { ScenarioCheckOptions } from './checks/scenario.js';
 import { hasErrors, issuesMessage } from './issues.js';
@@ -76,6 +77,21 @@ export async function loadScenario(
   const { scenario, issues } = parseScenario(text, { ...opts, file, project });
   if (!scenario) throw new ScenarioError(issuesMessage('scenario', issues, file), issues, file);
   return { name: basename(file).replace(/\.ya?ml$/i, ''), file, text, scenario, issues };
+}
+
+/**
+ * The `env:` a scenario file names, read without validating it (undefined when it names none or cannot be read):
+ * `run --sandbox` picks its sandbox from it, then validates the scenario once, against that environment.
+ */
+export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string): Promise<string | undefined> {
+  let value: unknown;
+  try {
+    value = parseYamlText(await readFile(await resolveScenarioFile(project, nameOrPath), 'utf8'));
+  } catch {
+    return undefined; // loadScenario reports it
+  }
+  const env = value && typeof value === 'object' ? (value as { env?: unknown }).env : undefined;
+  return typeof env === 'string' ? env : undefined;
 }
 
 /**

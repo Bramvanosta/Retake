@@ -23,6 +23,7 @@
     "@demo-studio/hooks": "workspace:*",
     "@demo-studio/mcp": "workspace:*",
     "@demo-studio/review": "workspace:*",
+    "@demo-studio/sandbox": "workspace:*",
     "@demo-studio/runner-web": "workspace:*",
     "commander": "^14.0.0",
     "picocolors": "^1.1.1"

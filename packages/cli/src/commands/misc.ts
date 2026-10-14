@@ -4,7 +4,7 @@ import { EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 
-export const SCHEMA_NAMES = ['scenario', 'project', 'template', 'timeline'] as const satisfies readonly JsonSchemaName[];
+export const SCHEMA_NAMES = ['scenario', 'project', 'template', 'timeline', 'sandbox'] as const satisfies readonly JsonSchemaName[];
 
 /** `studio schema [name]`: the JSON Schema on stdout (for editors and agents). */
 export function schemaCommand(ui: Ui, name: JsonSchemaName): ExitCode {
@@ -20,6 +20,6 @@ export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 2 | 3 | 4; sum
 ];
 
 export function laterCommand(ui: Ui, name: string, phase: number): ExitCode {
-  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, plan, render, still, review, export, hooks, env reset, components, schema, login, auth status and doctor`);
+  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, plan, render, still, review, export, hooks, env reset, sandbox, components, schema, login, auth status and doctor`);
   return EXIT.failure;
 }

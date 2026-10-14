@@ -1,4 +1,4 @@
-/** Writes packages/core/schema/{scenario,project,template,timeline}.schema.json. */
+/** Writes packages/core/schema/{scenario,project,template,timeline,sandbox}.schema.json. */
 import { fileURLToPath } from 'node:url';
 import { relative } from 'node:path';
 import { writeJsonSchemas } from '../src/schemas/json.js';

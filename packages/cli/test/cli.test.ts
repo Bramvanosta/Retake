@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,5 +115,67 @@ describe('parseEnvOptions', () => {
     });
     expect(() => parseEnvOptions(['staging=app'])).toThrow(/not key:url/);
     expect(() => parseEnvOptions(['=app:https://a.example.com'])).toThrow(/name=key:url/);
+  });
+});
+
+describe('sandboxes in validate, schema and env reset (L1.8)', () => {
+  const SANDBOX = `version: 1
+provider: process
+services:
+  app:
+    command: [node, server.mjs]
+    url: http://localhost:4691
+    pages: {app: {url: http://localhost:4691, display: app.example.com}}
+accounts:
+  admin:
+    pages: [app]
+    username: admin@example.com
+    password: demo
+    check: {url: "app:/", expect_text: Admin}
+`;
+
+  it('validate reports each sandbox.yaml under its own file; a broken one fails every command, positioned in it', async () => {
+    const dir = join(ws, 'projects', 'sbx');
+    await mkdir(join(dir, 'sandbox'), { recursive: true });
+    await mkdir(join(dir, 'scenarios'), { recursive: true });
+    await writeFile(join(dir, 'project.yaml'), 'name: Sandbox demo\nsandboxes:\n  sandbox: sandbox/sandbox.yaml\n');
+    await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), SANDBOX);
+    await writeFile(join(dir, 'scenarios', 'home.yaml'), 'video: home\nenv: sandbox\nscenes:\n  - {id: a, page: app, persona: admin, open: /, steps: [{hold: 1}]}\n');
+    const file = join(dir, 'sandbox', 'sandbox.yaml');
+
+    const ok = await studio('validate', 'sbx');
+    expect(ok.code, ok.err).toBe(EXIT.ok);
+    expect(ok.err).toContain('✓ project sbx');
+    expect(ok.err).toMatch(/✓ sandbox sandbox \S*sandbox\.yaml {2}1 warning/);
+    expect(ok.err).toContain(`${file}:12:15 warning accounts.admin.password: a plain password shorter than 8 characters`);
+    expect(ok.err).toMatch(/✓ scenario home/);
+    const json = JSON.parse((await studio('validate', 'sbx', '--json')).out) as { files: Array<{ kind: string; name: string; file?: string }> };
+    expect(json.files.map((f) => [f.kind, f.name])).toEqual([
+      ['project', 'sbx'],
+      ['sandbox', 'sandbox'],
+      ['template', 'default'],
+      ['scenario', 'home'],
+    ]);
+
+    await writeFile(file, SANDBOX.replace('http://localhost:4691, display', 'http://10.0.0.7:4691, display'));
+    const bad = await studio('validate', 'sbx');
+    expect(bad.code).toBe(EXIT.failure);
+    expect(bad.err).toMatch(/✗ sandbox sandbox \S*sandbox\.yaml {2}1 error, 1 warning/);
+    expect(bad.err).toContain(`${file}:7:24 error services.app.pages.app.url: page app 10.0.0.7 is not on this machine`);
+    const badJson = JSON.parse((await studio('validate', 'sbx', '--json')).out) as { files: Array<{ kind: string; name: string; file?: string }> };
+    expect(badJson.files.map((f) => [f.kind, f.name, f.file])).toEqual([['sandbox', 'sandbox', file]]);
+    const run = await studio('run', 'sbx', 'home', '--dry');
+    expect(run.code).toBe(EXIT.failure);
+    expect(run.err).toContain(`sandbox sandbox ${file} has 1 error:`);
+    await writeFile(file, SANDBOX);
+  });
+
+  it('prints the sandbox schema; env reset on a sandbox says how to restore its seed', async () => {
+    const s = await studio('schema', 'sandbox');
+    expect(s.code).toBe(EXIT.ok);
+    expect((JSON.parse(s.out) as { $id: string }).$id).toBe('sandbox.schema.json');
+    const reset = await studio('env', 'reset', 'sbx', '--env', 'sandbox', '--dry');
+    expect(reset.code, reset.err).toBe(EXIT.ok);
+    expect(reset.err).toContain('sandbox is a sandbox: `studio sandbox reset sbx --env sandbox` restores its seed');
   });
 });

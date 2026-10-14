@@ -26,6 +26,11 @@ export interface KeyedUnionInfo {
    * given `production: true`): one targeted message per key replaces the fallback branch's issues about it.
    */
   misplaced?: { keys: readonly string[]; message: (key: string, path: ReadonlyArray<string | number>) => string };
+  /**
+   * Keys of a related union this one leaves out on purpose (a sandbox seed step written `js:`): one targeted message per
+   * key replaces "unknown key" and "needs exactly one … key".
+   */
+  refused?: { keys: readonly string[]; message: (key: string) => string };
 }
 
 const KEYED = new WeakMap<object, KeyedUnionInfo>();

@@ -24,6 +24,8 @@ import type { RenderCommandOptions, StillCommandOptions } from './commands/rende
 import type { NewOptions } from './commands/project.js';
 import { runCommand } from './commands/run.js';
 import type { RunCommandOptions } from './commands/run.js';
+import { sandboxDownCommand, sandboxInitCommand, sandboxLogsCommand, sandboxResetCommand, sandboxStatusCommand, sandboxUpCommand } from './commands/sandbox.js';
+import type { SandboxCommandOptions } from './commands/sandbox.js';
 import { validateCommand } from './commands/validate.js';
 import type { ValidateOptions } from './commands/validate.js';
 import { EXIT, errorMessage, exitCodeOf, isKnownError } from './errors.js';
@@ -106,6 +108,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
     .option('--headed', 'show the browser window (needs a display)')
     .option('--allow-writes', 'let a run on a production environment write (only where project.yaml sets access: read-write; without it such a run is read-only)')
+    .option('--sandbox', 'reset the sandbox to its seed before the take: up if needed, health, reset (environment: --env, the scenario env or default_env when a sandbox, else the first sandbox); it stays up after')
     .option('--json', 'stream progress events as JSON lines on stdout')
     .option('--raw', 'then export the raw package for editors (as studio export-capture: clips per scene, cursor data, markers)')
     .addOption(new Option('--cursor <mode>', 'with --raw: baked (as captured), none (captured without the cursor; data only) or layer (captured without it + a transparent cursor layer per clip)').choices(['baked', 'none', 'layer']))
@@ -242,6 +245,55 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--allow-writes', 'write to a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
+
+  const sandbox = program.command('sandbox').description('start, seed, reset and stop the sandboxes of a project (sandbox.yaml: a disposable, local copy of the product)');
+  const sandboxEnvHelp = 'sandbox environment (default: the first of project.yaml sandboxes)';
+  sandbox
+    .command('init')
+    .description('write a docker-compose sandbox (app placeholder, Postgres, Mailpit, seed, README) and declare it in project.yaml')
+    .argument('<project>', 'project slug or directory')
+    .option('--env <name>', 'its environment name (default: sandbox)')
+    .option('--force', 'write the scaffold over an existing sandbox folder')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxInitCommand(u, g, p, o)));
+  sandbox
+    .command('up')
+    .description('start what is not running, wait until healthy, and seed when never seeded, when the seed changed or when a service started')
+    .argument('<project>', 'project slug or directory')
+    .option('--env <name>', sandboxEnvHelp)
+    .option('--no-seed', 'do not seed')
+    .option('--build', 'docker-compose: build the images first (docker compose up --build)')
+    .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxUpCommand(u, g, p, o)));
+  sandbox
+    .command('down')
+    .description('stop every service of the sandbox (a process sandbox loses its data; a docker-compose one keeps its volumes)')
+    .argument('<project>', 'project slug or directory')
+    .option('--env <name>', sandboxEnvHelp)
+    .option('--volumes', 'docker-compose: remove the volumes too (the database and its snapshot: the next up seeds again)')
+    .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxDownCommand(u, g, p, o)));
+  sandbox
+    .command('reset')
+    .description('back to the seed: the snapshot restored (strategy snapshot) or the seed steps again, the mailbox emptied (the sandbox must be up)')
+    .argument('<project>', 'project slug or directory')
+    .option('--env <name>', sandboxEnvHelp)
+    .option('--reseed', 'run the seed even when a snapshot could be restored (and take the snapshot again)')
+    .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxResetCommand(u, g, p, o)));
+  sandbox
+    .command('status')
+    .description('services (pid or container, health), pages, seed, last reset, take lock; exit 0 when up and healthy, 1 otherwise')
+    .argument('<project>', 'project slug or directory')
+    .option('--env <name>', sandboxEnvHelp)
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxStatusCommand(u, g, p, o)));
+  sandbox
+    .command('logs')
+    .description("the last lines of the services' logs (process: .demo-studio/sandbox/<env>/logs/; docker-compose: docker compose logs)")
+    .argument('<project>', 'project slug or directory')
+    .argument('[service]', 'only this service')
+    .option('--env <name>', sandboxEnvHelp)
+    .option('--lines <n>', 'lines per service (default 50)')
+    .option('--follow', 'docker-compose: keep reading until Ctrl-C')
+    .action(action((u, g, p: string, svc: string | undefined, o: SandboxCommandOptions) => sandboxLogsCommand(u, g, p, svc, o)));
 
   const components = program.command('components').description('list, validate, scaffold and preview components (intros, layouts, captions…)');
   components

@@ -48,6 +48,14 @@ ports: `--console-port` / `--shop-port` or `NORTHFIELD_CONSOLE_PORT` / `NORTHFIE
 `POST /api/reset` restores the seed data (this is the project's `reset` hook); `GET /api` lists every
 endpoint usable from http hooks.
 
+Or let Demo Studio start it: environment `sandbox` (`sandbox/sandbox.yaml`, L1.8) is a sandbox of the fixture on ports
+4501–4504, its signed-in side filmed as the supplier and the buyer. `studio run northfield-fixture sandbox-quote
+--sandbox` starts it when it is not running, resets it to its seed and films; `studio sandbox status | logs | down
+northfield-fixture` show and stop it. Environment `sandbox-docker` (`sandbox/docker/`) is the same in Docker — the
+fixture's image on 4511–4514 and a real Mailpit on 4525 receiving its mails (`--env sandbox-docker`; build the UI
+bundle first: `node fixtures/wholesale/build.mjs`). The image has no Chromium: `quote` (its PDF) is for `local` or
+`sandbox`; `sandbox-quote` and `signup` run on both sandboxes.
+
 ## Accounts (by reference)
 
 No login: the console is signed in as the supply manager of *Northfield Roasters*, the shop as the

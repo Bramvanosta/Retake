@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative } from 'node:path';
-import { WORKSPACE_FILE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, studioHome } from '@demo-studio/core';
+import { WORKSPACE_FILE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxNames, studioHome } from '@demo-studio/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ChromiumProbe } from '@demo-studio/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -44,6 +45,20 @@ export interface DoctorProbes {
   chromium(browser: BrowserConfig | undefined): Promise<ChromiumProbe>;
   /** HEAD request: an HTTP status (reachable), or the network error. */
   head(url: string, timeoutMs: number): Promise<{ status?: number; error?: string; ms: number }>;
+  /** A sandbox of the project, as `studio sandbox status` sees it (L1.8; no lock, nothing started). */
+  sandbox?(project: LoadedProject, env: string): Promise<SandboxProbe>;
+}
+
+/** What doctor shows of a sandbox: up / partial / down, its services, its seed. */
+export interface SandboxProbe {
+  state: 'up' | 'partial' | 'down';
+  provider: string;
+  /** "fixture: not healthy (GET …: connection refused)" for each service that is not running and healthy. */
+  problems: string[];
+  services: number;
+  seed?: string;
+  /** The sandbox cannot be read (a provider this version does not run…). */
+  error?: string;
 }
 
 export const MIN_NODE_MAJOR = 22;
@@ -89,6 +104,18 @@ export function systemProbes(): DoctorProbes {
         });
       }),
     exists: (p) => existsSync(p),
+    sandbox: async (project, env) => {
+      const { openSandbox } = await import('@demo-studio/sandbox');
+      try {
+        const st = await openSandbox(project, env).status();
+        const problems = st.services
+          .filter((x) => !x.orphan && (x.state !== 'running' || x.healthy === false))
+          .map((x) => `${x.name}: ${x.state === 'stopped' ? 'not running' : x.state === 'starting' ? 'starting' : `not healthy (${x.health})`}`);
+        return { state: st.state, provider: st.provider, problems, services: st.services.filter((x) => !x.orphan).length, ...(st.seed ? { seed: st.seed.hash } : {}) };
+      } catch (e) {
+        return { state: 'down', provider: project.sandboxes?.[env]?.manifest.provider ?? '?', problems: [], services: 0, error: errorMessage(e) };
+      }
+    },
     chromium: async (browser) => (await import('@demo-studio/runner-web')).probeChromium(browser),
     head: async (url, timeoutMs) => {
       const t0 = performance.now();
@@ -200,6 +227,64 @@ function notifyCheck(p: DoctorProbes): DoctorCheck {
   };
 }
 
+/** Oldest Compose docker-compose sandboxes run (`up --wait-timeout`). */
+export const MIN_COMPOSE: readonly number[] = [2, 17, 0];
+
+/** "5.1.2" / "v2.29.1-desktop.1" → [5, 1, 2]. */
+function versionOf(text: string): number[] | null {
+  const m = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(text);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)] : null;
+}
+
+/** a < b, part by part. */
+function older(a: readonly number[], b: readonly number[]): boolean {
+  for (let i = 0; i < b.length; i++) if ((a[i] ?? 0) !== b[i]) return (a[i] ?? 0) < b[i];
+  return false;
+}
+
+/** Who needs Docker: the docker-compose sandboxes of the --project, and whether one is its default sandbox. */
+export interface DockerNeed {
+  /** "the docker-compose sandbox sandbox-docker of project northfield-fixture". */
+  by: string;
+  /** The project's default sandbox (default_env, else the first declared) is one: a FAIL instead of a WARN. */
+  required: boolean;
+}
+
+/**
+ * Docker (L1.8): only docker-compose sandboxes need it. OK with the daemon's and Compose's versions and the context;
+ * WARN when it is missing, too old or its daemon is down — a FAIL only when the --project's default sandbox (the one
+ * `studio sandbox up` / `run --sandbox` pick without --env) is a docker-compose one.
+ */
+export async function dockerCheck(p: DoctorProbes, need: DockerNeed | null = null): Promise<DoctorCheck> {
+  const name = 'Docker';
+  const bad = (detail: string, hint: string): DoctorCheck => ({
+    status: need?.required ? 'fail' : 'warn',
+    name,
+    detail: need ? `${detail} — needed by ${need.by}` : `${detail} — only needed by docker-compose sandboxes`,
+    hint,
+  });
+  // The places the sandbox package looks in (PATH first, then Docker Desktop's, OrbStack's, Homebrew's…).
+  const { dockerPlaces } = await import('@demo-studio/sandbox');
+  const bin = p.env.DEMO_STUDIO_DOCKER ?? p.which('docker') ?? dockerPlaces(p.env.HOME ?? homedir()).find((x) => p.exists(x)) ?? null;
+  if (!bin) return bad('not found', 'install Docker Desktop or OrbStack (or set DEMO_STUDIO_DOCKER to the docker binary)');
+  const v = await p.exec(bin, ['compose', 'version', '--short'], 10_000);
+  if (!v) return bad(`${bin} could not be run`, 'install Docker Desktop or OrbStack (or set DEMO_STUDIO_DOCKER to the docker binary)');
+  if (v.code !== 0) return bad(`docker compose is not available (${firstLine(v.stderr) || `exit ${v.code}`})`, 'install the Compose v2 plugin (Docker Desktop and OrbStack include it)');
+  const compose = v.stdout.trim().replace(/^v/, '');
+  const cv = versionOf(compose);
+  if (cv && older(cv, MIN_COMPOSE)) {
+    return bad(`Compose ${compose} (needs ${MIN_COMPOSE.join('.')}+)`, 'update Docker Desktop / OrbStack');
+  }
+  const info = await p.exec(bin, ['info', '--format', '{{.ServerVersion}}'], 10_000);
+  const server = info?.stdout.trim() ?? '';
+  if (!info || info.code !== 0 || !server) {
+    return bad(`Compose ${compose}, but the daemon is not running${info?.stderr ? ` (${firstLine(info.stderr)})` : ''}`, 'start Docker Desktop or OrbStack');
+  }
+  const ctx = await p.exec(bin, ['context', 'show'], 5000);
+  const context = ctx && ctx.code === 0 ? firstLine(ctx.stdout) : '';
+  return { status: 'ok', name, detail: `${server} · Compose ${compose}${context ? ` · context ${context}` : ''} · ${bin}` };
+}
+
 async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [];
   const marker = p.exists(join(ws.root, WORKSPACE_FILE)) ? WORKSPACE_FILE : `no ${WORKSPACE_FILE}`;
@@ -278,9 +363,12 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
       );
     }
   }
+  // Sandboxes (L1.8): one line each — their accounts sign in off camera at every take and their hosts are up only
+  // while the sandbox runs, so neither gets a line of its own.
+  const sandboxes = new Set(sandboxNames(project));
   // Personas (L1.6): their sessions live under the studio home, never in the project.
   const home = studioHome(p.env as NodeJS.ProcessEnv);
-  const personas = (await projectPersonaStates(project, loginCommand, undefined, home)).filter((x) => !x.state.legacy);
+  const personas = (await projectPersonaStates(project, loginCommand, undefined, home)).filter((x) => !x.state.legacy && !sandboxes.has(x.state.env));
   if (personas.length) {
     const where = `${tildePath(home)}${p.env.DEMO_STUDIO_HOME ? ' (DEMO_STUDIO_HOME)' : ''}`;
     out.push((await gitPlacement(p, home, true, 'Session home', where)) ?? { status: 'ok', name: 'Session home', detail: `${where} · outside any git work tree` });
@@ -289,8 +377,10 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
     out.push({ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' });
   }
 
+  for (const env of sandboxes) out.push(await sandboxCheck(p, project, env, global));
   // Hosts of every environment page: HEAD with a 5 s timeout. An unreachable default environment is a failure.
   for (const env of envNames) {
+    if (sandboxes.has(env)) continue;
     for (const [key, url] of Object.entries(project.config.environments[env] ?? {})) {
       const r = await p.head(url, HOST_TIMEOUT_MS);
       const name = `Host ${env}·${key}`;
@@ -307,6 +397,25 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
     }
   }
   return out;
+}
+
+/**
+ * One sandbox (L1.8): up and healthy (OK), or not running / partly (WARN, with the command that starts it — `run
+ * --sandbox` starts it too). Never a failure: a sandbox is started on demand.
+ */
+async function sandboxCheck(p: DoctorProbes, project: LoadedProject, env: string, global: GlobalOptions): Promise<DoctorCheck> {
+  const name = `Sandbox ${env}`;
+  const envFlag = sandboxNames(project)[0] === env ? '' : ` --env ${env}`;
+  const studio = studioCommand(global);
+  if (!p.sandbox) return { status: 'ok', name, detail: 'not checked' };
+  const s = await p.sandbox(project, env);
+  if (s.error) return { status: 'warn', name, detail: `${s.provider} · ${s.error.split('\n')[0]}` };
+  const seed = s.seed ? ` · seed ${s.seed}` : '';
+  if (s.state === 'up') return { status: 'ok', name, detail: `${s.provider} · up, ${s.services === 1 ? 'its service is' : `its ${s.services} services are`} healthy${seed}` };
+  if (s.state === 'down') {
+    return { status: 'warn', name, detail: `${s.provider} · not running`, hint: `${studio} sandbox up ${project.slug}${envFlag} (studio run … --sandbox starts it too)` };
+  }
+  return { status: 'warn', name, detail: `${s.provider} · partly up: ${s.problems.join('; ')}`, hint: `${studio} sandbox status ${project.slug}${envFlag}, then ${studio} sandbox up ${project.slug}${envFlag}` };
 }
 
 /** The git work tree a path sits in (walking up from it), or null. */
@@ -365,9 +474,33 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   out.push(await mediaTool(probes, 'ffmpeg', ws.ffmpeg));
   out.push(await mediaTool(probes, 'ffprobe', ws.ffmpeg));
   out.push(displayCheck(probes), secretsCheck(probes), notifyCheck(probes));
+  // Docker: a failure only when the --project's default sandbox is a docker-compose one.
+  const need = opts.project ? await composeSandboxOf(ws, opts.project) : null;
+  out.push(await dockerCheck(probes, need));
   out.push(...(await workspaceChecks(probes, ws)));
   if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));
   return out;
+}
+
+/**
+ * The docker-compose sandboxes of a project (null: none, or the project does not load). Required when its default
+ * sandbox — `default_env` when it is a sandbox, else the first declared — is one of them; another one (the fixture's
+ * optional `sandbox-docker`) only makes a missing Docker a warning.
+ */
+async function composeSandboxOf(ws: WorkspaceConfig, slug: string): Promise<DockerNeed | null> {
+  try {
+    const project = await openProject(ws, slug);
+    const names = sandboxNames(project);
+    const compose = names.filter((e) => project.sandboxes?.[e]?.manifest.provider === 'docker-compose');
+    if (!compose.length) return null;
+    const def = project.config.default_env;
+    const defaults = new Set([names[0], ...(def !== undefined && names.includes(def) ? [def] : [])]);
+    const required = compose.filter((e) => defaults.has(e));
+    const shown = required.length ? required : compose;
+    return { by: `the docker-compose sandbox${shown.length === 1 ? '' : 's'} ${shown.join(', ')} of project ${project.slug}`, required: required.length > 0 };
+  } catch {
+    return null;
+  }
 }
 
 export interface DoctorOptions {

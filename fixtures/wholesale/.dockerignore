@@ -1,0 +1,9 @@
+# Build context of Dockerfile: only what the fixture server reads at run time (no node_modules, no sources of the UI
+# bundle — the bundle in public/build is built on the host).
+*
+!package.json
+!server.mjs
+!bundle.mjs
+!server/
+!src/shared/
+!public/build/

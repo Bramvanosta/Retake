@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { isLoopbackHost, normalizeHost } from '@demo-studio/core';
 import { HookError } from './errors.js';
 
 export interface DatabaseTarget {
@@ -43,4 +44,27 @@ export function databaseTarget(connectionString: string): DatabaseTarget {
 export function describeTarget(t: DatabaseTarget): string {
   const where = t.socket ? `socket ${t.host}` : `${t.host.includes(':') ? `[${t.host}]` : t.host}:${t.port}`;
   return t.database ? `${where}/${t.database}` : where;
+}
+
+/**
+ * Why a sandbox's database URL cannot be used (L1.8), or null. A reset rewrites that database, so pg must connect where
+ * the URL says (pg's own parser decides): a loopback host and the port written in it — no unix socket, no `?host=` /
+ * `?port=` sending the connection to another server.
+ */
+export function sandboxDatabaseProblem(connectionString: string): string | null {
+  let target: DatabaseTarget;
+  let u: URL;
+  try {
+    target = databaseTarget(connectionString);
+    u = new URL(connectionString);
+  } catch {
+    return 'its URL cannot be read';
+  }
+  if (target.socket) return `it would connect through the unix socket ${target.host} (a host query parameter)`;
+  const host = normalizeHost(u.hostname);
+  if (normalizeHost(target.host) !== host || (u.port !== '' && Number(u.port) !== target.port)) {
+    return `it would connect to ${describeTarget(target)}, not to the ${host}${u.port ? `:${u.port}` : ''} its URL names (a host or port query parameter)`;
+  }
+  if (!isLoopbackHost(target.host)) return `${target.host} is not on this machine`;
+  return null;
 }

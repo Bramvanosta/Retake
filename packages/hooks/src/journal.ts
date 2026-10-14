@@ -41,12 +41,12 @@ export function journalId(file: string): string {
 }
 
 const KINDS = new Set(['http', 'sql', 'shell', 'js']);
-const PHASES = new Set(['setup', 'teardown', 'reset']);
+const PHASES = new Set(['setup', 'teardown', 'reset', 'seed']);
 const STATUSES = new Set(['ok', 'failed', 'rolled_back']);
 
-/** Executed, with a rollback action that has not succeeded yet. */
+/** Executed, with a rollback action that has not succeeded yet (and was not superseded by a sandbox reset). */
 export function isPending(e: JournalEntry): boolean {
-  return e.status === 'ok' && e.rollback !== undefined;
+  return e.status === 'ok' && e.rollback !== undefined && e.superseded === undefined;
 }
 
 function validate(value: unknown, file: string): JournalFile {
@@ -145,6 +145,18 @@ export class Journal {
     return this.data.entries.filter(isPending);
   }
 
+  /**
+   * Mark the pending entries recorded on environment `env` as superseded (L1.8): a sandbox reset rebuilt that
+   * environment's data, so replaying their rollbacks would act on the new data (`DELETE /api/quotes/7` would delete the
+   * reseeded quote 7). Persisted when any entry changed; returns how many did.
+   */
+  async supersede(env: string, by: string, at: string = nowIso()): Promise<number> {
+    const hit = this.data.entries.filter((e) => isPending(e) && e.env === env);
+    for (const e of hit) e.superseded = { at, by };
+    if (hit.length) await this.save();
+    return hit.length;
+  }
+
   /** Roll back every pending entry, most recent first. Rolled-back entries are skipped next time. */
   rollbackAll(ctx: HookContext): Promise<HookResult[]> {
     return this.rollbackEntries(
@@ -199,7 +211,8 @@ export class Journal {
     log('info', `${label}: ${action.description}`);
     let message: string;
     try {
-      message = await executeRollback(action, { ctx, log, readOnly: access?.mode === 'read-only' });
+      // The entry's own environment: a sql rollback reaches its databases (a sandbox's own), never the command's.
+      message = await executeRollback(action, { ctx, log, readOnly: access?.mode === 'read-only', ...(entry.env !== undefined ? { env: entry.env } : {}) });
     } catch (e) {
       const error = redactText(ctx, errorMessage(e));
       entry.rollback_error = error;
@@ -272,6 +285,32 @@ export async function findPendingJournals(projectDir: string, opts: JournalLocat
       continue;
     }
     if (journal.pending().length) out.push(file);
+  }
+  return out;
+}
+
+/**
+ * After a sandbox reset (L1.8): mark every pending rollback recorded on environment `env` as superseded, in both
+ * journal locations. Journals that cannot be read are left as they are (their error surfaces when they are replayed).
+ * Returns the journals changed and how many entries each.
+ */
+export async function supersedePendingJournals(
+  projectDir: string,
+  env: string,
+  by: string,
+  opts: JournalLocations = {},
+): Promise<Array<{ file: string; count: number }>> {
+  const out: Array<{ file: string; count: number }> = [];
+  const at = nowIso();
+  for (const file of await findPendingJournals(projectDir, opts)) {
+    let journal: Journal;
+    try {
+      journal = await Journal.open(file);
+    } catch {
+      continue;
+    }
+    const count = await journal.supersede(env, by, at);
+    if (count) out.push({ file, count });
   }
   return out;
 }

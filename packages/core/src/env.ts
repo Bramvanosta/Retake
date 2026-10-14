@@ -99,6 +99,7 @@ export function resolveEnvironment(project: Pick<LoadedProject, 'config'>, env?:
     ...(s?.production !== undefined ? { production: s.production } : {}),
     ...(s?.access ? { access: s.access } : {}),
     ...(s?.read_only ? { read_only: s.read_only } : {}),
+    ...(s?.sandbox ? { sandbox: { ...s.sandbox } } : {}),
   };
 }
 

@@ -36,7 +36,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~5 min on the Mac; 9 skip by default: 7 Postgres without DEMO_STUDIO_TEST_PG, 1 without DEMO_STUDIO_TEST_OLD_NODE, 1 without DEMO_STUDIO_TEST_HEADED)
+pnpm test                            # = vitest run, full suite (~6 min on the Mac; 16 skip by default: 7 Postgres without DEMO_STUDIO_TEST_PG, 7 Docker without DEMO_STUDIO_TEST_DOCKER, 1 without DEMO_STUDIO_TEST_OLD_NODE, 1 without DEMO_STUDIO_TEST_HEADED)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file
 node fixtures/wholesale/server.mjs & # fixture product (console :4401, shop :4402; signed in: :4403, :4404); stop it with kill <its pid>
                                      # (`kill $!`; not `pkill -f`: it also matches the shell running it)
@@ -55,7 +55,8 @@ python3 scripts/validate-raw.py <exports/package>             # optional: check 
   export (`src/raw/`) · `packages/hooks` setup/teardown hooks · `packages/components` component system, kit,
   built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`), Remotion compositions
   (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report · `packages/cli` the `studio`
-  command · `packages/mcp` phase 3 (empty).
+  command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
+  scaffold) · `packages/mcp` phase 3 (empty).
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

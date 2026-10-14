@@ -344,6 +344,7 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''}`)}`);
   printAccess(ui, access);
+  if (ctx.env.sandbox) ui.line(c.dim(`${ctx.env.name} is a sandbox: \`studio sandbox reset ${project.slug} --env ${ctx.env.name}\` restores its seed`));
   try {
     let ok = await rollbackAllPending(ui, project, ctx);
     const reset = project.config.reset ?? [];

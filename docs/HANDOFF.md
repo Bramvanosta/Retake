@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-13, end of lot **L1.7 (display URLs, read-only & production safety, frozen clock)**, after L1.5, L5.1,
-L1.3, L1.2 and L1.6 — phases 1 and 2 are done;
+Last updated: 2026-10-14, end of lot **L1.8 (sandbox mode)**, after L1.5, L5.1, L1.3, L1.2, L1.6 and L1.7 — phases 1
+and 2 are done;
 the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
@@ -24,17 +24,21 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-67); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-70); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.7)
+## State (after L1.8)
+- **L1.8 done (2026-10-14)**: sandboxes — a `sandbox.yaml` per sandbox environment (process or docker-compose
+  services, seed, reset by reseed or Postgres snapshot, demo accounts as personas, mailbox), `studio sandbox init | up
+  | down | reset | status | logs`, `studio run --sandbox` (every take from the same state), the fixture shipped as a
+  process and a Docker sandbox. Tests on the Mac: **1583 — 1567 pass, 16 skipped (≈ 6 m; 7 Postgres, 7 Docker without DEMO_STUDIO_TEST_DOCKER, 1 old Node, 1 headed sign-in); the gated Docker tests pass 7/7 on OrbStack**. Requirements: 618 tracked — 467 done, 40 partial, 103
+  todo, 8 n/a-here.
 - **L1.7 done (2026-10-13)**: environment pages take a display URL (never localhost on screen or in a report),
   production / read-only environments (browser writes mocked or stopped, writing hooks refused, production writes only
   with `access: read-write` + `--allow-writes`, access mode in run.json / timeline / review), and a product clock
-  (`clock:`, Date-only, timers and animations real). Tests on the Mac: **1455 — 1446 pass, 9 skipped (≈ 5 m 20 s; 7 Postgres without DEMO_STUDIO_TEST_PG, 1 old Node, 1 headed sign-in)**. Requirements: 618 tracked — 461
-  done, 40 partial, 109 todo, 8 n/a-here.
+  (`clock:`, Date-only, timers and animations real). Tests on the Mac: **1455 — 1446 pass, 9 skipped (≈ 5 m 20 s; 7 Postgres without DEMO_STUDIO_TEST_PG, 1 old Node, 1 headed sign-in)**.
 - **L1.6 done (2026-10-13)**: personas per environment (`auth.personas`), one browser per persona on a per-run copy of
   its signed-in profile, a session preflight before every dry run and capture (automated off-camera login when
   `login:` steps exist, else the exact `studio login` command), a sign-in guard that fails a run and keeps nothing,
@@ -74,7 +78,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: L1.4 (coverage), L1.8 (sandbox),
+- **Not built yet**: L1.4 (coverage),
   phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
@@ -124,13 +128,14 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~, ~~L1.7~~ — done 2026-10-13. Chain asked by the user
-   (2026-10-12): L1.3 (stalls) → L1.2 (runner robustness) → L1.6 (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
+2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~, ~~L1.7~~ — done 2026-10-13, ~~L1.8~~ — done 2026-10-14.
+   Chain asked by the user (2026-10-12): L1.3 (stalls) → L1.2 (runner robustness) → L1.6 (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
    → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.8 — Sandbox mode**, then L1.4 — see "Order of the next lots".
+**L1.4 — Coverage of untested options + automated fixture acceptance** (last lot of the chain), then stop before
+phase 3 (L3.1) — see "Order of the next lots".
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -777,6 +782,37 @@ terminal, and a visible window for `--headed` runs and `studio login`.
   hooks); env local quote / catalogue / live-quote capture and render as before; an old run re-rendered with `--frame
   browser` (quote-v6) shows the project's display URL; product rAF / timers at full rate with the clock (60 fps, 100
   ticks/s, a burst of 100 timeouts in 0 ms). 1455 tests: 1446 pass, 9 skipped. No dependency added.
+- **L1.8 done** (sandbox mode; R-SBX-01..06 done). Planned, criticised (10 must-fix points measured on the Mac:
+  loopback-only URLs, snapshots only of a database the sandbox's own compose project publishes, OrbStack accepting a
+  busy host port, `up --wait` exiting 0 on timeout…), built in four parts (core manifest + hooks plumbing; the
+  `@demo-studio/sandbox` package + process provider + CLI + `run --sandbox`; docker-compose + Postgres snapshot + `init`;
+  the fixture's Docker sandbox + SMTP relay + docs), reviewed by three independent reviewers (≈ 30 findings, several
+  of data-loss class: `?host=` / `?port=` in database URLs, a second checkout sharing `compose.project`, another
+  container on `[::1]` of the same port, a stale-lock race, pid reuse) and fixed in two passes. **Manifest**
+  (`sandbox.yaml`, `version: 1`, declared by `sandboxes: {<env>: <file>}` in project.yaml): provider process |
+  docker-compose, services with `pages` (url, display) and health, seed steps (http / sql / shell / compose `exec`; no
+  js; never rolled back), reset reseed | snapshot, `accounts` → personas with automated login (plain demo passwords
+  allowed, masked; under 3 characters refused), mailbox, databases (`external: true` to touch what the sandbox does
+  not serve); every URL loopback; a sandbox is never production, always read-write. **Engine** (packages/sandbox):
+  state under `<project>/.demo-studio/sandbox/<env>/` (state.json with boot time and process-tree members, an atomic
+  take lock with a stale-lock breaker, logs with rotation), process provider (detached groups identified by pid +
+  start time, ownership of every port by our own tree via lsof, SIGTERM → SIGKILL, Ctrl-C stops only what the call
+  started, seed steps abortable), compose provider (`demo-studio-<slug>-<env>-<path hash>`, folder check on every
+  command, `ps` verification after `up --wait`, `docker ps --filter publish` so no other container shares a port,
+  connections pinned to the published address), Postgres template-clone snapshot (PG ≥ 13; owned database only; stale
+  on seed or image change; ≈ 0.3 s restore vs 1.5–2 s reseed at 114 MB), mailbox cleared and supersede of pending
+  rollbacks after each reset. **CLI**: `studio sandbox init | up | down | reset | status | logs`, `studio run --sandbox`
+  (up if needed, health, reset, capture; stays up; busy → fail fast), doctor Sandbox / Docker lines (Docker a FAIL only
+  when the default sandbox needs it). **Fixture**: process sandbox (env `sandbox`, 4501–4504) and Docker sandbox (env
+  `sandbox-docker`, 4511–4514 + Mailpit v1.29.4 on 4525; host-built bundle, no Chromium so no PDFs), SMTP relay
+  (`NORTHFIELD_SMTP`), scenario `sandbox-quote`. Acceptance (Mac): two `run --sandbox` takes of `sandbox-quote` with
+  a quote POSTed between them read the same data (`Q-1042`, `Q-1043 · requested Today, 10:24`, identical boxes;
+  frames at the marks identical up to encoder noise) on the process sandbox (20261014-021102 / -021133) and the
+  Docker one (-021243 / -021311); a control take without reset shows the new row; `signup --env sandbox-docker
+  --sandbox` got its email from the real Mailpit; `init` scaffold up / seed / snapshot / restore on Postgres; Ctrl-C
+  leaves nothing running; the user's own Docker containers, images, volumes and networks identical before and after
+  every step; env local quote unchanged. 1583 tests: 1567 pass, 16 skipped; gated Docker tests 7/7. No new npm dependency (`pg` reused; the lockfile gained the new
+  package's importer lines).
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1006,6 +1042,32 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.8:
+- DOCKER: the user runs other compose stacks on this Mac (ports 8025, 1025, 5432, 3000… are theirs). Never stop,
+  remove or prune anything not named `demo-studio-*`; no `docker system/volume/image prune`, no `--rmi all`. Gated
+  Docker tests (`DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts
+  packages/cli/test/sandbox-docker.test.ts`, ≈ 75 s) create `demo-studio-test-<run token>-*` resources and sweep only
+  their own; they need busybox:1.38.0, postgres:17-alpine and axllent/mailpit:v1.29.4 present.
+- Diagnose a sandbox: `studio sandbox status [--json]` / `logs <service>`, then `lsof -nP -iTCP:<port> -sTCP:LISTEN`;
+  state in `<project>/.demo-studio/sandbox/<env>/` (state.json, take.lock, seed-journal.json, logs/). Fixture ports:
+  process 4501–4504, Docker 4511–4514 + Mailpit 4525 (http://localhost:4525 shows the mails); tests copy the manifests
+  to free ports.
+- Safety rules that must survive refactors: every sandbox URL is loopback; database URLs refuse `host` / `hostaddr`
+  / `port` / `service` / `dbname` query parameters and `pg.Client` gets explicit host and port; a snapshot, a mailbox
+  clear or a reseed SQL touches only what the sandbox serves (`servedBy`) unless sandbox.yaml says `external: true`;
+  compose commands check the project's folder; `up --wait`'s exit code is never trusted; another container on the same
+  port (OrbStack accepts `[::1]` next to `127.0.0.1`) is refused; process identity is pid + start time + boot time.
+- Seed shell steps (and hooks on a sandbox env) get the process services' `env` plus `DEMO_STUDIO_SANDBOX`, layered
+  over the CLI's environment — a recipe never touches the developer's own database. Seeds must drop / truncate what
+  they create (a seed runs on the data as the last take left it).
+- `--sandbox` does not imply a clock: the server writes real timestamps (BL-68). What still differs between takes:
+  server timestamps, UUIDs, caches outside Postgres, the first request after a restore.
+- A new workspace package: hand-add its importer lines to pnpm-lock.yaml, then `pnpm install --frozen-lockfile
+  --offline` (a plain offline install prunes other-platform entries).
+- The fixture's Docker image copies the host-built bundle: after a UI change run `node fixtures/wholesale/build.mjs`,
+  then `sandbox up --env sandbox-docker --build`. Clean up after use: `sandbox down --env sandbox-docker`, then remove
+  the `demo-studio-northfield-fixture-*` images.
+
 Notes from L1.7:
 - `ProjectConfig.environments` always holds the real URLs (both forms); settings only in `environment_settings`
   (absent for short-form projects, so their configs are as before L1.7). Code reading project.yaml raw uses

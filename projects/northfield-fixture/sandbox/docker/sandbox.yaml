@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../../../packages/core/schema/sandbox.schema.json
+# The fixture product as a Docker sandbox (L1.8, provider docker-compose, environment sandbox-docker): the Northfield
+# server in a container built from fixtures/wholesale/Dockerfile, with a real Mailpit receiving its mails over SMTP
+# (compose.yaml). Same pages, seed and accounts as the process sandbox (../sandbox.yaml), on ports 4511–4514 and 4525.
+# The image has no Chromium: the quote PDF is not available here (`sandbox-quote` and `signup` do not use it; `quote`
+# downloads it: film that one on the process sandbox).
+#
+#   node fixtures/wholesale/build.mjs                                            # the UI bundle the image copies
+#   studio sandbox up northfield-fixture --env sandbox-docker                    # build (first time), start, seed
+#   studio run northfield-fixture sandbox-quote --env sandbox-docker --sandbox   # reset to the seed, then the take
+#   studio sandbox down northfield-fixture --env sandbox-docker                  # stop (the image stays: docker image rm)
+version: 1
+provider: docker-compose
+compose:
+  files: [compose.yaml]
+services:
+  fixture:
+    url: http://localhost:4511          # the open console: its health API (the pages below are behind a sign-in)
+    health: /api/health
+    pages:
+      console: {url: http://localhost:4513, display: console.northfield.example}
+      shop: {url: http://localhost:4514, display: shop.northfield.example}
+# The seed: the fixture's reset API (seed data back, demo clock restarted at 2 Nov 2026 10:24, its own mailbox emptied).
+seed:
+  - name: reset-fixture
+    http: {method: POST, url: "{{console}}/api/reset"}
+# Mailpit's API (compose service mailpit): wait_for_email reads it; every reset empties it.
+mailbox: {provider: mailpit, url: http://localhost:4525}
+# The fixture's invented demo accounts (fixtures/wholesale/README.md): signed in off camera by their login steps.
+login_url: /sign-in
+accounts:
+  supplier:
+    pages: [console]
+    username: maja@northfield.example
+    password: roast-lot-2026
+    check: {url: "console:/products", expect_text: Maja Lindqvist}
+    login:
+      - open: "console:/sign-in"
+      - type: {into: {label: Email}, text: "{{account.username}}"}
+      - type: {into: {label: Password}, text: "{{account.password}}"}
+      - click: {role: button, name: Sign in}
+      - wait_for: {text: Maja Lindqvist}
+  buyer:
+    pages: [shop]
+    username: orders@demo-cafe.example
+    password: filter-bloom-2026
+    check: {url: "shop:/", expect_text: Demo Café}
+    login:
+      - open: "shop:/sign-in"
+      - type: {into: {label: Email}, text: "{{account.username}}"}
+      - type: {into: {label: Password}, text: "{{account.password}}"}
+      - click: {role: button, name: Sign in}
+      - wait_for: {text: Demo Café}

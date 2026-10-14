@@ -12,6 +12,7 @@ import {
   listSteps,
   loginCommand as defaultLoginCommand,
   loginMatchers,
+  mailboxFor,
   networkHost,
   scenePageEntries,
   newRunId,
@@ -33,9 +34,11 @@ import type {
   LoadedProject,
   LoadedScenario,
   LoadedTemplate,
+  MailboxConfig,
   RunError,
   RunMode,
   RunProgress,
+  RunSandbox,
   PersonaPlan,
   ResolvedPersona,
   ResolvedClock,
@@ -108,6 +111,12 @@ export interface RunOptions {
    * On a read-only environment it is refused (core AccessError, thrown before anything is recorded).
    */
   allowWrites?: boolean;
+  /**
+   * The sandbox reset made before this take (L1.8, `studio run --sandbox`: @demo-studio/sandbox prepareTake), recorded as
+   * run.json / timeline.json `environment.sandbox`. A run on a sandbox environment without it records the sandbox
+   * without a reset.
+   */
+  sandbox?: RunSandbox;
 }
 
 /**
@@ -242,6 +251,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     ? listed.filter((s) => s.sceneIndex < until!.sceneIndex || (s.sceneIndex === until!.sceneIndex && s.step.index <= until!.stepIndex))
     : listed;
   const total = toRun.length;
+  // L1.8: the sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
+  const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
   const record: RunRecord = {
     id: runId,
     project: project.slug,
@@ -261,6 +272,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       ...(access.production ? { production: true as const } : {}),
       access: access.mode,
       ...(runClock ? { clock: { at: runClock.at, ...(runClock.timezone ? { timezone: runClock.timezone } : {}), ...(runClock.freeze ? { freeze: true as const } : {}) } } : {}),
+      ...(sandbox ? { sandbox } : {}),
     },
   };
   if (opts.until !== undefined) record.options.until = opts.until;
@@ -295,6 +307,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     clock,
   );
   timeline.environment = timelineEnvironment(env, access, runClock);
+  if (sandbox) timeline.environment.sandbox = { ...sandbox };
   const template: TemplateContext = {
     pages: env.pages,
     vars: { ...(project.config.vars ?? {}), ...(sc.vars ?? {}) },
@@ -302,7 +315,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     hooks: {},
     secrets: secrets.resolver,
   };
-  const readsMail = project.config.mailbox !== undefined && toRun.some((l) => l.step.action === 'wait_for_email');
+  // The environment's mailbox (L1.8: a sandbox's own, else the project's).
+  const mailbox = mailboxFor(project, env.name);
+  const readsMail = mailbox !== undefined && toRun.some((l) => l.step.action === 'wait_for_email');
 
   let session: BrowserSession | null = null;
   let prepared: PreparedSession[] = [];
@@ -356,7 +371,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     }
     // Every secret the run uses, before the browser opens and the setup hooks run: a keychain prompt never stalls the
     // capture, and a missing one fails the run up front.
-    await prefetchSecrets(secrets, sc, until, readsMail ? project : null);
+    await prefetchSecrets(secrets, sc, until, readsMail ? (mailbox ?? null) : null);
     // Sessions & personas (L1.6): which persona films each page, each one's browser on a copy of its session, checked
     // off camera before anything runs — no setup hook, no recorder yet.
     personas = resolvePersonas(project, env.name);
@@ -830,7 +845,7 @@ async function prefetchSecrets(
   secrets: RunSecrets,
   sc: Scenario,
   until: { sceneIndex: number; stepIndex: number } | null,
-  mailbox: LoadedProject | null,
+  mailbox: MailboxConfig | null,
 ): Promise<void> {
   const last = until ? until.sceneIndex : sc.scenes.length - 1;
   for (let si = 0; si <= last; si++) {
@@ -843,7 +858,7 @@ async function prefetchSecrets(
     }
   }
   try {
-    await secrets.prefetch(mailbox?.config.mailbox?.headers);
+    await secrets.prefetch(mailbox?.headers);
   } catch (e) {
     throw new RunnerError(`mailbox headers: ${errorMessage(e)}`);
   }

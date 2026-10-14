@@ -80,6 +80,9 @@ importers:
       '@demo-studio/runner-web':
         specifier: workspace:*
         version: link:../runner-web
+      '@demo-studio/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
       commander:
         specifier: ^14.0.0
         version: 14.0.3
@@ -242,6 +245,22 @@ importers:
       playwright-core:
         specifier: 1.56.1
         version: 1.56.1
+
+  packages/sandbox:
+    dependencies:
+      '@demo-studio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@demo-studio/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      pg:
+        specifier: ^8.16.0
+        version: 8.23.1
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.15.0
+        version: 8.23.1
 
 packages:
 

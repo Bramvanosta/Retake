@@ -3,22 +3,24 @@
 // on two ports, sharing one in-memory store and JSON API (/api on both ports).
 //
 //   node server.mjs [--console-port 4401] [--shop-port 4402] [--host 127.0.0.1] [--no-build]
-//                   [--auth-console-port 4403] [--auth-shop-port 4404] [--no-auth]
+//                   [--auth-console-port 4403] [--auth-shop-port 4404] [--no-auth] [--smtp host:port]
 //   env: NORTHFIELD_CONSOLE_PORT, NORTHFIELD_SHOP_PORT, NORTHFIELD_HOST,
-//        NORTHFIELD_AUTH_CONSOLE_PORT, NORTHFIELD_AUTH_SHOP_PORT,
+//        NORTHFIELD_AUTH_CONSOLE_PORT, NORTHFIELD_AUTH_SHOP_PORT, NORTHFIELD_SMTP (mails also delivered there),
 //        NORTHFIELD_ENRICH_MS (default 4000), NORTHFIELD_IMPORT_MS (default 2000),
 //        NORTHFIELD_REPORT_MS (default 400), NORTHFIELD_REPORT_DATA_MS (default 1200)
 //
 // The same two apps also run on a signed-in side (:4403 / :4404 by default, same store): every page there needs an
 // account (server/auth.mjs). Also importable: `const fx = await startFixture({ consolePort: 0, shopPort: 0,
 // auth: { consolePort: 0, shopPort: 0 } }); … await fx.close()` (no `auth`: no signed-in side).
+// No npm package is needed at run time: esbuild is loaded only when the bundle must be built (--no-build: never), and
+// playwright-core only when a PDF is printed — the fixture's Docker image (Dockerfile) runs on Node alone.
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { build, bundleState, bundleVersion, OUT_DIR } from './build.mjs';
+import { bundleState, bundleVersion, OUT_DIR } from './bundle.mjs';
 import { handleApi } from './server/api.mjs';
 import { Sessions, handleSignIn, redirectToSignIn, signedIn } from './server/auth.mjs';
 import { renderShippingEmbed } from './server/embed.mjs';
@@ -27,6 +29,7 @@ import { Mailbox, handleMailbox } from './server/mailbox.mjs';
 import { quotePdfFileName, renderNotFoundPdf, renderQuotePdf, renderQuotePrint } from './server/pdf.mjs';
 import { REPORT_DATA_MS, REPORT_MS, renderReport, renderReportList, reportFragment } from './server/reports.mjs';
 import { closePdfBrowser, htmlToPdf } from './server/pdfgen.mjs';
+import { SmtpRelay } from './server/smtp.mjs';
 import { Store } from './server/store.mjs';
 
 const TYPES = {
@@ -201,8 +204,9 @@ async function listenAll(handler, port, hosts, label) {
 
 /**
  * Starts both apps, and their signed-in side when `auth` is given. Ports may be 0 (ephemeral). A busy signed-in port
- * with `auth.optional` is reported through `log` and the open side keeps running.
- * @param {{ consolePort?: number, shopPort?: number, host?: string, build?: boolean, enrichMs?: number, importMs?: number, reportMs?: number, reportDataMs?: number, auth?: { consolePort?: number, shopPort?: number, optional?: boolean }, log?: (msg: string) => void }} [opts]
+ * with `auth.optional` is reported through `log` and the open side keeps running. `smtp` ("host:port"): every mail is
+ * also delivered to that SMTP server (server/smtp.mjs).
+ * @param {{ consolePort?: number, shopPort?: number, host?: string, build?: boolean, enrichMs?: number, importMs?: number, reportMs?: number, reportDataMs?: number, auth?: { consolePort?: number, shopPort?: number, optional?: boolean }, smtp?: string, log?: (msg: string) => void }} [opts]
  */
 export async function startFixture(opts = {}) {
   const log = opts.log ?? (() => {});
@@ -210,6 +214,7 @@ export async function startFixture(opts = {}) {
     const state = await bundleState();
     if (!state.fresh) {
       log(`Building the UI bundle (${state.reason})…`);
+      const { build } = await import('./build.mjs');
       const { ms } = await build();
       log(`Built in ${ms} ms`);
     }
@@ -218,9 +223,10 @@ export async function startFixture(opts = {}) {
   const urlHost = !opts.host || opts.host === '127.0.0.1' || opts.host === '::1' || opts.host === '0.0.0.0' || opts.host === '::' ? 'localhost' : opts.host;
   const store = new Store({ enrichMs: opts.enrichMs, importMs: opts.importMs });
   const sessions = new Sessions();
+  const relay = opts.smtp ? new SmtpRelay(opts.smtp, { log }) : null;
   const ctx = {
     store,
-    mailbox: new Mailbox(),
+    mailbox: new Mailbox({ relay }),
     sessions,
     urls: { console: '', shop: '' },
     version: await bundleVersion(),
@@ -263,6 +269,7 @@ export async function startFixture(opts = {}) {
   let closing;
   return {
     urls: { ...ctx.urls, ...(signedIn ? { signedIn } : {}) },
+    smtp: relay?.label ?? null,
     store,
     mailbox: ctx.mailbox,
     sessions,
@@ -271,6 +278,7 @@ export async function startFixture(opts = {}) {
     close() {
       closing ??= Promise.all([
         closePdfBrowser(),
+        ctx.mailbox.flush(),
         ...
         servers.map(
           (s) =>
@@ -309,11 +317,12 @@ async function main() {
       'no-auth': { type: 'boolean' },
       host: { type: 'string' },
       'no-build': { type: 'boolean' },
+      smtp: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
   if (values.help) {
-    console.log('Usage: node server.mjs [--console-port 4401] [--shop-port 4402] [--auth-console-port 4403] [--auth-shop-port 4404] [--no-auth] [--host 127.0.0.1] [--no-build]');
+    console.log('Usage: node server.mjs [--console-port 4401] [--shop-port 4402] [--auth-console-port 4403] [--auth-shop-port 4404] [--no-auth] [--host 127.0.0.1] [--no-build] [--smtp host:port]');
     return;
   }
   const fixture = await startFixture({
@@ -333,6 +342,7 @@ async function main() {
           shopPort: portOption(values['auth-shop-port'] ?? process.env.NORTHFIELD_AUTH_SHOP_PORT, 'auth shop port') ?? 4404,
           optional: true,
         },
+    smtp: values.smtp ?? (process.env.NORTHFIELD_SMTP || undefined),
     log: (m) => console.log(m),
   });
   console.log('Northfield fixture is running');
@@ -343,6 +353,7 @@ async function main() {
   }
   console.log(`  API      ${fixture.urls.console}/api  (same store on both ports; POST /api/reset restores the seed)`);
   console.log(`  Mailbox  ${fixture.urls.console}/mailbox  (Mailpit-compatible API: /mailbox/api/v1/messages)`);
+  if (fixture.smtp) console.log(`  SMTP     every mail is also delivered to ${fixture.smtp}`);
   const stop = (signal) => {
     console.log(`Received ${signal}, shutting down`);
     const force = setTimeout(() => process.exit(0), 2000);

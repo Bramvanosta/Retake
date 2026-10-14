@@ -624,6 +624,9 @@ async function runLoginStep(page: Page, kit: KitClient, step: NormalizedStep, pe
  * and the kit's targets. Errors name the step as written (never a typed value) and are redacted.
  */
 export async function autoLogin(context: BrowserContext, persona: ResolvedPersona, deps: LoginDeps): Promise<void> {
+  // A sandbox account's plain password (L1.8) is a secret as written: masked before anything can print it (a run's
+  // files and messages, and `studio login`'s, which builds its own RunSecrets).
+  for (const v of persona.secrets ?? []) deps.secrets.addValue(v);
   const raw = persona.login ?? [];
   let steps: LoginStep[];
   try {
@@ -750,7 +753,9 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       }
       const again = await checkPersona(context, p.persona, deps);
       if (again.status === 'valid' || again.status === 'unchecked') {
-        deps.log('warn', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}) — \`${command(p.persona)}\` saves a session runs can reuse`);
+        // A sandbox account (L1.8) signs in on every take after a reset: expected, not worth a warning.
+        if (p.persona.sandbox) deps.log('info', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}; a sandbox account)`);
+        else deps.log('warn', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}) — \`${command(p.persona)}\` saves a session runs can reuse`);
         statuses.push({ persona: p.persona, status: 'expired', detail: `${why}; signed in automatically for run ${deps.runId}`, at: again.at });
       } else {
         fail(p, `${why}; signed in automatically, but the check still fails: ${again.detail}`, p.source === 'fresh' ? 'once' : 'again');

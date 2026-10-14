@@ -106,6 +106,17 @@ function checkPatterns(v: unknown, path: IssuePath, pages: Readonly<Record<strin
   });
 }
 
+/** Options of checkAuth beyond project.yaml's own `auth`. */
+export interface AuthCheckOptions {
+  /** The project's sandbox environments (L1.8): their personas come from the accounts of their sandbox.yaml. */
+  sandboxes?: readonly string[];
+  /**
+   * The accounts of a sandbox.yaml (L1.8), checked as one global auth block: login steps may use {{account.username}} /
+   * {{account.password}}, and a password typed as written is advised to use {{account.password}}.
+   */
+  accounts?: boolean;
+}
+
 /** A `type` into a password field with literal text: the password would sit in project.yaml. */
 function literalPassword(step: Record<string, unknown>): boolean {
   const t = step.type;
@@ -140,6 +151,7 @@ export function checkAuth(
   envs: Record<string, unknown>,
   ctx: CheckContext,
   scope: { vars: ReadonlySet<string> },
+  opts: AuthCheckOptions = {},
 ): void {
   if (!isObj(auth) || ctx.broken(['auth'])) return;
   const envNames = Object.keys(envs);
@@ -157,7 +169,9 @@ export function checkAuth(
   const global = isGlobalAuth(auth);
   if (!global) {
     for (const k of Object.keys(auth)) {
-      if (!Object.hasOwn(envs, k)) {
+      if (opts.sandboxes?.includes(k)) {
+        ctx.error(['auth'], `the personas of sandbox ${k} come from \`accounts:\` in its sandbox.yaml: remove auth.${k}`, { path: ['auth', k], key: true });
+      } else if (!Object.hasOwn(envs, k)) {
         ctx.error(['auth'], `auth key "${k}" is not an environment${suggestion(k, envNames)} (available: ${envNames.join(', ') || 'none'})`, {
           path: ['auth', k],
           key: true,
@@ -228,11 +242,16 @@ export function checkAuth(
       if (Array.isArray(p.login) && !ctx.broken([...pp, 'login'])) {
         p.login.forEach((step, i) => {
           if (isObj(step) && literalPassword(step)) {
-            ctx.warning([...pp, 'login', i, 'type', 'text'], 'a password written in project.yaml: use {{env:VAR}} or {{keychain:service/account}}');
+            ctx.warning(
+              [...pp, 'login', i, 'type', 'text'],
+              opts.accounts
+                ? 'a password written in a login step: write {{account.password}} (the account\'s password is masked in logs)'
+                : 'a password written in project.yaml: use {{env:VAR}} or {{keychain:service/account}}',
+            );
           }
         });
         hookTokens(p.login, [...pp, 'login'], ctx);
-        const tokenScope: TokenScope = { pages: keys, vars: scope.vars, varsComplete: true, saved: new Set() };
+        const tokenScope: TokenScope = { pages: keys, vars: scope.vars, varsComplete: true, saved: new Set(), ...(opts.accounts ? { account: 'login' as const } : {}) };
         checkTokens(stripHookTokens(p.login), [...pp, 'login'], tokenScope, ctx);
       }
     }

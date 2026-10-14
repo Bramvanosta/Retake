@@ -32,7 +32,7 @@ const httpRequestShape = {
     .optional(),
 };
 
-const HttpHookSchema = z.strictObject({
+export const HttpHookSchema = z.strictObject({
   ...httpRequestShape,
   save_as: keyString('save_as')
     .describe('Store the response as {{hooks.<save_as>.status|body|json.<path>}}.')
@@ -43,10 +43,10 @@ const HttpHookSchema = z.strictObject({
     .optional(),
 });
 
-const SqlHookSchema = z.union([
-  nonEmpty().describe('A .sql file relative to the project dir, or an inline query.'),
+export const SqlHookSchema = z.union([
+  nonEmpty().describe('A .sql file relative to the project dir (a sandbox seed: to sandbox.yaml), or an inline query.'),
   z.strictObject({
-    file: nonEmpty().describe('SQL file relative to the project dir.').optional(),
+    file: nonEmpty().describe('SQL file relative to the project dir (a sandbox seed: to sandbox.yaml).').optional(),
     query: nonEmpty().describe('Inline SQL.').optional(),
     db: nonEmpty().describe('Database key from project.databases (default: the first one).').optional(),
     rollback: z
@@ -56,8 +56,8 @@ const SqlHookSchema = z.union([
   }),
 ]);
 
-const ShellHookSchema = z.union([
-  nonEmpty().describe('Command run with sh -c in the project dir; every host it names must be allowed.'),
+export const ShellHookSchema = z.union([
+  nonEmpty().describe('Command run with sh -c in the project dir (a sandbox seed: the folder of sandbox.yaml); every host it names must be allowed.'),
   z.strictObject({
     run: nonEmpty(),
     cwd: nonEmpty().optional(),
@@ -77,7 +77,7 @@ const JsHookSchema = z.union([
   }),
 ]);
 
-const hookBranch = <K extends HookKind, S extends z.ZodType>(kind: K, schema: S, description: string) =>
+export const hookBranch = <K extends string, S extends z.ZodType>(kind: K, schema: S, description: string) =>
   z
     .strictObject({ [kind]: schema, ...hookCommonShape } as { [P in K]: S } & typeof hookCommonShape)
     .meta({ title: kind, description });

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import { LEGACY_PERSONA, listProjects, loginCommand as coreLoginCommand, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
+import { LEGACY_PERSONA, listProjects, loginCommand as coreLoginCommand, resolveEnvironment, resolvePersonas, sandboxOf } from '@demo-studio/core';
 import type { LoadedProject, ResolvedPersona } from '@demo-studio/core';
 import type { PersonaCheckResult } from '@demo-studio/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
@@ -200,6 +200,11 @@ export interface PersonaState {
   command?: string;
   /** What to do when it is not valid and no command signs it in. */
   fix?: string;
+  /**
+   * An account of a sandbox (L1.8): signed in automatically, off camera, by every take that finds no valid session (a
+   * reset drops the sessions the app stored) — never signing it in is normal.
+   */
+  sandbox?: boolean;
 }
 
 async function nonEmptyDir(dir: string | undefined): Promise<boolean> {
@@ -223,6 +228,7 @@ export async function personaState(project: LoadedProject, persona: ResolvedPers
     session: persona.session,
     legacy: persona.legacy,
     status: 'never',
+    ...(sandboxOf(project, persona.env) ? { sandbox: true } : {}),
     ...(persona.profileDir ? { profile: persona.profileDir } : {}),
     ...(persona.snapshot ? { snapshot: persona.snapshot } : {}),
     // The legacy auth.storage_state file is the user's export: `studio login` has no window for it (it refuses).
@@ -364,7 +370,8 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
     }
     if (stop.interrupted) return EXIT.interrupted;
   }
-  const bad = rows.filter((r) => r.state.status !== 'valid' && r.state.status !== 'unchecked').length;
+  // A sandbox account signs in automatically at every take: never a reason to fail.
+  const bad = rows.filter((r) => !r.state.sandbox && r.state.status !== 'valid' && r.state.status !== 'unchecked').length;
   if (opts.json) {
     ui.result(JSON.stringify({ personas: rows.map((r) => r.state) }, null, 2));
     return opts.check && bad ? EXIT.failure : EXIT.ok;
@@ -391,13 +398,16 @@ function printStates(ui: Ui, states: Array<PersonaState & { recheck?: string }>)
       ui.result(c.bold(g));
       group = g;
     }
-    const word = { valid: c.green, expired: c.yellow, never: c.yellow, error: c.red, unchecked: c.dim }[s.status](s.status.padEnd(9));
+    const auto = s.sandbox && s.status === 'never';
+    const word = auto ? c.dim('auto'.padEnd(9)) : { valid: c.green, expired: c.yellow, never: c.yellow, error: c.red, unchecked: c.dim }[s.status](s.status.padEnd(9));
     const checked = checkedText(s, now);
     const what =
       s.status === 'never'
         ? s.fix
           ? 'its auth.storage_state file does not exist'
-          : 'never signed in'
+          : auto
+            ? 'sandbox account: a take signs it in automatically whenever its session is missing (its login steps, off camera)'
+            : 'never signed in'
         : s.status === 'unchecked'
           ? `${s.session === 'profile' ? 'profile' : 'snapshot'} saved, never checked`
           : [checked, s.status !== 'valid' ? s.detail : undefined].filter(Boolean).join(': ');
@@ -406,8 +416,11 @@ function printStates(ui: Ui, states: Array<PersonaState & { recheck?: string }>)
     // never: sign in once; expired, or an error of a check: sign in again; saved but not checked (or `--check` could
     // not check it now: no time of a check): check it.
     const signIn = (how: string) => (s.command ? `sign in ${how}: ${s.command}` : s.fix);
-    const next =
-      s.status === 'never'
+    const next = s.sandbox
+      ? s.status === 'expired' || s.status === 'error'
+        ? 'the next take signs it in again automatically (a sandbox reset drops the sessions the app stored)'
+        : undefined
+      : s.status === 'never'
         ? signIn('once')
         : s.status === 'expired' || (s.status === 'error' && s.checked_at)
           ? signIn('again')

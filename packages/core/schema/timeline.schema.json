@@ -1849,6 +1849,53 @@
             "additionalProperties": false
           },
           "description": "Writes the read-only guard stopped, answered or let through, and writes to hosts it does not guard."
+        },
+        "sandbox": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The sandbox's environment."
+            },
+            "provider": {
+              "type": "string",
+              "enum": [
+                "docker-compose",
+                "process"
+              ]
+            },
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "reseed",
+                "snapshot"
+              ],
+              "description": "Absent: no reset before this take (--env <sandbox> without --sandbox)."
+            },
+            "restored": {
+              "type": "boolean",
+              "description": "A snapshot was restored (rather than the seed run again)."
+            },
+            "reset_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "seed_hash": {
+              "type": "string",
+              "description": "The seed's hash (12 characters)."
+            },
+            "at": {
+              "type": "string",
+              "description": "When the reset finished (ISO)."
+            }
+          },
+          "required": [
+            "name",
+            "provider"
+          ],
+          "additionalProperties": false,
+          "description": "A sandbox environment (L1.8): its provider and the reset made before the take."
         }
       },
       "required": [

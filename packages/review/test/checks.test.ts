@@ -323,6 +323,15 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
     expect(checkEnvironment(ctxPlanned(local, { frame: 'browser', components: { layout: { id: 'studio/layout-browser', params: { show_url: false } } } }))).toEqual([]);
     // With the display table: the bar shows the display URL, nothing to say.
     expect(checkEnvironment(ctxPlanned(withEnv({ name: 'local', access: 'read-write', display: [SHOP] }), { frame: 'browser' }))).toEqual([]);
+    // A sandbox run (L1.8): its pages are declared in its sandbox.yaml — the advice says so (I9).
+    const sandbox = ctxPlanned(withEnv({ name: 'sandbox', access: 'read-write', sandbox: { name: 'sandbox', provider: 'process', strategy: 'reseed' } }), { frame: 'browser' });
+    const hidden = checkEnvironment(sandbox).filter((x) => x.code === 'url-hidden');
+    expect(hidden[0].message).toBe(
+      'discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox sandbox (services.<service>.pages) and render again (README: Sandbox mode)',
+    );
+    expect(sandbox.plan.warnings).toEqual([
+      expect.stringMatching(/^a local URL outside the pages of environment sandbox has no display URL \(http:\/\/localhost:4402\): the browser bar shows no address for it — declare it as a page with a display: in sandbox\/sandbox\.yaml \(services\.<service>\.pages\) and render again \(README: Sandbox mode\)$/),
+    ]);
   });
 
   it('local-url-text: a caption, a card slot or a page label naming a local URL', () => {

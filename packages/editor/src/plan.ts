@@ -2,7 +2,7 @@
  * `planEdit`: the edit of a capture as an EditPlan (docs/DESIGN-phase2.md §2.1, SPEC §9). PURE and deterministic:
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
-import { dirname, extname, isAbsolute, join } from 'node:path';
+import { dirname, extname, isAbsolute, join, relative } from 'node:path';
 import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, resolveEnvironment, timelineVideo, tutorialOff } from '@demo-studio/core';
 import type {
   ComponentKind,
@@ -359,10 +359,15 @@ export function planEdit(input: PlanEditInput): EditPlan {
     } catch {
       /* keep the URL */
     }
+    // A sandbox's pages are declared in its sandbox.yaml (L1.8: services.<service>.pages), not in project.yaml.
+    const sandbox = envName !== undefined ? project.sandboxes?.[envName] : undefined;
+    const manifest = sandbox ? relative(project.dir, sandbox.file) : 'project.yaml';
+    const service = sandbox && page !== undefined ? Object.entries(sandbox.manifest.services).find(([, svc]) => Object.hasOwn(svc.pages ?? {}, page))?.[0] : undefined;
+    const where = sandbox ? `services.${service ?? '<service>'}.pages.${page}` : `environments.${envName}.${page}`;
     warnings.add(
       page !== undefined
-        ? `page "${page}" has no display URL (${origin}): the browser bar shows no address for it — add display: to environments.${envName}.${page} in project.yaml and render again (README: Environments)`
-        : `a local URL outside the pages of environment ${envName ?? '(unknown)'} has no display URL (${origin}): the browser bar shows no address for it — declare it as a page with a display: in project.yaml and render again (README: Environments)`,
+        ? `page "${page}" has no display URL (${origin}): the browser bar shows no address for it — add display: to ${where} in ${manifest} and render again (README: ${sandbox ? 'Sandbox mode' : 'Environments'})`
+        : `a local URL outside the pages of environment ${envName ?? '(unknown)'} has no display URL (${origin}): the browser bar shows no address for it — declare it as a page with a display: in ${sandbox ? `${manifest} (services.<service>.pages)` : 'project.yaml'} and render again (README: ${sandbox ? 'Sandbox mode' : 'Environments'})`,
     );
   };
 

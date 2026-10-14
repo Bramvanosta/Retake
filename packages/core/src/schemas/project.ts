@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { clockError } from '../clock.js';
 import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
-import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '../types.js';
+import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, SANDBOX_PROVIDERS } from '../types.js';
 import { requestPatternError } from '../writes.js';
 import { HookStepSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
@@ -15,11 +15,11 @@ import {
   PacingPartialSchema,
 } from './settings.js';
 
-const httpUrl = () =>
+export const httpUrl = () =>
   z.url({ protocol: /^https?$/, error: 'expected an absolute http(s) URL, e.g. "https://app.staging.example.com"' });
 
 /** A string checked by a function returning the reason it is refused (positioned like any schema issue). */
-const checkedString = (why: (s: string) => string | null) =>
+export const checkedString = (why: (s: string) => string | null) =>
   nonEmpty().superRefine((s, ctx) => {
     const message = why(s);
     if (message) ctx.addIssue({ code: 'custom', message });
@@ -75,7 +75,8 @@ const ReadOnlySchema = z
   })
   .describe('Used only when a run on this environment is read-only (its hosts are also never written to from runs on other environments).');
 
-const PageValueSchema = z.union([
+/** A page of an environment (also of a sandbox service): its base URL, or {url, display}. */
+export const PageValueSchema = z.union([
   httpUrl(),
   z.strictObject({
     url: httpUrl(),
@@ -116,11 +117,35 @@ const EnvironmentSchema = keyedUnion(
   },
 );
 
+/** The fields of a test mailbox (project.yaml `mailbox`, sandbox.yaml `mailbox`). */
+export const mailboxShape = {
+  provider: z.enum(['mailpit', 'http']).describe('mailpit: the Mailpit API; http: the generic JSON shape (see the README).'),
+  url: httpUrl().describe('Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed).'),
+  poll_ms: z.number().int().min(100).max(10_000).describe('Polling interval in ms (default 500).').optional(),
+  headers: z
+    .record(z.string(), z.string())
+    .describe('Extra request headers, e.g. an API token ({{env:VAR}} references are expanded).')
+    .optional(),
+};
+
+const MailboxSchema = z.strictObject(mailboxShape);
+
+/** Database key → connection URL (project.yaml `databases`, sandbox.yaml `databases`). */
+export const DatabasesSchema = z.record(
+  z.string(),
+  z.strictObject({
+    url: nonEmpty().describe('Connection URL; use {{env:VAR}} / {{keychain:service/account}} for credentials.'),
+  }),
+);
+
 const EnvironmentSettingsSchema = z.strictObject({
   production: z.boolean().optional(),
   access: z.enum(ENVIRONMENT_ACCESS).optional(),
   display: z.record(z.string(), z.string()).optional(),
   read_only: ReadOnlySchema.optional(),
+  sandbox: z.strictObject({ file: nonEmpty(), provider: z.enum(SANDBOX_PROVIDERS) }).optional(),
+  mailbox: MailboxSchema.optional(),
+  databases: DatabasesSchema.optional(),
 });
 
 const projectShape = {
@@ -144,30 +169,12 @@ const projectShape = {
     .array(nonEmpty())
     .describe('Extra hosts hooks (every kind) and the mailbox may contact; environment hosts and localhost are always allowed.')
     .optional(),
-  databases: z
-    .record(
-      z.string(),
-      z.strictObject({
-        url: nonEmpty().describe('Connection URL; use {{env:VAR}} / {{keychain:service/account}} for credentials.'),
-      }),
-    )
-    .optional(),
+  databases: DatabasesSchema.optional(),
   pacing: PacingPartialSchema.optional(),
   browser: BrowserConfigSchema.optional(),
   reset: z.array(HookStepSchema).describe('Hooks run by env_reset.').optional(),
   vars: z.record(z.string(), z.string()).describe('Variables shared by every scenario ({{vars.x}}).').optional(),
-  mailbox: z
-    .strictObject({
-      provider: z.enum(['mailpit', 'http']).describe('mailpit: the Mailpit API; http: the generic JSON shape (see the README).'),
-      url: httpUrl().describe('Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed).'),
-      poll_ms: z.number().int().min(100).max(10_000).describe('Polling interval in ms (default 500).').optional(),
-      headers: z
-        .record(z.string(), z.string())
-        .describe('Extra request headers, e.g. an API token ({{env:VAR}} references are expanded).')
-        .optional(),
-    })
-    .describe('Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API).')
-    .optional(),
+  mailbox: MailboxSchema.describe('Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API).').optional(),
   clock: ClockSpecSchema.optional(),
   raw: z
     .strictObject({
@@ -182,6 +189,12 @@ const projectShape = {
       cuts: z.boolean().describe('Cut the loading inside scenes (default true).').optional(),
     })
     .describe('Defaults of the raw capture export for editors (studio export-capture, studio run --raw).')
+    .optional(),
+  sandboxes: z
+    .record(z.string(), nonEmpty())
+    .describe(
+      'Sandbox environments (L1.8): environment name → its sandbox.yaml, relative to the project dir. Each one is an environment of its own (pages, display URLs, personas from its accounts, mailbox, databases), local, never production.',
+    )
     .optional(),
 };
 

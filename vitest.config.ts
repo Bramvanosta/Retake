@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       '@demo-studio/core': pkg('core'),
       '@demo-studio/hooks': pkg('hooks'),
+      '@demo-studio/sandbox': pkg('sandbox'),
       // Before '@demo-studio/components': the first matching alias wins and that one would also match '…/kit'.
       '@demo-studio/components/kit': kit,
       '@demo-studio/runner-web': pkg('runner-web'),

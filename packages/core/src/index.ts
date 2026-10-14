@@ -40,3 +40,7 @@ export type { ShellCommand, Heredoc } from './shell-words.js';
 export { shellHostRefs } from './shell-hosts.js';
 export type { ShellHostRef, ShellHostOptions } from './shell-hosts.js';
 export * from './auth.js';
+export * from './sandbox.js';
+export { DEFAULT_COMPOSE_FILES, SNAPSHOT_DATABASE_MAX, checkSandbox, unmaskedPasswordReason, weakPasswordReason } from './checks/sandbox.js';
+export type { SandboxCheckOptions } from './checks/sandbox.js';
+export { RESERVED_PAGE_KEYS } from './checks/project.js';

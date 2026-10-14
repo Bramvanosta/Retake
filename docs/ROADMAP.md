@@ -16,7 +16,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
   `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
   it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 (done 2026-10-12) → L1.2
-  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 → L1.4, stopping before phase 3 (L3.1).
+  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 (done 2026-10-14) → L1.4, stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -33,11 +33,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
 | L1.2 | Runner robustness for any site | M | **done** |
 | L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **done** (2 partial: dialog close with a blur — an option fixes it —, hover hitches) |
-| L1.4 | Coverage of untested options + automated fixture acceptance | M | todo |
+| L1.4 | Coverage of untested options + automated fixture acceptance | M | **next** |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
 | L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **done** |
 | L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | **done** |
-| L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | **next** |
+| L1.8 | Sandbox mode (manifest, docker-compose & process providers, seed/reset/snapshot) — after L1.7, before L3.1 | L | **done** |
 | L2.1 | Phase-2 contracts in core (themes pick components, scenario additions) | S | **done** |
 | L2.2 | Components package: registry, validation, scaffolding, kit helpers | M | **done** |
 | L2.3 | Edit planner (pure, unit-tested) | M | **done** |
@@ -194,6 +194,13 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   (R-SBX-01..06).
 - **Acceptance:** two consecutive `studio run --sandbox` takes produce the same data on screen; docker-compose path
   verified where a Docker daemon is available (else on the Mac).
+- **Done (2026-10-14):** `sandbox.yaml` (version 1; process | docker-compose services with pages, display URLs and
+  health; seed steps; reset by reseed or Postgres template-clone snapshot; demo accounts as personas with automated
+  login; mailbox; databases), declared per environment in project.yaml; new package `@demo-studio/sandbox`; `studio
+  sandbox init | up | down | reset | status | logs`; `studio run --sandbox` (every take from the same state); the
+  fixture as a process and a Docker sandbox (Mailpit through an SMTP relay). Two takes with a mutation between them
+  read the same data on both providers (Mac, OrbStack). Data-safety rules (loopback only, owned databases and
+  mailboxes, compose folder and port ownership, pid + start + boot identity) reviewed and tested.
 
 ### L2.1 — Phase-2 contracts in core (S)
 - **Scope:** template `brand` + `components` map with legacy mapping (R-THM-01..03); scenario additions — intro/outro/

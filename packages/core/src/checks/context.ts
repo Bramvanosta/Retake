@@ -11,7 +11,7 @@ export class CheckContext {
 
   constructor(
     /** Issues of the structural (schema) pass: semantic checks skip broken subtrees. */
-    private readonly structural: readonly LocatedIssue[],
+    readonly structural: readonly LocatedIssue[],
     /** Directory relative files are resolved against (undefined → files cannot be checked). */
     readonly projectDir?: string,
     /** How messages name that directory ("the project", "the template folder"). */

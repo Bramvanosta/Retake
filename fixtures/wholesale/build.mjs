@@ -1,49 +1,16 @@
 #!/usr/bin/env node
 // Bundles both SPAs (console + shop) with esbuild into public/build/ (git-ignored).
 // Usage: node build.mjs [--dev]   (--dev: no minification)
+// esbuild is imported when a build runs, and where the bundle lives / whether it is fresh is bundle.mjs's (no npm
+// import): the server needs no npm package at run time.
 
-import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import * as esbuild from 'esbuild';
+import { OUT_DIR, ROOT, STAMP } from './bundle.mjs';
 
-export const ROOT = dirname(fileURLToPath(import.meta.url));
-export const OUT_DIR = join(ROOT, 'public', 'build');
-const STAMP = join(OUT_DIR, 'build.json');
+export { OUT_DIR, ROOT, bundleState, bundleVersion } from './bundle.mjs';
+
 const ENTRIES = { console: 'src/console/main.jsx', shop: 'src/shop/main.jsx' };
-/** Files/dirs whose changes make the bundle stale. */
-const SOURCES = ['src', 'build.mjs', 'package.json'];
-const EXPECTED = ['console.js', 'console.css', 'shop.js', 'shop.css'];
-
-async function newestMtime(path) {
-  const s = await stat(path);
-  if (!s.isDirectory()) return s.mtimeMs;
-  let newest = s.mtimeMs;
-  for (const entry of await readdir(path)) newest = Math.max(newest, await newestMtime(join(path, entry)));
-  return newest;
-}
-
-/** @returns {Promise<{ fresh: boolean, reason?: string }>} */
-export async function bundleState() {
-  if (!existsSync(STAMP)) return { fresh: false, reason: 'no bundle yet' };
-  const missing = EXPECTED.find((f) => !existsSync(join(OUT_DIR, f)));
-  if (missing) return { fresh: false, reason: `${missing} is missing` };
-  const built = (await stat(STAMP)).mtimeMs;
-  for (const src of SOURCES) {
-    if ((await newestMtime(join(ROOT, src))) > built) return { fresh: false, reason: `${src} changed since the last build` };
-  }
-  return { fresh: true };
-}
-
-/** Reads the version written by the last build (used for cache busting). */
-export async function bundleVersion() {
-  try {
-    return JSON.parse(await readFile(STAMP, 'utf8')).version;
-  } catch {
-    return 'dev';
-  }
-}
 
 /**
  * @param {{ minify?: boolean }} [opts]
@@ -51,6 +18,7 @@ export async function bundleVersion() {
  */
 export async function build({ minify = true } = {}) {
   const started = Date.now();
+  const esbuild = await import('esbuild');
   await rm(OUT_DIR, { recursive: true, force: true });
   const result = await esbuild.build({
     absWorkingDir: ROOT,

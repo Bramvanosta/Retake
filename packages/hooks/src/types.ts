@@ -1,7 +1,11 @@
 import type { HookAccess, HookKind, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 
-/** Which list of hooks is being run. Only `setup` hooks journal a rollback action. */
-export type HookPhase = 'setup' | 'teardown' | 'reset';
+/**
+ * Which list of hooks is being run. Only `setup` hooks journal a rollback action. `seed` (L1.8): the steps that build a
+ * sandbox's demo data — they stop at the first failure like setup, but nothing is rolled back (the next reset rebuilds
+ * the data), no destructive hook asks for a confirmation (a sandbox is local and disposable) and js hooks cannot run.
+ */
+export type HookPhase = 'setup' | 'teardown' | 'reset' | 'seed';
 
 export type HookLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -15,6 +19,11 @@ export interface HookContext {
   runId?: string;
   /** `{{run.dir}}`: the run folder of a capture (absent for `studio hooks run`, which has no run folder). */
   runDir?: string;
+  /**
+   * The folder hook files (sql `file`) and shell working directories are relative to (default `project.dir`): a sandbox
+   * seed's is the folder of its sandbox.yaml (L1.8).
+   */
+  baseDir?: string;
   /** Describe (and security-check) what would run, without executing anything. */
   dryRun?: boolean;
   /** Every message is redacted of the secret values resolved so far for this context. */
@@ -43,6 +52,19 @@ export interface HookContext {
    * longer in project.yaml): `access`.
    */
   accessOf?: (env: string) => HookAccess | undefined;
+  /**
+   * Ctrl-C (a sandbox seed, L1.8): a running shell command's process group gets SIGTERM (SIGKILL 2 s later) and the
+   * hooks stop — the caller reports the interrupt.
+   */
+  signal?: AbortSignal;
+  /** The process groups of the shell commands running now (L1.8): a second Ctrl-C kills them synchronously. */
+  running?: Set<number>;
+  /**
+   * Where a sql step connects for a sandbox database's host and port (L1.8, a docker-compose sandbox's seed): the
+   * address Docker publishes the port on (127.0.0.1, ::1) instead of the URL's host name — `localhost` may reach another
+   * container publishing the same port on ::1. Undefined: the URL's host.
+   */
+  connectAddress?: (host: string, port: number) => string | undefined;
 }
 
 /** What `save_as` stores in `ctx.saved[name]`, and `{{response…}}` in an http rollback. */
@@ -129,6 +151,11 @@ export interface JournalEntry {
   /** Only setup hooks that executed and declare a rollback. */
   rollback?: RollbackAction;
   rolled_back_at?: string;
+  /**
+   * The rollback will never be replayed (L1.8): a sandbox reset rebuilt the data of the entry's environment (replaying
+   * it would act on the new data). Not pending any more.
+   */
+  superseded?: { at: string; by: string };
   /** Last failed rollback attempt (the entry stays pending). */
   rollback_error?: string;
   rollback_attempts?: number;

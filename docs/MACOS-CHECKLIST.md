@@ -36,9 +36,10 @@ pnpm build
 pnpm test            # optional, ~2.5 min on an M4: the end-to-end tests start the fixture by themselves
 ```
 
-- **Expected:** `pnpm build` prints nothing and exits 0; `pnpm test` ends with every test passed (6 Postgres tests
+- **Expected:** `pnpm build` prints nothing and exits 0; `pnpm test` ends with every test passed (7 Postgres tests
   skipped unless `DEMO_STUDIO_TEST_PG` is set, 1 unless `DEMO_STUDIO_TEST_OLD_NODE` points to an old `node`, 1 unless
-  `DEMO_STUDIO_TEST_HEADED=1`: it opens real login windows, see step 8b).
+  `DEMO_STUDIO_TEST_HEADED=1`: it opens real login windows, see step 8b; 7 Docker tests unless
+  `DEMO_STUDIO_TEST_DOCKER=1`, see step 12b).
 - **Send back:** the `Test Files … Tests …` summary lines, and the full output of any failing test.
 
 ## 3. `studio doctor`
@@ -48,9 +49,10 @@ pnpm studio doctor
 ```
 
 - **Expected:** `OK` on every line: Node.js, Chromium (version, path, "new headless launch … ms"), ffmpeg, ffprobe,
-  Display ("macOS desktop"), Secrets ("macOS Keychain via security"), Notifications ("osascript"), Workspace (the
-  repository, 1 project: northfield-fixture), Template default / editorial / motion ("fonts present"); then
-  `0 failures, 0 warnings` and exit code 0 (`echo $?`).
+  Display ("macOS desktop"), Secrets ("macOS Keychain via security"), Notifications ("osascript"), Docker (its
+  version, Compose and context — or, without Docker Desktop / OrbStack, `WARN not found — only needed by
+  docker-compose sandboxes`), Workspace (the repository, 1 project: northfield-fixture), Template default / editorial
+  / motion ("fonts present"); then `0 failures, 0 warnings` (1 warning without Docker) and exit code 0 (`echo $?`).
 - **Send back:** the whole output.
 
 ## 4. Start the fixture product
@@ -63,8 +65,11 @@ pnpm studio doctor --project northfield-fixture   # terminal 2
 - **Expected:** terminal 1 prints "Northfield fixture is running" with the console on http://localhost:4401 and the
   shop on http://localhost:4402 (both open in Safari), and their signed-in side on :4403 / :4404. The doctor adds
   `Project northfield-fixture`, `Session home` (`~/.demo-studio · outside any git work tree`), `Persona
-  signed-in·supplier` / `signed-in·buyer` (`WARN never signed in` until step 8b) and `Host local·console` /
-  `Host local·shop` → HTTP 200, `Host signed-in·…` → HTTP 302 (to the sign-in page).
+  signed-in·supplier` / `signed-in·buyer` (`WARN never signed in` until step 8b), `Sandbox sandbox` and `Sandbox
+  sandbox-docker` (`WARN … not running` with the command that starts them, until step 12b; without Docker the second
+  one says Docker is missing), and `Host local·…` / `Host production·…` → HTTP 200, `Host signed-in·…` → HTTP 302 (to
+  the sign-in page). Without Docker the `Docker` line stays a warning naming `sandbox-docker`, never a failure: the
+  project's default sandbox is the process one.
 - **Send back:** the doctor lines from `Project` down.
 
 ## 5. Dry run
@@ -257,6 +262,35 @@ Final Cut Pro (File → Import → XML… → `markers/quote.fcpxml`), DaVinci R
   --layer webm` — the README says Final Cut Pro and Premiere cannot read them; say whether Resolve imports the `.otio`
   with the WebM cursor track lined up on its clips (media from 00:00:00:00) and keeps their transparency.
 - **Send back:** which tools imported which file, any error message, a screenshot of a timeline with its markers.
+
+## 12b. Sandbox mode (L1.8)
+
+No fixture needs to run for this step (stop the one of step 4 or leave it: the sandboxes use other ports).
+
+```sh
+pnpm studio sandbox up northfield-fixture                          # the process sandbox on 4501–4504
+pnpm studio run northfield-fixture sandbox-quote --sandbox         # take 1
+curl -s -X POST localhost:4501/api/quotes -H 'content-type: application/json' \
+  -d '{"product_slug":"selowa-ridge","bags":3,"bag_size":"5 kg","grind":"Whole bean","label_language":"Swedish","window_start":"2027-01-10","window_end":"2027-01-24"}'
+pnpm studio run northfield-fixture sandbox-quote --sandbox         # take 2, after someone used the sandbox
+pnpm studio sandbox down northfield-fixture
+```
+
+- **Expected:** both takes print a `sandbox sandbox (process) · … · reset reseed … ms` line and end with the same
+  quote on screen (`Q-1043 · requested Today, 10:24` in `runs/<id>/artefacts/texts/new-quote.json`); the buyer is signed
+  in automatically, off camera, and `pnpm studio auth status --project northfield-fixture` lists the sandbox accounts
+  as `auto` (no `studio login` hint). Press Ctrl-C during an `up`: it stops what it started and exits (nothing left on
+  `lsof -nP -iTCP:4501`).
+- **Optional, with Docker (Docker Desktop or OrbStack running):** `node fixtures/wholesale/build.mjs`, then the same
+  with `--env sandbox-docker` (the first `up` builds the fixture's image on `node:22-alpine`, ≈ 160 MB to download if
+  missing), and `pnpm studio run northfield-fixture signup --env sandbox-docker --sandbox`; open http://localhost:4525
+  (Mailpit) while it runs to see the confirmation mail arrive. Then `pnpm studio sandbox down northfield-fixture --env
+  sandbox-docker` and `docker image rm $(docker images -q --filter 'reference=demo-studio-northfield-fixture-*')`.
+  The Docker tests (`DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts
+  packages/cli/test/sandbox-docker.test.ts`, ≈ 1 min) name everything `demo-studio-test-<token>-*` and remove only
+  their own: your other containers, images, volumes and networks are left as they are.
+- **Send back:** the two `new-quote.json` values, anything that did not stop on Ctrl-C, and (Docker) whether the mail
+  showed in Mailpit and in the `signup` video.
 
 ## 13. Clean up
 

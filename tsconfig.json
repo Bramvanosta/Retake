@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/hooks" },
+    { "path": "packages/sandbox" },
     { "path": "packages/runner-web" },
     { "path": "packages/review" },
     { "path": "packages/components" },

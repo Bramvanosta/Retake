@@ -17,21 +17,27 @@ export interface Interrupt {
  * would quit at once and leave the session copies — a persona's cookies — in the system temp folder. The first signal
  * aborts `signal`: the command closes its browser (which removes its copies) and ends with EXIT.interrupted; with
  * `exit` (a command that cannot be aborted: the hooks), `exit` closes what it holds and the process exits 130 at once.
- * A second signal removes the copies synchronously and exits.
+ * A second signal removes the copies synchronously, runs `onQuitSync` (a sandbox kills the processes this call started,
+ * L1.8) and exits. `message` replaces the "closing the browser" line of the first signal.
  */
-export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void> } = {}): Promise<Interrupt> {
+export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; onQuitSync?: () => void; message?: string } = {}): Promise<Interrupt> {
   const { removeSessionCopiesSync } = await import('@demo-studio/runner-web');
   const controller = new AbortController();
   let count = 0;
   const quit = (): never => {
     removeSessionCopiesSync();
+    try {
+      opts.onQuitSync?.();
+    } catch {
+      /* exiting anyway */
+    }
     process.exit(EXIT.interrupted);
   };
   const handler = () => {
     count++;
     if (count > 1) quit();
     ui.clearStatus();
-    ui.warn('interrupted: closing the browser…');
+    ui.warn(opts.message ?? 'interrupted: closing the browser…');
     controller.abort();
     if (opts.exit) void opts.exit().catch(() => undefined).finally(quit);
   };

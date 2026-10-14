@@ -18,17 +18,21 @@ shared in-memory store:
 node server.mjs                       # builds public/build/ if missing or stale, then serves
 node server.mjs --console-port 5501 --shop-port 5502 [--host 127.0.0.1] [--no-build]
 node server.mjs --auth-console-port 5503 --auth-shop-port 5504   # move the signed-in side (below); --no-auth: none
+node server.mjs --smtp localhost:1025 # also deliver every mail to an SMTP server (a Mailpit: below)
 node build.mjs [--dev]                # build only
 node scripts/smoke.mjs [--out DIR]    # end-to-end check with real mouse input + screenshots
 ```
 
-Environment: `NORTHFIELD_CONSOLE_PORT`, `NORTHFIELD_SHOP_PORT`, `NORTHFIELD_AUTH_CONSOLE_PORT`, `NORTHFIELD_AUTH_SHOP_PORT`, `NORTHFIELD_HOST`,
+Environment: `NORTHFIELD_CONSOLE_PORT`, `NORTHFIELD_SHOP_PORT`, `NORTHFIELD_AUTH_CONSOLE_PORT`, `NORTHFIELD_AUTH_SHOP_PORT`, `NORTHFIELD_HOST`, `NORTHFIELD_SMTP`,
 `NORTHFIELD_ENRICH_MS` (default 4000), `NORTHFIELD_IMPORT_MS` (default 2000), `NORTHFIELD_REPORT_MS` (default 400) and
 `NORTHFIELD_REPORT_DATA_MS` (default 1200: the Sales reports, below). The server prints its
 URLs and exits cleanly on SIGTERM/SIGINT. It listens on 127.0.0.1 and ::1 by default so `localhost`
 works whichever address a client resolves first. Programmatic use:
 `const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close();` (add
-`auth: { consolePort: 0, shopPort: 0 }` for the signed-in side: `fx.urls.signedIn`, `fx.expireSessions(persona?)`).
+`auth: { consolePort: 0, shopPort: 0 }` for the signed-in side: `fx.urls.signedIn`, `fx.expireSessions(persona?)`;
+`smtp: 'host:port'` for the SMTP relay). The server needs no npm package at run time: `bundle.mjs` says where the bundle
+is and whether it is fresh, esbuild is loaded only when a build runs (`--no-build`: never), playwright-core only when
+a PDF is printed — so the Docker image below runs it on Node alone.
 
 ## Signed-in side (sessions & personas, Demo Studio L1.6)
 
@@ -57,6 +61,40 @@ automated login reads the passwords from `NORTHFIELD_SUPPLIER_PASSWORD` and `NOR
 export NORTHFIELD_SUPPLIER_PASSWORD=roast-lot-2026 NORTHFIELD_BUYER_PASSWORD=filter-bloom-2026
 node packages/cli/dist/bin.js run northfield-fixture live-quote --env signed-in
 ```
+
+## As a Demo Studio sandbox (L1.8)
+
+The fixture project's environment `sandbox` (`projects/northfield-fixture/sandbox/sandbox.yaml`, provider `process`)
+is this server started by Demo Studio itself — `node server.mjs --console-port 4501 --shop-port 4502
+--auth-console-port 4503 --auth-shop-port 4504`, with Demo Studio's own Node — seeded and reset before every take with
+`POST /api/reset`, its signed-in side filmed with the accounts above (written in the manifest: they are invented):
+
+```sh
+node packages/cli/dist/bin.js run northfield-fixture sandbox-quote --sandbox   # starts it if needed, resets, films
+node packages/cli/dist/bin.js sandbox status northfield-fixture                # … logs, reset, down
+```
+
+It stops on SIGTERM (closing the PDF browser it may have launched); its output goes to
+`projects/northfield-fixture/.demo-studio/sandbox/sandbox/logs/fixture.log`.
+
+**In Docker, with a real Mailpit** — environment `sandbox-docker` (`projects/northfield-fixture/sandbox/docker/`,
+provider docker-compose): this server in a container built from `Dockerfile` (`node:22-alpine`, no `npm install`:
+the server files and the UI bundle built on the host — `.dockerignore` keeps only those; a missing bundle stops the
+build with the command to run), on ports 4511–4514 (the same inside the container: its own links stay right), and
+`axllent/mailpit:v1.29.4` on 4525, which receives the fixture's mails through the SMTP relay below. Same seed and
+accounts as `sandbox`. The image has **no Chromium**: the real quote PDF (`/quotes/<id>/quote.pdf`) answers 500 there
+("The PDF could not be printed"); `sandbox-quote` and `signup` do not need it.
+
+```sh
+node fixtures/wholesale/build.mjs                                                # the bundle the image copies
+node packages/cli/dist/bin.js sandbox up northfield-fixture --env sandbox-docker  # builds the image the first time
+node packages/cli/dist/bin.js run northfield-fixture signup --env sandbox-docker --sandbox
+node packages/cli/dist/bin.js sandbox down northfield-fixture --env sandbox-docker
+```
+
+The image alone: `docker build -t demo-studio-northfield-fixture fixtures/wholesale`, then `docker run --rm -p
+127.0.0.1:4401:4401 -p 127.0.0.1:4402:4402 demo-studio-northfield-fixture` (the open side; `NORTHFIELD_*` variables
+move the ports, `NORTHFIELD_SMTP` relays the mails). Remove it with `docker image rm` when done.
 
 ## Why real Radix UI *and* Base UI
 
@@ -112,6 +150,14 @@ scenarios film.
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,
 `DELETE /mailbox/api/v1/messages`. The confirmation email is a 600 px table layout with the logo as an inline `cid:`
 image, delivered 0.6 s after the sign-up. `POST /api/reset` empties the mailbox.
+
+**SMTP relay** (`server/smtp.mjs`). With `NORTHFIELD_SMTP=host:port` (or `--smtp`), every mail is also delivered to
+that SMTP server — a real Mailpit in the Docker sandbox — and stays in the fixture's own mailbox. A small client on
+`node:net` (no dependency): EHLO (HELO when refused), MAIL FROM, one RCPT TO per recipient, DATA, QUIT; no TLS and no
+authentication (a local mail catcher only). The message is `multipart/related` (`multipart/alternative` text + HTML,
+then the logo as an inline part with `Content-ID: <northfield-logo>`), bodies in base64, a non-ASCII subject as RFC
+2047 words, lines starting with a dot doubled. A delivery that fails is logged (`[northfield] mail "…" to … could not
+be delivered over SMTP to mailpit:1025: …`), never thrown; a delivered one is logged too.
 
 **Dates.** Every date the apps show comes from the server's demo clock (2 Nov 2026 at 10:24 after a reset, then
 running) — except one line: `/#as-of` adds **Prices as of Monday 2 November 2026, 10:24** under the shop's hero

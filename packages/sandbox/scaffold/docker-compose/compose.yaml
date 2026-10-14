@@ -1,0 +1,53 @@
+# Compose file of sandbox __ENV__ (written by `studio sandbox init`). Demo Studio runs it as a compose project of its
+# own (see `studio sandbox status`); every port is published on 127.0.0.1 only. Replace the `app` placeholder with your
+# application — README.md next to this file says how.
+x-logging: &logging                        # docker's default log driver never rotates: a sandbox may stay up for days
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+
+services:
+  app:
+    # Placeholder: a static page. Replace `image` + `command` + `volumes` with your application (`build: ../..` or an
+    # image), keep its port mapping, and give it the database and SMTP settings below in the names it reads.
+    image: busybox:1.38.0
+    init: true                             # stops at once on `down` (a program running as PID 1 ignores SIGTERM)
+    command: ["httpd", "-f", "-p", "8080", "-h", "/www"]
+    volumes: ["./app:/www:ro"]
+    environment:
+      DATABASE_URL: postgres://demo:__DB_PASSWORD__@db:5432/app
+      SMTP_URL: smtp://mailpit:1025
+    ports: ["127.0.0.1:__APP_PORT__:8080"]
+    depends_on:
+      db: {condition: service_healthy}
+      mailpit: {condition: service_healthy}
+    healthcheck:                           # 127.0.0.1, not localhost (resolved to ::1 first in small images)
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    logging: *logging
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: __DB_PASSWORD__
+      POSTGRES_DB: app
+    ports: ["127.0.0.1:__DB_PORT__:5432"]
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    healthcheck:                           # -h 127.0.0.1: without it pg_isready says ready while the init scripts still run
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U demo -d app"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+    logging: *logging
+
+  mailpit:                                 # catches every mail the app sends (SMTP mailpit:1025); its API is the sandbox's mailbox
+    image: axllent/mailpit:v1.29.4
+    environment:
+      MP_DISABLE_VERSION_CHECK: "true"     # no call to the internet for the latest version
+    ports: ["127.0.0.1:__MAIL_PORT__:8025"]
+    logging: *logging
+
+volumes:
+  db-data:                                 # the database (`studio sandbox down --volumes` removes it, and its snapshot)

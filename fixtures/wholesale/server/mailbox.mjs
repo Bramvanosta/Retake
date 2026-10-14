@@ -4,16 +4,26 @@
 //   GET    /mailbox/api/v1/message/:id                 → {ID, From, To, Cc, Subject, Date, Text, HTML, Inline: [{PartID, ContentID, ContentType, FileName}]}
 //   GET    /mailbox/api/v1/message/:id/part/:partId    → the bytes of an inline part (cid: images)
 //   DELETE /mailbox/api/v1/messages                    → delete every message
-// The fixture "sends" mail by appending to it (sign-up confirmations); POST /api/reset empties it.
+// The fixture "sends" mail by appending to it (sign-up confirmations); POST /api/reset empties it. With an SMTP relay
+// (server/smtp.mjs: NORTHFIELD_SMTP=host:port) every message is also delivered to that server — a real Mailpit.
 
 import { sendError, sendJson, sendText } from './http.mjs';
 
 const addr = (a) => (typeof a === 'string' ? { Name: '', Address: a } : { Name: a.name ?? '', Address: a.address });
 
 export class Mailbox {
-  constructor() {
+  /** @param {{ relay?: import('./smtp.mjs').SmtpRelay }} [opts] */
+  constructor(opts = {}) {
     this.messages = [];
     this.seq = 0;
+    this.relay = opts.relay ?? null;
+    /** Deliveries over SMTP still running (flush() waits for them). */
+    this.pending = new Set();
+  }
+
+  /** Resolves when every SMTP delivery started so far has ended (delivered or logged as failed). */
+  async flush() {
+    await Promise.all([...this.pending]);
   }
 
   clear() {
@@ -39,6 +49,10 @@ export class Mailbox {
       inline: (m.inline ?? []).map((p, i) => ({ PartID: String(i + 2), ContentID: p.cid, ContentType: p.type, FileName: p.name, data: p.data })),
     };
     this.messages.unshift(msg);
+    if (this.relay) {
+      const delivery = this.relay.deliver(m, { messageId: msg.MessageID }).finally(() => this.pending.delete(delivery));
+      this.pending.add(delivery);
+    }
     return msg;
   }
 

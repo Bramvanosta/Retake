@@ -51,6 +51,8 @@ export const TIMELINE_POLICY: RedactPolicy = {
   environment: {
     name: K, production: K, access: K, allow_writes: K, display: { page: K, display: K }, clock: K,
     writes: { t: K, method: K, operation: K, outcome: K, status: K, via: K, protected_by: K },
+    // L1.8: names, enums, numbers and the seed hash of the sandbox reset made before the take.
+    sandbox: K,
   },
 };
 
@@ -94,6 +96,14 @@ export class RunSecrets {
     if (v !== undefined) this.register(v);
     return v;
   };
+
+  /**
+   * A value that is a secret as written (a sandbox account's plain password, L1.8): masked from now on like a resolved
+   * {{env:…}} value.
+   */
+  addValue(value: string): void {
+    this.register(value);
+  }
 
   private register(value: string): void {
     if (this.values.has(value) || secretForms(value).length === 0) return;

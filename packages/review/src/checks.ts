@@ -1010,7 +1010,9 @@ export function checkEnvironment(ctx: CheckContext): Finding[] {
         finding(
           'warning',
           'url-hidden',
-          `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in project.yaml environments and render again (README: Environments)`,
+          ctx.timeline?.environment?.sandbox
+            ? `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox ${ctx.timeline.environment.sandbox.name} (services.<service>.pages) and render again (README: Sandbox mode)`
+            : `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in project.yaml environments and render again (README: Environments)`,
           locate(ctx, s.from + Math.max(0, Math.min(hidden.frame, s.durationInFrames - 1))),
         ),
       );
@@ -1024,7 +1026,7 @@ export function checkEnvironment(ctx: CheckContext): Finding[] {
       finding(
         'warning',
         'local-url-text',
-        `${where} shows a local URL (${[...new Set(found.map(pathOf))].join(', ')}): it is burnt into the video — write {{page}} and give that page a display URL in project.yaml, or write the public address`,
+        `${where} shows a local URL (${[...new Set(found.map(pathOf))].join(', ')}): it is burnt into the video — write {{page}} and give that page a display URL in ${ctx.timeline?.environment?.sandbox ? `the sandbox.yaml of sandbox ${ctx.timeline.environment.sandbox.name}` : 'project.yaml'}, or write the public address`,
         locate(ctx, frame),
       ),
     );

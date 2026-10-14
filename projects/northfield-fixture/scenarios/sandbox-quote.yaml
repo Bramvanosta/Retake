@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Sandbox mode (L1.8): `studio run northfield-fixture sandbox-quote --sandbox` starts the fixture's sandbox when it is
+# not running, resets it to its seed and films — as the buyer, signed in off camera by the sandbox's account. No setup
+# or teardown hook on purpose: only the sandbox reset makes every take start from the same data, so each take shows the
+# same latest quote, the same new reference and the same "requested" time (the fixture's demo clock restarts at the
+# reset). The control: `--env sandbox` without `--sandbox` films without a reset, and the reference moves on.
+video: sandbox-quote
+title: {kicker: For cafés, text: The same quote in every take}
+outro: {tagline: "From request to proposal, in one place."}
+env: sandbox
+pacing: {scene_start_still: 0.8}
+
+scenes:
+  - id: quotes
+    caption: {kicker: Quotes, text: "Every request and proposal in one list."}
+    page: shop
+    open: /quotes
+    steps:
+      - capture_text: {target: {css: ".quote-row .k", nth: 0}, as: latest-quote, pattern: "/(Q-\\d+)/"}
+        mark: quotes-before
+      - hold: 0.8
+
+  - id: request
+    caption: {kicker: Request a quote, text: "Pick the quantity and the delivery window, and send."}
+    page: shop
+    open: /products/selowa-ridge
+    steps:
+      - click: {role: button, name: Request a quote}
+      - click: {aria: Increase, in: dialog}
+      - select: {field: Bag size, option: 5 kg}
+      - select: {field: Grind, option: Whole bean}
+      - click: {label: Delivery window}
+      - click: {aria: Next month}
+      - click: {aria: "10 January 2027"}
+      - click: {aria: "24 January 2027"}
+      - click: {text: Send request, in: dialog}
+      - wait_for: {text: Quote request sent}
+      - click: {text: View request}
+      - capture_text: {target: {contains: ["requested"]}, as: new-quote, pattern: "/(Q-\\d+ · requested .+)$/"}
+        mark: quote-sent
+      - hold: 1.2

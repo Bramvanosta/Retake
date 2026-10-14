@@ -14,6 +14,7 @@ No new npm dependencies without a strong reason (everything needed is already in
 ```
 packages/core         scenario parser/validator, project/template model, templating, JSON Schemas
 packages/hooks        setup/teardown hooks (http, sql, shell, js) + rollback journal + allow-list + secrets
+packages/sandbox      (L1.8) sandboxes: start / seed / reset / stop, process + docker-compose providers, Postgres snapshots, init (§3.8b)
 packages/runner-web   Playwright/CDP runner: in-page kit (cursor overlay, resolver), actions, recorder, encoder, timeline
 packages/editor       (phase 2) Remotion compositions + edit planner + render API
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
@@ -45,7 +46,8 @@ loadWorkspaceConfig(root: string): Promise<WorkspaceConfig>   // { root, project
 listProjects(root: string): Promise<Array<{ slug: string; name: string; dir: string }>>
 loadProject(dirOrSlug: string, root?: string): Promise<LoadedProject>
 //   LoadedProject = { slug, dir, config: ProjectConfig (defaults applied), readme: string | null,
-//                     scenarios: string[] /* names */, file: string /* project.yaml */ }
+//                     scenarios: string[] /* names */, file: string /* project.yaml */,
+//                     sandboxes?: Record<env, LoadedSandbox> /* L1.8, §3.8: merged into config as environments */ }
 createProject(root: string, input: { name: string; slug?: string; readme?: string;
   environments?: ProjectConfig['environments']; template?: string; capture?: Partial<CaptureSettings>;
   frame?: FrameStyle }): Promise<LoadedProject>       // writes README.md, project.yaml, dirs, .gitignore
@@ -141,7 +143,8 @@ sqlWriteStatement(sql) / httpWriteReason(req) / hookWriteReason(hook, { projectD
 rollbackWriteReason(action) / writingHooks({ setup, teardown }, opts)   // which hooks write (§2)
 
 // host allow-list (hosts.ts, shell-hosts.ts; R-SEC-06, L1.2)
-allowedHosts(project) / isHostAllowed(host, project)    // localhost, every environment host, allow_hosts ("*.x" = subdomains)
+allowedHosts(project) / isHostAllowed(host, project)    // localhost, every environment host, allow_hosts ("*.x" = subdomains),
+                                                        // the loopback hosts of sandboxes' mailboxes and databases (L1.8)
 hostRefusalMessage(host, project, via?): string    // "refusing to contact <host> (<via>): it is not in the allow-list of project …"
 class HostRefusedError extends Error { hosts: string[] }   // thrown by runner-web's js hook tab; hooks maps it to a refusal
 networkHost(url): string | null                    // host a browser request contacts (null: data:, blob:, about:…)
@@ -189,9 +192,10 @@ valid), and `mocks` on a read-write environment are a warning (ignored, the writ
 ## 2. @demo-studio/hooks
 
 ```ts
-runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown' | 'reset'; journal: Journal }):
+runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown' | 'reset' | 'seed'; journal: Journal }):
   Promise<{ ok: boolean; results: HookResult[] }>
 //   setup: on the first failure (non-optional), rolls back the completed hooks of this call in reverse and returns ok=false
+//   seed (L1.8, §3.8): stops at the first failure, rolls nothing back, never asks to confirm a destructive step, no js
 //   teardown: runs every hook even if some fail (collects errors)
 class Journal {                      // rollback journal persisted as JSON: runs/<id>/hooks-journal.json (captures),
                                      // <project>/.demo-studio/journals/<id>.json (studio hooks run / env reset)
@@ -213,6 +217,7 @@ HookContext = {
   access?: HookAccess;                // L1.7: { env, mode, production?, configured?, protected?, writable? }; read-only
                                       // refuses writing hooks; any run refuses a write to a protected host
   accessOf?: (env: string) => HookAccess | undefined;  // journal replays: each entry's own environment
+  baseDir?: string;                   // L1.8: sql files and shell cwd relative to it (a sandbox seed: its manifest's folder)
   log: (level, msg) => void;
   evalInPage?: (pageKey: string | undefined, code: string) => Promise<unknown>; // provided by the runner for js hooks:
                                       // runner-web evalHookInPage (the guarded hook tab); throws core HostRefusedError
@@ -222,7 +227,8 @@ HookContext = {
 
 - **http**: `fetch`, templated url/headers/body, `expect` check, response saved (`status`, `headers`, `body`, `json`).
   Rollback request templated with `{{response.json.*}}`.
-- **sql**: `pg` client, connection URL from `project.databases[db].url` (templated, secrets resolved).
+- **sql**: `pg` client, connection URL from `databasesFor(project, env)[db].url` (project.databases, or a sandbox
+  environment's own — L1.8; a replay uses the entry's environment) (templated, secrets resolved).
   File or inline; a whole file runs as one multi-statement query inside `BEGIN … COMMIT`.
   Rollback: file or inline SQL from the hook's `rollback`.
 - **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `DEMO_STUDIO_PROJECT_DIR`,
@@ -808,19 +814,243 @@ read-only environment and an unusable clock throw before the run folder is made.
   working when a page replaces its own timers; `afterPaint()` (two real frames, ≤ 150 ms) backs `Runtime.painted()`.
   Kit 1.3.0.
 
+### 3.8 Sandbox mode (L1.8): the core model (core `sandbox.ts`, `checks/sandbox.ts`, `schemas/sandbox.ts`)
+- **Declaration.** project.yaml `sandboxes: {<env>: <sandbox.yaml, relative to the project>}` (checkProject: name
+  slug-like, not an environment of project.yaml nor an `auth` key, path relative and existing; `default_env` and a
+  scenario's `env` may name a sandbox; `auth.<sandbox>` is an error). `ProjectConfig.sandboxes` keeps it as written.
+- **Manifest.** `SandboxFileSchema` (JSON Schema `sandbox.schema.json`, `studio schema sandbox`): `version: 1`
+  (a higher one is refused before the schema runs), `provider` (`docker-compose` | `process`), `compose {files,
+  project}`, `services.<name> {url, pages: {key: url | {url, display}}, health, command, cwd, env, stop_timeout_s}`,
+  `seed` (`SeedStepSchema`: the http / sql / shell hook branches + `exec {service, command, env, timeout_s}`; `js` is a
+  refused key of the keyed union — `KeyedUnionInfo.refused`), `reset {strategy: reseed | snapshot, snapshot:
+  {database}, restart}`, `databases`, `mailbox` (+ `clear`), `login_url`, `accounts.<persona>` (persona fields +
+  `username`, `password`). `checkSandbox(value, structural, {dir, env, project})` positions every issue in
+  sandbox.yaml: provider keys, paths relative to the manifest (absolute / `~` refused; compose files parsed with `yaml`
+  for their service names — and those under `profiles:`, which a sandbox never starts: naming one as a service or an
+  `exec` step's service is an error), **loopback-only URLs** (core `isLoopbackHost`: localhost, `*.localhost`, 127/8, ::1 — not
+  `isLocalHost`, which accepts private ranges and dotless names), page keys (`KEY_RE`, `RESERVED_PAGE_KEYS`, unique),
+  health (one way; `tcp` refused under compose: Docker's proxy accepts any connection), seed steps (`checkHooks` with
+  `destructiveOk`, files read from the manifest's folder through the check context; `rollback` warned; pg_dump plain
+  output refused; `exec` hosts against the allow-list + compose service names), snapshot (docker-compose, a Postgres
+  database of `databases`, not a system one, ≤ 50 characters), accounts (`checkAuth` on the accounts as one global
+  block — paths mapped `auth.personas.<p>` ↔ `accounts.<p>` — with `accounts: true`: `{{account.username|password}}`
+  only in their own `login` steps, `TokenScope.account`), weak plain passwords (< 8 characters or one word: a warning,
+  redaction masks every occurrence of the text; < 3: an error, redaction ignores texts that short), database URLs
+  connecting where they say (`checkDatabaseUrl`: no `host` / `hostaddr` / `port` / `service` / `dbname` query
+  parameter — pg's `?host=` and `?port=` win over the URL's, a unix socket included —, no templated query), health
+  paths that stay on the service's url (`//…` and backslashes refused), shell seed steps under process services that
+  set one variable differently (the step must set it: shell commands get the services' env), and, given the project,
+  a page on the host:port of a page of a production / read-only environment (every loopback host compared as one:
+  `127.0.0.1:4401`, `[::1]:4401` and `localhost:4401` are the same server). `databases.<k>.external` and
+  `mailbox.external` (sandbox.yaml only, not merged into `environment_settings`): the sandbox does not start it but it
+  is the sandbox's alone (§3.8b ownership).
+- **Merge.** `loadProject` → `parseProjectYaml` → `loadSandboxes(dir, config)` (each manifest parsed with the
+  pre-merge config; errors throw `SandboxConfigError` — name `ConfigError`, `file` = the manifest, `env`) →
+  `mergeSandboxes(config, sandboxes)`: `environments[env]` = the services' pages; `environment_settings[env]` =
+  `{display?, sandbox: {file, provider}, mailbox?, databases?}`; `auth[env]` = `sandboxAuth(manifest).auth` (login
+  steps with `{{account.*}}` written in); a global `auth` becomes keyed by every non-sandbox environment (same block).
+  Projects without sandboxes are never merged (byte-identical config). `LoadedProject.sandboxes[env]` =
+  `LoadedSandbox {env, file, dir, manifest, issues (warnings, reported by validate under the manifest), secrets
+  (plain passwords by persona)}`. `resolveEnvironment` adds `sandbox: {file, provider}`.
+- **Consumers.** `mailboxFor(project, env)` / `databasesFor(project, env)`: a sandbox's own (none → none), else the
+  project's — used by the runner (`run.ts`, `actions/artefacts.ts`), scenario validation (`wait_for_email`) and the
+  sql hooks (`openDatabase(ctx, …, env)`; journal replays pass the entry's `env`). `resolvePersonas` marks a sandbox
+  account `sandbox: true` with `secrets`; runner `autoLogin` registers them (`RunSecrets.addValue`) — both callers,
+  the run's preflight and `studio login` — and the preflight logs its automatic sign-in as info; `studio auth status`
+  marks them `sandbox: true` (shown `auto`, never a `studio login` hint, never a `--check` failure). `allowedHosts`
+  adds the loopback hosts of every sandbox's mailbox and databases (`db.localhost`, `127.0.0.2`: validated, refused
+  at run time otherwise). Editor and review read `environments` / `environment_settings`; their advice for a page
+  without a display URL names the sandbox.yaml (`services.<service>.pages.<page>`) on a sandbox environment.
+- **Hooks.** `HookPhase` `seed`: preflight like setup (a js step refuses the whole seed, `SEED_NO_JS`), stop at the
+  first non-optional failure, nothing rolled back, no destructive confirmation; journals accept the phase.
+  `HookContext.baseDir` (default the project dir): sql files, shell `cwd` and the psql-file destructive check.
+  `HookContext.signal` aborts a running shell hook (SIGTERM to its group, SIGKILL 2 s later) and stops the list;
+  `HookContext.running` holds the groups of the shell commands running now (a second Ctrl-C kills them). A shell
+  command on a sandbox environment gets the templated `env` of its process services and `DEMO_STUDIO_SANDBOX` over the
+  CLI's environment (its own `env` wins; two services differing on a variable: an error) — a seed's `npm run
+  db:reset` reaches the sandbox's database. A sql hook on a sandbox refuses a URL that pg would connect elsewhere
+  (`sandboxDatabaseProblem`: pg's own parser vs the URL's host and port, a unix socket, a non-loopback host).
+  `HookContext.connectAddress(host, port)` (a docker-compose sandbox's seed): the address its sql steps connect to
+  instead of the URL's host name (the URL's host rewritten) — the one Docker publishes the port on.
+  `JournalEntry.superseded {at, by}` (not pending any more): `Journal.supersede(env, by)` /
+  `supersedePendingJournals(projectDir, env, by)` — called after a sandbox reset so `studio env reset` never replays a
+  rollback on reseeded data.
+- **Seed hash.** `seedHash(sandbox, extra?)`: sha256 of the canonical seed, strategy, snapshot settings and databases,
+  the bytes of `seedFileRefs` (sql step files + every file of `seed/` next to the manifest) and `extra` (image ids…).
+- **Run records.** `RunRecord.environment.sandbox` / `TimelineEnvironment.sandbox` (`RunSandbox {name, provider,
+  strategy?, restored?, reset_ms?, seed_hash?, at?}`, kept by the redaction policies) — filled by `run --sandbox`.
+
+### 3.8b Sandbox engine (L1.8): `@demo-studio/sandbox` (deps: core, hooks, pg)
+- **API** (the CLI's and L3.1's MCP tools'): `openSandbox(project, env?)` → `Sandbox {env, sandbox, paths, kind,
+  strategy}` with `up({seed: 'auto'|'never', build?, signal, log})` → `{started, kept, changed, ms, reset?}`,
+  `down({volumes?})` → `{stopped, dataGone}`, `reset({by, reseed?})` → `ResetResult {strategy, restored, ms, hash, at,
+  seed: {steps, ms}, mailbox, snapshot?: {action: restored|taken, ms, database}, restarted, superseded}`, `status()` →
+  `SandboxStatus {state: up|partial|down, services: ServiceStatus[] (pid or container + docker status), seed?
+  {hash(12), current}, last_reset?, lock?, logs, notes}` (no lock, nothing written), `logs({service, lines})` →
+  `{service, file | source, exists, text}[]`, `followLogs({service, lines, signal, write})` (docker-compose),
+  `checkRunning()` (a run without --sandbox: SandboxError `down` unless every service runs and is healthy; returns a
+  live lock), `prepareTake({command, signal, log})` → `Take {info: RunSandbox, up, reset, note(run), release()}`,
+  `killStartedSync()`; `initSandbox(project, {env, force, basePort})` (`studio sandbox init`). Errors: `SandboxError
+  {code: busy|down|port|unhealthy|seed|interrupted|failed}`. `providerFor(sandbox)`: a fresh `ProcessProvider` or
+  `ComposeProvider` per call. Provider (provider.ts): `up(ctx, {build})`, `down(ctx, {volumes})`, `status`, `restart`,
+  `exec?`, `stopStarted`, `killStartedSync`, `logFiles`, `servedBy(ctx, port, use)` (the service of the sandbox
+  serving a port, nothing else listening: process — a port a process service names and its own tree listens on;
+  docker-compose — `publishedBy`), and for docker-compose `logs?`, `followLogs?`, `publishedBy?(ctx, port, use?)` (the
+  service of the sandbox's own project publishing a port: a snapshot's database by default), `address?(ctx, port)`
+  (where to connect to a port its own containers publish: 127.0.0.1 / ::1) and `hashInputs?` (the services' image
+  ids: part of the seed hash).
+- **Files** (`<project>/.demo-studio/sandbox/<env>/`, git-ignored): `state.json` (version 1, written synchronously and
+  atomically: temp + rename) — `services.<name> {kind: process, pid, started_at (ps lstart), command, hash (command /
+  cwd / env), status: starting|running, boot (kern.boottime / btime), members ([{pid, start}] of its group once
+  healthy, refreshed by each up)}` (written right after the spawn with now as its start time, refined once ps
+  answers), `seed {hash, at, ms}` (deleted before a seed runs and when a process service starts, written after a seed
+  succeeds — kept across a `reset.restart` —, deleted by `down` when the data is gone), `last_reset`,
+  `provider_state` (docker-compose: `compose {project, dir, previous?: [{project, dir}]}` written before `up` runs —
+  `previous`: names an earlier up used, kept until they have neither containers nor volumes —, `snapshot {key,
+  database, template, hash, owner, taken_at, ms}`); `take.lock` (`{pid, started_at, command, run?, since}` written to a temp
+  file and hard-linked into place — never read half-written; `O_EXCL` where links fail —; stale when the pid is gone,
+  its start time differs or it cannot be read: removed under `take.lock.break` (`O_EXCL`; one older than 10 s is
+  removed) only if its text is unchanged; released in `finally` and on process `exit`); `seed-journal.json`
+  (recreated per seed); `logs/<service>.log` (+
+  `.1`; process), `logs/compose-up.log` (the last `up`) and `logs/seed.log` (`exec` steps) for docker-compose.
+- **Flow.** `up` = lock → provider.up (orphans of an earlier manifest stopped; each service: kept when ours — health
+  checked again, a changed hash warned —, else ports free → spawn → state `starting` → health → ports owned →
+  `running`) → seed when never seeded / hash changed / a service started / (snapshot) the database missing or closed
+  (`PostgresSnapshot.broken`) → release. `prepareTake` = lock → logs over 20 MB cut → provider.up → reset → the
+  caller films → release. `reset` = lock → every service up and healthy → the mailbox must be the sandbox's own
+  (`checkMailbox`: Mailpit with `clear` not false → `servedBy(port)` unless `external`) → (seed path) every sql step's
+  database must be too (`checkSeedDatabases`, unless `external`) → seed (runHooks phase `seed` on batches of hook
+  steps with `signal` and `running`, `exec` through `provider.exec`; `ctx.baseDir` = the manifest's folder, access
+  `runAccess(env, false, project)`, `connectAddress` from `provider.address` for the databases not `external`;
+  interrupted → SandboxError `interrupted`) → `supersedePendingJournals(project.dir, env, by)` right after the seed or
+  the restore → mailbox `DELETE /api/v1/messages` (on `provider.address` when its port is the sandbox's) → `reset.restart` →
+  `last_reset`. `killStartedSync` SIGKILLs the seed's running shell groups too. `up`, `reset` and
+  `prepareTake` run inside `starting()`: a fresh provider per call remembers what it started; a failure — or an abort,
+  even after the last step — stops those services (only those) before rethrowing.
+- **Process provider** (`process.ts`, `proc.ts`, `ports.ts`, `health.ts`). Spawn `detached` (setsid: pgid = pid),
+  stdio appended to the log (`O_APPEND`: `trimLogs` truncates in place), `unref`; argv `node` → `process.execPath`,
+  a string → `/bin/sh -c`; env = the CLI's minus `npm_*`, `pnpm_*`, `VITEST*`, `NODE_ENV`, `NODE_OPTIONS`, `INIT_CWD`,
+  `TEST`, + the templated `env` + `DEMO_STUDIO_SANDBOX`. Identity (`identify(pid, startedAt, {boot, members,
+  spawned})`): another boot time → gone; `kill(-pgid, 0)` gone → gone; the leader alive → its `ps -o lstart`
+  (LC_ALL=C, parsed to epoch ms) within 2 s of the recorded one → ours, else reused; the leader gone with its group
+  alive → ours only when this call spawned it or a live member of the group matches a recorded member (pid + start
+  time), else reused (a reused pid can lead a group of the same id). EPERM on a group (macOS: members just killed,
+  not reaped yet) counts as not alive. Stop (`stopGroup`): snapshot of the group
+  and its descendants (`ps -A -o pid=,ppid=,pgid=,lstart=`), `SIGTERM` to `-pgid`, `SIGKILL` after `stop_timeout_s`,
+  then the snapshot's descendants outside the group still running (same start time) get SIGTERM, 2 s, SIGKILL (their
+  own group when they lead one); then the ports must free within 2 s, else a warning naming the holder. Ports
+  (`sandboxPorts`: `url`, `pages`, `health` url / tcp per service — not the mailbox's nor the databases'): before a
+  spawn, any listener (`lsof -nP -iTCP:<ports> -sTCP:LISTEN -Fpgcn`, or a connect on 127.0.0.1 / ::1 when lsof cannot
+  see it) refuses the start; after health, `checkOwned` waits (the rest of the health timeout) until the service's
+  tree listens on each port, refuses any other listener (`port`), and at the timeout says either that a port answers
+  without a listener lsof can see (`port`, another user's program) or that nothing listens on it (`unhealthy`).
+  Health (`serviceHealth` / `waitHealthy`): the manifest's check (default GET `url`, 200–399; `status`, `text`;
+  `tcp`; none with `false`), then each page answering HTTP (any status; with `false` too), 2 s per try, every 250 ms,
+  60 s by default; a health path is joined to the url's origin (`//host` cannot leave it); `gone()` ends the wait
+  when the started group is gone (exit code / signal + the log's last 20 lines). `servedBy(port)`: a port of a
+  process service (`sandboxPorts`) whose entry is ours and whose tree alone listens on it.
+- **docker-compose provider** (`compose.ts`, `docker.ts`). Docker: `$DEMO_STUDIO_DOCKER`, PATH, then the usual install
+  places (`dockerPlaces`: Docker Desktop, OrbStack's bin and xbin, Homebrew, /usr/bin — doctor looks there too);
+  `compose version --short` ≥ 2.17 and `info --format {{.ServerVersion}}` (the daemon) checked once per call;
+  every call runs with the CLI's env minus `COMPOSE_*`, output captured, killed on abort. Project ref: `compose.project`
+  or `demo-studio-<slug>-<env>-<sha256(realpath(folder))[0:8]>` (≤ 63, sanitised), `--project-directory` = the real
+  folder, `-f` per file, `--ansi never`. `ps()` (`ps --all --format json`: NDJSON or one array; Labels a comma-joined
+  string cut before `,key=`; one-off containers dropped) refuses containers whose `working_dir` label is another
+  folder, and every command reads it first (up, down, status, restart, exec — once per call —, logs, followLogs,
+  publishedBy). Other projects' publishers: `docker ps --filter publish=<port>… --format {{json .}}` (`parseDockerPs`:
+  name, compose project and folder labels, `Ports` text with host addresses and ranges) — any container that is not
+  the project's own (name and folder) publishing one of the ports, on any address, is refused `port` (OrbStack lets
+  one publish [::1] / [::] next to the sandbox's 127.0.0.1; lsof shows its helper alone). Addresses: `remember(ps)`
+  keeps, per port of the project's running containers, `connectAddress(hosts)` (0.0.0.0 → 127.0.0.1, :: → ::1, IPv4
+  first); health checks (`pinHealth`: http targets on a loopback host *name*, sent with node:http and a pinned
+  `lookup` — URL and Host header unchanged), `SELECT 1`, the snapshot (`address()` → `PostgresSnapshot.open`), the
+  seed's sql steps (`HookContext.connectAddress`) and the mailbox clear (`pinnedRequest`) use it. `up`: `config
+  --format json` (services, published TCP ports with ranges, images: `image` or `<project>-<service>`) → `ps` → the
+  manifest's ports must be published → a recorded earlier name (`provider_state.compose.project` / `.previous` ≠ the
+  current one) still running refused, one with containers or volumes left kept in `previous` → other projects'
+  publishers of every published port refused → published ports not held by the project's running containers must have
+  no listener (`busyPorts`) → `provider_state.compose` saved, the services not running recorded as started →
+  `up -d --wait --wait-timeout <max health.timeout_s | 120> --remove-orphans [--build]` (lines to compose-up.log and
+  debug) → `ps` again: every config service `running` with Health `healthy` or `""` (`serviceProblems`; else a
+  SandboxError `unhealthy` listing each state + `logs --tail 30` of up to 3) whatever the exit code → `foreignListeners`
+  on the published ports (lsof: names matching `DOCKER_HELPER` — OrbStack Helper, com.docker…, vpnkit, rootlesskit… —
+  or, when none, the one pid on every port, are the runtime; anything else is refused `port`) → other projects'
+  publishers again → `remember` → `waitHealthy` (pinned) per manifest service (120 s default) → `SELECT 1` per Postgres
+  database (`pgAnswers` on `pgEndpoint(url)` — pg's own parser, refused unless it is the URL's loopback host and port —
+  on the published address unless `external`; SQLSTATE 3D000 / 55000 count as ready — the server answers, the reset
+  repairs the database; retried until the wait timeout).
+  `status`: manifest services first, then the other config services, then containers of removed services (orphans);
+  docker's state / health, then `healthNow` (pinned) for manifest services; an earlier name with containers or volumes
+  left is a note. `down`: `down --remove-orphans [--volumes]`, then each earlier name the same way from its recorded
+  folder (`-p <old> --project-directory <dir>`, after its own folder check); `provider_state.compose` dropped unless an
+  earlier name still has volumes (kept as `previous`, with a warning), `.snapshot` dropped with volumes; `dataGone =
+  volumes`. `restart`: `ps` → `restart <svc>` → wait running/healthy → manifest health (pinned). `publishedBy(port,
+  use)`: a running container of the project publishing it, its `working_dir` label the sandbox's folder (missing:
+  refused), no foreign lsof listener, no other project's publisher.
+  `exec`: `exec -T -e DEMO_STUDIO_EXEC [-e NAME…] <svc> sh -c <cmd> | argv` (values in docker's env;
+  DEMO_STUDIO_EXEC=<random token> marks every process it starts), command/env templated (pages, vars, secrets), the
+  hosts of the rendered command and env checked (`checkExecHosts`: a compose service, `isHostAllowed`, never
+  `protectedBy` the run's access), timeout, output to seed.log masked (`masker`: the resolved values and
+  `sandboxSecrets`); aborted or timed out → `KILL_EXEC_SCRIPT` run in the service (`sh`, `/proc/*/environ`: SIGTERM
+  to the marked processes, 3 s, SIGKILL; a warning when it cannot run), aborted → SandboxError `interrupted` (kept by
+  runSeed); non-zero → the exit code and the last 20 lines. `stopStarted`: `stop <started>` (logs kept);
+  `killStartedSync`: SIGKILL the running compose child, the running exec's marked processes (`KILL` at once), and
+  `spawnSync kill <started>`. `logs`: `logs
+  --no-color --no-log-prefix --tail N <svc>` per service; `followLogs`: `logs --follow`.
+- **Snapshot reset** (`snapshot-postgres.ts`, strategy `snapshot`, in `resetLocked`): `snapshotTarget` (the database
+  key, its URL with secrets resolved, `pgEndpoint` — host, port, database, user, password as pg's own parser reads
+  them, refused unless that is the URL's loopback host and port; a system database refused again —, `<db>__ds_snapshot`;
+  pg is given the endpoint, never the URL) → `provider.publishedBy(port)` (refused without it: process)
+  → `PostgresSnapshot.open` on `provider.address(port)` (127.0.0.1 / ::1, never `localhost`; maintenance connection to `postgres`, else `template1`; `server_version_num` ≥ 130000) →
+  `repair()` (ALLOW_CONNECTIONS back on) → valid = not `--reseed`, `state.seed.hash` = `provider_state.snapshot.hash`
+  = the current hash (core `seedHash(sandbox, hashInputs)`) and the template exists, is a template, with the comment
+  `demo-studio snapshot <hash>` → `restore(owner)` (ALTER … ALLOW_CONNECTIONS false, DROP … IF EXISTS … WITH (FORCE),
+  CREATE … TEMPLATE … OWNER; no abort check between DROP and CREATE); otherwise `ensureDatabase` (an interrupted
+  restore) → the seed → `take(hash)` (block + terminate, drop the old template, CREATE … TEMPLATE app, connections
+  back in a `finally`, ALLOW_CONNECTIONS false IS_TEMPLATE true, COMMENT) → state. One `query()` per statement;
+  STRATEGY omitted. Supersede right after the restore or the seed; then the mailbox, `reset.restart`, `last_reset
+  {strategy, restored}`.
+- **init** (`init.ts`, `scaffold/docker-compose/`): placeholders `__SCHEMA__ __ENV__ __PROJECT__ __ENV_FLAG__
+  __APP_PORT__ __DB_PORT__ __MAIL_PORT__ __DB_PASSWORD__` rendered into sandbox.yaml, compose.yaml, README.md,
+  app/index.html, seed/01-demo-data.sql under `sandbox/` (`sandbox/<env>/` for another name); any of those files
+  already there refuses it before anything is written, unless `--force`; 3 ports free from 4600 (not used by the
+  project's environments or other sandboxes, nothing answering); `$schema` relative inside one top-level folder, else
+  a file:// URL; project.yaml through core `addSandboxEntry` — text edits only: appended (before a `...` document
+  end), after the last entry of a block `sandboxes:`, or inside a one-line flow `sandboxes: {…}`, the file's line
+  endings kept; a flow mapping over several lines through the yaml Document API (`lineWidth: 0`,
+  `flowCollectionPadding: false`); checked by re-parsing.
+- **Interrupts.** The CLI runs `up` / `reset` / `down` / `prepareTake` under `onInterrupt({message, onQuitSync})`: the
+  first signal aborts (the call stops what it started and a running seed step, exit 130); the second runs
+  `killStartedSync` (SIGKILL to the groups started by this call and their descendants, state entries removed; the
+  seed's running shell groups; an exec step's processes in its container) and exits.
+- **CLI.** `commands/sandbox.ts`: the five commands; `pickSandboxEnv(project, --env, scenario env)` (a usage error
+  without sandboxes or for a non-sandbox `--env`); `prepareSandboxTake` (header line, exit codes); `checkSandboxEnv`
+  (a run on a sandbox environment without --sandbox); `sandboxSummary` (the run summary line); `sandboxInitCommand`;
+  `--build` / `--volumes` / `--follow` are usage errors on a process sandbox. `run.ts`: the scenario's raw `env:`
+  (core `scenarioEnvOf`, no validation) → `pickSandboxEnv` → the scenario validated once against that environment →
+  prepareTake → `runScenario({sandbox: take.info})`, the lock named after the run at `run_start`, released in
+  `finally`. Runner: `RunOptions.sandbox` → `environment.sandbox` (a sandbox environment without it: `{name,
+  provider}`). Doctor: one `Sandbox <env>` line per sandbox (`DoctorProbes.sandbox`), its personas and hosts left out;
+  one `Docker` line (`dockerCheck`: PATH, then `dockerPlaces`; version, Compose ≥ 2.17, daemon, context — WARN when
+  missing, naming the `--project`'s docker-compose sandboxes; FAIL only when its default sandbox — `default_env` when
+  a sandbox, else the first declared — is one). `auth status`: sandbox personas `auto` (above).
+
 ## 4. CLI (`studio`)
 
 ```
 studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
 studio list                                   # projects
 studio validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
-studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
+studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json] [--sandbox]
 studio hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes] [--allow-writes]
 studio hooks rollback <project> [id] [--allow-writes]   # replay pending rollback journals (run id or journal id)
 studio env reset <project> [--allow-writes]   # project.reset hooks + pending journals
-studio schema [scenario|project|template|timeline]  # print JSON Schema
+studio sandbox init <project> [--env E] [--force] [--json]                                  # §3.8b scaffold
+studio sandbox up|down|reset|status|logs <project> [--env E] [--no-seed] [--build] [--volumes] [--reseed] [--json] [service] [--lines N] [--follow]   # §3.8b
+studio schema [scenario|project|template|timeline|sandbox]  # print JSON Schema
 studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in (§3.6)
 studio auth status [--project P [--env E]] [--check] [--json]   # personas: valid / expired / never / unchecked / error
+                                                                # (a sandbox account never signed in: auto)
 studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Chromium launch, ffmpeg/ffprobe, display,
                                               # keychain, notifications, workspace, template fonts; project personas
                                               # (never / expired / in use / in a git work tree), session home + hosts)
@@ -855,6 +1085,23 @@ proof that a read-only run changed nothing; `/#as-of` adds the shop hero's "Pric
 date from the browser's clock (every other date is the server's demo clock). The fixture project gives its pages
 display URLs (`*.northfield.example`) and an environment `production` (the local fixture, read-only, with an
 environment-level mock); its scenario `read-only` films a mocked quote request with `clock:` and `frame: browser`.
+L1.8: two sandboxes of the fixture project — `sandbox` (process: `node server.mjs` on 4501–4504, started by Demo
+Studio) and `sandbox-docker` (docker-compose, `sandbox/docker/{sandbox.yaml,compose.yaml}`: the fixture image on
+4511–4514 + `axllent/mailpit:v1.29.4` on 4525), same pages (the signed-in side), seed (`POST /api/reset`) and
+accounts; scenario `sandbox-quote` (no hooks). No npm package at run time: `bundle.mjs` (OUT_DIR, `bundleState`,
+`bundleVersion`; node: imports only) is what the server imports, `build.mjs` (esbuild imported inside `build()`) is
+loaded only when the bundle is stale, playwright-core only for a PDF. `Dockerfile`: `node:22-alpine`, context
+`fixtures/wholesale` with a whitelist `.dockerignore` (package.json, server.mjs, bundle.mjs, server/, src/shared/,
+public/build/), the host-built bundle required (`RUN test -f public/build/build.json` with the command to run),
+`NORTHFIELD_HOST=0.0.0.0` + port variables, `USER node`, a `HEALTHCHECK` (busybox wget of
+`http://127.0.0.1:$NORTHFIELD_CONSOLE_PORT/api/health`), `CMD node server.mjs --no-build`; no Chromium (the PDF
+route answers 500). SMTP relay
+(`server/smtp.mjs`, `NORTHFIELD_SMTP` / `--smtp` / `startFixture({smtp})`): `Mailbox.send` keeps the message and, with
+a relay, starts `SmtpRelay.deliver` (tracked in `mailbox.pending`, awaited by `flush()` and `close()`): `buildMime`
+(multipart/related { multipart/alternative { text, html }, inline cid parts }, base64 bodies at 76 columns, RFC 2047
+subject and names, `Message-ID` = the mailbox's) → `dataPayload` (CRLF, dot-stuffing, the final dot) → `smtpSend`
+(220 → EHLO, HELO once on a 5xx → MAIL FROM → RCPT TO per recipient → DATA → 354 → payload → 250 → QUIT → 221; replies
+read to their `NNN ` line; 10 s socket timeout); every outcome logged, never thrown.
 
 ## 6. Testing & acceptance (phase 1)
 
@@ -865,3 +1112,14 @@ environment-level mock); its scenario `read-only` films a mocked quote request w
   the #FF00FF hotspot in the frame at each click's `t_click` is within 3 px of the recorded click point and
   inside the target bbox; **no hesitations** — gap between consecutive steps' t_end and next t_start < 80 ms
   (excluding waits/holds); every popup-expecting click recorded `popup_opened`.
+- Sandboxes (L1.8): unit (core manifest checks, hooks seed phase, the sandbox engine's state / lock / ports / health /
+  identity, compose argv / parsing with a fake docker, the fixture's SMTP relay against an in-test SMTP server), the
+  process provider for real on the fixture (default suite), and the docker-compose tests gated by
+  `DEMO_STUDIO_TEST_DOCKER=1` — `packages/sandbox/test/compose.test.ts` (the init scaffold with Postgres snapshots, a
+  health stuck at `starting`, busy ports) and `packages/cli/test/sandbox-docker.test.ts` (the fixture's image built,
+  a sign-up mail relayed to the real Mailpit and read with runner-web's `MailboxClient`, the PDF refused, reset empties
+  Mailpit, `down --volumes`), plus another checkout sharing the project name and another container publishing the
+  sandbox's port on [::1] (K2, K3). Their compose projects, containers and images are named
+  `demo-studio-test-<run token>-*` / `demo-studio-test-fixture-<run token>-*` and swept after the run — that run's
+  only, so two runs (another worktree) never remove each other's (containers, networks, volumes, the images they
+  built; never base images, never `--rmi all`, never a prune).

@@ -13,7 +13,17 @@ export interface KindEnv {
 export type RollbackEnv = Pick<KindEnv, 'ctx' | 'log'> & {
   /** The replay runs on a read-only environment (the entry's own, L1.7): SQL runs in a read-only transaction. */
   readOnly?: boolean;
+  /**
+   * The environment the hook ran in (the journal entry's): a sql rollback reaches that environment's databases (a
+   * sandbox's own, L1.8), not the command's. Undefined: the context's.
+   */
+  env?: string;
 };
+
+/** The folder hook files and shell working directories are relative to: `ctx.baseDir`, else the project dir. */
+export function baseDirOf(ctx: HookContext): string {
+  return ctx.baseDir ?? ctx.project.dir;
+}
 
 /** A hook whose templates, files and security checks are resolved; nothing has run yet. */
 export interface PreparedHook {
@@ -40,7 +50,7 @@ export interface ExecutedHook {
   rollbackError?: string;
 }
 
-/** Read a hook file relative to the project dir, with an error naming both paths. */
+/** Read a hook file relative to the project dir (or a sandbox's folder), with an error naming both paths. */
 export async function readProjectFile(projectDir: string, rel: string, what: string): Promise<string> {
   const abs = resolve(projectDir, rel);
   try {

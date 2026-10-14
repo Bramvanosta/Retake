@@ -14,6 +14,7 @@ import { isPoint } from '../targets.js';
 import { BADGE_ACTIONS, IMAGE_FILE_EXTENSIONS, LOUPE_ACTIONS, SHORTCUT_ACTIONS, SPOTLIGHT_ACTIONS, isImagePath, parseFrameRef, tutorialFeaturesNamed } from '../tutorial.js';
 import type { TutorialLevel } from '../tutorial.js';
 import { DEFAULT_TEMPLATE } from '../template-defaults.js';
+import { mailboxFor, sandboxOf } from '../sandbox.js';
 import type { LoadedProject, NormalizedStep, Scenario, Template } from '../types.js';
 import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
@@ -658,10 +659,13 @@ class ScenarioChecker {
       const prev = known.get(facts.artefact.name);
       if (prev) this.ctx.error(facts.artefact.path, `${facts.artefact.kind} "${facts.artefact.name}" is already captured at ${formatPath(prev)}: give each capture its own \`as\``);
       else known.set(facts.artefact.name, facts.artefact.path);
-      if (facts.artefact.kind === 'email' && this.opts.project && !this.opts.project.config.mailbox) {
+      // The environment's mailbox (L1.8): a sandbox's own, else the project's.
+      if (facts.artefact.kind === 'email' && this.opts.project && !mailboxFor(this.opts.project, this.envName)) {
         this.ctx.error(
           [...sp, 'wait_for_email'],
-          `project "${this.opts.project.slug}" has no \`mailbox\`: add mailbox: {provider: mailpit, url: http://localhost:8025} to project.yaml`,
+          sandboxOf(this.opts.project, this.envName)
+            ? `sandbox ${this.envName} has no \`mailbox\`: add mailbox: {provider: mailpit, url: http://localhost:<port>} to its sandbox.yaml`
+            : `project "${this.opts.project.slug}" has no \`mailbox\`: add mailbox: {provider: mailpit, url: http://localhost:8025} to project.yaml`,
         );
       }
     }

@@ -190,6 +190,17 @@ describe('device and window layouts through the planner (L2.7)', () => {
     expect(none.warnings).toEqual([
       'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to environments.local.shop in project.yaml and render again (README: Environments)',
     ]);
+    // A sandbox environment (L1.8): its pages live in its sandbox.yaml, under the service that serves them (I9).
+    const sandboxed: LoadedProject = {
+      ...project,
+      config: { ...project.config, environments: { ...project.config.environments, box: { shop: 'http://localhost:4402' } }, environment_settings: { box: { sandbox: { file: join(project.dir, 'sandbox', 'box.yaml'), provider: 'process' } } } },
+      sandboxes: {
+        box: { env: 'box', file: join(project.dir, 'sandbox', 'box.yaml'), dir: join(project.dir, 'sandbox'), manifest: { version: 1, provider: 'process', services: { fixture: { command: 'x', pages: { shop: 'http://localhost:4402' } } } }, issues: [], secrets: {} },
+      },
+    };
+    expect(edit(realTimeline('quote'), 'box', sandboxed).warnings).toEqual([
+      'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to services.fixture.pages.shop in sandbox/box.yaml and render again (README: Sandbox mode)',
+    ]);
   });
 
   it('phone: a phone capture fills the screen under the status bar; a desktop one is letterboxed in it (display rect)', () => {

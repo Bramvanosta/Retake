@@ -6,6 +6,7 @@ import type { z } from 'zod';
 import { checkProject } from './checks/project.js';
 import { normalizeEnvironments } from './env.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
+import { loadSandboxes, mergeSandboxes } from './sandbox.js';
 import { ProjectFileSchema } from './schemas/project.js';
 import { DEFAULT_CAPTURE } from './types.js';
 import type { CaptureSettings, FrameStyle, LoadedProject, ProjectConfig, ValidationIssue } from './types.js';
@@ -22,8 +23,10 @@ export const PROJECT_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export const DEFAULT_FRAME: FrameStyle = 'card';
 export const DEFAULT_TEMPLATE_NAME = 'default';
-/** Generated artefacts kept out of git. */
-/** Generated folders of a project; `.demo-studio/` holds tool state such as hook journals (`.demo-studio/journals/`). */
+/**
+ * Generated folders of a project; `.demo-studio/` holds tool state such as hook journals (`.demo-studio/journals/`) and
+ * the state of its sandboxes (`.demo-studio/sandbox/`).
+ */
 export const PROJECT_GITIGNORE = ['runs/', 'renders/', 'review/', 'exports/', 'frames/', '.demo-studio/'];
 
 /** project.yaml as written (before defaults). */
@@ -131,15 +134,18 @@ export async function loadProject(dirOrSlug: string, root?: string): Promise<Loa
   const text = await readFile(file, 'utf8');
   const { config, issues } = parseProjectYaml(text, file);
   if (!config) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
+  // Sandbox environments (L1.8): each manifest is read and validated (a broken one throws), then merged in.
+  const sandboxes = await loadSandboxes(dir, config);
   return {
     slug: basename(dir),
     dir,
     root: wsRoot,
-    config,
+    config: sandboxes ? mergeSandboxes(config, sandboxes) : config,
     readme: await readOptional(join(dir, README_FILE)),
     scenarios: await listScenarioNames(dir),
     file,
     issues,
+    ...(sandboxes ? { sandboxes } : {}),
   };
 }
 

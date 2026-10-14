@@ -1,16 +1,16 @@
 import pg from 'pg';
-import { collectSecretRefs, sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@demo-studio/core';
+import { collectSecretRefs, databasesFor, databasesSource, sandboxOf, sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@demo-studio/core';
 import type { SqlHookSpec, TemplateContext } from '@demo-studio/core';
 import { checkHostAllowed } from '../allow-list.js';
-import { databaseTarget, describeTarget } from '../db-url.js';
+import { databaseTarget, describeTarget, sandboxDatabaseProblem } from '../db-url.js';
 import type { DatabaseTarget } from '../db-url.js';
 import { describeSql } from '../describe.js';
-import { HookError, errorMessage } from '../errors.js';
+import { HookError, HookSecurityError, errorMessage } from '../errors.js';
 import { addSecret, redactText } from '../secrets.js';
 import { lineAt, transactionControl } from '../sql-text.js';
 import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
 import type { HookContext, HookLogLevel, RollbackAction, TemplateSnapshot } from '../types.js';
-import { ignoreRollback, readProjectFile } from './common.js';
+import { baseDirOf, ignoreRollback, readProjectFile } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 
 export const SQL_CONNECT_TIMEOUT_MS = 15_000;
@@ -27,38 +27,56 @@ interface Database {
 }
 
 /**
- * Connection of `project.databases[key ?? first]`: URL templated (secrets resolved), host checked
- * against the allow-list before any connection. `snapshot` re-templates it for a rollback.
+ * Connection of `databases[key ?? first]` of the environment (`env`, default the context's: a sandbox's own databases,
+ * else project.yaml's — core databasesFor): URL templated (secrets resolved), host checked against the allow-list
+ * before any connection. `snapshot` re-templates it for a rollback.
  */
 async function openDatabase(
   ctx: HookContext,
   log: (level: HookLogLevel, msg: string) => void,
   key: string | undefined,
   snapshot?: TemplateSnapshot,
+  env: string = ctx.env.name,
 ): Promise<Database> {
-  const dbs = ctx.project.config.databases ?? {};
+  const dbs = databasesFor(ctx.project, env);
+  const where = databasesSource(ctx.project, env);
   const keys = Object.keys(dbs);
   if (!keys.length) {
-    throw new HookError('sql hooks need a database: add `databases: {main: {url: "postgres://…"}}` to project.yaml');
+    throw new HookError(`sql hooks need a database: add \`databases: {main: {url: "postgres://…"}}\` to ${where}`);
   }
   const k = key ?? keys[0];
   if (!Object.hasOwn(dbs, k)) {
-    throw new HookError(`unknown database "${k}" (project.yaml declares: ${keys.join(', ')})`);
+    throw new HookError(`unknown database "${k}" (${where} declares: ${keys.join(', ')})`);
   }
   const urlTemplate = dbs[k].url;
   const tpl = snapshot
     ? await snapshotTemplateContext(ctx, snapshot, urlTemplate)
     : await hookTemplateContext(ctx, urlTemplate);
   const connectionString = render(urlTemplate, tpl);
+  // A sandbox's database (L1.8): pg must connect where its URL says, on this machine (validation refuses the rest).
+  if (sandboxOf(ctx.project, env)) {
+    const problem = sandboxDatabaseProblem(connectionString);
+    if (problem) throw new HookSecurityError(`refusing database ${k} of sandbox ${env}: ${problem}`, 'host');
+  }
   const target = databaseTarget(connectionString);
   if (target.password) {
     addSecret(ctx, target.password);
-    if (collectSecretRefs(urlTemplate).size === 0) {
+    // A sandbox's database is local and disposable (L1.8): its plain demo password is expected.
+    if (collectSecretRefs(urlTemplate).size === 0 && !sandboxOf(ctx.project, env)) {
       log('warn', `databases.${k}.url contains a clear-text password: use {{env:VAR}} or {{keychain:service/account}}`);
     }
   }
   checkHostAllowed(connectionString, ctx.project);
-  return { key: k, urlTemplate, connectionString, target, label: `${k} (${describeTarget(target)})` };
+  // A docker-compose sandbox's own database: on the exact address Docker publishes its port on (HookContext).
+  const address = sandboxOf(ctx.project, env) && !target.socket ? ctx.connectAddress?.(target.host, target.port) : undefined;
+  return { key: k, urlTemplate, connectionString: address ? withHost(connectionString, address) : connectionString, target, label: `${k} (${describeTarget(target)})` };
+}
+
+/** A connection string with another host (an IPv6 address in brackets). */
+function withHost(connectionString: string, host: string): string {
+  const u = new URL(connectionString);
+  u.hostname = host.includes(':') ? `[${host}]` : host;
+  return u.href;
 }
 
 function sqlErrorMessage(e: unknown, sql: string): string {
@@ -133,7 +151,7 @@ function renderSql(text: string, tpl: TemplateContext, where: string): string {
 
 async function loadSource(ctx: HookContext, source: { file?: string; query?: string }, what: string): Promise<string> {
   if (!source.file === !source.query) throw new HookError(`${what} needs exactly one of \`file\` or \`query\``);
-  return source.file ? readProjectFile(ctx.project.dir, source.file, 'SQL file') : source.query!;
+  return source.file ? readProjectFile(baseDirOf(ctx), source.file, 'SQL file') : source.query!;
 }
 
 export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promise<PreparedHook> {
@@ -179,7 +197,7 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
 
 export async function rollbackSql(action: Extract<RollbackAction, { kind: 'sql' }>, r: RollbackEnv): Promise<string> {
   const { ctx, log } = r;
-  const db = await openDatabase(ctx, log, action.db, action.data);
+  const db = await openDatabase(ctx, log, action.db, action.data, r.env);
   const where = action.file ?? 'inline rollback SQL';
   const sql = renderSql(action.query, await snapshotTemplateContext(ctx, action.data, action.query), where);
   return runSql(db, sql, where, log, r.readOnly === true);

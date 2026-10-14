@@ -667,7 +667,7 @@ Intl's default date only, timers and animation frames stay real. Left out: per-s
 days later" fast-forwards the clock), a `--clock` flag on `studio run`, the clock in a dedicated worker's first lines
 (it arrives once the worker started: pausing it needs our own target auto-attach, which Playwright's resumes), in
 shared and service workers, a mode that also fakes timers for an app that derives what it shows from `performance`,
-and the server's clock (dates the server makes: created_at, emails, PDFs) — through hooks or the L1.8 sandbox seeds.
+and the server's clock (dates the server makes: created_at, emails, PDFs) — for a sandbox, BL-68.
 
 - **Value:** Stories that span days; identical server-made dates on every take.
 - **Hard parts:** Keeping the capture's own timing on real time while the product's clock jumps.
@@ -683,6 +683,60 @@ the phase 4 run screen).
 
 - **Value:** Small conveniences around environments once they are used daily.
 - **Hard parts:** None in particular.
+
+### BL-67 — Sandbox snapshots beyond Postgres
+*M · cut in L1.8 (R-SBX-05) · builds on: L1.8*
+
+L1.8 snapshots one database: Postgres 13+, published by a service of the sandbox's own compose project (a template
+clone restored before each take). Everything else reseeds. Left out: MySQL / MariaDB (no template databases: a
+`mysqldump` / `mysql` round trip, the clone plugin, or a copy of the data directory with the service stopped), SQLite
+(a file copy while the app is stopped or through its backup API), copy-on-write volume snapshots for any store (a
+volume copied while its service is stopped; ZFS / APFS clones), several databases in one snapshot, and an explicit
+opt-in for a Postgres outside the sandbox (a process-provider sandbox, a database another compose project runs) with
+a typed confirmation of what will be dropped.
+
+- **Value:** Fast resets for the common stacks that are not Postgres.
+- **Hard parts:** Proving the data belongs to the sandbox before dropping it; consistency of a volume copied live.
+
+### BL-68 — A clock for the sandbox's server
+*S–M · found in L1.8 (R-SBX-04) · builds on: L1.7, L1.8*
+
+A sandbox reset makes the seeded data equal between takes, not what the server writes during the take: a quote's
+`created_at`, a mail's date, a PDF's "issued on" are the time of the take (the fixture is equal only because its demo
+clock restarts at each reset). `--sandbox` deliberately sets no browser clock (a pinned browser clock next to real
+server timestamps shows "created in 3 weeks"). Give the server the project's clock instead: pass `clock:` to the
+sandbox's services as an environment variable (`DEMO_STUDIO_CLOCK=2026-11-02T10:24:00`, frozen or running from the
+reset) for apps that read one, or run them under libfaketime (process provider, or a compose `LD_PRELOAD`); then the
+browser clock can follow the same value.
+
+- **Value:** Identical server-made dates on every take, and a coherent browser + server clock.
+- **Hard parts:** Each framework reads time differently; libfaketime breaks some runtimes (Go, the JVM's monotonic
+  timers); restarting services so they pick up a new value.
+
+### BL-69 — Sandbox extras cut from L1.8
+*M · cut in L1.8 · builds on: L1.8, BL-05, BL-08*
+
+Cut to keep L1.8 an L:
+- `run --sandbox --no-reset` (take the lock, film as is) and `--wait` for a busy take lock instead of failing fast;
+  ephemeral per-take sandboxes (a fresh copy per take, so takes run in parallel); `sandbox up --attach` (foreground,
+  logs streamed, Ctrl-C stops it); restarting only the services whose definition changed (today a warning: down,
+  then up); `reset.after` steps; `--json` on `up` / `reset` / `down`; `logs --follow` for the process provider; a
+  process variant of `studio sandbox init`; `studio new` offering a sandbox.
+- A snapshot taken after the accounts signed in (sessions kept across takes, no sign-in before each take); accounts
+  that reuse another environment's persona definitions instead of repeating them in sandbox.yaml.
+- A per-mark frame comparison of two takes (`compare-takes <run> <run> [--mark m]`: text artefacts plus a frame diff
+  outside the cursor), today done by hand with ffmpeg.
+- Chromium in the fixture's Docker image (its quote PDF; ≈ +250 MB), a Windows process provider (no process groups),
+  and remote sandboxes — the same manifest run on a VPS, in CI or in a cloud runner (BL-05, BL-08; the manifest keeps
+  no host path for that).
+- The take's own connections pinned to the address Docker publishes a port on, like the health checks, pg, sql seed
+  steps and the mailbox clear already are: the browser (`--host-resolver-rules` for the sandbox's host names), the
+  runner's `wait_for_email` client and `http` seed steps (fetch cannot pin an address: node:http with a `lookup`).
+  Today another container publishing the same port on [::1] is refused right before each take, not during it.
+
+- **Value:** Smoother daily use of sandboxes and parallel takes; the road to CI and hosted capture.
+- **Hard parts:** Parallel sandboxes need free ports and project names per copy; remote ones need a tunnel for the
+  browser and the health checks.
 
 ## Guard-rails for planned lots (no new scope)
 

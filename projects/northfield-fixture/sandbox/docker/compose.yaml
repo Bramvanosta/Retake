@@ -1,0 +1,37 @@
+# Compose file of the fixture's Docker sandbox (environment sandbox-docker; sandbox.yaml next to it): the Northfield
+# fixture built from fixtures/wholesale/Dockerfile, and a real Mailpit that catches its mails over SMTP. Ports on
+# 127.0.0.1 only: 4511–4514 for the fixture (open console and shop, signed-in console and shop — the same numbers
+# inside the container, so the links in its mails stay right) and 4525 for Mailpit's API and web page. SMTP stays
+# inside the compose network.
+x-logging: &logging                        # docker's default log driver never rotates: a sandbox may stay up for days
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+
+services:
+  fixture:
+    # Node 22 + the server + the UI bundle built on this machine (run `node fixtures/wholesale/build.mjs` before
+    # `studio sandbox up … --build`). No `image:`: the image is named after the compose project (demo-studio-…-fixture).
+    # Its healthcheck is the image's (GET http://127.0.0.1:<console port>/api/health).
+    build: ../../../../fixtures/wholesale
+    init: true                             # stops at once on `down`
+    environment:
+      NORTHFIELD_CONSOLE_PORT: "4511"
+      NORTHFIELD_SHOP_PORT: "4512"
+      NORTHFIELD_AUTH_CONSOLE_PORT: "4513"
+      NORTHFIELD_AUTH_SHOP_PORT: "4514"
+      NORTHFIELD_SMTP: mailpit:1025        # every mail also delivered to Mailpit (the in-memory mailbox keeps it too)
+    ports:
+      - "127.0.0.1:4511:4511"
+      - "127.0.0.1:4512:4512"
+      - "127.0.0.1:4513:4513"
+      - "127.0.0.1:4514:4514"
+    depends_on:
+      mailpit: {condition: service_healthy}
+    logging: *logging
+
+  mailpit:                                 # the sandbox's mailbox (wait_for_email reads its API; emptied at every reset)
+    image: axllent/mailpit:v1.29.4
+    environment:
+      MP_DISABLE_VERSION_CHECK: "true"     # no call to the internet for the latest version
+    ports: ["127.0.0.1:4525:8025"]
+    logging: *logging
