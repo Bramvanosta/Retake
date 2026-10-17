@@ -31,7 +31,10 @@ describe('bundled templates', () => {
       expect(loaded.template.name, t.name).toBeTruthy();
       const text = await readFile(`${t.dir}/template.yaml`, 'utf8');
       expect(parseTemplateYaml(text).issues, t.name).toEqual([]);
-      const standalone = TemplateSchema.safeParse(parse(text));
+      // Complete on its own: every section of a full template (`version` is the file's format, not a section).
+      const { version, ...sections } = parse(text) as { version?: unknown };
+      expect(version, t.name).toBe(1);
+      const standalone = TemplateSchema.safeParse(sections);
       expect(standalone.success, `${t.name}: ${standalone.error?.message ?? ''}`).toBe(true);
     }
   });
@@ -66,9 +69,12 @@ describe('bundled fixture project', () => {
     expect(errorsOf(project.issues ?? [])).toEqual([]);
     const template = await loadProjectTemplate(project);
     expect(project.scenarios).toEqual(expect.arrayContaining(['catalogue', 'quote']));
+    // The committed files show the format version (R-PRIN-13): optional, written by example.
+    expect(project.config.version).toBe(1);
     for (const name of project.scenarios) {
       const loaded = await loadScenario(project, name, { template: template.template });
       expect(errorsOf(loaded.issues), name).toEqual([]);
+      expect(loaded.scenario.version, name).toBe(1);
     }
   });
 

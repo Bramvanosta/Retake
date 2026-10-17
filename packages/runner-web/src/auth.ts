@@ -50,6 +50,7 @@ import type { BrowserSession, RealmSpec, StorageStateFile } from './session.js';
 import { STALE_COPY_AGE_MS, SESSION_COPY_PREFIXES, isLiveCopy, registerSessionCopy } from './copies.js';
 import { fileSlug, sleep, throwIfAborted, wallNow } from './util.js';
 import { closePage } from './write-guard.js';
+import { describePending, networkIdle, trackRequests } from './network.js';
 import { useRealTime } from './product-clock.js';
 
 type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
@@ -596,7 +597,10 @@ async function runLoginStep(page: Page, kit: KitClient, step: NormalizedStep, pe
       const a = step.args as WaitForArgs;
       const ms = (a.timeout ?? step.timeout ?? LOGIN_STEP_TIMEOUT_S) * 1000;
       const deadline = wallNow() + ms;
-      if (a.network_idle) await page.waitForLoadState('networkidle', { timeout: ms }).catch(() => undefined);
+      if (a.network_idle) {
+        const idle = await networkIdle(page, { timeoutMs: ms, ...(deps.signal ? { signal: deps.signal } : {}) });
+        if (!idle.idle) throw new RunnerError(`the network did not become idle within ${(ms / 1000).toFixed(1)} s (${describePending(idle.pending)})`);
+      }
       const count = async (t: TargetSpec) => ((await kit.find(normalizeTarget(t)).catch(() => null))?.count ?? 0);
       for (;;) {
         const unmet: string[] = [];
@@ -635,6 +639,8 @@ export async function autoLogin(context: BrowserContext, persona: ResolvedPerson
     throw new RunnerError(deps.secrets.redactText(errorMessage(e)));
   }
   const page = await context.newPage();
+  // Counted before its first request (a session's browsers already do; a `wait_for: {network_idle}` step reads it).
+  trackRequests(page);
   // The write guard's exemption (L1.7): while the steps run, on the persona's sign-in pages — every page when it
   // declares none (login_url / check.expect_not_url narrow it) —; never while the tab closes.
   const matchers = loginMatchers(persona.loginPatterns, deps.envPages);

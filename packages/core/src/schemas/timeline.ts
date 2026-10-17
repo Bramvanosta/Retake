@@ -11,6 +11,7 @@ import {
   SceneTransitionSchema,
   TutorialSwitchSchema,
   mediaFileShape,
+  fileVersion,
   nonEmpty,
 } from './primitives.js';
 import { OverlayAnchorSchema, OverlayAtSchema } from './steps.js';
@@ -340,8 +341,23 @@ export const TimelineSchema = z
     description: 'runs/<id>/timeline.json: scenes, step events, markers, pages and cursor track in capture time.',
   }) satisfies z.ZodType<Timeline>;
 
+/** What ran a capture (run.json `engine`): explains a difference between two machines' takes. */
+const RunEngineSchema = z
+  .strictObject({
+    demo_studio: nonEmpty().describe('Demo Studio version.'),
+    node: nonEmpty().describe('Node.js version.'),
+    chromium: nonEmpty().describe('Version of the browser the run filmed with (absent when it did not open).').optional(),
+    os: nonEmpty().describe('Platform, release and architecture, e.g. "darwin 25.6.0 arm64".'),
+    fonts: z
+      .strictObject({ files: z.number().int().min(0), digest: nonEmpty() })
+      .describe('The fonts installed on the machine: the number of font files and a digest of their names.')
+      .optional(),
+  })
+  .describe('What ran the capture: Demo Studio, Node.js, Chromium, the OS and its installed fonts.');
+
 export const RunRecordSchema = z
   .strictObject({
+    version: fileVersion(),
     id: nonEmpty(),
     project: nonEmpty(),
     scenario: nonEmpty(),
@@ -394,5 +410,6 @@ export const RunRecordSchema = z
     stopped_at: z
       .strictObject({ scene: z.string(), step: z.number().int(), reason: z.enum(['irreversible', 'until']) })
       .optional(),
+    engine: RunEngineSchema.optional(),
   })
   .meta({ id: 'RunRecord', title: 'Demo Studio run record', description: 'runs/<id>/run.json' }) satisfies z.ZodType<RunRecord>;

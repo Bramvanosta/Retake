@@ -1,5 +1,5 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
-import { COMPONENT_KINDS } from '@demo-studio/core';
+import { COMPONENT_KINDS, DEMO_STUDIO_VERSION } from '@demo-studio/core';
 import type { JsonSchemaName } from '@demo-studio/core';
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from './commands/components.js';
 import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsPreviewOptions, ComponentsValidateOptions } from './commands/components.js';
@@ -35,7 +35,7 @@ import type { Io } from './io.js';
 import { Ui } from './ui.js';
 import type { GlobalOptions } from './workspace.js';
 
-export const VERSION = '0.1.0';
+export const VERSION = DEMO_STUDIO_VERSION;
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 

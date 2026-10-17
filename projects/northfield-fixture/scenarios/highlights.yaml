@@ -3,6 +3,7 @@
 # (capture_text) and counted up in a key-figure card, the quotes list before / after opening it, the features, a chart
 # from a CSV file of the project, a testimonial and a closing call to action with a QR code. Every name and figure is
 # fictional (the Northfield fixture).
+version: 1
 video: highlights
 title: {kicker: Season recap, text: "A season of quotes, in a minute"}
 outro: {tagline: "From quote to cup, in one place."}

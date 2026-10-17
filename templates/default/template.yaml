@@ -2,6 +2,7 @@
 # Demo Studio starter template "default": neutral and elegant.
 # Inter throughout, slate text, a calm blue accent on a solid light background.
 # Placeholder brand: "Demo Studio" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
+version: 1
 name: default
 
 colors:

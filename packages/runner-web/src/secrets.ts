@@ -57,9 +57,9 @@ export const TIMELINE_POLICY: RedactPolicy = {
 };
 
 export const RECORD_POLICY: RedactPolicy = {
-  id: K, project: K, scenario: K, mode: K, status: K, started_at: K, finished_at: K, dir: K, env: K, options: K, current: K,
+  version: K, id: K, project: K, scenario: K, mode: K, status: K, started_at: K, finished_at: K, dir: K, env: K, options: K, current: K,
   capture: K, timeline: K, screenshots: K, hooks: K, stopped_at: K, error: { scene: K, action: K, screenshot: K, dom: K },
-  environment: K,
+  environment: K, engine: K,
 };
 
 /** Progress events (log.jsonl, the terminal): a hook's `name` is its name, else its description (redacted by hooks). */

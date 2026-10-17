@@ -166,7 +166,27 @@ newRunId(scenario: string, date?: Date): string     // "20261011-142233-catalogu
 readJson<T>(file): Promise<T>; writeJson(file, value): Promise<void>  // atomic write (tmp + rename)
 formatIssues(issues: ValidationIssue[], file?: string): string       // "file:12:5 error scenes[1].steps[3].click: …"
 class ScenarioError extends Error { issues: ValidationIssue[] }
+
+// file formats (R-PRIN-13, L1.4; formats.ts)
+DEMO_STUDIO_VERSION: string                          // the package version (`studio --version`, run.json engine)
+FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 }
+newerFormatMessage(value, { file, supported }): string | undefined   // "this project.yaml is version 2: it was made
+                                                                     //  for a newer Demo Studio (this one reads version 1) — update Demo Studio"
+newerRunMessage(runDir): string | undefined          // the same for runs/<id>/run.json (render, plan, export-capture refuse it)
+checkYamlDocument(text, schema, semantic?, empty?, { formatVersion?: { file, supported } }): CheckedDocument
 ```
+
+**File format versions** (R-PRIN-13, L1.4). Scenarios, project.yaml, template.yaml, studio.yaml and run.json take an
+optional top-level `version: 1` (`fileVersion()` in schemas/primitives.ts: `z.literal(1).optional()`; absent = 1);
+sandbox.yaml, timeline.json, the hooks journals, render / review records and raw manifests require theirs. Before the
+schema, `checkYamlDocument` with `formatVersion` (`parseScenario`, `validateScenario`, `parseProjectYaml`,
+`parseTemplateYaml`, `loadWorkspaceConfig`, `parseSandboxYaml`) refuses an integer `version` above the supported one
+with one positioned error at the key — no unknown-key errors for the newer format's keys; `0`, `"1"` or `1.5` stay
+plain schema errors. `parseTemplateYaml` drops `version` before merging the file over the defaults (it is the file's,
+not a template section). Writers: `createProject` (first key), the runner (`RunRecord.version`, first key); the
+starter templates and the fixture's files carry it. Hook files (top-level lists) have none. `findRun` (render,
+export-capture), `studio plan`'s own `resolveRun` and `exportCapture` refuse a run whose run.json is newer; a run.json without `version` (before L1.4)
+reads as 1. No migration: Demo Studio never rewrites a user's file (a `studio migrate` is BL-70).
 
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids
@@ -195,6 +215,7 @@ valid), and `mocks` on a read-write environment are a warning (ignored, the writ
 runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown' | 'reset' | 'seed'; journal: Journal }):
   Promise<{ ok: boolean; results: HookResult[] }>
 //   setup: on the first failure (non-optional), rolls back the completed hooks of this call in reverse and returns ok=false
+//          (ctx.signal aborted: a running shell hook is stopped and fails; the rollbacks run without the signal)
 //   seed (L1.8, §3.8): stops at the first failure, rolls nothing back, never asks to confirm a destructive step, no js
 //   teardown: runs every hook even if some fail (collects errors)
 class Journal {                      // rollback journal persisted as JSON: runs/<id>/hooks-journal.json (captures),
@@ -498,8 +519,20 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   `File` (fake bytes or the real file); if the zone has/contains an `<input type=file>` (or `input`
   given) and no drop handler reacted, fall back to `setInputFiles`.
 - `wait` (sleep), `hold` (sleep; marked as hold in the timeline), `wait_for` (poll 100 ms; text/not_text
-  are visible-text checks on the active page), `assert` (fails with screenshot), `screenshot`
-  (runs/<id>/screenshots/<name>.png).
+  are visible-text checks on the active page; `network_idle`: `networkIdle(page)` in `network.ts` — no request in
+  flight for 500 ms, counted from the step at the earliest, from a per-page in-flight tracker (`trackRequests`, attached
+  by the session to every page as it opens: `request` / `requestfinished` / `requestfailed`, the favicon and event
+  streams ignored). Not Playwright's `networkidle` load state: it fires once per document and then resolves at once,
+  so a request started after the page's first idle (by a click) was never waited for. A page that never goes quiet
+  (long polling) times out, naming the requests in flight. As Playwright's own networkidle does, a frame's requests
+  are forgotten when it commits a new document (a `framenavigated` while its navigation request is in progress — a
+  pushState has none and keeps them; the new document's request is kept) or is detached: after a cross-site
+  navigation (renderer swapped) and for a dedicated worker's requests (reported on the page's top frame) Playwright
+  reports no end for them. A fetch whose `no-store` body the page never reads is never reported as finished either: a
+  request stops counting `UNREAD_BODY_MS` (1 s) after its response headers. Limit (BL-71): a worker started by an
+  iframe that goes away keeps its request until the top document changes.
+  `settle()` and `open` keep the load state, bounded by
+  `settle_ms`), `assert` (fails with screenshot), `screenshot` (runs/<id>/screenshots/<name>.png).
 - `new_tab`: real click on target (if given) and wait ≤ 1.5 s for `context.on('page')`; if no page
   appeared, open `href` (target's `href`, or the arg) in a new page; set it active and keep recording.
 - `switch_page`, `open` (navigate; `wait_until` default `load` + settle network idle ≤ settle_ms),
@@ -519,7 +552,14 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 - Errors: a failing step retries resolution until its timeout, then fails with a clear message
   (target description, candidate count, nearest texts found), a screenshot and a DOM snippet in
   `runs/<id>/screenshots/error-<scene>-<step>.png|.html`. Non-optional failures abort the scenario;
-  teardown ALWAYS runs (try/finally, also on SIGINT/SIGTERM and AbortSignal).
+  teardown ALWAYS runs (try/finally, also on SIGINT/SIGTERM and AbortSignal) — after a failed or interrupted setup
+  too: the hooks' journal and context are opened before the setup runs (`openHooks`). The run's signal reaches the
+  setup only (`ctx.signal`): a cancel stops a running shell hook (process group SIGTERM, SIGKILL 2 s later; only shell
+  hooks honour the signal: an http, sql or js hook ends first, the setup stops at the next hook — or after its last)
+  and the next hooks, `runHooks` rolls the completed ones back with a context without the signal (rollbacks are never
+  interrupted), and the run ends `cancelled`; teardown and rollbacks then run uninterrupted. Every phase's shell
+  groups are in `ctx.running`: a second signal SIGKILLs them, removes the session copies and re-raises the signal
+  (the journal keeps what was not rolled back).
 - **Templating and secrets** (R-RUN-16/17, L1.2). Each scene entry (scene, card, interstitial) is templated once, when
   the loop reaches it (`templateSceneEntry`, after the setup hooks; the `--until` scene only up to its last step); the
   raw steps are templated before `normalizeStep`, so a string target is read from its value. The video block is
@@ -599,7 +639,13 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   (`stopped_at`), later scenes continue. `--until <ref>` stops after that step (both modes).
 
 ### 3.5 Outputs (`runs/<run_id>/`)
-`run.json` (RunRecord, updated live), `capture.mp4`, `frames/` + `frames.jsonl`, `timeline.json`,
+`run.json` (RunRecord, updated live; `version: 1` and, L1.4, `engine: {demo_studio, node, chromium?, os, fonts?:
+{files, digest}}` — runner `engine.ts`: `chromium` read over CDP `Browser.getVersion` once the browser is open
+(`BrowserSession.browserVersion`), `os` = platform, release and arch, `fonts` = the number of font files under the
+platform's font folders (darwin: /System/Library/Fonts, /Library/Fonts, ~/Library/Fonts; Linux: /usr/share/fonts,
+/usr/local/share/fonts, ~/.local/share/fonts, ~/.fonts; three levels deep) and a sha256/12 of their sorted relative
+names, walked once per process (≈ 1 ms on the Mac); the secrets policy keeps both keys), `capture.mp4`, `frames/` +
+`frames.jsonl`, `timeline.json`,
 `log.jsonl` (every RunProgress event), `screenshots/`, `hooks-journal.json`, `scenario.yaml` (snapshot, tokens as
 written). Secret values appear as `***` in run.json, log.jsonl, timeline.json (except `artefacts`) and error-*.html.
 L1.7: `run.json` `environment: {production?, access, clock?: {at, timezone?, freeze?}}` (+ `options.allow_writes`) and `timeline.json`
@@ -666,7 +712,8 @@ read-only environment and an unusable clock throw before the run folder is made.
   timeline). Legacy `default` never fails for a missing or unchecked session (it starts signed out, warned) — except a
   missing `storage_state` file (above). A cancel (Ctrl-C) during a check or an automated login cancels the run at
   once: their `goto` closes its tab on abort; nothing is written about the session.
-- **Automated login** (`autoLogin`): steps `open`, `click`, `type` (field cleared first), `press`, `wait_for`, `wait`,
+- **Automated login** (`autoLogin`): steps `open`, `click`, `type` (field cleared first), `press`, `wait_for` (its
+  `network_idle` is the run's `networkIdle`, a timeout fails the login), `wait`,
   templated with the run's pages, vars and secrets (`{{hooks.…}}` is not available), real input through the kit's
   targets, in a tab of the persona's browser. Messages name the step as written (`login step 3 (type into
   label="Password")`), never a typed value, and are redacted.
@@ -1105,13 +1152,28 @@ read to their `NNN ` line; 10 s socket timeout); every outcome logged, never thr
 
 ## 6. Testing & acceptance (phase 1)
 
-- Unit: core (parsing, errors with line numbers, normalisation, templating, schema), hooks (journal,
-  rollback order, allow-list, destructive detection; sql against a local Postgres if `$DEMO_STUDIO_TEST_PG`).
-- Integration (runner-web): fixture server + `catalogue` scenario headless at 1920×1080 → capture.mp4 +
-  timeline.json. Assertions: video duration ≈ timeline duration; **cursor sync** — with the `debug` cursor,
-  the #FF00FF hotspot in the frame at each click's `t_click` is within 3 px of the recorded click point and
-  inside the target bbox; **no hesitations** — gap between consecutive steps' t_end and next t_start < 80 ms
-  (excluding waits/holds); every popup-expecting click recorded `popup_opened`.
+- Unit: core (parsing, errors with line numbers, normalisation, templating, schema, format versions), hooks
+  (journal, rollback order, allow-list, destructive detection; sql against a real Postgres if `$DEMO_STUDIO_TEST_PG` —
+  `pnpm test:pg`: `scripts/test-pg.mjs` starts a throwaway `demo-studio-pg-test-<hex>` container (label
+  `demo-studio.test=pg`) from the local `postgres:17-alpine` image (never pulled) on a loopback port Docker picks,
+  with password auth (scram, what the connection-failure test needs), waits for a password-authenticated `SELECT 1`
+  over TCP (the image's init server listens on no TCP socket), runs `packages/hooks/test/sql.test.ts` and removes that
+  container by its exact name with its anonymous data volume (`docker rm -f -v`: the image declares a volume, which
+  `--rm` does not drop when the container is removed by name) in `finally` and on SIGINT / SIGTERM; a labelled
+  container a killed run left is listed with its `docker rm -f -v`, never removed; `--all` runs the whole suite with Postgres, Docker and slow tests on).
+- Integration (L1.4, `packages/cli/test/catalogue-acceptance.test.ts`, gated by `DEMO_STUDIO_TEST_SLOW=1` —
+  `pnpm test:slow`, ≈ 77 s): the fixture on free ports + the committed `catalogue` scenario (loaded through core, the
+  `local` environment pointed at the fixture's ports in memory, its real hooks) headless at 1920×1080 with the debug
+  cursor → capture.mp4 + timeline.json in a temp folder. Assertions: run succeeded, hooks ok / ok, the setup rollback
+  replayed after the teardown (journal: nothing pending, the entry `rolled_back`), run.json and timeline.json
+  schema-valid, scenes and marks, the run folder's files (log.jsonl ending with `run_end`); the two scroll steps last
+  their set 1.5 / 2.2 s plus at most the 0.9 s wait for fresh frames (`awaitFreshFrame`); every frame and the video 1920×1080 at 30 fps, capture 55–80 s, video duration ≈
+  timeline duration (± 0.2 s); **cursor sync** — with the `debug` cursor, the #FF00FF hotspot in the frame at each
+  click's `t_click` (event-level clicks and every `data.clicks[]` entry but `outside`) is within 3 px of the recorded
+  click point and inside the target bbox; **no hesitations** — gap between consecutive steps' t_end (hold end) and
+  next t_start < 80 ms, the scene-opening still included; every popup-expecting click (New import, the select, menu
+  and pick triggers) recorded `popup_opened`; no capture freeze while the cursor moves (the dialog-close ripple stall,
+  R-ISS-12, is tolerated).
 - Sandboxes (L1.8): unit (core manifest checks, hooks seed phase, the sandbox engine's state / lock / ports / health /
   identity, compose argv / parsing with a fake docker, the fixture's SMTP relay against an in-test SMTP server), the
   process provider for real on the fixture (default suite), and the docker-compose tests gated by

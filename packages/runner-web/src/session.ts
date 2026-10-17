@@ -7,6 +7,7 @@ import type { BrowserConfig, ResolvedClock } from '@demo-studio/core';
 import { registerSessionCopy } from './copies.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
+import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
 import type { ProductClockConfig } from './product-clock.js';
@@ -392,9 +393,14 @@ export class BrowserSession {
 
   private adopt(realm: Realm): void {
     this.realms.push(realm);
-    for (const p of realm.context.pages()) this.clockWorkers(p);
+    for (const p of realm.context.pages()) {
+      this.clockWorkers(p);
+      trackRequests(p);
+    }
     realm.context.on('page', (p) => {
       this.clockWorkers(p);
+      // Requests in flight are counted from the page's birth (`wait_for: {network_idle}`, network.ts).
+      trackRequests(p);
       if (this.waiters.size > 0) {
         for (const w of [...this.waiters]) w(p);
       }
@@ -434,6 +440,27 @@ export class BrowserSession {
   /** Every context of the session (one per realm). */
   get contexts(): BrowserContext[] {
     return this.realms.map((r) => r.context);
+  }
+
+  /**
+   * The browser's version ("141.0.7390.37", run.json `engine.chromium`), read over CDP on a page of the session (a
+   * persistent context has no Browser object); undefined when it cannot be read.
+   */
+  async browserVersion(): Promise<string | undefined> {
+    const context = this.context;
+    const page = context.pages()[0];
+    if (!page) return undefined;
+    try {
+      const cdp = await context.newCDPSession(page);
+      try {
+        const { product } = await cdp.send('Browser.getVersion');
+        return /\/(\S+)$/.exec(product)?.[1] ?? product;
+      } finally {
+        await cdp.detach().catch(() => undefined);
+      }
+    } catch {
+      return undefined;
+    }
   }
 
   /** The realm (persona; "" = none) a page belongs to; undefined for a page of another browser. */

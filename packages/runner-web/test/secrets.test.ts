@@ -131,9 +131,9 @@ describe('RunSecrets (R-RUN-17)', () => {
     expect(out.scenes[1].card).toEqual({ slots: { title: 'Welcome' }, transition: { component: 'x/t', params: { text: '***' } } });
     expect(out.scenes[1].transition).toBe('crossfade');
     const [click, emit, evaled, captured, hover] = out.events;
-    expect(click.target.desc).toBe('row "Account ***"');
+    expect(click.target!.desc).toBe('row "Account ***"');
     expect(click.camera).toEqual({ zoom: 2, ease: 'slow', until: 'scene_end', target: { role: 'row', name: 'Account ***' } });
-    expect(click.overlay.target).toBe('name="***"');
+    expect(click.overlay!.target).toBe('name="***"');
     expect(click.data).toEqual({ clicks: [{ role: 'trigger', strategy: 'real', desc: 'name="***"' }], navigation: { kind: 'document', url: 'http://x/?t=***' } });
     expect(emit.data).toEqual({ name: 'login', data: { id: '***', name: '***', label: '***', path: '***', file: '***' } });
     expect(evaled.data).toEqual({ value: { id: '***', name: '***' } });

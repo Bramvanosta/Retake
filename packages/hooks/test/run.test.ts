@@ -117,6 +117,38 @@ describe('runHooks: setup', () => {
     expect(logText()).toContain('warn setup hook 2/3 is optional: continuing');
   });
 
+  it('a cancel during a hook that does not stop on it (js, http, sql) or between two rolls back like a failure (R-HOOK-10)', async () => {
+    // The js hook ignores ctx.signal: it ends, then the setup stops and rolls back before returning (the caller's
+    // teardown comes after), whatever kind of hook the cancel landed in. The same when that hook was the last one.
+    for (const last of [false, true]) {
+      const ac = new AbortController();
+      const calls: string[] = [];
+      const { ctx, logText } = env();
+      ctx.signal = ac.signal;
+      ctx.evalInPage = async (_page, code) => {
+        calls.push(code);
+        if (code === 'arm()') ac.abort();
+      };
+      const journal = await Journal.open(journalFile());
+      const hooks = [step('a'), { name: 'mid', js: { code: 'arm()', rollback: 'disarm()' } }, ...(last ? [] : [step('c')])];
+      const res = await runHooks(hooks, ctx, { phase: 'setup', journal });
+      expect(res.ok, `last=${last}`).toBe(false);
+      expect(await lines('order.log')).toEqual(['a', 'undo-a']);
+      expect(calls).toEqual(['arm()', 'disarm()']);
+      expect(res.results.map((r) => [r.phase, r.name, r.status])).toEqual([
+        ['setup', 'a', 'ok'],
+        ['setup', 'mid', 'ok'],
+        ['rollback', 'mid', 'ok'],
+        ['rollback', 'a', 'ok'],
+      ]);
+      expect(journal.pending()).toEqual([]);
+      expect(ctx.signal).toBe(ac.signal); // the rollbacks ran without it, then it is back
+      expect(logText()).toContain(last ? 'warn setup interrupted during its last hook' : 'warn setup interrupted: 1 remaining hook(s) not run');
+      await tmp.cleanup();
+      tmp = await tempProject();
+    }
+  });
+
   it('refuses to start when a js hook has no page to run in', async () => {
     const { ctx } = env();
     const journal = await Journal.open(journalFile());

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { LoadedProject, LoadedScenario, LoadedTemplate, Pacing, Scenario, Timeline } from '@demo-studio/core';
 import { DEFAULT_CAPTURE } from '@demo-studio/core';
@@ -13,27 +13,44 @@ export const execFileP = promisify(execFile);
 
 export interface TestServer {
   url: string;
+  /** Every request served, in order (method and path without the query). */
+  hits: Array<{ method: string; path: string }>;
   close(): Promise<void>;
 }
 
-/** Serves fixed HTML pages (path → html, or a function of the request headers) on 127.0.0.1 with a random port. */
-export async function startServer(pages: Record<string, string | ((headers: IncomingHttpHeaders) => string)>): Promise<TestServer> {
+/** A served path: html (or a function of the request headers), or a response with its type, status and a delay. */
+export type ServerEntry =
+  | string
+  | ((headers: IncomingHttpHeaders) => string)
+  | { body: string | ((headers: IncomingHttpHeaders) => string); type?: string; status?: number; delay_ms?: number };
+
+/** Serves fixed pages (path → entry) on 127.0.0.1 with a random port. */
+export async function startServer(pages: Record<string, ServerEntry>): Promise<TestServer> {
+  const hits: TestServer['hits'] = [];
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0];
+    hits.push({ method: req.method ?? 'GET', path });
     const entry = pages[path];
-    const body = typeof entry === 'function' ? entry(req.headers) : entry;
-    if (body === undefined) {
+    if (entry === undefined) {
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('not found');
       return;
     }
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(body);
+    const spec = typeof entry === 'object' ? entry : { body: entry };
+    const body = typeof spec.body === 'function' ? spec.body(req.headers) : spec.body;
+    const send = () => {
+      if (res.destroyed) return;
+      res.writeHead(spec.status ?? 200, { 'content-type': spec.type ?? 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(body);
+    };
+    if (spec.delay_ms) setTimeout(send, spec.delay_ms);
+    else send();
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
   return {
     url: `http://127.0.0.1:${port}`,
+    hits,
     close: () =>
       new Promise<void>((resolve) => {
         server.closeAllConnections();
@@ -119,11 +136,22 @@ export async function frameAt(file: string, t: number, width: number, height: nu
   return stdout as unknown as Buffer;
 }
 
-/** Centroid of the pure-magenta debug hotspot in an RGB24 frame (null when absent). */
-export function magentaCentroid(rgb: Buffer, width: number, height: number): { x: number; y: number; n: number } | null {
+/**
+ * Centroid and bounding box of the pure-magenta debug hotspot (the 6×6 CSS px square of `cursor.style: debug`) in an
+ * RGB24 frame (null when absent).
+ */
+export function magentaCentroid(
+  rgb: Buffer,
+  width: number,
+  height: number,
+): { x: number; y: number; n: number; box: { x: number; y: number; w: number; h: number } } | null {
   let sx = 0;
   let sy = 0;
   let n = 0;
+  let x0 = width;
+  let y0 = height;
+  let x1 = -1;
+  let y1 = -1;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 3;
@@ -134,8 +162,48 @@ export function magentaCentroid(rgb: Buffer, width: number, height: number): { x
         sx += x;
         sy += y;
         n++;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
       }
     }
   }
-  return n >= 6 ? { x: sx / n + 0.5, y: sy / n + 0.5, n } : null;
+  return n >= 6 ? { x: sx / n + 0.5, y: sy / n + 0.5, n, box: { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 } } : null;
+}
+
+/** Width/height from a JPEG's SOF marker. */
+export function jpegSize(b: Buffer): [number, number] {
+  let i = 2;
+  while (i < b.length) {
+    const m = b[i + 1];
+    if (m >= 0xc0 && m <= 0xc2) return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  return [0, 0];
+}
+
+/** An RGB24 image: `data[(y * w + x) * 3 + c]`. */
+export interface RgbImage {
+  w: number;
+  h: number;
+  data: Buffer;
+}
+
+/** Decode a PNG (a screenshot, a golden image) to RGB24 with ffmpeg: no image library in the runner's tests. */
+export async function decodePng(png: Buffer): Promise<RgbImage> {
+  const w = png.readUInt32BE(16);
+  const h = png.readUInt32BE(20);
+  const data = await new Promise<Buffer>((resolve, reject) => {
+    const child = spawn('ffmpeg', ['-v', 'error', '-f', 'png_pipe', '-i', '-', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const out: Buffer[] = [];
+    let err = '';
+    child.stdout.on('data', (d: Buffer) => out.push(d));
+    child.stderr.on('data', (d: Buffer) => (err += String(d)));
+    child.on('error', reject);
+    child.on('close', (code) => (code === 0 ? resolve(Buffer.concat(out)) : reject(new Error(`ffmpeg could not decode the PNG: ${err.trim()}`))));
+    child.stdin.end(png);
+  });
+  if (data.length !== w * h * 3) throw new Error(`decoded PNG has ${data.length} bytes, expected ${w}×${h}×3`);
+  return { w, h, data };
 }

@@ -32,6 +32,7 @@ import {
   registryModuleSource,
   renderBrowser,
   reserveVersion,
+  runEnv,
   srcFrameAt,
   standInTransition,
   startAssetServer,
@@ -264,6 +265,25 @@ describe('render versions and records', () => {
     expect(findRun(project, join(runs, '20260101-090000-catalogue')).id).toBe('20260101-090000-catalogue');
     expect(() => findRun(project, 'latest', 'ghost')).toThrow(/no capture run of scenario "ghost"/);
     expect(() => findRun(project, 'nope')).toThrow(/run "nope" not found/);
+  });
+
+  it('findRun: a run.json of an older run (no version, no engine) is read; a newer one is refused (R-PRIN-13)', async () => {
+    const project = { slug: 'p', dir: join(tmp, 'versions-project') } as Parameters<typeof findRun>[0];
+    const runs = join(project.dir, 'runs');
+    const write = async (id: string, record: Record<string, unknown>) => {
+      await mkdir(join(runs, id), { recursive: true });
+      await writeFile(join(runs, id, 'timeline.json'), JSON.stringify({ mode: 'capture' }));
+      await writeFile(join(runs, id, 'run.json'), JSON.stringify({ id, env: 'local', ...record }));
+    };
+    await write('20260101-100000-quote', { status: 'succeeded' });
+    await write('20260102-100000-quote', { version: 1, status: 'succeeded', engine: { demo_studio: '0.1.0', node: '22.0.0', os: 'linux' } });
+    await write('20260103-100000-quote', { version: 2, status: 'succeeded', next_format: true });
+    expect(findRun(project, '20260101-100000-quote').id).toBe('20260101-100000-quote');
+    expect(await runEnv(join(runs, '20260101-100000-quote'))).toBe('local');
+    expect(findRun(project, '20260102-100000-quote').id).toBe('20260102-100000-quote');
+    expect(() => findRun(project, 'latest', 'quote')).toThrow(
+      'run 20260103-100000-quote: this run.json is version 2: it was made for a newer Demo Studio (this one reads version 1) — update Demo Studio',
+    );
   });
 });
 

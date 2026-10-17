@@ -5,19 +5,8 @@ import { RunRecordSchema, TimelineSchema } from '@demo-studio/core';
 import type { Timeline } from '@demo-studio/core';
 import { runScenario } from '../src/index.js';
 import { ACCEPT_PAGE } from './pages.js';
-import { debugTemplate, ffprobeDuration, frameAt, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
+import { debugTemplate, ffprobeDuration, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
-
-/** Width/height from a JPEG's SOF marker. */
-function jpegSize(b: Buffer): [number, number] {
-  let i = 2;
-  while (i < b.length) {
-    const m = b[i + 1];
-    if (m >= 0xc0 && m <= 0xc2) return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
-    i += 2 + b.readUInt16BE(i + 2);
-  }
-  return [0, 0];
-}
 
 const W = 1920;
 const H = 1080;

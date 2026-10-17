@@ -1,6 +1,7 @@
 import { describeTarget } from '@demo-studio/core';
 import type { AssertArgs, WaitForArgs } from '@demo-studio/core';
 import { StepError } from '../errors.js';
+import { describePending, networkIdle } from '../network.js';
 import { countMatches, poll } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
@@ -51,9 +52,9 @@ export async function waitFor(ctx: StepContext, args: WaitForArgs): Promise<Acti
   const timeoutMs = (args.timeout ?? ctx.step.timeout ?? DEFAULT_WAIT_FOR_S) * 1000;
   const deadline = wallNow() + timeoutMs;
   if (args.network_idle) {
-    await ctx.rt.page.waitForLoadState('networkidle', { timeout: timeoutMs }).catch(() => {
-      throw new StepError(`wait_for: the network did not become idle within ${(timeoutMs / 1000).toFixed(1)} s`);
-    });
+    // Re-armed on every call (network.ts): Playwright's networkidle fires once per document, then never waits again.
+    const idle = await networkIdle(ctx.rt.page, { timeoutMs, signal: ctx.rt.signal });
+    if (!idle.idle) throw new StepError(`wait_for: the network did not become idle within ${(timeoutMs / 1000).toFixed(1)} s (${describePending(idle.pending)})`);
   }
   let last: string[] = [];
   const ok = await poll(

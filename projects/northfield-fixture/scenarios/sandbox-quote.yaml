@@ -4,6 +4,7 @@
 # or teardown hook on purpose: only the sandbox reset makes every take start from the same data, so each take shows the
 # same latest quote, the same new reference and the same "requested" time (the fixture's demo clock restarts at the
 # reset). The control: `--env sandbox` without `--sandbox` films without a reset, and the reference moves on.
+version: 1
 video: sandbox-quote
 title: {kicker: For cafés, text: The same quote in every take}
 outro: {tagline: "From request to proposal, in one place."}

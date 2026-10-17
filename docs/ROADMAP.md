@@ -16,7 +16,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   2026-10-12). The work now continues in a local Claude Code session on the user's Mac, on the `main` branch (root
   `CLAUDE.md`, `docs/HANDOFF.md` "Mac setup" / "Order of the next lots"): L1.5 done (2026-10-12: macOS verification;
   it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 (done 2026-10-12) → L1.2
-  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 (done 2026-10-14) → L1.4, stopping before phase 3 (L3.1).
+  (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 (done 2026-10-14) → L1.4 (done 2026-10-17), stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
   instead of a lot.
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
@@ -33,7 +33,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L1.1 | Phase 1 polish + `studio doctor` | S | **done** |
 | L1.2 | Runner robustness for any site | M | **done** |
 | L1.3 | Capture smoothness: stalls after scrolls and at dialog close (narrowed by L1.5) | M | **done** (2 partial: dialog close with a blur — an option fixes it —, hover hitches) |
-| L1.4 | Coverage of untested options + automated fixture acceptance | M | **next** |
+| L1.4 | Coverage of untested options + automated fixture acceptance | M | **done** |
 | L1.5 | macOS verification pass (run by the user on a Mac) | S | **done** (1 open: R-RAW-06, no editing tool on the Mac) |
 | L1.6 | Sessions & personas (profiles, preflight, auth status, optional automated login, onboarding) — after phase 2, before L3.1 | M | **done** |
 | L1.7 | Display URLs, read-only & production safety, frozen clock — after L1.6 | M | **done** |
@@ -142,6 +142,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   Postgres tests run in CI-like conditions (R-LES-09, R-HOOK-07), and a slow-suite automated catalogue capture on the
   fixture (R-ACC-05).
 - **Acceptance:** coverage table in REQUIREMENTS.md shows no "never exercised" item for phase 1.
+- **Done (2026-10-17):** every listed option exercised by a test that fails when it is ignored; 2560×1440, 4K and
+  mobile captures; cursor and file-chip goldens with structural checks; signals on the built CLI; `version: 1` on the
+  persisted formats (+ run.json engine); `pnpm test:pg` and `pnpm test:slow` (automated catalogue capture); the
+  generated "Never exercised" section is empty for phase 1 (`node scripts/requirements.mjs --untested 1`). Fixed on the
+  way: `wait_for: {network_idle}` after the first idle, and four cancel / teardown bugs.
 
 ### L1.5 — macOS verification pass (S, run by the user)
 - **Goal:** verify what this Linux container cannot: headless capture while working, `studio login`, `--headed`,

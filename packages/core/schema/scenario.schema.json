@@ -3,6 +3,11 @@
   "$id": "scenario.schema.json",
   "type": "object",
   "properties": {
+    "version": {
+      "type": "number",
+      "const": 1,
+      "description": "Version of this file's format (1). Optional: a file without it is version 1."
+    },
     "video": {
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",

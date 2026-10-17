@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TimelineSchema } from '@demo-studio/core';
 import type { RunRecord, Scenario, TimelineEvent } from '@demo-studio/core';
@@ -22,6 +22,10 @@ beforeAll(async () => {
     '/drop.html': DROP_PAGE,
     '/scroll.html': SCROLL_PAGE,
     '/dry.html': DRY_PAGE,
+    // Hooks' endpoints (R-RUN-08): requests are logged in server.hits.
+    '/arm': { body: '{"armed":true}', type: 'application/json' },
+    '/reset': { body: '{"reset":true}', type: 'application/json' },
+    '/slow-arm': { body: '{"armed":true}', type: 'application/json', delay_ms: 600 },
   });
   dir = await tempDir();
 });
@@ -43,6 +47,13 @@ function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunO
 }
 
 const stepEvents = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0);
+
+/** Scroll positions of the scroll page: the document and its inner container, with their maximum. */
+const POSITIONS =
+  "const i = document.getElementById('inner'), d = document.scrollingElement; return { doc: Math.round(scrollY), docMax: d.scrollHeight - innerHeight, inner: Math.round(i.scrollTop), innerMax: i.scrollHeight - i.clientHeight };";
+
+/** A real price list dropped by drop_file `path`. */
+const PRICES = 'Origin,Grade,Price per kg,Currency\nFinca Quenaro,AA,12.40,EUR\n';
 
 describe('click strategies', () => {
   it('falls back from real input to el.click() to a pointer sequence when an expected popup does not open', async () => {
@@ -151,7 +162,13 @@ describe('device scale 2 (4K-class captures, L2.8)', () => {
 });
 
 describe('drop_file', () => {
-  it('drops on a drop zone, falls back to the hidden input, and sets an explicit input', async () => {
+  it('drops on a drop zone, falls back to the hidden input, sets an explicit input, and drops real files', async () => {
+    await mkdir(join(dir, 'assets'), { recursive: true });
+    await writeFile(join(dir, 'assets', 'prices.csv'), PRICES);
+    await writeFile(join(dir, 'assets', 'notes.bin'), 'tasting notes');
+    // 64 MiB + 1 byte, sparse (no disk used): above the cap.
+    await writeFile(join(dir, 'assets', 'huge.bin'), '');
+    await truncate(join(dir, 'assets', 'huge.bin'), 64 * 1024 * 1024 + 1);
     const rec = await run('drop', {
       // Glides long enough to tell an eased move from a jump whatever the rest point (FAST moves take 60–160 ms).
       pacing: { ...FAST, move_base_ms: 0, move_ms_per_px: 0.9, move_min_ms: 450, move_max_ms: 1100 },
@@ -166,6 +183,14 @@ describe('drop_file', () => {
             { assert: { text: 'chosen:Catalogue.csv:1200' } },
             { drop_file: { zone: '#zone3', input: '#file3', name: 'Origins.pdf', fake: true } },
             { assert: { text: 'explicit:Origins.pdf' } },
+            // Real project files (R-ACT-19): their bytes, the mime inferred from the name or given, the size cap.
+            { drop_file: { zone: { text: 'Drop your price list here' }, path: 'assets/prices.csv' } },
+            { assert: { text: `dropped:prices.csv:${PRICES.length}:text/csv` } },
+            { assert: { text: `content:${PRICES.slice(0, 24)}` } },
+            { drop_file: { zone: { text: 'Drop your price list here' }, path: 'assets/notes.bin', mime: 'text/plain' } },
+            { assert: { text: 'dropped:notes.bin:13:text/plain' } },
+            { assert: { text: 'content:tasting notes' } },
+            { drop_file: { zone: { text: 'Drop your price list here' }, path: 'assets/huge.bin' }, optional: true },
           ],
         },
       ],
@@ -176,6 +201,10 @@ describe('drop_file', () => {
     expect(ev[0].data).toMatchObject({ delivered: 'drop' });
     expect(ev[2].data).toMatchObject({ delivered: 'input' });
     expect(ev[4].data).toMatchObject({ delivered: 'input' });
+    expect(ev.slice(6, 12).map((e) => e.status)).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
+    expect(ev[6].data).toMatchObject({ delivered: 'drop' });
+    expect(ev[12].status).toBe('failed');
+    expect(ev[12].error).toMatch(/huge\.bin is 64\.0 MB; files above 64\.0 MB cannot be dropped/);
     // The cursor travels to the screen edge to fetch the file (eased), it never jumps there.
     for (const i of [0, 2]) {
       const inStep = tl.cursor.filter((c) => c.t >= ev[i].t_start - 0.001 && c.t <= ev[i].t_end);
@@ -209,6 +238,19 @@ describe('scroll', () => {
             { assert: { text: 'Deep action done' } },
             { scroll: { to: { text: 'Awards' }, duration: 0.3 } },
             { eval: 'return window.scrollY;' },
+            // By px, to top / bottom / a number, in an explicit container (R-ACT-16); positions read after each.
+            { scroll: { to: 'top', duration: 0.2 } },
+            { eval: POSITIONS },
+            { scroll: { by: 300, duration: 0.2 } },
+            { eval: POSITIONS },
+            { scroll: { to: 560, duration: 0.2 } },
+            { eval: POSITIONS },
+            { scroll: { to: 'bottom', duration: 0.2 } },
+            { eval: POSITIONS },
+            { scroll: { in: '#inner', to: 'bottom', duration: 0.2 } },
+            { eval: POSITIONS },
+            { scroll: { in: '#inner', by: -80, duration: 0.2 } },
+            { eval: POSITIONS },
           ],
         },
       ],
@@ -216,6 +258,22 @@ describe('scroll', () => {
     expect(rec.error?.message).toBeUndefined();
     const tl = await readTimeline(rec.timeline!);
     const ev = stepEvents(tl.events);
+    type Pos = { doc: number; docMax: number; inner: number; innerMax: number };
+    const pos = (i: number) => (ev[i].data as { value: Pos }).value;
+    const moved = (i: number) => ev[i].data as { container: string; from: number; to: number };
+    expect(pos(7).doc).toBe(0);
+    expect(moved(8)).toMatchObject({ container: 'document', from: 0, to: 300 });
+    expect(pos(9).doc).toBe(300);
+    expect(pos(11).doc).toBe(560);
+    expect(pos(13).docMax).toBeGreaterThan(1000);
+    expect(pos(13).doc).toBe(pos(13).docMax);
+    // The container's own scroll; the document stays where it was.
+    expect(moved(14).container).not.toBe('document');
+    expect(pos(15).inner).toBe(pos(15).innerMax);
+    expect(pos(15).doc).toBe(pos(13).doc);
+    expect(moved(16)).toMatchObject({ from: pos(15).innerMax, to: pos(15).innerMax - 80 });
+    expect(pos(17).inner).toBe(pos(15).innerMax - 80);
+    expect(pos(17).doc).toBe(pos(13).doc);
     const innerTop = (ev[1].data as { value: number }).value;
     // Region 30 is at 29 × 40 px inside the container; offset -40.
     expect(Math.abs(innerTop - (29 * 40 - 40))).toBeLessThanOrEqual(2);
@@ -384,14 +442,96 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(rec.warnings.join(' ')).toMatch(/optional/);
   });
 
-  it('an AbortSignal cancels the run and teardown still happens', async () => {
+  it('an AbortSignal cancels the run and teardown still happens: teardown hooks, then the setup rollbacks (R-RUN-08)', async () => {
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 1200);
     const t0 = Date.now();
-    const rec = await run('cancel', { scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 20 }] }] }, { signal: ac.signal, mode: 'capture' });
+    const from = server.hits.length;
+    const rec = await run(
+      'cancel',
+      {
+        setup: [{ name: 'arm', http: { method: 'POST', url: '{{app}}/arm', rollback: { method: 'DELETE', url: '{{app}}/arm' } } }],
+        teardown: [{ name: 'reset', http: { method: 'POST', url: '{{app}}/reset' } }],
+        scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 20 }] }],
+      },
+      { signal: ac.signal, mode: 'capture' },
+    );
     expect(Date.now() - t0).toBeLessThan(10_000);
     expect(rec.status).toBe('cancelled');
     expect(existsSync(rec.timeline!)).toBe(true);
     expect(rec.capture).toBeUndefined();
+    // Teardown ran after the cancel, then the setup's rollback: nothing is left pending in the run's journal.
+    expect(rec.hooks).toEqual({ setup: 'ok', teardown: 'ok' });
+    const hooks = server.hits.slice(from).filter((h) => h.path === '/arm' || h.path === '/reset');
+    expect(hooks.map((h) => `${h.method} ${h.path}`)).toEqual(['POST /arm', 'POST /reset', 'DELETE /arm']);
+    const journal = JSON.parse(await readFile(join(rec.dir, 'hooks-journal.json'), 'utf8')) as { entries: Array<{ status: string; rollback?: unknown }> };
+    expect(journal.entries.map((e) => e.status)).toEqual(['rolled_back', 'ok']);
+    expect(journal.entries.filter((e) => e.status === 'ok' && e.rollback)).toEqual([]);
+  });
+
+  it('a cancel during a setup shell hook stops its process group, rolls the setup back and still tears down (R-RUN-08)', async () => {
+    const ac = new AbortController();
+    const from = server.hits.length;
+    // This copy's own sleep (pid + random): another copy of the suite running at the same time has its own.
+    const command = `sleep 29.${process.pid}${Math.floor(Math.random() * 1e6)}`;
+    const sleeping = () => execFileSync('ps', ['-axo', 'command='], { encoding: 'utf8' }).split('\n').some((l) => l.trim() === command);
+    const t0 = Date.now();
+    const done = run(
+      'cancel-setup',
+      {
+        setup: [
+          { name: 'arm', http: { method: 'POST', url: '{{app}}/arm', rollback: { method: 'DELETE', url: '{{app}}/arm' } } },
+          { name: 'seed', shell: command },
+          { name: 'never', http: { method: 'POST', url: '{{app}}/reset' } },
+        ],
+        teardown: [{ name: 'reset', http: { method: 'POST', url: '{{app}}/reset' } }],
+        scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 20 }] }],
+      },
+      { signal: ac.signal, mode: 'capture' },
+    );
+    while (!sleeping() && Date.now() - t0 < 15_000) await new Promise((r) => setTimeout(r, 50));
+    expect(sleeping()).toBe(true);
+    ac.abort();
+    const rec = await done;
+    expect(Date.now() - t0).toBeLessThan(15_000);
+    expect(sleeping()).toBe(false);
+    expect(rec.status).toBe('cancelled');
+    expect(rec.hooks).toEqual({ setup: 'failed', teardown: 'ok' });
+    expect(rec.steps_done).toBe(0);
+    // The arming was rolled back as the setup stopped, the next setup hook never ran, then the teardown.
+    const hooks = server.hits.slice(from).filter((h) => h.path === '/arm' || h.path === '/reset');
+    expect(hooks.map((h) => `${h.method} ${h.path}`)).toEqual(['POST /arm', 'DELETE /arm', 'POST /reset']);
+    const journal = JSON.parse(await readFile(join(rec.dir, 'hooks-journal.json'), 'utf8')) as { entries: Array<{ status: string; error?: string }> };
+    expect(journal.entries.map((e) => e.status)).toEqual(['rolled_back', 'failed', 'ok']);
+    expect(journal.entries[1].error).toContain('was interrupted (its process group stopped)');
+  });
+
+  it('a cancel during an http setup hook (it ends first) also rolls the setup back before the teardown (R-RUN-08)', async () => {
+    const ac = new AbortController();
+    const from = server.hits.length;
+    const hooks = () => server.hits.slice(from).filter((h) => ['/arm', '/slow-arm', '/never', '/reset'].includes(h.path)).map((h) => `${h.method} ${h.path}`);
+    const t0 = Date.now();
+    const done = run(
+      'cancel-http',
+      {
+        setup: [
+          { name: 'arm', http: { method: 'POST', url: '{{app}}/arm', rollback: { method: 'DELETE', url: '{{app}}/arm' } } },
+          { name: 'slow', http: { method: 'POST', url: '{{app}}/slow-arm', rollback: { method: 'DELETE', url: '{{app}}/slow-arm' } } },
+          { name: 'never', http: { method: 'POST', url: '{{app}}/never' } },
+        ],
+        teardown: [{ name: 'reset', http: { method: 'POST', url: '{{app}}/reset' } }],
+        scenes: [{ id: 'one', open: '/dry.html', steps: [{ wait: 20 }] }],
+      },
+      { signal: ac.signal, hooks: 'run' }, // a dry run executes its hooks when asked to
+    );
+    while (!hooks().includes('POST /slow-arm') && Date.now() - t0 < 15_000) await new Promise((r) => setTimeout(r, 20));
+    ac.abort(); // the slow hook's answer comes 600 ms later
+    const rec = await done;
+    expect(rec.status).toBe('cancelled');
+    expect(rec.hooks).toEqual({ setup: 'failed', teardown: 'ok' });
+    // Both completed hooks rolled back as the setup stopped (most recent first), the next one never ran, then the teardown.
+    expect(hooks()).toEqual(['POST /arm', 'POST /slow-arm', 'DELETE /slow-arm', 'DELETE /arm', 'POST /reset']);
+    const journal = JSON.parse(await readFile(join(rec.dir, 'hooks-journal.json'), 'utf8')) as { entries: Array<{ status: string }> };
+    expect(journal.entries.map((e) => e.status)).toEqual(['rolled_back', 'rolled_back', 'ok']);
   });
 });

@@ -3,6 +3,7 @@
 # Dark gradient, hot coral accent, Space Grotesk display, browser frame with overlaid captions,
 # cuts through black and richer motion design.
 # Placeholder brand: "Demo Studio" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
+version: 1
 name: motion
 
 colors:

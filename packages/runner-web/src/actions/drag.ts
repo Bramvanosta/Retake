@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
 import { isPoint } from '@demo-studio/core';
@@ -64,8 +64,14 @@ async function loadPayload(ctx: StepContext, args: DropFileArgs): Promise<FilePa
     const file = isAbsolute(args.path) ? args.path : join(ctx.rt.project.dir, args.path);
     let bytes: Buffer;
     try {
+      // The size first: a file above the cap is refused without being read.
+      const { size } = await stat(file);
+      if (size > MAX_DROP_BYTES) {
+        throw new StepError(`drop_file: ${file} is ${formatBytes(size)}; files above ${formatBytes(MAX_DROP_BYTES)} cannot be dropped`);
+      }
       bytes = await readFile(file);
     } catch (e) {
+      if (e instanceof StepError) throw e;
       throw new StepError(`drop_file: cannot read ${file}: ${(e as Error).message}`);
     }
     if (bytes.length > MAX_DROP_BYTES) {

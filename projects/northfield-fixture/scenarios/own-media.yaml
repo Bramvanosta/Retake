@@ -5,6 +5,7 @@
 # Lottie animations — a card between the scenes and a check badge over the quotes list — in the theme's colours.
 # The media are generated locally by scripts/fixture-media.mjs (a small Remotion project, fixtures/own-media/, and
 # hand-written Lottie JSON): any tool, or the output of any Claude motion / design skill, works the same way.
+version: 1
 video: own-media
 title: {kicker: Your own motion, text: "Request a quote, in your brand"}
 intro: {video: assets/intro.mp4}

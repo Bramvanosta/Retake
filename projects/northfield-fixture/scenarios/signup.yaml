@@ -4,6 +4,7 @@
 # lock screen, the app badge counting up, and a tap that opens the confirmed account — then ⌘K search to the first
 # product. A tutorial: the tutorial overlays follow the timeline (key caps of every key press, a spotlight on each
 # step's target, numbered badges on the clicks, a loupe on the fields being typed, a chapter progress bar).
+version: 1
 video: signup
 title: {kicker: For cafés, text: Open your café account in a minute}
 outro: {tagline: "From sign-up to first quote, in one place."}

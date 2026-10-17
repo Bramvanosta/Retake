@@ -12,6 +12,7 @@ import {
   SceneTransitionSchema,
   TutorialSwitchSchema,
   componentIdSchema,
+  fileVersion,
   keyString,
   mediaFileShape,
   nonEmpty,
@@ -175,6 +176,7 @@ const TitleSchema = z.strictObject({
 
 export const ScenarioSchema = z
   .strictObject({
+    version: fileVersion(),
     video: slugString('video').describe('Video name (usually the scenario file name).'),
     title: TitleSchema.optional(),
     intro: z

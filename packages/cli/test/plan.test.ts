@@ -104,4 +104,20 @@ describe('studio plan', () => {
     const none = await studio('plan', 'demo', 'latest', '--scenario', 'ghost');
     expect(none.err).toContain('no capture run of scenario "ghost"');
   });
+
+  it('refuses a run whose run.json a newer Demo Studio wrote; a run.json without version is read (R-PRIN-13)', async () => {
+    const dir = join(runs, '20261011-182524-catalogue');
+    try {
+      await writeFile(join(dir, 'run.json'), JSON.stringify({ id: '20261011-182524-catalogue', env: 'local', status: 'succeeded' }));
+      expect((await studio('plan', 'demo', '20261011-182524-catalogue', '--json')).code).toBe(EXIT.ok);
+      await writeFile(join(dir, 'run.json'), JSON.stringify({ version: 2, id: '20261011-182524-catalogue', env: 'local' }));
+      const newer = await studio('plan', 'demo', '20261011-182524-catalogue');
+      expect(newer.code).toBe(EXIT.failure);
+      expect(newer.err).toContain(
+        'run 20261011-182524-catalogue: this run.json is version 2: it was made for a newer Demo Studio (this one reads version 1) — update Demo Studio',
+      );
+    } finally {
+      await rm(join(dir, 'run.json'), { force: true });
+    }
+  });
 });

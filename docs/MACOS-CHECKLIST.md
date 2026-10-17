@@ -33,13 +33,14 @@ pnpm --filter @demo-studio/runner-web exec playwright-core install chromium
 
 ```sh
 pnpm build
-pnpm test            # optional, ~2.5 min on an M4: the end-to-end tests start the fixture by themselves
+pnpm test            # optional, ~6.5 min on an M4: the end-to-end tests start the fixture by themselves
 ```
 
 - **Expected:** `pnpm build` prints nothing and exits 0; `pnpm test` ends with every test passed (7 Postgres tests
-  skipped unless `DEMO_STUDIO_TEST_PG` is set, 1 unless `DEMO_STUDIO_TEST_OLD_NODE` points to an old `node`, 1 unless
-  `DEMO_STUDIO_TEST_HEADED=1`: it opens real login windows, see step 8b; 7 Docker tests unless
-  `DEMO_STUDIO_TEST_DOCKER=1`, see step 12b).
+  skipped unless `DEMO_STUDIO_TEST_PG` is set — `pnpm test:pg` runs them against a throwaway Postgres in Docker —, 1
+  unless `DEMO_STUDIO_TEST_OLD_NODE` points to an old `node`, 1 unless `DEMO_STUDIO_TEST_HEADED=1`: it opens real login
+  windows, see step 8b; 7 Docker tests unless `DEMO_STUDIO_TEST_DOCKER=1`, see step 12b; the 8 tests of the slow
+  catalogue capture unless `DEMO_STUDIO_TEST_SLOW=1` — `pnpm test:slow`, about 1.5 min: 24 skipped in all).
 - **Send back:** the `Test Files … Tests …` summary lines, and the full output of any failing test.
 
 ## 3. `studio doctor`
@@ -219,6 +220,37 @@ security delete-generic-password -s demo-studio-check -a token
   `✓ keychain-check  200 OK`; the journal is written to `projects/northfield-fixture/.demo-studio/journals/<id>.json`
   (and nothing new appears under `runs/`); the `grep` prints `secret not stored: OK`; the rollback line is `✓`.
 - **Send back:** the outputs (they never contain the secret value).
+
+## 10b. A `{{keychain:service/account}}` reference in a scenario step (L1.4, R-RUN-17)
+
+Step 10 read a Keychain item in a hook; this one types one in a step, through the run's own resolver, and checks that
+the run's files mask it (the tests inject the Keychain reader: an agent may not write to the Keychain). The fixture of
+step 4 must run.
+
+```sh
+security add-generic-password -s demo-studio-check -a token -w s3cret-check-value
+cat > ~/demo-check/keychain-step.yaml <<'YAML'
+video: keychain-step
+scenes:
+  - id: search
+    page: shop
+    open: /
+    steps:
+      - type: {into: {aria: Search coffees}, text: "{{keychain:demo-studio-check/token}}", enter: true}
+      - wait_for: {url: "q="}
+YAML
+pnpm studio run northfield-fixture ~/demo-check/keychain-step.yaml --dry
+RUN=$(ls -td projects/northfield-fixture/runs/*-keychain-step | head -1)
+grep -rlI s3cret-check-value "$RUN" || echo "secret not in the run files: OK"
+grep -o 'q=\*\*\*' "$RUN/timeline.json" | head -1
+security delete-generic-password -s demo-studio-check -a token
+```
+
+- **Expected:** macOS may ask once to let `security` read the item (choose "Allow"); `✓ dry run succeeded` with one
+  `!` warning that the step types the value of a secret reference into a visible field (the search box); the `grep`
+  prints `secret not in the run files: OK`, then `q=***` (the search URL, masked in the timeline). The screenshots show
+  the typed value: a secret typed into a visible field is filmed (masking pixels is BL-43).
+- **Send back:** the run output and the two `grep` lines (they never contain the secret value).
 
 ## 11. Notification step
 

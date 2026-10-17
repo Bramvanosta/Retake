@@ -36,6 +36,11 @@ export function keyString(what: string) {
 }
 
 export const nonEmpty = () => z.string().min(1);
+/**
+ * `version:` of a file whose format version is optional (R-PRIN-13: scenarios, project.yaml, template.yaml, studio.yaml,
+ * run.json): 1, or absent (read as 1). A higher one is refused before the schema (core formats.ts).
+ */
+export const fileVersion = () => z.literal(1).describe("Version of this file's format (1). Optional: a file without it is version 1.").optional();
 export const seconds = () => z.number().min(0);
 export const positiveSeconds = () => z.number().gt(0);
 export const millis = () => z.number().min(0);

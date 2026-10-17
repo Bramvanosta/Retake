@@ -2,6 +2,7 @@
 # One account, two screens (L2.11): the same shop filmed on a desktop and on a phone (mobile viewport preset: 390 × 844,
 # touch, mobile emulation) at the same time, the phone shown over the desktop (studio/layout-pip). The café requests a
 # quote from the phone; the desktop's quote list (live) shows it a second later.
+version: 1
 video: phone-and-desktop
 title: {kicker: Any screen, text: "Start on the phone, continue at the desk"}
 outro: {tagline: "One account, every screen."}

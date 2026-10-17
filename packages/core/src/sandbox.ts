@@ -32,8 +32,6 @@ import type {
   ValidationIssue,
 } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
-import { finalizeIssues } from './validation/located.js';
-import { attachPositions, parseYaml } from './validation/yaml-source.js';
 
 /** The usual file name of a sandbox manifest. */
 export const SANDBOX_FILE = 'sandbox.yaml';
@@ -69,22 +67,13 @@ export interface ParseSandboxOptions {
  * there is no error-level issue.
  */
 export function parseSandboxYaml(text: string, file?: string, opts: ParseSandboxOptions = {}): { manifest?: SandboxManifest; issues: ValidationIssue[] } {
-  const parsed = parseYaml(text);
-  const v = parsed.value as { version?: unknown } | null | undefined;
-  if (parsed.issues.every((i) => i.severity !== 'error') && v && typeof v === 'object' && typeof v.version === 'number' && v.version > SANDBOX_VERSION) {
-    const issues = [
-      {
-        severity: 'error' as const,
-        path: ['version'],
-        message: `this sandbox.yaml is version ${v.version}: it was made for a newer Demo Studio (this one reads version ${SANDBOX_VERSION}) — update Demo Studio`,
-      },
-    ];
-    attachPositions(issues, parsed.source);
-    return { issues: finalizeIssues(issues) };
-  }
   const dir = file ? dirname(resolve(file)) : undefined;
-  const { value, issues } = checkYamlDocument(text, SandboxFileSchema, (val, structural) =>
-    checkSandbox(val, structural, { dir, env: opts.env, project: opts.project }),
+  const { value, issues } = checkYamlDocument(
+    text,
+    SandboxFileSchema,
+    (val, structural) => checkSandbox(val, structural, { dir, env: opts.env, project: opts.project }),
+    {},
+    { formatVersion: { file: SANDBOX_FILE, supported: SANDBOX_VERSION } },
   );
   if (hasErrors(issues)) return { issues };
   return { manifest: value as SandboxManifest, issues };

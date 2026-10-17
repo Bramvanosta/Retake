@@ -175,8 +175,9 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
 /**
  * Run hooks in order, logging each one (secrets redacted) and journaling every execution.
  * - setup: stops at the first failure that is not tolerated (`optional: true` tolerates failures, never
- *   refusals) and rolls back the hooks completed in this call, most recent first; refuses to start
- *   when a hook is malformed or a js hook has no page to run in.
+ *   refusals) and rolls back the hooks completed in this call, most recent first — also when `ctx.signal` stopped
+ *   it, during any hook or between two (a running shell hook is stopped, an http, sql or js one ends first; the
+ *   rollbacks run without the signal); refuses to start when a hook is malformed or a js hook has no page to run in.
  * - seed (L1.8): stops at the first failure like setup, rolls nothing back (the next reset rebuilds the data), never
  *   asks to confirm a destructive step and refuses to start on a js step.
  * - teardown / reset: every hook runs; failures are collected.
@@ -198,10 +199,26 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
 
   const completed: number[] = [];
   let ok = true;
+  const rollBack = async () => {
+    if (opts.phase !== 'setup' || !completed.length) return;
+    log('info', `rolling back ${completed.length} completed setup hook(s)`);
+    // An interrupt (ctx.signal) stops the setup, never its rollbacks: they undo what it did. The same context object
+    // (the secrets it resolved stay registered for redaction), without its signal meanwhile.
+    const signal = ctx.signal;
+    ctx.signal = undefined;
+    try {
+      results.push(...(await opts.journal.rollbackEntries(completed, ctx)));
+    } finally {
+      ctx.signal = signal;
+    }
+  };
   for (let i = 0; i < hooks.length; i++) {
+    // Only a shell hook stops on the signal: a cancel during an http, sql or js hook (or between two hooks) is seen
+    // here, and rolls back like a failure — before the caller's teardown, whatever kind of hook was running.
     if (ctx.signal?.aborted) {
       ok = false;
       log('warn', `${opts.phase} interrupted: ${hooks.length - i} remaining hook(s) not run`);
+      await rollBack();
       break;
     }
     const { result, entry } = await runOne(hooks[i], i, hooks.length, ctx, opts, log);
@@ -216,11 +233,14 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
     if (opts.phase !== 'setup' && opts.phase !== 'seed') continue;
     const skipped = hooks.length - i - 1;
     if (skipped) log('warn', `${opts.phase} stopped: ${skipped} remaining hook(s) not run`);
-    if (opts.phase === 'setup' && completed.length) {
-      log('info', `rolling back ${completed.length} completed setup hook(s)`);
-      results.push(...(await opts.journal.rollbackEntries(completed, ctx)));
-    }
+    await rollBack();
     break;
+  }
+  // A cancel during the last hook stops the setup too: interrupted, not completed.
+  if (ok && opts.phase === 'setup' && ctx.signal?.aborted) {
+    ok = false;
+    log('warn', 'setup interrupted during its last hook');
+    await rollBack();
   }
   return { ok, results };
 }

@@ -107,6 +107,7 @@ export const DROP_PAGE = page(
   `<main><h1>New import</h1>
   <div id="zone" style="width:420px;height:140px;border:2px dashed #b9a99d;border-radius:12px;display:grid;place-items:center">Drop your price list here</div>
   <p id="out"></p>
+  <p id="content"></p>
   <label id="zone2" style="display:grid;place-items:center;width:420px;height:100px;border:2px dashed #b9a99d;border-radius:12px;margin-top:16px">Click to choose a file<input type="file" id="file2" hidden></label>
   <p id="out2"></p>
   <div id="zone3" style="width:420px;height:80px;border:1px solid #ccc;margin-top:16px">Explicit input zone</div>
@@ -116,7 +117,13 @@ export const DROP_PAGE = page(
   `
   zone.addEventListener('dragenter', () => zone.style.background = '#efe6dd');
   zone.addEventListener('dragover', (e) => e.preventDefault());
-  zone.addEventListener('drop', (e) => { e.preventDefault(); out.textContent = 'dropped:' + [...e.dataTransfer.files].map((f) => f.name + ':' + f.size + ':' + f.type).join(','); });
+  zone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const files = [...e.dataTransfer.files];
+    out.textContent = 'dropped:' + files.map((f) => f.name + ':' + f.size + ':' + f.type).join(',');
+    // The bytes themselves (a real file's content; a placeholder is zeros).
+    document.getElementById('content').textContent = 'content:' + (await files[0].text()).slice(0, 24).replace(/\0/g, '0');
+  });
   file2.addEventListener('change', () => (out2.textContent = 'chosen:' + file2.files[0].name + ':' + file2.files[0].size));
   file3.addEventListener('change', () => (out3.textContent = 'explicit:' + file3.files[0].name));
 `,
@@ -141,6 +148,76 @@ export const DRY_PAGE = page(
   `<main><h1>Catalogue</h1><button id="save">Save draft</button><button id="delete">Delete everything</button>
    <button id="after">After</button><button id="other">Other</button><p id="log"></p></main>`,
   `for (const id of ['save', 'delete', 'after', 'other']) document.getElementById(id).addEventListener('click', () => (document.getElementById('log').textContent += id + ' '));`,
+);
+
+/**
+ * Probes for the options of the scenario language (L1.4): a click probe logging every pointer event it gets (button,
+ * modifiers, offset from its top-left), a spinner, a client-side route change, a slow fetch and one that hangs, a
+ * standalone multi-select popover that closes itself on Escape, the same button in a section and an aside, and a
+ * destructive button. `?slow` adds an image that takes 1 s (a `load` waits for it, `domcontentloaded` does not).
+ */
+export const OPTIONS_PAGE = page(
+  'Options',
+  `<main>
+  <h1 style="margin:0 0 12px">Label options</h1>
+  <div class="row"><div id="probe" role="button" tabindex="0">Probe</div><button id="refresh">Refresh</button><span id="spinner" hidden>Loading…</span></div>
+  <div class="row"><button id="next">Next step</button><button id="load">Load prices</button><span id="prices"></span><button id="live">Start live feed</button></div>
+  <div class="row"><span id="langs-label">Label languages</span><button id="langs" aria-labelledby="langs-label" aria-haspopup="listbox" aria-expanded="false">Choose…</button><span id="langs-value"></span></div>
+  <ul class="row" style="list-style:none;padding:0"><li class="item">Arabica</li><li class="item">Robusta</li><li class="item">Liberica</li></ul>
+  <div class="row"><section><button id="main-add">Add</button></section><aside><button id="aside-add">Add</button></aside><button id="danger">Delete all labels</button></div>
+  <p id="pop-log"></p>
+  <p id="log"></p>
+</main>`,
+  `
+  const $ = (id) => document.getElementById(id);
+  const log = (m) => ($('log').textContent += m + ' ');
+  window.probeLog = [];
+  for (const type of ['pointerdown', 'click', 'auxclick', 'contextmenu']) {
+    $('probe').addEventListener(type, (e) => {
+      if (type === 'contextmenu') e.preventDefault();
+      const r = $('probe').getBoundingClientRect();
+      const mods = ['shift', 'alt', 'ctrl', 'meta'].filter((m) => e[m + 'Key']).join('+') || 'none';
+      window.probeLog.push([type, e.isTrusted, e.button, mods, Math.round(e.clientX - r.left) + ',' + Math.round(e.clientY - r.top)].join(':'));
+    });
+  }
+  // No middle-button autoscroll.
+  $('probe').addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+  $('refresh').addEventListener('click', () => {
+    $('spinner').hidden = false;
+    setTimeout(() => { $('spinner').hidden = true; window.spinnerGoneAt = Date.now(); }, 600);
+  });
+  $('next').addEventListener('click', () => setTimeout(() => { history.pushState({}, '', '?step=2'); document.title = 'Options — step 2'; }, 500));
+  $('load').addEventListener('click', () => fetch('/slow').then((r) => r.text()).then(() => ($('prices').textContent = 'prices loaded')));
+  $('live').addEventListener('click', () => fetch('/hang').catch(() => undefined));
+  $('main-add').addEventListener('click', () => log('add-main'));
+  $('aside-add').addEventListener('click', () => log('add-aside'));
+  $('danger').addEventListener('click', () => log('danger'));
+  if (new URLSearchParams(location.search).has('slow')) { const img = document.createElement('img'); img.src = '/slow.png'; document.body.append(img); }
+
+  // A multi-select popover outside any dialog: options toggle, Escape (its own listener) or a click outside close it.
+  let pop = null; const chosen = new Set();
+  function closePop(why) { if (!pop) return; pop.remove(); pop = null; $('langs').setAttribute('aria-expanded', 'false'); if (why) $('pop-log').textContent = 'pop closed by ' + why; }
+  $('langs').addEventListener('click', () => {
+    if (pop) return closePop();
+    pop = document.createElement('div');
+    pop.setAttribute('data-radix-popper-content-wrapper', '');
+    const r = $('langs').getBoundingClientRect();
+    pop.style.cssText = 'position:fixed;left:' + r.left + 'px;top:' + (r.bottom + 4) + 'px;background:#fff;border:1px solid #ccc;padding:6px;width:200px';
+    pop.innerHTML = '<div role="listbox" aria-multiselectable="true">' + ['English', 'Swedish', 'Danish'].map((o) => '<div role="option" aria-selected="false" style="padding:6px">' + o + '</div>').join('') + '</div>';
+    document.body.appendChild(pop);
+    $('langs').setAttribute('aria-expanded', 'true');
+    pop.addEventListener('click', (e) => {
+      const o = e.target.closest('[role=option]'); if (!o) return;
+      chosen.has(o.textContent) ? chosen.delete(o.textContent) : chosen.add(o.textContent);
+      o.setAttribute('aria-selected', String(chosen.has(o.textContent)));
+      $('langs-value').textContent = [...chosen].join(', ');
+    });
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePop('Escape'); });
+  document.addEventListener('pointerdown', (e) => { if (pop && !pop.contains(e.target) && e.target !== $('langs')) closePop('outside'); }, true);
+`,
+  `.row{display:flex;gap:12px;align-items:center;margin:0 0 14px} #probe{width:180px;height:64px;background:#e6ddd4;display:grid;place-items:center;user-select:none}
+   .item{padding:4px 10px;background:#fff;border:1px solid #ddd;border-radius:6px} aside{padding:6px;border-left:3px solid #c9bfb7}`,
 );
 
 /** A 1920×1080 mock console for the acceptance capture. */
@@ -971,3 +1048,25 @@ export const PICKERS_PAGE = page(
   .react-datepicker__week{display:flex} .react-datepicker__day{width:32px;text-align:center;padding:4px 0;cursor:pointer}
   .react-datepicker__day--outside-month{color:#aaa} .react-datepicker__day--disabled{color:#ccc;cursor:default}`,
 );
+
+/**
+ * Capture sizes (L1.4, R-GOAL-01): the page writes the size it laid out at and its device pixel ratio; a narrow layout
+ * (≤ 600 px, a phone) shows its own button in place of the wide one.
+ */
+export const SIZES_PAGE = page(
+  'Sizes',
+  `<main><h1>Price lists</h1><p id="vp"></p>
+  <button class="wide" style="position:absolute;left:58%;top:46%">Continue</button>
+  <button class="narrow" style="position:absolute;left:34%;top:52%">Menu</button></main>`,
+  `const vp = () => (document.getElementById('vp').textContent = 'viewport ' + innerWidth + 'x' + innerHeight + ' @' + devicePixelRatio);
+  vp(); addEventListener('resize', vp);`,
+  `.narrow{display:none} @media (max-width: 600px){.wide{display:none} .narrow{display:inline-block}}`,
+);
+
+/**
+ * The cursor and file-chip look (L1.4, R-LOOK-23/24): one flat mid-grey page, so the dark arrow's white outline, the
+ * light arrow's dark outline, the soft shadow, the ripple's accent and the white chip all stand out from it (a small
+ * label in the corner is the page's first contentful paint: the cursor is drawn from then on).
+ */
+export const LOOK_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>Look</title>
+<style>html,body{margin:0;height:100%;background:#9aa3ad}</style></head><body><p style="position:absolute;right:8px;bottom:0;margin:0;font:11px system-ui">Look</p></body></html>`;

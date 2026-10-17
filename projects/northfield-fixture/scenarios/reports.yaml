@@ -4,6 +4,7 @@
 # shell paints once its data arrived) are full page loads, mid-scene — and the `september` scene opens on a slow report.
 # The capture keeps the previous picture until each new page has painted content of its own, so no blank or skeleton
 # frame is filmed; the edit cuts those held loads.
+version: 1
 video: reports
 title: {kicker: For suppliers, text: "Your sales, market by market"}
 outro: {tagline: "Every month, at a glance."}

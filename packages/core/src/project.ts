@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import type { z } from 'zod';
 import { checkProject } from './checks/project.js';
+import { FORMAT_VERSIONS } from './formats.js';
 import { normalizeEnvironments } from './env.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { loadSandboxes, mergeSandboxes } from './sandbox.js';
@@ -54,9 +55,9 @@ export function applyProjectDefaults(file: ProjectFile): ProjectConfig {
  */
 export function parseProjectYaml(text: string, file?: string): { config?: ProjectConfig; issues: ValidationIssue[] } {
   const projectDir = file ? dirname(resolve(file)) : undefined;
-  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) =>
-    checkProject(v, structural, { projectDir }),
-  );
+  const { value, issues } = checkYamlDocument(text, ProjectFileSchema, (v, structural) => checkProject(v, structural, { projectDir }), {}, {
+    formatVersion: { file: PROJECT_FILE, supported: FORMAT_VERSIONS.project },
+  });
   if (hasErrors(issues)) return { issues };
   return { config: applyProjectDefaults(value as ProjectFile), issues };
 }
@@ -216,6 +217,7 @@ export function readmeSkeleton(
 function projectYamlText(input: CreateProjectInput, slug: string): string {
   const { width, height, scale, fps } = DEFAULT_CAPTURE;
   const data: Record<string, unknown> = {
+    version: FORMAT_VERSIONS.project,
     name: input.name,
     environments: input.environments ?? {},
     ...(input.auth ? { auth: input.auth } : {}),

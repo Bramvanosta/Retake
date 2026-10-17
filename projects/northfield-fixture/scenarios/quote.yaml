@@ -9,6 +9,7 @@
 # (POST /api/quotes/auto-proposal), stamped 4 h 18 min after the request. The shop loads
 # notifications on page load only, so nothing shows until the `proposal` scene reopens the
 # shop: the bell then rings with the new proposal — deterministic, no waiting, no polling.
+version: 1
 video: quote
 title: {kicker: For cafés, text: Request a quote in a minute}
 outro: {tagline: "From request to proposal, in one place."}

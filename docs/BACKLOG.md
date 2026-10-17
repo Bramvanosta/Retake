@@ -289,6 +289,35 @@ token saved by a setup hook (`{{hooks.login.json.token}}`) is masked in the run 
 - **Value:** Fewer workarounds for CI-provided values and hook-made credentials.
 - **Hard parts:** Keeping the "values the video may show" vs "secrets" line simple to explain.
 
+### BL-70 — `studio migrate`: rewrite files to the current format version
+*S · found in L1.4 (R-PRIN-13) · builds on: L1.4*
+
+Every file now says which version of its format it is (`version`; absent = 1), and a file of a newer version is
+refused with one message. When a format first changes incompatibly (version 2), readers keep reading version 1, so
+nothing breaks; but files then mix versions in a workspace. A `studio migrate [<project>] [--dry]` would rewrite
+scenarios, project.yaml, template.yaml and studio.yaml to the current version — keeping comments and key order (the
+`yaml` document API, like `studio sandbox init` does for project.yaml), printing a diff first, never touching runs.
+
+- **Value:** One command after an upgrade instead of hand edits; files that sync between machines converge.
+- **Hard parts:** Keeping the user's comments and layout; a rewrite that loses nothing a newer key cannot express.
+
+### BL-71 — Network idle: requests the browser never reports as ended
+*S · found in L1.4 (R-ACT-21) · builds on: L1.4*
+
+`wait_for: {network_idle}` and the login steps' idle wait count a page's requests in flight from Playwright's events,
+and forget a frame's requests when it commits a new document or goes away. A `fetch()` whose `no-store` body the page
+never reads (fire-and-forget) is never reported as ended either: since L1.4 it stops counting 1 s after its response
+headers (`UNREAD_BODY_MS`), which also stops counting a body still streaming by then. One kind still never ends, so
+every later idle wait on that page times out naming it: a dedicated worker started by an iframe (same-site or not)
+that is removed or navigates while the worker has a request in flight — Playwright reports worker requests on the
+page's top frame, so nothing tells them apart from the top document's own; they go only when the top document
+changes. A fix needs the worker of a request (a CDP session per worker, or a newer Playwright), and the browser-side
+network events over CDP would tell an unread body from one still streaming; `optional: true` or a `wait_for: {text}`
+is the workaround.
+
+- **Value:** No false "still loading" on sites with workers in embedded frames; long bodies waited for exactly.
+- **Hard parts:** Not waiting for a streamed body (an answer that streams for seconds) that is genuinely in flight.
+
 ## Outputs
 
 ### BL-30 — SRT / WebVTT subtitles
@@ -744,7 +773,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 
 - **L1.2** — Close R-RUN-17: redact `{{env:…}}` and keychain values from timeline, log.jsonl and run.json. Today values in open URLs are written in clear. *Why:* Runs will later be shared through review links, the library, CI artefacts and sync, and any secret left in a run file leaks.
 - **L1.3** — Treat L1.3 as a decision gate and write the result down: either CPU-only capture reaches 24 fps or more with time dilation, or it doesn't and the limit is documented. *Why:* That result decides whether CI runners, self-hosted runners and hosted capture (BL-05, BL-08) are viable, and whether 4K can be sold.
-- **L1.4** — Finish R-PRIN-13: add a `version` field to scenario, project.yaml, template.yaml, studio.yaml and run.json. Also record the engine version, Chromium version, OS and installed font set in run.json. *Why:* Files will meet clients of different versions through sync, CI and a hosted UI, and differences between local and CI captures must be explainable.
+- **L1.4** — Finish R-PRIN-13: add a `version` field to scenario, project.yaml, template.yaml, studio.yaml and run.json. Also record the engine version, Chromium version, OS and installed font set in run.json. *Why:* Files will meet clients of different versions through sync, CI and a hosted UI, and differences between local and CI captures must be explainable. *Applied in L1.4:* `version` optional in those five files (absent = 1; a newer one is one positioned error), written by `studio new` and the runner, carried by the starter templates and the fixture; run.json `engine` = Demo Studio, Node.js and Chromium versions, OS and the installed fonts (count + digest of their names); a migration command is BL-70.
 - **L1.6** — Reference personas by name. Resolve profile and storage-state paths from user config (~/.demo-studio) or a git-ignored project.local.yaml, never from project.yaml. Mark storage states as tied to one machine. *Why:* SPEC §4 currently puts `auth.profile: ~/.demo-studio/...` in project.yaml, so a path specific to one user would sync and break on every other machine. *Applied in L1.6:* personas by name, paths derived under `~/.demo-studio` (`DEMO_STUDIO_HOME`), snapshots stamped with the machine; the `project.local.yaml` override is BL-60.
 - **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs. *Applied in L1.6:* `login:` steps run headless with no profile at all (in a run's preflight, or `studio login --auto`).
 - **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run. *Applied in L1.7:* the automated sign-in tab is exempt while it is on its persona's sign-in page (its writes there are recorded `exempt`, `via: sign-in`; what the page it lands on sends is guarded); the session check only reads, so it is guarded like the capture pages and passes; the product clock is installed after both (they run on the real time). Token refreshes from capture pages go in `read_only.allow`.

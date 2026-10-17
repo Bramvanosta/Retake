@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { parseScenario, runIdMatchesScenario } from '@demo-studio/core';
+import { newerRunMessage, parseScenario, runIdMatchesScenario } from '@demo-studio/core';
 import type { LoadedProject, Scenario } from '@demo-studio/core';
 import type { RenderRecord } from './types.js';
 import { RenderError } from './types.js';
@@ -27,9 +27,16 @@ function hasCaptureTimeline(dir: string): boolean {
 /**
  * The run to edit: a run id (folder of <project>/runs), a run directory, or `latest` (the most recent capture run —
  * dry runs and runs without a timeline are skipped —, of `scenario` when given). Run ids start with their date, so
- * they sort chronologically.
+ * they sort chronologically. A run whose run.json a newer Demo Studio wrote is refused (R-PRIN-13).
  */
 export function findRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
+  const run = locateRun(project, arg, scenario);
+  const newer = newerRunMessage(run.dir);
+  if (newer) throw new RenderError(`run ${run.id}: ${newer}`);
+  return run;
+}
+
+function locateRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
   const runsDir = join(project.dir, 'runs');
   if (arg === 'latest') {
     let ids: string[] = [];

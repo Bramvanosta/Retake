@@ -6,6 +6,7 @@
 #
 # Both pages are filmed at the laptop preset (1440 × 900): side by side, each is shown at about 0.65× — readable.
 # Steps act on the first page (buyer) unless they say `on: supplier`; only the acting page's cursor moves.
+version: 1
 video: live-quote
 title: {kicker: Both sides, text: From request to proposal in real time}
 outro: {tagline: "Cafés and roasters, on the same page."}

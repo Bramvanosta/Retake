@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../../packages/core/schema/project.schema.json
 # Demo Studio project filming the bundled fixture product (fixtures/wholesale).
 # Start it first:  pnpm fixture   (or: node fixtures/wholesale/server.mjs)
+version: 1
 name: Northfield (fixture)
 # Each page: its real URL (what the runner opens) and the URL the video shows (`display`: browser bars, `{{shop}}` in a
 # caption, notification apps) — invented hosts under the reserved .example domain, never localhost on screen.

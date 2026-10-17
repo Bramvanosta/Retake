@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
 # Supplier side: import a price list, manage availability by market, add a coffee from the registry.
+version: 1
 video: catalogue
 title: {kicker: For suppliers, text: Manage your catalogue}
 outro: {tagline: "Your catalogue, under control."}

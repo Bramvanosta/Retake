@@ -36,7 +36,10 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~6 min on the Mac; 16 skip by default: 7 Postgres without DEMO_STUDIO_TEST_PG, 7 Docker without DEMO_STUDIO_TEST_DOCKER, 1 without DEMO_STUDIO_TEST_OLD_NODE, 1 without DEMO_STUDIO_TEST_HEADED)
+pnpm test                            # = vitest run, full suite (~6.5 min on the Mac; run `pnpm build` first; 24 skip by default: 7 Postgres, 7 Docker, 8 slow, 1 old Node, 1 headed)
+pnpm test:pg                         # the 7 Postgres tests on a throwaway demo-studio-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
+pnpm test:slow                       # automated catalogue capture on the fixture (~75 s)
+DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file
 node fixtures/wholesale/server.mjs & # fixture product (console :4401, shop :4402; signed in: :4403, :4404); stop it with kill <its pid>
                                      # (`kill $!`; not `pkill -f`: it also matches the shell running it)
@@ -47,6 +50,7 @@ node packages/cli/dist/bin.js review northfield-fixture latest --scenario quote
 node packages/cli/dist/bin.js export-capture northfield-fixture latest --scenario quote   # raw package for editors
 node packages/cli/dist/bin.js components preview --all --stale     # regenerate stale component previews
 node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/REQUIREMENTS.md / list a lot
+node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 ```
 

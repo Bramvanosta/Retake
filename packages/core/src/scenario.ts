@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { parse as parseYamlText } from 'yaml';
 import { checkScenario } from './checks/scenario.js';
+import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
 import type { ScenarioCheckOptions } from './checks/scenario.js';
 import { hasErrors, issuesMessage } from './issues.js';
 import { listScenarioNames } from './project.js';
@@ -35,12 +36,16 @@ export class ScenarioError extends Error {
  * carries line/col. `scenario` is returned only when there is no error-level issue.
  */
 export function parseScenario(text: string, opts: ScenarioCheckOptions = {}): { scenario?: Scenario; issues: ValidationIssue[] } {
-  const { value, issues } = checkYamlDocument(text, ScenarioSchema, (v, structural) => checkScenario(v, structural, opts));
+  const { value, issues } = checkYamlDocument(text, ScenarioSchema, (v, structural) => checkScenario(v, structural, opts), {}, { formatVersion: SCENARIO_FORMAT });
   return hasErrors(issues) ? { issues } : { scenario: value as Scenario, issues };
 }
 
+const SCENARIO_FORMAT = { file: 'scenario', supported: FORMAT_VERSIONS.scenario };
+
 /** Validate an already-parsed scenario value (no line/col). */
 export function validateScenario(s: unknown, opts: ScenarioCheckOptions = {}): ValidationIssue[] {
+  const newer = newerFormatMessage(s, SCENARIO_FORMAT);
+  if (newer) return [{ severity: 'error', path: ['version'], message: newer }];
   const structural = zodIssues(ScenarioSchema, s);
   return finalizeIssues([...structural, ...checkScenario(s, structural, opts)]);
 }

@@ -3,6 +3,7 @@
 # Brew guide — a custom element with an OPEN shadow root and its own stylesheet — and a Shipping estimate — a
 # same-origin iframe widget (/embed/shipping). The runner scrolls to, clicks, selects and types inside both exactly as
 # anywhere else on the page: the drawn cursor shows the hand over their buttons and the ripples land on them.
+version: 1
 video: embedded
 title: {kicker: For cafés, text: Plan the brew and the delivery}
 

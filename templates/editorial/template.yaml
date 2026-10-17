@@ -2,6 +2,7 @@
 # Demo Studio starter template "editorial": warm and premium — the reference look for product videos
 # (docs/reference/look.md). Instrument Serif display over Inter body, accent on a warm paper background.
 # Placeholder brand: "Atelier" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
+version: 1
 name: editorial
 
 colors:

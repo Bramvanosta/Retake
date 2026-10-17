@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { COMPONENT_KINDS, TEMPLATE_MEDIA_KINDS } from '../types.js';
 import type { ComponentKind, ComponentRef, Template, TemplateComponents, TemplateMediaRef, TextStyle } from '../types.js';
-import { ComponentParamsSchema, ComponentRefSchema, FrameStyleSchema, TransitionSchema, mediaFileShape, nonEmpty, positiveSeconds, seconds } from './primitives.js';
+import { ComponentParamsSchema, ComponentRefSchema, FrameStyleSchema, TransitionSchema, fileVersion, mediaFileShape, nonEmpty, positiveSeconds, seconds } from './primitives.js';
 
 const FONT_RE = /\.(ttf|otf|woff2?)$/i;
 const IMAGE_RE = /\.(svg|png|jpe?g|webp)$/i;
@@ -154,6 +154,7 @@ export const TemplateSchema = z.strictObject({
 /** templates/<name>/template.yaml: every section optional, merged over DEFAULT_TEMPLATE. */
 export const TemplateFileSchema = z
   .strictObject({
+    version: fileVersion(),
     name: nonEmpty().optional(),
     colors: z.object(colorsShape).partial().catchall(z.string()).describe('Brand colours (extra keys allowed).').optional(),
     fonts: sections.fonts.partial().describe('Font files relative to the template dir.').optional(),

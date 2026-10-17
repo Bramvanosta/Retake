@@ -2,6 +2,7 @@
 # Buyer side on a phone: the shop at 390 × 844 (responsive layout). Captured at 1×: the phone screen of the layout
 # shows it at about its own size in a 1080p video (new-headless screencasts stay at CSS size at scale 2, see HANDOFF).
 # Framed with the phone layout (studio/layout-phone): the capture aspect sizes the device screen.
+version: 1
 video: mobile-quote
 title: {kicker: On the go, text: Request a quote from your phone}
 outro: {tagline: "Quotes from anywhere, in a minute."}

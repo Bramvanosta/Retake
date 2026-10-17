@@ -1,4 +1,6 @@
 import type { z } from 'zod';
+import { newerFormatMessage } from '../formats.js';
+import type { FormatVersion } from '../formats.js';
 import { hasErrors } from '../issues.js';
 import type { ValidationIssue } from '../types.js';
 import { finalizeIssues } from './located.js';
@@ -13,8 +15,17 @@ export interface CheckedDocument {
   issues: ValidationIssue[];
 }
 
+export interface CheckDocumentOptions {
+  /**
+   * The file's format (R-PRIN-13): a `version` above `supported` is refused before the schema — one error at the
+   * `version` key, the file was made for a newer Demo Studio — instead of the unknown keys of a format this one
+   * does not know.
+   */
+  formatVersion?: FormatVersion;
+}
+
 /**
- * YAML text → syntax check → schema check → optional semantic checks → positions.
+ * YAML text → syntax check → (newer format check) → schema check → optional semantic checks → positions.
  * `semantic` receives the value and the structural issues found so far (to skip broken parts).
  */
 export function checkYamlDocument(
@@ -22,11 +33,18 @@ export function checkYamlDocument(
   schema: z.ZodType,
   semantic?: (value: unknown, structural: readonly LocatedIssue[]) => LocatedIssue[],
   emptyValue: unknown = {},
+  opts: CheckDocumentOptions = {},
 ): CheckedDocument {
   const parsed = parseYaml(text);
   const located: LocatedIssue[] = [...parsed.issues];
   if (hasErrors(located)) return { value: undefined, issues: finalizeIssues(located) };
   const value = parsed.value === null || parsed.value === undefined ? emptyValue : parsed.value;
+  const newer = opts.formatVersion ? newerFormatMessage(value, opts.formatVersion) : undefined;
+  if (newer) {
+    const issues: LocatedIssue[] = [...located, { severity: 'error', path: ['version'], message: newer }];
+    attachPositions(issues, parsed.source);
+    return { value: undefined, issues: finalizeIssues(issues) };
+  }
   const structural = zodIssues(schema, value);
   located.push(...structural);
   if (semantic) located.push(...semantic(value, structural));

@@ -3,7 +3,7 @@
  * (capture mode, real setup/teardown hooks), then capture.mp4 + timeline.json checked for consistency.
  * Skipped when Chromium or ffmpeg is not available.
  */
-import { execFile, spawnSync } from 'node:child_process';
+import { execFile, spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -14,10 +14,11 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema } from '@demo-studio/core';
 import type { RunProgress, RunRecord, Timeline, TimelineEvent } from '@demo-studio/core';
-import { EXIT, main, memoryIo } from '../src/index.js';
+import { EXIT, VERSION, main, memoryIo } from '../src/index.js';
 
 const execFileP = promisify(execFile);
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
+const BIN = join(REPO, 'packages/cli/dist/bin.js');
 
 function chromiumAvailable(): boolean {
   if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
@@ -134,6 +135,13 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(run.capture && existsSync(run.capture)).toBe(true);
     const record = RunRecordSchema.parse(JSON.parse(await readFile(join(run.dir, 'run.json'), 'utf8')));
     expect(record.status).toBe('succeeded');
+    // The format version and what ran the capture (R-PRIN-13): Demo Studio, Node.js, Chromium, the OS, the fonts.
+    expect(record.version).toBe(1);
+    expect(record.engine).toMatchObject({ demo_studio: VERSION, node: process.versions.node });
+    expect(record.engine?.chromium).toMatch(/^\d+\.\d+\./);
+    expect(record.engine?.os.startsWith(`${process.platform} `)).toBe(true);
+    expect(record.engine?.fonts?.digest).toMatch(/^[0-9a-f]{12}$/);
+    if (process.platform === 'darwin') expect(record.engine?.fonts?.files).toBeGreaterThan(50);
     const tl = TimelineSchema.parse(JSON.parse(await readFile(join(run.dir, 'timeline.json'), 'utf8'))) as Timeline;
 
     // Video and timeline agree: duration, size, frame rate.
@@ -269,6 +277,165 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(last.manifest.clips.map((c) => c.file)).toEqual(['clips/01-import.mp4']);
     expect(existsSync(join(out, 'manifest.json'))).toBe(true);
   });
+
+  /**
+   * R-RUN-08: `studio run` as a process (the built CLI, its own TMPDIR) gets SIGINT or SIGTERM. The run is cancelled
+   * (exit 1, like any run that did not succeed), the teardown hooks and the setup rollbacks run, the browser and its
+   * profile are gone. A second signal quits at once.
+   */
+  describe.skipIf(process.platform === 'win32' || !existsSync(BIN))('Ctrl-C and SIGTERM during studio run (built CLI)', () => {
+    const LONG_SETUP = SCENARIO.slice(SCENARIO.indexOf('setup:'), SCENARIO.indexOf('pacing:'));
+    const scene = ['scenes:', '  - id: wait', '    page: console', '    open: /imports', '    steps:', '      - wait: 30', ''].join('\n');
+    const tmps: string[] = [];
+    // Long shell hooks with a duration of their own (pid + random): their processes can be found, and only them — not
+    // those of another copy of the suite running at the same time.
+    const tag = `${process.pid}${Math.floor(Math.random() * 1e6)}`;
+    const SETUP_SLEEP = `sleep 30.${tag}`;
+    const TEARDOWN_SLEEP = `sleep 20.${tag}`;
+
+    beforeAll(async () => {
+      const dir = join(ws, 'projects', 'e2e', 'scenarios');
+      await writeFile(join(dir, 'long.yaml'), `video: long\n${LONG_SETUP}pacing: {scene_start_still: 0.2}\n${scene}`);
+      // A setup shell hook that takes long.
+      const slow = LONG_SETUP.replace('teardown:', `  - name: seed\n    shell: {run: "${SETUP_SLEEP}"}\n    writes: false\nteardown:`);
+      await writeFile(join(dir, 'slow-setup.yaml'), `video: slow-setup\n${slow}pacing: {scene_start_still: 0.2}\n${scene}`);
+      // A teardown that starts with a long shell hook: a second signal arrives while it runs.
+      const slowTeardown = LONG_SETUP.replace('teardown:\n', `teardown:\n  - name: slow-cleanup\n    shell: {run: "${TEARDOWN_SLEEP}"}\n    writes: false\n`);
+      await writeFile(join(dir, 'slow-teardown.yaml'), `video: slow-teardown\n${slowTeardown}pacing: {scene_start_still: 0.2}\n${scene}`);
+    });
+
+    afterAll(async () => {
+      // A browser a killed process left (second signal) would show its TMPDIR on its command line.
+      for (const tmp of tmps) {
+        for (const pid of await processesWith(tmp)) {
+          try {
+            process.kill(pid, 'SIGKILL');
+          } catch {
+            /* gone */
+          }
+        }
+        await rm(tmp, { recursive: true, force: true });
+      }
+    });
+
+    /** Processes whose command line contains `text` (a TMPDIR: the browser's profile is in it). */
+    async function processesWith(text: string): Promise<number[]> {
+      const { stdout } = await execFileP('ps', ['-axww', '-o', 'pid=,command=']);
+      return stdout
+        .split('\n')
+        .filter((l) => l.includes(text))
+        .map((l) => Number(l.trim().split(/\s+/)[0]))
+        .filter((pid) => pid !== process.pid);
+    }
+
+    const sleeping = async (cmd = SETUP_SLEEP) => (await execFileP('ps', ['-axww', '-o', 'command='])).stdout.split('\n').some((l) => l.trim() === cmd);
+
+    async function armedNow(): Promise<boolean> {
+      const res = (await (await fetch(`${fixture.urls.console}/api/quotes/auto-proposal`, { method: 'DELETE' })).json()) as { was_armed: boolean };
+      return res.was_armed; // DELETE disarms: call once per check
+    }
+
+    type Ready = (events: RunProgress[]) => boolean | Promise<boolean>;
+    /** Spawn `studio run e2e <scenario> --json`; at each `ready`, send its signal; wait for the exit. */
+    async function signalled(scenario: string, steps: Array<[Ready, NodeJS.Signals]>) {
+      const tmp = await mkdtemp(join(tmpdir(), 'studio-sig-'));
+      tmps.push(tmp);
+      const child = spawn(process.execPath, [BIN, '--root', ws, 'run', 'e2e', scenario, '--json'], {
+        env: { ...process.env, TMPDIR: tmp, DEMO_STUDIO_HOME: join(tmp, 'home') },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let out = '';
+      let err = '';
+      child.stdout.on('data', (d: Buffer) => (out += d.toString()));
+      child.stderr.on('data', (d: Buffer) => (err += d.toString()));
+      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
+      const events = () =>
+        out
+          .split('\n')
+          .filter((l) => l.startsWith('{'))
+          .map((l) => JSON.parse(l) as RunProgress);
+      let t0 = 0;
+      for (const [ready, sig] of steps) {
+        const deadline = Date.now() + 60_000;
+        while (child.exitCode === null && Date.now() < deadline && !(await ready(events()))) await new Promise((r) => setTimeout(r, 25));
+        expect(child.exitCode, err).toBeNull();
+        t0 ||= Date.now();
+        child.kill(sig);
+      }
+      const end = await exited;
+      const start = events().find((e): e is Extract<RunProgress, { type: 'run_start' }> => e.type === 'run_start');
+      return { ...end, ms: Date.now() - t0, events: events(), err, tmp, dir: start!.run.dir };
+    }
+
+    const waiting: Ready = (ev) => ev.some((e) => e.type === 'step_start' && e.action === 'wait');
+
+    async function noBrowserLeft(tmp: string): Promise<void> {
+      const deadline = Date.now() + 10_000;
+      while ((await processesWith(tmp)).length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+      expect(await processesWith(tmp)).toEqual([]);
+      expect((await readdir(tmp)).filter((n) => /^(playwright|demo-studio-)/.test(n))).toEqual([]);
+    }
+
+    async function cancelledRecord(dir: string): Promise<RunRecord> {
+      const record = RunRecordSchema.parse(JSON.parse(await readFile(join(dir, 'run.json'), 'utf8'))) as RunRecord;
+      expect(record.status).toBe('cancelled');
+      const log = (await readFile(join(dir, 'log.jsonl'), 'utf8')).trim().split('\n');
+      expect((JSON.parse(log[log.length - 1]) as { type: string }).type).toBe('run_end');
+      return record;
+    }
+
+    it('SIGINT during a step: cancelled, exit 1, teardown and rollback ran, no browser or profile left', async () => {
+      const r = await signalled('long', [[waiting, 'SIGINT']]);
+      expect(r.code, r.err).toBe(EXIT.failure);
+      expect(r.ms).toBeLessThan(15_000);
+      const record = await cancelledRecord(r.dir);
+      expect(record.hooks).toEqual({ setup: 'ok', teardown: 'ok' });
+      expect(record.error?.message).toBe('run cancelled (SIGINT)');
+      expect(r.events.some((e) => e.type === 'hook' && e.phase === 'rollback' && e.status === 'ok')).toBe(true);
+      expect(await armedNow()).toBe(false);
+      expect((await studio('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
+      await noBrowserLeft(r.tmp);
+    });
+
+    it('SIGTERM during a setup shell hook: the command is stopped, the setup rolled back, teardown runs', async () => {
+      const r = await signalled('slow-setup', [[() => sleeping(), 'SIGTERM']]);
+      expect(r.code, r.err).toBe(EXIT.failure);
+      expect(r.ms).toBeLessThan(15_000);
+      expect(await sleeping()).toBe(false);
+      const record = await cancelledRecord(r.dir);
+      expect(record.hooks).toEqual({ setup: 'failed', teardown: 'ok' });
+      expect(record.steps_done).toBe(0);
+      expect(record.error?.message).toBe('run cancelled (SIGTERM)');
+      const seed = r.events.find((e) => e.type === 'hook' && e.phase === 'setup' && e.name === 'seed');
+      expect(seed).toMatchObject({ status: 'failed', message: expect.stringContaining('was interrupted (its process group stopped)') });
+      expect(r.events.some((e) => e.type === 'hook' && e.phase === 'teardown' && e.name === 'reset' && e.status === 'ok')).toBe(true);
+      expect(await armedNow()).toBe(false);
+      expect((await studio('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
+      await noBrowserLeft(r.tmp);
+    });
+
+    it('a second SIGINT (during a teardown shell hook) quits at once and kills that hook; studio hooks rollback replays the rest', async () => {
+      const r = await signalled('slow-teardown', [
+        [waiting, 'SIGINT'],
+        [() => sleeping(TEARDOWN_SLEEP), 'SIGINT'],
+      ]);
+      expect(r.signal, r.err).toBe('SIGINT');
+      expect(r.code).toBeNull();
+      expect(r.ms).toBeLessThan(5_000);
+      // The teardown's shell command (its own process group) went with the process.
+      for (let i = 0; i < 20 && (await sleeping(TEARDOWN_SLEEP)); i++) await new Promise((res) => setTimeout(res, 50));
+      expect(await sleeping(TEARDOWN_SLEEP)).toBe(false);
+      // Neither the rest of the teardown (the reset) nor the setup rollback ran: the journal kept the rollback.
+      expect(await armedNow()).toBe(true);
+      await fetch(`${fixture.urls.console}/api/quotes/auto-proposal`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
+      const rb = await studio('hooks', 'rollback', 'e2e');
+      expect(rb.code, rb.err).toBe(EXIT.ok);
+      expect(await armedNow()).toBe(false);
+      // The browser went with its pipe; its temporary profile stays for the next run's sweep (README: 10 minutes).
+      for (let i = 0; i < 50 && (await processesWith(r.tmp)).length; i++) await new Promise((res) => setTimeout(res, 100));
+      expect(await processesWith(r.tmp)).toEqual([]);
+    });
+  });
 });
 
 describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
@@ -298,8 +465,30 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     await mkdir(join(project, 'hooks'), { recursive: true });
     await writeFile(
       join(project, 'project.yaml'),
-      `name: API\nenvironments:\n  local:\n    console: ${api.urls.console}\nreset:\n  - name: reset\n    http: {method: POST, url: "{{console}}/api/reset"}\n`,
+      // vars.cleanup: a command the static check of a hooks file cannot see (it is only known once templated).
+      `name: API\nenvironments:\n  local:\n    console: ${api.urls.console}\n  staging:\n    console: ${api.urls.console}\nvars: {cleanup: "rm -f scratch.txt"}\nreset:\n  - name: reset\n    http: {method: POST, url: "{{console}}/api/reset"}\n`,
     );
+    await mkdir(join(project, 'scenarios'), { recursive: true });
+    await writeFile(
+      join(project, 'scenarios', 'quote.yaml'),
+      [
+        'video: quote',
+        'setup:',
+        '  - name: arm',
+        '    http:',
+        '      method: POST',
+        '      url: "{{console}}/api/quotes/auto-proposal"',
+        '      json: {after_minutes: 10}',
+        '      rollback: {method: DELETE, url: "{{console}}/api/quotes/auto-proposal"}',
+        'teardown:',
+        '  - name: reset',
+        '    http: {method: POST, url: "{{console}}/api/reset"}',
+        'scenes:',
+        '  - {id: quotes, page: console, open: /quotes, steps: [{hold: 0.2}]}',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(join(project, 'hooks', 'cleanup.yaml'), '- name: cleanup\n  shell: "{{vars.cleanup}}"\n');
     await writeFile(
       join(project, 'hooks', 'arm.yaml'),
       '- name: arm\n  http:\n    method: POST\n    url: "{{console}}/api/quotes/auto-proposal"\n    json: {after_minutes: 10}\n    rollback: {method: DELETE, url: "{{console}}/api/quotes/auto-proposal"}\n',
@@ -347,5 +536,64 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     expect(journals.some((f) => /-env-reset\.json$/.test(f))).toBe(true);
     expect(journals.every((f) => f.endsWith('.json'))).toBe(true);
     expect(existsSync(join(root, 'projects', 'api', 'runs'))).toBe(false);
+  });
+
+  it('hooks run sources: <scenario>:setup, :teardown, reset, a file; --dry checks without running, --yes approves (R-CLI-05)', async () => {
+    const journals = join(root, 'projects', 'api', '.demo-studio', 'journals');
+    const listJournals = async () => (existsSync(journals) ? await readdir(journals) : []);
+    const before = await listJournals();
+    expect(await armed()).toBe(false);
+
+    // --dry: templated and security-checked, nothing executed, nothing journaled.
+    const dry = await cli('hooks', 'run', 'api', 'quote:setup', '--dry');
+    expect(dry.code, dry.err).toBe(EXIT.ok);
+    expect(dry.err).toContain('setup hooks quote-setup');
+    expect(dry.err).toMatch(/◦ arm: http POST \S+\/api\/quotes\/auto-proposal +not executed \(dry run\)/);
+    expect(dry.err).toContain('quote-setup: checked (nothing executed)');
+    expect(dry.err).not.toContain('pending rollback');
+    expect(await armed()).toBe(false);
+    expect(await listJournals()).toEqual(before);
+
+    // <scenario>:setup runs the scenario's setup with its journal; <scenario>:teardown its teardown (the reset disarms).
+    const setup = await cli('hooks', 'run', 'api', 'quote:setup');
+    expect(setup.code, setup.err).toBe(EXIT.ok);
+    expect(setup.err).toMatch(/✓ arm: http POST \S+\/api\/quotes\/auto-proposal +200 OK/);
+    expect(setup.err).toMatch(/1 pending rollback: studio hooks rollback api \d{8}-\d{6}-hooks-quote-setup\)/);
+    expect(await armed()).toBe(true);
+    const teardown = await cli('hooks', 'run', 'api', 'quote:teardown');
+    expect(teardown.code, teardown.err).toBe(EXIT.ok);
+    expect(teardown.err).toContain('teardown hooks quote-teardown');
+    expect(teardown.err).toContain('quote-teardown: done');
+    expect(await armed()).toBe(false);
+    expect((await cli('hooks', 'rollback', 'api')).code).toBe(EXIT.ok); // the setup's pending DELETE (nothing armed now)
+
+    // reset: the project's reset hooks, here on another environment (--env).
+    expect((await cli('hooks', 'run', 'api', 'hooks/arm.yaml')).code).toBe(EXIT.ok);
+    const reset = await cli('hooks', 'run', 'api', 'reset', '--env', 'staging');
+    expect(reset.code, reset.err).toBe(EXIT.ok);
+    expect(reset.err).toContain('api reset hooks reset · env staging · 1 hook');
+    expect(reset.err).toContain('reset: done');
+    expect(await armed()).toBe(false);
+    expect((await cli('hooks', 'rollback', 'api')).code).toBe(EXIT.ok);
+
+    // A command that turns destructive once templated (rm): refused without --yes (no prompt here), --dry included;
+    // --yes approves it, with a warning.
+    const scratch = join(root, 'projects', 'api', 'scratch.txt');
+    await writeFile(scratch, 'x');
+    for (const extra of [[], ['--dry']]) {
+      const refused = await cli('hooks', 'run', 'api', 'hooks/cleanup.yaml', ...extra);
+      expect(refused.code, refused.err).toBe(EXIT.failure);
+      expect(refused.err).toContain('destructive hook (shell rm) needs approval: add "confirm: true" to it, or pass --yes');
+      expect(refused.err).toContain('refusing destructive hook (shell rm) without "confirm: true"');
+      expect(existsSync(scratch)).toBe(true);
+    }
+    const dryYes = await cli('hooks', 'run', 'api', 'hooks/cleanup.yaml', '--dry', '--yes');
+    expect(dryYes.code, dryYes.err).toBe(EXIT.ok);
+    expect(existsSync(scratch)).toBe(true);
+    const yes = await cli('hooks', 'run', 'api', 'hooks/cleanup.yaml', '--yes');
+    expect(yes.code, yes.err).toBe(EXIT.ok);
+    expect(yes.err).toContain('destructive hook (shell rm) approved without "confirm: true": cleanup: shell "rm -f scratch.txt"');
+    expect(yes.err).toContain('cleanup: done');
+    expect(existsSync(scratch)).toBe(false);
   });
 });

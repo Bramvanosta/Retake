@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Regenerates docs/REQUIREMENTS.md from docs/requirements.json (the source of truth) and prints a summary.
-// Usage: node scripts/requirements.mjs            → rewrite the Markdown + summary
-//        node scripts/requirements.mjs --lot L2.3 → list the requirements of one lot
+// Usage: node scripts/requirements.mjs                  → rewrite the Markdown + summary
+//        node scripts/requirements.mjs --lot L2.3       → list the requirements of one lot
+//        node scripts/requirements.mjs --untested [1]   → list the items no test exercises (of one phase), exit 1 if any
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +10,21 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const data = JSON.parse(readFileSync(`${root}docs/requirements.json`, 'utf8'));
 const items = data.items;
 const lotArg = process.argv.indexOf('--lot');
+const untestedArg = process.argv.indexOf('--untested');
+
+/**
+ * "Never exercised": an item whose gap says that no test exercises it (whatever its status). Gaps are written by hand,
+ * so this goes by their wording; a gap that names a test that cannot run here says so in other words.
+ */
+const UNTESTED = /never exercised|not exercised|untested|no (automated )?tests? (exercises|runs|covers)/i;
+const untested = (xs) => xs.filter((i) => UNTESTED.test(i.gap ?? ''));
+
+if (untestedArg > 0) {
+  const phase = process.argv[untestedArg + 1]?.startsWith('--') ? undefined : process.argv[untestedArg + 1];
+  const xs = untested(phase ? items.filter((i) => i.phase === phase) : items);
+  for (const i of xs) console.log(`${i.id} [${i.status}] phase ${i.phase}, ${i.lot}: ${i.gap}`);
+  process.exit(xs.length ? 1 : 0);
+}
 
 if (lotArg > 0) {
   const lot = process.argv[lotArg + 1];
@@ -29,6 +45,12 @@ for (const p of phases) {
 }
 md += `| **all** | ${items.length} | ${count(items, 'done')} | ${count(items, 'partial')} | ${count(items, 'todo')} | ${count(items, 'n/a-here')} |\n`;
 
+const never = untested(items);
+md += `\n## Never exercised\n\nItems whose gap says no test exercises them, whatever their status (\`node scripts/requirements.mjs --untested [phase]\` lists them and exits 1 while there is one).\n\n`;
+md += never.length
+  ? `| ID | Phase | Lot | Status | Gap |\n|---|---|---|---|---|\n${never.map((i) => `| ${i.id} | ${i.phase} | ${i.lot} | ${i.status} | ${esc(i.gap)} |`).join('\n')}\n`
+  : 'None.\n';
+
 for (const p of phases) {
   md += `\n## Phase ${p}\n\n| ID | Requirement | Status | Lot | Evidence / gap |\n|---|---|---|---|---|\n`;
   for (const i of items.filter((x) => x.phase === p)) {
@@ -40,7 +62,7 @@ writeFileSync(`${root}docs/REQUIREMENTS.md`, md);
 
 const byLot = {};
 for (const i of items) (byLot[i.lot] ??= []).push(i);
-console.log(`${items.length} requirements · done ${count(items, 'done')} · partial ${count(items, 'partial')} · todo ${count(items, 'todo')} · n/a-here ${count(items, 'n/a-here')}`);
+console.log(`${items.length} requirements · done ${count(items, 'done')} · partial ${count(items, 'partial')} · todo ${count(items, 'todo')} · n/a-here ${count(items, 'n/a-here')} · never exercised ${never.length}`);
 for (const [lot, xs] of Object.entries(byLot).sort()) {
   if (lot === 'P1') continue;
   console.log(`  ${lot.padEnd(5)} ${String(xs.length).padStart(3)} open: ${xs.filter((i) => i.status !== 'done').length}`);

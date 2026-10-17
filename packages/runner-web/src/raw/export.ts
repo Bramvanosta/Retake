@@ -15,7 +15,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, resolveEnvironment, shownText } from '@demo-studio/core';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText } from '@demo-studio/core';
 import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@demo-studio/core';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
@@ -185,6 +185,8 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
   if (!existsSync(tlFile)) throw new RawExportError(`${runDir} has no timeline.json (not a run, or the run did not finish)`);
   const recorded = JSON.parse(await readFile(tlFile, 'utf8')) as Timeline;
   if (recorded.mode !== 'capture') throw new RawExportError(`run ${recorded.run_id} is a dry run: it has no capture to export`);
+  const newer = newerRunMessage(runDir);
+  if (newer) throw new RawExportError(`run ${recorded.run_id}: ${newer}`);
   let record: RunRecord | undefined;
   try {
     record = JSON.parse(await readFile(join(runDir, 'run.json'), 'utf8')) as RunRecord;

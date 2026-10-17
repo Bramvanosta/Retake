@@ -107,6 +107,33 @@ describe('resolver', () => {
     expect((missing as ResolveMissing).scope_found).toBe(false);
   });
 
+  it('scopes: listbox, popover (the topmost floating layer), page and a target object (R-TGT-07)', async () => {
+    await page.evaluate(() => {
+      const box = document.createElement('div');
+      box.id = 'scope-box';
+      box.innerHTML =
+        '<div role="listbox" id="lb"><div role="option" id="lb-pause">Pause</div></div>' +
+        '<div data-radix-popper-content-wrapper id="pop" style="position:fixed;left:600px;top:20px;background:#fff"><button id="pop-pause">Pause</button></div>' +
+        '<aside id="side"><button id="side-save">Save</button></aside>';
+      document.body.append(box);
+    });
+    try {
+      // Unscoped, the first "Pause" of the page is the first menu's; each scope picks its own.
+      expect(await idOf({ text: 'Pause' })).toBe('mi-1');
+      expect(await idOf({ text: 'Pause', in: 'page' })).toBe('mi-1');
+      expect((await kit.find({ text: 'Pause', in: 'page' })).count).toBe(4);
+      expect(await idOf({ text: 'Pause', in: 'listbox' })).toBe('lb-pause');
+      expect(await idOf({ text: 'Pause', in: 'popover' })).toBe('pop-pause');
+      expect(await idOf({ text: 'Save', in: { css: 'aside' } })).toBe('side-save');
+      expect(await idOf({ text: 'Save', in: { role: 'dialog' } })).toBe('dlg-save');
+      const missing = await kit.find({ text: 'Save', in: { css: '#nowhere' } });
+      expect(missing.count).toBe(0);
+      expect((missing as ResolveMissing).scope_found).toBe(false);
+    } finally {
+      await page.evaluate(() => document.getElementById('scope-box')?.remove());
+    }
+  });
+
   it('nth, negative nth and last_visible (several mounted popovers)', async () => {
     expect((await kit.find({ text: 'Pause' })).count).toBe(2);
     expect(await idOf({ text: 'Pause', nth: 0 })).toBe('mi-1');
@@ -304,6 +331,26 @@ describe('cursor overlay', () => {
     expect(await magentaAt(300, 260)).toBe(true);
   });
 
+  it('debug style: a 6×6 #FF00FF square centred on the hotspot, over the arrow (R-KIT-06)', async () => {
+    await page.goto(`${server.url}/overlay-a.html`);
+    await kit.cursorSet(700, 420, true);
+    await page.waitForTimeout(50);
+    const img = await decodePng(page, await page.screenshot({ clip: { x: 690, y: 410, width: 20, height: 20 } }));
+    const hits: Array<[number, number]> = [];
+    for (let y = 0; y < img.h; y++) {
+      for (let x = 0; x < img.w; x++) {
+        const i = (y * img.w + x) * 4;
+        if (img.data[i] === 255 && img.data[i + 1] === 0 && img.data[i + 2] === 255) hits.push([x, y]);
+      }
+    }
+    // Exactly the pixels [x − 3, x + 3) × [y − 3, y + 3): the hotspot (700, 420) is at (10, 10) in the clip.
+    expect(hits).toHaveLength(36);
+    expect(hits.every(([x, y]) => x >= 7 && x <= 12 && y >= 7 && y <= 12)).toBe(true);
+    // The arrow is still drawn under it (its outline and fill reach below the square).
+    const below = Array.from({ length: 6 }, (_, k) => img.data[((14 + k) * img.w + 11) * 4]);
+    expect(Math.min(...below)).toBeLessThan(60);
+  });
+
   it('is drawn above a modal dialog and above a [popover]', async () => {
     await page.goto(`${server.url}/overlay-a.html`);
     await page.mouse.move(400, 300);
@@ -359,7 +406,7 @@ describe('click ripple (R-ISS-03, R-CHO-05)', () => {
     const cdp = await rp.context().newCDPSession(rp);
     await cdp.send('Animation.enable');
     const started: Array<{ id: string; name: string; source: { duration: number; keyframesRule?: { keyframes: Array<{ easing: string }> } } }> = [];
-    cdp.on('Animation.animationStarted', (e: { animation: (typeof started)[number] }) => started.push(e.animation));
+    cdp.on('Animation.animationStarted', (e) => started.push(e.animation as unknown as (typeof started)[number]));
     await rs.kit(rp).ripple(C.x, C.y);
     for (let i = 0; i < 50 && started.length < 2; i++) await rp.waitForTimeout(10);
     const ids = started.map((a) => a.id);

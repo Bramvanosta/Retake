@@ -15,6 +15,10 @@ export interface HookContextLike {
   saved: Record<string, unknown>;
   /** The run's access (L1.7): read-only refuses hooks that write. */
   access?: HookAccess;
+  /** The run's cancel, given to the setup only: it stops a running shell command's process group and the next hooks. */
+  signal?: AbortSignal;
+  /** The process groups of the shell commands running now (a second signal kills them). */
+  running?: Set<number>;
 }
 
 export interface HookResultLike {

@@ -11,6 +11,8 @@
     "watch": "tsc -b --watch",
     "typecheck": "tsc -b --noEmit false",
     "test": "vitest run",
+    "test:pg": "node scripts/test-pg.mjs",
+    "test:slow": "DEMO_STUDIO_TEST_SLOW=1 vitest run packages/cli/test/catalogue-acceptance.test.ts",
     "studio": "node packages/cli/dist/bin.js",
     "fixture": "node fixtures/wholesale/server.mjs",
     "req": "node scripts/requirements.mjs"

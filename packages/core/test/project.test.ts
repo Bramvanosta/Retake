@@ -89,7 +89,10 @@ describe('projects', () => {
     expect(loaded.readme).toBe(readme);
     expect(loaded.scenarios).toEqual([]);
     expect(loaded.issues).toEqual([]);
+    // `studio new` writes the format version first (R-PRIN-13).
+    expect((await readFile(join(dir, 'project.yaml'), 'utf8')).split('\n').slice(0, 2)).toEqual(['# Demo Studio project "northfield-wholesale"', 'version: 1']);
     expect(loaded.config).toEqual({
+      version: 1,
       name: 'Northfield Wholesale',
       environments: STAGING,
       capture: { ...DEFAULT_CAPTURE, scale: 2 },

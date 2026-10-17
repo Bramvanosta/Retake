@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, parseScenario, readJson, runIdMatchesScenario, writeJson } from '@demo-studio/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, newerRunMessage, parseScenario, readJson, runIdMatchesScenario, writeJson } from '@demo-studio/core';
 import type { LoadedProject, Scenario, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import { planEdit, planInputFiles, runEnv, summarizePlan } from '@demo-studio/editor';
@@ -97,6 +97,9 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const run = resolveRun(project, runArg, opts.scenario);
+  // A run.json a newer Demo Studio wrote (R-PRIN-13), as render and export-capture refuse it.
+  const newer = newerRunMessage(run.dir);
+  if (newer) throw new CliError(`run ${run.id}: ${newer}`);
   const timeline = await readJson<Timeline>(join(run.dir, 'timeline.json'));
   if (opts.scenario && timeline.scenario !== opts.scenario) {
     throw new CliError(`run ${run.id} is a run of scenario "${timeline.scenario}", not "${opts.scenario}"`);

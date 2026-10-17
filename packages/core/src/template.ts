@@ -6,6 +6,7 @@ import type { z } from 'zod';
 import { CheckContext } from './checks/context.js';
 import { checkMediaFields } from './checks/media.js';
 import { isTemplateMediaRef, resolveThemeComponents } from './components.js';
+import { FORMAT_VERSIONS } from './formats.js';
 import type { ThemeComponent } from './components.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { TemplateFileSchema, TemplateSchema } from './schemas/template.js';
@@ -123,9 +124,12 @@ function checkTemplateMedia(value: unknown, structural: readonly LocatedIssue[],
  * when there is no error-level issue. With `dir` (the template folder), the theme's own files are checked too.
  */
 export function parseTemplateYaml(text: string, opts: { dir?: string } = {}): { template?: Template; issues: ValidationIssue[] } {
-  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir)]);
+  const { value, issues } = checkYamlDocument(text, TemplateFileSchema, (v, st) => [...checkTemplateFile(v, st), ...checkTemplateMedia(v, st, opts.dir)], {}, {
+    formatVersion: { file: TEMPLATE_FILE, supported: FORMAT_VERSIONS.template },
+  });
   if (hasErrors(issues)) return { issues };
-  const file = value as TemplateFile;
+  // `version` is the file's format, not part of the template merged over the defaults.
+  const { version: _version, ...file } = value as TemplateFile;
   const template = mergeTemplate(nameless(), file);
   const merged = finalizeIssues(zodIssues(TemplateSchema, template));
   if (hasErrors(merged)) return { issues: [...issues, ...merged] };

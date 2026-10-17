@@ -8,6 +8,7 @@
 # line (`/#as-of`, the fixture's only date from the browser's clock) reads the same in every take. Framed in a browser
 # window: its address bar shows the display URLs (shop.northfield.example), never localhost — and so does `{{shop}}`
 # in a caption. Setup reads only (a hook that writes would be refused); there is no teardown: nothing to undo.
+version: 1
 video: read-only
 env: production
 frame: browser

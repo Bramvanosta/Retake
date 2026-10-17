@@ -1,6 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { FORMAT_VERSIONS } from './formats.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { WorkspaceFileSchema } from './schemas/project.js';
 import type { WorkspaceConfig } from './types.js';
@@ -54,7 +55,9 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
     }
     text = '';
   }
-  const { value, issues } = checkYamlDocument(text, WorkspaceFileSchema);
+  const { value, issues } = checkYamlDocument(text, WorkspaceFileSchema, undefined, {}, {
+    formatVersion: { file: WORKSPACE_FILE, supported: FORMAT_VERSIONS.workspace },
+  });
   if (hasErrors(issues)) throw new ConfigError(issuesMessage('workspace config', issues, file), issues, file);
   const cfg = WorkspaceFileSchema.parse(value);
   const dir = (p: string | undefined, fallback: string) => resolve(absRoot, expandHome(p ?? fallback));

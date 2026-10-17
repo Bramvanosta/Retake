@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
   ARTEFACTS_DIR,
+  FORMAT_VERSIONS,
   compileWritePolicy,
   guardsWrites,
   displayPages,
@@ -54,6 +55,7 @@ import { snapshotMailbox } from './actions/artefacts.js';
 import { watchNotifications } from './notifications.js';
 import { mergeCapture, mergePacing, projectBrowser } from './config.js';
 import { encodeFrames } from './encode.js';
+import { runEngine } from './engine.js';
 import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, writeStatus } from './auth.js';
 import type { PreparedSession } from './auth.js';
@@ -121,9 +123,10 @@ export interface RunOptions {
 
 /**
  * SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process — after removing the session
- * copies it made (they hold a persona's cookies; L1.6).
+ * copies it made (they hold a persona's cookies; L1.6) and killing the shell hooks still running (`groups`: their
+ * process groups, which a signal to this process alone would leave running).
  */
-function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void): () => void {
+function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void, groups: ReadonlySet<number>): () => void {
   let count = 0;
   const handler = (sig: NodeJS.Signals) => {
     count++;
@@ -133,6 +136,13 @@ function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void): () => v
     }
     remove();
     removeSessionCopiesSync();
+    for (const pgid of groups) {
+      try {
+        process.kill(-pgid, 'SIGKILL');
+      } catch {
+        /* already gone */
+      }
+    }
     process.kill(process.pid, sig);
   };
   const remove = () => {
@@ -254,6 +264,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   // L1.8: the sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
   const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
   const record: RunRecord = {
+    version: FORMAT_VERSIONS.run,
     id: runId,
     project: project.slug,
     scenario: loaded.name,
@@ -274,6 +285,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       ...(runClock ? { clock: { at: runClock.at, ...(runClock.timezone ? { timezone: runClock.timezone } : {}), ...(runClock.freeze ? { freeze: true as const } : {}) } } : {}),
       ...(sandbox ? { sandbox } : {}),
     },
+    engine: runEngine(),
   };
   if (opts.until !== undefined) record.options.until = opts.until;
   if (access.allow_writes) record.options.allow_writes = true;
@@ -299,7 +311,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
 
   const abort = new AbortController();
   const signal = opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal;
-  const removeSignals = installSignalHandlers((sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)));
+  /** The process groups of the shell hooks running now (a second signal kills them). */
+  const hookGroups = new Set<number>();
+  const removeSignals = installSignalHandlers((sig) => abort.abort(new CancelledError(`run cancelled (${sig})`)), hookGroups);
   const clock = new CaptureClock();
   const video = timelineVideo(sc, project.config, opts.template?.name);
   const timeline = new TimelineBuilder(
@@ -397,6 +411,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           }
         : {}),
     });
+    const chromium = await session.browserVersion();
+    if (chromium) {
+      record.engine = runEngine(chromium);
+      void files.saveRecord();
+    }
     if (prepared.length) {
       await preflight(session, prepared, {
         project: project.slug,
@@ -455,7 +474,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       if (sc.setup?.length) record.hooks.setup = 'skipped';
       if (sc.teardown?.length) record.hooks.teardown = 'skipped';
     } else if (hasHooks) {
-      hooks = await setupHooks(sc.setup ?? [], {
+      const deps: SetupDeps = {
         rt,
         session,
         project,
@@ -469,7 +488,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         record,
         hookLanding: hookLanding(guard, personas, env, session, commandOf, expire),
         ...(writeGuard ? { writes: { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } } : {}),
-      });
+        signal,
+        running: hookGroups,
+      };
+      hooks = await openHooks(deps);
+      await setupHooks(hooks, sc.setup ?? [], deps);
     }
     // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
     const meta = timeline.meta;
@@ -881,6 +904,10 @@ interface SetupDeps {
   record: RunRecord;
   /** Refuses a js hook tab that landed on its persona's sign-in page (L1.6). */
   hookLanding?: (key: string, url: string) => string | null;
+  /** The run's cancel (Ctrl-C, SIGTERM, opts.signal): it stops the setup — a running shell command's process group too. */
+  signal: AbortSignal;
+  /** The process groups of the shell hooks running now (any phase): a second signal kills them before the process quits. */
+  running: Set<number>;
 }
 
 function formatIssuePath(path: ReadonlyArray<string | number>): string {
@@ -1063,7 +1090,11 @@ async function discardCapture(dir: string, screenshotsDir: string): Promise<void
   await mkdir(screenshotsDir, { recursive: true }).catch(() => undefined);
 }
 
-async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> {
+/**
+ * The hooks of a run: the journal and the context the setup, the teardown and the rollbacks share. Opened before the
+ * setup runs, so the teardown runs even when the setup failed or was interrupted.
+ */
+async function openHooks(d: SetupDeps): Promise<HooksState> {
   const mod = await loadHooksModule();
   const journal = await mod.Journal.open(join(d.dir, 'hooks-journal.json'));
   const saved: Record<string, unknown> = {};
@@ -1088,24 +1119,42 @@ async function setupHooks(setup: HookStep[], d: SetupDeps): Promise<HooksState> 
         code,
       ),
     saved,
+    // Every phase's shell commands (setup, teardown, rollbacks): a second signal kills them before the process quits.
+    running: d.running,
   };
-  const state: HooksState = { mod, journal, ctx };
+  return { mod, journal, ctx };
+}
+
+/**
+ * The setup hooks. A cancel stops them — a running shell command's process group gets SIGTERM (an http, sql or js
+ * hook ends first), the remaining hooks do not run, the completed ones are rolled back (never interrupted themselves)
+ * before the teardown — and cancels the run.
+ */
+async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promise<void> {
   if (!setup.length) {
     d.record.hooks.setup = 'none';
-    return state;
+    return;
   }
   d.emit({ type: 'hook', phase: 'setup', name: 'setup', status: 'start', message: `${setup.length} hook(s)` });
-  const res = await mod.runHooks(setup, ctx, { phase: 'setup', journal });
+  // Only the setup sees the run's cancel. The same context object as the teardown's and the rollbacks': the secrets
+  // the hooks resolve are looked up once per run and stay registered for redaction.
+  h.ctx.signal = d.signal;
+  let res: Awaited<ReturnType<HooksModule['runHooks']>>;
+  try {
+    res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal });
+  } finally {
+    delete h.ctx.signal;
+  }
   res.results.forEach((r, i) =>
     d.emit({ type: 'hook', phase: 'setup', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
   );
   d.record.hooks.setup = res.ok ? 'ok' : 'failed';
   if (!res.ok) {
+    throwIfAborted(d.signal);
     // An optional hook may have failed before the one that stopped the setup: report the blocking one.
     const failed = res.results.find((r) => hookResultFailed(r) && r.optional !== true) ?? res.results.find(hookResultFailed);
     throw new RunnerError(`setup hooks failed${failed ? ` (${hookResultName(failed, res.results.indexOf(failed))}: ${failed.error ?? failed.message ?? 'error'})` : ''}; completed setup hooks were rolled back`);
   }
-  return state;
 }
 
 /**

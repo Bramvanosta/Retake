@@ -1,8 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-14, end of lot **L1.8 (sandbox mode)**, after L1.5, L5.1, L1.3, L1.2, L1.6 and L1.7 — phases 1
-and 2 are done;
-the user asked to chain the lots up to phase 3 (L5.1, L1.3, L1.2, L1.6, L1.7, L1.8, L1.4, then stop before L3.1). Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-17, end of lot **L1.4 (coverage)** — the end of the chain the user asked for (L5.1, L1.3,
+L1.2, L1.6, L1.7, L1.8, L1.4); phases 1 and 2 are done. **Next: phase 3 (L3.1), when the user asks for it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -29,7 +28,13 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.8)
+## State (after L1.4)
+- **L1.4 done (2026-10-17)**: every scenario-language option has a test that fails if the option is ignored; captures
+  at 2560×1440, 4K and phone sizes; cursor and file-chip look checks with goldens; Ctrl-C / SIGTERM on the built CLI;
+  `version: 1` on the persisted formats and the engine in run.json; `pnpm test:pg` (the Postgres tests, first run on
+  the Mac) and `pnpm test:slow` (automated catalogue capture); the tests found and fixed `wait_for: {network_idle}`
+  and four cancel / teardown bugs. Tests on the Mac: **1632 — 1608 pass, 24 skipped (≈ 6 m 35 s; 7 Postgres, 7 Docker, 8 slow, 1 old Node, 1 headed); `pnpm test:pg` 7/7, `pnpm test:slow` 8/8, Docker-gated 7/7**. Requirements: 618 tracked — 498 done, 9 partial,
+  103 todo, 8 n/a-here; never exercised in phase 1: 0.
 - **L1.8 done (2026-10-14)**: sandboxes — a `sandbox.yaml` per sandbox environment (process or docker-compose
   services, seed, reset by reseed or Postgres snapshot, demo accounts as personas, mailbox), `studio sandbox init | up
   | down | reset | status | logs`, `studio run --sandbox` (every take from the same state), the fixture shipped as a
@@ -78,8 +83,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: L1.4 (coverage),
-  phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
+- **Not built yet**: phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Mac setup
@@ -128,14 +132,17 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
-2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~, ~~L1.7~~ — done 2026-10-13, ~~L1.8~~ — done 2026-10-14.
+2. ~~L5.1~~, ~~L1.3~~ — done 2026-10-12, ~~L1.2~~, ~~L1.6~~, ~~L1.7~~ — done 2026-10-13, ~~L1.8~~ — done 2026-10-14,
+   ~~L1.4~~ — done 2026-10-17: the chain is complete.
    Chain asked by the user (2026-10-12): L1.3 (stalls) → L1.2 (runner robustness) → L1.6 (sessions & personas) → **L1.7** (display URLs, read-only & production safety, frozen clock)
    → **L1.8** (sandbox mode) → **L1.4** (coverage, last so it covers the rest), then stop before phase 3 (**L3.1**).
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L1.4 — Coverage of untested options + automated fixture acceptance** (last lot of the chain), then stop before
-phase 3 (L3.1) — see "Order of the next lots".
+**Phase 3, starting with L3.1** (engine API + job runner + storage abstraction, MCP server skeleton) — only when the
+user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
+--persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -813,6 +820,30 @@ phase 3 (L3.1) — see "Order of the next lots".
   leaves nothing running; the user's own Docker containers, images, volumes and networks identical before and after
   every step; env local quote unchanged. 1583 tests: 1567 pass, 16 skipped; gated Docker tests 7/7. No new npm dependency (`pg` reused; the lockfile gained the new
   package's importer lines).
+- **L1.4 done** (coverage of untested options + automated fixture acceptance; 33 requirements done, "never
+  exercised" 0 for phase 1). Planned, built in three parts (scenario-language options; captures, look and run
+  lifecycle; formats, Postgres, catalogue capture and close-out — part C was paused on 2026-10-14 and finished on
+  2026-10-17), then reviewed by three reviewers whose findings were each adversarially verified (6 of 12 confirmed,
+  all fixed). **Tests added**: every scenario option exercised by a test that fails when the option is ignored
+  (runner-web widgets.test "options of the scenario language (L1.4)", run.test, kit.test); captures at 2560×1440, 4K
+  (scale 2, `keep_frames: false`) and phone (scale 2) (capture-sizes.test); the cursor and file-chip look with
+  structural checks + tolerance goldens (look.test, test/golden/; chip golden darwin only; rewrite with
+  `DEMO_STUDIO_UPDATE_GOLDEN=1`); SIGINT / SIGTERM / AbortSignal on the built CLI (cli e2e.test); `studio hooks run`
+  forms; the 7 Postgres tests through `pnpm test:pg` (throwaway `demo-studio-pg-test-*` container with its anonymous
+  volume removed — first run on the Mac: 7/7); the committed catalogue scenario captured on the fixture with the debug
+  cursor (`pnpm test:slow`, 8 tests, ≈ 75 s: hotspot ≤ 0.5 px from every click). **Code fixes found by the tests**:
+  `wait_for: {network_idle}` never waited for a request started after the page's first idle (runner-web network.ts:
+  a per-page in-flight tracker, re-armed on every call, forgetting a frame's requests when it commits a new document,
+  a response body still open 1 s after its headers no longer counted — a fire-and-forget fetch of a `no-store` answer
+  is never reported as ended; also used by login steps, where a network-idle timeout now fails the step); a cancel
+  during a setup hook waited for it (up to 30 s) and a cancel between or during non-shell hooks skipped the rollback;
+  teardown skipped after a failed setup; a second signal left shell hooks running; `drop_file` read a file before its
+  size check; `studio plan` accepted a newer run.json. **Formats**: optional `version: 1` on scenario / project /
+  template / studio YAML and run.json (core formats.ts; missing = 1, newer = one positioned error; hook files have
+  none; `studio migrate` is BL-70); run.json `engine` (Demo Studio, Node, Chromium, OS, font digest; runner-web
+  engine.ts). **Requirements**: a generated "Never exercised" section in REQUIREMENTS.md and `node
+  scripts/requirements.mjs --untested 1` (exits non-zero while phase 1 has one); R-RUN-17's real-Keychain check is
+  MACOS-CHECKLIST step 10b for the user. 1632 tests: 1608 pass, 24 skipped; test:pg 7/7, test:slow 8/8, Docker-gated 7/7. No dependency added.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1042,6 +1073,26 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L1.4:
+- Run `pnpm build` before `pnpm test`: the signal tests spawn packages/cli/dist/bin.js (they skip without it). The
+  gated suites, one at a time: `pnpm test:pg` (≈ 5 s), `pnpm test:slow` (≈ 75 s), the Docker sandboxes (≈ 65 s);
+  `node scripts/test-pg.mjs --all` runs everything this Mac can. Run them after any change to the runner, hooks or
+  sandbox, and `node scripts/requirements.mjs --untested 1` at every lot end.
+- Goldens (runner-web test/golden/) change with Chromium, GPU and fonts: rewrite them only with
+  `DEMO_STUDIO_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts`, then look at the PNGs; the
+  structural checks carry the assertion.
+- `wait_for: {network_idle}` (runner-web network.ts) is re-armed on every call: a page that never goes quiet (long
+  polling, a hanging request) now times out and fails the step — and a login step. A response body still open 1 s
+  after its headers stops counting. Limit (BL-71): a worker request of an iframe that went away.
+- Cancel semantics: a cancel during setup stops a running shell hook (its group), lets an http / sql / js hook end,
+  rolls back what ran, then teardown always runs; a second signal SIGKILLs shell hook groups. A cancelled `studio run`
+  exits 1 (others: 130) — by design so far.
+- Earlier `pnpm test:pg` runs (2026-10-14 / -16) left anonymous Postgres data volumes in Docker (fixed since: `docker
+  rm -f -v`); removing them needs the user's OK. `packages/core/test/helpers.ts` `specProjectDir()` leaves tiny
+  `$TMPDIR/demo-studio-spec-*` folders (cosmetic).
+- The catalogue's two scroll steps take ≈ 0.56 s longer than set (the post-scroll fresh-frame probe, L1.3); the slow
+  test allows +1 s.
+
 Notes from L1.8:
 - DOCKER: the user runs other compose stacks on this Mac (ports 8025, 1025, 5432, 3000… are theirs). Never stop,
   remove or prune anything not named `demo-studio-*`; no `docker system/volume/image prune`, no `--rmi all`. Gated

@@ -6,7 +6,7 @@ import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, S
 import { requestPatternError } from '../writes.js';
 import { HookStepSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
-import { FrameSpecSchema, nonEmpty } from './primitives.js';
+import { FrameSpecSchema, fileVersion, nonEmpty } from './primitives.js';
 import {
   AuthConfigSchema,
   BrowserConfigSchema,
@@ -149,6 +149,7 @@ const EnvironmentSettingsSchema = z.strictObject({
 });
 
 const projectShape = {
+  version: fileVersion(),
   name: nonEmpty().describe('Display name of the product / project.'),
   environments: z
     .record(z.string(), EnvironmentSchema)
@@ -217,6 +218,7 @@ export const ProjectConfigSchema = z.strictObject({
 /** studio.yaml at the workspace root. */
 export const WorkspaceFileSchema = z
   .strictObject({
+    version: fileVersion(),
     projects_dir: nonEmpty().describe('Projects directory, relative to the workspace root (default "projects").').optional(),
     templates_dir: nonEmpty().describe('Templates directory, relative to the workspace root (default "templates").').optional(),
     components_dir: nonEmpty()

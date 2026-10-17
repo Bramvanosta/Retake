@@ -966,6 +966,8 @@ export type HookStep = HookCommon &
 export type HookKind = 'http' | 'sql' | 'shell' | 'js';
 
 export interface Scenario {
+  /** Format version (optional: a file without it is version 1). */
+  version?: 1;
   /** Video name (usually equals the file name). */
   video: string;
   title?: { kicker?: string; text: string };
@@ -1464,6 +1466,8 @@ export interface MailboxConfig {
 }
 
 export interface ProjectConfig {
+  /** Format version of project.yaml (optional: a file without it is version 1). */
+  version?: 1;
   name: string;
   /**
    * env name → page key → real base URL: both forms of project.yaml reduced to their page URLs (the long form's
@@ -2058,8 +2062,24 @@ export interface RunError {
   dom?: string;
 }
 
+/** What ran a capture (run.json `engine`, R-PRIN-13): explains a difference between two machines' takes. */
+export interface RunEngine {
+  /** Demo Studio version. */
+  demo_studio: string;
+  /** Node.js version. */
+  node: string;
+  /** The browser's version (absent when it did not open). */
+  chromium?: string;
+  /** Platform, release and architecture, e.g. "darwin 25.6.0 arm64". */
+  os: string;
+  /** The fonts installed on the machine: the number of font files and a digest (sha256, 12 hex) of their names. */
+  fonts?: { files: number; digest: string };
+}
+
 /** runs/<id>/run.json — written at start, updated during the run and at the end. */
 export interface RunRecord {
+  /** Format version (1; absent in runs made before L1.4: read as 1). */
+  version?: 1;
   id: string;
   project: string;
   scenario: string;
@@ -2089,6 +2109,8 @@ export interface RunRecord {
   error?: RunError;
   /** Dry-run: reason the run stopped early (irreversible step, --until). */
   stopped_at?: { scene: string; step: number; reason: 'irreversible' | 'until' };
+  /** What ran it (absent in runs made before L1.4). */
+  engine?: RunEngine;
 }
 
 /** Progress events streamed by runners (CLI prints them, MCP stores them). */

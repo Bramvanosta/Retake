@@ -108,6 +108,7 @@ Keep your material in a folder of your own, for example:
 
 ```yaml
 # studio.yaml
+version: 1                 # format version: optional (see File formats and versions)
 projects_dir: projects     # default "projects"
 templates_dir: templates   # default "templates"
 components_dir: components # default "components": your own components (see Components)
@@ -176,7 +177,8 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   saves a screenshot per step and never executes `irreversible` steps (it hovers their target and stops that scene).
   Hooks run by default for captures and are skipped for dry runs (`--hooks run` executes them, so a dry run sees the
   same prepared data). `--until scene.step` stops after that step. `--json` streams progress events (one JSON object
-  per line) on stdout for tools and agents. Ctrl-C cancels cleanly: teardown still runs. On a read-only environment
+  per line) on stdout for tools and agents. Ctrl-C (or SIGTERM) cancels cleanly: teardown still runs, the browser
+  closes, the run ends `cancelled` with exit code 1; a second Ctrl-C quits at once. On a read-only environment
   a run with hooks that write is refused before anything runs; `--allow-writes` lets a production environment whose
   project.yaml allows writes be written to — see [Environments](#environments-display-urls-production-read-only-clock).
   `--sandbox` starts the sandbox environment if needed and resets it to its seed before the take — see
@@ -283,6 +285,7 @@ projects/<slug>/
 
 ```yaml
 # project.yaml
+version: 1                     # format version: optional, absent = 1 (see File formats and versions)
 name: Acme demo
 environments:                  # environment → page key → base URL ({{app}} in templates)
   staging:
@@ -346,6 +349,7 @@ instead of 700 ms.
 
 ```yaml
 # yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+version: 1                     # format version: optional, absent = 1 (see File formats and versions)
 video: catalogue
 title: {kicker: For suppliers, text: Manage your catalogue}
 outro: {tagline: "Your catalogue, under control."}
@@ -434,12 +438,12 @@ Every step has exactly one action; shorthand forms are shown first.
 | `drag` | `drag: {from: {text: Card A}, to: {text: Done}, duration: 1.2}` | Press, eased move, release |
 | `drop_file` | `drop_file: {zone: {text: Drop files}, path: assets/list.xlsx, from: right}` | The cursor fetches the file at the screen edge, a file "ghost" travels to the zone, then a real drop (or the hidden file input) |
 | `wait` | `wait: 0.8` | Sleep (may be trimmed by the editor) |
-| `wait_for` | `wait_for: Saved` · `{not_text, target, gone, url, network_idle, timeout}` | Wait until a condition holds |
+| `wait_for` | `wait_for: Saved` · `{not_text, target, gone, url, network_idle, timeout}` | Wait until a condition holds (checked every 100 ms; `url`: a substring or a `/regex/`). `network_idle: true` waits until the page has had no request in flight for 0.5 s, counted from the step — so a request the previous click started is waited for; a page that never goes quiet (long polling, a request that hangs) times out, naming what is still loading. The requests of a document that went away (a navigation, a removed frame) are not waited for, nor a response body still open 1 s after its headers (a fire-and-forget call whose answer the page never reads); a worker request of a removed iframe still is (BACKLOG BL-71) |
 | `hold` | `hold: 2` | Stay still; never trimmed by the editor |
 | `assert` | `assert: {text: €720.00}` · `{url, title, gone, count: {target, equals}}` | Fail with a screenshot unless true |
 | `screenshot` | `screenshot: proposal` · `{name, full_page: true}` | PNG in `runs/<id>/screenshots/` |
 | `new_tab` | `new_tab: {target: {text: Download PDF}, as: pdf}` · `{href: /report}` | Follow a link into a new tab and keep recording |
-| `switch_page` | `switch_page: previous` · `{to: admin, close_current: true}` | Change the recorded page |
+| `switch_page` | `switch_page: previous` · `{to: admin, close_current: true}` | Change the recorded page: `previous`, `main` (the environment's first page), an environment page key or a `new_tab` `as` id; `close_current` closes the page left |
 | `eval` | `eval: "document.body.classList.add('demo')"` · `{file: hooks/setup.js, arg: …}` | JavaScript in the page (function body) |
 | `notify` | `notify: Capture finished` · `{title, message}` | Desktop notification |
 | `emit` | `emit: {name: chapter, data: {n: 2}}` | Custom event in the timeline |
@@ -588,8 +592,12 @@ teardown:
 Hook kinds: `http` (`method`, `url`, `headers`, `json` or `body`, `expect`, `save_as`, `rollback`), `sql` (`file` or
 `query`, `db`, `rollback`), `shell` (`run`, `cwd`, `env`, `timeout`, `rollback`), `js` (`code` or `file`, `page`,
 `rollback`). A SQL or JS hook file that does not exist in the project is a validation error. Common keys: `name`, `confirm`, `destructive`, `optional`, and `writes: false` on a shell hook that only reads (it may then run on a read-only environment). Setup stops at the first failure and rolls
-back what it did; teardown hooks always run (even after a failure or Ctrl-C), then the pending setup rollbacks are
-replayed, most recent first.
+back what it did; teardown hooks always run (even after a failure — of a step or of the setup itself — or Ctrl-C),
+then the pending setup rollbacks are replayed, most recent first. Ctrl-C (or SIGTERM) during the setup stops it at
+once: a shell hook's process group gets SIGTERM (SIGKILL 2 s later; an http, sql or js hook running then ends first),
+the next hooks do not run, the completed ones are rolled back (rollbacks are never interrupted), then the teardown
+runs. A second Ctrl-C quits at once and kills the shell hooks still running; what was not rolled back stays in the
+run's journal for `studio hooks rollback`.
 
 A `js` hook runs in a **tab of its own** in the run's browser, opened on its environment page (`page`, default the
 first one): cookies, localStorage and IndexedDB are shared with the capture, sessionStorage and page state are not,
@@ -2441,7 +2449,7 @@ reset:
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
-| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live |
+| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Demo Studio, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
 | `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
@@ -2461,6 +2469,24 @@ describe the trigger click (`data.retried` when it was clicked twice). A click t
 `data.days`, `data.quick_runs` and `data.waited_close_ms`, a parked step `data.park`. DOM snippets saved next to error
 screenshots are capped at 64 KB. `studio schema timeline` prints the timeline schema.
 
+## File formats and versions
+
+Every file Demo Studio reads says which version of its format it is, in a top-level `version` key:
+
+- **Optional** in the files you write — scenarios, `project.yaml`, `template.yaml`, `studio.yaml` — and in `run.json`:
+  `version: 1`, or nothing (a file without it is version 1, so every file written before the key existed still
+  loads). `studio new` and the runner write it; the starter templates and the fixture's files carry it.
+- **Required** in `sandbox.yaml` and in the files Demo Studio writes for itself (`timeline.json`, the hooks journals,
+  render and review records, raw export manifests).
+- **None** in hook files (`hooks/*.yaml`: a top-level list of hooks has no room for a key) — their hooks are checked
+  like a scenario's. A component's `version` (`component.yaml`) is the component's own version, not a format.
+
+A file of a higher version than this Demo Studio reads (a newer Demo Studio wrote it) is refused with one error at its
+`version` key — `this project.yaml is version 2: it was made for a newer Demo Studio (this one reads version 1) —
+update Demo Studio` — instead of a list of keys this one does not know; `render`, `plan` and `export-capture` refuse a run
+whose `run.json` is newer the same way. Demo Studio never rewrites your files: a future incompatible change raises the
+format's version and keeps reading the older ones (a `studio migrate` command is in docs/BACKLOG.md).
+
 ## Repository layout
 
 ```
@@ -2478,19 +2504,34 @@ packages/mcp          phase 3
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests (and its Dockerfile)
 projects/             the fixture project and its sandboxes (your projects live in your workspace)
 templates/            starter themes: default, editorial, motion
-scripts/              requirements.mjs (docs/REQUIREMENTS.md), fixture media and preview samples, validate-raw.py
+scripts/              requirements.mjs (docs/REQUIREMENTS.md), fixture media and preview samples, validate-raw.py,
+                      test-pg.mjs (`pnpm test:pg`)
 docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (package contracts), HANDOFF.md,
                       ROADMAP.md, BACKLOG.md, ACCEPTANCE-phase2.md, MACOS-CHECKLIST.md
 CLAUDE.md             notes for Claude Code sessions (read order, working agreement, commands)
 ```
 
 Development: `pnpm build` (TypeScript project references), `pnpm test` (vitest; the end-to-end tests start the
-fixture on free ports and skip themselves when Chromium or ffmpeg is missing). Set `DEMO_STUDIO_TEST_PG` to a
-PostgreSQL URL to include the SQL hook tests, `DEMO_STUDIO_TEST_OLD_NODE` to an older `node` binary (e.g. a
+fixture on free ports and skip themselves when Chromium or ffmpeg is missing; some CLI tests run `packages/cli/dist`,
+so build first). Gated tests:
+
+| Command | What it runs |
+|---|---|
+| `pnpm test:pg` | the 7 SQL hook tests against a real Postgres (`packages/hooks/test/sql.test.ts`): `scripts/test-pg.mjs` starts a throwaway container `demo-studio-pg-test-<hex>` from `postgres:17-alpine` (never pulled for you: it prints the `docker pull` when the image is missing) on a loopback port Docker picks, with a random password, sets `DEMO_STUDIO_TEST_PG`, and removes that container — only that one — with its anonymous data volume at the end, on an error or on Ctrl-C. A container a killed run left (label `demo-studio.test=pg`) is listed with the command that removes it, never removed. A few seconds; needs a running Docker (or OrbStack) |
+| `pnpm test:pg --all` | the whole suite with Postgres, `DEMO_STUDIO_TEST_DOCKER=1` and `DEMO_STUDIO_TEST_SLOW=1`: everything this machine can run |
+| `pnpm test:slow` | `DEMO_STUDIO_TEST_SLOW=1`: the committed `catalogue` scenario captured on the fixture (free ports) at 1920×1080 with the debug cursor and its real hooks — duration, every frame's size, the run folder's files, the scroll durations, the drawn hotspot ≤ 3 px from every click point and inside its target, `popup_opened`, no hesitation between steps, the setup rollback (`packages/cli/test/catalogue-acceptance.test.ts`, about 1.5 min) |
+
+Set `DEMO_STUDIO_TEST_PG` yourself to a PostgreSQL URL (a role that may create tables) to run the SQL hook tests
+without the script, `DEMO_STUDIO_TEST_OLD_NODE` to an older `node` binary (e.g. a
 Node.js 10) to check the CLI's version message on it, and `DEMO_STUDIO_TEST_DOCKER=1` to run the docker-compose
 sandbox tests (a running Docker; `packages/sandbox/test/compose.test.ts` uses busybox:1.38.0, postgres:17-alpine and
 axllent/mailpit:v1.29.4, `packages/cli/test/sandbox-docker.test.ts` builds the fixture's image on node:22-alpine). They
 name their compose projects and images `demo-studio-test-*` and remove them before and after; base images stay.
+`packages/runner-web/test/look.test.ts` compares the drawn cursor and the file chip with golden images
+(`packages/runner-web/test/golden/`, with a tolerance; the chip's only on macOS: its text uses the system font) next
+to structural checks; after an intended change of the look (or a Chromium update that moves it), rewrite them with
+`DEMO_STUDIO_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts` and look at the PNGs before
+committing them.
 
 ## Phase status
 

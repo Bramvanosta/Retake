@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './formats.js';
 export * from './targets.js';
 export * from './steps.js';
 export * from './templating.js';
@@ -28,7 +29,7 @@ export { isoDay, parseDay } from './dates.js';
 export { didYouMean, editDistance, suggestion } from './validation/suggest.js';
 /** Building blocks for other packages' YAML formats (component.yaml…): positioned, friendly issues. */
 export { checkYamlDocument, brokenUnder } from './validation/document.js';
-export type { CheckedDocument } from './validation/document.js';
+export type { CheckDocumentOptions, CheckedDocument } from './validation/document.js';
 export { finalizeIssues, issue as locatedIssue } from './validation/located.js';
 export type { LocatedIssue } from './validation/located.js';
 export { parseYaml, attachPositions, locateOffset } from './validation/yaml-source.js';
