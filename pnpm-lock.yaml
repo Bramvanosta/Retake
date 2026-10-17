@@ -68,6 +68,9 @@ importers:
       '@demo-studio/editor':
         specifier: workspace:*
         version: link:../editor
+      '@demo-studio/engine':
+        specifier: workspace:*
+        version: link:../engine
       '@demo-studio/hooks':
         specifier: workspace:*
         version: link:../hooks
@@ -179,6 +182,21 @@ importers:
         specifier: 19.1.9
         version: 19.1.9(@types/react@19.1.12)
 
+  packages/engine:
+    dependencies:
+      '@demo-studio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@demo-studio/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@demo-studio/runner-web':
+        specifier: workspace:*
+        version: link:../runner-web
+      '@demo-studio/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
+
   packages/hooks:
     dependencies:
       '@demo-studio/core':
@@ -197,20 +215,11 @@ importers:
       '@demo-studio/core':
         specifier: workspace:*
         version: link:../core
-      '@demo-studio/editor':
+      '@demo-studio/engine':
         specifier: workspace:*
-        version: link:../editor
-      '@demo-studio/hooks':
-        specifier: workspace:*
-        version: link:../hooks
-      '@demo-studio/review':
-        specifier: workspace:*
-        version: link:../review
-      '@demo-studio/runner-web':
-        specifier: workspace:*
-        version: link:../runner-web
+        version: link:../engine
       '@modelcontextprotocol/sdk':
-        specifier: ^1.32.1
+        specifier: 1.32.1
         version: 1.32.1(zod@4.6.5)
       zod:
         specifier: ^4.1.0

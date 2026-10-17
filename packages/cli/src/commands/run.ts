@@ -1,7 +1,10 @@
 import { join } from 'node:path';
-import { formatIssues, isAccessError, loadProjectTemplate, loadScenario, readJson, resolveEnvironment, resolveRunAccess, scenarioEnvOf } from '@demo-studio/core';
-import type { LoadedTemplate, RunProgress, RunRecord, Timeline } from '@demo-studio/core';
-import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
+import { formatIssues, isAccessError, readJson } from '@demo-studio/core';
+import type { RunProgress, RunRecord, Timeline } from '@demo-studio/core';
+import { RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, writesSummary } from '@demo-studio/engine';
+import type { PreparedRun } from '@demo-studio/engine';
+import { EXIT, UsageError, errorMessage } from '../errors.js';
+import { onInterrupt } from '../interrupt.js';
 import type { ExitCode } from '../errors.js';
 import { ProgressPrinter, runStatusText } from '../progress.js';
 import type { Ui } from '../ui.js';
@@ -12,7 +15,7 @@ import { printIssues } from './validate.js';
 import { loginCommandFor } from './auth.js';
 import { parseRawFlags, rawExportOfRun } from './export-capture.js';
 import type { RawFlags } from './export-capture.js';
-import { checkSandboxEnv, pickSandboxEnv, prepareSandboxTake, sandboxSummary } from './sandbox.js';
+import { sandboxSummary } from './sandbox.js';
 
 export interface RunCommandOptions extends RawFlags {
   dry?: boolean;
@@ -62,87 +65,80 @@ export async function runCommand(
     return EXIT.failure;
   };
 
-  let prepared: Awaited<ReturnType<typeof prepare>>;
+  let prepared: PreparedRun;
   try {
-    prepared = await prepare(global, projectArg, scenarioArg, opts);
+    const ws = await openWorkspace(global);
+    prepared = await prepareRun(ws, await openProject(ws, projectArg), scenarioArg, opts);
   } catch (e) {
-    if (e instanceof UsageError) throw e;
+    if (e instanceof RunOptionError) throw new UsageError(e.message);
     return fail(errorMessage(e));
   }
-  const { ws, project, scenario, template, templateWarning, sandboxEnv } = prepared;
-  // --sandbox (L1.8): the run is on the sandbox environment pickSandboxEnv chose.
-  const runEnv = sandboxEnv ?? opts.env;
+  const { ws, project, scenario, sandboxEnv } = prepared;
   // --allow-writes on a read-only environment is a usage error (it confirms writes, it never grants them).
-  if (opts.allowWrites) checkAllowWrites(project, runEnv ?? scenario.scenario.env);
+  if (opts.allowWrites) {
+    try {
+      checkAllowWrites(project, sandboxEnv ?? opts.env ?? scenario.scenario.env);
+    } catch (e) {
+      if (isAccessError(e)) throw new UsageError(e.message);
+      throw e;
+    }
+  }
   // run --raw --cursor none|layer captures without the in-page cursor (its track and effects are still recorded).
   const rawCursor = rawFlags ? (rawFlags.cursor ?? project.config.raw?.cursor ?? 'baked') : undefined;
 
-  const notes = templateWarning ? [templateWarning] : [];
-  if (opts.dry && opts.hooks === undefined && (scenario.scenario.setup?.length ?? 0) > 0) {
-    notes.push('dry run without its setup hooks: steps that need prepared data may fail (add --hooks run to execute them)');
-  }
-  if (json) {
-    for (const i of scenario.issues) emitJson({ type: 'log', level: 'warn', message: formatIssues([i], scenario.file) });
-    for (const n of notes) emitJson({ type: 'log', level: 'warn', message: n });
-  } else {
-    printIssues(ui, scenario.issues, scenario.file);
-    for (const n of notes) ui.warn(n);
-  }
-
   // L1.8: --sandbox resets the sandbox before the take (it stays up after); a sandbox environment without it is filmed as
-  // it is, and must be up. A failure here creates no run folder.
+  // it is, and must be up. A failure there creates no run folder.
   const emitNote = (level: 'info' | 'warn', message: string) => {
     if (json) emitJson({ type: 'log', level, message });
     else if (level === 'warn') ui.warn(message);
     else ui.line(ui.c.dim(message));
   };
-  let take: Awaited<ReturnType<typeof prepareSandboxTake>>['take'];
-  if (sandboxEnv) {
-    const r = await prepareSandboxTake(ui, project, sandboxEnv, scenario.name, { json, emit: emitNote });
-    if (!r.take) {
-      fail(r.error ?? `sandbox ${sandboxEnv} could not be prepared`);
-      return r.exit ?? EXIT.failure;
-    }
-    take = r.take;
-  } else {
-    try {
-      await checkSandboxEnv(project, resolveEnvironment(project, opts.env ?? scenario.scenario.env).name, { emit: emitNote });
-    } catch (e) {
-      return fail(errorMessage(e));
-    }
-  }
-
-  const { runScenario } = await import('@demo-studio/runner-web');
-  const printer = new ProgressPrinter(ui);
+  // The printer measures the run from its first event (the sandbox take is not part of it).
+  let printer: ProgressPrinter | undefined;
   let record: RunRecord;
   try {
-    record = await runScenario({
-      project,
-      scenario,
-      template,
-      mode: opts.dry ? 'dry' : 'capture',
-      env: runEnv,
-      until: opts.until,
-      hooks: opts.hooks,
-      headed: opts.headed,
-      ffmpeg: ws.ffmpeg,
-      // The fix of an expired session names this workspace when the command line did (-C).
-      loginCommand: loginCommandFor(global),
-      ...(opts.allowWrites ? { allowWrites: true } : {}),
-      ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
-      ...(take ? { sandbox: take.info } : {}),
-      onProgress: (e) => {
-        if (take && e.type === 'run_start') take.note(e.run.id);
-        if (json) emitJson(e);
-        else printer.handle(e);
+    record = await executeRun(
+      prepared,
+      opts,
+      {
+        // The fix of an expired session names this workspace when the command line did (-C).
+        loginCommand: loginCommandFor(global),
+        ...(opts.allowWrites ? { allowWrites: true } : {}),
+        ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
       },
-    });
+      {
+        issues: (issues, file) => {
+          if (json) for (const i of issues) emitJson({ type: 'log', level: 'warn', message: formatIssues([i], file) });
+          else printIssues(ui, issues, file);
+        },
+        note: emitNote,
+        sandboxLog: (level, msg) => {
+          if (level === 'warn') emitNote('warn', msg);
+          else if (json) emitNote('info', msg);
+          else ui.debug(msg);
+        },
+        progress: (e) => {
+          if (json) emitJson(e);
+          else (printer ??= new ProgressPrinter(ui)).handle(e);
+        },
+        interrupts: { open: (o) => onInterrupt(ui, o) },
+      },
+    );
   } catch (e) {
-    return fail(errorMessage(e));
-  } finally {
-    await take?.release();
+    fail(errorMessage(e));
+    return e instanceof SandboxTakeError && e.interrupted ? EXIT.interrupted : EXIT.failure;
   }
-  if (!json) await printSummary(ui, record, printer.elapsedMs);
+  // The workspace's job history counts CLI runs too (best effort: never fails the run).
+  await appendHistory(ws.root, {
+    kind: 'run',
+    project: project.slug,
+    submitted_by: 'cli',
+    state: record.status === 'cancelled' ? 'cancelled' : 'succeeded',
+    ...(record.finished_at ? { at: record.finished_at, ms: Date.parse(record.finished_at) - Date.parse(record.started_at) } : {}),
+    run: { id: record.id, scenario: record.scenario, mode: record.mode, status: record.status },
+    counted: runCounted(record.mode, record.status),
+  });
+  if (!json) await printSummary(ui, record, printer?.elapsedMs ?? 0);
   if (record.status !== 'succeeded') return EXIT.failure;
   if (rawFlags) {
     if (!json) ui.line();
@@ -156,60 +152,7 @@ export async function runCommand(
   return EXIT.ok;
 }
 
-/** `--allow-writes` where the environment is read-only in project.yaml: a usage error (exit 2) before anything runs. */
-export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[0], env: string | undefined): void {
-  let resolved: ReturnType<typeof resolveEnvironment>;
-  try {
-    resolved = resolveEnvironment(project, env);
-  } catch {
-    return; // an unknown environment is reported where it is used
-  }
-  try {
-    resolveRunAccess(resolved, { allowWrites: true });
-  } catch (e) {
-    if (isAccessError(e)) throw new UsageError(e.message);
-    throw e;
-  }
-}
-
-async function prepare(global: GlobalOptions, projectArg: string, scenarioArg: string, opts: RunCommandOptions) {
-  const ws = await openWorkspace(global);
-  const project = await openProject(ws, projectArg);
-  // --sandbox: no sandbox, or an --env that is not one, is a usage error before anything is read. The sandbox is
-  // picked from the scenario's raw `env:` first, then the scenario is validated once, against the environment it runs
-  // on (its pages, its mailbox): a scenario without `env:` that waits for an email only the sandbox's mailbox receives.
-  const sandboxEnv = opts.sandbox ? pickSandboxEnv(project, opts.env, await scenarioEnvOf(project, scenarioArg)) : undefined;
-  const scenario = await loadScenario(project, scenarioArg, { env: sandboxEnv ?? opts.env, until: opts.until });
-  let template: LoadedTemplate | undefined;
-  let templateWarning: string | undefined;
-  try {
-    template = await loadProjectTemplate(project, scenario.scenario.template);
-  } catch (e) {
-    // Phase 1 only takes the cursor ripple colour from the template: capture with the defaults.
-    templateWarning = `${errorMessage(e)} — capturing with the default cursor colours`;
-  }
-  if (opts.headed && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new CliError('--headed needs a display, and none is available (DISPLAY / WAYLAND_DISPLAY are not set)');
-  }
-  return { ws, project, scenario, template, templateWarning, sandboxEnv };
-}
-
-/**
- * "1 mocked, 0 stopped" (+ allowed, to unguarded hosts) for a read-only run; "1 stopped (hosts of read-only
- * environments)" for a read-write run whose guard stopped a write to another environment's host; undefined otherwise.
- * The automated sign-in's exempt writes are not counted.
- */
-export function writesSummary(tl: Pick<Timeline, 'environment'> | undefined): { text: string; stopped: number } | undefined {
-  const env = tl?.environment;
-  if (!env) return undefined;
-  const n = { blocked: 0, mocked: 0, allowed: 0, passed: 0 };
-  for (const w of env.writes ?? []) if (w.outcome !== 'exempt') n[w.outcome]++;
-  if (env.access !== 'read-only') return n.blocked ? { text: `${n.blocked} stopped (hosts of read-only environments)`, stopped: n.blocked } : undefined;
-  const parts = [`${n.mocked} mocked`, `${n.blocked} stopped`];
-  if (n.allowed) parts.push(`${n.allowed} allowed`);
-  if (n.passed) parts.push(`${n.passed} to unguarded hosts`);
-  return { text: `${parts.join(', ')} (read-only)`, stopped: n.blocked };
-}
+export { checkAllowWrites, writesSummary };
 
 async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<void> {
   const c = ui.c;

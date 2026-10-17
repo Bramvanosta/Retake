@@ -1,8 +1,7 @@
-import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import { LEGACY_PERSONA, listProjects, loginCommand as coreLoginCommand, resolveEnvironment, resolvePersonas, sandboxOf } from '@demo-studio/core';
+import { listProjects, loginCommand as coreLoginCommand, resolveEnvironment } from '@demo-studio/core';
+import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@demo-studio/engine';
+import type { LoginCommandOf, PersonaState } from '@demo-studio/engine';
 import type { LoadedProject, ResolvedPersona } from '@demo-studio/core';
 import type { PersonaCheckResult } from '@demo-studio/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
@@ -12,7 +11,9 @@ import type { Ui } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
-type LoginCommandOf = (p: { project: string; env: string; persona?: string }) => string;
+// Moved into @demo-studio/engine (L3.1); re-exported for the commands that import them from here.
+export { personaState, projectPersonaStates, tildePath } from '@demo-studio/engine';
+export type { PersonaState } from '@demo-studio/engine';
 
 function shellQuote(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
@@ -26,12 +27,6 @@ export function studioCommand(global: GlobalOptions): string {
 /** The `studio login` command messages print; with `-C <root>` when the command line named the workspace root. */
 export function loginCommandFor(global: GlobalOptions): LoginCommandOf {
   return (p) => coreLoginCommand(p).replace(/^studio /, `${studioCommand(global)} `);
-}
-
-/** A path under the home folder as ~/… (messages). */
-export function tildePath(p: string): string {
-  const h = homedir();
-  return p === h ? '~' : p.startsWith(`${h}/`) ? `~${p.slice(h.length)}` : p;
 }
 
 /** "just now", "42 s ago", "3 min ago", "5 h ago", "2 days ago". */
@@ -56,23 +51,10 @@ export interface LoginOptions {
   auto?: boolean;
 }
 
-/** The persona `studio login` signs in: `--persona`, else the environment's only one. */
-function pickPersona(project: LoadedProject, envName: string, personas: ResolvedPersona[], wanted: string | undefined): ResolvedPersona {
-  if (personas.length === 0) {
-    const withPersonas = Object.keys(project.config.environments ?? {}).filter((e) => resolvePersonas(project, e).length > 0);
-    throw new CliError(
-      withPersonas.length
-        ? `environment "${envName}" of ${project.slug} has no personas: pick an environment that has some with --env (${withPersonas.join(', ')})`
-        : `project "${project.slug}" declares no sign-in for environment "${envName}": name its accounts in auth.personas of project.yaml (README: "Signing in: personas and sessions")`,
-    );
-  }
-  if (wanted !== undefined) {
-    const p = personas.find((x) => x.name === wanted);
-    if (!p) throw new UsageError(`environment "${envName}" has no persona "${wanted}" (personas: ${personas.map((x) => x.name).join(', ')})`);
-    return p;
-  }
-  if (personas.length > 1) throw new UsageError(`environment "${envName}" has ${personas.length} personas: pick one with --persona ${personas.map((x) => x.name).join(' | ')}`);
-  return personas[0];
+/** A LoginOptionError of the engine as the CLI reports it: a usage error (exit 2) or an error (exit 1), same message. */
+function cliLoginError(e: unknown): unknown {
+  if (e instanceof LoginOptionError) return e.usage ? new UsageError(e.message) : new CliError(e.message);
+  return e;
 }
 
 /**
@@ -90,37 +72,30 @@ export async function signInPersona(
 ): Promise<ExitCode> {
   const c = ui.c;
   const mode = opts.auto ? 'auto' : 'headed';
-  if (mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new CliError(`studio login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ': add --auto to use the persona\'s login steps' : ''}`);
-  }
   const who = `${c.bold(persona.name)} ${c.dim(`(env ${env.name})`)}`;
-  const { signIn } = await import('@demo-studio/runner-web');
-  const stop = await onInterrupt(ui);
-  let res: Awaited<ReturnType<typeof signIn>>;
+  let outcome: Awaited<ReturnType<typeof signInCore>>;
   try {
-    res = await signIn({
+    outcome = await signInCore(
       project,
       env,
       persona,
-      mode,
-      ...(opts.page !== undefined ? { page: opts.page } : {}),
-      ...(opts.url !== undefined ? { url: opts.url } : {}),
-      signal: stop.signal,
-      log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
-      onOpen: (url) =>
-        ui.line(
-          mode === 'auto'
-            ? `${who}: checking its saved session, else signing in with its login steps, headless ${c.dim(`(${url.split(/[?#]/)[0]})`)}`
-            : `${who}: a browser window is open on ${url.split(/[?#]/)[0]} — sign in, then close the window`,
-        ),
-    });
+      { mode, ...(opts.page !== undefined ? { page: opts.page } : {}), ...(opts.url !== undefined ? { url: opts.url } : {}) },
+      {
+        interrupts: { open: (o) => onInterrupt(ui, o) },
+        log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
+        onOpen: (url) =>
+          ui.line(
+            mode === 'auto'
+              ? `${who}: checking its saved session, else signing in with its login steps, headless ${c.dim(`(${url.split(/[?#]/)[0]})`)}`
+              : `${who}: a browser window is open on ${url.split(/[?#]/)[0]} — sign in, then close the window`,
+          ),
+      },
+    );
   } catch (e) {
-    if (stop.interrupted) return EXIT.interrupted;
-    throw e;
-  } finally {
-    stop.dispose();
+    throw cliLoginError(e);
   }
-  if (stop.interrupted) return EXIT.interrupted;
+  if (outcome.interrupted) return EXIT.interrupted;
+  const res = outcome.result;
   if (persona.legacy) {
     ui.ok(`profile saved: ${ui.path(res.profileDir ?? '')} (runs of ${project.slug} use a copy of it)`);
     return EXIT.ok;
@@ -152,123 +127,16 @@ export async function signInPersona(
 /** `studio login <project> [--env] [--persona] [--page] [--url] [--auto]`: sign one persona in and save its session. */
 export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: LoginOptions): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
-  const env = resolveEnvironment(project, opts.env);
-  const personas = resolvePersonas(project, env.name);
-  const legacy = personas.find((p) => p.legacy);
-  if (legacy) {
-    // The single-account form (auth.profile): a window on that profile, as before personas.
-    if (opts.persona !== undefined && opts.persona !== LEGACY_PERSONA) {
-      throw new UsageError(`environment "${env.name}" has no personas (its auth is one browser profile): leave --persona out, or name the accounts in auth.personas`);
-    }
-    if (opts.auto) throw new UsageError('--auto runs a persona\'s login steps: name the account in auth.personas with `login:` steps (the single-account auth.profile has none)');
-    if (!legacy.profileDir) {
-      throw new CliError(
-        `project "${project.slug}" has no browser profile for environment "${env.name}": name its accounts in auth.personas of project.yaml (README: "Signing in: personas and sessions")`,
-      );
-    }
+  let target: ReturnType<typeof loginTarget>;
+  try {
+    target = loginTarget(project, opts);
+  } catch (e) {
+    throw cliLoginError(e);
   }
-  const persona = legacy ?? pickPersona(project, env.name, personas, opts.persona);
-  if (opts.auto && !persona.login?.length) {
-    throw new CliError(`persona "${persona.name}" declares no login steps (auth.personas.${persona.name}.login): sign in by hand — leave --auto out`);
-  }
-  return signInPersona(ui, global, project, env, persona, opts);
+  return signInPersona(ui, global, project, target.env, target.persona, opts);
 }
 
 // ── studio auth status ───────────────────────────────────────────────────────
-
-/** What is known of one persona's session, without opening a browser (`auth status`, `doctor`). */
-export interface PersonaState {
-  project: string;
-  env: string;
-  persona: string;
-  session: 'profile' | 'storage_state';
-  legacy: boolean;
-  /** never: no saved session at all; unchecked: saved, never checked; else the status of the last check. */
-  status: 'valid' | 'expired' | 'error' | 'never' | 'unchecked';
-  checked_at?: string;
-  /** Who checked it last: the preflight of a run, `studio login`, `studio auth status --check`. */
-  by?: 'preflight' | 'login' | 'auth-status' | 'run';
-  run?: string;
-  /** Where the check ended (origin + path). */
-  at?: string;
-  detail?: string;
-  /** The master profile is held by a running browser (a `studio login` window?). */
-  in_use?: { pid?: number };
-  profile?: string;
-  snapshot?: string;
-  /** The command that signs it in (none for the legacy `auth.storage_state` file: it is exported again, `fix` says how). */
-  command?: string;
-  /** What to do when it is not valid and no command signs it in. */
-  fix?: string;
-  /**
-   * An account of a sandbox (L1.8): signed in automatically, off camera, by every take that finds no valid session (a
-   * reset drops the sessions the app stored) — never signing it in is normal.
-   */
-  sandbox?: boolean;
-}
-
-async function nonEmptyDir(dir: string | undefined): Promise<boolean> {
-  if (!dir) return false;
-  try {
-    return (await readdir(dir)).length > 0;
-  } catch {
-    return false;
-  }
-}
-
-/** The state of one persona's saved session: its files, its lock and its last status (no browser). */
-export async function personaState(project: LoadedProject, persona: ResolvedPersona, command: LoginCommandOf): Promise<PersonaState> {
-  const { profileLock, readStatus } = await import('@demo-studio/runner-web');
-  const hasMaster = persona.session === 'profile' && (await nonEmptyDir(persona.profileDir));
-  const hasSnapshot = persona.snapshot !== undefined && existsSync(persona.snapshot);
-  const out: PersonaState = {
-    project: project.slug,
-    env: persona.env,
-    persona: persona.name,
-    session: persona.session,
-    legacy: persona.legacy,
-    status: 'never',
-    ...(sandboxOf(project, persona.env) ? { sandbox: true } : {}),
-    ...(persona.profileDir ? { profile: persona.profileDir } : {}),
-    ...(persona.snapshot ? { snapshot: persona.snapshot } : {}),
-    // The legacy auth.storage_state file is the user's export: `studio login` has no window for it (it refuses).
-    ...(persona.legacy && persona.session === 'storage_state'
-      ? { fix: `export ${tildePath(persona.snapshot ?? 'its auth.storage_state file')} again (or name the account in auth.personas, then studio login)` }
-      : { command: command({ project: project.slug, env: persona.env, ...(persona.legacy ? {} : { persona: persona.name }) }) }),
-  };
-  if (hasMaster && persona.profileDir) {
-    const lock = await profileLock(persona.profileDir);
-    if (lock.state === 'live') out.in_use = lock.pid ? { pid: lock.pid } : {};
-  }
-  if (!hasMaster && !hasSnapshot) return out;
-  const st = await readStatus(persona.statusFile);
-  if (!st) {
-    out.status = 'unchecked';
-    return out;
-  }
-  out.status = st.status;
-  out.checked_at = st.checked_at;
-  out.by = st.by;
-  if (st.run) out.run = st.run;
-  if (st.at) out.at = st.at;
-  if (st.detail) out.detail = st.detail;
-  return out;
-}
-
-/** Every persona of a project (every environment, or one), with its state. */
-export async function projectPersonaStates(
-  project: LoadedProject,
-  command: LoginCommandOf,
-  env?: string,
-  home?: string,
-): Promise<Array<{ persona: ResolvedPersona; state: PersonaState }>> {
-  const envs = env !== undefined ? [resolveEnvironment(project, env).name] : Object.keys(project.config.environments ?? {});
-  const out: Array<{ persona: ResolvedPersona; state: PersonaState }> = [];
-  for (const e of envs) {
-    for (const persona of resolvePersonas(project, e, home !== undefined ? { home } : {})) out.push({ persona, state: await personaState(project, persona, command) });
-  }
-  return out;
-}
 
 /** "checked 2 min ago (preflight of run …)". */
 export function checkedText(s: Pick<PersonaState, 'checked_at' | 'by' | 'run'>, now = Date.now()): string {

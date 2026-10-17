@@ -1,4 +1,16 @@
-import type { HookAccess, HookStep, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+
+/** What a hook's approval is asked about (@demo-studio/hooks HookApprovalRequest, structurally). */
+export interface HookApprovalRequestLike {
+  hook: HookStep;
+  phase: string;
+  index: number;
+  env: string;
+  fingerprint: string;
+}
+
+/** Approves a hook that needs a human (a destructive one without `confirm: true`; with trust `mcp`, any shell hook too). */
+export type ConfirmHook = (description: string, reason: string, request: HookApprovalRequestLike) => boolean | Promise<boolean>;
 import { RunnerError, errorMessage } from './errors.js';
 
 /** The part of @demo-studio/hooks the runner uses (docs/DESIGN.md §2). */
@@ -19,6 +31,10 @@ export interface HookContextLike {
   signal?: AbortSignal;
   /** The process groups of the shell commands running now (a second signal kills them). */
   running?: Set<number>;
+  /** Who stands behind the hook files' trust flags (L3.1): `mcp` for work submitted through the MCP server. */
+  trust?: HookTrust;
+  /** Approves the hooks that need a human (RunOptions.confirmHook). */
+  confirmDestructive?: ConfirmHook;
 }
 
 export interface HookResultLike {

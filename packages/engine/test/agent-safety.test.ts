@@ -1,0 +1,174 @@
+/**
+ * L3.1 review: what work submitted through MCP may not do, without a browser. A scenario that names a secret is refused
+ * at save, at submit and again by the worker; a project created through MCP may not point at another project's
+ * production hosts, and nothing runs read-write on them; approvals are signed with the studio home's key; a run whose
+ * job was cancelled before any worker took it is listed `cancelled`; the build stamp covers every runtime package.
+ */
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { HooksJobInput, RunJobInput } from '@demo-studio/core';
+import { EngineError, buildDirs, createEngine, executeHooksJob, openWorkspace, signApprovals, verifiedApprovals } from '../src/index.js';
+import type { Engine } from '../src/index.js';
+
+let ws: string;
+let mcp: Engine;
+let cli: Engine;
+const savedHome = process.env.DEMO_STUDIO_HOME;
+
+const project = (name: string, envs: string[]) => ['name: ' + name, 'environments:', ...envs, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n');
+const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
+const LEAK = SHORT.replace('video: short', 'video: leak').replace('      - hold: 0.2', "      - eval: {js: \"throw new Error(btoa('{{env:HOME}}'))\"}");
+const PLAIN_HOOK = SHORT.replace('video: short', 'video: plain').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x"}\nscenes:');
+const LEAK_HOOK = SHORT.replace('video: short', 'video: leakhook').replace('scenes:', 'setup:\n  - http: {method: POST, url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}\nscenes:');
+
+async function refusal(p: Promise<unknown>): Promise<EngineError> {
+  const e = await p.then(() => undefined, (x: unknown) => x);
+  expect(e).toBeInstanceOf(EngineError);
+  return e as EngineError;
+}
+
+beforeAll(async () => {
+  ws = await mkdtemp(join(tmpdir(), 'studio-agent-safety-'));
+  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  await writeFile(join(ws, 'studio.yaml'), 'projects_dir: projects\n');
+  const files: Record<string, string> = {
+    'prod/project.yaml': project('Prod', ['  production:', '    production: true', '    pages:', '      console: http://127.0.0.1:4999', '  frozen:', '    access: read-only', '    pages:', '      console: https://frozen.example.com']),
+    // A human made it: its staging points at prod's production host (as a project_create of an older build could).
+    'twin/project.yaml': project('Twin', ['  staging:', '    console: http://localhost:4999', '  other:', '    console: http://127.0.0.1:4998']),
+    'twin/scenarios/short.yaml': SHORT.replace('video: short', 'video: short\nenv: staging'),
+    'twin/scenarios/armed.yaml': PLAIN_HOOK.replace('video: plain', 'video: armed\nenv: staging'),
+    'twin/scenarios/other.yaml': SHORT.replace('video: short', 'video: other\nenv: other'),
+    // Marked production by a human: the same host is fine, its runs are read-only.
+    'mirror/project.yaml': project('Mirror', ['  production:', '    production: true', '    pages:', '      console: http://127.0.0.1:4999']),
+    'mirror/scenarios/short.yaml': SHORT,
+    'w/project.yaml': project('W', ['  local:', '    console: http://127.0.0.1:4997']),
+    'w/scenarios/short.yaml': SHORT,
+    'w/scenarios/leak.yaml': LEAK,
+    'w/scenarios/plain.yaml': PLAIN_HOOK,
+    'w/scenarios/leakhook.yaml': LEAK_HOOK,
+  };
+  for (const [rel, text] of Object.entries(files)) {
+    await mkdir(join(ws, 'projects', rel, '..'), { recursive: true });
+    await writeFile(join(ws, 'projects', rel), text);
+  }
+  mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
+  cli = await createEngine({ root: ws, client: 'cli', autoStartWorker: false });
+});
+
+afterAll(async () => {
+  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
+  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (ws) await rm(ws, { recursive: true, force: true });
+});
+
+describe('secrets: a scenario written or run through MCP never names one', () => {
+  it('save and validate through MCP refuse it; the engine of another client saves it', async () => {
+    const e = await mcp.scenarios.save('w', 'leak2', LEAK).then(() => undefined, (x: unknown) => x as Error);
+    expect(e?.message).toContain('the scenario uses {{env:HOME}}: through MCP a scenario never resolves a secret');
+    expect((await mcp.scenarios.validate('w', LEAK)).ok).toBe(false);
+    expect((await cli.scenarios.validate('w', LEAK)).ok).toBe(true);
+    expect((await cli.scenarios.save('w', 'leak3', LEAK)).created).toBe(true);
+  });
+
+  it('a run or hooks of such a scenario (written by hand) are refused at submit with the terminal command', async () => {
+    const run = await refusal(mcp.runs.submit({ project: 'w', scenario: 'leak', mode: 'dry' }));
+    expect(run.code).toBe('refused');
+    expect(run.message).toContain('{{env:HOME}}');
+    expect(run.fix).toBe(`studio -C ${ws} run w leak --dry --hooks skip`);
+    const hooks = await refusal(mcp.hooks.submit({ project: 'w', source: 'leakhook:setup', dry: true }));
+    expect(hooks.code).toBe('refused');
+    expect(hooks.fix).toBe(`studio -C ${ws} hooks run w leakhook:setup --dry`);
+    expect((await mcp.jobs.list({ project: 'w' })).length).toBe(0);
+  });
+
+  it('the worker checks again: hooks of a scenario changed after the submit are refused', async () => {
+    const sub = await mcp.hooks.submit({ project: 'w', source: 'plain:setup', dry: true });
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), LEAK_HOOK.replace('video: leakhook', 'video: plain'));
+    try {
+      const input = sub.job.input as HooksJobInput;
+      const e = await refusal(executeHooksJob({ ws: await openWorkspace({ root: ws }), cli: 'studio', input, signal: new AbortController().signal, event: () => undefined }));
+      expect(e.message).toContain('{{env:HOME}}');
+    } finally {
+      await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), PLAIN_HOOK);
+      await mcp.jobs.cancel(sub.job.id);
+    }
+  });
+});
+
+describe("production across projects: another project's production / read-only hosts", () => {
+  it('project_create refuses a page on them (loopback names alike, ports compared); other hosts are fine', async () => {
+    for (const url of ['http://127.0.0.1:4999/app', 'http://localhost:4999', 'https://frozen.example.com/x']) {
+      const e = await refusal(mcp.projects.create({ name: 'Clone', slug: 'clone', environments: { staging: { console: url } } }));
+      expect(e.code, url).toBe('refused');
+      expect(e.message).toMatch(/points at a host of (production environment production|read-only environment frozen) of project (prod|mirror)/);
+    }
+    await expect(stat(join(ws, 'projects', 'clone'))).rejects.toThrow();
+    const ok = await mcp.projects.create({ name: 'Fine', slug: 'fine', environments: { staging: { console: 'http://127.0.0.1:4996' } } });
+    expect(ok.slug).toBe('fine');
+  });
+
+  it('runs, hooks and resets on a read-write environment pointing at them are refused; a protected environment, another port, are not', async () => {
+    const run = await refusal(mcp.runs.submit({ project: 'twin', scenario: 'short', mode: 'dry' }));
+    expect(run.code).toBe('refused');
+    expect(run.message).toContain('environment staging of project twin is read-write and its page console (http://localhost:4999) points at a host of production environment production of project');
+    expect(run.fix).toBe(`studio -C ${ws} run twin short --dry --hooks skip`);
+    expect((await refusal(mcp.hooks.submit({ project: 'twin', source: 'armed:setup', env: 'staging' }))).code).toBe('refused');
+    expect((await refusal(mcp.env.reset({ project: 'twin', env: 'staging' }))).code).toBe('refused');
+    const other = await mcp.runs.submit({ project: 'twin', scenario: 'other', mode: 'dry' });
+    const mirror = await mcp.runs.submit({ project: 'mirror', scenario: 'short', mode: 'dry' });
+    await mcp.jobs.cancel(other.job.id);
+    await mcp.jobs.cancel(mirror.job.id);
+  });
+});
+
+describe('a run whose job was cancelled before any worker took it', () => {
+  it('run_list shows it cancelled, as run_status does (run.json still says queued)', async () => {
+    const sub = await mcp.runs.submit({ project: 'w', scenario: 'short', mode: 'dry' });
+    expect((await mcp.runs.list('w')).find((r) => r.id === sub.run_id)?.status).toBe('queued');
+    await mcp.runs.cancel('w', sub.run_id);
+    expect(JSON.parse(await readFile(join(ws, 'projects', 'w', 'runs', sub.run_id, 'run.json'), 'utf8')).status).toBe('queued');
+    expect((await mcp.runs.list('w')).find((r) => r.id === sub.run_id)?.status).toBe('cancelled');
+    expect((await mcp.runs.status('w', sub.run_id)).status).toBe('cancelled');
+  });
+});
+
+describe('approvals are signed with the studio home key', () => {
+  const input: RunJobInput = {
+    version: 1, kind: 'run', project: 'w', scenario: 'short', scenario_sha256: 'a'.repeat(64), mode: 'dry', run_id: '20261017-120000-short', submitted_by: 'mcp',
+    approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
+  };
+
+  it('the key is created 0600 in a 0700 folder; only the signed input verifies', async () => {
+    const home = join(ws, 'sign-home');
+    const keyFile = join(home, 'approvals.key');
+    expect(await signApprovals({ ...input, approvals: [] }, keyFile)).toEqual({ ...input, approvals: [] });
+    await expect(stat(keyFile)).rejects.toThrow(); // no approval, no key
+    const signed = await signApprovals(input, keyFile);
+    expect((await stat(keyFile)).mode & 0o777).toBe(0o600);
+    expect((await stat(home)).mode & 0o777).toBe(0o700);
+    expect(await verifiedApprovals(signed, keyFile)).toEqual({ approvals: signed.approvals, rejected: 0 });
+    // Anything else of the job changed, the approval copied to another job, no signature, another key: rejected.
+    for (const forged of [
+      { ...signed, mode: 'capture' as const },
+      { ...signed, run_id: '20261017-120001-short' },
+      { ...signed, approvals: [{ ...signed.approvals![0], fingerprint: 'c'.repeat(64) }] },
+      { ...input },
+    ]) {
+      expect((await verifiedApprovals(forged, keyFile)).rejected).toBe(1);
+    }
+    expect((await verifiedApprovals(signed, join(ws, 'other-home', 'approvals.key'))).rejected).toBe(1);
+  });
+});
+
+describe('build stamp', () => {
+  it('covers the engine and every @demo-studio package it runs, transitively (hooks included)', async () => {
+    const pkg = JSON.parse(await readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { dependencies: Record<string, string> };
+    const dirs = buildDirs().map((d) => d.split('/packages/')[1]?.split('/')[0]);
+    expect(dirs[0]).toBe('engine');
+    for (const name of Object.keys(pkg.dependencies).filter((n) => n.startsWith('@demo-studio/'))) expect(dirs).toContain(name.replace('@demo-studio/', ''));
+    expect(dirs).toContain('hooks');
+  });
+});

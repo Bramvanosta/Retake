@@ -10,7 +10,7 @@ import { addSecret, redactText } from '../secrets.js';
 import { lineAt, transactionControl } from '../sql-text.js';
 import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
 import type { HookContext, HookLogLevel, RollbackAction, TemplateSnapshot } from '../types.js';
-import { baseDirOf, ignoreRollback, readProjectFile } from './common.js';
+import { baseDirOf, ignoreRollback, readHookFile } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 
 export const SQL_CONNECT_TIMEOUT_MS = 15_000;
@@ -151,7 +151,7 @@ function renderSql(text: string, tpl: TemplateContext, where: string): string {
 
 async function loadSource(ctx: HookContext, source: { file?: string; query?: string }, what: string): Promise<string> {
   if (!source.file === !source.query) throw new HookError(`${what} needs exactly one of \`file\` or \`query\``);
-  return source.file ? readProjectFile(baseDirOf(ctx), source.file, 'SQL file') : source.query!;
+  return source.file ? readHookFile(ctx, baseDirOf(ctx), source.file, 'SQL file') : source.query!;
 }
 
 export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promise<PreparedHook> {
@@ -168,12 +168,15 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
   ignoreRollback(k, rb !== undefined);
   let rollback: RollbackAction | undefined;
   let rollbackWrites: string | null = null;
+  let rollbackInfo: PreparedHook['rollback'];
   if (rb !== undefined && k.phase === 'setup') {
     const rbSource = typeof rb === 'string' ? sqlSource(rb) : rb;
     const rbText = await loadSource(ctx, rbSource, 'sql rollback');
     // The connection URL is re-templated at rollback time too: snapshot its tokens with the SQL's.
     const tpl = await hookTemplateContext(ctx, [rbText, db.urlTemplate]);
-    rollbackWrites = sqlWriteStatement(renderSql(rbText, tpl, rbSource.file ?? 'inline rollback SQL'));
+    const rbSql = renderSql(rbText, tpl, rbSource.file ?? 'inline rollback SQL');
+    rollbackWrites = sqlWriteStatement(rbSql);
+    const rbKw = sqlDestructiveKeyword(rbSql);
     rollback = {
       kind: 'sql',
       db: db.key,
@@ -182,12 +185,17 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
       data: snapshotFor(ctx, [rbText, db.urlTemplate], tpl),
       description: redactText(ctx, describeSql(rbSource, db.label)),
     };
+    rollbackInfo = {
+      description: redactText(ctx, describeSql(rbSource.file ? { file: rbSource.file } : { query: rbSql }, db.label)),
+      reason: rbKw ? (rbSource.file ? `${rbSource.file} contains ${rbKw}` : `SQL ${rbKw}`) : null,
+    };
   }
   return {
     description: redactText(ctx, describeSql(source, db.label)),
     destructive: kw ? (source.file ? `${source.file} contains ${kw}` : `SQL ${kw}`) : null,
     writes: sqlWriteStatement(sql) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
     hosts: db.target.socket ? [] : [db.target.host],
+    ...(rollbackInfo ? { rollback: rollbackInfo } : {}),
     async execute() {
       const message = await runSql(db, sql, where, log, readOnly);
       return { message, rollback };

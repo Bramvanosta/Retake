@@ -47,7 +47,7 @@ function parseLock(text: string | null): LockRecord | null {
  * Create `file` with `text`, atomically and only if it does not exist: false when it does. A file system without hard
  * links falls back to an exclusive create.
  */
-function createExclusive(file: string, text: string): boolean {
+export function createExclusive(file: string, text: string): boolean {
   const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   writeFileSync(tmp, text);
   try {
@@ -79,7 +79,7 @@ function createExclusive(file: string, text: string): boolean {
  * Remove a stale lock whose text was `seen`, under the breaker: only when take.lock still has that text (another
  * command may have broken it and taken the lock meanwhile). True when it was removed by this call.
  */
-function breakStale(file: string, seen: string): boolean {
+export function breakStale(file: string, seen: string): boolean {
   const breaker = `${file}.break`;
   let fd: number;
   try {

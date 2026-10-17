@@ -6,7 +6,7 @@ import { redactText } from '../secrets.js';
 import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
 import type { HookContext, RollbackAction } from '../types.js';
 import { oneLine } from '../util.js';
-import { ignoreRollback, readProjectFile } from './common.js';
+import { ignoreRollback, readHookFile } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 
 export const JS_NEEDS_PAGE = 'js hooks need a browser page: run them through the runner (studio run / run_capture)';
@@ -52,7 +52,7 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
   const s: JsHookSpec = typeof spec === 'string' ? { code: spec } : spec;
   if (!s.code === !s.file) throw new HookError('js hook needs exactly one of `code` or `file`');
   checkPage(ctx, s.page);
-  const source = s.file ? await readProjectFile(ctx.project.dir, s.file, 'JS file') : s.code!;
+  const source = s.file ? await readHookFile(ctx, ctx.project.dir, s.file, 'JS file') : s.code!;
   const code = render(source, await hookTemplateContext(ctx, source));
 
   ignoreRollback(k, s.rollback !== undefined);
@@ -73,6 +73,7 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
     destructive: null,
     // Its requests are guarded in its tab on a read-only run; a rollback is a write the guard cannot judge.
     writes: rollback ? 'its rollback: JavaScript run in the page' : null,
+    ...(rollback ? { rollback: { description: rollback.description, reason: 'JavaScript run in the page' } } : {}),
     async execute() {
       return { message: await evaluate(ctx, s.page, code), rollback };
     },

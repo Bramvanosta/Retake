@@ -36,7 +36,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~6.5 min on the Mac; run `pnpm build` first; 24 skip by default: 7 Postgres, 7 Docker, 8 slow, 1 old Node, 1 headed)
+pnpm test                            # = vitest run, full suite (~7 min on the Mac; run `pnpm build` first; 24 skip by default: 7 Postgres, 7 Docker, 8 slow, 1 old Node, 1 headed)
 pnpm test:pg                         # the 7 Postgres tests on a throwaway demo-studio-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
 pnpm test:slow                       # automated catalogue capture on the fixture (~75 s)
 DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)
@@ -52,6 +52,7 @@ node packages/cli/dist/bin.js components preview --all --stale     # regenerate 
 node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/REQUIREMENTS.md / list a lot
 node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
+node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop
 ```
 
 ## Where things live
@@ -60,7 +61,8 @@ python3 scripts/validate-raw.py <exports/package>             # optional: check 
   built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`), Remotion compositions
   (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report · `packages/cli` the `studio`
   command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
-  scaffold) · `packages/mcp` phase 3 (empty).
+  scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker · `packages/mcp` the MCP
+  server (`studio mcp`, stdio, SDK imported only in `src/server.ts`).
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

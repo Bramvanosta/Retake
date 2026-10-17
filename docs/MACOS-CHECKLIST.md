@@ -324,10 +324,67 @@ pnpm studio sandbox down northfield-fixture
 - **Send back:** the two `new-quote.json` values, anything that did not stop on Ctrl-C, and (Docker) whether the mail
   showed in Mailpit and in the `signup` video.
 
+## 12c. Claude drives Demo Studio through MCP (L3.1)
+
+The live acceptance of the MCP server, in a real Claude Code session (it needs a signed-in `claude`). The fixture of
+step 4 must run (terminal 1); the sandbox of step 12b must be down. `pnpm build` first.
+
+1. **Register it** (terminal 2, at the repository root, which is a workspace):
+   ```sh
+   node packages/cli/dist/bin.js mcp --print-config   # the JSON and a `claude mcp add …` line with absolute paths
+   ```
+   (Not `pnpm studio …` here: pnpm prints a banner before the JSON and adds its own folders to the PATH the snippet
+   carries.) Run the printed `claude mcp add demo-studio --scope user -e PATH=… -- <node> <bin.js> …` line with
+   `-e NORTHFIELD_SUPPLIER_PASSWORD=roast-lot-2026` added **before the `--`** (the fixture's invented supplier password,
+   for step g; after the `--` it would be an argument of the server), or put the JSON in `.mcp.json` at the repository
+   root (its `env` then gets the password). `pnpm studio doctor` shows an `MCP` line (node path, worker idle). Start `claude` in the
+   repository; `/mcp` lists `demo-studio` as connected with 23 tools.
+2. **The conversation.** Ask Claude, one message at a time (it calls the tools; approve its tool calls as usual):
+   - a. "List the Demo Studio projects." → `project_list` names `northfield-fixture`.
+   - b. "Validate this scenario for northfield-fixture: `version: 1` / `video: quick-look` / `scenes: [{id: catalog,
+     page: console, open: /products, steps: [{clik: {text: Products}}]}]`" → an `unknown action "clik"` issue with its
+     line and column; "fix it and save it as quick-look" → `scenario_save` (delete
+     `projects/northfield-fixture/scenarios/quick-look.yaml` afterwards).
+   - c. "Dry-run quote up to proposal.1 and look at the screenshots." → `run_dry` (or `run_status` until finished):
+     `succeeded`, 20 steps; Claude reads a few screenshots and describes the shop.
+   - d. "Capture catalogue." → **an approval form appears in Claude Code** (catalogue's setup deletes a registry ref:
+     `confirm: true` in the file does not count through MCP). Read it — project, environment `local`, read-write,
+     the `DELETE …/refs` hook and why — and approve. `run_capture` returns at once with a run id; ask "follow it":
+     `run_status` with `wait_s` shows the steps advancing (21 steps), then `succeeded`. Open the capture.mp4 it names.
+   - e. "Capture catalogue again, then cancel it after two steps." → the form again (approve); `run_cancel`; the run
+     ends `cancelled`, its teardown ran (`runs/<id>/hooks-journal.json`: the DELETE is `rolled_back`).
+   - f. "Capture catalogue once more." (approve) — while it runs, in terminal 2: `pnpm studio jobs` (it is
+     `running`, by mcp) and `kill -9 <worker pid>` (the pid `pnpm studio jobs` shows on its worker line). Ask
+     "status of that run?" → `interrupted`, with the `studio … env reset northfield-fixture` fix. Then "reset the
+     environment for real" → `env_reset {dry: false}`: the pending rollback runs; the journal has nothing `ok` with a
+     rollback left.
+   - g. "Sign the supplier in on signed-in, automatically." → `auth_login {mode: auto}`: signed in (valid); "and the
+     buyer, in a window" → `auth_login` (headed): a Chromium window opens on your screen; Claude must ask **you** to
+     sign in (`orders@demo-cafe.example` / `filter-bloom-2026`) and close the window, never ask for the password;
+     `auth_status` then shows both valid.
+   - h. "Start the sandbox, reset it, then tell me its status." → `sandbox_up`, `sandbox_reset`, `sandbox_status`
+     (up, seed hash). Afterwards `pnpm studio sandbox down northfield-fixture`.
+   - i. "What jobs ran?" → `job_list`; `pnpm studio jobs` in terminal 2 shows the same.
+3. **Timeouts.** Leave the approval form of a new `run_capture catalogue` open for 2–3 minutes before approving.
+   Claude Code bounds a tool call (`MCP_TOOL_TIMEOUT`, and an idle timeout): note whether the call failed before you
+   answered, and after how long. If it does, `MCP_TOOL_TIMEOUT=600000 claude` should let it wait (the server's own
+   limit is 10 minutes).
+4. **Claude desktop (optional, untested).** The same JSON in `~/Library/Application Support/Claude/claude_desktop_config.json`,
+   restart it, then steps a and d: say whether the approval form appears, or the call is refused with
+   `needs_approval` and the `studio run …` command.
+
+- **Expected:** every step as written; no password typed or asked for by Claude; `pnpm studio jobs` lists every job
+  with its state; nothing is printed on the Claude Code side about a protocol error.
+- **Send back:** the job ids of d, e and f, a screenshot of the approval form, the time the slow approval of step 3
+  survived (or when it failed), and anything Claude did that surprised you.
+
 ## 13. Clean up
 
 Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-studio/`) are git-ignored; delete them
-with `rm -rf projects/northfield-fixture/runs projects/northfield-fixture/.demo-studio` if you want.
+with `rm -rf projects/northfield-fixture/runs projects/northfield-fixture/.demo-studio` if you want. After step 12c:
+remove the registration, which carries the supplier password in its env (`claude mcp remove demo-studio -s user`, or
+delete `.mcp.json`), and the workspace's own job queue and history (`rm -rf .demo-studio` at the repository root, once
+`pnpm studio jobs` shows no worker running).
 
 **Send everything back in one message**, numbered like the steps above.
 

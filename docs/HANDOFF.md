@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-17, end of lot **L1.4 (coverage)** — the end of the chain the user asked for (L5.1, L1.3,
-L1.2, L1.6, L1.7, L1.8, L1.4); phases 1 and 2 are done. **Next: phase 3 (L3.1), when the user asks for it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-17, end of lot **L3.1 (engine API, jobs, MCP server)** — phases 1 and 2 are done, phase 3 has
+started. **Next: L3.2 (MCP render / review / export + theme & component tools), when the user asks for it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -28,7 +28,12 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L1.4)
+## State (after L3.1)
+- **L3.1 done (2026-10-17)**: `studio mcp` (23 tools over stdio) lets Claude list and edit scenarios, run dry runs and
+  captures through a job queue and a separate worker, follow progress, cancel, run hooks and env resets, sign in (the
+  human types) and start sandboxes; every risky action asks the human through an approval form. Tests on the Mac:
+  **1738 — 1714 pass, 24 skipped (≈ 7 min)**. Requirements: 618 tracked — 514 done, 15 partial, 81 todo, 8 n/a-here. Register it with
+  `node packages/cli/dist/bin.js mcp --print-config` (MACOS-CHECKLIST 12c).
 - **L1.4 done (2026-10-17)**: every scenario-language option has a test that fails if the option is ignored; captures
   at 2560×1440, 4K and phone sizes; cursor and file-chip look checks with goldens; Ctrl-C / SIGTERM on the built CLI;
   `version: 1` on the persisted formats and the engine in run.json; `pnpm test:pg` (the Postgres tests, first run on
@@ -83,7 +88,7 @@ automatically with themeable components, and let Claude operate everything throu
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
 - **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
-- **Not built yet**: phase 3 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
+- **Not built yet**: phase 3 after L3.1 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
   is empty; `studio record|mcp|ui` print "available in phase N".
 
 ## Mac setup
@@ -139,8 +144,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Phase 3, starting with L3.1** (engine API + job runner + storage abstraction, MCP server skeleton) — only when the
-user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.2 — MCP render / review / export + theme & component tools** — only when the user asks for it (the job kinds go
+in core `JOB_KINDS` and the worker's exhaustive switch; render jobs append history). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -844,6 +849,32 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   engine.ts). **Requirements**: a generated "Never exercised" section in REQUIREMENTS.md and `node
   scripts/requirements.mjs --untested 1` (exits non-zero while phase 1 has one); R-RUN-17's real-Keychain check is
   MACOS-CHECKLIST step 10b for the user. 1632 tests: 1608 pass, 24 skipped; test:pg 7/7, test:slow 8/8, Docker-gated 7/7. No dependency added.
+- **L3.1 done** (engine API, jobs, MCP server; 16 requirements done, 6 partial — R-MCP-01, R-MCP-03, R-ARC-01,
+  R-ARC-02, R-ARC-03, R-GOAL-07, finished by L3.2 / L4.1 / L3.8; R-MCP-02 and R-ARC-05 moved to L4.1). Planned,
+  criticised (the critique found shell hooks written by the agent could run arbitrary code on production), built in
+  four parts (engine read side + MCP skeleton; jobs + worker; hooks / approvals; sign-in, sandboxes, docs), reviewed
+  by two reviewers (16 findings, five safety holes) and fixed with mutation-checked tests. **Engine**
+  (packages/engine): workspace / project loading, `executeRun`, hooks context, sign-in and sandbox jobs moved out of
+  the CLI, which keeps its options, output and exit codes. **Jobs**: `<workspace>/.demo-studio/jobs/` (job.json written
+  once by the submitter then only by the claiming worker; claim and cancel O_EXCL markers; `interrupted` derived from a
+  dead worker), `worker.lock` (pid + start + build stamp of every runtime package), a detached `studio worker` that
+  stops claiming at the first signal, exits on the next, outlives the MCP session and exits after 60 s idle; core
+  `reserveRunId`; `history.jsonl` (runs, renders, stills, export re-renders). **MCP** (packages/mcp; SDK 1.32.1 imported
+  only in server.ts): 23 tools, schemas from zod, slugs only, page / mail / hook text under `untrusted`, no Chromium in
+  the server process, progress notifications, long-poll `wait_s` ≤ 25 s, `studio mcp --print-config` (stable Node path,
+  PATH without pnpm folders). **Safety under trust `mcp`**: `confirm: true` does not count; every shell hook, shell
+  seed, destructive hook and destructive / shell / js rollback needs a human approval through elicitation (form lists
+  each hook and its rollback), fingerprinted on the raw hook + referenced files and HMAC-signed (key in
+  DEMO_STUDIO_HOME), else refused with the `studio …` command; no `allow_writes`; production / read-only hosts of every
+  project protected; no `{{env:}}` / `{{keychain:}}` in agent-written text; no file reference outside the project or
+  into agent-writable folders; no credential ever passes through a tool (`auth_login` opens a window for the human).
+  ARCHITECTURE: ADR-1 amended (engine location vs UI delivery, job input contract, data-flow table: tool results,
+  screenshots and page text Claude reads go into the conversation). Acceptance: the whole loop automated with the SDK
+  client over stdio on a copy of the fixture (dry run, quote and catalogue captures with frames looked at, an approval
+  answered, cancel, `kill -9` of the worker → interrupted, env reset, auth_login auto, sandbox up / reset); `claude mcp
+  add` registration checked ("Connected"). Not done: a live Claude Code conversation (the Mac's `claude` was signed
+  out) — MACOS-CHECKLIST step 12c for the user; Claude desktop untested. 1738 tests: 1714 pass, 24 skipped. No new dependency (the MCP SDK was
+  already declared).
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1073,6 +1104,23 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.1:
+- Register the MCP server with `node packages/cli/dist/bin.js mcp --print-config` (never `pnpm studio …`: pnpm's banner
+  breaks the JSON and its folders end up in PATH); secrets for automated sign-ins go as `-e NAME=…` before the `--` of
+  `claude mcp add`; remove the user-scope registration after a test (`claude mcp remove demo-studio -s user`).
+- All SDK imports live in packages/mcp/src/server.ts. The MCP process never launches Chromium: everything that opens a
+  browser is a job for the worker. Worker log: `<workspace>/.demo-studio/workers/worker.log`; queue:
+  `.demo-studio/jobs/`; history: `.demo-studio/history.jsonl`; `DEMO_STUDIO_WORKER_IDLE_MS` sets the idle exit.
+- A worker keeps the environment of the MCP server that spawned it; `studio jobs` never starts one. A headed
+  `auth_login` holds the queue (concurrency 1) until its window closes. `studio run` in a terminal does not go through
+  the queue (it can overlap an MCP capture).
+- Trust `mcp` rules (engine approvals.ts, core agent-trust.ts, engine protected-hosts.ts, jobs/signing.ts) must
+  survive refactors: no `confirm: true`, approvals for shell / destructive hooks, seeds and rollbacks, fingerprints on
+  raw hooks + referenced files, HMAC-signed approvals, no secrets refs, no outside files, protected hosts across
+  projects. The CLI (trust `author`) is unchanged.
+- New job kinds: add them to core `JOB_KINDS` and the worker's exhaustive switch; untrusted text from the filmed product
+  goes under `untrusted` in tool results.
+
 Notes from L1.4:
 - Run `pnpm build` before `pnpm test`: the signal tests spawn packages/cli/dist/bin.js (they skip without it). The
   gated suites, one at a time: `pnpm test:pg` (≈ 5 s), `pnpm test:slow` (≈ 75 s), the Docker sandboxes (≈ 65 s);

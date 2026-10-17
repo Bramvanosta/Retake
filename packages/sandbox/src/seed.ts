@@ -13,7 +13,7 @@ import { rmSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { interpolateDeep, isHostAllowed, normalizeHost, prefetchSecrets, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@demo-studio/core';
 import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@demo-studio/core';
-import { Journal, databaseTarget, runHooks, supersedePendingJournals } from '@demo-studio/hooks';
+import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@demo-studio/hooks';
 import type { HookContext, HookResult } from '@demo-studio/hooks';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { pinnedAddress, pinnedRequest } from './health.js';
@@ -165,6 +165,19 @@ export async function runSeed(
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.running ? { running: opts.running } : {}),
   };
+  // Trust `mcp` (L3.1): a shell step needs a human approval, bound to its position among ALL the seed steps (runHooks
+  // sees a batch between exec steps: its index is moved to the seed's).
+  let offset = 0;
+  const trust = pctx.seedTrust;
+  if (trust?.trust === 'mcp') {
+    ctx.trust = 'mcp';
+    const confirm = trust.confirm;
+    ctx.confirmDestructive = async (description, reason, request) => {
+      if (!confirm) return false;
+      const index = offset + request.index;
+      return confirm(description, reason, { ...request, index, fingerprint: hookFingerprint(request.hook, { phase: 'seed', index, env: request.env, ...(request.files ? { files: request.files } : {}) }) });
+    };
+  }
   // sql steps reach the sandbox's own databases on the address Docker publishes them on (never `localhost`: another
   // container may publish the same port on ::1); `external: true` ones as their URL says.
   const addresses = await databaseAddresses(pctx, provider);
@@ -175,6 +188,7 @@ export async function runSeed(
   let done = 0;
   const flush = async () => {
     if (!batch.length) return;
+    offset = done;
     const res = await runHooks(batch, ctx, { phase: 'seed', journal });
     if (!res.ok && opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if (!res.ok) {

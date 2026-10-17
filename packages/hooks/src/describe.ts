@@ -80,3 +80,32 @@ export function describeHook(hook: HookStep): string {
   }
   return withName(hook.name, body);
 }
+
+/** A setup hook's rollback in its template form (no secret resolved), or undefined: what an approval shows of it. */
+export function describeRollback(hook: HookStep): string | undefined {
+  let kind: HookKind;
+  try {
+    kind = hookKindOf(hook);
+  } catch {
+    return undefined;
+  }
+  switch (kind) {
+    case 'http': {
+      const rb = (hook as { http: HttpHookSpec }).http.rollback;
+      return rb ? describeHttp((rb.method ?? 'GET').toUpperCase(), rb.url) : undefined;
+    }
+    case 'sql': {
+      const spec = (hook as { sql: string | SqlHookSpec }).sql;
+      const rb = typeof spec === 'object' ? spec.rollback : undefined;
+      return rb === undefined ? undefined : describeSql(typeof rb === 'string' ? sqlSource(rb) : rb, typeof spec === 'object' ? spec.db : undefined);
+    }
+    case 'shell': {
+      const spec = (hook as { shell: string | ShellHookSpec }).shell;
+      return typeof spec === 'object' && spec.rollback !== undefined ? describeShell(spec.rollback) : undefined;
+    }
+    case 'js': {
+      const spec = (hook as { js: string | JsHookSpec }).js;
+      return typeof spec === 'object' && spec.rollback !== undefined ? describeJs({ code: spec.rollback }, spec.page) : undefined;
+    }
+  }
+}

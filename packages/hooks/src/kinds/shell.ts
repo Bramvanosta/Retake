@@ -267,6 +267,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
             ? 'its rollback: a shell command'
             : null,
     hosts,
+    ...(rollback ? { rollback: { description: rollback.description, reason: 'a shell command (runs local code)' } } : {}),
     async execute() {
       return { message: await execute(ctx, log, cmd, timeout), rollback };
     },

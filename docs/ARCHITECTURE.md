@@ -23,6 +23,68 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 4. **Comments**: one file per thread (`<project>/comments/<scenario>/<thread-id>.json`) so concurrent edits (git, a
    future sync) do not conflict (L3.6).
 
+### ADR-1 amendment (L3.1, 2026-10-17) — engine location, UI delivery, job contract, data flow
+
+1. **Two separate decisions.**
+   - *Where the engine runs* stays local: capture needs the user's network, sessions, databases and sandboxes. The
+     engine (`@demo-studio/engine`) is a Node library on the user's machine (later also on the user's own CI or VPS,
+     BL-05); the CLI calls it in-process, and the MCP server (`studio mcp`, stdio) calls it in its own process.
+   - *How a UI reaches it* is a separate, open choice. Today: the CLI in a terminal, and an MCP client (Claude Code,
+     Claude desktop) over stdio. L4.1 adds one web UI served by the engine on 127.0.0.1 behind a per-session token, with
+     the HTTP/JSON API and event stream of consequence 1 above (not built in L3.1); the Tauri shell is packaging around
+     that same UI; a hosted UI would reach the engine through an outbound relay (BL-38).
+
+   Nothing in the engine assumes a particular UI.
+2. **Every long task an MCP client starts is a job.** Dry runs, captures, hooks, environment resets, sign-ins and
+   sandbox up / reset have a serialisable, versioned payload (core `JobInputSchema`, v1), sit in a queue the engine
+   owns (files under `<workspace>/.demo-studio/jobs/`), and are executed by the workspace's worker, which *pulls* them
+   in a process of its own (one worker per workspace, one job at a time; the MCP process never opens a browser).
+   The CLI keeps running its commands inline through the same engine functions (native options, errors and exit
+   codes), so a terminal and a Claude session run the same code; its runs and renders (videos, stills, export re-renders) are recorded in the job history
+   (`history.jsonl`) without a job. A remote worker later reads the same queue contract, with no change to callers.
+3. **Job input contract** (what a client hands the worker; zod-validated at submit and again by the worker).
+   - *Files*: a project slug, scenario names (never paths), and the sha256 of the scenario's bytes at submit: the
+     worker refuses to run other bytes. A hooks source is `reset`, `<scenario>:setup|teardown` or `hooks/<name>.yaml`.
+   - *Run ids*: reserved at submit (`runs/<id>/run.json` says `queued`), so a client follows a run before it starts.
+   - *Sessions*: persona names only, resolved by the worker from its own `~/.demo-studio`; never in a payload or a
+     result (no profile path, no cookie). A sign-in job opens a window on the worker's machine for a human.
+   - *Secrets*: never in a payload, and no tool takes one. `{{env:}}` / `{{keychain:}}` refs are resolved by the worker
+     at use (from the environment of the MCP server that started it) and masked in every file it writes — but only
+     refs a human wrote: project.yaml (personas' login steps, databases, mailbox, reset hooks) and the project's
+     `hooks/` files. A scenario written or run through MCP names no secret, nor does a code file it runs (refused at
+     save, at submit and by the worker): the agent could otherwise read any variable of that environment back through
+     an error message (masking catches a value as is, not base64 of it).
+   - *Local files*: a file a scenario or hook references through MCP (drop_file, eval.file, sql / js files, the
+     scripts a shell hook names) is inside the project folder, symbolic links followed; code is never run from a file
+     the agent can write (README.md, `scenarios/`, `runs/`…).
+   - *Approvals*: through MCP the files' trust flags do not count (the agent can write them): destructive hooks,
+     every shell hook or shell seed step, and a setup hook whose rollback is destructive, shell or JavaScript need a
+     human, asked by the client at submit (MCP elicitation; the form shows each hook and its rollback) and carried as
+     fingerprints of the raw hooks and of the project files they reference, each approval signed (HMAC) with a key of
+     the studio home. A worker never asks, never assumes one and ignores an unsigned one; production environments stay
+     read-only (no `allow_writes` through MCP) — those of every project of the workspace: a project created through MCP
+     may not point at them, and nothing submitted through MCP runs read-write on them.
+   - *Network reach*: a job runs where its worker runs — the same machine in L3.1. A remote worker would have to
+     declare the environments it can reach before it claims a job for them (not built).
+4. **"Customer data never leave the machine" is replaced by this data-flow table.**
+
+| Data | Lives in | Read by | Leaves the machine? |
+|---|---|---|---|
+| Projects, scenarios, themes, hooks files, READMEs | workspace (git) | engine, CLI, Claude | through the user's own git remote; **into the Claude conversation** when Claude reads them or a tool returns them (`project_get`, `scenario_get`: a password pasted literally into a file goes with it) |
+| Captures, frames, renders, reviews, exports | workspace, git-ignored | engine, CLI, Claude (paths), player | no, unless the user shares them — but a screenshot or frame **Claude reads** goes into the conversation |
+| run.json, timeline.json, log.jsonl, job records and events | workspace, git-ignored (`runs/`, `.demo-studio/`) | engine, CLI, Claude through MCP tools | **yes, to the model provider when a tool returns them**: summaries, step error messages, page titles, DOM excerpts and page text of the filmed product (secrets masked; kept under `untrusted`) |
+| Persona profiles and storage states | `~/.demo-studio` (0700), never in the workspace or a job | the worker's and the CLI's Chromium | no (no tool returns a path, a cookie or a session; `auth_status` gives a state) |
+| Secret values (env, keychain) | process environment, macOS Keychain | the worker or CLI at use | no (masked in every file and tool result; no tool argument takes one) |
+| The filmed product's pages | the user's environments | the worker's Chromium | the user's own traffic to their own hosts; production environments are read-only (L1.7), always so through MCP |
+| Sandbox images | registries named in sandbox.yaml | docker | pulled (outbound); nothing uploaded |
+| Job queue, worker lock, job history (usage counters) | `<workspace>/.demo-studio/` (git-ignored) | engine | no |
+
+5. **Consequence for privacy claims.** The engine sends nothing anywhere by itself. When Claude drives it, whatever a
+   tool returns — summaries, logs, step error messages, page text, and the screenshots or DOM snapshots Claude then
+   reads from the paths it was given — becomes part of the Claude conversation, i.e. goes to the model provider.
+   Tool outputs are kept minimal (paths and summaries; no image is returned inline in L3.1). The README says so where
+   MCP is set up.
+
 ## ADR-2 — Flat files are the source of truth (2026-10-12)
 
 **Decision.** Projects, scenarios (YAML), themes, components, comments (JSON) and records live as plain files in the

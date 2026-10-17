@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
-import { isPoint } from '@demo-studio/core';
+import { isPoint, projectFileProblem } from '@demo-studio/core';
 import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@demo-studio/core';
 import { StepError } from '../errors.js';
 import { distance, moveDuration } from '../motion.js';
@@ -61,6 +61,10 @@ interface FilePayload {
 
 async function loadPayload(ctx: StepContext, args: DropFileArgs): Promise<FilePayload> {
   if (args.path) {
+    if (ctx.rt.agentTrust) {
+      const problem = projectFileProblem(ctx.rt.project.dir, args.path);
+      if (problem) throw new StepError(`drop_file: ${problem}`);
+    }
     const file = isAbsolute(args.path) ? args.path : join(ctx.rt.project.dir, args.path);
     let bytes: Buffer;
     try {

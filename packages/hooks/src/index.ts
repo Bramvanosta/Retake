@@ -1,6 +1,8 @@
 export * from './types.js';
 export { HookError, HookSecurityError, JournalError } from './errors.js';
 export { SEED_NO_JS, runHooks } from './run.js';
+export { hookFiles, hookFingerprint } from './approval.js';
+export type { HookPlace } from './approval.js';
 export type { RunHooksOptions, RunHooksResult } from './run.js';
 export {
   Journal,
@@ -17,7 +19,7 @@ export {
 export type { JournalLocations, JournalRollback } from './journal.js';
 export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, checkShellHosts, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
-export { describeHook, hookKindOf } from './describe.js';
+export { describeHook, describeRollback, hookKindOf } from './describe.js';
 export { databaseTarget, describeTarget, sandboxDatabaseProblem } from './db-url.js';
 export type { DatabaseTarget } from './db-url.js';
 export { maskSql, transactionControl } from './sql-text.js';

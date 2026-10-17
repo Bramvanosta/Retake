@@ -9,6 +9,17 @@ import { maskSql } from './sql-text.js';
 import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './writes.js';
 
+/**
+ * Who stands behind the trust flags a hook file carries (`confirm: true`, `writes: false`), L3.1. `author`: the person
+ * who wrote the file and runs it from a terminal — the flags count. `mcp`: work submitted through the MCP server, whose
+ * agent can write those files itself (scenario_save) — `confirm: true` does not count (destructive hooks need a human
+ * approval), every shell hook needs one, and a shell hook always counts as writing (`writes: false` is ignored).
+ */
+export type HookTrust = 'author' | 'mcp';
+
+/** Why a shell hook writes when its `writes: false` is not trusted (work submitted through MCP). */
+export const SHELL_ALWAYS_WRITES = 'a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)';
+
 /** Statements that only read (SELECT … INTO, SELECT … FOR UPDATE, data-modifying CTEs are caught below). */
 const READ_STATEMENTS = new Set(['SELECT', 'WITH', 'TABLE', 'VALUES', 'SHOW', 'EXPLAIN', 'SET', 'RESET']);
 const DML = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'TRUNCATE']);
@@ -97,7 +108,7 @@ function sqlTextReason(source: { file?: string; query?: string }, opts: Destruct
  * A rollback counts too: an http rollback by its method, a sql rollback by its statements, a shell or js rollback
  * always — a hook that only reads but undoes something with a write is refused like a writing hook.
  */
-export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rollback?: boolean } = {}): string | null {
+export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rollback?: boolean; trust?: HookTrust } = {}): string | null {
   // Only setup hooks are rolled back: a rollback declared elsewhere is ignored when it runs, and here.
   const withRollback = opts.rollback !== false;
   if ('http' in hook) {
@@ -120,6 +131,7 @@ export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rol
     const spec = (hook as { shell: string | ShellHookSpec }).shell;
     const run = typeof spec === 'string' ? spec : spec.run;
     if (hook.writes !== false) return 'a shell command — add `writes: false` to a shell hook that only reads';
+    if (opts.trust === 'mcp') return SHELL_ALWAYS_WRITES;
     const destructive = shellDestructiveReason(run, opts);
     if (destructive) return `${destructive}, although it declares writes: false`;
     return typeof spec === 'object' && spec.rollback !== undefined && withRollback ? 'its rollback: a shell command' : null;
@@ -145,7 +157,7 @@ export function rollbackWriteReason(action: { kind: string; request?: { method?:
 /** The hooks of a scenario that write, for the refusal of a read-only run (before anything runs). */
 export function writingHooks(
   lists: { setup?: readonly HookStep[]; teardown?: readonly HookStep[] },
-  opts: DestructiveOptions = {},
+  opts: DestructiveOptions & { trust?: HookTrust } = {},
 ): Array<{ phase: 'setup' | 'teardown'; index: number; name?: string; reason: string }> {
   const out: Array<{ phase: 'setup' | 'teardown'; index: number; name?: string; reason: string }> = [];
   for (const phase of ['setup', 'teardown'] as const) {

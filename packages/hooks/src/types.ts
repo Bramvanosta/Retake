@@ -1,4 +1,4 @@
-import type { HookAccess, HookKind, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 
 /**
  * Which list of hooks is being run. Only `setup` hooks journal a rollback action. `seed` (L1.8): the steps that build a
@@ -37,10 +37,18 @@ export interface HookContext {
   /** `save_as` results, exposed to templating as `{{hooks.<name>.status|headers|body|json…}}`. Mutated in place. */
   saved: Record<string, unknown>;
   /**
-   * Approves a destructive hook that lacks `confirm: true` (CLI `--yes`, interactive prompt).
-   * Without it, such hooks are refused.
+   * Approves a destructive hook that lacks `confirm: true` (CLI `--yes`, interactive prompt) — with trust `mcp`, every
+   * hook that needs a human (`request`: the raw hook, where it stands and its fingerprint; the jobs worker checks the
+   * fingerprint against the approvals of its job). Without it, such hooks are refused. Never called in a dry run with
+   * trust `mcp` (the result says what would need approval).
    */
-  confirmDestructive?: (description: string, reason: string) => boolean | Promise<boolean>;
+  confirmDestructive?: (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
+  /**
+   * Who stands behind the flags of the hook files (L3.1, core HookTrust). Default `author`: `confirm: true` and a shell
+   * hook's `writes: false` count. `mcp` (work submitted through the MCP server): `confirm: true` is ignored, every shell
+   * hook needs an approval and always counts as writing.
+   */
+  trust?: HookTrust;
   /**
    * The access of the run (L1.7, core resolveRunAccess): on `read-only`, a hook that writes is refused (status
    * `refused`, reason `read-only`) and SQL runs in a read-only transaction. Absent: read-write.
@@ -101,6 +109,25 @@ export interface HookResult {
   ms: number;
   /** Journal entry written for this execution. */
   journal_seq?: number;
+  /**
+   * Trust `mcp`: the hook needs a human approval before it runs (a dry run only reports it; a real run was refused
+   * without, or ran with one).
+   */
+  approval?: { reason: string; fingerprint: string };
+  /** Trust `mcp`: its rollback (setup), templated and redacted — what an approval of the hook also approves. */
+  rollback?: string;
+}
+
+/** What `confirmDestructive` is asked about: the hook as its file declares it, where it stands, its fingerprint. */
+export interface HookApprovalRequest {
+  hook: HookStep;
+  phase: HookPhase;
+  index: number;
+  env: string;
+  /** Trust `mcp`: the project files it references, ref → sha256 (approval.ts hookFiles). */
+  files?: Record<string, string>;
+  /** hookFingerprint(hook, {phase, index, env, files}). */
+  fingerprint: string;
 }
 
 /** HTTP request part of a hook (also the shape of an http rollback). */

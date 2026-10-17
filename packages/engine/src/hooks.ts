@@ -1,0 +1,225 @@
+/**
+ * Hooks outside a capture (L3.1, moved from the CLI's hooks commands): pick a hooks source, build the context hooks run
+ * in (access, js hook browsers per persona, write guard, approvals), run the project's reset. `studio hooks run`,
+ * `studio env reset` and `studio hooks rollback` call these with their native options and errors; the jobs worker calls
+ * them for `hooks` and `env_reset` jobs (trust `mcp`, approvals from the job). Nothing here prints or installs signal
+ * handlers: the caller logs through `log` and handles interrupts.
+ */
+import { existsSync } from 'node:fs';
+import { readFile, realpath } from 'node:fs/promises';
+import { isAbsolute, resolve, sep } from 'node:path';
+import {
+  ScenarioError,
+  compileWritePolicy,
+  guardsWrites,
+  hasErrors,
+  loadScenario,
+  loginMatchers,
+  matchLoginUrl,
+  newRunId,
+  parseHookFile,
+  planPersonas,
+  resolveEnvironment,
+  resolvePersonas,
+  resolveRunAccess,
+  runAccess,
+  urlOriginPath,
+} from '@demo-studio/core';
+import type { HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@demo-studio/core';
+import type { HookContext, HookPhase } from '@demo-studio/hooks';
+import type { LoginCommandOf } from './auth.js';
+
+/**
+ * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
+ * a source that names nothing to run (no reset hooks, a scenario without that list, a missing file).
+ */
+export class HooksSourceError extends Error {
+  constructor(
+    message: string,
+    readonly usage: boolean,
+  ) {
+    super(message);
+    this.name = 'HooksSourceError';
+  }
+}
+
+export interface HookSelection {
+  /** "reset", "<scenario>-setup", the file's base name: journal ids and headers. */
+  label: string;
+  hooks: HookStep[];
+  phase: HookPhase;
+  vars?: Record<string, string>;
+  env?: string;
+  /** The scenario of `<scenario>:setup|teardown` (its js hook tabs are bound as in its run). */
+  scenario?: Scenario;
+}
+
+function inside(dir: string, file: string): boolean {
+  return file === dir || file.startsWith(dir.endsWith(sep) ? dir : dir + sep);
+}
+
+/**
+ * The hooks of `spec`: `reset` (project.yaml), `<scenario>:setup` / `<scenario>:teardown`, or a YAML file of hooks.
+ * `projectFilesOnly` (a client outside the CLI): a file must be `hooks/<name>.yaml` of the project, its real path
+ * inside the project — never an absolute path or one relative to the current folder.
+ */
+export async function selectHooks(project: LoadedProject, spec: string, envOpt?: string, o: { projectFilesOnly?: boolean } = {}): Promise<HookSelection> {
+  if (spec === 'reset') {
+    const hooks = project.config.reset ?? [];
+    if (!hooks.length) throw new HooksSourceError(`project "${project.slug}" declares no reset hooks (add \`reset:\` to project.yaml)`, false);
+    return { label: 'reset', hooks, phase: 'reset' };
+  }
+  const m = /^([^:/\\]+):(setup|teardown)$/.exec(spec);
+  if (m) {
+    const [, name, which] = m;
+    const loaded = await loadScenario(project, name, { env: envOpt });
+    const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
+    if (!hooks.length) throw new HooksSourceError(`scenario "${loaded.name}" has no ${which} hooks`, false);
+    return { label: `${loaded.name}-${which}`, hooks, phase: which as HookPhase, vars: loaded.scenario.vars, env: loaded.scenario.env, scenario: loaded.scenario };
+  }
+  if (/\.ya?ml$/i.test(spec)) {
+    let file: string | undefined;
+    if (o.projectFilesOnly) {
+      if (!/^hooks\/[A-Za-z0-9][A-Za-z0-9_-]*\.ya?ml$/.test(spec)) {
+        throw new HooksSourceError(`"${spec}" is not a hooks file of the project: use hooks/<name>.yaml`, true);
+      }
+      const candidate = resolve(project.dir, spec);
+      if (existsSync(candidate)) {
+        if (!inside(await realpath(project.dir), await realpath(candidate))) throw new HooksSourceError(`hooks file "${spec}" leads outside the project`, true);
+        file = candidate;
+      }
+      if (!file) throw new HooksSourceError(`hooks file "${spec}" not found (looked in ${candidate})`, false);
+    } else {
+      const candidates = isAbsolute(spec) ? [spec] : [resolve(project.dir, spec), resolve(spec)];
+      file = candidates.find((f) => existsSync(f));
+      if (!file) throw new HooksSourceError(`hooks file "${spec}" not found (looked in ${candidates.join(' and ')})`, false);
+    }
+    const { hooks, issues } = parseHookFile(await readFile(file, 'utf8'), { file, project });
+    if (!hooks || hasErrors(issues)) throw new ScenarioError(`hooks file ${file} is invalid`, issues, file);
+    const base = file.replace(/^.*[\\/]/, '').replace(/\.ya?ml$/i, '');
+    return { label: base, hooks, phase: 'setup' };
+  }
+  throw new HooksSourceError(`"${spec}" is not a hooks source: use <scenario>:setup, <scenario>:teardown, reset, or a .yaml file of hooks`, true);
+}
+
+/**
+ * The access of a hooks command (L1.7): its environment's, with `allowWrites` (core AccessError on a read-only
+ * environment), and the hosts of the project's read-only environments it must not write to. Journal replays judge each
+ * entry by its own environment (`accessOf`).
+ */
+export function hooksAccess(project: LoadedProject, env: ReturnType<typeof resolveEnvironment>, allowWrites: boolean): { access: RunAccess; accessOf: (name: string) => RunAccess | undefined } {
+  const access = resolveRunAccess(env, { allowWrites, project });
+  const accessOf = (name: string): RunAccess | undefined => {
+    try {
+      return runAccess(resolveEnvironment(project, name), allowWrites, project);
+    } catch {
+      return undefined; // an environment no longer in project.yaml: the command's access
+    }
+  };
+  return { access, accessOf };
+}
+
+export interface HookContextOptions {
+  env?: string;
+  /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (CLI only). */
+  allowWrites?: boolean;
+  /** Describe and security-check without executing. */
+  dry?: boolean;
+  vars?: Record<string, string>;
+  runId?: string;
+  scenario?: Scenario;
+  /** Default `author` (the CLI); `mcp` for jobs submitted through the MCP server. */
+  trust?: HookTrust;
+  /** Every message of the hooks (redacted by them). */
+  log: HookContext['log'];
+  /** Approves a hook that needs a human (CLI: --yes or the prompt; the worker: the job's approvals). */
+  confirm?: HookContext['confirmDestructive'];
+  /** The command that signs a persona in again, as messages print it. */
+  loginCommand: LoginCommandOf;
+  /** Stops the hooks (a running shell command, the next hooks): a job's cancel. */
+  signal?: AbortSignal;
+}
+
+/**
+ * A hook context for hooks outside a capture; js hooks get a headless browser opened on first use — signed in as the
+ * persona of their page (L1.6: a copy of its session, as in a run; a tab landing on its sign-in page fails the hook),
+ * one browser per persona. A scenario's hooks bind their tabs as its run does (core planPersonas: the persona its
+ * scenes film the page with, `none` included). `closeSessions` closes those browsers (their copies hold a persona's
+ * cookies). Throws core AccessError for `allowWrites` on a read-only environment, before anything is opened.
+ */
+export async function createHookContext(project: LoadedProject, o: HookContextOptions): Promise<{ ctx: HookContext; access: RunAccess; closeSessions: () => Promise<void> }> {
+  const env = resolveEnvironment(project, o.env);
+  const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
+  const personas = resolvePersonas(project, env.name);
+  const sessions = new Map<string, Promise<import('@demo-studio/runner-web').BrowserSession>>();
+  const command = o.loginCommand;
+  const runId = o.runId ?? newRunId('hooks');
+  const planned = o.scenario ? planPersonas(o.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
+  // A read-only command (L1.7): a js hook's tab stops its writes (never mocked); its browser is guarded like a run's.
+  // Any command: writes to the hosts of the project's read-only environments (production) are stopped too.
+  const policy = compileWritePolicy(env, { access });
+  const writes = guardsWrites(policy) ? { policy, onWrite: (w: { label: string; outcome: string }) => ctx.log('debug', `js hook tab: ${w.label} ${w.outcome}`) } : undefined;
+  /**
+   * The persona a js hook tab of page `key` is signed in as: the scenario's binding of that page, else the one whose
+   * pages list it, else the legacy one (undefined: none).
+   */
+  const personaOf = (key: string): ResolvedPersona | undefined => {
+    if (planned?.has(key)) {
+      const name = planned.get(key);
+      return name === null ? undefined : personas.find((p) => p.name === name);
+    }
+    return personas.find((p) => !p.legacy && p.pages.includes(key)) ?? personas.find((p) => p.legacy);
+  };
+  const open = async (persona: ResolvedPersona | undefined) => {
+    const rw = await import('@demo-studio/runner-web');
+    const capture = project.config.capture;
+    const prepared = persona
+      ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
+      : [];
+    return rw.openSession({
+      width: capture.width,
+      height: capture.height,
+      scale: capture.scale,
+      kit: rw.kitConfigFor(undefined),
+      browser: rw.projectBrowser(project),
+      log: (level, msg) => ctx.log(level, msg),
+      ...(writes ? { writes: { policy: writes.policy } } : {}),
+      ...(persona ? { realms: prepared.map((p) => p.realm), hookRealmOf: () => persona.name } : {}),
+    });
+  };
+  const ctx: HookContext = {
+    project,
+    env,
+    vars: { ...(project.config.vars ?? {}), ...(o.vars ?? {}) },
+    runId: o.runId,
+    dryRun: o.dry === true,
+    saved: {},
+    access,
+    accessOf,
+    log: o.log,
+    ...(o.confirm ? { confirmDestructive: o.confirm } : {}),
+    ...(o.trust ? { trust: o.trust } : {}),
+    ...(o.signal ? { signal: o.signal } : {}),
+    evalInPage: async (pageKey, code) => {
+      const rw = await import('@demo-studio/runner-web');
+      if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);
+      const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
+      let session = sessions.get(persona?.name ?? '');
+      if (!session) {
+        session = open(persona);
+        sessions.set(persona?.name ?? '', session);
+      }
+      const matchers = persona ? loginMatchers(persona.loginPatterns, env.pages) : [];
+      const loginLanding = (key: string, url: string): string | null =>
+        persona && matchLoginUrl(url, matchers)
+          ? `js hook page "${key}" (persona ${persona.name}) landed on the sign-in page (${urlOriginPath(url)}): its session expired — sign in again: ${command({ project: project.slug, env: env.name, ...(persona.legacy ? {} : { persona: persona.name }) })}`
+          : null;
+      // The guarded hook tab of that page (hosts outside the allow-list are blocked), reused by later js hooks.
+      return rw.evalHookInPage(await session, { project, env, log: (level, msg) => ctx.log(level, msg), ...(persona ? { loginLanding } : {}), ...(writes ? { writes } : {}) }, pageKey, code);
+    },
+  };
+  const closeSessions = async () => {
+    for (const s of sessions.values()) await (await s.catch(() => null))?.close();
+  };
+  return { ctx, access, closeSessions };
+}

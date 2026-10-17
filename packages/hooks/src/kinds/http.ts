@@ -5,7 +5,7 @@ import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
 import { HookError, errorMessage } from '../errors.js';
 import { redactText } from '../secrets.js';
-import { checkTokens, hookTemplateContext, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { checkTokens, hookTemplateContext, render, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
 import type { HookContext, HttpRequestSpec, RollbackAction, SavedHttpResponse } from '../types.js';
 import { oneLine } from '../util.js';
 import { ignoreRollback } from './common.js';
@@ -181,11 +181,22 @@ export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<Prepa
   const rollbackTemplate = k.phase === 'setup' ? rollback : undefined;
   if (rollbackTemplate) checkTokens(rollbackTemplate, await hookTemplateContext(ctx, rollbackTemplate), ['response']);
   const rollbackWrites = rollbackTemplate ? httpWriteReason(rollbackTemplate) : null;
+  // Its URL as an approval shows it: templated, the response's values (known once the hook ran) as <response.…>.
+  const rollbackUrl = rollbackTemplate ? rollbackTemplate.url.replace(/\{\{\s*(response(?:\.[^}]*)?)\s*\}\}/g, '<$1>') : '';
+  const rollbackShown = rollbackTemplate ? render(rollbackUrl, await hookTemplateContext(ctx, rollbackUrl)) : '';
   return {
     description: redactText(ctx, describeHttp(call.method, call.display) + (save_as ? ` → hooks.${save_as}` : '')),
     destructive: call.method === 'DELETE' ? 'HTTP DELETE' : null,
     writes: httpWriteReason({ method: call.method, body: call.body }) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
     hosts: [new URL(call.url).hostname],
+    ...(rollbackTemplate
+      ? {
+          rollback: {
+            description: redactText(ctx, describeHttp((rollbackTemplate.method ?? 'GET').toUpperCase(), rollbackShown)),
+            reason: (rollbackTemplate.method ?? 'GET').toUpperCase() === 'DELETE' ? 'HTTP DELETE' : null,
+          },
+        }
+      : {}),
     async execute() {
       const res = await sendChecked(call, ctx);
       if (save_as) ctx.saved[save_as] = res;

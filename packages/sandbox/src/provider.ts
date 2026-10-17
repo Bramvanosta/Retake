@@ -5,12 +5,23 @@
  * seed and the reset, and keeps the state file; a provider reads and updates `ctx.state` and calls `ctx.save()` as soon
  * as something it started exists.
  */
-import type { ExecStepSpec, LoadedProject, LoadedSandbox, SandboxProvider } from '@demo-studio/core';
+import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider } from '@demo-studio/core';
+import type { HookApprovalRequest } from '@demo-studio/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
 
 export type SandboxLogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type SandboxLog = (level: SandboxLogLevel, message: string) => void;
+
+/**
+ * Who stands behind a call's seed steps (L3.1). Trust `mcp` (a job submitted through the MCP server, whose agent may
+ * have edited the files): every shell seed step needs a human approval, bound to its fingerprint (phase `seed`, its
+ * position among all the seed steps, the sandbox's environment); `confirm` checks it. Default: trust `author`.
+ */
+export interface SeedTrust {
+  trust: HookTrust;
+  confirm?: (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
+}
 
 export interface ProviderContext {
   project: LoadedProject;
@@ -21,6 +32,7 @@ export interface ProviderContext {
   save(): void;
   log: SandboxLog;
   signal?: AbortSignal;
+  seedTrust?: SeedTrust;
 }
 
 export interface UpResult {

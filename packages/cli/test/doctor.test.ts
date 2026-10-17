@@ -79,6 +79,8 @@ function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
       ms: 640,
     }),
     head: async () => ({ status: 200, ms: 42 }),
+    execPath: '/opt/homebrew/bin/node',
+    worker: async () => null,
     ...over,
   };
 }
@@ -243,6 +245,31 @@ describe('studio doctor (mocked environment)', () => {
 });
 
 describe('studio doctor (this machine)', () => {
+  it('MCP (L3.1): the Node.js a registration names (a stable alias), the worker, .demo-studio/ git-ignored', async () => {
+    // A mise install with its major alias: the alias is what --print-config registers.
+    const versioned = '/Users/me/.local/share/mise/installs/node/22.16.0/bin/node';
+    const alias = '/Users/me/.local/share/mise/installs/node/22/bin/node';
+    const ok = await checks(macProbes({ execPath: versioned, exists: (p) => p === alias || existsSync(p), worker: async () => ({ pid: 4242, since: '2026-10-17T10:00:00.000Z' }) }));
+    expect(byName(ok.checks, 'MCP')).toMatchObject({ status: 'ok', detail: `node ${alias} · worker running (pid 4242) · register: studio mcp --print-config` });
+    // No alias: a patch upgrade would break the registration.
+    const bare = await checks(macProbes({ execPath: versioned, worker: async () => null }));
+    expect(byName(bare.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version'), hint: expect.stringContaining('studio mcp --print-config') });
+    expect(byName(bare.checks, 'MCP').detail).toContain('worker idle');
+    // nvm / fnm name their folders v22.16.0: a patch version too.
+    const nvm = await checks(macProbes({ execPath: '/Users/me/.nvm/versions/node/v22.16.0/bin/node', worker: async () => null }));
+    expect(byName(nvm.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version') });
+    // A workspace in a git work tree whose .gitignore misses .demo-studio/.
+    await mkdir(join(ws, '.git'), { recursive: true });
+    try {
+      const git = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' ? { code: 1, stdout: '', stderr: '' } : null) }));
+      expect(byName(git.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('.demo-studio (the job queue and history of this machine) is not ignored by git'), hint: expect.stringContaining('.demo-studio/') });
+      const ignored = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' && args.includes('.demo-studio/') ? { code: 0, stdout: '', stderr: '' } : null) }));
+      expect(byName(ignored.checks, 'MCP').status).toBe('ok');
+    } finally {
+      await rm(join(ws, '.git'), { recursive: true });
+    }
+  });
+
   it('real probes: PATH lookup, ffmpeg version, HEAD on a live and a closed port', async () => {
     const p = systemProbes();
     expect(p.which('node')).toMatch(/node$/);

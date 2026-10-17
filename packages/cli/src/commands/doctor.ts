@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative } from 'node:path';
-import { WORKSPACE_FILE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxNames, studioHome } from '@demo-studio/core';
+import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxNames, studioHome } from '@demo-studio/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ChromiumProbe } from '@demo-studio/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -47,6 +47,10 @@ export interface DoctorProbes {
   head(url: string, timeoutMs: number): Promise<{ status?: number; error?: string; ms: number }>;
   /** A sandbox of the project, as `studio sandbox status` sees it (L1.8; no lock, nothing started). */
   sandbox?(project: LoadedProject, env: string): Promise<SandboxProbe>;
+  /** The Node.js running this command (default process.execPath): what `studio mcp --print-config` registers. */
+  execPath?: string;
+  /** The jobs worker serving a workspace (L3.1), or null. */
+  worker?(root: string): Promise<{ pid: number; since: string } | null>;
 }
 
 /** What doctor shows of a sandbox: up / partial / down, its services, its seed. */
@@ -117,6 +121,11 @@ export function systemProbes(): DoctorProbes {
       }
     },
     chromium: async (browser) => (await import('@demo-studio/runner-web')).probeChromium(browser),
+    execPath: process.execPath,
+    worker: async (root) => {
+      const w = await (await import('@demo-studio/engine')).liveWorker(root);
+      return w ? { pid: w.pid, since: w.since } : null;
+    },
     head: async (url, timeoutMs) => {
       const t0 = performance.now();
       try {
@@ -467,6 +476,40 @@ async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, rech
   return { status: 'ok', name, detail };
 }
 
+/**
+ * The MCP line (L3.1): the Node.js a registration names (`studio mcp --print-config`: a stable alias of it where one
+ * exists, so a patch upgrade does not break it), the PATH a GUI client gets from it finds ffmpeg, the jobs worker, and
+ * the workspace's `.demo-studio/` (its job queue and history) git-ignored when the workspace is a git work tree.
+ */
+async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck> {
+  const name = 'MCP';
+  const { stableNodePath, clientPath } = await import('@demo-studio/mcp');
+  const exec = p.execPath ?? process.execPath;
+  const node = stableNodePath(exec, p.exists);
+  const parts = [`node ${tildePath(node)}`];
+  const warns: Array<{ detail: string; hint: string }> = [];
+  if (Number(p.nodeVersion.split('.')[0]) < MIN_NODE_MAJOR) {
+    warns.push({ detail: `the registration would name Node.js ${p.nodeVersion}`, hint: `run studio mcp --print-config with Node.js ${MIN_NODE_MAJOR}+` });
+  } else if (node === exec && /\/v?\d+\.\d+\.\d+\//.test(node)) {
+    warns.push({ detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`, hint: 'register again after an upgrade (studio mcp --print-config), or point it at a version manager alias' });
+  }
+  if (!ws.ffmpeg) {
+    const path = clientPath(node, p.env.PATH ?? '', p.exists);
+    if (whichOnPath('ffmpeg', { PATH: path }, p.platform)) parts.push('ffmpeg on the PATH it registers');
+    else warns.push({ detail: 'ffmpeg is not on the PATH a GUI client gets from the registration', hint: 'install ffmpeg (Homebrew), or set ffmpeg: in studio.yaml' });
+  }
+  const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
+  parts.push(worker ? `worker running (pid ${worker.pid})` : 'worker idle (a client starts it with its first job)');
+  const tree = gitWorkTree(p, ws.root);
+  if (tree) {
+    const rel = relative(tree, join(ws.root, '.demo-studio'));
+    const res = await p.exec('git', ['-C', tree, 'check-ignore', '-q', `${rel}/`], 5000);
+    if (!res || res.code !== 0) warns.push({ detail: `${tildePath(join(ws.root, '.demo-studio'))} (the job queue and history of this machine) is not ignored by git`, hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore` });
+  }
+  if (warns.length) return { status: 'warn', name, detail: [...warns.map((w) => w.detail), ...parts].join(' · '), hint: warns.map((w) => w.hint).join('; ') };
+  return { status: 'ok', name, detail: `${parts.join(' · ')} · register: studio mcp --print-config` };
+}
+
 /** Every doctor check, in display order. */
 export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
@@ -478,6 +521,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   const need = opts.project ? await composeSandboxOf(ws, opts.project) : null;
   out.push(await dockerCheck(probes, need));
   out.push(...(await workspaceChecks(probes, ws)));
+  out.push(await mcpCheck(probes, ws));
   if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));
   return out;
 }

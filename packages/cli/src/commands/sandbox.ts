@@ -4,10 +4,11 @@
  * it (no reset: the sandbox must be up). The work is @demo-studio/sandbox's; these commands print it.
  */
 import { join } from 'node:path';
-import { resolveEnvironment, sandboxNames, sandboxOf } from '@demo-studio/core';
+import { resolveEnvironment, sandboxNames } from '@demo-studio/core';
 import type { LoadedProject, RunRecord } from '@demo-studio/core';
-import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus, Take, UpResult } from '@demo-studio/sandbox';
-import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
+import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus } from '@demo-studio/sandbox';
+import { sandboxUpText } from '@demo-studio/engine';
+import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
@@ -84,13 +85,6 @@ function resetText(r: ResetResult): string {
   return parts.join(' · ');
 }
 
-/** "started fixture · healthy 1/1" / "running · healthy 3/3". */
-function upText(up: UpResult): string {
-  const total = up.started.length + up.kept.length;
-  const what = up.started.length ? `started ${up.started.join(', ')}${up.kept.length ? `, kept ${up.kept.join(', ')}` : ''}` : 'running';
-  return `${what} · healthy ${total}/${total}`;
-}
-
 /** `--build` / `--volumes` / `--follow` are docker-compose flags: a usage error on a process sandbox. */
 function composeOnly(sb: Sandbox, flag: string, why: string): void {
   if (sb.kind !== 'docker-compose') throw new UsageError(`${flag} is for docker-compose sandboxes: sandbox ${sb.env} is provider ${sb.kind} (${why})`);
@@ -113,7 +107,7 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
   try {
     const res = await interruptible(ui, sb, (signal) => sb.up({ signal, log: uiLog(ui), seed: opts.seed === false ? 'never' : 'auto', build: opts.build }));
-    ui.line(`  ${c.dim('services')}  ${upText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
+    ui.line(`  ${c.dim('services')}  ${sandboxUpText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
     else if (opts.seed === false) ui.line(`  ${c.dim('seed')}      skipped (--no-seed)`);
     ui.line(`  ${c.dim('pages')}     ${pagesLine(project, sb.env)}`);
@@ -265,73 +259,6 @@ export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectA
 }
 
 // ── studio run ─────────────────────────────────────────────────────────────────────────────────────────────────
-
-/**
- * The sandbox environment of `run --sandbox`: `--env` (it must be a sandbox), else the scenario's `env` when it is a
- * sandbox, else `default_env` when it is one, else the first sandbox. Usage errors otherwise.
- */
-export function pickSandboxEnv(project: LoadedProject, env: string | undefined, scenarioEnv: string | undefined): string {
-  const names = sandboxNames(project);
-  if (!names.length) throw new UsageError(`--sandbox resets a sandbox before the take, and project ${project.slug} has none: add \`sandboxes:\` to project.yaml (see the README, "Sandbox mode")`);
-  if (env !== undefined) {
-    if (!names.includes(env)) throw new UsageError(`--sandbox resets a sandbox before the take: environment ${env} is not a sandbox (sandboxes: ${names.join(', ')})`);
-    return env;
-  }
-  if (scenarioEnv !== undefined && names.includes(scenarioEnv)) return scenarioEnv;
-  const def = project.config.default_env;
-  if (def !== undefined && names.includes(def)) return def;
-  return names[0];
-}
-
-/** `--sandbox`: lock, up if needed, health, reset — under Ctrl-C (exit 130: what it started is stopped). */
-export async function prepareSandboxTake(
-  ui: Ui,
-  project: LoadedProject,
-  env: string,
-  scenario: string,
-  print: { json: boolean; emit: (level: 'info' | 'warn', message: string) => void },
-): Promise<{ take?: Take; exit?: ExitCode; error?: string }> {
-  const { openSandbox } = await sandboxModule();
-  const sb = openSandbox(project, env);
-  const log: SandboxLog = (level, msg) => {
-    if (level === 'warn') print.emit('warn', msg);
-    else if (print.json) print.emit('info', msg);
-    else ui.debug(msg);
-  };
-  const stop = await onInterrupt(ui, { message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });
-  let take: Take;
-  try {
-    take = await sb.prepareTake({ signal: stop.signal, log, command: `run ${scenario}` });
-  } catch (e) {
-    return { exit: exitOf(e), error: errorMessage(e) };
-  } finally {
-    stop.dispose();
-  }
-  if (stop.interrupted) {
-    await take.release();
-    return { exit: EXIT.interrupted, error: `sandbox ${env}: interrupted` };
-  }
-  const restored = take.reset.snapshot?.action === 'restored' ? ` (snapshot restored in ${formatMs(take.reset.snapshot.ms)})` : take.reset.snapshot ? ' (seeded, snapshot taken)' : '';
-  print.emit('info', `sandbox ${env} (${sb.kind}) · ${upText(take.up)} · reset ${take.reset.strategy} ${formatMs(take.reset.ms)}${restored}`);
-  return { take };
-}
-
-/**
- * A run on a sandbox environment without --sandbox: no reset, and the sandbox must be up (CliError otherwise); a take
- * holding its lock is a warning. Nothing for other environments.
- */
-export async function checkSandboxEnv(project: LoadedProject, env: string, print: { emit: (level: 'info' | 'warn', message: string) => void }): Promise<void> {
-  if (!sandboxOf(project, env)) return;
-  const { openSandbox, SandboxError, describeLock } = await sandboxModule();
-  try {
-    const { lock } = await openSandbox(project, env).checkRunning();
-    if (lock) print.emit('warn', `sandbox ${env} is in use by ${describeLock(lock)}: this run films it as it is, while that command may reset it`);
-  } catch (e) {
-    if (e instanceof SandboxError) throw new CliError(e.message);
-    throw e;
-  }
-  print.emit('info', `sandbox ${env}: filmed as it is, without a reset (--sandbox resets it to its seed first)`);
-}
 
 /** The run summary's sandbox line, or undefined. */
 export function sandboxSummary(r: RunRecord): string | undefined {

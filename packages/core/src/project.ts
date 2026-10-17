@@ -25,10 +25,36 @@ export const PROJECT_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const DEFAULT_FRAME: FrameStyle = 'card';
 export const DEFAULT_TEMPLATE_NAME = 'default';
 /**
- * Generated folders of a project; `.demo-studio/` holds tool state such as hook journals (`.demo-studio/journals/`) and
- * the state of its sandboxes (`.demo-studio/sandbox/`).
+ * Every file Demo Studio reads or writes in a workspace, in three classes (L3.1 guard-rail): `authored` (what a person
+ * or Claude writes and keeps in git), `generated` (outputs, rebuilt from the authored files and a capture) and
+ * `machine` (tool state of this machine: hook journals, sandbox state, the job queue and its history — never shared).
+ * One list for the .gitignore written into a new project, for what `studio doctor` expects a workspace's own
+ * .gitignore to name (nothing writes that one), and later for what a sync leaves out.
+ * Sessions and secrets are not here: they live outside the workspace (~/.demo-studio, the keychain).
  */
-export const PROJECT_GITIGNORE = ['runs/', 'renders/', 'review/', 'exports/', 'frames/', '.demo-studio/'];
+export const WORKSPACE_FILES = {
+  workspace: {
+    authored: ['studio.yaml', 'templates/', 'components/'],
+    generated: [] as string[],
+    /** jobs/<id>/ (the queue), workers/worker.lock, history.jsonl. */
+    machine: ['.demo-studio/'],
+  },
+  project: {
+    authored: ['project.yaml', 'README.md', 'scenarios/', 'hooks/', 'assets/', 'data/', 'sandbox/', '.gitignore'],
+    generated: ['runs/', 'renders/', 'review/', 'exports/', 'frames/'],
+    /** journals/ (hooks outside a capture), sandbox/ (sandbox state and logs). */
+    machine: ['.demo-studio/'],
+  },
+} as const;
+
+/**
+ * Generated folders of a project and its tool state (`.demo-studio/`: hook journals, the state of its sandboxes) —
+ * WORKSPACE_FILES' project `generated` + `machine`.
+ */
+export const PROJECT_GITIGNORE: readonly string[] = [...WORKSPACE_FILES.project.generated, ...WORKSPACE_FILES.project.machine];
+
+/** What a workspace's own .gitignore names: its `.demo-studio/` (the job queue and history of this machine). */
+export const WORKSPACE_GITIGNORE: readonly string[] = [...WORKSPACE_FILES.workspace.generated, ...WORKSPACE_FILES.workspace.machine];
 
 /** project.yaml as written (before defaults). */
 export type ProjectFile = z.infer<typeof ProjectFileSchema>;

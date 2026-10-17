@@ -26,7 +26,7 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderContext, SandboxLog, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type { DownResult, Provider, ProviderContext, SandboxLog, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
@@ -40,6 +40,8 @@ export const LOG_CAP_BYTES = 20 * 1024 * 1024;
 export interface SandboxCallOptions {
   signal?: AbortSignal;
   log?: SandboxLog;
+  /** Trust `mcp` for the seed steps this call may run (L3.1: a shell step then needs an approval). */
+  seedTrust?: SeedTrust;
 }
 
 export interface ResetResult {
@@ -157,6 +159,7 @@ export class Sandbox {
       save: () => writeState(this.paths.state, ctx.state),
       log,
       signal: opts.signal,
+      ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
     };
     this.ctx = ctx;
     return ctx;

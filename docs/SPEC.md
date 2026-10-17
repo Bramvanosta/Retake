@@ -210,21 +210,32 @@ Target syntax: `text`, `contains`, `role` + `name`, `label`, `aria`, `css`, `in`
 
 ## 8. MCP server (tools)
 
-- `project_list`, `project_create({name, readme, environments, template})`, `project_get`, `project_update_readme`
-- `template_list`, `template_create_from_brand({logo, colors, fonts})`, `template_preview`
-- `component_list({kind?})`, `component_create({id, kind, description})`, `component_preview({component, theme, slots?, params?})`, `component_validate`
+Built in L3.1 (`studio mcp`, stdio; arguments as the tools publish them — every `project` is a slug, never a path):
+- `engine_info`; `project_list`, `project_get({project})`, `project_create({name, slug?, readme?, environments?, template?})`, `project_update_readme({project, markdown, if_match?})` (`if_match` required once README.md exists)
+- `scenario_get({project, name})` → yaml + hash, `scenario_validate({project, yaml, env?, until?, name?})` → issues with line/col, `scenario_save({project, name, yaml, if_match?})` (`if_match` required once the file exists)
+- `run_dry({project, scenario, env?, until?, hooks?, wait_s?})` → the run as it is after `wait_s` (default 20 s): steps, screenshot paths, the failing step's screenshot and DOM paths
+- `run_capture({project, scenario, env?, sandbox?, wait_s?})` → run id at once; `run_status({project, run_id, wait_s?})`; `run_cancel({project, run_id})`; `run_list({project, scenario?, mode?, limit?})`
+- `job_list({project?, state?, limit?})`, `job_status({job_id, wait_s?})`, `job_cancel({job_id})` (every long task is a job)
+- `hooks_run({project, source, env?, dry?, wait_s?})` — `source`: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`; `dry` defaults to true; `env_reset({project, env?, dry?, wait_s?})`
+- `auth_status({project?, env?})`; `auth_login({project, persona?, env?, mode?, wait_s?})` — `headed` (default) opens a window on the user's machine for the human to sign in; `auto` plays the persona's login steps; no credential argument exists
+- `sandbox_status({project, env?})`, `sandbox_up({project, env?, wait_s?})`, `sandbox_reset({project, env?, reseed?, wait_s?})`
+
+Later lots (names as planned):
+- `render({project, scenario, run_id, overrides?})` → render id; `render_status`; `review({render_id, fps: 1|2})` → paths + base64 thumbnails of contact sheets, key frames at markers, timeline, and an automatic report (blank/loading frames, caption vs scene mismatch, duration per scene, cursor off-screen); `export({render_id, formats: [mp4_1080p, mp4_4k, webm, vertical_9x16, gif_preview]})` (L3.2)
+- `template_list`, `template_create_from_brand({logo, colors, fonts})`, `template_preview`; `component_list({kind?})`, `component_create({id, kind, description})`, `component_preview({component, theme, slots?, params?})`, `component_validate`
 - `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
-- `scenario_validate({project, yaml})`, `scenario_save`, `scenario_from_script({project, script_markdown})` (helper that drafts YAML from a timecoded script table)
+- `scenario_from_script({project, script_markdown})` (helper that drafts YAML from a timecoded script table)
 - `page_inspect({project, url | page, selector?})` → screenshot + list of visible interactive elements with suggested targets (for authoring against any site); `scenario_record({project, url})` (headed browser: clicks/typing recorded into a draft scenario — CLI `studio record`)
 - `template_from_site({url})` → draft theme from a live site (colours, fonts, logo candidates)
-- `run_dry({project, scenario, until?})` → logs + screenshots of each step
-- `run_capture({project, scenario})` → run id; `run_status(run_id)`; `run_cancel`
-- `render({project, scenario, run_id, overrides?})` → render id; `render_status`
-- `review({render_id, fps: 1|2})` → paths + base64 thumbnails of contact sheets, key frames at markers, timeline, and an automatic report (blank/loading frames, caption vs scene mismatch, duration per scene, cursor off-screen)
-- `export({render_id, formats: [mp4_1080p, mp4_4k, webm, vertical_9x16, gif_preview]})`
-- `hooks_run({project, hook})`, `env_reset({project})`
 
-All long tasks are async with status polling (agents' tool calls time out). Every tool returns file paths plus a short text summary readable by Claude.
+All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s
+with progress notifications, and `*_status` follows. Every tool returns a short text summary readable by Claude plus
+structured data with file paths; text that comes from the filmed site is kept under `untrusted`. Hooks or seed steps
+that are destructive or run shell commands, and setup hooks whose rollback is destructive, shell or JavaScript, need a
+human approval through MCP elicitation (`confirm: true` in a file does not count), else the call is refused with the
+`studio` command a human runs. Through MCP a scenario names no secret (`{{env:…}}` / `{{keychain:…}}`: only
+project.yaml and hooks/ files resolve them), references no file outside its project nor runs code from a file the agent
+can write, and nothing runs read-write on a host of another project's production or read-only environment.
 
 ## 9. Editor (Remotion) rules
 

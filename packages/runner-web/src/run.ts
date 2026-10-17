@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
   ARTEFACTS_DIR,
+  agentTrustProblems,
   FORMAT_VERSIONS,
   compileWritePolicy,
   guardsWrites,
@@ -16,8 +17,8 @@ import {
   mailboxFor,
   networkHost,
   scenePageEntries,
-  newRunId,
   planPersonas,
+  reserveRunId,
   resolveClock,
   resolveEnvironment,
   resolvePersonas,
@@ -32,6 +33,7 @@ import {
 import type {
   BrowserConfig,
   HookStep,
+  HookTrust,
   LoadedProject,
   LoadedScenario,
   LoadedTemplate,
@@ -61,7 +63,7 @@ import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopi
 import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
-import type { HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
+import type { ConfirmHook, HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
 import { HOLD_MAX_MS } from './hold.js';
 import { kitConfigFor } from './kit/source.js';
 import { ScreencastRecorder } from './recorder.js';
@@ -119,6 +121,17 @@ export interface RunOptions {
    * without a reset.
    */
   sandbox?: RunSandbox;
+  /**
+   * Who stands behind the trust flags of the scenario's hooks (L3.1, core HookTrust; default `author`). `mcp` (a job
+   * submitted through the MCP server): `confirm: true` does not count, every shell hook needs an approval
+   * (`confirmHook`) and always counts as writing — a read-only run refuses it before anything runs.
+   */
+  hookTrust?: HookTrust;
+  /**
+   * Approves a hook that needs a human (L3.1: the jobs worker checks the hook's fingerprint against its job's
+   * approvals). Without it such hooks are refused, as before.
+   */
+  confirmHook?: ConfirmHook;
 }
 
 /**
@@ -233,23 +246,9 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     }
   }
   const runsDir = resolve(opts.runsDir ?? join(project.dir, 'runs'));
-  let runId = opts.runId ?? newRunId(loaded.name);
-  let dir = join(runsDir, runId);
-  if (opts.runId === undefined) {
-    // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
-    // takes the next free second (run ids keep their format and their order).
-    await mkdir(runsDir, { recursive: true });
-    for (let k = 1; ; k++) {
-      try {
-        await mkdir(dir);
-        break;
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'EEXIST' || k > 120) throw e;
-        runId = newRunId(loaded.name, new Date(Date.now() + k * 1000));
-        dir = join(runsDir, runId);
-      }
-    }
-  }
+  // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
+  // takes the next free second (core reserveRunId). A pre-assigned id (a job's, reserved at submit) reuses its folder.
+  const { id: runId, dir } = opts.runId !== undefined ? { id: opts.runId, dir: join(runsDir, opts.runId) } : await reserveRunId(runsDir, loaded.name);
   const screenshotsDir = join(dir, 'screenshots');
   const framesDir = join(dir, 'frames');
   await mkdir(screenshotsDir, { recursive: true });
@@ -359,9 +358,15 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
 
   try {
     throwIfAborted(signal);
+    // Work submitted through MCP (L3.1, core agent-trust): the scenario names no secret, and its files stay in the
+    // project (code never from a file an agent can write) — refused before anything runs.
+    if (opts.hookTrust === 'mcp') {
+      const problems = agentTrustProblems(project, sc);
+      if (problems.length) throw new RunnerError(`refused (work submitted through MCP): ${problems.join('; ')}`);
+    }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {
-      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown }, { projectDir: project.dir });
+      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}) });
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
     // A read-only run stops the browser's writes (L1.7, write-guard.ts): armed in every browser at launch. Any run
@@ -459,6 +464,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       secrets,
       recorder: null,
       cursorHidden: opts.hideCursor === true,
+      ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
       log,
       guard,
       ...(prepared.length ? { plannedPersonas: plan.pages } : {}),
@@ -490,6 +496,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         ...(writeGuard ? { writes: { policy: writeGuard.policy, ...(writeGuard.onWrite ? { onWrite: writeGuard.onWrite } : {}) } } : {}),
         signal,
         running: hookGroups,
+        ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
+        ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       };
       hooks = await openHooks(deps);
       await setupHooks(hooks, sc.setup ?? [], deps);
@@ -908,6 +916,8 @@ interface SetupDeps {
   signal: AbortSignal;
   /** The process groups of the shell hooks running now (any phase): a second signal kills them before the process quits. */
   running: Set<number>;
+  trust?: HookTrust;
+  confirmHook?: ConfirmHook;
 }
 
 function formatIssuePath(path: ReadonlyArray<string | number>): string {
@@ -1121,6 +1131,8 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     saved,
     // Every phase's shell commands (setup, teardown, rollbacks): a second signal kills them before the process quits.
     running: d.running,
+    ...(d.trust ? { trust: d.trust } : {}),
+    ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
   };
   return { mod, journal, ctx };
 }

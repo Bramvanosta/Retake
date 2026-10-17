@@ -16,6 +16,7 @@ export default defineConfig({
       '@demo-studio/components': pkg('components'),
       '@demo-studio/editor': pkg('editor'),
       '@demo-studio/review': pkg('review'),
+      '@demo-studio/engine': pkg('engine'),
       '@demo-studio/mcp': pkg('mcp'),
     },
   },

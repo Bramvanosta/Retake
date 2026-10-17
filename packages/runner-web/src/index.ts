@@ -4,6 +4,7 @@
  */
 export { motionWarnings, runScenario } from './run.js';
 export type { RunOptions } from './run.js';
+export type { ConfirmHook, HookApprovalRequestLike } from './hooks-bridge.js';
 export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './session.js';
 export type { RealmSpec, SessionOptions, StorageStateFile } from './session.js';
 export { encodeFrames, cfrSchedule } from './encode.js';

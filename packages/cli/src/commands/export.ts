@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { EXPORT_FORMATS, DEFAULT_EXPORT_FORMATS, ExportError, RenderError, exportRender } from '@demo-studio/editor';
 import type { ExportFormat, ExportProgress } from '@demo-studio/editor';
+import { appendHistory } from '@demo-studio/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -76,6 +77,9 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
       onProgress: status,
     });
     ui.clearStatus();
+    // The workspace's job history counts the formats re-rendered by Remotion (best effort, as `studio render`).
+    const rendered = r.outputs.filter((o) => o.method === 'render').length;
+    if (rendered) await appendHistory(ws.root, { kind: 'export', project: project.slug, submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: rendered } });
     if (opts.json) {
       ui.result(JSON.stringify(r, null, 2));
     } else {

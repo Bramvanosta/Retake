@@ -52,8 +52,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.12 | Bring your own media & motion (video/image segments, alpha overlays, Lottie, docs) | M | **done** |
 | L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | **done** |
 | L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) + Mac handoff | S | **done** — phase 2 done |
-| L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | todo |
-| L3.2 | MCP render/review/export + theme & component tools | M | todo |
+| L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | **done** (live Claude Code run: MACOS-CHECKLIST 12c) |
+| L3.2 | MCP render/review/export + theme & component tools | M | **next** |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
 | L3.4 | Recorder (`studio record`, scenario_record) | M | todo |
 | L3.5 | Themes from brand inputs and from a site URL | M | todo |
@@ -562,7 +562,27 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   now glides to rest next to "Request a quote", the delivery scene rests between two selects inside its dialog, 72 px
   from the field's click point); the CLI's message checked on real Node.js 10, 16, 18 and 20.
 
-### L3.1 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.1 — Engine API, job runner, storage abstraction, MCP server skeleton (L)
+- **Goal:** Claude drives the capture half of the loop through MCP; the CLI and the MCP server call one engine API.
+- **Scope:** new package `@demo-studio/engine` (workspace / project loading, run execution, hooks, sign-in and sandbox
+  code moved out of the CLI; typed `EngineError` at the MCP / worker boundary; a local storage interface); jobs
+  (serialisable zod payloads with slugs, refs and sha256 — never secrets or paths — in
+  `<workspace>/.demo-studio/jobs/`, one writer per file, cancel markers, `interrupted` derived; a detached `studio
+  worker` per workspace under one `worker.lock`, one job at a time); `studio mcp` over stdio with the official SDK
+  (pinned, one module) and `--print-config`; 23 tools (engine, projects, scenarios, runs, jobs, hooks / env reset, auth,
+  sandbox); human approvals by MCP elicitation, fingerprinted and signed; `studio jobs`; history; the ADR-1 amendment.
+  Moved out: MCP HTTP transport and the engine's HTTP API, the SQLite index (L4.1); render / review / export tools
+  (L3.2).
+- **Acceptance:** an MCP client runs the loop on the fixture (list, validate, dry run, capture, capture with an approval,
+  cancel, a killed worker → `interrupted`, env reset); nothing destructive, shell, secret, outside-project file or
+  production write happens through MCP without a human; a live Claude Code session (MACOS-CHECKLIST 12c, the user).
+- **Done (2026-10-17):** all of the above, automated with the SDK client over stdio on a copy of the fixture (quote
+  and catalogue captured, approval answered, cancel, `kill -9` of the worker, env reset, auth_login auto, sandbox up /
+  reset). Two reviewers found 16 issues, five of them safety holes (secrets through `{{env:}}` in agent-written
+  scenarios, files outside the project, production bypassed by a cloned project, unapproved destructive rollbacks, a
+  form hiding rollbacks) — all fixed and mutation-tested. The live Claude Code run is the user's checklist step 12c.
+
+### L3.2 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

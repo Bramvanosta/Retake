@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { HookError } from '../errors.js';
+import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@demo-studio/core';
+import { HookError, HookSecurityError } from '../errors.js';
 import type { HookContext, HookLogLevel, HookPhase, RollbackAction } from '../types.js';
 
 export interface KindEnv {
@@ -38,6 +39,11 @@ export interface PreparedHook {
    * guards its requests): a hook that writes to a host of another, read-only environment is refused in every run.
    */
   hosts?: string[];
+  /**
+   * Its rollback (setup only), for an approval: templated description (redacted) and why it needs a human through MCP
+   * (destructive, or a shell / js rollback — the caller only asks with trust `mcp`), else null.
+   */
+  rollback?: { description: string; reason: string | null };
   execute(): Promise<ExecutedHook>;
 }
 
@@ -61,6 +67,23 @@ export async function readProjectFile(projectDir: string, rel: string, what: str
       code === 'ENOENT' ? `${what} ${rel} not found (looked for ${abs})` : `cannot read ${what} ${rel}: ${(e as Error).message}`,
     );
   }
+}
+
+/**
+ * Read a file a hook runs (its SQL, its JS): readProjectFile, and with trust `mcp` (work submitted through MCP) only a
+ * file of the project folder that an agent cannot write, without secret references (core agent-trust).
+ */
+export async function readHookFile(ctx: HookContext, baseDir: string, rel: string, what: string): Promise<string> {
+  if (ctx.trust === 'mcp') {
+    const problem = projectFileProblem(ctx.project.dir, rel, { baseDir, code: true });
+    if (problem) throw new HookSecurityError(`${what}: ${problem}`, 'mcp');
+  }
+  const text = await readProjectFile(baseDir, rel, what);
+  if (ctx.trust === 'mcp') {
+    const secrets = secretRefsProblem(collectSecretRefs(text), `${what} ${rel}`);
+    if (secrets) throw new HookSecurityError(secrets, 'mcp');
+  }
+  return text;
 }
 
 /** Logs that a rollback declared on a teardown/reset hook is ignored. */

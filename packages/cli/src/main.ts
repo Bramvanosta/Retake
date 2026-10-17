@@ -11,6 +11,12 @@ import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, schemaCommand } from './com
 import { authStatusCommand, loginCommand } from './commands/auth.js';
 import type { AuthStatusOptions, LoginOptions } from './commands/auth.js';
 import { exportCommand } from './commands/export.js';
+import { mcpCommand } from './commands/mcp.js';
+import { jobsCancelCommand, jobsListCommand, jobsStatusCommand } from './commands/jobs.js';
+import type { JobsListOptions, JobsStatusOptions } from './commands/jobs.js';
+import { workerCommand } from './commands/worker.js';
+import type { WorkerCommandOptions } from './commands/worker.js';
+import type { McpCommandOptions } from './commands/mcp.js';
 import { exportCaptureCommand } from './commands/export-capture.js';
 import type { ExportCaptureCommandOptions } from './commands/export-capture.js';
 import type { ExportCommandOptions } from './commands/export.js';
@@ -365,6 +371,40 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--check', 'check each saved session now (headless, without signing in) and save the result; exit 1 when one is not valid')
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: AuthStatusOptions) => authStatusCommand(u, g, o)));
+
+  program
+    .command('mcp')
+    .description('MCP server over stdio so a Claude session (Claude Code, Claude desktop) can drive Demo Studio: projects, scenarios, runs, sessions, sandboxes (README "MCP")')
+    .option('--print-config', 'print the registration for Claude Code (.mcp.json, claude mcp add) and Claude desktop instead of serving')
+    .action(action((u, g, o: McpCommandOptions) => mcpCommand(u, g, o)));
+
+  const jobs = program.command('jobs').description('jobs an MCP client (Claude) started: dry runs, captures, hooks, resets, sign-ins, sandboxes');
+  jobs
+    .command('list', { isDefault: true })
+    .description('jobs of the workspace, newest first, and the worker')
+    .option('--project <slug>', 'only the jobs of this project')
+    .option('--state <state>', 'only jobs in this state (queued, running, succeeded, failed, cancelled, interrupted; repeatable)', collect)
+    .option('--limit <n>', 'at most this many jobs (default 20)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, o: JobsListOptions) => jobsListCommand(u, g, o)));
+  jobs
+    .command('status')
+    .description('one job: what it runs, its state, progress, result or error and the fix')
+    .argument('<id>', 'job id (j_…)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, id: string, o: JobsStatusOptions) => jobsStatusCommand(u, g, id, o)));
+  jobs
+    .command('cancel')
+    .description('cancel a job: a queued one never starts; a running one stops, its teardown and rollbacks still run')
+    .argument('<id>', 'job id (j_…)')
+    .action(action((u, g, id: string) => jobsCancelCommand(u, g, id)));
+
+  program
+    .command('worker', { hidden: true })
+    .description('run the jobs worker of the workspace (the MCP server starts it in the background)')
+    .option('--idle-exit <ms>', 'exit after this long without a job (default 60000)')
+    .option('--once', 'run at most one job, then exit')
+    .action(action((u, g, o: WorkerCommandOptions) => workerCommand(u, g, o)));
 
   for (const later of LATER_COMMANDS) {
     program

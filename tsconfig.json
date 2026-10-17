@@ -6,6 +6,7 @@
     { "path": "packages/sandbox" },
     { "path": "packages/runner-web" },
     { "path": "packages/review" },
+    { "path": "packages/engine" },
     { "path": "packages/components" },
     { "path": "packages/editor" },
     { "path": "packages/mcp" },

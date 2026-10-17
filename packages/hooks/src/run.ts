@@ -1,15 +1,17 @@
-import { readOnlyHookMessage } from '@demo-studio/core';
+import { SHELL_ALWAYS_WRITES, readOnlyHookMessage } from '@demo-studio/core';
 import type { HookKind, HookStep, HttpHookSpec } from '@demo-studio/core';
 import { checkWriteHosts } from './allow-list.js';
+import { hookFiles, hookFingerprint } from './approval.js';
 import { describeHook, hookKindOf, withName } from './describe.js';
 import { HookError, HookSecurityError, errorMessage } from './errors.js';
 import type { Journal } from './journal.js';
 import { prepareHook } from './kinds/index.js';
 import type { ExecutedHook, PreparedHook } from './kinds/index.js';
+import { baseDirOf } from './kinds/common.js';
 import { JS_NEEDS_PAGE } from './kinds/js.js';
 import { logger, redactText } from './secrets.js';
 import { addDrySaved } from './template.js';
-import type { HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
+import type { HookApprovalRequest, HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
 import { nowIso } from './util.js';
 
 export interface RunHooksOptions {
@@ -55,16 +57,33 @@ function preflight(hooks: HookStep[], ctx: HookContext, phase: HookPhase): HookR
   return failures;
 }
 
-async function confirmDestructive(hook: HookStep, reason: string, description: string, ctx: HookContext, log: Log) {
-  if (hook.confirm === true) return;
-  const approved = ctx.confirmDestructive ? await ctx.confirmDestructive(description, reason) : false;
+async function confirmDestructive(hook: HookStep, reason: string, description: string, ctx: HookContext, log: Log, request: HookApprovalRequest) {
+  // Through MCP (trust `mcp`), the agent can write `confirm: true` itself: only a human approval counts.
+  const mcp = ctx.trust === 'mcp';
+  if (!mcp && hook.confirm === true) return;
+  const approved = ctx.confirmDestructive ? await ctx.confirmDestructive(description, reason, request) : false;
   if (!approved) {
     throw new HookSecurityError(
-      `refusing destructive hook (${reason}) without "confirm: true"; add it to the hook once you have checked what it does`,
+      mcp
+        ? `refusing hook (${reason}) without a human approval: through MCP, "confirm: true" does not count — a human approves it when asked, or runs it in a terminal`
+        : `refusing destructive hook (${reason}) without "confirm: true"; add it to the hook once you have checked what it does`,
       'destructive',
     );
   }
-  log('warn', `destructive hook (${reason}) approved without "confirm: true": ${description}`);
+  log('warn', mcp ? `hook (${reason}) approved by a human: ${description}` : `destructive hook (${reason}) approved without "confirm: true": ${description}`);
+}
+
+/**
+ * Why a hook needs a human before it runs, or null: destructive (declared, or found in its templated content); with
+ * trust `mcp` also any shell hook (arbitrary local code), and a setup hook whose rollback is destructive, a shell
+ * command or JavaScript — the rollback runs later, without asking again.
+ */
+function approvalReason(hook: HookStep, kind: HookKind, prepared: PreparedHook, ctx: HookContext): string | null {
+  const own = hook.destructive === true ? 'declared destructive' : prepared.destructive;
+  if (ctx.trust !== 'mcp') return own;
+  const reasons = [own ?? (kind === 'shell' ? 'a shell command (runs local code)' : null), prepared.rollback?.reason ? `its rollback: ${prepared.rollback.reason}` : null];
+  const r = reasons.filter((x): x is string => x !== null);
+  return r.length ? r.join('; ') : null;
 }
 
 /** Journal an outcome; a journal that cannot be saved turns the result into a failure. */
@@ -91,6 +110,8 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   const startedAt = nowIso();
   const label = `${opts.phase} hook ${index + 1}/${total}`;
   let description = describeHook(hook);
+  let approval: HookResult['approval'];
+  let rollbackShown: string | undefined;
   const result = (kind: HookKind | undefined, fields: Pick<HookResult, 'ok' | 'status'> & Partial<HookResult>): HookResult => ({
     index,
     name: hook?.name,
@@ -98,6 +119,8 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     phase: opts.phase,
     description,
     ...(hook?.optional ? { optional: true } : {}),
+    ...(approval && ctx.trust === 'mcp' ? { approval } : {}),
+    ...(rollbackShown !== undefined && ctx.trust === 'mcp' ? { rollback: rollbackShown } : {}),
     ms: Date.now() - t0,
     ...fields,
   });
@@ -130,22 +153,48 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   let prepared: PreparedHook;
   try {
     if (kind === 'js' && opts.phase === 'seed') throw new HookError(SEED_NO_JS);
+    // Through MCP (core agent-trust): the files a hook references stay in the project, never agent-writable when run as
+    // code; their bytes are bound to its approval (fingerprint).
+    let files: Record<string, string> | undefined;
+    if (ctx.trust === 'mcp') {
+      const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx) });
+      if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
+      files = found.files;
+    }
     prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log });
     description = withName(hook.name, prepared.description);
+    if (prepared.rollback) rollbackShown = prepared.rollback.description;
+    // Through MCP a shell hook always writes: its `writes: false` was written by whoever drives the server.
+    if (ctx.trust === 'mcp' && kind === 'shell' && !prepared.writes) prepared.writes = SHELL_ALWAYS_WRITES;
     // A read-only run (L1.7) refuses a hook that writes before anything else (no destructive prompt for it).
     if (ctx.access?.mode === 'read-only' && prepared.writes) {
       throw new HookSecurityError(readOnlyHookMessage(prepared.writes, ctx.access), 'read-only');
     }
     // Nor does any run write to the hosts of another, read-only environment (production): refused like the above.
     if (prepared.writes && prepared.hosts) checkWriteHosts(prepared.hosts, prepared.writes, ctx.access);
-    const reason = hook.destructive === true ? 'declared destructive' : prepared.destructive;
-    // A seed rebuilds a local, disposable sandbox (L1.8): destructive steps are its job, never asked about.
-    if (reason && opts.phase !== 'seed') await confirmDestructive(hook, reason, description, ctx, log);
+    const reason = approvalReason(hook, kind, prepared, ctx);
+    // A seed rebuilds a local, disposable sandbox (L1.8): destructive steps are its job, never asked about. With trust
+    // `mcp` a shell seed step still needs a human: it runs local code, whatever the sandbox is.
+    const asks = reason !== null && (opts.phase !== 'seed' || (ctx.trust === 'mcp' && kind === 'shell'));
+    const request: HookApprovalRequest | undefined = asks
+      ? {
+          hook,
+          phase: opts.phase,
+          index,
+          env: ctx.env.name,
+          ...(files && Object.keys(files).length ? { files } : {}),
+          fingerprint: hookFingerprint(hook, { phase: opts.phase, index, env: ctx.env.name, ...(files ? { files } : {}) }),
+        }
+      : undefined;
+    if (request) approval = { reason: reason!, fingerprint: request.fingerprint };
+    // A dry run through MCP asks nobody: its result says which hooks a real run needs approved.
+    if (request && !(ctx.dryRun && ctx.trust === 'mcp')) await confirmDestructive(hook, reason!, description, ctx, log, request);
     if (ctx.dryRun) {
       const saveAs = kind === 'http' ? (hook as { http: HttpHookSpec }).http.save_as : undefined;
       if (saveAs) addDrySaved(ctx, saveAs);
-      log('info', `${label} [dry]: would run ${description}${reason ? ` (destructive: ${reason})` : ''}`);
-      return { result: result(kind, { ok: true, status: 'dry', message: 'not executed (dry run)' }) };
+      const needs = request && ctx.trust === 'mcp' ? `needs a human approval: ${reason}` : reason ? `destructive: ${reason}` : '';
+      log('info', `${label} [dry]: would run ${description}${needs ? ` (${needs})` : ''}`);
+      return { result: result(kind, { ok: true, status: 'dry', message: needs && ctx.trust === 'mcp' ? `not executed (dry run); ${needs}` : 'not executed (dry run)' }) };
     }
   } catch (e) {
     const r = failure(kind, e);

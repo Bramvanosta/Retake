@@ -1,5 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 function pad(n: number, w = 2): string {
@@ -17,6 +17,26 @@ export function newRunId(scenario: string, date: Date = new Date()): string {
     `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
     `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}-${slug}`
   );
+}
+
+/**
+ * Reserve a new run folder of `scenario` under `runsDir` (created): `newRunId`, and when that folder exists (two runs of
+ * one scenario started in the same second — concurrent runs, L1.6 — or a run reserved ahead by a job) the next free
+ * second. Run ids keep their format and their order. The runner calls it for a run without a pre-assigned id; the
+ * engine calls it when a job is submitted, so the run id is known before the run starts.
+ */
+export async function reserveRunId(runsDir: string, scenario: string, date: Date = new Date()): Promise<{ id: string; dir: string }> {
+  await mkdir(runsDir, { recursive: true });
+  for (let k = 0; ; k++) {
+    const id = newRunId(scenario, new Date(date.getTime() + k * 1000));
+    const dir = join(runsDir, id);
+    try {
+      await mkdir(dir);
+      return { id, dir };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST' || k >= 120) throw e;
+    }
+  }
 }
 
 /**

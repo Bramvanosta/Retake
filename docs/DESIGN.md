@@ -18,7 +18,9 @@ packages/sandbox      (L1.8) sandboxes: start / seed / reset / stop, process + d
 packages/runner-web   Playwright/CDP runner: in-page kit (cursor overlay, resolver), actions, recorder, encoder, timeline
 packages/editor       (phase 2) Remotion compositions + edit planner + render API
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
-packages/mcp          (phase 3) MCP server (stdio + HTTP)
+packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
+                      if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker
+packages/mcp          (L3.1) MCP server over stdio (§4b; HTTP transport: L4.1)
 packages/cli          `studio` command — everything the MCP does, for humans and CI
 fixtures/wholesale    local test product (supplier console + buyer shop) built with real Radix UI and Base UI components
 templates/<name>/     template.yaml + assets (fonts, logo)
@@ -1100,8 +1102,11 @@ studio auth status [--project P [--env E]] [--check] [--json]   # personas: vali
                                                                 # (a sandbox account never signed in: auto)
 studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Chromium launch, ffmpeg/ffprobe, display,
                                               # keychain, notifications, workspace, template fonts; project personas
-                                              # (never / expired / in use / in a git work tree), session home + hosts)
-studio render / review / export / mcp         # phases 2–3
+                                              # (never / expired / in use / in a git work tree), session home + hosts;
+                                              # MCP: registered Node path, PATH finds ffmpeg, worker, .demo-studio/ ignored)
+studio render / review / export               # phase 2
+studio mcp [--print-config]                   # §4b: MCP server over stdio (or its registration for Claude Code / desktop)
+studio jobs [list] [--project P] [--state S]… [--limit N] [--json] | status <id> [--json] | cancel <id>   # §4b jobs
 ```
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
 `--allow-writes` (L1.7) confirms writes on a production environment whose project.yaml sets `access: read-write`; on a
@@ -1111,6 +1116,239 @@ of core `RunAccess` is printed once. The run summary
 of a read-only run counts its writes (`writes  1 mocked, 0 stopped (read-only)`, + allowed / to unguarded hosts;
 `writesSummary`; a read-write run's writes stopped on another environment's hosts: `1 stopped (hosts of read-only
 environments)`), and `studio review` / `render --review` print the review's environment line.
+
+## 4b. Engine API and MCP server (L3.1)
+
+**`@demo-studio/engine`** (deps: core, hooks, runner-web, sandbox). One typed, in-process API over a workspace. The CLI calls
+the moved functions directly with its native options, errors and exit codes; `EngineError` exists only at the
+boundary of clients outside the CLI (the MCP server; the jobs worker and the HTTP API later).
+
+```ts
+openWorkspace({root?}) / openProject(ws, slugOrDir)   // moved from cli/src/workspace.ts (the CLI re-exports them)
+personaState / projectPersonaStates / tildePath       // moved from cli commands/auth.ts (`--check` stays in the CLI: Chromium)
+createEngine({root?, client: 'cli'|'mcp'|'test'}): Promise<Engine>
+Engine {
+  root, workspace, cli /* `studio -C <root>`: commands a human is asked to run */, info(): EngineInfo
+  projects: list() → ProjectSummary[]; get(slug) → ProjectView; create({name, slug?, readme?, environments?, template?});
+            updateReadme(slug, markdown, ifMatch?)
+  scenarios: get(slug, name) → {name, file (ref), path, yaml, hash}; validate(slug, yaml, {env?, until?, name?}) →
+             {ok, issues (line/col)}; save(slug, name, yaml, {ifMatch?}) → {file, path, hash (of the bytes written), created, warnings}
+  runs: list(slug, {scenario?, mode?, limit = 20}) → RunSummary[] (newest first);
+        status(slug, runId) → RunStatusWithJob (run.json + the state of its job overlaid; `list` overlays it too:
+        a queued run whose job was cancelled before any worker took it is `cancelled`, one whose worker died `interrupted`);
+        submit({project, scenario, mode: 'dry'|'capture', env?, until?, hooks?, sandbox?}, {approver?}) → {job, run_id, warnings, worker?};
+        cancel(slug, runId) → JobRecord (refused for a run without a job: a `studio run` in a terminal)
+  jobs: get(id) / list({project?, states?, kinds?, runId?, limit = 50}) / events(id, {after?}) / cancel(id) /
+        wait(id, {timeoutMs, signal?, onChange?}) / position(id) / worker() → the live worker lock or null
+  hooks: submit({project, source, env?, dry = true}, {approver?}) → {job, journal_id, worker?}
+  env:   reset({project, env?, dry = true}, {approver?}) → {job, journal_id, worker?}
+  auth: status({project?, env?}) → {personas (no profile / snapshot paths), errors};
+        login({project, env?, persona?, mode = 'headed'}) → {job, persona, env, worker?}
+  sandbox: status(slug, env?) → SandboxStatusView; up({project, env?}, {approver?}) / reset({project, env?, reseed?},
+           {approver?}) → {job, env, worker?}
+  usage() → {captures, dry_runs, renders, entries, since?}   // from history.jsonl
+}
+loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona(project, env, persona, {mode, page?, url?},
+  {interrupts, log, onOpen?}) → {interrupted} | {result}   // moved from cli commands/auth.ts (LoginOptionError {usage})
+appendHistory(root, entry) / usageCounts(root) / entitlements() → {tier: 'internal', features: 'all', limits: null}
+selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
+  runId?, scenario?, trust?, log, confirm?, loginCommand, signal?}) → {ctx, access, closeSessions} / hooksAccess
+                                                       // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
+preflightHooks(project, [{phase, hooks}], {env?, vars?, scenario?, journalFile}) → {env, items, refused}
+takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(approvals) → confirmDestructive
+```
+
+- **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
+  `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
+  absolute and cwd-relative paths, which only the CLI may use).
+- **`if_match`** (sha256 hex of the file's bytes): an existing file needs the hash its read returned — a mismatch, or
+  none, is `conflict` with `details.current`; `null` (or none) creates a file that must not exist, by `link()` (atomic
+  EEXIST, never an exists-then-rename window); the hash is checked again just before the rename. `scenario_save x`
+  is refused while `scenarios/x.yml` exists (a new `.yaml` would shadow it). The returned hash is of the bytes written
+  (a final newline is added).
+- **Storage** (R-ARC-03, local only): `LocalStorage(projectDir)` — `resolve(ref)` (refs are project-relative POSIX
+  paths: no absolute path, `..`, `.`, empty segment or backslash), `refOf(path)`, `describe(ref, kind, {hash})`
+  (stat + streamed sha256), `readText(ref)` → `{text, sha256}`, `writeText(ref, text, {ifMatch})` (atomic; a folder
+  that is a symbolic link out of the project is refused, real paths compared). Producers (runner, editor, review)
+  keep writing absolute paths into their records: refs inside run.json / render.json are a format change (L3.6 /
+  BL-70); the engine converts at its boundary (a run's paths are re-rooted on its current folder).
+- **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
+  and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
+  `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health
+  responses, a check's detail and URL) under `untrusted`.
+- **Errors.** `EngineError {code, message, fix?, details?}`, codes `not_found | invalid | conflict | refused |
+  needs_approval | busy | unavailable | cancelled | internal`; `toEngineError(e)` maps the other packages' errors by
+  name in one place (ScenarioError / ConfigError → not_found or invalid, AccessError / HookSecurityError /
+  WriteRefusedError / HostRefusedError → refused, SandboxError busy / down / interrupted → busy / unavailable /
+  cancelled, CancelledError → cancelled, anything else → internal).
+
+**Runs: one executor** (`execute-run.ts`, moved from `cli/commands/run.ts`). `prepareRun(ws, project, scenario,
+{dry, until, hooks, env, headed, sandbox})` (the sandbox pick from the scenario's raw `env:`, the scenario validated
+against the environment it runs on, the template; `RunOptionError` = a CLI usage error) and `executeRun(prepared, req,
+{runId?, allowWrites?, hideCursor?, signal?, loginCommand?}, ports)` (the scenario's warnings and notes, the sandbox
+take or check, `runScenario`) are what `studio run` and the worker both call. `RunPorts {issues, note, sandboxLog,
+progress, interrupts}` carry what the CLI prints, in the same order as before; `interrupts: InterruptPort` replaces the
+CLI's direct `onInterrupt` for the sandbox take (`open({message, onQuitSync}) → {signal, interrupted, dispose}`; the
+CLI's implementation is `onInterrupt`, the worker's the job's AbortSignal plus its signal rule). `checkAllowWrites`
+throws `AccessError` (the CLI turns it into its usage error), a failed take `SandboxTakeError` (`interrupted` → exit
+130). `studio run`'s output, errors and exit codes are unchanged (a cancelled run still exits 1).
+
+**Jobs** (R-ARC-02; `jobs/`). Input contract in core (`jobs.ts`, `JobInputSchema`, version 1): a `run` job is
+`{version, kind: 'run', project (slug), scenario (name), scenario_sha256 (of the file's bytes at submit), mode,
+env?, until?, hooks?, sandbox?, run_id (reserved), submitted_by}` — strict (no other key), never a secret, a session or
+a path. Files under `<workspace>/.demo-studio/` (git-ignored):
+
+```
+jobs/<id>/job.json      the record: written once by the submitter (queued), then only by the worker that claimed it
+jobs/<id>/claim         {pid, started_at, at} — created O_EXCL: the atomic claim
+jobs/<id>/cancel        {at, by} — created O_EXCL by a cancel (run_cancel / job_cancel); the worker polls it (250 ms)
+jobs/<id>/events.jsonl  appended by the claiming worker: state changes, the runner's (redacted) progress, logs, the result
+workers/worker.lock     {pid, started_at, host, version, build, since} — one worker per workspace (concurrency 1)
+workers/worker.log      what workers print (stderr), appended
+```
+
+- Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
+  Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
+  `interrupted` (fix: `studio env reset <project>`); a `queued` job with a cancel marker and no claim is derived
+  `cancelled`. The next worker persists those (it holds the lock). run.json is never rewritten for `interrupted`: the
+  run status overlays it.
+- `succeeded` = ran to the end (the run's own status is `result.status`); `failed` = could not run (EngineError code
+  and message: the scenario's bytes changed since submit → `conflict`, a sandbox take failed…).
+- Submit (`submitRunJob`): names checked, `prepareRun`, the hooks the run executes checked and approved (below), the
+  scenario hashed, `reserveRunId` (core; the runner uses it too) and a `queued` run.json written, the input queued; the
+  MCP engine then calls `ensureWorker`. Early exits never leave run.json `queued`: the worker closes a reserved run as
+  `cancelled` (cancelled before it started) or `failed` (it could not start).
+- `hooks` / `env_reset` jobs (`jobs/hooks-job.ts`): `{version, kind: 'hooks', project, source (core HOOKS_SOURCE_RE:
+  reset | <scenario>:setup|teardown | hooks/<name>.yaml — a file's real path must be inside the project), env?, dry,
+  journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
+  journal_id (`<stamp>-env-reset`)}`. The executors are `studio hooks run` / `studio env reset` on the engine's
+  `createHookContext` with trust `mcp` and the job's approvals; results (`HooksJobResult`, `EnvResetJobResult`) list
+  each hook with its trusted fields (index, name, kind, status, the hook as declared, the approval reason) and keep
+  its templated description, message and error under `untrusted`. A cancel stops the hooks (a setup's completed ones
+  are rolled back): the job ends `cancelled`.
+- **Approvals** (R-MCP-35, `approvals.ts`). Every queued job runs its hooks with **trust `mcp`** (core `HookTrust`;
+  hooks `HookContext.trust`, runner `RunOptions.hookTrust`): `confirm: true` is ignored; destructive hooks and every
+  shell hook need an approval; a shell hook always counts as writing (`SHELL_ALWAYS_WRITES`: refused on a read-only
+  run, by the runner's static check too). At submit, `preflightHooks` dry-runs the hooks the job will execute (a run:
+  setup + teardown; hooks: the source; env_reset: the project's reset hooks — never the journal rollbacks) with trust
+  `mcp`: nothing executes, secrets are `***`, no browser opens; a refusal fails the submit (`refused`, fix = the
+  `studio` command); the hooks that need a human (from the dry run, else from the file alone) go to the client's
+  `Approver` once (`ApprovalRequest {what, project, env {name, production, access}, items [{fingerprint, phase, index,
+  name, kind, description (templated), reason}], fix}`). No approver → `needs_approval`; declined / cancelled /
+  timeout / error → `refused`; accepted → `input.approvals = [{fingerprint, by: 'human-elicitation', at}]`, written once
+  with the job. `fingerprint` = hooks `hookFingerprint(hook, {phase, index, env})`: sha256 of canonical JSON (sorted
+  keys) of the **raw** hook as its file declares it, its phase, position and environment — templates unresolved, so
+  `{{run.id}}` and saved responses do not differ between preflight and run. The worker's `confirmDestructive` is
+  `approvalChecker(input.approvals)`: a hook that needs a human runs only when its fingerprint is listed (a changed or
+  moved hook is refused). With trust `mcp` a dry run never calls the approver: its results carry `approval {reason,
+  fingerprint}`. The CLI (trust `author`) is unchanged: `confirm: true`, `--yes` / the prompt, `writes: false`.
+  *Rollbacks* (L3.1 review): a setup hook whose rollback is destructive (HTTP DELETE, destructive SQL inline or in its
+  file) or is a shell command or JavaScript needs the approval too (its rollback runs later — a failure, a cancel, an
+  environment reset — without asking again); the item's `description` ends with `; rollback: <templated rollback>`
+  (also `rollback`), and its reason with `its rollback: …` (core `rollbackApprovalReason`, hooks `PreparedHook.rollback`).
+  *Files*: the fingerprint also folds `files` — ref → sha256 of each project file the hook references (hooks
+  `hookFiles`: its sql / js file and its rollback's, and every relative word of its shell command that names an
+  existing file under its working directory: `./seed.sh`, `node scripts/x.mjs`, `psql -f reset.sql`): a script changed
+  after the approval is refused. *Signed* (`jobs/signing.ts`): `FileJobQueue.enqueue` signs each approval —
+  `sig` = HMAC-SHA256 over the canonical job input (without its approvals) and the approval, with the key
+  `<DEMO_STUDIO_HOME>/approvals.key` (32 random bytes in hex, 0600 in a 0700 folder, created on the first approval);
+  the worker keeps only approvals whose signature verifies (`verifiedApprovals`; the others are dropped with a `warn`
+  event, their hooks refused), so a job.json written by anything but a submit carries no approval. Whoever can read
+  the studio home can sign: it guards against a forged job file, not against a process running as the user with access
+  to `~/.demo-studio` (which holds the sessions too).
+- **What work submitted through MCP may reference** (core `agent-trust.ts`; the agent writes scenarios, README.md and
+  new projects, and reads what runs return). Checked at `scenario_validate` / `scenario_save` (as errors), at submit
+  (`checkAgentTrust`: `refused` with the `studio` command) and again where it runs (the runner with `hookTrust: 'mcp'`
+  before anything opens; the hooks executor; the step and the hook that read a file):
+  - *Secrets*: no `{{env:…}}` / `{{keychain:…}}` anywhere in the scenario (steps, hooks, vars) nor in a code file it
+    runs (eval.file, a hook's sql / js file). Only project.yaml (personas' login steps, databases, mailbox, reset hooks)
+    and the project's `hooks/` files — what a human wrote — resolve them. Masking catches a value as is, not a
+    transformed one (base64): the reference itself is refused.
+  - *Files*: drop_file.path, eval.file, a hook's sql / js file (and its rollback's) and the files its shell command
+    names are relative, inside the project folder once symbolic links are followed (`projectFileProblem`: no absolute
+    path, `~`, `..` out of it); a templated path is checked again when the step runs (runner `Runtime.agentTrust`).
+  - *Code from agent-writable files*: eval.file, a hook's sql / js file and a script its shell command names are never
+    README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` or `.demo-studio/` (`AGENT_WRITABLE_PATHS`).
+  - *Production across projects* (`protected-hosts.ts`): the protected hosts are the page hosts (host + port, loopback
+    names folded) and `read_only.hosts` of every production or read-only environment of **every** project of the
+    workspace. `project_create` refuses a page on one of another project's; a run, hooks or an environment reset on a
+    read-write environment with a page on one is refused at submit and by the worker (`checkWorkspaceProtection`). A
+    protected environment itself is not concerned (its own access applies); sandboxes neither.
+- Worker (`runWorker`, entry `worker-main.ts`; `studio worker` (hidden) runs the same): takes `worker.lock` (a live
+  holder: exit at once; a stale one is taken over under a breaker), claims the oldest queued job, checks its cancel
+  marker right after the claim, runs it, writes its final state — a write that fails makes it exit 1, so readers see
+  `interrupted` rather than a live `running`. Idle for `--idle-exit` (default 60 s): it releases the lock, looks at the
+  queue once more (a job queued while a client saw it alive), then exits. It exits when `.demo-studio/` disappears,
+  and, when idle, when its build changed (`buildStamp`: version + the mtimes of the modules of the engine and of every
+  `@demo-studio/*` package it depends on at run time, transitively from the package.json files — core, hooks,
+  runner-web, sandbox), handing over to a new worker if jobs wait. A job whose input version or kind it does not know
+  (a newer client) is left to a worker of the new build when the code changed, else closed `failed` (`invalid`,
+  "refused without running") — never parsed as another kind. Signals: the first SIGINT / SIGTERM stops claiming and aborts
+  the running job (teardown and rollbacks run); a later one removes session copies, runs the take's `onQuitSync` and
+  exits 130 on the next tick, after the runner's own second-signal handler has killed its shell hooks.
+- `auth_login` / `sandbox_up` / `sandbox_reset` jobs (part D). `{…, kind: 'auth_login', env?, persona? (a name),
+  mode: 'headed' | 'auto'}`: the executor is `studio login`'s (`loginTarget` + `signInPersona`, under the job's
+  interrupt port): `headed` opens a visible window on the worker's machine and the job waits until the human closes
+  it; `auto` plays the persona's `login:` steps. Its result (`AuthLoginJobResult`) is the check's status, `signed_in`,
+  the `studio login` command, and the check's detail and URL under `untrusted` — never a profile or snapshot path, a
+  cookie or a secret. `{…, kind: 'sandbox_up', env?}` / `{…, kind: 'sandbox_reset', env?, reseed?}`: `Sandbox.up` /
+  `reset` under the interrupt port (`onQuitSync` = `killStartedSync`), result `SandboxJobResult` (services started /
+  kept / changed, the reset or null, pages). **Seed steps run with trust `mcp`** (sandbox `SandboxCallOptions.seedTrust
+  {trust, confirm}` → `ProviderContext.seedTrust` → `runSeed`): a shell seed step needs an approval (hooks: in phase
+  `seed` only a shell step asks under trust `mcp`; destructive http / sql steps rebuild the sandbox's own data and are
+  never asked about; `exec` steps run in a container and are not hooks). Its fingerprint is `hookFingerprint(step,
+  {phase: 'seed', index (among ALL the seed steps), env: <sandbox env>})` — `runSeed` maps runHooks' batch index (between
+  exec steps) to it. `seedApprovalItems(project, env)` lists them at submit for sandbox jobs and for a run with
+  `sandbox: true` (whose take passes the run's trust and approvals to `prepareTake`). An interrupted job's `fix` depends
+  on its kind: `env reset` (run, hooks, env_reset), `login` (auth_login), `sandbox up` (sandbox jobs).
+- The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
+  the next worker records — appends a line to `<workspace>/.demo-studio/history.jsonl` (`{v, at, job, kind, project,
+  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `studio run`,
+  `studio render` and `studio still` append theirs (no job), `studio export` one counting the formats it re-rendered
+  (component previews are not counted). `engine.usage()` sums them; `entitlements()` is the parked licence hook.
+- `studio jobs [list] | status <id> | cancel <id>` (CLI, `commands/jobs.ts`) reads the same queue through the engine
+  (`client: 'cli'`, `autoStartWorker: false`: a worker started from a terminal would inherit the terminal's
+  environment and run the jobs an MCP client queued): newest first with progress and outcome, one job's details, a
+  cancel (a finished job: nothing to do; a queued one is cancelled at once, closed by the next worker). Malformed ids and states are usage errors (exit 2); an unknown job exits 1.
+- `ensureWorker(root)` spawns `node <engine>/worker-main.js --root <ws>` detached (`--conditions=source --import
+  <tsx loader>` + the `.ts` entry when the engine runs from its sources) unless the lock's holder is alive. The worker
+  inherits the spawning server's environment and outlives it.
+
+**`@demo-studio/mcp`** (deps: core, engine, `@modelcontextprotocol/sdk` pinned at exactly 1.32.1, zod).
+
+- `server.ts` is the only module importing the SDK: the low-level `Server` (tools/list, tools/call), the stdio
+  transport; it ends when stdin ends or closes, once the calls already received are answered, or when stdout breaks.
+- `schema.ts`: tool inputs are zod `strictObject`s (an unknown argument is refused), published with
+  `z.toJSONSchema(s, {io: 'input'})` (a field with a default is optional) without `$schema` / `$id`. Argument
+  problems are tool errors (`invalid`, one line per argument), so the model can correct them; an unknown tool is a
+  JSON-RPC error.
+- `result.ts`: `content[0]` a summary for Claude (never untrusted text), `content[1]` the data as JSON, also
+  `structuredContent`; strings under `untrusted` are cut at 2000 characters; errors: `isError`, `"<code>: <message>"`
+  + `fix`, `structuredContent.error`.
+- `startMcpServer({root})`: console.log / info / debug go to stderr; one engine (`client: 'mcp'`). Nothing in this
+  process opens a browser or starts a capture (auth status reads files; sandbox status asks the provider).
+- `config-snippet.ts`: `--print-config` — `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`),
+  `clientPath` (PATH with the node's folder first + Homebrew / system folders, without the folders a package manager
+  adds for its script: `node_modules/.bin`, corepack, node-gyp-bin), `DEMO_STUDIO_HOME` when set; the
+  `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr).
+- Tools of part A: `engine_info`, `project_list`, `project_get`, `project_create`, `project_update_readme`,
+  `scenario_get`, `scenario_validate`, `scenario_save`, `run_list`, `run_status`, `auth_status`, `sandbox_status`.
+  Part B: `run_dry` (waits `wait_s`, default 20), `run_capture` (returns at once), `run_status` with `wait_s` and the job
+  overlay, `run_cancel`, `job_list`, `job_status`, `job_cancel`. `wait_s` is 0–25 s: a wait polls the job (300 ms)
+  until it finishes; while waiting, a call whose request carries a `progressToken` gets `notifications/progress`
+  (`progress` = steps done, `total` = steps, `message` = state and current step; strictly increasing, ≤ 2 a second:
+  `progressReporter` in server.ts). The client cancelling the call ends the wait, never the job. Part C: `hooks_run`
+  and `env_reset` (jobs, `dry` by default, `wait_s` default 20; annotations destructive + open world). Part D:
+  `auth_login` (`mode` headed by default, `wait_s` 0; annotation open world, not destructive; no credential argument —
+  the stdio test checks that no tool schema names a password, secret, token or cookie) and `sandbox_up` /
+  `sandbox_reset` (`wait_s` 20; destructive, not open world) — 23 tools.
+- **Elicitation** (`approval.ts`). When the client declared form elicitation, a call gets `CallContext.elicit` (server.ts:
+  `server.elicitInput({mode: 'form', message, requestedSchema}, {relatedRequestId, timeout, signal})`) and the tool an
+  `Approver`: one form per submit, message = the work, project, environment (production, access), each hook (phase,
+  position, name, templated description with its target, reason) and the `studio` command; schema `{approve: boolean}`
+  (required, default false). Only `accept` with `approve: true` approves. The timeout is explicit — 10 min
+  (`DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS`), since the SDK's default request timeout is 60 s; a timeout
+  (`isTimeoutError`) or any failure refuses. A client without form elicitation gets no approver: `needs_approval`.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

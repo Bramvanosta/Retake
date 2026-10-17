@@ -188,3 +188,34 @@ export function destructiveReason(hook: HookStep, opts: DestructiveOptions = {})
       return null; // only an explicit `destructive: true` marks page scripts
   }
 }
+
+/**
+ * Why a setup hook's rollback needs a human before the hook runs, for work submitted through MCP (trust `mcp`): a
+ * destructive rollback (HTTP DELETE, destructive SQL inline or in its file), and every shell or js rollback (local code,
+ * code run in the page). Null: no rollback, or one that only undoes with a non-destructive request.
+ */
+export function rollbackApprovalReason(hook: HookStep, opts: DestructiveOptions = {}): string | null {
+  switch (hookKind(hook)) {
+    case 'http': {
+      const rb = (hook as { http: HttpHookSpec }).http?.rollback;
+      return rb && (rb.method ?? 'GET').toUpperCase() === 'DELETE' ? 'its rollback: HTTP DELETE' : null;
+    }
+    case 'sql': {
+      const spec = (hook as { sql: string | SqlHookSpec }).sql;
+      const rb = typeof spec === 'object' && spec ? spec.rollback : undefined;
+      if (rb === undefined) return null;
+      const { file, query } = typeof rb === 'string' ? sqlSource(rb) : rb;
+      const text = query ?? (file ? readProjectText(file, opts) : undefined);
+      const kw = text === undefined ? null : sqlDestructiveKeyword(text);
+      return kw ? `its rollback: ${file && !query ? `${file} contains ${kw}` : `SQL ${kw}`}` : null;
+    }
+    case 'shell': {
+      const spec = (hook as { shell: string | ShellHookSpec }).shell;
+      return typeof spec === 'object' && spec?.rollback !== undefined ? 'its rollback: a shell command (runs local code)' : null;
+    }
+    case 'js': {
+      const spec = (hook as { js: unknown }).js as { rollback?: string } | string;
+      return typeof spec === 'object' && spec?.rollback !== undefined ? 'its rollback: JavaScript run in the page' : null;
+    }
+  }
+}

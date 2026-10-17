@@ -167,6 +167,9 @@ studio schema [scenario|project|template|timeline|sandbox]    # JSON Schema on s
 studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
 studio auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
+studio mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
+studio jobs [--project P] [--state S] [--limit N] [--json]   # jobs Claude started (dry runs, captures, hooks…)
+studio jobs status <id> [--json] · studio jobs cancel <id>   # one job; cancel it (teardown and rollbacks still run)
 ```
 
 Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug messages), `--no-color`.
@@ -224,7 +227,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **export-capture** (and **run --raw**) writes the raw package of a run for another editing tool — clips per scene,
   cursor data or layer, FCPXML / EDL / OTIO / CSV markers, `manifest.json` — see
   [Raw export for editors](#raw-export-for-editors).
-- **record**, **mcp** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
+- **mcp** serves Demo Studio's tools to an MCP client over stdio (Claude Code, Claude desktop); `--print-config`
+  prints how to register it — see [MCP: Claude drives Demo Studio](#mcp-claude-drives-demo-studio).
+- **record** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
 invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a session, running js hooks or starting,
@@ -2381,6 +2386,181 @@ reset:
 - **Disk**: `down` never removes images, and builds leave Docker's build cache; `docker image rm` and the usual Docker
   tools reclaim them.
 
+## MCP: Claude drives Demo Studio
+
+`studio mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio: a Claude session (Claude Code, Claude
+desktop, any MCP client) lists the projects, reads a README, writes and validates scenarios and reads runs, sessions
+and sandboxes through tools, dry-runs and captures scenarios, runs hooks and resets environments, and the CLI and the
+server share one engine (`@demo-studio/engine`): a dry run, a capture or hooks started here run the same code as
+`studio run` / `studio hooks run` / `studio env reset`. Hooks that need a human are approved by the user through an
+approval form the client shows (MCP elicitation). Sign-ins (a window for the human) and sandbox start / reset are jobs
+too.
+
+**Registering it.** `studio mcp --print-config` (from your workspace, or with `--root <workspace>`) prints the JSON
+block and the `claude mcp add` command with absolute paths (in this repository run `node packages/cli/dist/bin.js mcp
+--print-config`: `pnpm studio …` prints a banner before the JSON). An extra `-e NAME=value` goes **before** the `--`:
+
+```sh
+# Claude Code, for every project of this user (what --print-config prints, shortened):
+claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/packages/cli/dist/bin.js --root <workspace> mcp
+```
+
+```json
+{ "mcpServers": { "demo-studio": {
+    "command": "/Users/you/.local/share/mise/installs/node/22/bin/node",
+    "args": ["<repo>/packages/cli/dist/bin.js", "--root", "<workspace>", "mcp"],
+    "env": { "PATH": "<node's folder>:…:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin", "DEMO_STUDIO_HOME": "<only when you set it>" } } } }
+```
+
+- Claude Code: the `claude mcp add` line (per user), or the JSON in a `.mcp.json` at the workspace root (per project);
+  `/mcp` in a session shows it connected.
+- Claude desktop: the JSON in `~/Library/Application Support/Claude/claude_desktop_config.json`, then restart it
+  (not tested yet).
+- The command is an **absolute Node.js ≥ 22**: GUI apps do not see mise / nvm shims and the default `node` may be
+  older. `--print-config` names a path that survives patch upgrades where there is one (mise's `installs/node/22`,
+  an nvm `node/22` alias folder, Homebrew's `opt/node@22`). After a Node.js major upgrade, print it again.
+- `env.PATH` is your current PATH plus Homebrew's folders (a GUI client's PATH lacks them; the engine runs ffmpeg,
+  docker and psql), without the folders a package manager adds for the script it runs (`node_modules/.bin`,
+  corepack). Secrets the `{{env:…}}` references of project.yaml need go in `env` too (or in the keychain): a GUI client
+  does not read your shell profile. `DEMO_STUDIO_HOME` is carried over when set.
+- Without a workspace (`--root`, `DEMO_STUDIO_ROOT` or a `studio.yaml` above the folder it starts in) it refuses to
+  start, on stderr, exit 2. stdout carries the protocol only.
+
+**Tools.**
+
+| Tool | Does | Writes |
+|---|---|---|
+| `engine_info` | version, workspace root, features | — |
+| `project_list` | projects: slug, name, folder, scenarios, environments (a broken one with its error) | — |
+| `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
+| `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
+| `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
+| `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
+| `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
+| `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
+| `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, outputs (paths + sha256 once finished), dry-run screenshots, and the state of its job (queued and its place, interrupted…); `wait_s` (≤ 25) waits for it to finish | — |
+| `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
+| `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
+| `run_cancel` | cancels a run started here: queued, it never starts; running, it stops at its next step and its teardown and rollbacks still run | — |
+| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result, a cancel | — |
+| `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
+| `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
+| `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
+| `auth_login` | signs a persona in, as a job: `headed` (default) opens a browser window **on the user's machine** — the user signs in there and closes it, Claude is told to ask them and never sees a password; `auto` plays the persona's `login:` steps (their secrets come from the server's environment or the keychain). The result says whether the session works now (no path, no cookie). The window holds the queue until it is closed | the session, in `~/.demo-studio` |
+| `sandbox_status` | a sandbox's services, health, seed, last reset, take lock (starts nothing) | — |
+| `sandbox_up` | as a job: starts what is not running, checks health, seeds when it never was or the seed changed | the sandbox (its processes or containers, its data) |
+| `sandbox_reset` | as a job: back to the seed (`reseed: true` runs the seed even when a snapshot could be restored); the sandbox must be up | the sandbox's own data |
+
+Every result starts with a short summary for Claude, then the data as JSON (also as `structuredContent`) with local
+paths it can read; an error is a tool error with a code (`not_found`, `invalid`, `conflict`, `refused`,
+`needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix`.
+
+**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in or a sandbox up / reset is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
+with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
+`.demo-studio/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
+exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
+`run_capture` returns at once, and `run_status {wait_s: 25}` (called again until the run is finished) follows it with
+progress notifications. A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
+`failed` means it could not run (a scenario changed since it was submitted, a sandbox that would not start…).
+- The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
+  teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
+  server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.
+- Stopping it: `run_cancel` / `job_cancel`, or a signal — the first SIGINT / SIGTERM cancels the running job (its
+  teardown and rollbacks run) and the worker exits; a second one quits at once. A worker that is killed (`kill -9`,
+  a crash) leaves its job `interrupted`: the run stopped where it was, and `studio env reset <project>` replays the
+  rollbacks it left pending. Sandbox services a killed worker had started keep running, as after `kill -9 studio`
+  (`studio sandbox down`).
+- After `pnpm build` (or a `git pull`), an idle worker notices that its code changed and exits; the next job starts a
+  new one.
+- `studio run` in a terminal does not go through the queue (it runs in its own process, as before), so two captures —
+  one from a terminal, one from Claude — can run at the same time.
+- A killed sign-in leaves nothing saved (`studio login` again); a killed sandbox job may leave services running and its
+  seed unrecorded (the next `studio sandbox up` seeds again). Each interrupted job's `fix` says so.
+- **`studio jobs`** shows them in a terminal, also once the Claude session is gone: `studio jobs` (newest first, with
+  progress, outcome, who submitted it, and the worker), `studio jobs status <id>` (input, times, place in the queue,
+  result or error and its fix), `studio jobs cancel <id>`. It never starts a worker (one started from a terminal would
+  run Claude's queued jobs with the terminal's environment): a queued job it cancels is closed by the next worker, and
+  `run_list` / `run_status` already show its run `cancelled`.
+- A worker refuses (job `failed`, "refused without running") a job of a kind or input version it does not know — a
+  newer client's; after a `pnpm build` it leaves such a job to a worker of the new build.
+- **History.** Every finished job, and every `studio run` / `studio render` / `studio still` in a terminal (and a
+  `studio export` that re-rendered a format), adds a line to
+  `<workspace>/.demo-studio/history.jsonl` (kind, project, who, state, duration, captures / dry runs / renders
+  produced; component previews are not counted); `engine_info` reports the totals. It is local, never sent anywhere — the counters a licence or Remotion
+  usage report would need later (an entitlements stub answers "everything, no limit" for now).
+- `studio doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where
+  there is one), whether the PATH it registers finds ffmpeg, the worker (running or idle), and whether the workspace's
+  `.demo-studio/` is git-ignored when the workspace is a git work tree.
+
+**Safety.**
+- **Hooks need a human.** The agent driving the server can write the scenarios it runs (`scenario_save`), so the trust
+  flags of hook files do not count for work submitted through MCP: `confirm: true` is ignored, every destructive hook
+  and every **shell** hook (a local command) needs the user's approval, and a shell hook always counts as writing —
+  its `writes: false` is ignored, so it never runs on a production or read-only environment. When `run_capture`,
+  `run_dry {hooks: "run"}`, `hooks_run {dry: false}` or `env_reset {dry: false}` needs such hooks, the server first
+  checks them without running anything (templated, secrets as `***`; what a safety rule refuses fails the call at
+  once), then asks the user once, through the client's approval form (MCP elicitation, form mode): the project, the
+  environment (production or not, read-only or not), each hook with its kind, target (request and host, command,
+  SQL and database) and why it needs approval, and the `studio` command to run it in a terminal instead.
+  - **Rollbacks.** A setup hook whose rollback is destructive (HTTP DELETE, destructive SQL) or is a shell command or
+    JavaScript needs the approval too — even when the hook itself only reads: its rollback runs later (a failure, a
+    cancel, `env_reset`) without asking again. The form shows each hook's rollback (`…; rollback: http DELETE …`).
+  - Approved: the job is queued with the approvals — fingerprints of the hooks *as their file declares them* (with
+    their phase, position and environment) and of the project files they reference (sql / js files, the scripts a
+    shell hook names: `./seed.sh`, `psql -f reset.sql`); the worker runs a hook that needs approval only when its
+    fingerprint is listed, so a hook or a script changed between the question and the run is refused. Each approval
+    is signed with a key kept in `~/.demo-studio/approvals.key` (`DEMO_STUDIO_HOME`; 0600): the worker ignores an
+    approval a submit did not sign (a job file written by hand into `.demo-studio/jobs/`). Replaying the rollbacks of
+    hooks a human or an approval let run is never asked about again.
+  - Declined, dismissed, not answered within 10 minutes (`DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS` changes that), or a
+    question that failed: the call is refused (`refused`) with the `studio …` command a human runs; nothing is queued.
+  - A client that cannot show the form (no elicitation support): refused with `needs_approval` and the same command.
+    Claude Code declares elicitation; Claude desktop is not tested yet. Claude Code's own tool timeout
+    (`MCP_TOOL_TIMEOUT`) also bounds how long a question can stay open.
+  - From a terminal (`studio run`, `studio hooks run`, `studio env reset`) nothing changes: `confirm: true` and
+    `--yes` / the prompt approve destructive hooks, and a shell hook's `writes: false` counts.
+  - A dry run (`run_dry` without `hooks: "run"`, `hooks_run` / `env_reset` by default) asks nobody.
+  - **Sandbox seeds.** `sandbox_up`, `sandbox_reset` and `run_capture {sandbox: true}` may run a sandbox's seed: its
+    **shell** steps are approved the same way (a local command is local code, whatever the sandbox is). Its http and
+    sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
+    a sandbox container: none of them is asked about. From a terminal (`studio sandbox up`) nothing is asked, as before.
+- Tools take **slugs and ids only** — a project slug, a scenario name, a run id — never a file path: a path, `..` or
+  an unknown argument is refused before anything is read. The server only touches its workspace.
+- **No secret in what Claude writes or runs.** A scenario saved, validated or run through MCP may not contain
+  `{{env:…}}` / `{{keychain:…}}` anywhere (steps, hooks, vars), nor may a code file it runs (eval `file`, a hook's sql
+  / js file): an agent could read any variable of the server's environment back through an error message, in a form
+  the masking does not catch (base64). Only what you wrote resolves secrets: project.yaml (personas' login steps,
+  databases, mailbox, `reset` hooks) and the project's `hooks/` files. Refused at `scenario_save` /
+  `scenario_validate`, at submit (with the `studio` command a human runs) and again by the worker.
+- **Files stay in the project.** Through MCP, a file a scenario or hook names — `drop_file` `path`, eval `file`, a
+  hook's sql / js file, a script its shell command runs — is relative to the project folder and inside it, symbolic
+  links followed (no absolute path, `~` or `..` out of it; a templated path is checked when the step runs), and code is
+  never run from a file Claude can write (README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/`,
+  `.demo-studio/`): keep scripts in `hooks/` or `assets/`. From a terminal nothing changes.
+- **Production of every project.** The hosts of the production and read-only environments of *every* project of the
+  workspace are protected through MCP: `project_create` refuses a page on another project's (loopback names alike,
+  ports compared), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human
+  marks that environment production / read-only in project.yaml, or runs it in a terminal).
+- Text the filmed site or a service controls (a step's error message, warnings, a session check's detail and URL,
+  health responses) comes back under an `untrusted` key, truncated, never in the summary; the server's instructions
+  tell Claude it is data, not instructions.
+- No tool takes a password, token or secret value, and none returns a session file or profile path: `auth_status`
+  gives a state and the command a human runs; `auth_login` opens a window for the human (or plays the project's own
+  login steps), and its result is a state. `project_get` leaves out `auth` (persona names only: no login steps)
+  and masks a password written in a URL; whatever else a user wrote in clear in project.yaml or the README is
+  returned as written.
+- No tool deletes anything; overwriting an authored file needs `if_match`. Environments `project_create` declares are
+  neither production nor read-only: a human marks production environments in project.yaml (there is no tool that
+  changes project.yaml).
+- **What reaches the model.** Whatever a tool returns — README, scenarios, run summaries, page text under
+  `untrusted`, file paths — becomes part of the Claude conversation, i.e. goes to the model provider. Files a tool
+  only names (captures, screenshots, DOM snapshots) stay on this machine until Claude reads one: a screenshot or DOM
+  snapshot of the filmed product Claude reads goes into the conversation too. The full data-flow table is the ADR-1
+  amendment in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **Tested clients.** The server is tested with the MCP SDK's own client over stdio (the whole conversation, approvals
+  answered, a worker killed). In Claude Code the step in [docs/MACOS-CHECKLIST.md](docs/MACOS-CHECKLIST.md) is the
+  live acceptance; Claude desktop (and whether it shows approval forms) is untested.
+
 ## Security
 
 - **No secrets in files.** Use `{{env:VAR}}` or `{{keychain:service/account}}` references; validation flags database
@@ -2500,7 +2680,10 @@ packages/components   components: manifest schema, registry, validation, scaffol
 packages/editor       edit planner (planEdit → EditPlan, reframing), the Remotion compositions (src/remotion) and the
                       render pipeline (bundle cache, asset server, renderVideo / renderStill / listRenders, exportRender)
 packages/review       review of a render: contact sheets, key frames, output-time timeline, checks, report, diff
-packages/mcp          phase 3
+packages/engine       the engine API the CLI and the MCP server share: workspace / project loading, project, scenario
+                      (if_match saves), run, persona-session and sandbox reads, local storage refs, EngineError codes,
+                      the run executor of `studio run`, the job queue and its worker (worker-main.ts)
+packages/mcp          the MCP server (`studio mcp`): tools over stdio, zod schemas, results, --print-config
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests (and its Dockerfile)
 projects/             the fixture project and its sandboxes (your projects live in your workspace)
 templates/            starter themes: default, editorial, motion
@@ -2539,7 +2722,7 @@ committing them.
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
 | 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
-| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | Planned |
+| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | In progress — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; render / review / export tools are L3.2 |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |

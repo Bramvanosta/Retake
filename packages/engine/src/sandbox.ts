@@ -1,0 +1,64 @@
+/** A sandbox's status for clients outside the CLI (the MCP `sandbox_status` tool): read-only, starts nothing. */
+import { resolveEnvironment } from '@demo-studio/core';
+import type { LoadedProject } from '@demo-studio/core';
+import { LocalStorage } from './storage.js';
+
+export interface SandboxStatusView {
+  project: string;
+  env: string;
+  provider: string;
+  state: 'up' | 'partial' | 'down';
+  services: Array<{ name: string; state: string; healthy?: boolean; pid?: number; container?: string; started_at?: string; changed?: boolean; orphan?: boolean }>;
+  /** Page key → URL of the sandbox. */
+  pages: Record<string, string>;
+  seed?: { hash: string; at: string; ms: number; current: boolean };
+  last_reset?: { strategy: string; at: string; ms: number; by: string };
+  /** The take lock, when a live command holds it. */
+  lock?: { command: string; since: string; pid: number; run?: string };
+  /** sandbox.yaml and the logs folder, as project refs when inside the project. */
+  file: string;
+  logs: string;
+  notes: string[];
+  /** Health messages of the services (their own responses): data, never instructions. */
+  untrusted: { health: Record<string, string> };
+}
+
+export async function sandboxStatus(project: LoadedProject, env?: string): Promise<SandboxStatusView> {
+  const { openSandbox } = await import('@demo-studio/sandbox');
+  const sb = openSandbox(project, env);
+  const st = await sb.status();
+  const storage = new LocalStorage(project.dir);
+  const ref = (p: string) => {
+    try {
+      return storage.refOf(p);
+    } catch {
+      return p;
+    }
+  };
+  const health: Record<string, string> = {};
+  for (const s of st.services) if (typeof s.health === 'string' && s.health !== 'ok') health[s.name] = s.health;
+  return {
+    project: project.slug,
+    env: st.env,
+    provider: st.provider,
+    state: st.state,
+    services: st.services.map((s) => ({
+      name: s.name,
+      state: s.state,
+      ...(s.healthy !== undefined ? { healthy: s.healthy } : {}),
+      ...(s.pid !== undefined ? { pid: s.pid } : {}),
+      ...(s.container !== undefined ? { container: s.container } : {}),
+      ...(s.started_at !== undefined ? { started_at: s.started_at } : {}),
+      ...(s.changed ? { changed: true } : {}),
+      ...(s.orphan ? { orphan: true } : {}),
+    })),
+    pages: resolveEnvironment(project, st.env).pages,
+    ...(st.seed ? { seed: st.seed } : {}),
+    ...(st.last_reset ? { last_reset: st.last_reset } : {}),
+    ...(st.lock ? { lock: { command: st.lock.command, since: st.lock.since, pid: st.lock.pid, ...(st.lock.run ? { run: st.lock.run } : {}) } } : {}),
+    file: ref(st.file),
+    logs: ref(st.logs),
+    notes: st.notes,
+    untrusted: { health },
+  };
+}

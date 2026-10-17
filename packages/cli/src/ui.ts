@@ -4,6 +4,8 @@ import { formatPath } from '@demo-studio/core';
 import type { ValidationIssue } from '@demo-studio/core';
 import type { Colors, Io } from './io.js';
 
+export { formatMs } from '@demo-studio/engine';
+
 /** Output helpers shared by every command: colours, paths, durations, issue lists, a live status line. */
 export class Ui {
   readonly c: Colors;
@@ -94,15 +96,6 @@ export function displayPath(p: string): string {
   if (!isAbsolute(p) || cwd === parse(cwd).root) return p;
   const rel = relative(cwd, p);
   return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : p;
-}
-
-/** 850 → "850 ms", 4210 → "4.2 s", 75000 → "1 m 15 s". */
-export function formatMs(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  const m = Math.floor(ms / 60_000);
-  const s = Math.round((ms % 60_000) / 1000);
-  return `${m} m ${String(s).padStart(2, '0')} s`;
 }
 
 /** Cut to `max` characters with an ellipsis. */

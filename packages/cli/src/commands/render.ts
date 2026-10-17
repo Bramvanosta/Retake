@@ -5,6 +5,7 @@ import type { Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, planInputFiles, renderStill, renderVideo, runEnv, runScenario } from '@demo-studio/editor';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
+import { appendHistory } from '@demo-studio/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -173,6 +174,8 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
       onProgress: (p) => printer?.handle(p),
     });
     printer?.done();
+    // The workspace's job history counts renders (the Remotion usage a licence would track; best effort).
+    await appendHistory(ws.root, { kind: 'render', project: project.slug, submitted_by: 'cli', state: 'succeeded', ms: record.timings.total_ms, counted: { captures: 0, dry_runs: 0, renders: 1 } });
     if (!opts.json) summary(ui, record);
     let review;
     if (opts.review) {
@@ -250,6 +253,8 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   } finally {
     ui.clearStatus();
   }
+  // A still is a render too (the Remotion usage a licence would track; best effort).
+  await appendHistory(ws.root, { kind: 'still', project: project.slug, submitted_by: 'cli', state: 'succeeded', ms: Math.round(performance.now() - t0), counted: { captures: 0, dry_runs: 0, renders: 1 } });
   const segment = plan.segments.filter((s) => s.from <= frame).pop();
   if (opts.json) {
     ui.result(JSON.stringify({ file: out, frame, time_s: frame / plan.fps, segment: segment?.id, run_id: run.id, width: plan.width, height: plan.height }, null, 2));

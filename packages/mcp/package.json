@@ -18,11 +18,8 @@
   ],
   "dependencies": {
     "@demo-studio/core": "workspace:*",
-    "@demo-studio/runner-web": "workspace:*",
-    "@demo-studio/hooks": "workspace:*",
-    "@demo-studio/editor": "workspace:*",
-    "@demo-studio/review": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@demo-studio/engine": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "zod": "^4.1.0"
   }
 }

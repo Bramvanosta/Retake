@@ -13,7 +13,8 @@ export class HookError extends Error {
 export class HookSecurityError extends Error {
   constructor(
     message: string,
-    public readonly reason: 'host' | 'destructive' | 'read-only',
+    /** `mcp`: work submitted through MCP references a file or a secret it may not (core agent-trust). */
+    public readonly reason: 'host' | 'destructive' | 'read-only' | 'mcp',
   ) {
     super(message);
     this.name = 'HookSecurityError';

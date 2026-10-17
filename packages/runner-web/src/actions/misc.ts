@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { interpolate, interpolateDeep, isPoint } from '@demo-studio/core';
+import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@demo-studio/core';
 import type { EmitArgs, EvalArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@demo-studio/core';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
@@ -38,12 +38,19 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
   const { rt } = ctx;
   let body = args.js;
   if (body === undefined && args.file !== undefined) {
+    if (rt.agentTrust) {
+      const problem = projectFileProblem(rt.project.dir, args.file, { code: true });
+      if (problem) throw new StepError(`eval: ${problem}`);
+    }
     const file = isAbsolute(args.file) ? args.file : join(rt.project.dir, args.file);
     try {
       body = await readFile(file, 'utf8');
     } catch (e) {
       throw new StepError(`eval: cannot read ${file}: ${errorMessage(e)}`);
     }
+    // Through MCP a file's code names no secret: only project.yaml resolves them (core agent-trust).
+    const secrets = rt.agentTrust ? secretRefsProblem(collectSecretRefs(body), `eval file ${args.file}`) : null;
+    if (secrets) throw new StepError(`eval: ${secrets}`);
   }
   if (body === undefined) throw new StepError('eval: give `js` (function body) or `file`');
   // Scene templating leaves `eval` alone: its code (a file's too) and arg are templated now, their secrets resolved.

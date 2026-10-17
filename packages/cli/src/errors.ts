@@ -54,6 +54,9 @@ const KNOWN = new Set([
   'PlanError',
   'ReviewError',
   'SandboxError',
+  'EngineError',
+  'RunOptionError',
+  'SandboxTakeError',
 ]);
 
 export function errorMessage(e: unknown): string {

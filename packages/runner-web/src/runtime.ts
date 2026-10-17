@@ -57,6 +57,11 @@ export interface RuntimeInit {
   guard?: LoginGuard | null;
   /** The persona each page id is planned with (core planPersonas): a page created in another one is reported. */
   plannedPersonas?: ReadonlyMap<string, string | null>;
+  /**
+   * Work submitted through MCP (L3.1, core HookTrust `mcp`): the files a step reads (drop_file.path, eval.file) stay in
+   * the project folder, an eval file is not one an agent can write and names no secret (core agent-trust).
+   */
+  agentTrust?: boolean;
 }
 
 /** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
@@ -113,6 +118,8 @@ export class Runtime {
   /** Captured emails, documents and web notifications (runs/<id>/artefacts/). */
   readonly artefacts: ArtefactStore;
   readonly cursorHidden: boolean;
+  /** Work submitted through MCP: see RuntimeInit.agentTrust. */
+  readonly agentTrust: boolean;
   /** The scene and step being executed (notifications are attributed to them). */
   current: { scene: string; scene_index: number; step: number } | null = null;
   /** The last plain click of the scene, while the popup it may open late is not ruled out (settleLatePopup). */
@@ -159,6 +166,7 @@ export class Runtime {
     this.secrets = init.secrets;
     this.recorder = init.recorder;
     this.cursorHidden = init.cursorHidden === true;
+    this.agentTrust = init.agentTrust === true;
     this.log = init.log;
     this.guard = init.guard ?? null;
     this.plannedPersonas = init.plannedPersonas;
