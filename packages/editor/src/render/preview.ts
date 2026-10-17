@@ -5,6 +5,10 @@
  * (960×540: the 1920×1080 frame at half scale; palette-quantised when the full-colour PNG would exceed 200 KB), its
  * sidecar `preview.json` (source hash: see @demo-studio/components `previewStatus`) and the generated block of the
  * component's README.md. With `outDir`, only the images are written there (`<outDir>/<namespace>/<name>.png`).
+ *
+ * Previews of the jobs worker (MCP `component_preview` / `template_preview`) take `outDir` (never a component folder),
+ * slot / param overrides per target, `network: 'guard'` (the render's network guard: only the asset server and the
+ * bundle server) and a cancel signal checked between targets.
  */
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -33,7 +37,10 @@ import { startAssetServer } from './asset-server.js';
 import { renderBrowser } from './browser.js';
 import { ensureBundle, scaffoldComponents } from './bundle.js';
 import type { BundleComponent } from './bundle.js';
-import { RenderError } from './types.js';
+import { armNetworkGuard, browserProcessInfo, pickFreePort } from './network-guard.js';
+import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
+import type { RenderNetwork } from './render.js';
+import { RenderCancelledError, RenderError } from './types.js';
 
 /** The starter templates shipped with Demo Studio (default, editorial, motion). */
 export { STARTER_TEMPLATES_DIR };
@@ -56,6 +63,14 @@ export interface PreviewComponentTarget {
   dir: string;
   entry: string;
   manifest: ComponentManifest;
+  /** Slot values over the manifest's preview samples (checked by the caller). */
+  slots?: Record<string, string>;
+  /** Params over the manifest's preview params (validated by the caller). */
+  params?: Record<string, unknown>;
+  /** Second shown (default: the manifest's preview moment). */
+  at?: number;
+  /** With outDir: the image's file name (default `<namespace>/<name>.png`). */
+  file?: string;
 }
 
 export interface RenderPreviewsOptions {
@@ -71,6 +86,14 @@ export interface RenderPreviewsOptions {
   outDir?: string;
   samples?: PreviewSamples;
   onProgress?: (done: number, total: number, id: string) => void;
+  /** Checked between previews: an abort stops before the next one (RenderCancelledError). */
+  signal?: AbortSignal;
+  /** `guard`: the previews' Chromium loads only the asset and bundle servers (network-guard.ts; the jobs worker). */
+  network?: RenderNetwork;
+  /** Called once the browser runs, with its process (the jobs worker records it to kill it after a crash). */
+  onBrowser?: (b: BrowserProcessInfo) => void;
+  /** Receives the guard's blocked-origin warnings once the previews are done. */
+  onWarnings?: (warnings: string[]) => void;
 }
 
 export interface RenderedPreview {
@@ -130,9 +153,14 @@ function outFile(outDir: string, id: string): string {
   return join(resolve(outDir), ns, `${name}.png`);
 }
 
+function cancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new RenderCancelledError();
+}
+
 /** Render the previews of `targets` with one theme (see the module comment). */
 export async function renderComponentPreviews(opts: RenderPreviewsOptions): Promise<RenderedPreview[]> {
   if (opts.targets.length === 0) return [];
+  cancelled(opts.signal);
   const root = resolve(opts.root);
   const registry = opts.registry ?? (await loadComponentRegistry({ root }));
   const samples = opts.samples ?? loadPreviewSamples();
@@ -149,7 +177,20 @@ export async function renderComponentPreviews(opts: RenderPreviewsOptions): Prom
   try {
     for (const target of opts.targets) {
       try {
-        built.push({ target, preview: buildComponentPreview({ target, template: tpl, tokens, registry, samples, sampleUrl: (f) => server.urlFor(f) }) });
+        built.push({
+          target,
+          preview: buildComponentPreview({
+            target,
+            template: tpl,
+            tokens,
+            registry,
+            samples,
+            sampleUrl: (f) => server.urlFor(f),
+            ...(target.slots ? { slots: target.slots } : {}),
+            ...(target.params ? { params: target.params } : {}),
+            ...(target.at !== undefined ? { at: target.at } : {}),
+          }),
+        });
       } catch (e) {
         throw new RenderError(`preview of ${target.id}: ${(e as Error).message}`);
       }
@@ -163,13 +204,37 @@ export async function renderComponentPreviews(opts: RenderPreviewsOptions): Prom
     } catch (e) {
       throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${(e as Error).message.split('\n')[0]}`);
     }
+    if (opts.onBrowser) {
+      const info = await browserProcessInfo(puppeteer);
+      if (info) opts.onBrowser(info);
+    }
+    let guard: NetworkGuard | undefined;
+    let remotion: { port?: number; onDownload?: (src: string) => undefined } = {};
+    if (opts.network === 'guard') {
+      try {
+        const port = await pickFreePort();
+        guard = await armNetworkGuard(puppeteer, { assetPrefix: server.prefix, bundlePort: port });
+        remotion = { port, onDownload: (src: string) => guard!.onDownload(src) };
+      } catch (e) {
+        throw new RenderError(`the previews cannot run with their network guard: ${(e as Error).message}`);
+      }
+    }
     await mkdir(scratch, { recursive: true });
     const common = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 60_000 } as const;
     const out: RenderedPreview[] = [];
     let done = 0;
     for (const { target, preview } of built) {
+      cancelled(opts.signal);
       const inputProps = { preview: preview.spec };
-      const composition = await selectComposition({ ...common, serveUrl: bundle.serveUrl, id: PREVIEW_COMPOSITION, inputProps, puppeteerInstance: puppeteer, browserExecutable: browser.path });
+      const composition = await selectComposition({
+        ...common,
+        serveUrl: bundle.serveUrl,
+        id: PREVIEW_COMPOSITION,
+        inputProps,
+        puppeteerInstance: puppeteer,
+        browserExecutable: browser.path,
+        ...(remotion.port !== undefined ? { port: remotion.port } : {}),
+      });
       const raw = join(scratch, `${done}-raw.png`);
       await renderStill({
         ...common,
@@ -183,6 +248,7 @@ export async function renderComponentPreviews(opts: RenderPreviewsOptions): Prom
         inputProps,
         puppeteerInstance: puppeteer,
         browserExecutable: browser.path,
+        ...remotion,
       });
       let image = raw;
       let quantized = false;
@@ -198,7 +264,7 @@ export async function renderComponentPreviews(opts: RenderPreviewsOptions): Prom
         throw new RenderError(`preview of ${target.id} is ${Math.round(bytes / 1024)} KB, over ${PREVIEW_MAX_BYTES / 1024} KB${quantized ? ' even with 256 colours' : ' (ffmpeg is needed to reduce it)'}`);
       }
       if (opts.outDir) {
-        const file = outFile(opts.outDir, target.id);
+        const file = target.file ? join(resolve(opts.outDir), target.file) : outFile(opts.outDir, target.id);
         await mkdir(join(file, '..'), { recursive: true });
         await writeFile(file, await readFile(image));
         out.push({ id: target.id, file, bytes, at: preview.at, ...(preview.screen ? { screen: preview.screen } : {}), quantized });
@@ -227,6 +293,7 @@ export async function renderComponentPreviews(opts: RenderPreviewsOptions): Prom
       done++;
       opts.onProgress?.(done, built.length, target.id);
     }
+    opts.onWarnings?.(guard?.warnings() ?? []);
     return out;
   } catch (e) {
     if (e instanceof RenderError) throw e;

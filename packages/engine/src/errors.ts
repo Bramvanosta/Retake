@@ -51,7 +51,7 @@ const NOT_FOUND = /\bnot found\b|\bno such\b|\bdoes not exist\b/i;
  * Any error → an EngineError, in one place. Matched by name (the classes live in packages the engine does not load
  * eagerly): ScenarioError / ConfigError → not_found or invalid; AccessError, HookSecurityError, WriteRefusedError,
  * HostRefusedError → refused; HooksSourceError → invalid (not a source) or not_found (nothing to run); SandboxError busy → busy, down → unavailable, interrupted → cancelled; CancelledError →
- * cancelled; anything unknown → internal (its message kept, no stack).
+ * cancelled; ReviewError / ExportError → not_found or invalid; ComponentError → not_found, conflict (exists) or invalid; anything unknown → internal (its message kept, no stack).
  */
 export function toEngineError(e: unknown): EngineError {
   if (e instanceof EngineError) return e;
@@ -69,16 +69,22 @@ export function toEngineError(e: unknown): EngineError {
     case 'StepError':
     case 'RenderError':
     case 'PlanError':
-    case 'ComponentError':
       return new EngineError('invalid', e.message);
+    case 'ComponentError':
+      return new EngineError(/already exists/.test(e.message) ? 'conflict' : NOT_FOUND.test(e.message) && !details ? 'not_found' : 'invalid', e.message, details ? { details } : {});
     case 'AccessError':
+    case 'PlanTrustError':
     case 'HookSecurityError':
     case 'WriteRefusedError':
     case 'HostRefusedError':
       return new EngineError('refused', e.message);
     case 'CancelledError':
     case 'RenderCancelledError':
+    case 'ReviewCancelledError':
       return new EngineError('cancelled', e.message);
+    case 'ReviewError':
+    case 'ExportError':
+      return new EngineError(NOT_FOUND.test(e.message) ? 'not_found' : 'invalid', e.message);
     case 'RunOptionError':
     case 'HookError':
     case 'JournalError':

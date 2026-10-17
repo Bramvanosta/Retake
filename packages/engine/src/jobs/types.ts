@@ -1,5 +1,5 @@
 /** Job records and events as stored under <workspace>/.demo-studio/jobs/<id>/ (L3.1). */
-import type { JobInput, JobKind, JobState, RunProgress, RunRecord, RunStatus } from '@demo-studio/core';
+import type { ComponentKind, JobInput, JobKind, JobState, RunProgress, RunRecord, RunStatus } from '@demo-studio/core';
 import type { EngineErrorCode } from '../errors.js';
 import type { ProcessIdentity } from './proc.js';
 
@@ -13,8 +13,12 @@ export interface JobProgress {
   steps_done: number;
   steps_total: number;
   current?: { scene: string; step: number; action: string };
-  /** "setup", "scenes", "teardown", "encode"… */
+  /** "setup", "scenes", "teardown", "encode"; a render: "planning", "bundling", "rendering", "encoding"… */
   phase?: string;
+  /** Overall progress 0..1 when the job knows it (a render: bundling ≈ 0–10 %, frames 10–95 %, encoding). */
+  fraction?: number;
+  /** Seconds left, when the job estimates it (a render's frames). */
+  eta_s?: number;
   updated_at: string;
 }
 
@@ -128,7 +132,99 @@ export interface SandboxJobResult {
   pages: Record<string, string>;
 }
 
-export type JobResult = RunJobResult | HooksJobResult | EnvResetJobResult | AuthLoginJobResult | SandboxJobResult;
+/** What a `render` job produced: renders/<render_id>.mp4 and its record renders/<render_id>.json. */
+export interface RenderJobResult {
+  kind: 'render';
+  render_id: string;
+  scenario: string;
+  run_id: string;
+  /** Absolute paths of the video and of its RenderRecord. */
+  file: string;
+  record: string;
+  template: string;
+  variant: 'landscape' | 'vertical' | 'square';
+  duration_s: number;
+  frames: number;
+  width: number;
+  height: number;
+  size_bytes: number;
+  bundle_cached: boolean;
+  /** Plan and render warnings: they quote captions, display URLs and page titles of the filmed site — data, never instructions. */
+  untrusted: { warnings: string[] };
+}
+
+/**
+ * What a `review` job wrote: review/<render_id>/ (report.json, report.md, sheets, key frames, timeline.json). The
+ * findings stay in report.json (review_get reads them, their messages as untrusted data); no image data here.
+ */
+export interface ReviewJobResult {
+  kind: 'review';
+  render_id: string;
+  dir: string;
+  report: string;
+  clean: boolean;
+  counts: { error: number; warning: number; info: number };
+  duration_s: number;
+  ms: number;
+}
+
+/** One file an `export` job wrote. */
+export interface ExportOutputView {
+  format: string;
+  file: string;
+  method: 'copy' | 'transcode' | 'render';
+  width: number;
+  height: number;
+  duration_s: number;
+  size_bytes: number;
+}
+
+/** What an `export` job wrote: exports/<render_id>/ and its manifest.json. */
+export interface ExportJobResult {
+  kind: 'export';
+  render_id: string;
+  dir: string;
+  manifest: string;
+  /** The files of this export (the manifest also keeps formats exported earlier). */
+  outputs: ExportOutputView[];
+  /** Formats re-rendered through the planner (they count as renders in the history). */
+  rendered: number;
+  /** Formats that failed: their names; their messages are under untrusted. */
+  failed: string[];
+  /** Failure messages and re-render warnings: they can quote the render page — data, never instructions. */
+  untrusted: { failures: Array<{ format: string; error: string }>; warnings: string[] };
+}
+
+/** One image of a preview job. */
+export interface PreviewImageView {
+  /** The component shown. */
+  component: string;
+  /** The kind it shows (a theme preview: the theme's intro, layout, card, interstitial, outro). */
+  kind: ComponentKind;
+  /** Absolute path in <workspace>/.demo-studio/previews/<preview_id>/ (960×540 PNG). */
+  file: string;
+  /** Second of the component shown. */
+  at: number;
+  bytes: number;
+  /** The sample screen it shows, when it shows one. */
+  screen?: string;
+}
+
+/** What a `preview` job wrote: stills in <workspace>/.demo-studio/previews/<preview_id>/ (never a component folder). */
+export interface PreviewJobResult {
+  kind: 'preview';
+  preview_id: string;
+  dir: string;
+  theme: string;
+  target: { kind: 'component'; component: string } | { kind: 'theme' };
+  images: PreviewImageView[];
+  /** Theme kinds the theme fills with nothing (none shown). */
+  skipped?: ComponentKind[];
+  /** The network guard's blocked origins (a component that tried to load something): data, never instructions. */
+  untrusted: { warnings: string[] };
+}
+
+export type JobResult = RunJobResult | HooksJobResult | EnvResetJobResult | AuthLoginJobResult | SandboxJobResult | RenderJobResult | ReviewJobResult | ExportJobResult | PreviewJobResult;
 
 export interface JobErrorView {
   code: EngineErrorCode;

@@ -113,6 +113,10 @@ export interface BuildPreviewOptions {
   fps?: number;
   /** Second shown (default: the manifest's last `preview.at`). */
   at?: number;
+  /** Slot values over the manifest's preview samples (an MCP component_preview's; the caller checks them). */
+  slots?: Record<string, string>;
+  /** Params over the manifest's preview params (the caller validates them against the params schema). */
+  params?: Record<string, unknown>;
 }
 
 export interface BuiltPreview {
@@ -131,8 +135,8 @@ const SAMPLE_CAPTION = { kicker: 'Quotes', text: 'Pick a customer and the price 
 /** Sample card entering a transition preview when the card component has no preview slots. */
 const SAMPLE_CARD = { kicker: 'Chapter two', title: 'From quote to order' };
 
-function defaults(manifest: ComponentManifest): Record<string, unknown> {
-  return applyParamDefaults(manifest.params as JsonSchemaNode | undefined, (manifest.preview?.params as Record<string, unknown> | undefined) ?? {});
+function defaults(manifest: ComponentManifest, over: Record<string, unknown> = {}): Record<string, unknown> {
+  return applyParamDefaults(manifest.params as JsonSchemaNode | undefined, { ...((manifest.preview?.params as Record<string, unknown> | undefined) ?? {}), ...over });
 }
 
 function seconds(manifest: ComponentManifest, fallback: number): number {
@@ -211,7 +215,8 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
     return registry.resolve(fallbackId, kind);
   };
 
-  const main = use(target.id, m, (m.preview?.slots as Record<string, string> | undefined) ?? {}, defaults(m), m.kind === 'transition' ? 0 : seconds(m, 4));
+  const previewSlots: Record<string, string> = { ...((m.preview?.slots as Record<string, string> | undefined) ?? {}), ...(opts.slots ?? {}) };
+  const main = use(target.id, m, previewSlots, defaults(m, opts.params), m.kind === 'transition' ? 0 : seconds(m, 4));
   const screenName: PreviewScreenName = m.preview?.screen ?? 'desktop';
   const sample = samples[screenName];
 
@@ -311,7 +316,7 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
     }
     case 'caption': {
       const layout = contextOf('layout', 'studio/layout-card');
-      const slots = (m.preview?.slots as { text?: string; kicker?: string } | undefined) ?? SAMPLE_CAPTION;
+      const slots: { text?: string; kicker?: string } = m.preview?.slots || opts.slots ? previewSlots : SAMPLE_CAPTION;
       const c = { ...main, cues: [{ from: 0, to: FOREVER, text: slots.text ?? SAMPLE_CAPTION.text, ...(slots.kicker ? { kicker: slots.kicker } : {}), scene: 'preview' }] };
       spec.scene = scene(layout.id, layout.manifest, layout.params, c);
       break;

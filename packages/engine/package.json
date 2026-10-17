@@ -17,8 +17,11 @@
     "src"
   ],
   "dependencies": {
+    "@demo-studio/components": "workspace:*",
     "@demo-studio/core": "workspace:*",
+    "@demo-studio/editor": "workspace:*",
     "@demo-studio/hooks": "workspace:*",
+    "@demo-studio/review": "workspace:*",
     "@demo-studio/runner-web": "workspace:*",
     "@demo-studio/sandbox": "workspace:*"
   }

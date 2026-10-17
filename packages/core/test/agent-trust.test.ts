@@ -3,11 +3,12 @@
  * no file outside the project folder (absolute, `..`, a symbolic link out of it), no code from a file an agent can
  * write — and the rollbacks that need a human.
  */
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agentTrustProblems, agentWritable, projectFileProblem, rollbackApprovalReason, scenarioFileRefs } from '../src/index.js';
+import { agentTrustProblems, agentWritable, insideFolder, isTemplatePath, projectFileProblem, renderFileProblems, rollbackApprovalReason, scenarioFileRefs, templateRefProblem } from '../src/index.js';
 import type { HookStep, Scenario } from '../src/index.js';
 
 let root: string;
@@ -97,5 +98,58 @@ describe('rollbackApprovalReason', () => {
     expect(rollbackApprovalReason({ sql: { query: 'SELECT 1', rollback: 'INSERT INTO t VALUES (1)' } })).toBeNull();
     expect(rollbackApprovalReason({ shell: { run: 'echo', rollback: 'echo undo' } })).toBe('its rollback: a shell command (runs local code)');
     expect(rollbackApprovalReason({ js: { code: 'return 1', rollback: 'localStorage.clear()' } })).toBe('its rollback: JavaScript run in the page');
+  });
+});
+
+describe('render trust rules (L3.2)', () => {
+  it('a theme is named; a folder only when it is project.yaml\'s own template', () => {
+    for (const ref of ['./template', '../x', '/abs/t', 'a/b', '~/t', '.hidden']) expect(isTemplatePath(ref), ref).toBe(true);
+    for (const ref of ['editorial', 'Motion_2']) expect(isTemplatePath(ref), ref).toBe(false);
+    expect(templateRefProblem('editorial', undefined, 'the theme')).toBeNull();
+    expect(templateRefProblem('./template', './template', 'the theme')).toBeNull();
+    expect(templateRefProblem('../../x', './template', "the scenario's template")).toMatch(/^the scenario's template is a folder \(\.\.\/\.\.\/x\): through MCP a theme is named/);
+    expect(templateRefProblem(undefined, undefined, 'x')).toBeNull();
+  });
+
+  it('a scenario naming a theme folder is refused through MCP (validate, save, run) when the project config is known', () => {
+    const sc = { video: 'x', template: '../../elsewhere', scenes: [{ id: 'a', page: 'console', steps: [] }] } as unknown as Scenario;
+    expect(agentTrustProblems({ dir: project, config: { template: 'editorial' } }, sc)).toEqual([expect.stringContaining("the scenario's template is a folder")]);
+    expect(agentTrustProblems({ dir: project, config: { template: '../../elsewhere' } }, sc)).toEqual([]);
+  });
+
+  it('files a render reads: project files; a Lottie file (.json) is code, never agent-writable', () => {
+    expect(renderFileProblems(project, [{ ref: 'assets/data.csv', where: 'scene a, card slot data' }])).toEqual([]);
+    expect(renderFileProblems(project, [{ ref: '../outside.txt', where: 'scene a, card slot data' }])).toEqual([expect.stringMatching(/^scene a, card slot data: \.\.\/outside\.txt resolves outside/)]);
+    expect(renderFileProblems(project, [{ ref: 'scenarios/anim.json', where: 'video intro (lottie file)' }])[0]).toContain('a Lottie file is code');
+    expect(renderFileProblems(project, [{ ref: 'scenarios/shot.png', where: 'video intro (image file)' }])).toEqual([]);
+    expect(renderFileProblems(project, [{ ref: 'assets/anim.json', where: 'video intro (lottie file)' }])).toEqual([]);
+  });
+
+  it('agent-writable folders are matched without case (a case-insensitive file system: RUNS/ is runs/)', async () => {
+    await mkdir(join(project, 'runs', 'r1', 'artefacts'), { recursive: true });
+    await writeFile(join(project, 'runs', 'r1', 'artefacts', 'anim.json'), '{}');
+    await mkdir(join(project, 'hooks'), { recursive: true });
+    await writeFile(join(project, 'hooks', 'reset.sql'), 'select 1');
+    for (const ref of ['RUNS/r1/artefacts/anim.json', 'Runs/r1/artefacts/anim.json', './runs/../Runs/r1/artefacts/anim.json', 'Scenarios/x.json', '.Demo-Studio/a.json']) {
+      expect(agentWritable(ref.replace(/^\.\/runs\/\.\.\//, '')), ref).toBe(true);
+      expect(renderFileProblems(project, [{ ref, where: 'video intro (lottie file)' }])[0], ref).toContain('a Lottie file is code');
+      expect(projectFileProblem(project, ref, { code: true }), ref).toContain('a file an agent can write through MCP');
+    }
+    expect(projectFileProblem(project, 'ReadMe.MD', { code: true })).toContain('a file an agent can write through MCP');
+    expect(projectFileProblem(project, 'HOOKS/reset.sql', { code: true })).toBeNull();
+  });
+
+  it('insideFolder follows symbolic links on both sides', () => {
+    expect(insideFolder(project, join(project, 'assets', 'data.csv'))).toBe(true);
+    expect(insideFolder(project, join(project, 'assets', 'link.txt'))).toBe(false);
+    expect(insideFolder(project, join(project, 'assets', 'up', 'outside.txt'))).toBe(false);
+    // Back in through the link: still the project.
+    expect(insideFolder(project, join(project, 'assets', 'up', 'p', 'assets'))).toBe(true);
+    expect(insideFolder(project, project)).toBe(true);
+    // On a case-insensitive file system (macOS by default), the case on disk is what counts.
+    if (existsSync(join(root, 'P'))) {
+      expect(insideFolder(project, join(root, 'P', 'Assets', 'data.csv'))).toBe(true);
+      expect(projectFileProblem(join(root, 'P'), 'assets/data.csv')).toBeNull();
+    }
   });
 });

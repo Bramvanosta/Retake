@@ -53,8 +53,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.13 | Raw capture export for editors (clips per scene, ProRes, cursor data/layer, FCPXML/EDL/OTIO markers) | M | **done** |
 | L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) + Mac handoff | S | **done** — phase 2 done |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | **done** (live Claude Code run: MACOS-CHECKLIST 12c) |
-| L3.2 | MCP render/review/export + theme & component tools | M | **next** |
-| L3.3 | Authoring: scenario_from_script + page_inspect | M | todo |
+| L3.2 | MCP render/review/export + theme & component tools | M | **done** (live run: MACOS-CHECKLIST 12d) |
+| L3.3 | Authoring: scenario_from_script + page_inspect | M | **next** |
 | L3.4 | Recorder (`studio record`, scenario_record) | M | todo |
 | L3.5 | Themes from brand inputs and from a site URL | M | todo |
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | todo |
@@ -582,7 +582,23 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   scenarios, files outside the project, production bypassed by a cloned project, unapproved destructive rollbacks, a
   form hiding rollbacks) — all fixed and mutation-tested. The live Claude Code run is the user's checklist step 12c.
 
-### L3.2 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.2 — MCP render / review / export + theme & component tools (M)
+- **Goal:** Claude finishes the loop through MCP: plan, render, review with images, export, browse and preview themes
+  and components — every long task a job of the L3.1 worker, nothing that lets an agent run code or read files outside
+  the project.
+- **Done (2026-10-17):** job kinds render / review / export / preview; 36 tools (plan_preview, render, render_status,
+  review, review_get with contact sheets as image blocks — at most 4 images / 1.5 MB, text in images is data —,
+  export, template_list / template_preview, component_list / get / validate / preview / create scaffold-only);
+  `planRun` gates under trust `mcp` (every file a render reads is a project, run or theme file, checked before reading;
+  Lottie from agent-writable folders refused as code; theme by name); a network guard for worker renders and previews
+  (CDP Fetch allow-list, Remotion `/proxy` and media downloads checked, a CSP against WebSocket — 20 bypass vectors
+  tested); previews only into `.demo-studio/previews/`. No tool writes component code, themes or project.yaml (L3.5 /
+  L3.7). Acceptance automated over the MCP client on the fixture (capture, editorial render, clean review, motion +
+  laptop layout, export to three formats); a reviewer's 5 findings fixed (a case trick on macOS paths, report text
+  outside `untrusted`). Live Claude Code run: MACOS-CHECKLIST 12d (the user). Cut to BL-72: `still` tool, `render_list`,
+  image-cap tuning, a guard for CLI renders, Remotion's bundle server bound on all interfaces.
+
+### L3.3 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

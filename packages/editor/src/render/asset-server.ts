@@ -38,6 +38,8 @@ export const CONTENT_TYPES: Readonly<Record<string, string>> = {
 export interface AssetServer {
   /** http://127.0.0.1:<port> */
   readonly origin: string;
+  /** `<origin>/<token>/`: every URL it serves starts with it (the render's network guard allows only these). */
+  readonly prefix: string;
   /** Register a file (absolute or relative to the cwd) and get its URL; the same file always gets the same URL. */
   urlFor(file: string): string;
   /** Requests served so far (tests, debugging). */
@@ -142,6 +144,7 @@ export async function startAssetServer(): Promise<AssetServer> {
 
   return {
     origin,
+    prefix: `${origin}/${token}/`,
     get requests() {
       return requests;
     },

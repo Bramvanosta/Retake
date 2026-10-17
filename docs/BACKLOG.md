@@ -767,6 +767,38 @@ Cut to keep L1.8 an L:
 - **Hard parts:** Parallel sandboxes need free ports and project names per copy; remote ones need a tunnel for the
   browser and the health checks.
 
+### BL-72 — MCP render, review and preview extras cut from L3.2
+*M · cut in L3.2 · builds on: L3.2, BL-42*
+
+Cut to keep L3.2 an M:
+- A `still` tool and job kind (one frame of a render plan as an image): `review_get` key frames and `plan_preview`
+  cover it; the CLI keeps `studio still`. A `render_list` tool (renders newest first): `render_status latest` and
+  `run_list` cover it. A `render_cancel` alias of `job_cancel` (add it only if a live session shows the agent missing
+  it). A render / export / preview cleanup tool (disk use; deleting stays a human's).
+- Component mp4 previews; pruning `.demo-studio/previews/` (it grows by one folder per preview); a theme's own media
+  file (`components: {intro: {video: …}}`) shown in `template_preview` instead of the component's sample.
+- Image caps tuned from the live session (MACOS-CHECKLIST 12d): how Claude Code counts image blocks against
+  `MAX_MCP_OUTPUT_TOKENS` decides the defaults (4 images, 1.5 MB of base64, 1280 px).
+- A concurrent `studio review` in a terminal and a `review` job of the same render race on `review/<id>/`: the last one
+  to finish wins (each swap is atomic). A per-render lock would serialise them.
+- The network guard's residual: WebRTC (UDP) and DNS prefetch are not covered by CDP Fetch nor by the bundle's CSP
+  (full isolation: an OS-level sandbox, BL-42). The guard applies to renders and previews of the jobs worker only:
+  `studio render` keeps the open network (remote images in slots are a CLI feature); a `--guard` option, or the guard
+  everywhere with a plan warning per remote image, would close it for human-installed components.
+- Queue lanes: one job at a time means a 4K export re-render (minutes) holds captures and previews; a lane per kind, or a
+  second worker for renders, with the queue position of each lane in `*_status`.
+- Lottie expressions disabled in the kit's player (a Lottie file would then be data, not code, and could come from
+  agent-writable folders).
+- Remotion's bundle server bound to loopback: `@remotion/renderer` (4.0.534, `port-config` `getHostToBind`) listens on
+  `::` / `0.0.0.0` with no option to change it, so during any render or preview (CLI or job) the bundle — the
+  project's components and theme — and its `/proxy` route are reachable from the local network (a guarded render's
+  `onDownload` check refuses any other `src`, but `studio render` is not guarded: a host of the network can make it
+  download a URL of its choice). Fixing it needs a patch of the renderer (`pnpm patch`, to redo on every Remotion
+  upgrade) or an upstream option; until then, a render on an untrusted network exposes them for its duration.
+
+- **Value:** A smoother agent loop on long videos, and the last gaps of the render sandbox.
+- **Hard parts:** Lanes need two browsers' worth of memory; WebRTC needs an OS-level sandbox.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -787,7 +819,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.demo-studio/history.jsonl` — one line per finished job and per CLI run / render / still (and per `studio export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
 - **L3.1** — Amend ADR-1 when L3.1 starts: split 'engine runs locally' from 'UI delivery'; define the job input contract (files, sessions, secrets, network reach); replace 'data never leave the machine' with a data-flow table. *Why:* It keeps the UI delivery decision open and makes the privacy claim accurate before it is used in sales material. *Applied in L3.1:* the ADR-1 amendment in docs/ARCHITECTURE.md.
 - **L3.6** — Done 2026-10-12 (DESIGN-phase2 §4, R-CMT-02). Fix DESIGN-phase2 §4 and R-CMT-02 to one file per thread (R-ARC-04). Make replies append-only (one file each, or entries with their own ids). Anchor comments on step `id` or a fingerprint, not only the step index. *Why:* This avoids sync conflicts on threads, and drag-and-drop in L4.3 reorders steps, which breaks anchors based on the index.
-- **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42.
+- **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5.
 - **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component.
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it.

@@ -6,7 +6,9 @@
  * outside a capture (moved from the CLI), `hooks` / `env_reset` jobs, and human approvals of hooks for work submitted
  * through MCP (trust `mcp`, fingerprints taken at submit and checked by the worker). Part D: sign-ins and sandbox
  * up / reset as jobs (login moved from the CLI; shell seed steps approved like hooks), the job history and an
- * entitlements stub.
+ * entitlements stub. L3.2 part A: renders as jobs (plan in the client's process through the trust gates, render in
+ * the worker with the network guard), render status, the render history. Part B: reviews and exports as jobs (renders named by id, their files inside the project; export
+ * re-renders under the render trust rules), review_get reading report.json as data, thumbnails made on read.
  */
 export { openWorkspace, openProject } from './workspace.js';
 export type { WorkspaceOptions } from './workspace.js';
@@ -26,7 +28,7 @@ export type { RunStatusView, RunSummary } from './runs.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, createEngine } from './engine.js';
-export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, RunJobView, RunListItem, RunStatusWithJob, WaitOptions } from './engine.js';
+export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, PreviewSubmitted, RunJobView, RunListItem, RunStatusWithJob, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
@@ -38,7 +40,7 @@ export type { ClaimRecord, JobFilter } from './jobs/queue.js';
 export { WorkerLock, liveWorker, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
 export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';
-export { isAlive, selfIdentity } from './jobs/proc.js';
+export { isAlive, processStart, selfIdentity } from './jobs/proc.js';
 export type { ProcessIdentity } from './jobs/proc.js';
 export { executeRunJob, finaliseReservedRun, preflightJournal, runCommandLine, submitRunJob } from './jobs/run-job.js';
 export {
@@ -74,6 +76,12 @@ export type {
   JobRecord,
   JobResult,
   JobWorkerInfo,
+  ExportJobResult,
+  ExportOutputView,
+  PreviewImageView,
+  PreviewJobResult,
+  RenderJobResult,
+  ReviewJobResult,
   RunJobResult,
 } from './jobs/types.js';
 export { LoginOptionError, loginTarget, signInPersona } from './login.js';
@@ -81,6 +89,33 @@ export type { SignInOutcome, SignInPorts } from './login.js';
 export { executeAuthLoginJob, loginCommandLine, submitAuthLoginJob } from './jobs/auth-job.js';
 export type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 export { executeSandboxJob, sandboxCommandLine, submitSandboxJob } from './jobs/sandbox-job.js';
+export {
+  checkRenderRequest,
+  cleanupInterruptedRender,
+  executeRenderJob,
+  killRecordedBrowser,
+  parseRenderId,
+  planRenderRequest,
+  releaseRenderLock,
+  removePartials,
+  renderCommandLine,
+  submitRenderJob,
+} from './jobs/render-job.js';
+export type { RecordedBrowser, RenderRequest } from './jobs/render-job.js';
+export { planPreview, renderForWork, renderStatus } from './renders.js';
+export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
+export type { ReviewRequest } from './jobs/review-job.js';
+export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine, submitExportJob } from './jobs/export-job.js';
+export type { ExportRequest } from './jobs/export-job.js';
+export { reviewGet, thumbnail } from './reviews.js';
+export { THEME_PREVIEW_KINDS, executePreviewJob, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
+export type { PreviewRequest } from './jobs/preview-job.js';
+export { checkComponentId, componentCreate, componentGet, componentList, componentValidate } from './components.js';
+export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
+export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
+export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
+export type { ReviewFindingView, ReviewImageRef, ReviewImagesMode, ReviewView } from './reviews.js';
+export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderStatusView } from './renders.js';
 export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js';
 export { HISTORY_VERSION, appendHistory, historyFile, runCounted, usageCounts } from './history.js';
 export type { HistoryEntry, UsageCounts } from './history.js';
@@ -89,4 +124,4 @@ export type { Entitlements } from './entitlements.js';
 export { SHELL_SEED_REASON, checkAgentTrust, seedApprovalItems } from './approvals.js';
 export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, workspaceProtectedHosts } from './protected-hosts.js';
 export type { WorkspaceProtectedHost } from './protected-hosts.js';
-export { APPROVAL_KEY_FILE, approvalKeyFile, signApprovals, verifiedApprovals } from './jobs/signing.js';
+export { APPROVAL_KEY_FILE, approvalKeyFile, approvalsOf, signApprovals, verifiedApprovals } from './jobs/signing.js';

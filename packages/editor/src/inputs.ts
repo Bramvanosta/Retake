@@ -22,33 +22,62 @@ import type { PlanInputFile } from './plan.js';
 
 const DATA_RE = /\.(csv|tsv)$/i;
 
-/** Slot values of the timeline's cards and step overlays that name a project file (data or image), and the user files of its segments and overlays (L2.12). */
-export function planFileRefs(timeline: Pick<Timeline, 'scenes' | 'events'> & Partial<Pick<Timeline, 'video'>>): string[] {
-  const out = new Set<string>();
-  const add = (slots: Record<string, string> | undefined) => {
-    for (const v of Object.values(slots ?? {})) {
+/** A project file the plan of a timeline reads, with where the timeline names it. */
+export interface PlanFileUse {
+  ref: string;
+  /** "scene a, card slot logo", "video intro (video file)", "step a.2 overlay (lottie file)". */
+  where: string;
+}
+
+type PlanTimeline = Pick<Timeline, 'scenes' | 'events'> & Partial<Pick<Timeline, 'video'>>;
+
+/**
+ * Every project file the plan of `timeline` reads, where it is named: slot values of cards and step overlays that name
+ * a data or image file, and the user files of segments and overlays (L2.12). Remote and served values excluded.
+ */
+export function planFileUses(timeline: PlanTimeline): PlanFileUse[] {
+  const out: PlanFileUse[] = [];
+  const add = (slots: Record<string, string> | undefined, where: string) => {
+    for (const [name, v] of Object.entries(slots ?? {})) {
       const s = String(v).trim();
       if (!s || /^(https?:|data:|ds-asset:)/.test(s)) continue;
-      if (DATA_RE.test(s) || isImagePath(s)) out.add(s);
+      if (DATA_RE.test(s) || isImagePath(s)) out.push({ ref: s, where: `${where} slot ${name}` });
     }
   };
-  const file = (spec: Partial<MediaFileFields> | false | undefined) => {
+  const file = (spec: Partial<MediaFileFields> | false | undefined, where: string) => {
     const f = spec ? mediaFileOf(spec) : undefined;
-    if (f) out.add(f.path);
+    if (f) out.push({ ref: f.path, where: `${where} (${f.kind} file)` });
   };
   for (const s of timeline.scenes) {
-    add(s.card?.slots);
-    file(s.card);
-    file(s.interstitial);
+    add(s.card?.slots, `scene ${s.id}, card`);
+    file(s.card, `scene ${s.id}, card`);
+    file(s.interstitial, `scene ${s.id}, interstitial`);
   }
-  file(timeline.video?.intro);
-  file(timeline.video?.outro);
+  file(timeline.video?.intro, 'video intro');
+  file(timeline.video?.outro, 'video outro');
   for (const e of timeline.events) {
-    add(e.overlay?.slots);
+    const where = `step ${e.scene}.${e.step}${e.id ? ` (${e.id})` : ''} overlay`;
+    add(e.overlay?.slots, where);
     const o = e.overlay;
-    if (o && (o.component === MEDIA_COMPONENTS.media || o.component === MEDIA_COMPONENTS.lottie) && o.slots.file) out.add(o.slots.file.trim());
+    if (o && (o.component === MEDIA_COMPONENTS.media || o.component === MEDIA_COMPONENTS.lottie) && o.slots.file) out.push({ ref: o.slots.file.trim(), where: `${where} (file)` });
   }
-  return [...out].sort();
+  return out;
+}
+
+/** Slot values of the timeline's cards and step overlays that name a project file (data or image), and the user files of its segments and overlays (L2.12). */
+export function planFileRefs(timeline: PlanTimeline): string[] {
+  return [...new Set(planFileUses(timeline).map((u) => u.ref))].sort();
+}
+
+/** Slot values of cards and step overlays that are remote URLs (http: / https:), where they are named. */
+export function remoteSlotUses(timeline: PlanTimeline): PlanFileUse[] {
+  const out: PlanFileUse[] = [];
+  const add = (slots: Record<string, string> | undefined, where: string) => {
+    for (const [name, v] of Object.entries(slots ?? {})) if (/^https?:/i.test(String(v).trim())) out.push({ ref: String(v).trim(), where: `${where} slot ${name}` });
+  };
+  for (const s of timeline.scenes) add(s.card?.slots, `scene ${s.id}, card`);
+  for (const e of timeline.events) add(e.overlay?.slots, `step ${e.scene}.${e.step}${e.id ? ` (${e.id})` : ''} overlay`);
+  return out;
 }
 
 /** The theme's own files (`components.intro: {video: …}`, L2.12), absolute. */

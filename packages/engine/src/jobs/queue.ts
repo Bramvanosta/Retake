@@ -83,6 +83,8 @@ export interface JobFilter {
   kinds?: readonly JobKind[];
   /** Only jobs of this run (a `run` job's run_id). */
   runId?: string;
+  /** Only jobs about this render (the render_id of a `render`, `review` or `export` job). */
+  renderId?: string;
   limit?: number;
 }
 
@@ -186,6 +188,7 @@ export class FileJobQueue {
       if (f.project !== undefined && stored.input.project !== f.project) continue;
       if (f.kinds && !f.kinds.includes(stored.kind)) continue;
       if (f.runId !== undefined && !(stored.input.kind === 'run' && stored.input.run_id === f.runId)) continue;
+      if (f.renderId !== undefined && !('render_id' in stored.input && stored.input.render_id === f.renderId)) continue;
       const rec = await this.derive(stored);
       if (f.states && !f.states.includes(rec.state)) continue;
       out.push(rec);
@@ -196,6 +199,16 @@ export class FileJobQueue {
   /** The job of a run (submitted through the engine), or undefined (a CLI run). */
   async ofRun(project: string, runId: string): Promise<JobRecord | undefined> {
     return (await this.list({ project, runId, limit: 1 }))[0];
+  }
+
+  /** The newest job of a render id (a render id is reused after a failed or cancelled render), or undefined. */
+  async ofRender(project: string, renderId: string): Promise<JobRecord | undefined> {
+    return (await this.list({ project, renderId, kinds: ['render'], limit: 1 }))[0];
+  }
+
+  /** <job>/browser.json: the render browser a job's worker started (pid + start time), to kill it after a crash. */
+  browserFile(id: string): string {
+    return join(this.jobDir(id), 'browser.json');
   }
 
   /**
@@ -284,6 +297,45 @@ export class FileJobQueue {
 
 function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
   const i = rec.input;
+  if (i.kind === 'render') {
+    return {
+      ...rec,
+      state: 'interrupted',
+      derived: true,
+      error: {
+        code: 'cancelled',
+        message: `interrupted: ${why}. The render stopped: nothing was written under ${i.render_id} (the next worker removes its temporary files and its browser)`,
+        fix: `${cli} render ${i.project} ${i.scenario} --run ${i.run_id}${i.template ? ` --theme ${i.template}` : ''}`,
+      },
+    };
+  }
+  if (i.kind === 'review' || i.kind === 'export') {
+    return {
+      ...rec,
+      state: 'interrupted',
+      derived: true,
+      error: {
+        code: 'cancelled',
+        message:
+          i.kind === 'review'
+            ? `interrupted: ${why}. The review stopped: the previous review of ${i.render_id} is kept (the next worker puts it back and removes the temporary folder)`
+            : `interrupted: ${why}. The export stopped: formats written before stay in exports/${i.render_id}/ (the next worker removes partial files and a re-render's browser)`,
+        fix: i.kind === 'review' ? `${cli} review ${i.project} ${i.render_id}` : `${cli} export ${i.project} ${i.render_id} --formats ${i.formats.join(',')}`,
+      },
+    };
+  }
+  if (i.kind === 'preview') {
+    return {
+      ...rec,
+      state: 'interrupted',
+      derived: true,
+      error: {
+        code: 'cancelled',
+        message: `interrupted: ${why}. The preview stopped: images written before stay in .demo-studio/previews/${i.preview_id}/ (the next worker kills its browser)`,
+        ...(i.target.kind === 'component' ? { fix: `${cli} components preview ${i.target.component}${i.template ? ` --theme ${i.template}` : ''} --out <folder>` } : {}),
+      },
+    };
+  }
   const env = i.env ? ` --env ${i.env}` : '';
   const error: JobRecord['error'] =
     i.kind === 'auth_login'

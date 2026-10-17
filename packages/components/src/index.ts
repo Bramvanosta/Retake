@@ -60,7 +60,7 @@ export { ALLOWED_IMPORTS, FORBIDDEN_APIS, checkComponentEntry, scanSource, strip
 export type { EntryCheck } from './compile.js';
 export { validateComponent, validateComponentDir } from './validate.js';
 export type { ComponentValidation, ValidateComponentOptions } from './validate.js';
-export { createComponent, componentDisplayName } from './create.js';
+export { BUILTIN_NAMESPACE, createComponent, componentDisplayName } from './create.js';
 export type { CreateComponentOptions, CreatedComponent } from './create.js';
 export { themeTokens, themeFontFamilies, fontFileFace } from './theme.js';
 export type { ThemeUrls } from './theme.js';

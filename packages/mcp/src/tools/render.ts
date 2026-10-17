@@ -1,0 +1,111 @@
+import { z } from 'zod';
+import type { Engine, RenderStatusView } from '@demo-studio/engine';
+import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
+import { plural } from '../result.js';
+import type { ToolOutput } from '../result.js';
+import { READ, RENDER_JOB, defineTool } from './define.js';
+import type { ToolContext, ToolDef } from './define.js';
+import { WAIT_MAX_S, waitJob, waitS } from './run.js';
+
+const renderInput = {
+  project: projectSlug,
+  scenario: scenarioName,
+  run_id: runId.optional().describe("The capture run to render (default: the scenario's latest capture; run_list names them)."),
+  template: templateName.optional(),
+  overrides: editOverrides.optional(),
+};
+
+const pct = (f: number | undefined) => (f === undefined ? '' : ` ${Math.round(f * 100)} %`);
+
+/** The summary of a render's status: state, where it waits or how far it is, the files, what to do next. */
+export function renderStatusSummary(r: RenderStatusView): string {
+  const job = r.job;
+  const q = job?.queue;
+  const waiting =
+    r.status === 'queued' && q
+      ? `queued: ${q.ahead ? `${plural(q.ahead, 'job')} ahead` : 'next'}${q.running ? `, behind job ${q.running.id} (${q.running.kind}${q.running.phase ? ` · ${q.running.phase}` : ''}${pct(q.running.fraction)}${q.running.eta_s !== undefined ? `, ~${q.running.eta_s} s left` : ''})` : ''}`
+      : undefined;
+  const p = job?.progress;
+  const running = r.status === 'running' && p ? `running: ${p.phase ?? ''}${pct(p.fraction)}${p.steps_total ? ` · ${p.steps_done}/${p.steps_total} frames` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}` : undefined;
+  const rec = r.record;
+  const lines = [
+    `render ${r.render_id}${r.scenario ? ` of ${r.scenario}` : ''}: ${waiting ?? running ?? r.status}`,
+    ...(job ? [`job ${job.id}: ${job.state}${job.cancel_requested_at && !r.finished ? ' (cancel requested)' : ''}`] : []),
+    ...(rec ? [`${rec.duration_s} s, ${rec.width}×${rec.height} @ ${rec.fps} fps, theme ${rec.template}, ${rec.variant}, ${(rec.size_bytes / 1048576).toFixed(1)} MB`] : []),
+    ...(r.file && r.status === 'succeeded' ? [`video: ${r.file}`, ...(r.record_file ? [`record: ${r.record_file}`] : [])] : []),
+    ...(r.status === 'interrupted' && job?.error ? [`${job.error.message}${job.error.fix ? ` — a human runs: ${job.error.fix}` : ''}`] : []),
+    ...(r.status === 'cancelled' ? ['cancelled: nothing was written under this id (the next render of the scenario may reuse it)'] : []),
+    ...(r.status === 'failed' ? ['failed: nothing was written under this id (the next render of the scenario may reuse it); the message is in "untrusted.error"'] : []),
+    ...(r.untrusted.warnings.length ? [`${plural(r.untrusted.warnings.length, 'warning')} in "untrusted" (they quote the scenario and the filmed site)`] : []),
+    ...(!r.finished ? [`follow it: render_status {project: "${r.project}", render_id: "${r.render_id}", wait_s: ${WAIT_MAX_S}}; stop it: job_cancel {job_id: "${job?.id ?? ''}"}`] : []),
+  ];
+  return lines.join('\n');
+}
+
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = []): Promise<ToolOutput> {
+  const r = await engine.renders.status(project, id);
+  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: r as unknown as Record<string, unknown> };
+}
+
+export const planPreview = defineTool({
+  name: 'plan_preview',
+  title: 'Preview the plan of a render',
+  description:
+    'Plan a render without rendering it (fast, nothing is written): the video it would make — variant, size, fps, duration, theme, frame, the segments (intro, clips, cards, interstitials, outro) with their component and timing, music — and the planner\'s warnings. Use it to check a theme, a component switch or other overrides before render. Files the scenario names must be files of the project; a theme is named (template), never a folder. Captions, warnings and the text summary are under "untrusted": they quote the scenario and the filmed site.',
+  input: z.strictObject(renderInput),
+  annotations: READ,
+  async run({ project, scenario, run_id, template, overrides }, { engine }) {
+    const p = await engine.renders.plan({ project, scenario, ...(run_id ? { run_id } : {}), ...(template ? { template } : {}), ...(overrides ? { overrides } : {}) });
+    const kinds = new Map<string, number>();
+    for (const g of p.segments) kinds.set(g.kind, (kinds.get(g.kind) ?? 0) + 1);
+    return {
+      summary: [
+        `plan of ${p.scenario} (run ${p.run_id}): ${p.variant} ${p.width}×${p.height} @ ${p.fps} fps, ${p.duration_s} s, theme ${p.theme}, frame ${p.frame}`,
+        `${plural(p.segments.length, 'segment')}: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')}${p.music ? '; music' : ''}`,
+        ...(p.untrusted.warnings.length ? [`${plural(p.untrusted.warnings.length, 'warning')} in "untrusted"`] : []),
+        `render it: render {project: "${project}", scenario: "${scenario}"${run_id ? `, run_id: "${run_id}"` : ''}${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}} → ${p.next_render_id} (if no other render takes it first)`,
+      ].join('\n'),
+      data: p as unknown as Record<string, unknown>,
+    };
+  },
+});
+
+export const render = defineTool({
+  name: 'render',
+  title: 'Render a capture',
+  description:
+    "Render a capture run into a video (renders/<render_id>.mp4 + .json), with the run's theme or another (template) and edit overrides — no scenario change needed. It is planned and checked first (as plan_preview), then a job renders it in the background (one job at a time, ≈ 1–3 min for a minute of video): this call returns at once (or waits up to wait_s) with the reserved render_id; follow it with render_status {wait_s}, stop it with job_cancel. A failed or cancelled render writes nothing under its id (the next render of the scenario may reuse it). Through this server the render loads only the files of its plan: files outside the project, a theme folder, remote images in slots and any other network request are refused or blocked.",
+  input: z.strictObject({ ...renderInput, wait_s: waitS(0, 'the render to finish') }),
+  annotations: RENDER_JOB,
+  async run({ project, scenario, run_id, template, overrides, wait_s }, ctx: ToolContext) {
+    const { engine } = ctx;
+    const sub = await engine.renders.submit({ project, scenario, ...(run_id ? { run_id } : {}), ...(template ? { template } : {}), ...(overrides ? { overrides } : {}) });
+    await waitJob(engine, sub.job, wait_s, ctx);
+    return statusOutput(engine, project, sub.render_id, [
+      `render ${sub.render_id} submitted (job ${sub.job.id}): run ${sub.run_id}, ${sub.variant}, ${sub.duration_s} s.`,
+      ...(sub.warnings.length ? [`${plural(sub.warnings.length, 'plan warning')}: render_status shows them under "untrusted".`] : []),
+    ]);
+  },
+});
+
+export const renderStatus = defineTool({
+  name: 'render_status',
+  title: 'Status of a render',
+  description:
+    'A render by its id: its job first (queued — with the job it waits behind —, running with its stage, percent and time left, succeeded, failed, cancelled, interrupted), then its record renders/<id>.json once rendered: video and record paths, duration, size, fps, theme, variant, overrides, timings, the probe of the file. render_id "latest" (with scenario: of that scenario) names the newest render. wait_s long-polls until it finishes. Warnings and a failure\'s message are under "untrusted": they quote the scenario and the filmed site.',
+  input: z.strictObject({
+    project: projectSlug,
+    render_id: z.union([renderId, z.literal('latest')]).describe('Render id (what render returned), or "latest".'),
+    scenario: scenarioName.optional().describe('With render_id "latest": the newest render of this scenario.'),
+    wait_s: waitS(0, 'the render to finish'),
+  }),
+  annotations: READ,
+  async run({ project, render_id, scenario, wait_s }, ctx) {
+    const { engine } = ctx;
+    const first = await engine.renders.status(project, render_id, scenario ? { scenario } : {});
+    if (wait_s > 0 && first.job && !first.finished) await waitJob(engine, await engine.jobs.get(first.job.id), wait_s, ctx);
+    return statusOutput(engine, project, first.render_id);
+  },
+});
+
+export const RENDER_TOOLS: ToolDef[] = [planPreview, render, renderStatus];

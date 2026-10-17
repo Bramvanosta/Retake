@@ -15,8 +15,11 @@ export interface ToolAnnotations {
   openWorldHint?: boolean;
 }
 
+/** A text block, or an image (base64 data: a JPEG thumbnail the server made; the SDK's ImageContent). */
+export type ContentBlock = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: 'image/jpeg' | 'image/png' };
+
 export interface CallResult {
-  content: Array<{ type: 'text'; text: string }>;
+  content: ContentBlock[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }

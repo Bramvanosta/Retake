@@ -17,8 +17,22 @@ import { MANIFEST_FILE, kitEntry, paramDefaults, parseManifest, scaffoldDir } fr
 import type { ComponentRegistry, JsonSchemaNode } from '@demo-studio/components';
 import type { EditPlan, ResolvedComponent } from '../plan-types.js';
 
-/** Bump when the generated files or the bundle layout change (invalidates every cached bundle). */
-export const BUNDLE_FORMAT = 1;
+/** Bump when the generated files or the bundle layout change (invalidates every cached bundle). 2: the CSP meta. */
+export const BUNDLE_FORMAT = 2;
+
+/**
+ * The Content-Security-Policy of every render page (L3.2, network-guard.ts): fetch / XHR / EventSource may use http(s)
+ * (a guarded render's CDP allow-list decides which), but no WebSocket leaves the page — CDP Fetch does not see
+ * WebSockets. Only `connect-src`: images, fonts and media load as before.
+ */
+export const BUNDLE_CSP = "connect-src 'self' http: https: data: blob:";
+
+/** index.html with the CSP meta as the first element of its head (pure; idempotent). */
+export function withCspMeta(html: string): string {
+  if (html.includes('http-equiv="Content-Security-Policy"')) return html;
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${BUNDLE_CSP}">`;
+  return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}${meta}`) : `${meta}${html}`;
+}
 /** Cached bundles kept per workspace (most recently used first). */
 export const BUNDLE_CACHE_KEEP = 6;
 
@@ -317,6 +331,8 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
         },
       }),
     });
+    const index = join(tmp, 'bundle', 'index.html');
+    await writeFile(index, withCspMeta(await readFile(index, 'utf8')));
     const ms = Math.round(performance.now() - t0);
     await writeFile(join(tmp, 'bundle.json'), `${JSON.stringify({ format: BUNDLE_FORMAT, hash, created_at: new Date().toISOString(), ms, components: ids }, null, 2)}\n`);
     try {

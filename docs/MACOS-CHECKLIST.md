@@ -378,6 +378,43 @@ step 4 must run (terminal 1); the sandbox of step 12b must be down. `pnpm build`
 - **Send back:** the job ids of d, e and f, a screenshot of the approval form, the time the slow approval of step 3
   survived (or when it failed), and anything Claude did that surprised you.
 
+## 12d. Claude renders, reviews and exports through MCP (L3.2)
+
+Same session as 12c (the fixture runs, `pnpm build` first). `/mcp` now lists `demo-studio` with **36 tools**. If the
+server was registered before L3.2, nothing changes in its registration; a worker that ran old code exits on its own.
+
+1. **The loop.** Ask Claude, one message at a time:
+   - a. "Capture quote, then render it with the editorial theme and follow the render." → `run_capture` (approve the
+     form), `run_status` until finished, `plan_preview` (optional), `render` → a `quote-vN` id at once, then
+     `render_status {wait_s}` with the percent and time left until `succeeded`. Open the mp4 it names.
+   - b. "Review it and look at the contact sheet." → `review` (or `review_get {wait_s}`): the verdict and **the contact
+     sheet shown as an image in Claude Code**. Ask Claude what it sees at a time you pick, and compare with the sheet
+     (`projects/northfield-fixture/review/quote-vN/sheet_1fps.jpg`).
+   - c. "Render it again with the motion theme and the laptop layout, without changing the scenario, and review it
+     with all images." → `render {template: motion, overrides: {components: {layout: studio/layout-laptop}}}`, then
+     `review_get {images: "all"}`: 4 images inline, the rest listed as files.
+   - d. "Export it as mp4_1080p, a GIF preview and a vertical video." → `export`, then `job_status {wait_s}` until
+     it lists three files (the vertical one is re-rendered: minutes). Open the vertical mp4.
+   - e. "Show me the themes, then preview the motion theme." → `template_list`, `template_preview`: stills of the
+     intro, layout, card, interstitial and outro come back as images. "Preview studio/card-title with the title
+     'Quotes in two clicks' and the dark tone." → `component_preview {slots, params}`: one image.
+   - f. "Create a component acme/intro-split (an intro), validate it and preview it." → `component_create`,
+     `component_validate`, `component_preview`. Then "and one called studio/intro-split" → refused (built-in
+     namespace). Delete `components/acme/` afterwards (the repository root is the workspace here).
+2. **Images against the output limit.** Claude Code caps a tool result (`MAX_MCP_OUTPUT_TOKENS`, 25 000 tokens by
+   default) and it is not documented how image blocks count. For b, c and e note whether the images arrived, whether
+   Claude Code warned about the result's size or truncated it, and (with `/cost` or the token counter before and after
+   the call) roughly how many tokens one `review_get` with 4 images used. If results are cut, retry with
+   `MAX_MCP_OUTPUT_TOKENS=60000 claude`, and with the server's `env` `DEMO_STUDIO_MCP_MAX_IMAGES=2`.
+3. **Cancel.** Start "render quote with the default theme" and ask Claude to cancel it while it renders → `job_cancel`;
+   `render_status` says `cancelled`, nothing new in `renders/` under that id, no `headless_shell` left
+   (`pgrep -fl headless_shell` shows nothing once the worker is idle).
+
+- **Expected:** every step as written; images visible in the Claude Code transcript; no render warning "the render
+  blocked …"; nothing written into `packages/components/library/` (`git status` clean there).
+- **Send back:** the render ids, a screenshot of a contact sheet as Claude Code shows it, the token count of step 2
+  (and whether anything was truncated), and anything Claude did that surprised you.
+
 ## 13. Clean up
 
 Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-studio/`) are git-ignored; delete them

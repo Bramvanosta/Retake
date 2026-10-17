@@ -71,6 +71,8 @@ export async function extractFrames(
     proc.on('error', reject);
     proc.on('close', (code) => resolve(code));
   });
+  // Handled below once the output is read; a cancel (the signal) rejects it while frames are still being handled.
+  exited.catch(() => undefined);
   const size = opts.width * opts.height * 3;
   const delivered: number[] = [];
   let buf = Buffer.allocUnsafe(size);
@@ -99,6 +101,7 @@ export async function extractFrames(
     throw e;
   }
   const code = await exited.catch((e: Error) => {
+    if (opts.signal?.aborted) throw new ReviewError('frame extraction cancelled');
     throw new ReviewError(`ffmpeg could not be started (${e.message}): is ffmpeg on PATH?`);
   });
   if (code !== 0 && delivered.length === 0) throw new ReviewError(`ffmpeg failed on ${file}: ${stderr.trim().split('\n')[0] ?? `exit ${code}`}`);

@@ -2394,7 +2394,11 @@ and sandboxes through tools, dry-runs and captures scenarios, runs hooks and res
 server share one engine (`@demo-studio/engine`): a dry run, a capture or hooks started here run the same code as
 `studio run` / `studio hooks run` / `studio env reset`. Hooks that need a human are approved by the user through an
 approval form the client shows (MCP elicitation). Sign-ins (a window for the human) and sandbox start / reset are jobs
-too.
+too, and so are renders: Claude previews the plan of a capture, renders it with another theme or edit overrides (no
+scenario change) and follows the render — the render runs guarded (only files of the project, no network) —, reviews
+it (the contact sheet comes back as images Claude looks at) and exports it to delivery formats. Claude also lists and
+previews themes and components (stills come back as images), checks components and scaffolds new ones — component code,
+themes and project.yaml are never written through the server.
 
 **Registering it.** `studio mcp --print-config` (from your workspace, or with `--root <workspace>`) prints the JSON
 block and the `claude mcp add` command with absolute paths (in this repository run `node packages/cli/dist/bin.js mcp
@@ -2442,7 +2446,20 @@ claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/pa
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
 | `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
 | `run_cancel` | cancels a run started here: queued, it never starts; running, it stops at its next step and its teardown and rollbacks still run | — |
-| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result, a cancel | — |
+| `plan_preview` | plans a render of a capture without rendering it (`run_id` default: the scenario's latest capture; `template`: a theme name; `overrides`: frame, variant, fps, scale, intro / outro / captions / camera / trim_idle, speeds, transition, components by kind or segment, music, tutorial): variant, size, duration, theme, segments with their component and timing, music, the id the next render would get; captions, warnings and the text summary under `untrusted` | — |
+| `render` | the same arguments: planned and checked, then rendered as a job; returns the reserved `render_id` at once (`<scenario>-v<N>`, `-vertical` / `-square`); `wait_s` waits for it | `renders/<render_id>.mp4` + `.json` |
+| `render_status` | a render by id (or `latest`, of a scenario): its job first — queued (with the job it waits behind, its stage and time left), running (stage, percent, frames, time left), failed / cancelled / interrupted — then its record (paths, duration, size, fps, theme, variant, overrides, timings, ffprobe); warnings and a failure's message under `untrusted`; `wait_s` long-polls | — |
+| `review` | reviews a render (`render_id` or `latest` of a `scenario`; `fps` 1 or 2; `previous`: a render id or `false`) as a job and waits up to `wait_s` (default 20): finished in time, it answers as `review_get` | `review/<render_id>/` |
+| `review_get` | a render's review: its newest review job (state, stage, percent), then the review — clean or not, counts, findings (severity, code, time, segment, scene; their messages under `untrusted`), durations, the diff with the previous render, the paths of the sheets, key frames, `timeline.json`, `report.md` — and **images**: `images: "sheets"` (default: contact sheet pages and marker key frames), `"all"` or `"none"`; `wait_s` long-polls | — |
+| `export` | exports a render as a job (`formats`, default `mp4_1080p`, `webm`, `gif_preview`; `vertical_9x16` / `square_1x1` / a 4K from a smaller master are re-rendered; `gif_start_s` / `gif_duration_s` ≤ 30 s) and returns at once; `job_status` follows it and lists the files | `exports/<render_id>/` + `manifest.json` |
+| `template_list` | the themes by name (the workspace's `templates/`, then the starters): source, the component each picks per kind, issues; `project` marks the project's own (and lists its own theme folder); `template` returns one theme in detail — template.yaml and its sha256, colours, fonts, brand, assets, each kind's component with its params | — |
+| `template_preview` | stills of a theme (default the project's): its intro, its layout with its caption over a neutral sample screen, a card, an interstitial and its outro, 960×540, rendered as a job; waits up to `wait_s` (default 20) and returns them as images (4 inline, the 5th as a file) | `.demo-studio/previews/<id>/` |
+| `component_list` | components by id (workspace first, then the built-in `studio/…`; `kind` filters): kind, version, source, description, slot names, the committed preview and whether it is fresh; registry notices (invalid, overriding) | — |
+| `component_get` | one component: manifest (slots and their types, params JSON Schema with defaults, duration, geometry, preview samples), params with defaults, source files, README | — |
+| `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
+| `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.demo-studio/previews/<id>/` |
+| `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's template (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
+| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images), a cancel; a run, render, preview, review or export job's error message is under `untrusted.error` | — |
 | `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
 | `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
@@ -2455,7 +2472,7 @@ Every result starts with a short summary for Claude, then the data as JSON (also
 paths it can read; an error is a tool error with a code (`not_found`, `invalid`, `conflict`, `refused`,
 `needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix`.
 
-**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in or a sandbox up / reset is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
+**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export or a preview is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
 with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
 `.demo-studio/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
 exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
@@ -2476,6 +2493,35 @@ progress notifications. A job `succeeded` when it ran to the end — its run may
   one from a terminal, one from Claude — can run at the same time.
 - A killed sign-in leaves nothing saved (`studio login` again); a killed sandbox job may leave services running and its
   seed unrecorded (the next `studio sandbox up` seeds again). Each interrupted job's `fix` says so.
+- **Renders.** `render` plans in the server's process (no browser; a refusal costs nothing), reserves the render id
+  (a `.<scenario>-v<N>.lock` in `renders/`) and queues the job; the worker plans again — a run whose timeline changed,
+  or a plan whose variant changed, is refused — and renders with Remotion (≈ 1–3 min for a minute of video, longer
+  for 4K). It holds the queue meanwhile: a capture submitted then waits (`run_status` / `render_status` say behind which
+  job). A failed or cancelled render writes nothing under its id and frees it: the next render of the scenario takes
+  the same id (`render_status` shows the newest job of an id; `job_status` keeps the old one). A worker killed
+  mid-render leaves the job `interrupted`; the next worker kills the render's browser (Remotion starts it detached, it
+  would outlive the worker), removes its temporary profile, the lock and the partial video. `studio render` in a
+  terminal does not go through the queue; versions stay distinct across both.
+- **Reviews and exports.** Both name a render by its id (`latest` is resolved when the call is made) and read it from
+  `renders/<id>.json`: its video and its run must lie in the project folder (a record edited by hand, or of a moved
+  workspace, that points elsewhere is refused with the `studio review` / `studio export` command a human runs). A review
+  (ffmpeg and sharp, no browser) writes `review/<render_id>/` aside and swaps it in at the end: a cancel or a killed
+  worker leaves the previous review as it was (the next worker puts it back if the kill fell between the two renames).
+  A concurrent `studio review` of the same render in a terminal: the last one to finish wins. An export stops between
+  formats on a cancel (the files written stay) and kills ffmpeg or the re-render; a killed worker's re-render browser
+  and partial files are removed by the next worker. Re-rendered formats are planned and checked at the call, then
+  rendered under the same rules as a render (project files only, no network).
+- **Previews.** `template_preview` and `component_preview` are jobs of the same worker (one bundle and one browser per
+  preview, ≈ 0.5–1 s a still once the bundle is cached; behind a render they wait for it). Their stills go to
+  `<workspace>/.demo-studio/previews/<id>/` — never into a component's folder: the committed `preview.png`,
+  `preview.json` and README block stay `studio components preview`'s. They run with the render's network guard. A
+  preview that outlives its `wait_s` is followed with `job_status {wait_s}`, which returns the stills.
+- **Images.** `review` / `review_get` return the contact sheet (and the key frames at markers) as images in the result,
+  `template_preview` / `component_preview` / `job_status` a preview's stills: JPEG thumbnails ≤ 1280 px made when the
+  result is built (never stored in a job), at most 4 per result and 1.5 MB in all
+  (`DEMO_STUDIO_MCP_MAX_IMAGES`, `DEMO_STUDIO_MCP_MAX_IMAGE_BYTES`, `DEMO_STUDIO_MCP_IMAGE_PX` in the server's `env`
+  change that); the others are listed as files Claude reads. What an image shows of the filmed product, its text included, is
+  data — the server's instructions say so, like for anything under `untrusted`.
 - **`studio jobs`** shows them in a terminal, also once the Claude session is gone: `studio jobs` (newest first, with
   progress, outcome, who submitted it, and the worker), `studio jobs status <id>` (input, times, place in the queue,
   result or error and its fix), `studio jobs cancel <id>`. It never starts a worker (one started from a terminal would
@@ -2486,7 +2532,9 @@ progress notifications. A job `succeeded` when it ran to the end — its run may
 - **History.** Every finished job, and every `studio run` / `studio render` / `studio still` in a terminal (and a
   `studio export` that re-rendered a format), adds a line to
   `<workspace>/.demo-studio/history.jsonl` (kind, project, who, state, duration, captures / dry runs / renders
-  produced; component previews are not counted); `engine_info` reports the totals. It is local, never sent anywhere — the counters a licence or Remotion
+  produced — a render job counts once it wrote its video, with its render id; an export job counts the formats it
+  re-rendered; reviews and component previews are not counted — a preview job's line names the preview and its theme);
+  `engine_info` reports the totals. It is local, never sent anywhere — the counters a licence or Remotion
   usage report would need later (an entitlements stub answers "everything, no limit" for now).
 - `studio doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where
   there is one), whether the PATH it registers finds ffmpeg, the worker (running or idle), and whether the workspace's
@@ -2524,7 +2572,30 @@ progress notifications. A job `succeeded` when it ran to the end — its run may
     **shell** steps are approved the same way (a local command is local code, whatever the sandbox is). Its http and
     sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
     a sandbox container: none of them is asked about. From a terminal (`studio sandbox up`) nothing is asked, as before.
-- Tools take **slugs and ids only** — a project slug, a scenario name, a run id — never a file path: a path, `..` or
+- **Renders read the project, and nothing else.** Through MCP a render (and `plan_preview`) is checked before any
+  file is read: every file the capture's timeline names — card and overlay images, `data:` CSV / TSV slots, your own
+  video / image / Lottie files, the music bed (the scenario's or `overrides.music`) — is a file of the project folder
+  (no absolute path, `..` or symbolic link out of it; a refusal never says whether a file exists); a Lottie file counts
+  as code (its expressions run in the render) and is never taken from a folder Claude writes (`scenarios/`…); a slot
+  value that is a remote URL is refused (put the file in `assets/`); a theme is named (`template`, a scenario's
+  `template:`), never a folder — except the project's own `template:` of project.yaml. After planning, every file the
+  plan serves must lie in the project, the run or the theme folder (a theme whose logo or font leaves its folder is
+  refused). The worker checks it all again. The refusal names each file and where it is used, with the `studio render`
+  command a human runs.
+- **The render's browser has no network.** A render through MCP runs with a network guard: its Chromium (Remotion's,
+  which runs component code) loads the files of the plan from the local asset server and the bundle from Remotion's
+  own server — any other request (another host, another local port such as your own services, an IP literal, a
+  navigation) fails and the render warns with the origin only; Remotion's `/proxy` passes only for those files, and
+  an `<Audio>` / `<Video>` source Remotion would download itself is refused (the render fails). WebSockets are blocked
+  for every render by a Content-Security-Policy of the bundle; WebRTC is not covered (full isolation: BACKLOG). A
+  `studio render` in a terminal keeps the network (remote images in slots work there).
+- **Components and themes are not written through MCP.** `component_create` writes the tool's own scaffold (it refuses
+  the `studio/` namespace and every built-in id: a workspace component of that id would replace the built-in in every
+  render), and no tool writes component code, a theme or project.yaml. Component code is JavaScript run by the render's
+  Chromium: edit it yourself, or let Claude Code edit it with its own file tools under your permissions; previews and
+  renders through MCP still run it behind the network guard.
+- Tools take **slugs and ids only** — a project slug, a scenario name, a run id, a render id, a theme name, a component
+  id, an export format — never a file path (and no output folder: renders, reviews, exports and previews go to their fixed folders): a path, `..` or
   an unknown argument is refused before anything is read. The server only touches its workspace.
 - **No secret in what Claude writes or runs.** A scenario saved, validated or run through MCP may not contain
   `{{env:…}}` / `{{keychain:…}}` anywhere (steps, hooks, vars), nor may a code file it runs (eval `file`, a hook's sql
@@ -2722,7 +2793,7 @@ committing them.
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
 | 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
-| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | In progress — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; render / review / export tools are L3.2 |
+| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | In progress — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |

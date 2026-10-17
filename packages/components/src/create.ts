@@ -22,7 +22,15 @@ export interface CreateComponentOptions {
   componentsDir?: string;
   /** Built-in library checked for an id clash (default: the package library; null = none). */
   builtinDir?: string | null;
+  /**
+   * Refuse the built-in namespace (`studio/`) and any id of a built-in component instead of overriding it with a
+   * warning (an MCP client's scaffold: a workspace id silently replaces the built-in in every render).
+   */
+  noOverride?: boolean;
 }
+
+/** The namespace of the built-in library. */
+export const BUILTIN_NAMESPACE = 'studio';
 
 export interface CreatedComponent extends ComponentInfo {
   /** Absolute paths of the files written. */
@@ -57,6 +65,9 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   if (!(COMPONENT_KINDS as readonly string[]).includes(kind)) {
     throw new ComponentError(`unknown component kind "${kind}"${suggestion(kind, COMPONENT_KINDS)} (kinds: ${COMPONENT_KINDS.join(', ')})`);
   }
+  if (opts.noOverride && id.split('/')[0] === BUILTIN_NAMESPACE) {
+    throw new ComponentError(`component id "${id}": the "${BUILTIN_NAMESPACE}/" namespace belongs to the built-in library — pick your own namespace (e.g. acme/${id.split('/')[1]})`);
+  }
   const componentsDir = opts.componentsDir ? resolve(opts.componentsDir) : (await loadWorkspaceConfig(root)).componentsDir;
   const [ns, name] = id.split('/');
   const dir = join(componentsDir, ns, name);
@@ -65,6 +76,9 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   const source = scaffoldDir(kind);
   const builtinDir = opts.builtinDir === null ? undefined : resolve(opts.builtinDir ?? LIBRARY_DIR);
   const overrides = builtinDir && existsSync(join(builtinDir, ns, name, MANIFEST_FILE)) ? join(builtinDir, ns, name) : undefined;
+  if (overrides && opts.noOverride) {
+    throw new ComponentError(`component id "${id}" is a built-in component's: a workspace component of that id would replace it in every render — pick another id`);
+  }
 
   // component.yaml: the scaffold's, with id/name/description replaced (comments kept) and the schema path rewritten.
   const yamlText = await readFile(join(source, MANIFEST_FILE), 'utf8');

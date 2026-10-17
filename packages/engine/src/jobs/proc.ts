@@ -23,6 +23,12 @@ export async function selfIdentity(): Promise<ProcessIdentity> {
   return own;
 }
 
+/** A process's start time (ms since the epoch, from ps), or null. */
+export async function processStart(pid: number): Promise<number | null> {
+  const { processStart: start } = await import('@demo-studio/sandbox');
+  return start(pid);
+}
+
 /** Is the process `id` names still running (same pid, same start time)? */
 export async function isAlive(id: ProcessIdentity): Promise<boolean> {
   const { processStart, signalState } = await import('@demo-studio/sandbox');

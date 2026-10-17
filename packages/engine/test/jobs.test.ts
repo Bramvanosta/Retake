@@ -70,7 +70,7 @@ describe('FileJobQueue', () => {
       { ...INPUT, env: 'a/b' },
       { ...INPUT, scenario_sha256: 'nope' },
       { ...INPUT, version: 2 },
-      { ...INPUT, kind: 'render' },
+      { ...INPUT, kind: 'record' },
       { ...INPUT, allow_writes: true },
       { ...INPUT, secret: 'hunter2' },
     ]) {

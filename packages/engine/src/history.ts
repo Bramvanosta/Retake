@@ -26,6 +26,14 @@ export interface HistoryEntry {
   state: string;
   ms?: number;
   run?: { id: string; scenario: string; mode: string; status: string };
+  /** A render job's render (L3.2). */
+  render?: { id: string; scenario: string; variant?: string };
+  /** A review job's render, and whether the review was clean (L3.2). */
+  review?: { render: string; clean?: boolean };
+  /** An export job's render and the formats it wrote (L3.2); `counted.renders` = the formats it re-rendered. */
+  export?: { render: string; formats: string[] };
+  /** A preview job's id and what it showed (a component id, or `theme`); it counts nothing (L3.2). */
+  preview?: { id: string; target: string; theme?: string };
   /** What it produced. */
   counted: { captures: number; dry_runs: number; renders: number };
 }

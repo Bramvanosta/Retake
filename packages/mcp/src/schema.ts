@@ -4,7 +4,7 @@
  * id, checked here before the engine (and core, which also accepts paths) sees it.
  */
 import { z } from 'zod';
-import { PROJECT_SLUG_RE, SLUG_RE } from '@demo-studio/core';
+import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, TEMPLATE_NAME_RE } from '@demo-studio/core';
 import { RUN_ID_RE } from '@demo-studio/engine';
 
 export const projectSlug = z
@@ -24,6 +24,28 @@ export const runId = z
   .max(200)
   .regex(RUN_ID_RE, 'a run id such as 20261017-142233-quote (run_list names them), never a path')
   .describe('Run id (a folder of runs/, from run_list).');
+
+export const renderId = z
+  .string()
+  .max(200)
+  .regex(RENDER_ID_RE, 'a render id such as quote-v3 or quote-v3-vertical (render returns it), never a path')
+  .describe('Render id (renders/<id>.mp4): what render returned.');
+
+export const templateName = z
+  .string()
+  .max(100)
+  .regex(TEMPLATE_NAME_RE, 'a theme name such as editorial (a folder of templates/), never a path')
+  .describe("Theme (template) name for this render instead of the run's, e.g. editorial or motion.");
+
+export const componentId = z
+  .string()
+  .max(120)
+  .regex(COMPONENT_ID_RE, 'a component id "namespace/name" such as studio/intro-stack (component_list names them), never a path')
+  .describe('Component id "namespace/name" (from component_list).');
+
+export const editOverrides = EditOverridesInputSchema.describe(
+  'Edit choices for this render, without touching the scenario: frame (card, browser, laptop, phone, tablet, raw or a layout component id), variant (landscape, vertical, square), fps, scale (0.5–2), intro / outro / captions / camera / trim_idle switches, idle_threshold, speeds per scene id, transition and transition_duration, components (by kind or segment id: a component id or {id, params}), music (a project file, or false), tutorial switches.',
+);
 
 export const envName = z.string().min(1).max(100).describe('Environment name of project.yaml (project_get lists them).');
 

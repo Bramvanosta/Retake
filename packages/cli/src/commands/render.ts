@@ -1,9 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, readJson } from '@demo-studio/core';
-import type { Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planEdit, planInputFiles, renderStill, renderVideo, runEnv, runScenario } from '@demo-studio/editor';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@demo-studio/core';
+import { RenderCancelledError, RenderError, VARIANT_SUFFIX, planRun, renderStill, renderVideo } from '@demo-studio/editor';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
 import { appendHistory } from '@demo-studio/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -213,32 +211,25 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   const variant = variantOption(opts);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  let run;
-  try {
-    run = findRun(project, opts.run ?? 'latest', scenario);
-  } catch (e) {
-    throw new CliError((e as Error).message);
-  }
-  const timeline = await readJson<Timeline>(join(run.dir, 'timeline.json'));
-  if (timeline.scenario !== scenario) throw new CliError(`run ${run.id} is a run of scenario "${timeline.scenario}", not "${scenario}"`);
-  if (timeline.mode === 'dry') throw new CliError(`run ${run.id} is a dry run: there is no capture to render`);
-  const template = await loadProjectTemplate(project, opts.theme ?? timeline.video?.template ?? project.config.template);
-  const registry = await loadComponentRegistry({ root: ws.root });
   const overrides: EditOverrides = {};
-  if (opts.theme) overrides.theme = template.name;
   if (variant) overrides.variant = variant;
   if (opts.layout) overrides.frame = opts.layout;
-  const plan = planEdit({
-    timeline,
-    template,
-    project,
-    registry,
-    captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
-    scenario: await runScenario(run.dir),
-    env: await runEnv(run.dir),
-    overrides,
-    files: await planInputFiles(timeline, project, template),
-  });
+  let planned;
+  try {
+    planned = await planRun({
+      project,
+      run: opts.run ?? 'latest',
+      scenario,
+      ...(opts.theme ? { template: opts.theme } : {}),
+      overrides,
+      root: ws.root,
+      measureMusic: false,
+    });
+  } catch (e) {
+    if (e instanceof RenderError) throw new CliError(e.message);
+    throw e;
+  }
+  const { plan, run, registry } = planned;
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out
     ? resolve(opts.out)

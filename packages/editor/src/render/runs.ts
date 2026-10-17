@@ -110,17 +110,23 @@ export function nextVersion(dir: string, name: string): number {
   return Math.max(0, ...takenVersions(dir, name)) + 1;
 }
 
+/** The lock file that reserves version `version` of `name` in `dir` (`.<name>-v<N>.lock`). */
+export function versionLockFile(dir: string, name: string, version: number): string {
+  return join(dir, `.${name}-v${version}.lock`);
+}
+
 /**
  * Reserve the next free version (an exclusive `.<name>-v<N>.lock` file, so two renders of the same scenario never
- * pick the same N). `release()` removes the lock.
+ * pick the same N). `release()` removes the lock. `owner`: what the lock says holds it (default this process's pid;
+ * a render job submitted through MCP: `job <id>`).
  */
-export async function reserveVersion(dir: string, name: string): Promise<{ version: number; release: () => Promise<void> }> {
+export async function reserveVersion(dir: string, name: string, owner = String(process.pid)): Promise<{ version: number; release: () => Promise<void> }> {
   for (let attempt = 0; attempt < 1000; attempt++) {
     const version = nextVersion(dir, name);
-    const lock = join(dir, `.${name}-v${version}.lock`);
+    const lock = versionLockFile(dir, name, version);
     try {
       const fh = await open(lock, 'wx');
-      await fh.writeFile(`${process.pid}\n`);
+      await fh.writeFile(`${owner}\n`);
       await fh.close();
       return { version, release: () => rm(lock, { force: true }) };
     } catch (e) {

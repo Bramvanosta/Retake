@@ -6,8 +6,8 @@
  * thumbnails, sheets and key frames.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, relative } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@demo-studio/components';
@@ -30,6 +30,7 @@ import type { SegmentSpan } from './spans.js';
 import { buildOutputTimeline, outputClicks } from './timeline.js';
 import { DEFAULT_RULES, DEFAULT_SHEET } from './types.js';
 import type { DiffFrame, Finding, ReviewDiff, ReviewFiles, ReviewOptions, ReviewResult, ReviewThumbnail, Severity } from './types.js';
+import { ReviewCancelledError } from './types.js';
 import { summaryLine } from './report.js';
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
@@ -76,6 +77,62 @@ export function keyframePlan(spans: SegmentSpan[], markers: Array<{ name: string
   return out;
 }
 
+/**
+ * The images of a review an agent looks at, as [name, file]: the contact sheet pages and the marker key frames
+ * (`sheets`), or also every key frame, the per-scene sheets and the diff sheet (`all`).
+ */
+export function reviewImages(files: ReviewFiles, o: { fps: 1 | 2; markers: Iterable<string>; mode: 'sheets' | 'all' }): Array<[string, string]> {
+  const all = o.mode === 'all';
+  const list: Array<[string, string]> = files.sheets.map((f, i) => [`sheet_${o.fps}fps${i ? `_p${i + 1}` : ''}`, f]);
+  const markerNames = new Set([...o.markers].map(safeName));
+  for (const [name, f] of Object.entries(files.keyframes)) if (all || markerNames.has(name)) list.push([`keyframe:${name}`, f]);
+  if (all) {
+    for (const [id, fl] of Object.entries(files.scene_sheets)) fl.forEach((f, i) => list.push([`sheet_scene_${id}${i ? `_p${i + 1}` : ''}`, f]));
+    if (files.diff_sheet) list.push(['diff', files.diff_sheet]);
+  }
+  return list;
+}
+
+/** The pid a review's temporary folder (`<id>.tmp-<pid>-<hex>`, `<id>.old-<pid>-<hex>`) belongs to. */
+function aside(name: string, id: string): { kind: 'tmp' | 'old'; pid: number } | undefined {
+  if (!name.startsWith(`${id}.`)) return undefined;
+  const m = /^(tmp|old)-(\d+)-[0-9a-f]+$/.exec(name.slice(id.length + 1));
+  return m ? { kind: m[1] as 'tmp' | 'old', pid: Number(m[2]) } : undefined;
+}
+
+function pidAlive(pid: number): boolean {
+  if (pid === process.pid) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Put a review folder back in order after a review that died (a killed process): the previous review set aside for the
+ * swap comes back when no review took its place, and the temporary folders of dead processes are removed. A review
+ * still running (its process alive) is left alone. Best effort.
+ */
+export async function recoverReviewDir(finalDir: string): Promise<void> {
+  const parent = dirname(finalDir);
+  const id = basename(finalDir);
+  let names: string[];
+  try {
+    names = await readdir(parent);
+  } catch {
+    return;
+  }
+  for (const name of names.sort().reverse()) {
+    const a = aside(name, id);
+    if (!a || pidAlive(a.pid)) continue;
+    const dir = join(parent, name);
+    if (a.kind === 'old' && !existsSync(finalDir)) await rename(dir, finalDir).catch(() => undefined);
+    else await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 function sortFindings(list: Finding[]): Finding[] {
   // By severity, the comparison with the previous render last, then by frame (video-level findings first).
   const diff = (f: Finding) => (f.code.startsWith('diff-') ? 1 : 0);
@@ -87,8 +144,23 @@ function inset(r: { x: number; y: number; w: number; h: number }, d: number) {
 }
 
 export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
+  try {
+    return await reviewRenderOnce(opts);
+  } catch (e) {
+    if (opts.signal?.aborted && !(e instanceof ReviewCancelledError)) throw new ReviewCancelledError();
+    throw e;
+  }
+}
+
+async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   const started = performance.now();
   const progress = opts.onProgress ?? (() => {});
+  const signal = opts.signal;
+  /** Stop between stages (and ffmpeg at once: it gets the signal) when cancelled. */
+  const check = () => {
+    if (signal?.aborted) throw new ReviewCancelledError();
+  };
+  check();
   progress({ stage: 'loading' });
   const project = await openProject(opts.project, opts.root);
   const record = await findRender(project, opts.render, opts.scenario);
@@ -135,20 +207,23 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
 
   // ── Output directory (written aside, swapped in at the end) ──
   const finalDir = opts.out ?? join(reviewsDir(project), record.id);
-  const tmpDir = `${finalDir}.tmp-${randomBytes(3).toString('hex')}`;
+  // Leftovers of a review that died are put back in order first (the previous review set aside comes back).
+  await recoverReviewDir(finalDir);
+  const tmpDir = `${finalDir}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
   await rm(tmpDir, { recursive: true, force: true });
   await mkdir(join(tmpDir, 'keyframes'), { recursive: true });
   const fin = (p: string) => join(finalDir, relative(tmpDir, p));
 
   try {
     // ── Pass 1: the render ──
+    check();
     progress({ stage: 'frames', progress: 0 });
     const tiles = new Map<number, { data: Buffer; width: number; height: number }>();
     const analyses = new Map<number, FrameAnalysis>();
     const keyFiles: Record<string, string> = {};
     const fullStep = Math.max(2, Math.round(Math.min(plan.width, plan.height) / 180));
     let done = 0;
-    const delivered = await extractFrames(record.file, [...wanted], { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height }, async (f, img) => {
+    const delivered = await extractFrames(record.file, [...wanted], { width: plan.width, height: plan.height, videoWidth: probed.width, videoHeight: probed.height, ...(signal ? { signal } : {}) }, async (f, img) => {
       const span = spanAt(spans, f);
       if (mainSet.has(f) || sceneSet.has(f)) tiles.set(f, await makeTile(img, layout.tile));
       for (const name of keyByFrame.get(f) ?? []) {
@@ -179,6 +254,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     let sources: Map<string, RegionStats> | undefined;
     let sourceSigs: Map<string, Float32Array> | undefined;
     const captureFile = plan.source.file;
+    check();
     if (captureFile && existsSync(captureFile)) {
       progress({ stage: 'capture' });
       const want = new Set(sourceFramesAtStarts(spans));
@@ -206,13 +282,14 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
           const cw = Math.min(640, src.width);
           const ch = Math.max(2, Math.round((cw * src.height) / src.width / 2) * 2);
           const info = await probeVideo(src.file);
-          await extractFrames(src.file, frames, { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height }, (f, img: RgbImage) => {
+          await extractFrames(src.file, frames, { width: cw, height: ch, videoWidth: info.width, videoHeight: info.height, ...(signal ? { signal } : {}) }, (f, img: RgbImage) => {
             const key = `${track}:${f}`;
             sources!.set(key, regionStats(img, { x: 0, y: 0, w: img.width, h: img.height }, { step: 2 }));
             if (sigWanted.has(key)) sourceSigs!.set(key, signature(img, { x: 0, y: 0, w: img.width, h: img.height }, 64, 36));
           });
         }
       } catch (e) {
+        check();
         sources = undefined;
         sourceSigs = undefined;
         notes.push({ severity: 'info', code: 'capture-unreadable', message: `the capture ${captureFile} could not be read (${(e as Error).message}): scene starts checked on the rendered frames only` });
@@ -224,6 +301,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     // ── Pass 3: the previous render (same segment, same offset) ──
     let diff: ReviewDiff | undefined;
     const diffTiles: Tile[] = [];
+    check();
     if (previous) {
       progress({ stage: 'previous' });
       const base = diffRecords(previous, record);
@@ -232,7 +310,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
       const prevTiles = new Map<number, { data: Buffer; width: number; height: number }>();
       try {
         const info = await probeVideo(previous.file);
-        await extractFrames(previous.file, pairs.map((p) => p.previous_frame), { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height }, async (f, img) => {
+        await extractFrames(previous.file, pairs.map((p) => p.previous_frame), { width: previous.plan.width, height: previous.plan.height, videoWidth: info.width, videoHeight: info.height, ...(signal ? { signal } : {}) }, async (f, img) => {
           prevSigs.set(f, signature(img, { x: 0, y: 0, w: img.width, h: img.height }));
           prevTiles.set(f, await makeTile(img, layout.tile));
         });
@@ -257,6 +335,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
           diffTiles.push({ frame: c.frame, ...ct, label: `${record.id} · ${timecode(c.time)}`, sub: `now · ${Math.round(c.changed * 100)} % changed`, mark: 'info' });
         }
       } catch (e) {
+        check();
         diff = { ...base, compared: 0, changed_frames: [] };
         notes.push({ severity: 'info', code: 'previous-unreadable', message: `the previous render ${previous.id} could not be read (${(e as Error).message}): plan diff only` });
       }
@@ -276,6 +355,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     }
 
     // ── Checks ──
+    check();
     progress({ stage: 'checks' });
     const durations = segmentDurations(ctx);
     const findings = sortFindings([
@@ -299,6 +379,7 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     const clean = counts.error === 0 && counts.warning === 0;
 
     // ── Sheets ──
+    check();
     progress({ stage: 'sheets' });
     const markOf = (f: number, half: number): Severity | undefined => {
       let worst: Severity | undefined;
@@ -396,22 +477,25 @@ export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
     await writeFile(join(tmpDir, 'report.json'), `${JSON.stringify(result, null, 2)}\n`);
     await writeFile(join(tmpDir, 'report.md'), reportMarkdown(result, outputTimeline));
 
-    // Swap the new review in.
+    // Swap the new review in: the previous one is set aside first (a crash between the two renames leaves it there,
+    // and recoverReviewDir brings it back), then removed. Cancelled before this point: the previous review is intact.
+    check();
     await mkdir(dirname(finalDir), { recursive: true });
-    await rm(finalDir, { recursive: true, force: true });
-    await rename(tmpDir, finalDir);
+    const old = `${finalDir}.old-${process.pid}-${randomBytes(3).toString('hex')}`;
+    const hadOld = existsSync(finalDir);
+    if (hadOld) await rename(finalDir, old);
+    try {
+      await rename(tmpDir, finalDir);
+    } catch (e) {
+      if (hadOld) await rename(old, finalDir).catch(() => undefined);
+      throw e;
+    }
+    if (hadOld) await rm(old, { recursive: true, force: true });
 
     // ── Thumbnails for the MCP ──
     const thumbnails: ReviewThumbnail[] = [];
     if (opts.thumbnails !== false) {
-      const all = opts.thumbnails === 'all';
-      const list: Array<[string, string]> = files.sheets.map((f, i) => [`sheet_${fps}fps${i ? `_p${i + 1}` : ''}`, f]);
-      const markerNames = new Set(plan.markers.map((m) => safeName(m.name)));
-      for (const [name, f] of Object.entries(files.keyframes)) if (all || markerNames.has(name)) list.push([`keyframe:${name}`, f]);
-      if (all) {
-        for (const [id, fl] of Object.entries(files.scene_sheets)) fl.forEach((f, i) => list.push([`sheet_scene_${id}${i ? `_p${i + 1}` : ''}`, f]));
-        if (files.diff_sheet) list.push(['diff', files.diff_sheet]);
-      }
+      const list = reviewImages(files, { fps, markers: plan.markers.map((m) => m.name), mode: opts.thumbnails === 'all' ? 'all' : 'sheets' });
       for (const [name, file] of list) {
         const t = await thumbnailOf(file, thumbPx);
         thumbnails.push({ name, file, mime: 'image/jpeg', ...t });

@@ -146,7 +146,9 @@ parseManifest(text, file?, { folderId? }): { manifest?, issues: ComponentIssue[]
 validateComponent(dir): Promise<ComponentIssue[]>   // manifest, id = folder, entry exists, params schema + defaults,
 //  preview samples fill required slots, layout geometry, esbuild compile (imports: react, remotion, the kit and own
 //  files only; misspelt named imports; Math.random/Date/fetch/timers) — every issue {file, line, col, path, message}
-createComponent(root, { id, kind, description, name? }): Promise<CreatedComponent>   // from scaffolds/<kind>/, validated
+createComponent(root, { id, kind, description, name?, noOverride? }): Promise<CreatedComponent>   // from scaffolds/<kind>/, validated
+//  L3.2 `noOverride` (MCP component_create): refuses the `studio/` namespace (BUILTIN_NAMESPACE) and any built-in id
+//  instead of overriding the built-in with a warning; the CLI keeps the override
 // Previews (L2.7): bookkeeping only — rendering is @demo-studio/editor `renderComponentPreviews`
 componentSourceFiles(dir) / componentSourceHash(dir)   // manifest + entry + local imports (recursive), sha256/16
 previewStatus(dir, { theme? }): { state: 'fresh' | 'missing' | 'stale', reason?, meta?, hash }
@@ -414,16 +416,21 @@ renderVideo(opts: { project; run /* id or dir */; scenario?; template?; override
 //  overrides); measures the music track (ffprobe) and passes its length to planEdit (`musicDuration_s`)
 renderStill(opts: { plan; frame; out }): Promise<string>
 renderStills(opts: { plan; frames: Array<{ frame; out }> }): Promise<string[]>   // one browser session for all frames
-renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest }[]; template: LoadedTemplate; registry?;
-                                 outDir?; cacheDir? }): Promise<RenderedPreview[]>   // L2.7 (see §2.3)
-buildComponentPreview(opts): { spec: ComponentPreviewSpec; at; screen?; components }   // pure
-previewTemplate(opts: { template; out_dir }): Promise<string[]>   // later (Studio theme editor)
+renderComponentPreviews(opts: { root; targets: { id, dir, entry, manifest, slots?, params?, at?, file? }[];
+                                 template: LoadedTemplate; registry?; outDir?; cacheDir?; signal?; network?;
+                                 onBrowser?; onWarnings?; onProgress? }): Promise<RenderedPreview[]>   // L2.7 (see §2.3)
+buildComponentPreview(opts: { …, slots?, params?, at? }): { spec: ComponentPreviewSpec; at; screen?; components }   // pure
+//  A theme preview (MCP template_preview, L3.2) is renderComponentPreviews over the theme's own pick per kind (intro,
+//  layout, card, interstitial, outro, each with the theme's params): no separate previewTemplate.
 exportRender(opts: { project; render /* id | path | latest */; formats?: ExportFormat[]; out?; gif?: {start_s?,
                      duration_s?}; concurrency?; signal?; onProgress? }): Promise<ExportResult>   // L2.8
 //  'mp4_1080p' | 'mp4_4k' | 'webm' | 'vertical_9x16' | 'square_1x1' | 'gif_preview' → <project>/exports/<render-id>/
 //  + manifest.json. Derived from the master with ffmpeg: 1080p (copy, or scaled from 4K), WebM (VP9 CRF 32 + Opus),
 //  GIF (480 px, 12 fps, palette, 15 s around the first marker else the first 15 s). Re-rendered from the run through
 //  the planner (same theme and overrides): vertical, square, and 4K from a non-4K master (capture upscaled, warning).
+//  L3.2: `trust: 'mcp'` (export jobs) — the render named by id only, read from renders/<id>.json, its `file` and
+//  `run_dir` inside the project (`recordPathProblem`), re-renders through planRun's gates; `network` / `onBrowser`
+//  passed to the re-renders (`guard` in the worker). `exportMethod(record, format)` says copy / transcode / render.
 generateTestTrack(out, { seconds? }): Promise<string>   // procedural sine-chord AAC track for tests / demos (ffmpeg)
 listRenders(project): Promise<RenderRecord[]>
 ```
@@ -551,6 +558,31 @@ music) are served by a local static HTTP server (127.0.0.1, Range, CORS) during 
 faststart, always an audio track (silent AAC without music); the video is encoded under a temporary name and renamed,
 so a failed or cancelled render leaves nothing under the final name.
 
+**Planning a run (L3.2, `render/plan-run.ts`).** `planRun({project, run, scenario?, template?, overrides?, root?,
+registry?, trust?, measureMusic?})` is the one place a run becomes an EditPlan (run, timeline, theme, registry, the
+music's length by ffprobe, `planInputFiles`, `planEdit`): `renderVideo`, `studio still` and the engine (plan_preview,
+render submit, the render job) all call it. With `trust: 'mcp'` it holds two gates (core agent-trust): **gate 1**,
+before any file is read (no ffprobe, no CSV read — a refusal is no existence oracle): every `planFileUses` ref
+(card / overlay image and `data:` slots, own media; Lottie `.json` as code) and the music bed (`musicSpecOf` of the
+run, `overrides.music`) are project files (`renderFileProblems`), the theme ref is a name or project.yaml's own
+`template` (`templateRefProblem`), no slot value is `http(s):` (`remoteSlotUses`); **gate 2**, after planning: every
+`plan.assets` file realpaths into the project, the run or the theme folder (`servedFileProblems`: an extension-less
+image slot, a theme logo / font leaving its folder). A refusal is `PlanTrustError` (one positioned problem per file).
+`renderVideo({reserved: {scenario, version, variant}})` adopts a version a render job reserved at submit (its lock is
+removed at the end, whatever happens; a plan of another scenario or variant is refused); `reserveVersion(dir, name,
+owner)` writes who holds a lock.
+**Network guard (L3.2, `render/network-guard.ts`; renders of the jobs worker: `network: 'guard'`).** After
+`openBrowser`, CDP `Fetch.enable` on the browser connection (every target) pauses each request: the asset server's
+URLs (`AssetServer.prefix`, origin + random token) and Remotion's bundle server (`http://localhost:<port>`, the port
+picked here and passed to Remotion as `port`) go on; Remotion's `/proxy?src=` only when `src` is an asset-server URL;
+anything else is failed (`BlockedByClient`) and becomes a render warning naming its origin. `renderMedia` /
+`renderStill` get `onDownload`, which throws for a source Remotion would download in Node that is not an asset- or
+bundle-server URL (the render fails). The bundle's index.html carries `Content-Security-Policy: connect-src 'self'
+http: https: data: blob:` (`BUNDLE_CSP`, BUNDLE_FORMAT 2) for every render: no WebSocket leaves a render page (CDP
+Fetch does not see them). WebRTC and DNS prefetch stay uncovered (BACKLOG). `onBrowser` reports the browser's pid and
+profile folder (CDP `SystemInfo.getProcessInfo`, `Browser.getBrowserCommandLine`): the worker records them so that the
+next worker kills a browser a killed worker left (Remotion starts it detached). `studio render` keeps `network: 'open'`.
+
 ### 2.3 Component previews (L2.7)
 `ComponentPreview` is a third composition of the render bundle (`{ preview: ComponentPreviewSpec }`, see
 `src/remotion/preview-types.ts`): one component in context — intros, outros, cards alone; a layout with a neutral
@@ -568,6 +600,16 @@ and palette-quantises it with ffmpeg when the full-colour PNG exceeds 200 KB; in
 `preview.json` (`PreviewMeta`) and the README block. Bundles ignore `preview.png` / `preview.json` in their hash
 (regenerating previews never rebuilds a render bundle). The theme defaults to the `editorial` starter (a workspace
 template of the same name wins); `--theme` renders with any template.
+
+**Through MCP (L3.2).** A `preview` job of the engine (`jobs/preview-job.ts`; `component_preview`, `template_preview`)
+calls `renderComponentPreviews` with `outDir: <workspace>/.demo-studio/previews/<preview_id>/` — never in place, so the
+committed previews, preview.json and README blocks stay a `studio components preview` matter — with per-target
+overrides: `slots` (merged over the manifest's preview samples; the engine admits text, url and color slots only —
+file and media slots keep their samples), `params` (merged over the preview params, validated against the schema by
+the engine), `at`, and the image's `file` name (`intro.png`… for a theme). `network: 'guard'` arms the render's
+network guard on the previews' browser (§2.2), `onBrowser` lets the worker record the browser (a killed worker's next
+one kills it), `onWarnings` receives the blocked origins, and `signal` is checked before each still
+(RenderCancelledError). The theme is a name or the project's own; its logo, wordmark and fonts must lie in its folder.
 
 ### 2.4 Raw export for editors (L2.13)
 Capture-side, so it lives in `@demo-studio/runner-web` (`src/raw/`): it owns the screencast frames, the CFR schedule
@@ -694,7 +736,26 @@ Implemented in L2.6 (`packages/review/src/`; options also `scenario?` with `late
   wait steps and the time after an action until the next step, holds excluded: catches loading skeletons that idle
   trimming cannot), `loading-scene-start` (the screen changes during the opening still), `empty-segment`,
   `caption-not-visible`, `caption-overlaps-brandmark`, `camera-jump`.
-- **Output** is written to `review/<id>.tmp-*` and swapped in, so a review never mixes pages of two runs.
+- **Output** is written to `review/<id>.tmp-<pid>-<hex>` and swapped in, so a review never mixes pages of two runs.
+  L3.2: the swap sets the previous review aside (`<id>.old-<pid>-<hex>`) before renaming the new one in, then removes
+  it; `recoverReviewDir(dir)` (run at the start of every review, and by the jobs worker after a killed review job)
+  brings an aside review back when no review took its place and removes the temporary folders of dead processes — a
+  crash between the two renames never loses the previous review. `signal` (L3.2) cancels: checked between stages and
+  passed to ffmpeg (`extractFrames` kills it); a cancelled review throws `ReviewCancelledError` and the previous review
+  is untouched. `reviewImages(files, {fps, markers, mode})` is the image list (contact sheet pages + marker key frames;
+  `all`: every key frame, scene sheets, the diff sheet) — the thumbnails and the MCP's `review_get` both use it.
+- **Through MCP (L3.2)**: a `review` job (engine `jobs/review-job.ts`) runs `reviewRender` with `thumbnails: false`
+  (no image data in job.json); `review_get` (engine `reviews.ts`) reads report.json as data and rebuilds every path
+  from `review/<id>/` (a known file name of that folder, symbolic links resolved inside it), lists the images with
+  `reviewImages`, and the MCP server makes JPEG thumbnails on read (`thumbnailOf`, ≤ 1280 px; ≤ 4 images and ≤ 1.5 MB
+  of base64 per result, the rest as paths). Finding messages, the environment and the diff's per-segment changes go
+  under `untrusted`. Nothing else of report.json is copied as is: a finding code shows only when a check writes it
+  (`FINDING_CODES`, kept complete by a test), segment / scene ids only when they match the name pattern of the review's
+  files, a component id and the previous render id only when they match theirs (else `unknown`, the original under
+  `untrusted`), and the keys of key frames and scene sheets are re-derived from their rebuilt file names. Job tools
+  (`job_status`, `job_list`, `job_cancel`, `export`) return a run, render, preview, review or export job's error
+  message only under `untrusted.error` (a placeholder in `error.message`, never in the summary) — an interrupted job's
+  message, written by the engine, excepted.
 - **L2.8**: clicks are placed one by one (widgets: every `data.clicks` entry, with the box it clicked); reframed
   variants: `target-cut` (error: the reframe cuts a clicked target that fits in the view), `cursor-outside-view` at
   clicks (error, "vertical reframe"), `cursor-outside-reframe` (warning: the cursor leaves the crop on any frame),

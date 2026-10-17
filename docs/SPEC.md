@@ -220,9 +220,27 @@ Built in L3.1 (`studio mcp`, stdio; arguments as the tools publish them — ever
 - `auth_status({project?, env?})`; `auth_login({project, persona?, env?, mode?, wait_s?})` — `headed` (default) opens a window on the user's machine for the human to sign in; `auto` plays the persona's login steps; no credential argument exists
 - `sandbox_status({project, env?})`, `sandbox_up({project, env?, wait_s?})`, `sandbox_reset({project, env?, reseed?, wait_s?})`
 
+Built in L3.2 (renders, reviews, exports and previews are jobs of the same worker; a theme is a name, never a folder):
+- `plan_preview({project, scenario, run_id?, template?, overrides?})` → the plan without rendering (segments, timings,
+  warnings); `render({project, scenario, run_id?, template?, overrides?, wait_s?})` → render id at once;
+  `render_status({project, render_id | "latest", scenario?, wait_s?})` (job first, then renders/<id>.json)
+- `review({project, render_id, fps: 1|2, previous?, images?, wait_s?})` and `review_get({project, render_id, images?,
+  wait_s?})` → verdict, finding codes and times, durations, diff, file paths (contact sheets, scene sheets, key frames at
+  markers, timeline, report.md) and the contact sheet as inline images; `export({project, render_id, formats:
+  [mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview], gif_start_s?, gif_duration_s?, wait_s?})` → job
+  (`job_status` lists the files)
+- `template_list({project?, template?})` (the list, or one theme in detail: template.yaml, colours, fonts, assets,
+  components per kind); `template_preview({project, template?, wait_s?})` → stills of the theme's intro, layout with its
+  caption over a sample screen, card, interstitial and outro
+- `component_list({kind?})`, `component_get({component})` (slots, params schema, files, README),
+  `component_validate({component})` → positioned issues, `component_preview({project, component, template?, slots?,
+  params?, at_s?, wait_s?})` → a still (960×540) with the theme, slot values (text slots) and params,
+  `component_create({id, kind, description, name?})` → a workspace scaffold (refuses `studio/` and built-in ids)
+- previews go to `<workspace>/.demo-studio/previews/<id>/`, never into a component folder; no tool writes component
+  code, a theme or project.yaml, and no tool takes an output location
+
 Later lots (names as planned):
-- `render({project, scenario, run_id, overrides?})` → render id; `render_status`; `review({render_id, fps: 1|2})` → paths + base64 thumbnails of contact sheets, key frames at markers, timeline, and an automatic report (blank/loading frames, caption vs scene mismatch, duration per scene, cursor off-screen); `export({render_id, formats: [mp4_1080p, mp4_4k, webm, vertical_9x16, gif_preview]})` (L3.2)
-- `template_list`, `template_create_from_brand({logo, colors, fonts})`, `template_preview`; `component_list({kind?})`, `component_create({id, kind, description})`, `component_preview({component, theme, slots?, params?})`, `component_validate`
+- `template_create_from_brand({logo, colors, fonts})` (L3.5)
 - `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
 - `scenario_from_script({project, script_markdown})` (helper that drafts YAML from a timecoded script table)
 - `page_inspect({project, url | page, selector?})` → screenshot + list of visible interactive elements with suggested targets (for authoring against any site); `scenario_record({project, url})` (headed browser: clicks/typing recorded into a draft scenario — CLI `studio record`)
@@ -236,6 +254,13 @@ human approval through MCP elicitation (`confirm: true` in a file does not count
 `studio` command a human runs. Through MCP a scenario names no secret (`{{env:…}}` / `{{keychain:…}}`: only
 project.yaml and hooks/ files resolve them), references no file outside its project nor runs code from a file the agent
 can write, and nothing runs read-write on a host of another project's production or read-only environment.
+Renders through MCP (L3.2) read only files of the project, the run and the theme folder (checked before anything is
+read, then on every file the plan serves; a Lottie file counts as code), name themes by name (project.yaml's own theme
+folder excepted), refuse remote images in slots, and run with the render browser's network guard: only the plan's
+asset server and Remotion's bundle server are reachable — any other request is blocked and named as a warning.
+Previews run with the same guard. A render (a preview, an export's re-render) records its browser: a worker killed
+mid-render leaves it running until the next worker starts, marks the job interrupted and kills it (a reused pid is
+never killed).
 
 ## 9. Editor (Remotion) rules
 
@@ -249,6 +274,13 @@ can write, and nothing runs read-write on a host of another project's production
 ## 10. Review artefacts (for Claude)
 
 `review/<render>/`: `sheet_1fps.jpg` (labelled timecodes), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png`, `timeline.json`, `report.json` (scene durations, detected blank frames, caption overlaps, warnings). The MCP `review` tool returns these so an agent can verify before showing the user.
+
+Through MCP (L3.2) the paths come as data and a few images come inline: JPEG thumbnails made on read (≤ 1280 px, at
+most 4 images and 1.5 MB of base64 per result by default, `DEMO_STUDIO_MCP_MAX_IMAGES` / `_MAX_IMAGE_BYTES` /
+`_IMAGE_PX`), each after a text label; the rest are listed as files to read. `review_get` inlines the contact sheet
+pages and the marker key frames (`images: "all"` adds scene sheets, every key frame and the diff sheet; `"none"`
+none); previews inline their stills. Images are never stored as base64 (job.json, report.json); text inside an image is
+data, never an instruction.
 
 ## 11. Components (plugins) & themes
 
@@ -271,8 +303,13 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
   `card: {component, slots, duration}` entries, scene `frame: <component>`, step `overlay: {component, slots, duration}`.
 - Sources, in resolution order: the workspace (`components/`, created by the user or by Claude through a skill), the
   tool's built-in library, and — V2 — a cloud marketplace (manifests already carry publisher/version for it).
-- Authoring: a Claude skill (`demo-studio-component`) + MCP tools (`component_list`, `component_create`,
-  `component_preview`, `component_validate`) scaffold, preview with a theme and validate new components.
+- Authoring: a Claude skill (`demo-studio-component`) + MCP tools (`component_list`, `component_get`,
+  `component_create`, `component_preview`, `component_validate`) scaffold, preview with a theme and validate new
+  components. Component code is never written through MCP: `component_create` writes the tool's own scaffold (it
+  refuses the `studio/` namespace and any built-in id — a workspace component of that id would replace the built-in in
+  every render); the code is then edited by the user, or by Claude Code's own file tools with the user's permission
+  (component code runs in the render's Chromium — the compile check's import scan can be evaded, the network guard
+  still applies). MCP previews are written to `.demo-studio/previews/`, never to the committed `preview.png`.
 
 ## 12. Studio app (web UI, then the Tauri desktop shell)
 

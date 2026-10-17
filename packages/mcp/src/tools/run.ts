@@ -16,16 +16,18 @@ export const waitS = (def: number, what: string) =>
     .min(0)
     .max(WAIT_MAX_S)
     .default(def)
-    .describe(`Wait up to this many seconds (0–${WAIT_MAX_S}, default ${def}) for ${what} before answering; progress notifications are sent meanwhile. Call run_status again to keep following.`);
+    .describe(`Wait up to this many seconds (0–${WAIT_MAX_S}, default ${def}) for ${what} before answering; progress notifications are sent meanwhile. Call the status tool (run_status, render_status, job_status) again to keep following.`);
 
 /** Wait on a job (when asked) with progress notifications; the call's cancel ends the wait, never the job. */
 export async function waitJob(engine: Engine, job: JobRecord, seconds: number, ctx: ToolContext): Promise<void> {
   if (seconds <= 0) return;
   const report = (j: JobRecord) => {
     const p = j.progress;
+    // A job that knows its overall progress (a render) reports percent; others report steps.
+    const pct = p?.fraction !== undefined ? Math.round(p.fraction * 100) : undefined;
     ctx.progress?.({
-      progress: p?.steps_done ?? 0,
-      ...(p?.steps_total ? { total: p.steps_total } : {}),
+      progress: pct ?? p?.steps_done ?? 0,
+      ...(pct !== undefined ? { total: 100 } : p?.steps_total ? { total: p.steps_total } : {}),
       message: `${j.state}${p?.current ? ` · ${p.current.scene}.${p.current.step} ${p.current.action}` : p?.phase ? ` · ${p.phase}` : ''}`,
     });
   };

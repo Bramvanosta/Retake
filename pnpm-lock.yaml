@@ -184,12 +184,21 @@ importers:
 
   packages/engine:
     dependencies:
+      '@demo-studio/components':
+        specifier: workspace:*
+        version: link:../components
       '@demo-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@demo-studio/editor':
+        specifier: workspace:*
+        version: link:../editor
       '@demo-studio/hooks':
         specifier: workspace:*
         version: link:../hooks
+      '@demo-studio/review':
+        specifier: workspace:*
+        version: link:../review
       '@demo-studio/runner-web':
         specifier: workspace:*
         version: link:../runner-web

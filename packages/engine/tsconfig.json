@@ -2,5 +2,5 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "src", "tsBuildInfoFile": "dist/.tsbuildinfo" },
   "include": ["src"],
-  "references": [{ "path": "../core" }, { "path": "../hooks" }, { "path": "../runner-web" }, { "path": "../sandbox" }]
+  "references": [{ "path": "../components" }, { "path": "../core" }, { "path": "../editor" }, { "path": "../hooks" }, { "path": "../review" }, { "path": "../runner-web" }, { "path": "../sandbox" }]
 }

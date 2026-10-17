@@ -47,8 +47,14 @@ async function engineCall<T>(fn: () => Promise<T>): Promise<T> {
 /** "run quote (dry) → 20261017-142233-quote", "hooks catalogue:setup", "sign-in of supplier (headed)"… */
 export function jobWhat(j: JobRecord): string {
   const i = j.input;
-  const on = i.env ? ` on ${i.env}` : '';
+  const on = 'env' in i && i.env ? ` on ${i.env}` : '';
   switch (i.kind) {
+    case 'render':
+      return `render ${i.scenario} (run ${i.run_id}${i.template ? `, theme ${i.template}` : ''}) → ${i.render_id}`;
+    case 'review':
+      return `review ${i.render_id}${i.fps === 2 ? ' (2 fps)' : ''}`;
+    case 'export':
+      return `export ${i.render_id} → ${i.formats.join(', ')}`;
     case 'run':
       return `run ${i.scenario} (${i.mode})${on} → ${i.run_id}`;
     case 'hooks':
@@ -61,6 +67,8 @@ export function jobWhat(j: JobRecord): string {
       return `sandbox up${on}`;
     case 'sandbox_reset':
       return `sandbox reset${i.reseed ? ' (reseed)' : ''}${on}`;
+    case 'preview':
+      return `preview of ${i.target.kind === 'component' ? i.target.component : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`;
   }
 }
 
@@ -76,9 +84,23 @@ export function jobOutcome(j: JobRecord): string {
       return r.ok ? 'ok' : 'with failures';
     case 'auth_login':
       return r.signed_in ? `signed in (${r.status})` : `not signed in (${r.status})`;
+    case 'render':
+      return `${r.duration_s} s ${r.width}×${r.height} → ${r.file}`;
+    case 'review':
+      return `${r.clean ? 'clean' : `${r.counts.error} errors, ${r.counts.warning} warnings`} → ${r.dir}`;
+    case 'export':
+      return `${r.outputs.length} files${r.failed.length ? `, ${r.failed.length} failed` : ''} → ${r.dir}`;
+    case 'preview':
+      return `${r.images.length} image${r.images.length === 1 ? '' : 's'} (${r.theme} theme) → ${r.dir}`;
     default:
       return r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed';
   }
+}
+
+/** A running job's progress: percent for a render, steps for a run. */
+function progressText(p: NonNullable<JobRecord['progress']>): string {
+  if (p.fraction !== undefined) return `${Math.round(p.fraction * 100)} %${p.phase ? ` · ${p.phase}` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}`;
+  return `${p.steps_done}/${p.steps_total} steps${p.current ? ` · ${p.current.scene}.${p.current.step} ${p.current.action}` : p.phase ? ` · ${p.phase}` : ''}`;
 }
 
 function stateText(ui: Ui, s: JobState): string {
@@ -108,7 +130,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
   const now = Date.now();
   for (const j of jobs) {
     const p = j.progress;
-    const progress = j.state === 'running' && p ? ` · ${p.steps_done}/${p.steps_total} steps${p.current ? ` · ${p.current.scene}.${p.current.step} ${p.current.action}` : p.phase ? ` · ${p.phase}` : ''}` : '';
+    const progress = j.state === 'running' && p ? ` · ${progressText(p)}` : '';
     const outcome = jobOutcome(j);
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
     ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${j.input.project} · ${jobWhat(j)}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
@@ -131,13 +153,14 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   const row = (k: string, v: string) => ui.result(`  ${c.dim(k.padEnd(9))} ${v}`);
   ui.result(`${c.bold(job.id)} ${stateText(ui, job.state).trimEnd()}`);
   row('what', `${job.input.project} · ${jobWhat(job)}`);
-  row('by', `${job.input.submitted_by}${job.input.approvals?.length ? ` · ${job.input.approvals.length} hook approval${job.input.approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
+  const approvals = 'approvals' in job.input ? (job.input.approvals ?? []) : [];
+  row('by', `${job.input.submitted_by}${approvals.length ? ` · ${approvals.length} hook approval${approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
   row('created', job.created_at);
   if (job.started_at) row('started', `${job.started_at}${job.worker ? ` (worker pid ${job.worker.pid})` : ''}`);
   if (job.finished_at) row('finished', `${job.finished_at}${job.started_at ? ` · ${formatMs(Date.parse(job.finished_at) - Date.parse(job.started_at))}` : ''}`);
   if (position) row('queue', position.ahead ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next');
   const p = job.progress;
-  if (p && job.state === 'running') row('progress', `${p.steps_done}/${p.steps_total} steps${p.current ? ` · ${p.current.scene}.${p.current.step} ${p.current.action}` : p.phase ? ` · ${p.phase}` : ''}`);
+  if (p && job.state === 'running') row('progress', progressText(p));
   const outcome = jobOutcome(job);
   if (outcome) row('result', outcome);
   if (job.cancel_requested_at && (job.state === 'running' || job.state === 'queued')) row('cancel', `requested at ${job.cancel_requested_at} (teardown and rollbacks run first)`);

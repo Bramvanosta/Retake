@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-17, end of lot **L3.1 (engine API, jobs, MCP server)** — phases 1 and 2 are done, phase 3 has
-started. **Next: L3.2 (MCP render / review / export + theme & component tools), when the user asks for it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-17, end of lot **L3.2 (MCP render / review / export, themes and components)** — phases 1 and 2
+are done, phase 3 is under way. **Next: L3.3 (authoring: scenario_from_script + page_inspect), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -28,7 +28,12 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.1)
+## State (after L3.2)
+- **L3.2 done (2026-10-17)**: through MCP Claude can now plan, render (guarded: no network, project files only),
+  review with contact sheets as images, export, and browse / preview themes and components (36 tools). Tests on the
+  Mac: **1819 — 1791 pass, 28 skipped** (≈ 8 min); `pnpm test:slow` includes the whole MCP loop on the fixture.
+  Requirements: 618 tracked — 525 done, 14 partial, 71 todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 12c
+  (L3.1) and 12d (L3.2).
 - **L3.1 done (2026-10-17)**: `studio mcp` (23 tools over stdio) lets Claude list and edit scenarios, run dry runs and
   captures through a job queue and a separate worker, follow progress, cancel, run hooks and env resets, sign in (the
   human types) and start sandboxes; every risky action asks the human through an approval form. Tests on the Mac:
@@ -144,8 +149,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.2 — MCP render / review / export + theme & component tools** — only when the user asks for it (the job kinds go
-in core `JOB_KINDS` and the worker's exhaustive switch; render jobs append history). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.3 — Authoring: scenario_from_script + page_inspect** — only when the user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -875,6 +879,16 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   add` registration checked ("Connected"). Not done: a live Claude Code conversation (the Mac's `claude` was signed
   out) — MACOS-CHECKLIST step 12c for the user; Claude desktop untested. 1738 tests: 1714 pass, 24 skipped. No new dependency (the MCP SDK was
   already declared).
+- **L3.2 done** (MCP render / review / export, previews, themes and components; R-MCP-09/11/13–16/29–32 and R-ARC-02
+  done; R-MCP-01 / R-MCP-03 stay partial — authoring and record are L3.3 / L3.4). Planned, criticised (network-guard
+  spike; two bypasses found: Remotion's `/proxy` and Node-side media downloads), built in three parts, reviewed (5
+  findings, the worst a case-insensitive path trick letting a captured download run as Lottie code) and fixed with
+  mutation-checked tests. Engine: `planRun` (editor) with two gates under trust `mcp`, render id reserved at submit,
+  browser pid recorded and killed by the next worker after a SIGKILL, review folder swapped atomically, history counts;
+  engine now depends on editor, review and components (lazy imports). MCP: 36 tools, image blocks (sharp thumbnails made
+  on read), every report key / id / code re-derived or moved under `untrusted`, job error messages under
+  `untrusted.error`. Acceptance: `pnpm test:slow` now includes the full MCP loop on the fixture (capture quote → render
+  editorial → review clean → render motion + laptop → export mp4 / gif / vertical) with frames looked at. 1819 tests: 1791 pass, 28 skipped; test:slow green. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1104,6 +1118,19 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.2:
+- Worker renders are guarded (editor render/network-guard.ts: CDP Fetch on the browser connection, `/proxy` src check,
+  `onDownload`, CSP meta; bundle format 2); `studio render` stays open (https: slots work). Remotion binds its bundle
+  server on all interfaces (BL-72). The worker ignores EPIPE rejections only (a refused guarded download).
+- Trust `mcp` render rules: `planRun` gate 1 (before any read) and gate 2 (every plan asset inside project / run /
+  theme); agent-writable folders matched case-insensitively on the on-disk path (macOS); `video.template` a name or the
+  project's own; export and review read renders by id with containment checks; `review_get` never trusts report.json
+  (keys, codes and ids re-derived, the rest under `untrusted`).
+- Images reach the model as MCP image blocks (≤ 4 / 1.5 MB / 1280 px per result, env-overridable); how Claude Code
+  counts them against its output limit is unverified (12d).
+- New job kinds: core `JOB_KINDS` + the worker's exhaustive switch; failed-job messages of product-facing kinds go
+  under `untrusted.error`.
+
 Notes from L3.1:
 - Register the MCP server with `node packages/cli/dist/bin.js mcp --print-config` (never `pnpm studio …`: pnpm's banner
   breaks the JSON and its folders end up in PATH); secrets for automated sign-ins go as `-e NAME=…` before the `--` of

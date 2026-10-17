@@ -40,3 +40,10 @@ export const HOOK_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint:
 export const SIGN_IN: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 /** Starts or resets a local sandbox (a reset rewrites the sandbox's own data, nothing else). */
 export const SANDBOX_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+/**
+ * Starts a render, review or export job (no product environment is touched: it works on a capture or a render already
+ * made, in the worker, and writes only the project's renders/, review/ and exports/ folders).
+ */
+export const RENDER_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+/** Starts a preview job: stills of a component or a theme in <workspace>/.demo-studio/previews/ (never a component folder). */
+export const PREVIEW_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };

@@ -4,12 +4,13 @@
  * two zooms, a 35 s scene at 1×, a transition over a click, a long wait on a loading screen, a video outside 1–2 min,
  * empty cards), pagination, the diff with the previous render and the base64 thumbnails. Needs ffmpeg/ffprobe.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { reviewRender } from '../src/index.js';
+import { ReviewCancelledError, recoverReviewDir, reviewImages, reviewRender } from '../src/index.js';
 import type { Finding, ReviewResult } from '../src/index.js';
 import type { OutputTimeline } from '../src/timeline.js';
 import type { ClipSegment, EditPlan } from '@demo-studio/editor';
@@ -316,6 +317,49 @@ describe.skipIf(!can)('reviewRender', () => {
     // The first render has nothing to compare with.
     expect((await review('diff-v1')).diff).toBeUndefined();
     await expect(review('diff-v2', { previous: 'diff-v2' })).rejects.toThrow(/is the render under review/);
+  }, LONG);
+
+  it('a cancel stops the review (ffmpeg killed), leaves the previous review intact and no temporary folder', async () => {
+    const dir = join(ws.project.dir, 'review', 'clean-v1');
+    const before = await readFile(join(dir, 'report.json'), 'utf8');
+    const ac = new AbortController();
+    const stages: string[] = [];
+    const t0 = Date.now();
+    await expect(
+      review('clean-v1', {
+        thumbnails: false,
+        signal: ac.signal,
+        onProgress: (p) => {
+          stages.push(p.stage);
+          if (p.stage === 'frames' && (p.progress ?? 0) > 0) ac.abort();
+        },
+      }),
+    ).rejects.toBeInstanceOf(ReviewCancelledError);
+    expect(Date.now() - t0).toBeLessThan(20_000);
+    expect(stages).not.toContain('sheets');
+    expect(await readFile(join(dir, 'report.json'), 'utf8')).toBe(before);
+    expect((await readdir(join(ws.project.dir, 'review'))).filter((n) => n.startsWith('clean-v1.'))).toEqual([]);
+    // Aborted before it starts: nothing is read.
+    await expect(review('clean-v1', { signal: AbortSignal.abort() })).rejects.toBeInstanceOf(ReviewCancelledError);
+  }, LONG);
+
+  it('recoverReviewDir: the previous review set aside by a dead process comes back; temporary folders of dead processes go, live ones stay', async () => {
+    const reviews = join(ws.project.dir, 'review');
+    const dir = join(reviews, 'clean-v1');
+    const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
+    const before = await readFile(join(dir, 'report.json'), 'utf8');
+    // Killed between the two renames of the swap: the final folder is gone, the previous review is aside.
+    await rename(dir, `${dir}.old-${dead}-abc123`);
+    await mkdir(`${dir}.tmp-${dead}-def456`);
+    await mkdir(`${dir}.tmp-${process.pid}-0a0a0a`);
+    await recoverReviewDir(dir);
+    expect(await readFile(join(dir, 'report.json'), 'utf8')).toBe(before);
+    expect((await readdir(reviews)).filter((n) => n.startsWith('clean-v1.'))).toEqual([`clean-v1.tmp-${process.pid}-0a0a0a`]);
+    await rm(`${dir}.tmp-${process.pid}-0a0a0a`, { recursive: true });
+    // reviewImages: the list review_get rebuilds (sheet pages, then marker key frames; everything with "all").
+    const r = JSON.parse(before) as ReviewResult;
+    expect(reviewImages(r.files, { fps: 1, markers: [], mode: 'sheets' }).map(([n]) => n)).toEqual(['sheet_1fps', 'sheet_1fps_p2']);
+    expect(reviewImages(r.files, { fps: 1, markers: [], mode: 'all' }).map(([n]) => n)).toEqual(expect.arrayContaining(['keyframe:s1-first', 'sheet_scene_s2']));
   }, LONG);
 
   it('finds renders by id, path or latest, and says when one is missing', async () => {

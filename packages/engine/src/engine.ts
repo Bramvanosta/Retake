@@ -36,6 +36,23 @@ import type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job
 import { submitAuthLoginJob } from './jobs/auth-job.js';
 import type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 import { submitSandboxJob } from './jobs/sandbox-job.js';
+import { submitRenderJob } from './jobs/render-job.js';
+import type { RenderRequest } from './jobs/render-job.js';
+import { planPreview, renderStatus } from './renders.js';
+import { submitReviewJob } from './jobs/review-job.js';
+import type { ReviewRequest } from './jobs/review-job.js';
+import { submitExportJob } from './jobs/export-job.js';
+import type { ExportRequest } from './jobs/export-job.js';
+import { reviewGet, thumbnail } from './reviews.js';
+import { submitPreviewJob } from './jobs/preview-job.js';
+import type { PreviewRequest } from './jobs/preview-job.js';
+import { componentCreate, componentGet, componentList, componentValidate } from './components.js';
+import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from './components.js';
+import { templateGet, templateList } from './templates.js';
+import type { TemplateDetail, TemplateListView } from './templates.js';
+import type { ComponentKind } from '@demo-studio/core';
+import type { ReviewImagesMode, ReviewView } from './reviews.js';
+import type { PlanPreviewView, RenderStatusView } from './renders.js';
 import type { SandboxSubmitRequest } from './jobs/sandbox-job.js';
 import { entitlements } from './entitlements.js';
 import type { Entitlements } from './entitlements.js';
@@ -178,6 +195,47 @@ export interface Engine {
      */
     login(req: AuthLoginSubmitRequest): Promise<{ job: JobRecord; persona: string; env: string; worker?: { pid?: number; spawned: boolean } }>;
   };
+  renders: {
+    /** Plan a render in this process (trust `mcp` gates; no browser): segments, timings, warnings. */
+    plan(req: RenderRequest): Promise<PlanPreviewView>;
+    /**
+     * Queue a render (trust `mcp`: planned and checked first; the worker renders with the network guard). Returns at
+     * once with the reserved render id.
+     */
+    submit(req: RenderRequest): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean } }>;
+    /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
+    status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
+  };
+  reviews: {
+    /** Queue a review of a render (its video and run must lie in the project; `latest` is resolved now). */
+    submit(req: ReviewRequest): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean } }>;
+    /** A render's review: its newest job, then review/<id>/report.json (paths rebuilt from the folder, messages untrusted). */
+    get(project: string, renderId: string, o?: { scenario?: string; images?: ReviewImagesMode }): Promise<ReviewView>;
+  };
+  exports: {
+    /** Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first). */
+    submit(req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: string[]; rerendered: string[]; worker?: { pid?: number; spawned: boolean } }>;
+  };
+  templates: {
+    /** Workspace and starter themes with their component per kind (with `project`: which one is its own). */
+    list(o?: { project?: string }): Promise<TemplateListView>;
+    /** One theme in detail: template.yaml, colours, fonts, assets, components with params. */
+    get(o: { template?: string; project?: string }): Promise<TemplateDetail>;
+    /** Queue stills of a theme (intro, layout + caption, card, interstitial, outro) into .demo-studio/previews/. */
+    preview(req: { project: string; template?: string }): Promise<PreviewSubmitted>;
+  };
+  components: {
+    list(kind?: string): Promise<ComponentListView>;
+    get(id: string): Promise<ComponentView>;
+    /** Manifest, entry and compile check (nothing executed). */
+    validate(id: string): Promise<ComponentValidationView>;
+    /** Scaffold a workspace component (refuses the built-in namespace and built-in ids; no preview rendered). */
+    create(req: ComponentCreateRequest): Promise<ComponentCreated>;
+    /** Queue a still of a component with a theme, slot values and params into .demo-studio/previews/ (never its folder). */
+    preview(req: { project: string; template?: string; component: string; slots?: Record<string, string>; params?: Record<string, unknown>; at_s?: number }): Promise<PreviewSubmitted>;
+  };
+  /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
+  thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
   sandbox: {
     status(project: string, env?: string): Promise<SandboxStatusView>;
     /** Queue a sandbox up (start, health, seed when needed); its shell seed steps are approved first, as hooks are. */
@@ -185,6 +243,18 @@ export interface Engine {
     /** Queue a sandbox reset (back to the seed; the sandbox must be up). */
     reset(req: SandboxSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; env: string; worker?: { pid?: number; spawned: boolean } }>;
   };
+}
+
+/** A queued preview job. */
+export interface PreviewSubmitted {
+  job: JobRecord;
+  preview_id: string;
+  theme: string;
+  /** Components it renders, in order. */
+  targets: string[];
+  /** Theme kinds with nothing to show. */
+  skipped: ComponentKind[];
+  worker?: { pid?: number; spawned: boolean };
 }
 
 function shellQuote(s: string): string {
@@ -276,6 +346,15 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'sandbox.status',
         'sandbox.up',
         'sandbox.reset',
+        'renders',
+        'renders.plan',
+        'reviews',
+        'exports',
+        'templates.read',
+        'templates.preview',
+        'components.read',
+        'components.create',
+        'components.preview',
         'history',
       ],
       entitlements: entitlements(),
@@ -379,6 +458,61 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...r, ...(worker ? { worker } : {}) };
       },
     },
+    renders: {
+      plan: (req) => planPreview(ws, studio, req),
+      submit: async (req) => {
+        const r = await submitRenderJob(submitCtx, req);
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+      status: (slug, renderId, o = {}) => renderStatus(ws, queue, slug, renderId, o.scenario),
+    },
+    reviews: {
+      submit: async (req) => {
+        const r = await submitReviewJob(submitCtx, req);
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+      get: (slug, renderId, o = {}) => reviewGet(ws, queue, slug, renderId, o),
+    },
+    exports: {
+      submit: async (req) => {
+        const r = await submitExportJob(submitCtx, req);
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+    },
+    templates: {
+      list: (o = {}) => templateList(ws, o.project),
+      get: (o) => templateGet(ws, o),
+      preview: async (req) => {
+        const r = await submitPreviewJob(submitCtx, { project: req.project, ...(req.template !== undefined ? { template: req.template } : {}), target: { kind: 'theme' } });
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+    },
+    components: {
+      list: (kind) => componentList(ws, kind),
+      get: (id) => componentGet(ws, id),
+      validate: (id) => componentValidate(ws, id),
+      create: (req) => componentCreate(ws, req),
+      preview: async (req) => {
+        const r = await submitPreviewJob(submitCtx, {
+          project: req.project,
+          ...(req.template !== undefined ? { template: req.template } : {}),
+          target: {
+            kind: 'component',
+            component: req.component,
+            ...(req.slots ? { slots: req.slots } : {}),
+            ...(req.params ? { params: req.params } : {}),
+            ...(req.at_s !== undefined ? { at_s: req.at_s } : {}),
+          },
+        });
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+    },
+    thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
     sandbox: {
       status: async (slug, env) => sandboxStatus(await project(slug), env),
       up: async (req, o = {}) => {

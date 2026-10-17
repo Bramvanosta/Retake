@@ -4,29 +4,33 @@
  * for the duration of the render, the compositions come from a cached bundle (./bundle.ts), and the browser is
  * $DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL or Playwright's headless shell (./browser.ts).
  */
-import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { availableParallelism, cpus } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, loadProjectTemplate, readJson, timelineVideo } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
+import { findWorkspaceRoot, loadProject } from '@demo-studio/core';
+import type { LoadedProject, LoadedTemplate } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
-import { musicFile, musicSpecOf, planEdit } from '../plan.js';
-import { planInputFiles } from '../inputs.js';
-import type { EditOverrides, EditPlan } from '../plan-types.js';
+import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
 import { renderBrowser } from './browser.js';
 import type { RenderBrowser } from './browser.js';
 import { bundleComponentsFor, ensureBundle } from './bundle.js';
 import type { RenderBundle } from './bundle.js';
-import { findRun, rendersDir, reserveVersion, runEnv, runScenario } from './runs.js';
+import { armNetworkGuard, browserProcessInfo, pickFreePort } from './network-guard.js';
+import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
+import { planRun } from './plan-run.js';
+import type { PlanTrust } from './plan-run.js';
+import { rendersDir, reserveVersion, versionLockFile } from './runs.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
+import { probeMedia, run } from './probe.js';
 import type { RenderProgress, RenderRecord } from './types.js';
+
+export { probeMedia } from './probe.js';
 
 /** Encoding of every render. */
 export const RENDER_ENCODING = { codec: 'h264', crf: 16, pixel_format: 'yuv420p' } as const;
@@ -61,7 +65,14 @@ export interface RenderPlanOptions {
   onProgress?: (p: RenderProgress) => void;
   /** Only these output frames [first, last] (inclusive; previews, tests). */
   frameRange?: [number, number];
+  /** `guard`: the render's Chromium loads only the plan's files (network-guard.ts; renders of the jobs worker). */
+  network?: RenderNetwork;
+  /** Called once the render browser runs, with its process (the jobs worker records it to kill it after a crash). */
+  onBrowser?: (b: BrowserProcessInfo) => void;
 }
+
+/** `open`: the render's Chromium has the machine's network (a `studio` command); `guard`: network-guard.ts. */
+export type RenderNetwork = 'open' | 'guard';
 
 export interface RenderPlanResult {
   file: string;
@@ -91,6 +102,9 @@ interface Session {
   close: () => Promise<void>;
   puppeteer: Awaited<ReturnType<Awaited<ReturnType<typeof remotionRenderer>>['openBrowser']>>;
   warnings: string[];
+  /** Options every Remotion call of a guarded session takes: the bundle server's port and the download check. */
+  remotion: { port?: number; onDownload?: (src: string) => undefined };
+  guard?: NetworkGuard;
 }
 
 /** Asset server + bundle + browser for one render or still; `close()` releases the server and the browser. */
@@ -101,6 +115,8 @@ async function openSession(opts: {
   cacheDir?: string;
   signal?: AbortSignal;
   onBundleProgress?: (p: number, cached: boolean) => void;
+  network?: RenderNetwork;
+  onBrowser?: (b: BrowserProcessInfo) => void;
 }): Promise<Session> {
   const warnings: string[] = [];
   const registry = opts.registry ?? (await loadComponentRegistry({ root: opts.root }));
@@ -130,18 +146,27 @@ async function openSession(opts: {
     await server.close();
     throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${(e as Error).message.split('\n')[0]}`);
   }
-  return {
-    serveUrl: bundle.serveUrl,
-    bundle,
-    browser,
-    served,
-    puppeteer,
-    warnings,
-    close: async () => {
-      await puppeteer.close({ silent: true }).catch(() => undefined);
-      await server.close();
-    },
+  const close = async () => {
+    await puppeteer.close({ silent: true }).catch(() => undefined);
+    await server.close();
   };
+  if (opts.onBrowser) {
+    const info = await browserProcessInfo(puppeteer);
+    if (info) opts.onBrowser(info);
+  }
+  let guard: NetworkGuard | undefined;
+  let remotion: Session['remotion'] = {};
+  if (opts.network === 'guard') {
+    try {
+      const port = await pickFreePort();
+      guard = await armNetworkGuard(puppeteer, { assetPrefix: server.prefix, bundlePort: port });
+      remotion = { port, onDownload: (src: string) => guard!.onDownload(src) };
+    } catch (e) {
+      await close();
+      throw new RenderError(`the render cannot run with its network guard: ${(e as Error).message}`);
+    }
+  }
+  return { serveUrl: bundle.serveUrl, bundle, browser, served, puppeteer, warnings, remotion, ...(guard ? { guard } : {}), close };
 }
 
 const COMMON = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 90_000 } as const;
@@ -171,6 +196,8 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
     cacheDir: opts.cacheDir,
     signal: opts.signal,
     onBundleProgress: (p, cached) => emit({ stage: 'bundling', progress: p, overall: 0.1 * p, cached }),
+    ...(opts.network ? { network: opts.network } : {}),
+    ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
   }).catch((e: unknown) => {
     if (cancelled(opts.signal)) throw new RenderCancelledError();
     throw e;
@@ -193,6 +220,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       inputProps,
       puppeteerInstance: session.puppeteer,
       browserExecutable: session.browser.path,
+      ...(session.remotion.port !== undefined ? { port: session.remotion.port } : {}),
     });
     if (composition.durationInFrames !== opts.plan.durationInFrames) {
       throw new RenderError(`composition has ${composition.durationInFrames} frames, the plan ${opts.plan.durationInFrames}`);
@@ -218,6 +246,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       cancelSignal,
       puppeteerInstance: session.puppeteer,
       browserExecutable: session.browser.path,
+      ...session.remotion,
       onProgress: (p) => {
         if (p.renderedFrames < total) {
           emit({
@@ -246,7 +275,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       bundle_ms: bundleMs,
       render_ms: Math.round(performance.now() - tr),
       size_bytes: size,
-      warnings: session.warnings,
+      warnings: [...session.warnings, ...(session.guard?.warnings() ?? [])],
     };
   } catch (e) {
     await rm(partial, { force: true }).catch(() => undefined);
@@ -267,53 +296,6 @@ async function removeLeftovers(dir: string, partialName: string): Promise<void> 
     for (const f of await readdir(dir)) if (f.startsWith(partialName)) await rm(join(dir, f), { force: true });
   } catch {
     // nothing to clean
-  }
-}
-
-// ── ffprobe (optional: the record says what the file holds when ffprobe is on PATH) ──
-
-interface Probe {
-  duration_s: number;
-  frames?: number;
-  width: number;
-  height: number;
-  fps: number;
-  audio_streams: number;
-  video_codec?: string;
-  audio_codec?: string;
-}
-
-function run(cmd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((ok) => {
-    execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
-      const code = err ? (typeof (err as { code?: unknown }).code === 'number' ? ((err as { code: number }).code) : 127) : 0;
-      ok({ code, stdout: String(stdout), stderr: String(stderr) });
-    });
-  });
-}
-
-/** ffprobe of a media file; undefined when ffprobe is not available. */
-export async function probeMedia(file: string): Promise<Probe | undefined> {
-  const r = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames:format=duration', '-of', 'json', file]);
-  if (r.code !== 0) return undefined;
-  try {
-    const j = JSON.parse(r.stdout) as { streams: Array<Record<string, string | number>>; format: { duration?: string } };
-    const v = j.streams.find((s) => s.codec_type === 'video');
-    const a = j.streams.filter((s) => s.codec_type === 'audio');
-    const [num, den] = String(v?.r_frame_rate ?? '0/1').split('/').map(Number);
-    const out: Probe = {
-      duration_s: Number(j.format.duration ?? 0),
-      width: Number(v?.width ?? 0),
-      height: Number(v?.height ?? 0),
-      fps: den ? Math.round((num / den) * 1000) / 1000 : 0,
-      audio_streams: a.length,
-    };
-    if (v?.nb_frames !== undefined) out.frames = Number(v.nb_frames);
-    if (v?.codec_name) out.video_codec = String(v.codec_name);
-    if (a[0]?.codec_name) out.audio_codec = String(a[0].codec_name);
-    return out;
-  } catch {
-    return undefined;
   }
 }
 
@@ -355,6 +337,18 @@ export interface RenderVideoOptions {
   registry?: ComponentRegistry;
   /** Bundle cache folder (default <root>/.demo-studio/cache). */
   cacheDir?: string;
+  /** `mcp`: the plan passes planRun's trust gates first (work submitted through the MCP server). Default `author`. */
+  trust?: PlanTrust;
+  /** The render's network (default `open`; renders of the jobs worker: `guard`). */
+  network?: RenderNetwork;
+  /** Called once the render browser runs, with its process. */
+  onBrowser?: (b: BrowserProcessInfo) => void;
+  /**
+   * A version reserved before (a render job: `.<scenario>-v<N>.lock` taken at submit): the render writes
+   * `<scenario>-v<N><suffix>` and removes the lock at the end, whatever happens. The plan must still be of that
+   * scenario and variant (the id's suffix), else the render is refused.
+   */
+  reserved?: { scenario: string; version: number; variant: PlanVariant };
 }
 
 /**
@@ -368,33 +362,31 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   const emit = opts.onProgress ?? (() => undefined);
   emit({ stage: 'planning', progress: 0, overall: 0 });
   const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
-  const root = resolve(opts.root ?? project.root);
-  const run = findRun(project, opts.run, opts.scenario);
-  const timelineFile = join(run.dir, 'timeline.json');
-  if (!existsSync(timelineFile)) throw new RenderError(`run ${run.id} has no timeline.json (${run.dir})`);
-  const timeline = await readJson<Timeline>(timelineFile);
-  if (opts.scenario && timeline.scenario !== opts.scenario) throw new RenderError(`run ${run.id} is a run of scenario "${timeline.scenario}", not "${opts.scenario}"`);
-  if (timeline.mode === 'dry') throw new RenderError(`run ${run.id} is a dry run: there is no capture to render`);
-  const overrides: EditOverrides = { ...(opts.overrides ?? {}) };
-  let template: LoadedTemplate;
-  if (opts.template && typeof opts.template === 'object') template = opts.template;
-  else template = await loadProjectTemplate(project, opts.template ?? overrides.theme ?? timeline.video?.template ?? project.config.template);
-  if (opts.template || overrides.theme) overrides.theme = template.name;
-  const registry = opts.registry ?? (await loadComponentRegistry({ root }));
-  const captureFile = join(run.dir, timeline.capture.file || 'capture.mp4');
-  if (!existsSync(captureFile)) throw new RenderError(`run ${run.id} has no capture video (${captureFile})`);
-  const scenarioSnapshot = await runScenario(run.dir);
-  // The planner is pure: the music track's length is measured here so it can plan the loops (or the trim).
-  const musicSpec = musicSpecOf(timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined), overrides);
-  let musicDuration_s: number | undefined;
-  if (musicSpec) {
-    const file = musicFile(musicSpec, project);
-    if (!existsSync(file)) throw new RenderError(`music file not found: ${file}`);
-    const probe = await probeMedia(file);
-    if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
+  const dir = rendersDir(project);
+  // A version reserved by someone else (a render job: its lock was taken at submit) is released here, whatever happens.
+  const reservedRelease = () => (opts.reserved ? rm(versionLockFile(dir, opts.reserved.scenario, opts.reserved.version), { force: true }) : Promise.resolve());
+  let planned: Awaited<ReturnType<typeof planRun>>;
+  try {
+    planned = await planRun({
+      project,
+      run: opts.run,
+      ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}),
+      ...(opts.template !== undefined ? { template: opts.template } : {}),
+      ...(opts.overrides ? { overrides: opts.overrides } : {}),
+      ...(opts.root !== undefined ? { root: opts.root } : {}),
+      ...(opts.registry ? { registry: opts.registry } : {}),
+      ...(opts.trust ? { trust: opts.trust } : {}),
+    });
+    if (opts.reserved && (planned.timeline.scenario !== opts.reserved.scenario || planned.plan.variant !== opts.reserved.variant)) {
+      throw new RenderError(
+        `the plan changed since the render was submitted (now ${planned.timeline.scenario}, ${planned.plan.variant}; reserved ${opts.reserved.scenario}, ${opts.reserved.variant}): submit the render again`,
+      );
+    }
+  } catch (e) {
+    await reservedRelease();
+    throw e;
   }
-  const files = await planInputFiles(timeline, project, template);
-  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, env: await runEnv(run.dir), overrides, musicDuration_s, files });
+  const { root, run, timeline, template, registry, overrides, plan } = planned;
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
 
@@ -403,11 +395,14 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   let file: string;
   let version: number | undefined;
   let release = async () => undefined as void;
-  if (opts.out) {
+  if (opts.reserved) {
+    version = opts.reserved.version;
+    release = reservedRelease;
+    file = join(dir, `${scenario}-v${version}${suffix}.mp4`);
+  } else if (opts.out) {
     file = resolve(opts.out);
     if (extname(file).toLowerCase() !== '.mp4') throw new RenderError(`--out must name an .mp4 file: ${file}`);
   } else {
-    const dir = rendersDir(project);
     await mkdir(dir, { recursive: true });
     const r = await reserveVersion(dir, scenario);
     version = r.version;
@@ -456,6 +451,8 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
       concurrency: opts.concurrency,
       signal: opts.signal,
       onProgress: emit,
+      ...(opts.network ? { network: opts.network } : {}),
+      ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
     });
     const record = base();
     record.size_bytes = res.size_bytes;
@@ -513,6 +510,11 @@ export interface RenderStillsOptions {
   root?: string;
   registry?: ComponentRegistry;
   cacheDir?: string;
+  /** The stills' network (default `open`; previews of the jobs worker: `guard`). */
+  network?: RenderNetwork;
+  onBrowser?: (b: BrowserProcessInfo) => void;
+  /** Receives the session's warnings (a guard's blocked origins) once the stills are done. */
+  onWarnings?: (warnings: string[]) => void;
 }
 
 /**
@@ -527,7 +529,14 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
     }
   }
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
-  const session = await openSession({ plan: opts.plan, root, registry: opts.registry, cacheDir: opts.cacheDir });
+  const session = await openSession({
+    plan: opts.plan,
+    root,
+    registry: opts.registry,
+    cacheDir: opts.cacheDir,
+    ...(opts.network ? { network: opts.network } : {}),
+    ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+  });
   try {
     const { renderStill: still, selectComposition } = await remotionRenderer();
     const inputProps = { plan: session.served };
@@ -538,6 +547,7 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
       inputProps,
       puppeteerInstance: session.puppeteer,
       browserExecutable: session.browser.path,
+      ...(session.remotion.port !== undefined ? { port: session.remotion.port } : {}),
     });
     const files: string[] = [];
     for (const f of opts.frames) {
@@ -554,9 +564,11 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
         inputProps,
         puppeteerInstance: session.puppeteer,
         browserExecutable: session.browser.path,
+        ...session.remotion,
       });
       files.push(out);
     }
+    opts.onWarnings?.([...session.warnings, ...(session.guard?.warnings() ?? [])]);
     return files;
   } catch (e) {
     if (e instanceof RenderError) throw e;

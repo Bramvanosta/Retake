@@ -4,7 +4,7 @@
  * every check, a diff with the previous render, and small JPEG thumbnails (base64) for the MCP.
  */
 export * from './types.js';
-export { reviewRender, keyframePlan, sampleFrames, safeName } from './review.js';
+export { recoverReviewDir, reviewImages, reviewRender, keyframePlan, sampleFrames, safeName } from './review.js';
 export { ReviewError, findPrevious, findRender, renderTimeline, reviewsDir } from './load.js';
 export {
   captionRegion,

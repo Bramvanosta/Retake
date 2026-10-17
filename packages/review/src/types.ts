@@ -22,6 +22,24 @@ export interface FindingAt {
   step?: number;
 }
 
+/**
+ * Every code a check of this package writes (a test keeps it complete): what a reader outside the CLI (review_get) may
+ * show as a code — anything else in a report.json was not written by a check.
+ */
+export const FINDING_CODES: ReadonlySet<string> = new Set([
+  'blank-scene-start', 'blank-screen', 'camera-jump', 'caption-missing', 'caption-not-visible', 'caption-overlap',
+  'caption-overlaps-brandmark', 'caption-scene-mismatch', 'caption-shrunk', 'caption-too-long', 'caption-truncated',
+  'capture-missing', 'capture-unreadable', 'component-missing', 'cursor-hidden', 'cursor-offscreen',
+  'cursor-outside-reframe', 'cursor-outside-view', 'diff-duration', 'diff-frames', 'diff-segment',
+  'duration-mismatch', 'empty-segment', 'frames-missing', 'loading-scene-start', 'local-url-text', 'long-scene',
+  'long-wait', 'media-missing', 'near-uniform-screen', 'overlay-covers-target', 'plan-warning',
+  'previous-unreadable', 'reframe-jump', 'registry-unavailable', 'render-failed', 'scene-length', 'scene-too-short',
+  'size-mismatch', 'target-cut', 'target-outside-view', 'text-slot-empty', 'text-slot-overflow', 'theme-zoom-count',
+  'theme-zoom-cut', 'theme-zoom-real', 'timeline-missing', 'transition-on-click', 'tutorial-skipped',
+  'tutorial-stale-target', 'tutorial-target-cut', 'url-hidden', 'video-length', 'write-blocked', 'zoom-clamped',
+  'zoom-count', 'zoom-not-slow', 'zoom-reset'
+]);
+
 export interface Finding {
   severity: Severity;
   /** Stable kebab-case code (see FINDING_CODES). */
@@ -131,6 +149,19 @@ export interface ReviewOptions {
   /** Contact sheet grid (default 6 columns × 10 rows, 300 px tiles). */
   sheet?: Partial<SheetLayout>;
   onProgress?: (p: ReviewProgress) => void;
+  /**
+   * Cancels the review: checked between its stages, and the ffmpeg decoding a video is killed at once. A cancelled
+   * review throws ReviewCancelledError and leaves the previous review of the render as it was.
+   */
+  signal?: AbortSignal;
+}
+
+/** A review stopped by its signal (nothing replaced the previous review). */
+export class ReviewCancelledError extends Error {
+  constructor(message = 'review cancelled') {
+    super(message);
+    this.name = 'ReviewCancelledError';
+  }
 }
 
 export interface SheetLayout {

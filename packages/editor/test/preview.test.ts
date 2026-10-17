@@ -51,6 +51,19 @@ function build(id: string, template = editorial) {
 }
 
 describe('component preview specs', () => {
+  it('slot values and params override the manifest samples (an MCP component_preview); a caption takes its text from them', () => {
+    const info = registry.get('studio/card-title');
+    const tokens = themeTokens(editorial, { logo: 'http://a/logo.svg', fonts: { display: 'http://a/d.ttf', body: ['http://a/b.ttf'] } });
+    const base = { template: editorial, tokens, registry, samples, sampleUrl: (f: string) => `http://a/${f.split('/').pop()}` };
+    const p = buildComponentPreview({ ...base, target: { id: 'studio/card-title', manifest: info.manifest }, slots: { title: 'Quotes in two clicks' }, params: { tone: 'dark' }, at: 0.5 });
+    expect(p.spec.main.slots).toMatchObject({ title: 'Quotes in two clicks', kicker: 'Chapter two' });
+    expect(p.spec.main.params).toMatchObject({ tone: 'dark', align: 'center' });
+    expect(p.at).toBe(0.5);
+    const cap = registry.get('studio/caption-below');
+    const c = buildComponentPreview({ ...base, target: { id: 'studio/caption-below', manifest: cap.manifest }, slots: { text: 'Pick a price list.' } });
+    expect(c.spec.scene?.caption?.cues[0].text).toBe('Pick a price list.');
+  });
+
   it('the sample screens ship with the components package (generated once from the fixture)', () => {
     for (const name of ['desktop', 'tablet', 'phone'] as const) {
       const s = samples[name];

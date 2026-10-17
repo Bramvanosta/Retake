@@ -35,8 +35,8 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      that same UI; a hosted UI would reach the engine through an outbound relay (BL-38).
 
    Nothing in the engine assumes a particular UI.
-2. **Every long task an MCP client starts is a job.** Dry runs, captures, hooks, environment resets, sign-ins and
-   sandbox up / reset have a serialisable, versioned payload (core `JobInputSchema`, v1), sit in a queue the engine
+2. **Every long task an MCP client starts is a job.** Dry runs, captures, hooks, environment resets, sign-ins,
+   sandbox up / reset, and (L3.2) renders, reviews, exports and component / theme previews have a serialisable, versioned payload (core `JobInputSchema`, v1), sit in a queue the engine
    owns (files under `<workspace>/.demo-studio/jobs/`), and are executed by the workspace's worker, which *pulls* them
    in a process of its own (one worker per workspace, one job at a time; the MCP process never opens a browser).
    The CLI keeps running its commands inline through the same engine functions (native options, errors and exit
@@ -66,12 +66,20 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      may not point at them, and nothing submitted through MCP runs read-write on them.
    - *Network reach*: a job runs where its worker runs — the same machine in L3.1. A remote worker would have to
      declare the environments it can reach before it claims a job for them (not built).
+   - *Renders and previews* (L3.2): a render job names a run, a theme (by name) and bounded overrides; it reads only
+     files of the project, the run and the theme folder, and its Chromium runs behind the network guard (CDP Fetch on
+     the browser: only the plan's asset server and Remotion's bundle server; Remotion's `/proxy` only for asset-server
+     sources; Node-side media downloads checked; a CSP meta without WebSocket) — so a component's code cannot reach other
+     hosts or the user's local services. Previews go to `.demo-studio/previews/<id>/` only. WebRTC and DNS prefetch are
+     not covered (BACKLOG); `studio render` keeps the open network (remote images in slots are a CLI feature).
 4. **"Customer data never leave the machine" is replaced by this data-flow table.**
 
 | Data | Lives in | Read by | Leaves the machine? |
 |---|---|---|---|
 | Projects, scenarios, themes, hooks files, READMEs | workspace (git) | engine, CLI, Claude | through the user's own git remote; **into the Claude conversation** when Claude reads them or a tool returns them (`project_get`, `scenario_get`: a password pasted literally into a file goes with it) |
 | Captures, frames, renders, reviews, exports | workspace, git-ignored | engine, CLI, Claude (paths), player | no, unless the user shares them — but a screenshot or frame **Claude reads** goes into the conversation |
+| Contact sheets, key frames, preview stills returned as images (L3.2) | review/<id>/, `.demo-studio/previews/` | the MCP server (JPEG thumbnails made on read) | **yes, into the Claude conversation**: `review`, `review_get`, `template_preview`, `component_preview` and `job_status` return a few images inline (≤ 4 and 1.5 MB per result by default) — pixels of the filmed product |
+| Render plans and warnings (L3.2) | renders/<id>.json | engine, Claude through `plan_preview` / `render_status` | **yes, into the conversation**: captions, display URLs and page titles they quote (under `untrusted`) |
 | run.json, timeline.json, log.jsonl, job records and events | workspace, git-ignored (`runs/`, `.demo-studio/`) | engine, CLI, Claude through MCP tools | **yes, to the model provider when a tool returns them**: summaries, step error messages, page titles, DOM excerpts and page text of the filmed product (secrets masked; kept under `untrusted`) |
 | Persona profiles and storage states | `~/.demo-studio` (0700), never in the workspace or a job | the worker's and the CLI's Chromium | no (no tool returns a path, a cookie or a session; `auth_status` gives a state) |
 | Secret values (env, keychain) | process environment, macOS Keychain | the worker or CLI at use | no (masked in every file and tool result; no tool argument takes one) |
@@ -82,8 +90,8 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 5. **Consequence for privacy claims.** The engine sends nothing anywhere by itself. When Claude drives it, whatever a
    tool returns — summaries, logs, step error messages, page text, and the screenshots or DOM snapshots Claude then
    reads from the paths it was given — becomes part of the Claude conversation, i.e. goes to the model provider.
-   Tool outputs are kept minimal (paths and summaries; no image is returned inline in L3.1). The README says so where
-   MCP is set up.
+   Tool outputs are kept minimal (paths and summaries; L3.2 adds a few inline images: contact sheets and preview stills,
+   capped per result). The README says so where MCP is set up.
 
 ## ADR-2 — Flat files are the source of truth (2026-10-12)
 

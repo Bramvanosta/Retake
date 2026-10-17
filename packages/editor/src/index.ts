@@ -8,7 +8,8 @@ export * from './plan-types.js';
 export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, markDoneAt, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
 export type { PlanEditInput, PlanInputFile } from './plan.js';
 export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
-export { imageFileSize, planFileRefs, planInputFiles, themeFileRefs } from './inputs.js';
+export { imageFileSize, planFileRefs, planFileUses, planInputFiles, remoteSlotUses, themeFileRefs } from './inputs.js';
+export type { PlanFileUse } from './inputs.js';
 export {
   DEFAULT_IDLE_THRESHOLD_S,
   IDLE_KEEP_S,
@@ -48,14 +49,19 @@ export {
   renderStills,
   renderVideo,
 } from './render/render.js';
-export type { RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
-export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions } from './render/runs.js';
+export type { RenderNetwork, RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
+export { PlanTrustError, planRun, preReadProblems, servedFileProblems } from './render/plan-run.js';
+export type { PlanRunOptions, PlanTrust, PlannedRun } from './render/plan-run.js';
+export { allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, originOf, pickFreePort } from './render/network-guard.js';
+export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
+export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
 export type { RunRef } from './render/runs.js';
 export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
 export type { AssetServer } from './render/asset-server.js';
 export {
   BUNDLE_CACHE_KEEP,
   scaffoldComponents,
+  BUNDLE_CSP,
   BUNDLE_FORMAT,
   COMPOSITION_DEPS,
   EDITOR_DIR,
@@ -68,6 +74,7 @@ export {
   listCachedBundles,
   planComponentIds,
   registryModuleSource,
+  withCspMeta,
 } from './render/bundle.js';
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
 export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
@@ -108,5 +115,5 @@ export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSa
 export { PREVIEW_COMPOSITION, STARTER_TEMPLATES_DIR, loadPreviewTheme, renderComponentPreviews } from './render/preview.js';
 export type { PreviewComponentTarget, RenderPreviewsOptions, RenderedPreview } from './render/preview.js';
 export { generateTestTrack, testTrackExpression } from './render/audio.js';
-export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportRender, findRenderRecord, gifWindow } from './render/export.js';
+export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, findRenderRecord, gifWindow, recordPathProblem } from './render/export.js';
 export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult } from './render/export.js';

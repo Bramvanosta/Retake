@@ -57,9 +57,14 @@ function canonical(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 
+/** The approvals a job input carries (a kind without hooks has none: a render). */
+export function approvalsOf(input: JobInput): JobApproval[] | undefined {
+  return 'approvals' in input ? input.approvals : undefined;
+}
+
 /** What an approval's signature covers: the whole job input (but its approvals) and the approval itself. */
 function payload(input: JobInput, a: JobApproval): string {
-  const { approvals: _a, ...rest } = input;
+  const { approvals: _a, ...rest } = input as JobInput & { approvals?: unknown };
   return canonical({ v: 1, input: rest, approval: { fingerprint: a.fingerprint, by: a.by, at: a.at } });
 }
 
@@ -69,14 +74,15 @@ function sign(key: Buffer, input: JobInput, a: JobApproval): string {
 
 /** The input with each approval signed (unchanged when it has none: no key is created). */
 export async function signApprovals<T extends JobInput>(input: T, keyFile = approvalKeyFile()): Promise<T> {
-  if (!input.approvals?.length) return input;
+  const approvals = approvalsOf(input);
+  if (!approvals?.length) return input;
   const key = await signingKey(keyFile);
-  return { ...input, approvals: input.approvals.map((a) => ({ ...a, sig: sign(key, input, a) })) };
+  return { ...input, approvals: approvals.map((a) => ({ ...a, sig: sign(key, input, a) })) };
 }
 
 /** The approvals of a job the worker honours: those signed with this home's key; `rejected` counts the others. */
 export async function verifiedApprovals(input: JobInput, keyFile = approvalKeyFile()): Promise<{ approvals: JobApproval[]; rejected: number }> {
-  const all = input.approvals ?? [];
+  const all = approvalsOf(input) ?? [];
   if (!all.length) return { approvals: [], rejected: 0 };
   const key = await readKey(keyFile);
   const approvals = all.filter((a) => {

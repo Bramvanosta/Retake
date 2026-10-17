@@ -12,11 +12,18 @@
  *   can write itself (README.md, scenarios/, and the folders runs and the tools write: runs/, renders/, review/,
  *   exports/, .demo-studio/).
  *
+ * L3.2, renders: every file a render reads (card / overlay images, `data:` CSV slots, own media, music) is a file of the
+ * project folder, a Lottie file counts as code (lottie-web evaluates the expressions it holds), and a theme is named,
+ * never a folder — except the project's own `template:` of project.yaml, which a human wrote (renderFileProblems,
+ * templateRefProblem; the editor's planRun applies them before any file is read, then checks every file the plan
+ * serves).
+ *
  * A `studio` command typed by a human (trust `author`) is not concerned.
  */
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { sqlSource } from './destructive.js';
+import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
@@ -24,20 +31,34 @@ import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
 /** Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`). */
 export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'runs/', 'renders/', 'review/', 'exports/', '.demo-studio/'];
 
-/** Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. */
+/**
+ * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared
+ * without case: the default macOS and Windows file systems ignore it, so `RUNS/…` is `runs/…` there (refusing it on a
+ * case-sensitive file system too only errs on the safe side).
+ */
 export function agentWritable(rel: string): boolean {
-  const p = rel.split(sep).join('/').replace(/^\.\//, '');
-  return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p.toLowerCase() === w.toLowerCase()));
+  const p = rel.split(sep).join('/').replace(/^(?:\.\/)+/, '').toLowerCase();
+  return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p === w.toLowerCase()));
 }
 
-/** The real path of `p`: its existing part resolved (symbolic links followed), the rest appended. */
-function realPath(p: string): string {
+/**
+ * The real path of `p`: its existing part resolved (symbolic links followed, and the case of each name as it is on
+ * disk — `realpathSync.native`), the rest appended.
+ */
+export function realPathOf(p: string): string {
   try {
-    return realpathSync(p);
+    return realpathSync.native(p);
   } catch {
     const parent = dirname(p);
-    return parent === p ? p : join(realPath(parent), basename(p));
+    return parent === p ? p : join(realPathOf(parent), basename(p));
   }
+}
+const realPath = realPathOf;
+
+/** Whether `p` is `dir` or inside it, once symbolic links are followed on both. */
+export function insideFolder(dir: string, p: string): boolean {
+  const rel = relative(realPathOf(resolve(dir)), realPathOf(resolve(p)));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
 /**
@@ -122,12 +143,56 @@ export function secretRefsProblem(refs: Iterable<string>, where: string): string
   );
 }
 
+/** A template reference that names a folder (absolute, `./…`, `../…`, or with a separator) rather than a theme name. */
+export function isTemplatePath(ref: string): boolean {
+  return isAbsolute(ref) || ref.startsWith('.') || ref.startsWith('~') || /[\\/]/.test(ref);
+}
+
+/**
+ * Why a theme reference of work submitted through MCP is refused, or null: a theme is named (a folder of the
+ * workspace's templates_dir or a starter), never a folder — except the project's own `template:` of project.yaml
+ * (`projectTemplate`), written by a human. `where`: "the scenario's template", "the run's theme"…
+ */
+export function templateRefProblem(ref: string | undefined, projectTemplate: string | undefined, where: string): string | null {
+  if (ref === undefined || !isTemplatePath(ref) || ref === projectTemplate) return null;
+  return (
+    `${where} is a folder (${ref}): through MCP a theme is named (template_list names them) — a theme folder is used only ` +
+    "when project.yaml's own template: names it (a human edits project.yaml)"
+  );
+}
+
+/** A file a render reads, with where it is named ("scene intro card, slot logo"). */
+export interface RenderFileRef {
+  ref: string;
+  where: string;
+}
+
+/**
+ * Why the files a render reads are refused (trust `mcp`): each must be a file of the project folder (relative, no
+ * `..`, no symbolic link out of it), and a Lottie file (code: lottie-web evaluates its expressions) not one an agent
+ * can write. One positioned message per file.
+ */
+export function renderFileProblems(projectDir: string, refs: readonly RenderFileRef[]): string[] {
+  const out: string[] = [];
+  for (const f of refs) {
+    const code = LOTTIE_FILE_EXTENSIONS.includes(fileExtension(f.ref));
+    const p = projectFileProblem(projectDir, f.ref, { code });
+    if (p) out.push(`${f.where}: ${code ? `${p} (a Lottie file is code: its expressions run in the render)` : p}`);
+  }
+  return out;
+}
+
 /**
  * Why a scenario cannot run as work submitted through MCP (trust `mcp`): its secret references, and the files it
- * references outside the project folder or, run as code, in files an agent can write. Empty: nothing found.
+ * references outside the project folder or, run as code, in files an agent can write; with the project's config, a
+ * theme it names by folder (`template:`). Empty: nothing found.
  */
-export function agentTrustProblems(project: { dir: string }, sc: Scenario): string[] {
+export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario): string[] {
   const problems: string[] = [];
+  if (project.config && typeof sc.template === 'string') {
+    const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template');
+    if (t) problems.push(t);
+  }
   const secrets = secretRefsProblem(collectSecretRefs(sc), 'the scenario');
   if (secrets) problems.push(secrets);
   for (const f of scenarioFileRefs(sc)) {

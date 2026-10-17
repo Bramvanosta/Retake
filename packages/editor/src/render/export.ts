@@ -10,17 +10,20 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { loadProject } from '@demo-studio/core';
+import { EXPORT_FORMAT_NAMES, insideFolder, loadProject } from '@demo-studio/core';
 import type { LoadedProject } from '@demo-studio/core';
 import type { ComponentRegistry } from '@demo-studio/components';
 import type { PlanVariant } from '../plan-types.js';
+import type { BrowserProcessInfo } from './network-guard.js';
+import type { PlanTrust } from './plan-run.js';
 import { probeMedia, renderVideo } from './render.js';
+import type { RenderNetwork } from './render.js';
 import { listRenders, rendersDir } from './runs.js';
 import { RenderError } from './types.js';
 import type { RenderRecord } from './types.js';
 
-/** Delivery formats. */
-export const EXPORT_FORMATS = ['mp4_1080p', 'mp4_4k', 'webm', 'vertical_9x16', 'square_1x1', 'gif_preview'] as const;
+/** Delivery formats (one list with core's job input). */
+export const EXPORT_FORMATS = EXPORT_FORMAT_NAMES;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 /** Formats exported when none are named (the ones derived from the master, no re-render). */
 export const DEFAULT_EXPORT_FORMATS: readonly ExportFormat[] = ['mp4_1080p', 'webm', 'gif_preview'];
@@ -97,6 +100,15 @@ export interface ExportRenderOptions {
   signal?: AbortSignal;
   onProgress?: (p: ExportProgress) => void;
   ffmpeg?: string;
+  /**
+   * `mcp` (an export job of the worker): the render is named by its id only, its video and run must lie in the project
+   * folder, and re-rendered formats pass planRun's trust gates. Default `author`.
+   */
+  trust?: PlanTrust;
+  /** The network of re-rendered formats (export jobs: `guard`). */
+  network?: RenderNetwork;
+  /** Called once a re-render's browser runs, with its process. */
+  onBrowser?: (b: BrowserProcessInfo) => void;
 }
 
 /** An export that cannot start (message written for the user). */
@@ -167,6 +179,38 @@ export function gifWindow(record: Pick<RenderRecord, 'plan'>, asked?: { start_s?
 
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
+/**
+ * How each format of an export is made from a master: `copy` (the master as is), `transcode` (ffmpeg) or `render` (a
+ * re-render through the planner: another framing, or 4K from a smaller master).
+ */
+export function exportMethod(record: Pick<RenderRecord, 'variant' | 'width' | 'height' | 'plan'>, format: ExportFormat): ExportOutput['method'] {
+  const variant = record.variant ?? record.plan.variant;
+  const base = SIZES[variant].base;
+  const isBase = record.width === base[0] && record.height === base[1];
+  if (format === 'mp4_1080p') return isBase ? 'copy' : 'transcode';
+  if (format === 'mp4_4k') return record.width >= SIZES[variant].k4[0] && record.height >= SIZES[variant].k4[1] ? 'copy' : 'render';
+  if (format === 'webm' || format === 'gif_preview') return 'transcode';
+  const v: PlanVariant = format === 'vertical_9x16' ? 'vertical' : 'square';
+  return variant === v && isBase ? 'copy' : 'render';
+}
+
+/**
+ * Why a render may not be exported (or reviewed) by work submitted through MCP, or null: its video and its run folder
+ * must lie in the project folder, symbolic links resolved (a record's paths are absolute: one edited by hand, or of a
+ * moved workspace, could name any file).
+ */
+export function recordPathProblem(projectDir: string, record: Pick<RenderRecord, 'id' | 'file' | 'run_dir'>): string | null {
+  for (const [what, p] of [
+    ['video', record.file],
+    ['run folder', record.run_dir],
+  ] as const) {
+    if (typeof p !== 'string' || !insideFolder(projectDir, p)) {
+      return `the ${what} of render ${record.id} (${String(p)}) is outside the project folder: through MCP a render is read only from the project`;
+    }
+  }
+  return null;
+}
+
 const SUFFIX: Record<ExportFormat, string> = {
   mp4_1080p: '-1080p.mp4',
   mp4_4k: '-4k.mp4',
@@ -184,7 +228,13 @@ const SUFFIX: Record<ExportFormat, string> = {
 export async function exportRender(opts: ExportRenderOptions): Promise<ExportResult> {
   const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
   const root = resolve(opts.root ?? project.root);
-  const record = await findRenderRecord(project, opts.render, opts.scenario);
+  const trust = opts.trust ?? 'author';
+  if (trust === 'mcp' && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(opts.render)) throw new ExportError(`render "${opts.render}": through MCP a render is named by its id`);
+  const record = trust === 'mcp' ? await readRecord(join(rendersDir(project), `${opts.render}.json`)) : await findRenderRecord(project, opts.render, opts.scenario);
+  if (trust === 'mcp') {
+    const problem = recordPathProblem(project.dir, record);
+    if (problem) throw new ExportError(problem);
+  }
   if (record.status !== 'succeeded') throw new ExportError(`render ${record.id} ${record.status}: nothing to export`);
   if (!existsSync(record.file)) throw new ExportError(`the video of render ${record.id} is missing (${record.file})`);
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
@@ -197,7 +247,6 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const master = { file: record.file, record: record.record, variant, width: record.width, height: record.height, duration_s: record.duration_s, fps: record.fps };
   const base = SIZES[variant].base;
   const isBase = record.width === base[0] && record.height === base[1];
-  const is4k = record.width >= SIZES[variant].k4[0] && record.height >= SIZES[variant].k4[1];
   const outputs: ExportOutput[] = [];
   const failures: ExportResult['failures'] = [];
 
@@ -240,9 +289,12 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       registry: opts.registry,
       concurrency: opts.concurrency,
       signal: opts.signal,
+      trust,
+      ...(opts.network ? { network: opts.network } : {}),
+      ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
       onProgress: (p) => emit({ format, stage: 'progress', progress: p.overall, message: p.stage }),
     });
-    return finish(format, file, 'render', t0, { record: r.record, warnings: r.warnings.filter((w) => /upscaled|missing|not found/i.test(w)) });
+    return finish(format, file, 'render', t0, { record: r.record, warnings: r.warnings.filter((w) => /upscaled|missing|not found|blocked/i.test(w)) });
   };
 
   for (const format of formats) {
@@ -264,7 +316,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
           out = await finish(format, file, 'transcode', t0);
         }
       } else if (format === 'mp4_4k') {
-        if (is4k) {
+        if (exportMethod(record, format) === 'copy') {
           await copyFile(record.file, tmp);
           await rename(tmp, file);
           out = await finish(format, file, 'copy', t0);
@@ -284,7 +336,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
         out = await finish(format, file, 'transcode', t0, { window: w });
       } else {
         const v: PlanVariant = format === 'vertical_9x16' ? 'vertical' : 'square';
-        if (variant === v && isBase) {
+        if (exportMethod(record, format) === 'copy') {
           await copyFile(record.file, tmp);
           await rename(tmp, file);
           out = await finish(format, file, 'copy', t0);

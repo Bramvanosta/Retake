@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { PROJECT_SLUG_RE } from './project.js';
-import { SLUG_RE } from './schemas/primitives.js';
+import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
 
 export const JOB_INPUT_VERSION = 1;
 
@@ -14,8 +14,8 @@ export const JOB_INPUT_VERSION = 1;
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
-/** Kinds of L3.1 (render / review / export follow in L3.2). */
-export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'] as const;
+/** Kinds of L3.1, and `render`, `review`, `export`, `preview` (L3.2). */
+export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /** Who submitted a job (recorded; shapes the safety rules applied at submit). */
@@ -34,6 +34,18 @@ export const ENV_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * `<scenario>:teardown`, or a hooks file of the project's hooks/ folder.
  */
 export const HOOKS_SOURCE_RE = /^(?:reset|[A-Za-z0-9][A-Za-z0-9_-]*:(?:setup|teardown)|hooks\/[A-Za-z0-9][A-Za-z0-9_-]*\.ya?ml)$/;
+
+/** The body of SLUG_RE (a scenario name), to build ids made of one. */
+const SLUG_BODY = SLUG_RE.source.replace(/^\^/, '').replace(/\$$/, '');
+/**
+ * A render id, the base name of renders/<id>.mp4 and .json: "<scenario>-v<N>", plus "-vertical" / "-square" for those
+ * variants. Built from SLUG_RE: a scenario name may hold upper-case letters and "_".
+ */
+export const RENDER_ID_RE = new RegExp(`^${SLUG_BODY}-v\\d+(?:-vertical|-square)?$`);
+/** A theme (template) name: a folder of the workspace's templates_dir or a starter template, never a path. */
+export const TEMPLATE_NAME_RE = SLUG_RE;
+/** A preview id, the folder <workspace>/.demo-studio/previews/<id>/: "p_" + 26 Crockford base32 characters. */
+export const PREVIEW_ID_RE = /^p_[0-9A-HJKMNP-TV-Z]{26}$/;
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
 
@@ -154,6 +166,148 @@ export const SandboxResetJobInputSchema = z.strictObject({
   approvals,
 });
 
+/** A file of the project named relative to its folder (checked again, symbolic links resolved, by agent-trust). */
+const projectFileRef = z
+  .string()
+  .min(1)
+  .max(500)
+  .refine((s) => !s.includes('\0') && !/^(?:[\\/]|~|[A-Za-z]:)/.test(s) && !s.split(/[\\/]/).includes('..'), 'a file of the project folder, relative to it (no absolute path, no "..")');
+/** A scene or segment id of a timeline ("intro", "<scene id>", "interstitial-3"). */
+const segmentKey = z.string().max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/, 'a scene id, a segment id or a component kind');
+
+/**
+ * The edit overrides a client may pass with a render (the editor's EditOverrides, minus `theme`: a render job names
+ * its theme in `template`). Bounded and strict: unknown keys are refused, a music file is a project file.
+ */
+export const EditOverridesInputSchema = z.strictObject({
+  frame: FrameSpecSchema.optional(),
+  variant: z.enum(['landscape', 'vertical', 'square']).optional(),
+  fps: z.union([z.literal(24), z.literal(25), z.literal(30), z.literal(60)]).optional(),
+  scale: z.number().min(0.5).max(2).optional(),
+  intro: z.boolean().optional(),
+  outro: z.boolean().optional(),
+  captions: z.boolean().optional(),
+  camera: z.boolean().optional(),
+  trim_idle: z.boolean().optional(),
+  idle_threshold: z.number().min(0.3).max(10).optional(),
+  speeds: z
+    .record(segmentKey, z.number().min(0.25).max(4))
+    .refine((r) => Object.keys(r).length <= 100, 'at most 100 scenes')
+    .optional(),
+  transition: TransitionSchema.optional(),
+  transition_duration: z.number().min(0).max(2).optional(),
+  components: z
+    .record(segmentKey, ComponentRefSchema)
+    .refine((r) => Object.keys(r).length <= 50, 'at most 50 component switches')
+    .refine((r) => JSON.stringify(r).length <= 8192, 'component switches of at most 8 KB')
+    .optional(),
+  music: z.union([projectFileRef, z.literal(false)]).optional(),
+  tutorial: TutorialSwitchSchema.optional(),
+});
+export type EditOverridesInput = z.output<typeof EditOverridesInputSchema>;
+
+const scenarioName = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');
+export const templateNameSchema = z.string().max(100).regex(TEMPLATE_NAME_RE, 'a theme (template) name, never a path');
+export const renderIdSchema = z.string().max(200).regex(RENDER_ID_RE, 'a render id such as quote-v3 (renders/<id>.json), never a path');
+
+/**
+ * A render (L3.2): plan the run's capture with the theme and overrides, then render it with Remotion in the worker
+ * (renders/<render_id>.mp4 + .json). The render id is reserved at submit (a `.<scenario>-v<N>.lock` of renders/); the
+ * worker re-plans and refuses a timeline or a variant that changed since.
+ */
+export const RenderJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('render'),
+  project: projectSlug,
+  scenario: scenarioName,
+  /** The capture run rendered (resolved at submit: never `latest`). */
+  run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name, never a path'),
+  /** sha256 of the run's timeline.json at submit. */
+  timeline_sha256: sha256,
+  render_id: renderIdSchema,
+  /** Theme for this render instead of the run's (a name, never a path). */
+  template: templateNameSchema.optional(),
+  overrides: EditOverridesInputSchema,
+  submitted_by: z.enum(JOB_CLIENTS),
+});
+
+/**
+ * A review (L3.2): contact sheets, key frames, checks and report of a render, written to review/<render_id>/ by the
+ * worker. The render is named by its id (resolved at submit: never `latest`, never a path).
+ */
+export const ReviewJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('review'),
+  project: projectSlug,
+  render_id: renderIdSchema,
+  /** Contact sheet rate. */
+  fps: z.union([z.literal(1), z.literal(2)]),
+  /** The render compared with: an id, or false for none; absent: the previous render of the same scenario and variant. */
+  previous: z.union([renderIdSchema, z.literal(false)]).optional(),
+  submitted_by: z.enum(JOB_CLIENTS),
+});
+
+/** Delivery formats of an export (the editor's EXPORT_FORMATS). */
+export const EXPORT_FORMAT_NAMES = ['mp4_1080p', 'mp4_4k', 'webm', 'vertical_9x16', 'square_1x1', 'gif_preview'] as const;
+
+/**
+ * An export (L3.2): delivery files of a render in exports/<render_id>/ (+ manifest.json), transcoded from the master or
+ * re-rendered (vertical, square, 4K) by the worker under the trust rules of a render job. No output location: the
+ * folder is fixed.
+ */
+export const ExportJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('export'),
+  project: projectSlug,
+  render_id: renderIdSchema,
+  formats: z
+    .array(z.enum(EXPORT_FORMAT_NAMES))
+    .min(1)
+    .max(EXPORT_FORMAT_NAMES.length)
+    .refine((f) => new Set(f).size === f.length, 'each format once'),
+  /** The GIF preview's window (seconds of the master; at most 30 s). */
+  gif: z.strictObject({ start_s: z.number().min(0).max(3600).optional(), duration_s: z.number().min(0.5).max(30).optional() }).optional(),
+  submitted_by: z.enum(JOB_CLIENTS),
+});
+
+/** A component preview: one component of the registry, with slot values and params instead of its manifest's samples. */
+const PreviewComponentTargetSchema = z.strictObject({
+  kind: z.literal('component'),
+  component: z.string().max(120).regex(COMPONENT_ID_RE, 'a component id such as studio/intro-stack (component_list names them), never a path'),
+  /** Text slots (text, url, color) instead of the manifest's preview samples; file and media slots keep their samples. */
+  slots: z
+    .record(z.string().max(60).regex(KEY_RE, 'a slot name of the component'), z.string().max(2000))
+    .refine((r) => Object.keys(r).length <= 30, 'at most 30 slots')
+    .optional(),
+  /** Params (validated against the component's params schema), over its preview params and defaults. */
+  params: z
+    .record(z.string().max(60), z.unknown())
+    .refine((r) => JSON.stringify(r).length <= 8192, 'params of at most 8 KB')
+    .optional(),
+  /** Second of the component shown (default: its manifest's preview moment). */
+  at_s: z.number().min(0).max(600).optional(),
+});
+
+/** A theme preview: the theme's own pick of intro, layout (with its caption over a sample screen), card, interstitial, outro. */
+const PreviewThemeTargetSchema = z.strictObject({ kind: z.literal('theme') });
+
+/**
+ * A preview (L3.2): stills of a component or of a theme, rendered by the worker (guarded, like a render) into
+ * <workspace>/.demo-studio/previews/<preview_id>/ — never into a component folder (preview.png of the library and of
+ * workspace components stay a `studio components preview` matter). No output location: the folder is fixed.
+ */
+export const PreviewJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('preview'),
+  /** The project whose theme is the default (and whose project.yaml may name its own theme folder). */
+  project: projectSlug,
+  preview_id: z.string().regex(PREVIEW_ID_RE, 'a preview id (p_ followed by 26 characters), never a path'),
+  target: z.discriminatedUnion('kind', [PreviewComponentTargetSchema, PreviewThemeTargetSchema]),
+  /** Theme of the previews (a name, never a path); absent: the project's own theme. */
+  template: templateNameSchema.optional(),
+  submitted_by: z.enum(JOB_CLIENTS),
+});
+
 export const JobInputSchema = z.discriminatedUnion('kind', [
   RunJobInputSchema,
   HooksJobInputSchema,
@@ -161,6 +315,10 @@ export const JobInputSchema = z.discriminatedUnion('kind', [
   AuthLoginJobInputSchema,
   SandboxUpJobInputSchema,
   SandboxResetJobInputSchema,
+  RenderJobInputSchema,
+  ReviewJobInputSchema,
+  ExportJobInputSchema,
+  PreviewJobInputSchema,
 ]);
 
 export type RunJobInput = z.output<typeof RunJobInputSchema>;
@@ -169,4 +327,9 @@ export type EnvResetJobInput = z.output<typeof EnvResetJobInputSchema>;
 export type AuthLoginJobInput = z.output<typeof AuthLoginJobInputSchema>;
 export type SandboxUpJobInput = z.output<typeof SandboxUpJobInputSchema>;
 export type SandboxResetJobInput = z.output<typeof SandboxResetJobInputSchema>;
+export type RenderJobInput = z.output<typeof RenderJobInputSchema>;
+export type ReviewJobInput = z.output<typeof ReviewJobInputSchema>;
+export type ExportJobInput = z.output<typeof ExportJobInputSchema>;
+export type PreviewJobInput = z.output<typeof PreviewJobInputSchema>;
+export type ExportFormatName = (typeof EXPORT_FORMAT_NAMES)[number];
 export type JobInput = z.output<typeof JobInputSchema>;
