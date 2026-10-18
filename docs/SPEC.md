@@ -256,10 +256,25 @@ Built in L3.3 (authoring: Claude writes the scenario itself; no tool calls a mod
   skeleton Claude rewrites into real steps from inspections, never the start of the authoring path, which is
   page_inspect → write the YAML → `scenario_validate` → `scenario_save` → page_inspect `{scenario, until}` → `run_dry`.
 
+Built in L3.4 (recording: a HUMAN shows the flow once; Claude may start a recording, never drive it):
+- `scenario_record({project, env?, page + path? | url, persona?, scenario?, check?})` → a `record` job, returned at once
+  with its id: a headed browser window opens on the user's machine at an environment page (its own origins only, no
+  template); the person performs the flow and closes the window (at most 30 min, `DEMO_STUDIO_RECORD_MAX_MIN`). The
+  window holds the queue like a headed `auth_login`; Claude tells the user and follows with `job_status` (no other job
+  meanwhile). Then a draft scenario is made from what the person did — verified targets, `select` / `pick` / `menu` /
+  `drop_file` / `type` / `press` / `scroll` / `wait_for` steps, scenes split where the page changed, empty captions,
+  fields of a secret kind as `{{vars.<kind>_N}}` placeholders (their values never recorded) — saved as
+  `scenarios/<scenario>.yaml` when the name is free (agent trust), and checked by a headless dry replay (up to the step
+  before the first write that reached a server, whatever its host — usually the whole draft on a read-only
+  environment, whose writes are stopped or mocked). Typed text holding a `{{…}}` template never reaches the draft. `job_status` returns counts, the saved file
+  and the check as trusted fields and the draft, read from `<project>/.demo-studio/records/<rec_id>/`, under
+  `untrusted` (typed text and page names). The environment's own access (production read-only, never
+  `--allow-writes`), no hook, the workspace's protected hosts. `job_cancel` while the window is open discards the
+  recording; a worker signal stops it and keeps it (no check replay). CLI: `studio record` (the primary path).
+
 Later lots (names as planned):
 - `template_create_from_brand({logo, colors, fonts})` (L3.5)
 - `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
-- `scenario_record({project, url})` (headed browser: clicks/typing recorded into a draft scenario — CLI `studio record`)
 - `template_from_site({url})` → draft theme from a live site (colours, fonts, logo candidates)
 
 All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s

@@ -86,10 +86,14 @@ describe('studio usage, schema and later phases', () => {
   });
 
   it('says when later-phase commands arrive', async () => {
-    const r = await studio('record');
+    const r = await studio('ui');
     expect(r.code).toBe(EXIT.failure);
-    expect(r.err).toContain('available in phase 3');
+    expect(r.err).toContain('available in phase 4');
+    expect(r.err).toContain('inspect, record, plan');
     expect(r.err).toContain('render, still, review, export');
+    // record is a real command since L3.4: an unknown option is a usage error, --url goes alone.
+    expect((await studio('record', 'demo', '--whatever')).code).toBe(EXIT.usage);
+    expect((await studio('record', 'demo', '--url', 'https://app.staging.example.com/', '--page', 'app')).code).toBe(EXIT.usage);
     expect(r.err).toContain('doctor and mcp');
     // mcp is a real command since L3.1: an unknown option is a usage error (the server itself: packages/mcp/test).
     expect((await studio('mcp', '--whatever')).code).toBe(EXIT.usage);

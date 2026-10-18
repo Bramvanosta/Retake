@@ -14,6 +14,7 @@ import { HomePage } from './pages/Home.jsx';
 import { ProductPage } from './pages/Product.jsx';
 import { QuotePage } from './pages/Quote.jsx';
 import { QuotesPage } from './pages/Quotes.jsx';
+import { RecordLabPage } from './pages/RecordLab.jsx';
 import { SignupConfirmPage, SignupPage } from './pages/Signup.jsx';
 
 const KIND_ICON = { proposal: 'receipt', order: 'truck', arrival: 'sparkles' };
@@ -222,6 +223,8 @@ const ROUTES = [
   ['/products/:slug', ProductPage],
   ['/quotes', QuotesPage],
   ['/quotes/:id', QuotePage],
+  ['/record-lab', RecordLabPage],
+  ['/record-lab/results', RecordLabPage],
   ['/signup', SignupPage],
   ['/signup/confirm', SignupConfirmPage],
 ];

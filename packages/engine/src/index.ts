@@ -24,13 +24,15 @@ export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary
 export { getScenario, saveScenarioText, validateScenarioText } from './scenarios.js';
 export type { SaveResult, ScenarioText, ValidateResult } from './scenarios.js';
 export { draftFromScript } from './authoring.js';
+export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecordId, pruneRecords, recordDir, recordMaxMs, recordScenario, recordStart, recordsRoot } from './record.js';
+export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStart } from './record.js';
 export type { ScriptDraftView } from './authoring.js';
 export { listRuns, runStatus } from './runs.js';
 export type { RunStatusView, RunSummary } from './runs.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, createEngine } from './engine.js';
-export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RunJobView, RunListItem, RunStatusWithJob, WaitOptions } from './engine.js';
+export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
@@ -83,6 +85,7 @@ export type {
   PreviewImageView,
   PreviewJobResult,
   InspectJobResult,
+  RecordJobResult,
   RenderJobResult,
   ReviewJobResult,
   RunJobResult,
@@ -131,6 +134,8 @@ export {
   submitInspectJob,
 } from './jobs/inspect-job.js';
 export type { InspectSourceDraft, InspectSubmitRequest, InspectionOptions, InspectionRun, PreparedInspect } from './jobs/inspect-job.js';
+export { RECORD_DRAFT_MAX, executeRecordJob, readRecording, recordCommandLine, recordResult, submitRecordJob } from './jobs/record-job.js';
+export type { RecordJobContext, RecordJobTestHooks, RecordSubmitRequest } from './jobs/record-job.js';
 export { checkComponentId, componentCreate, componentGet, componentList, componentValidate } from './components.js';
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';

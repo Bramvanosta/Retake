@@ -4,7 +4,7 @@
  * and `project` is required (as for every kind).
  */
 import { describe, expect, it } from 'vitest';
-import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, INSPECT_ID_RE, InspectJobInputSchema, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RENDER_ID_RE, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
+import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, INSPECT_ID_RE, InspectJobInputSchema, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RECORD_ID_RE, RENDER_ID_RE, RecordJobInputSchema, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
 
 const SHA = 'a'.repeat(64);
 const input = (extra: Record<string, unknown> = {}) => ({
@@ -203,5 +203,39 @@ describe('inspect job input (L3.3)', () => {
     expect(ok({ limit: 301 })).toBe(false);
     expect(ok({ images: 'both' })).toBe(false);
     expect(ok({ source: { kind: 'page', page: 'shop', path: '/', persona: '../x' } })).toBe(false);
+  });
+});
+
+describe('record job input (L3.4)', () => {
+  const record = (extra: Record<string, unknown> = {}) => ({
+    version: JOB_INPUT_VERSION,
+    kind: 'record',
+    project: 'northfield-fixture',
+    rec_id: 'rec_01JABCDEFGHJKMNPQRSTVWXYZ0',
+    source: { page: 'shop', path: '/' },
+    check: true,
+    submitted_by: 'mcp',
+    ...extra,
+  });
+  const ok = (x: Record<string, unknown>) => RecordJobInputSchema.safeParse(record(x)).success;
+
+  it('record is a job kind; the input parses through the union with its optional env, persona and scenario name', () => {
+    expect(JOB_KINDS).toContain('record');
+    expect(JobInputSchema.parse(record({ env: 'local', persona: 'none', scenario: 'my-quote' })).kind).toBe('record');
+    expect(RECORD_ID_RE.test('rec_01JABCDEFGHJKMNPQRSTVWXYZ0')).toBe(true);
+  });
+
+  it('no step, URL, typed text or path as an id: nothing in it can drive the window', () => {
+    expect(ok({ steps: [{ click: 'Save' }] })).toBe(false);
+    expect(ok({ url: 'http://localhost:4402/' })).toBe(false);
+    expect(ok({ text: 'typed' })).toBe(false);
+    expect(ok({ allow_writes: true })).toBe(false);
+    expect(ok({ rec_id: '../x' })).toBe(false);
+    expect(ok({ rec_id: 'i_01JABCDEFGHJKMNPQRSTVWXYZ0' })).toBe(false);
+    expect(ok({ source: { page: 'https://elsewhere.example', path: '/' } })).toBe(false);
+    for (const path of ['//elsewhere.example/', 'products', '/{{env:HOME}}']) expect(ok({ source: { page: 'shop', path } }), path).toBe(false);
+    expect(ok({ scenario: '../quote' })).toBe(false);
+    expect(ok({ persona: '../x' })).toBe(false);
+    expect(ok({ check: 'auto' })).toBe(false);
   });
 });

@@ -1230,6 +1230,192 @@ and a draft that validates. Pure and deterministic (no model, no network, nothin
   save", every issue (`script L:C …`, `draft L:C …`). INSTRUCTIONS mention it on its own line after the loop, only for
   a table the user hands.
 
+### 3.11 Recording: capture (L3.4 part 1; runner `record-session.ts`, `kit/record-script.ts`, kit `suggestFor` / `secretField`, core `recording.ts`)
+
+A person performs a flow once in a HEADED window; the actions become events for the draft generator (part 2). Claude
+may start a recording, never drive it. Nothing is filmed.
+- **runner** `recordSession({project, env, persona?, url, allowWrites?, eventsFile?, maxMs?, stop?, signal?, drive?,
+  headless?, windowSize?})` → `{events, stop: closed | stopped | max_duration, ms, window, capture, access, persona,
+  counts {events, actions, writes, redacted, dropped {sign_in, frame, invalid, new_page}}, warnings}` (warnings never
+  quote page text). The window: `launchPersistentContext` on a COPY of the persona's profile (`prepareSessions`; a
+  snapshot / signed-out persona: a fresh `demo-studio-session-record-*` profile), its snapshot applied, `Preferences`
+  with the password manager and autofill off (`disableAutofill`), `viewport: null` at the window's real size
+  (`--start-maximized`; no `--hide-scrollbars`; a window narrower than `capture.width` is warned — the check replay runs
+  at the capture size), Ctrl-C / SIGTERM left to the caller. The environment's access as in a run
+  (`resolveRunAccess`, `compileWritePolicy`): a read-only environment arms the write guard (writes stopped / mocked,
+  each one a `write` event); a read-write one lists every write request to its pages' origins (`passed`). Ends when the
+  last page closes (`closed`), on `stop` (the pending typing committed through `__dsrecFlush`, then the window closes:
+  `stopped`) or after `maxMs` (default `RECORD_MAX_MS` 30 min: `max_duration`); `signal` closes the window, removes the
+  events file and throws a CancelledError. `drive` / `headless` play the person in tests (Playwright input is trusted).
+- **isolated world** (no `exposeBinding`): one CDP session on the window's page — `Page.enable`, `Runtime.enable`,
+  `Runtime.addBinding({name: random, executionContextName: 'demo-studio-record'})`,
+  `Page.addScriptToEvaluateOnNewDocument({source: passive kit + recorder, worldName, runImmediately})`. The page's main
+  world sees no binding, no kit, no recorder, no `__playwright__binding__`, no cursor element; it cannot call them or
+  touch the world's prototypes; only `isTrusted` events count. An isolated context reports origin `://`: its origin is
+  the frame's main-world context created just before it. A message is kept only from the recorder's world, on an
+  environment page origin; from a sub-frame only a content-free `frame` notice (counted).
+- **in page** (`demoRecorder`, serialised): capture-phase listeners on the window, registered before the page's scripts.
+  `pointerdown` → `pointer` with the element (`kit.suggestFor`, budget `RECORD_BUDGET_MS` 150 ms; else a description
+  fallback without a target), `quiet_ms` (since the DOM last changed), `ms` (the in-page cost); Enter / Space on a
+  focused control whose `click` has `detail: 0` → `pointer` `via: keyboard`, else a `key`; `dblclick`; typing per field
+  committed at blur, Enter (`enter: true`), the next action elsewhere, `pagehide` or `__dsrecFlush`: the text past what
+  the field held at focus when text was only added at its end — the initial value never crosses on its own; after an
+  edit inside the field (a deletion, an insertion before its end) `clear: true` and its whole final value, which holds
+  the parts of the initial value that were kept (a replay types the final value: only the changed part would not do);
+  native `<select>` change → `select_native` (the option's label); a file input's change / a drop → `file` (names
+  only); a scroll the person made (wheel, scroll keys, a scrollbar press) → `scroll` per container, net, after 400 ms;
+  keys only `RECORDED_KEYS` outside text fields (Escape, Enter, Space, arrows, paging, Backspace, Delete) or a
+  Control / Meta + letter / digit; inside a field Escape / ArrowUp / ArrowDown / PageUp / PageDown only; Space,
+  Backspace and Delete are not sent when the focus is inside a closed shadow root (the event's deepest target is the
+  focused host, which is not focusable itself: its field cannot be classified and the keys would count words). `appeared`:
+  the element (or an ancestor) was added since the previous action (MutationObserver).
+- **secrets**: `kit.secretField(el)` (1.5.0) classifies a field — `type=password`; autocomplete current- / new-password,
+  one-time-code, cc-*; words of its name, id, label, aria-label, placeholder, title or test id (password, otp, cvc,
+  card number, IBAN, SSN, PIN, token, API key, secret); one of ≥ 4 one-character inputs → `one_time_code` — and the
+  recorder makes it STICKY per element. A secret field's typing carries no `text` (`secret: true`, `field_kind` = the
+  kind). The in-page memory remembers (≥ `SECRET_MIN` 6 characters: a 4-digit PIN would mask dates) a secret field's
+  committed values and its initial one, its current value while it is typed in (each new one replaces the last, so a
+  prefix — a common word — is never kept), a high-entropy paste or text drop (`looksLikeToken`: ≥ 20 characters, no
+  white space, ≥ 3 classes → `api_key`) and an autofilled value (an input with no key / paste / drop in the last
+  second → `secret`); every outgoing string is masked (`•••`, `redacted: n`) where
+  it contains one, and a typing whose value the memory knows becomes secret (a re-mounted field, a password pasted
+  elsewhere). Final values are told to the runner as `[length, cyrb53(value, random salt)]` (`secretHash`, the same
+  function on both sides); the runner masks every string it keeps (write labels, typed queries) and hands the hashes
+  to every new document with its verdict. Never written: a secret value, a hash.
+- **sign-in pages** (`signInMatchers`, extracted from the run's guard: the persona's patterns, else the environment's
+  `auth.login_url`): the page holds its events until the runner's verdict for its origin + path
+  (`__dsrecVerdict(url, ok, hashes)`, asked once per path); on a sign-in page they are discarded and counted
+  (`dropped {reason: sign_in}`); the runner checks each event's path again.
+- **runner side**: navigations of the main frame from CDP (`Page.frameNavigated` + `Page.getNavigationHistory`'s
+  transition type → `start` / `typed` / `link` / `form` / `reload` / `other`; `Page.navigatedWithinDocument` → `spa`,
+  a fragment-only change ignored), `where` environment (with `page_key`, the longest base prefix) / `sign_in` /
+  `foreign` (the host only); paths never carry a query — a `typed` navigation keeps a filtered one (keys like token,
+  code, state, session, auth, key, pass, otp… removed; values that look like a secret or the memory knows removed);
+  every kept path and write label has its segments that look like a secret masked (`maskPathSecrets` /
+  `looksLikeSecretSegment`: an e-mail address, ≥ 32 hex digits — a UUID included —, a JWT, a mixed-case key, a run of
+  ≥ 20 letters and digits; a slug is none). Writes: the guard's own reports (`blocked` / `mocked` / `allowed` /
+  `passed` on a read-only environment; the protected hosts of a read-write one); on a read-write environment every
+  other write request of the window (not GET / HEAD / OPTIONS, not a GraphQL body that only reads), whatever its
+  host — an API on another host, a `read_only.hosts` entry, a form post, a beacon —, `outcome: passed`. Tabs / popups the page opens:
+  `new_page`, not recorded (warned). Each event is validated by `RecordedEventSchema` (else counted `invalid`), given
+  `seq`, `t` (ms since start, minus the in-page age) and `page: p1`, appended to `eventsFile` (0600) and passed to
+  `onEvent`.
+- **core** `recording.ts`: `RECORDING_VERSION` 1, `RECORD_ID_RE` (`rec_` + 26 Crockford), `SECRET_FIELD_KINDS`,
+  `RECORDED_KEYS`, `RecordedElementSchema` (the inventory entry: target, matches, fragile, in, action, role, tag,
+  input_type, name, text, label, placeholder, testid, href_path, in_view, state, appeared, secret, desc?) and
+  `RecordedEventSchema` (pointer, dblclick, type, select_native, file, key, scroll, navigation, new_page, write,
+  dropped, stop; strict objects; a secret `type` without `text`, a plain one with it; a path without `?` / `#`; a
+  printable key only with Control / Meta).
+- **kit 1.5.0**: `passive` config (the recorder's copy: no overlay, no listener, no patched API); `suggestFor(el | ref,
+  {budget_ms})` = `inventory({within, limit: 1})` on the element, else its label's control, a hidden file input's label,
+  or its nearest interactive ancestors (≤ 4 tries) — null when nothing interactive holds it; `secretField`. Measured: a
+  press on the lab costs 1–4 ms in the page; on `/inspect-lab?rows=5000` (≈ 10,000 controls) ≈ 210 ms, the budget spent
+  (description fallback).
+
+### 3.12 Recording: draft, engine, CLI (L3.4 part 2; core `draftFromRecording`, engine `record.ts`, `studio record`)
+
+- **core** `draftFromRecording(events, {name, env, envIsDefault, pages, persona, defaultPersonas?, projectVars?,
+  access})` → `{scenario, yaml, issues, writes, firstWrite, stats}`. Pure; events in `seq` order; writes taken apart
+  first. Rules: a press → `click` on the verified target (`targetValue`: a lone text as a string), a right press keeps
+  `button: right`, a middle one is dropped; no target → a fallback `{text, in?}` from the element's own name (warned
+  `fallback_target`), nothing for a container / masked text / no text; `el: null` is noise (counted). Two presses on one
+  element + `dblclick` → `double_click`. A press followed by presses / typing in a `listbox` / `popover`: options
+  (`role: option`, by accessible name) → one option on a `select {field}` trigger, or a list that closed by itself →
+  `select {field | combobox, option, search?}`; else `pick {field: label | trigger target, option(s), search?, close}`
+  — `escape` (an Escape key after it, absorbed), `outside` (a press on nothing / a container after it, absorbed; also
+  when another action follows), `none` (nothing follows). A `menu {row}` trigger + a `menu` item → `menu {row | trigger,
+  item, confirm?}`: confirm = the next press when it is a button that appeared in a dialog within 10 s named like the
+  item (or yes / ok / confirm / continue); else it stays a click. A `drop_file` zone + `file` → `drop_file {zone, name:
+  first name, fake: true}` (info); a zone without a file is dropped. `type` → `type {into, text | {{vars.<kind>_N}},
+  clear?, enter?}`, the click on the same target just before folded into `into` (`select_native` likewise →
+  `select {combobox, option}`); consecutive one-time-code boxes merge on the first (warned). Secret placeholders:
+  `vars.<kind>_N: CHANGE-ME` unless project.yaml `vars` has that name (then it is used, no scenario var). `key` →
+  `press` (`Space`, `Meta+k`). Scrolls add up per container until the next action: ≥ `RECORD_SCROLL_MIN_PX` (120) →
+  `scroll {to: <next target>, in?}`, or `{by}` when no target follows. Before an action: `wait_for {target, timeout:
+  max(15, ⌈2 × gap⌉)}` when its element appeared and the gap since the previous action is ≥ 1.5 s, never for the first
+  action after a document load. Scenes: the first `{page, open}` from the start; a page change with steps in the scene
+  starts a new one — `open:` (the path under the page's base, a typed query kept) when the address bar, a reload or
+  history moved it with no action in the last second, or when the window comes back from a sign-in page / another
+  site (actions there are dropped, `signed_out` / `foreign_page`); otherwise no `open:` (it continues). Ids from the
+  path's first meaningful segment (`home` for `/`), `-2`… when taken; empty scenes dropped. `env:` unless the default;
+  `persona:` on the first scene when it differs from the page's default (`none` signed out). Every write (any host)
+  goes to the last step that ended ≤ `RECORD_WRITE_WINDOW_MS` (2 s) before it as `note: sends …` (`(stopped:
+  read-only)` / `(answered by a mock: read-only)`), else it is ambient (info, at the step after it); `firstWrite` = the
+  first step followed by a write that went through (not `blocked` / `mocked`), however long after — the check replay
+  stops before it. A recorded string holding `{{` (typed text, a name, a label, an option, a search) never reaches the
+  draft: its step is left out (`template_text`; the click that focused a field stays), and `open:` writes `{{`
+  percent-encoded; an `open:` holding a masked segment is warned (`secret_path`). Issues come in the order they were
+  raised, each with `scene` and `step` (the step it is about, or for what happened between steps the next one — the
+  scene's step count at its end); a click folded into the typing that follows it passes its issues on. The YAML:
+  steps' values in flow style, a header comment; the draft is parsed (`parseScenario`) and any error is an `invalid`
+  issue (`draftInvalidIssue`: a fixed message, its line, scene and step — never the validator's text). Issue messages
+  never quote page text or a typed value.
+- **engine** `recordScenario(ws, project, {env?, persona?, page?, path?, url?, name?, allowWrites?, check?, agent?,
+  submittedBy?}, ports)` → `RecordOutcome {rec_id, dir, draft, name, saved, not_saved?, env, persona, access, stop, ms,
+  window, capture, counts, stats, scenes [{id, steps, opens}], issues, warnings, writes {total, by_steps, ambient,
+  first}, check}`. `recordStart`: the page (default the persona's first page, else the environment's first), `path`
+  (`inspectPathProblem`), or a `url` on an environment origin (`pageOfUrl`); the persona (`none`, a name, else the page's
+  default). Linux without a display (and no test `drive`) → `unavailable`. Preflight: `checkSavedSession`; not valid →
+  the persona's `login:` steps (`signIn` auto, headless), else `refused` with the `studio login` command as `fix`.
+  `DEMO_STUDIO_RECORD_MAX_MIN` (minutes, (0, 1440]) → `maxMs`. The draft is validated with the project
+  (`parseScenario` with its vars, pages and personas) before it is saved or checked: an error is an `invalid` issue; a
+  save that fails is a `not_saved` error issue with a fixed message (the log line too: never the error's text). Folder `<project>/.demo-studio/records/<rec_id>/` (0700,
+  newest `RECORD_KEEP` 20): `events.jsonl` (the runner's stream), `draft.yaml`, `record.json` (0600: the outcome, write
+  labels, first write, saved / check). `ports.stop` = stop and keep; `ports.signal` while recording = cancel (folder
+  removed, `cancelled`), after it = the check stops. No action → folder removed, `not_saved: nothing_recorded`. Saved
+  with `saveScenarioText(…, {ifMatch: null, agent})` only when the name is free (default `recorded-YYYYMMDD-HHMM`, `-2`…;
+  a taken name is warned before the window opens, the draft kept). Check replay: `runScenario` dry, the draft + the
+  inspection pacing, at the capture viewport, run folder `<rec>/check/` (its screenshots removed); scope `until_write`
+  up to the step before `firstWrite` (`skipped: first_step_writes` when that is the first step) on any environment,
+  else `all` (a read-only environment's stopped / mocked writes are stopped again by the replay's guard) → `{status: passed | failed | skipped | cancelled,
+  steps_passed, steps_total, failed_at?, untrusted.error?}`. History: `kind: record`, `record {id, steps, saved}`,
+  counts nothing.
+- **CLI** `studio record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check]
+  [--json]`: in-process (the primary path), a status line counting actions, Ctrl-C = stop and keep (from the check on,
+  the run's own handler stops the check), then the summary (actions, scenes, issues as `scene.step: …`, writes with
+  reset advice, saved file, check, draft path, the next `run --dry`); `--json` the outcome. Exit 1 when nothing was
+  recorded, the draft is invalid or the check failed. `--allow-writes` as `studio run` (usage error on a read-only
+  environment).
+
+### 3.13 Recording: job and MCP (L3.4 part 3; core `RecordJobInputSchema`, engine `jobs/record-job.ts`, MCP `scenario_record`)
+
+- **Job input** (`kind: record`): `{project, rec_id (reserved at submit, RECORD_ID_RE), env?, source: {page, path},
+  persona?, scenario?, check: boolean, submitted_by}` — strict: no step, URL, typed text or write flag exists in it, so
+  nothing in a job can drive the window. `submitRecordJob`: slugs, no `{{…}}` in page / path / url / persona,
+  `recordStart` (page key, path, a URL on an environment origin → page + path, persona), the workspace's protected
+  hosts (`checkWorkspaceProtection`), Linux without a display → `unavailable` with the `studio record` command as `fix`;
+  warnings (a taken name: the draft is kept only; a read-only environment: writes stopped or mocked).
+- **Execution** (`executeRecordJob`): the checks again, `checkSandboxEnv`, then `recordScenario(…, {id: rec_id, agent:
+  true, submittedBy}, {hookTrust: 'mcp', stop, skipCheck: () => stop.aborted, signal, history: false})`. Two signals:
+  the worker's SIGINT / SIGTERM aborts the job's `stop` controller (not its cancel controller) — the window closes, the
+  draft is made and saved, the check replay is skipped (`reason: stopped`), the job succeeds and the worker exits;
+  `job_cancel` (the cancel marker) aborts `signal` — while the window is open the recording is discarded (folder
+  removed, job `cancelled`), after it only the check replay stops. Progress: `phase` = preflight / `recording · N
+  actions` / draft / check with steps; events carry counts and fixed messages only (a log line when the window opens).
+  The worker's history line (`record {id, steps, saved}`, counts nothing) replaces recordScenario's own. A `record` job
+  holds the queue while its window is open (one job at a time, as a headed `auth_login`). Interrupted: by its last
+  progress phase — `check`: the draft was made (`.demo-studio/records/<rec_id>/draft.yaml`, saved under scenarios/ when
+  its name was free), only the check was cut; `draft`: the draft was being made (that file if it was written);
+  otherwise "no draft was made" — `fix` = `studio record …`. `pruneRecords(project, keep, except, root)` never removes the folder of a queued or
+  running record job (`activeRecords`).
+- **Result** (`RecordJobResult`): `rec_id, dir, draft (path), name, saved {file, path, hash} | null, not_saved?, env,
+  persona, access, stop, ms, window, capture, counts, stats, issues {error, warning, info, codes}, warnings, writes
+  {total, by_steps, ambient}, check {status, scope, reason?, steps_passed, steps_total, dir?}`, and under `untrusted`:
+  `scenes` (ids made from page paths), `issues` (with scene / step), `first_write`, `check {until?, failed_at?,
+  error?}`. Never the draft's text: `engine.record.get` reads draft.yaml from the folder (≤ 200 kB).
+- **Test hook**: `runWorker({recordTest: {drive, headless, windowSize}})` — in-process only (worker-main never sets it;
+  a worker process has no way to receive a driver), not gated on `submitted_by`, so a stdio test can submit through
+  MCP while this process's worker holds the lock and plays the person.
+- **MCP** `scenario_record({project, env?, page?, path?, url?, persona?, scenario?, check = true})` (RUN_JOB
+  annotations; 39 tools): submits and returns at once — the summary tells Claude to ask the user to perform the flow
+  and close the window, that it does not drive it, to follow with `job_status {wait_s: 25}` and to submit no other job
+  meanwhile. `recordOutput` (also `job_status` for a record job): running → what the user does; finished → actions,
+  scenes, steps, placeholders, saved file + hash (`if_match`), the check, issue counts and codes, writes, warnings, the
+  next steps; data = the trusted result + `files {draft, dir}` + `untrusted {scenes, issues, first_write?, check?,
+  draft_lines}` (the YAML as lines: each string under `untrusted` is capped at 2000 characters); a refusal naming a
+  persona that must sign in points at `auth_login`. `record` is a product-text kind: a failed job's message is only
+  under `untrusted.error`. INSTRUCTIONS: one line on when to record and how to follow it.
+
 ## 4. CLI (`studio`)
 
 ```
@@ -1292,6 +1478,8 @@ Engine {
         login({project, env?, persona?, mode = 'headed'}) → {job, persona, env, worker?}
   sandbox: status(slug, env?) → SandboxStatusView; up({project, env?}, {approver?}) / reset({project, env?, reseed?},
            {approver?}) → {job, env, worker?}
+  record: submit({project, env?, persona?, page?, path? | url?, scenario?, check = true}) → {job, rec_id, env, page,
+          path, persona, warnings, worker?}; get(slug, recId) → {dir, draft (draft.yaml text) | null, truncated}   // L3.4
   usage() → {captures, dry_runs, renders, entries, since?}   // from history.jsonl
 }
 loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona(project, env, persona, {mode, page?, url?},
@@ -1446,7 +1634,8 @@ workers/worker.log      what workers print (stderr), appended
   {phase: 'seed', index (among ALL the seed steps), env: <sandbox env>})` — `runSeed` maps runHooks' batch index (between
   exec steps) to it. `seedApprovalItems(project, env)` lists them at submit for sandbox jobs and for a run with
   `sandbox: true` (whose take passes the run's trust and approvals to `prepareTake`). An interrupted job's `fix` depends
-  on its kind: `env reset` (run, hooks, env_reset), `login` (auth_login), `sandbox up` (sandbox jobs).
+  on its kind: `env reset` (run, hooks, env_reset), `login` (auth_login), `sandbox up` (sandbox jobs), `record` (record:
+  no draft was made; the events streamed so far stay in the recording's folder).
 - The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
   the next worker records — appends a line to `<workspace>/.demo-studio/history.jsonl` (`{v, at, job, kind, project,
   submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `studio run`,
@@ -1521,6 +1710,13 @@ L3.3: `/inspect-lab` on the shop (`server/inspect-lab.mjs`, server-rendered): tw
 placeholder only, native select, a password field with a value, a file drop zone), instruction-like text in a
 paragraph, a `role` and an aria-label, an orders table with row menu triggers, an open shadow root, a same-origin and
 a cross-origin frame; `?dialog=1` an open dialog with its own "Save", `?rows=N` (≤ 5,000) a long table.
+L3.4: `/record-lab` on the shop (an SPA page, `src/shop/pages/RecordLab.jsx`; `/record-lab/results` the same page):
+an account form whose password field switches to text ("Show"), is re-mounted as a new plain field holding the value
+("Re-mount the field") or printed as page text ("Reveal"), one-time-code boxes, a card number, an API key field, a GET
+form with a password; a native select, a Radix select, a Radix dialog, a table whose rows have a Radix menu (Archive
+asks to confirm), a file drop zone, a textarea, a contenteditable, a "Mark notifications read" button (the page's one
+write) and an in-app link; a script that forges events, calls every window function that looks like a binding and
+looks up the kit's and the recorder's names (on load and by a button; its report in `[data-testid=forge-report]`).
 L1.8: two sandboxes of the fixture project — `sandbox` (process: `node server.mjs` on 4501–4504, started by Demo
 Studio) and `sandbox-docker` (docker-compose, `sandbox/docker/{sandbox.yaml,compose.yaml}`: the fixture image on
 4511–4514 + `axllent/mailpit:v1.29.4` on 4525), same pages (the signed-in side), seed (`POST /api/reset`) and

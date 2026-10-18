@@ -33,6 +33,8 @@ import type { RunCommandOptions } from './commands/run.js';
 import { sandboxDownCommand, sandboxInitCommand, sandboxLogsCommand, sandboxResetCommand, sandboxStatusCommand, sandboxUpCommand } from './commands/sandbox.js';
 import type { SandboxCommandOptions } from './commands/sandbox.js';
 import { inspectCommand } from './commands/inspect.js';
+import { recordCommand } from './commands/record.js';
+import type { RecordCommandOptions } from './commands/record.js';
 import type { InspectCommandOptions } from './commands/inspect.js';
 import { validateCommand } from './commands/validate.js';
 import type { ValidateOptions } from './commands/validate.js';
@@ -127,6 +129,21 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--no-cuts', 'with --raw: keep the loading inside scenes')
     .option('--out <dir>', 'with --raw: package folder (default exports/<run>-raw-<format><fps>-<cursor>/)')
     .action(action((u, g, p: string, s: string, o: RunCommandOptions) => runCommand(u, g, p, s, o)));
+
+  program
+    .command('record')
+    .description('open a browser window, perform a flow by hand, get a draft scenario (saved when the name is free) checked by a dry replay — nothing is filmed')
+    .argument('<project>', 'project slug or directory')
+    .argument('[name]', 'scenario name (default recorded-YYYYMMDD-HHMM); an existing one is never overwritten')
+    .option('--env <name>', 'environment (default: default_env, else the first one)')
+    .option('--persona <name>', 'the persona the window is signed in as, or none (default: the persona whose pages list the page)')
+    .option('--page <key>', 'environment page the window opens (default: the persona\'s first page, else the first page)')
+    .option('--path <path>', 'path under the page (default /)')
+    .option('--url <url>', 'instead of --page / --path: a URL on one of the environment\'s origins')
+    .option('--allow-writes', 'let the window write on a production environment (only where project.yaml sets access: read-write), as studio run')
+    .option('--no-check', 'skip the check replay of the draft')
+    .option('--json', 'print the outcome as JSON on stdout')
+    .action(action((u, g, p: string, n: string | undefined, o: RecordCommandOptions) => recordCommand(u, g, p, n, o)));
 
   program
     .command('inspect')

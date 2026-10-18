@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-18, end of lot **L3.3 (authoring: page_inspect + scenario_from_script)** — phases 1 and 2 are
-done, phase 3 is under way. **Next: L3.4 (recorder: `studio record`, scenario_record), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-18, end of lot **L3.4 (recorder)** — phases 1 and 2 are done, phase 3 is under way. **Next:
+L3.5 (themes from brand inputs and from a site URL), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -28,7 +28,12 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.3)
+## State (after L3.4)
+- **L3.4 done (2026-10-18)**: `studio record` opens a real window where the person performs the flow; it becomes a
+  scenario draft (verified targets, scenes, waits, secrets replaced by placeholders) that is saved, checked by a replay
+  up to the first write and dry-runs. Claude can start one with `scenario_record` but never drives it. Tests on the
+  Mac: **1967 — 1934 pass, 33 skipped (≈ 10 min)**. Requirements: 619 tracked — 529 done, 15 partial, 67 todo, 8 n/a-here. Live checks for the user:
+  MACOS-CHECKLIST 12c–12f (12f: record a flow yourself, CLI first).
 - **L3.3 done (2026-10-18)**: Claude authors scenarios through MCP — `page_inspect` gives it verified targets and a
   numbered screenshot of real pages (signed in, read-only, the environment's origins only), it writes the YAML,
   validates, saves, inspects again mid-scenario and dry-runs; `scenario_from_script` drafts from a timecoded table. The
@@ -154,8 +159,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.4 — Recorder (`studio record`, scenario_record)** — only when the user asks for it (the kit's `inventory()` and
-target suggestions are reusable). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.5 — Themes from brand inputs and from a site URL** — only when the user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -905,6 +909,16 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   (pruned to 20, never a queued / running one), `markBoxes` + review `drawMarks`. MCP: `page_inspect`,
   `scenario_from_script` (38 tools), INSTRUCTIONS give the authoring loop. Fixture: `/inspect-lab`. Also fixed: the
   sandbox P6 test flake (a race in the test's fake ps). 1887 tests: 1855 pass, 32 skipped; test:slow green. No new dependency.
+- **L3.4 done** (recorder; R-MCP-24 done). Planned, criticised (the binding of `exposeBinding` is visible and forgeable
+  by the page — replaced by an isolated world over CDP; a field switched from password to text leaked; a GET form put a
+  password in the URL), built in three parts (capture; draft generator + engine + `studio record`; job + MCP + docs),
+  reviewed (10 findings: the worst, a write to an API on another host was not seen, so the check replay would repeat it;
+  partial passwords masking common words; dropped tokens; tokens in typed URLs; `{{` in typed text) and fixed with
+  mutation-checked tests. Files: runner-web `record-session.ts`, `kit/record-script.ts` (kit 1.5.0: `passive`,
+  `suggestFor`, `secretField`), core `recording.ts` (event schema + pure generator), engine `record.ts` +
+  `jobs/record-job.ts`, cli `record.ts`, mcp `scenario_record`; fixture `/record-lab`. Acceptance in `test:slow`: the
+  quote flow recorded through the job by a Playwright driver standing in for the person → draft → validate → run_dry
+  15/15, a sentinel password nowhere. 1967 tests: 1934 pass, 33 skipped; test:slow green. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1134,6 +1148,17 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.4:
+- The recorder never uses `exposeBinding` (its binding is visible to the page in Playwright 1.56): everything runs in
+  a CDP isolated world (`Runtime.addBinding` scoped to it); the isolated world reports origin "://", so the origin is
+  read from the main-world context.
+- Secrets: masked in the page (memory of committed / current secret values, ≥ 6 characters) and again on the runner
+  side (salted hashes, never written); typed URLs mask token-like path segments and drop token-like query values.
+- Writes: on read-write environments any non-GET request from the window counts (whatever its host) to bound the check
+  replay; telemetry POSTs cut it early (safe side). A recording holds the single worker as long as the person takes
+  (≤ 30 min, `DEMO_STUDIO_RECORD_MAX_MIN`); a worker signal stops and keeps, `job_cancel` discards.
+- Playwright `setInputFiles` with buffers fires untrusted events: tests choose files by path through the file chooser.
+
 Notes from L3.3:
 - The authoring loop (INSTRUCTIONS): page_inspect → Claude writes the YAML → scenario_validate → scenario_save →
   page_inspect {scenario, until} → run_dry. `scenario_from_script` is an optional deterministic aid.

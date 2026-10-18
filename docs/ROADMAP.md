@@ -55,8 +55,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | **done** (live Claude Code run: MACOS-CHECKLIST 12c) |
 | L3.2 | MCP render/review/export + theme & component tools | M | **done** (live run: MACOS-CHECKLIST 12d) |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | **done** (live run: MACOS-CHECKLIST 12e) |
-| L3.4 | Recorder (`studio record`, scenario_record) | M | **next** |
-| L3.5 | Themes from brand inputs and from a site URL | M | todo |
+| L3.4 | Recorder (`studio record`, scenario_record) | M | **done** (a human recording: MACOS-CHECKLIST 12f) |
+| L3.5 | Themes from brand inputs and from a site URL | M | **next** |
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | todo |
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | todo |
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | todo |
@@ -612,7 +612,21 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   scripted client writes its own steps from inspections and dry-runs them, no write reaches the fixture. A reviewer's
   9 findings fixed (the worst: a late JS redirect got a foreign page inspected). Live run: MACOS-CHECKLIST 12e.
 
-### L3.4 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.4 — Recorder (`studio record`, scenario_record) (M)
+- **Goal:** a person performs the flow in a real window; Demo Studio turns it into a scenario draft that validates and
+  dry-runs. Claude can start a recording through MCP but never drives it.
+- **Done (2026-10-18):** a headed window on a copy of the persona's session (password manager and autofill off, real
+  window size); the recorder and a passive kit run in an isolated world over CDP (invisible to the page, trusted events
+  only, origin checked per event, sign-in pages and other sites skipped); each action becomes a step with a verified
+  target at pointerdown (click, type with `into`, press, select, pick, menu with confirm, drop_file, scroll, wait_for
+  what appeared, scenes at page changes); secrets never recorded (sticky per-field classification, in-page memory of
+  secret values, tokens pasted or dropped, OTP, card, typed URLs masked) and replaced by `{{vars.<kind>_N}}`; a draft
+  saved when the name is free, then a headless check replay up to the step before the first write that went through.
+  `studio record` (CLI, primary path), the `record` job and MCP `scenario_record` (39 tools). Two reviews (secrets,
+  isolation, writes to another host, issue positions) fixed with mutation-checked tests. Cut to BL-74: tabs / popups /
+  frames, holds, alternatives, date / drag / hover mapping. A real person's recording: MACOS-CHECKLIST 12f.
+
+### L3.5 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

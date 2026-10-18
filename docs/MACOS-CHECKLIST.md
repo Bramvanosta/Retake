@@ -417,7 +417,7 @@ server was registered before L3.2, nothing changes in its registration; a worker
 
 ## 12e. Claude writes a scenario from page inspections (L3.3)
 
-Same session as 12c / 12d (the fixture runs, `pnpm build` first). `/mcp` now lists `demo-studio` with **38 tools**
+Same session as 12c / 12d (the fixture runs, `pnpm build` first). `/mcp` lists `demo-studio` with **38 tools** (39 from L3.4)
 (`page_inspect` and `scenario_from_script` are new). Claude writes the scenario itself: no Demo Studio tool calls a
 model.
 
@@ -458,6 +458,46 @@ model.
 - **Send back:** the scenario Claude wrote, one marked screenshot as Claude Code shows it, the token count of step 4,
   and anything Claude did that surprised you (a wrong target, a guess instead of an inspection, a skeleton presented
   as finished).
+
+## 12f. A person records a scenario — CLI first, then through Claude Code (L3.4)
+
+Only a person can check this (the tests drive the recorder with Playwright in a headless window). The fixture runs
+(`node fixtures/wholesale/server.mjs &`), `pnpm build` first. Typed values below are for the fixture only.
+
+1. **CLI, the quote flow.** `node packages/cli/dist/bin.js record northfield-fixture my-quote --page shop` → a
+   Chromium window opens (note: does it come to the front? does it fit the screen — title bar, the "controlled by
+   automated software" bar, the dialog's Send button reachable without scrolling tricks?). On the shop: scroll a little,
+   open Selowa Ridge, wait for the page, Request a quote, Increase twice, Bag size 5 kg, Grind Whole bean, pick two
+   dates, type a message, Send request; wait a second, then close the window. The terminal counted actions while you
+   worked (`● recording — N actions`). **Expected:** ~2 scenes and ~14 steps, a `select` per dropdown, the write `POST
+   shop:/api/quotes` with the reset advice, `check replay: N/N steps passed (up to …, the step before the first
+   write)`, `saved scenarios/my-quote.yaml`. Then `node packages/cli/dist/bin.js run northfield-fixture my-quote --dry`
+   succeeds (`curl -X POST localhost:4401/api/reset` first). Open the YAML: real steps, empty captions, no URL.
+2. **Secrets.** `node packages/cli/dist/bin.js record northfield-fixture lab --page shop --path /record-lab`; type a
+   made-up value of your own (e.g. `Plum-Kettle-4417`) into the password field, a made-up number into Card and the
+   Verification code boxes, click Show then Reveal (and the revealed text), type a note, close. **Expected:** the draft has `{{vars.password_1}}`-style placeholders (CHANGE-ME)
+   and the note; `grep -r Plum-Kettle-4417 projects/northfield-fixture/.demo-studio projects/northfield-fixture/scenarios
+   ~/.demo-studio .demo-studio` finds nothing, nor does the terminal's scrollback.
+3. **Nothing done.** Record again and close the window at once → `nothing recorded`, exit 1, no scenario saved.
+   Ctrl-C in the terminal while the window is open → the window closes and what you did is kept.
+4. **Signed in.** `curl -X POST localhost:4403/api/auth/expire`, then `node packages/cli/dist/bin.js record
+   northfield-fixture --env signed-in --page console` → the supplier signs in again off camera (its login steps, with
+   `NORTHFIELD_SUPPLIER_PASSWORD=roast-lot-2026` in its environment, as in 12c), or
+   the buyer (`--page shop`) is refused before any window opens with the `studio login` command.
+5. **Through Claude Code** (same session as 12c–12e; `/mcp` lists **39 tools**, `scenario_record` is new). Ask: "I'll
+   show you the catalogue import on the console: record it as `import-shown`." → Claude calls `scenario_record` and
+   tells you a window is opening and to close it when done (it must not try to click for you). The window now comes
+   from the background worker: **note whether it comes to the front** and how long it took to appear. Do the import
+   (New import, organisation, choose any small CSV file of your own, Start import), close
+   the window. Claude follows with `job_status`, reads the draft, says what it would fix (flagged steps, the fake file)
+   and dry-runs it. **Note** how long the job held the queue and whether Claude waited without calling other browser
+   tools meanwhile.
+6. **Cancel through Claude.** Ask Claude to record again, then (window open) to cancel it → the window closes, nothing
+   is saved, the recording's folder is gone.
+
+- **Expected:** steps 1–6 as described; the drafts dry-run; nothing you typed into a secret field appears anywhere.
+- **Send back:** the draft of step 1, whether the window fit and came to the front (CLI and worker), the time of
+  step 5's job, and any step where the draft was wrong (a target, a missing step, a select recorded as clicks).
 
 ## 13. Clean up
 

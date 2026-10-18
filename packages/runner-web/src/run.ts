@@ -9,7 +9,6 @@ import {
   guardsWrites,
   displayPages,
   displayTable,
-  environmentLoginPatterns,
   isCaptureScene,
   listSteps,
   loginCommand as defaultLoginCommand,
@@ -59,7 +58,7 @@ import { mergeCapture, mergePacing, projectBrowser } from './config.js';
 import { encodeFrames } from './encode.js';
 import { runEngine } from './engine.js';
 import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
-import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, writeStatus } from './auth.js';
+import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, signInMatchers, writeStatus } from './auth.js';
 import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
@@ -1033,8 +1032,8 @@ function signInGuard(
   session: () => BrowserSession | null,
   o: { command: (persona: string) => string; hooksJustRan: () => boolean; redact: (t: string) => string; abort: (e: LoginPageError) => void },
 ): LoginGuard | null {
-  const byPersona = new Map(personas.map((p) => [p.name, loginMatchers(p.loginPatterns, env.pages)]));
-  const envMatchers = loginMatchers(environmentLoginPatterns(project.config, env.name), env.pages);
+  const byPersona = new Map(personas.map((p) => [p.name, signInMatchers(project, env, p)]));
+  const envMatchers = signInMatchers(project, env, null);
   if (envMatchers.length === 0 && [...byPersona.values()].every((m) => m.length === 0)) return null;
   // Pages seen as `persona: none` (a tab keeps it after its opener closed).
   const none = new WeakSet<Page>();

@@ -295,6 +295,10 @@ export class FileJobQueue {
   }
 }
 
+function shellWord(s: string): string {
+  return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
 function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
   const i = rec.input;
   if (i.kind === 'render') {
@@ -345,6 +349,27 @@ function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
         code: 'cancelled',
         message: `interrupted: ${why}. The inspection stopped: it ran a dry replay only (no hook); submit it again`,
         fix: `${cli} inspect ${i.project} ${i.source.kind === 'page' ? i.source.page : i.source.scenario}${i.env ? ` --env ${i.env}` : ''}`,
+      },
+    };
+  }
+  if (i.kind === 'record') {
+    // Where it was (the job's last progress): from the draft on, the recording had ended and its draft was written.
+    const phase = rec.progress?.phase ?? '';
+    const folder = `.demo-studio/records/${i.rec_id}`;
+    const message =
+      phase === 'check'
+        ? `interrupted: ${why}. The recording had ended and its draft was made: ${folder}/draft.yaml (saved under scenarios/ too when its name was free); only its check replay was cut — dry-run the draft`
+        : phase === 'draft'
+          ? `interrupted: ${why}. The recording had ended; its draft was being made: ${folder}/draft.yaml if it was written (${folder}/events.jsonl holds what was recorded); record again if it is missing`
+          : `interrupted: ${why}. The recording stopped with it: no draft was made (what was recorded up to then is in ${folder}/events.jsonl, if the window had opened); record again`;
+    return {
+      ...rec,
+      state: 'interrupted',
+      derived: true,
+      error: {
+        code: 'cancelled',
+        message,
+        fix: `${cli} record ${i.project}${i.scenario ? ` ${i.scenario}` : ''}${i.env ? ` --env ${i.env}` : ''}${i.persona ? ` --persona ${i.persona}` : ''} --page ${i.source.page}${i.source.path !== '/' ? ` --path ${shellWord(i.source.path)}` : ''}`,
       },
     };
   }

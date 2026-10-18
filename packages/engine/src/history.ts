@@ -36,6 +36,8 @@ export interface HistoryEntry {
   preview?: { id: string; target: string; theme?: string };
   /** An inspect job's id, its source (a page or a scenario replay) and its outcome; it counts nothing (L3.3). */
   inspect?: { id: string; source: 'page' | 'scenario'; status?: string; reported?: boolean };
+  /** A recording's id, its draft's steps and whether the draft was saved; it counts nothing (L3.4). */
+  record?: { id: string; steps: number; saved: boolean };
   /** What it produced. */
   counted: { captures: number; dry_runs: number; renders: number };
 }

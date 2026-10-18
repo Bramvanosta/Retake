@@ -153,6 +153,14 @@ zone), instruction-like text in body text, in a `role` attribute and in an aria-
 menu trigger, an open shadow root, a same-origin frame and a cross-origin frame (the console). `?dialog=1` adds an open
 dialog with its own "Save"; `?rows=N` (at most 5,000) a long table. The page makes no request that writes.
 
+**Recording lab** (`/record-lab` on the shop, `src/shop/pages/RecordLab.jsx`): a page for the tests of the recorder
+(`studio record`, L3.4) — an account form whose password field can be shown as text, re-mounted as a new plain field
+holding its value or printed as page text, six one-time-code boxes, a card number, an "Integration" key field, a GET
+form with a password (`/record-lab/results`); a native select, a Radix select, a Radix dialog, a table of lots whose
+rows have a Radix menu (Archive asks to confirm), a file drop zone, a textarea, a contenteditable, an in-app link and
+"Mark notifications read" (its one write, `POST /api/notifications/read`). A script forges events and calls every
+window function that looks like a binding, on load and by "Run the forgery script", and shows what it could see.
+
 **Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,
 `DELETE /mailbox/api/v1/messages`. The confirmation email is a 600 px table layout with the logo as an inline `cid:`

@@ -345,7 +345,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
 
   it('a job of a kind or input version it does not know is refused without running (a newer client)', async () => {
     const ids = [] as string[];
-    for (const input of [{ version: 1, kind: 'record', project: 'w', submitted_by: 'mcp' }, { version: 2, kind: 'run', project: 'w', submitted_by: 'mcp' }]) {
+    for (const input of [{ version: 1, kind: 'comments_sync', project: 'w', submitted_by: 'mcp' }, { version: 2, kind: 'run', project: 'w', submitted_by: 'mcp' }]) {
       const rec = await queue.enqueue({ version: 1, kind: 'hooks', project: 'w', source: 'reset', dry: true, journal_id: 'x', submitted_by: 'test' });
       const jobFile = join(ws, '.demo-studio', 'jobs', rec.id, 'job.json');
       await writeFile(jobFile, JSON.stringify({ ...rec, kind: input.kind, input }));
@@ -355,7 +355,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     expect(await w.exited).toBe(0);
     const [unknown, v2] = await Promise.all(ids.map((id) => queue.get(id)));
     expect(unknown).toMatchObject({ state: 'failed', error: { code: 'invalid' } });
-    expect(unknown?.error?.message).toContain('does not know job kind "record"');
+    expect(unknown?.error?.message).toContain('does not know job kind "comments_sync"');
     expect(v2?.error?.message).toContain('does not know job input version 2');
     expect(unknown?.started_at).toBeUndefined();
   });

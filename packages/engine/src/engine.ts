@@ -49,6 +49,8 @@ import { reviewGet, thumbnail } from './reviews.js';
 import { submitPreviewJob } from './jobs/preview-job.js';
 import { readInspection, submitInspectJob } from './jobs/inspect-job.js';
 import type { InspectSubmitRequest } from './jobs/inspect-job.js';
+import { readRecording, submitRecordJob } from './jobs/record-job.js';
+import type { RecordSubmitRequest } from './jobs/record-job.js';
 import type { InspectJobInput } from '@demo-studio/core';
 import type { InspectReport } from '@demo-studio/runner-web';
 import type { PreviewRequest } from './jobs/preview-job.js';
@@ -255,6 +257,16 @@ export interface Engine {
     /** An inspection's report read back (null before it is written); its marked screenshot when drawn. */
     get(project: string, inspectId: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }>;
   };
+  record: {
+    /**
+     * Queue a recording (L3.4): a headed window opens on this machine for a HUMAN to perform a flow and close it (nobody
+     * drives it through the job); a draft scenario is made from it, saved when its name is free, and checked by a
+     * headless dry replay. The environment's own access, never --allow-writes; no hook; the workspace's protected hosts.
+     */
+    submit(req: RecordSubmitRequest): Promise<RecordSubmitted>;
+    /** A recording's draft.yaml read back (null when there is none); its text is page and typed text: untrusted. */
+    get(project: string, recId: string): Promise<{ dir: string; draft: string | null; truncated: boolean }>;
+  };
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
   sandbox: {
@@ -285,6 +297,18 @@ export interface InspectSubmitted {
   dir: string;
   env: string;
   source: InspectJobInput['source'];
+  warnings: string[];
+  worker?: { pid?: number; spawned: boolean };
+}
+
+/** A queued record job. */
+export interface RecordSubmitted {
+  job: JobRecord;
+  rec_id: string;
+  env: string;
+  page: string;
+  path: string;
+  persona: string | null;
   warnings: string[];
   worker?: { pid?: number; spawned: boolean };
 }
@@ -389,6 +413,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'components.create',
         'components.preview',
         'inspect',
+        'record',
         'history',
       ],
       entitlements: entitlements(),
@@ -554,6 +579,14 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...r, ...(worker ? { worker } : {}) };
       },
       get: (slug, id) => readInspection(ws, slug, id),
+    },
+    record: {
+      submit: async (req) => {
+        const r = await submitRecordJob(submitCtx, req);
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+      get: (slug, id) => readRecording(ws, slug, id),
     },
     thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
     sandbox: {

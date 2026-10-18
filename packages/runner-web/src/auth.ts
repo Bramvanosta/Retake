@@ -16,6 +16,7 @@ import type { BrowserContext, Page } from 'playwright-core';
 import {
   PERSONA_CHECK_TIMEOUT_S,
   describeTarget,
+  environmentLoginPatterns,
   interpolateAt,
   isAbsoluteUrl,
   loginCommand,
@@ -30,6 +31,7 @@ import {
   writeTextAtomic,
 } from '@demo-studio/core';
 import type {
+  LoadedProject,
   LoginMatcher,
   LoginStep,
   NormalizedStep,
@@ -787,6 +789,18 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
 export interface GuardTarget {
   persona: string | null;
   matchers: LoginMatcher[];
+}
+
+/**
+ * The sign-in patterns a page shown as `persona` is watched with (L1.6): the persona's own; a page without a persona
+ * (null), the environment's (`auth.login_url`). Shared by a run's sign-in guard and a recording (L3.4).
+ */
+export function signInMatchers(
+  project: Pick<LoadedProject, 'config'>,
+  env: { name: string; pages: Record<string, string> },
+  persona: Pick<ResolvedPersona, 'loginPatterns'> | null,
+): LoginMatcher[] {
+  return loginMatchers(persona ? persona.loginPatterns : environmentLoginPatterns(project.config, env.name), env.pages);
 }
 
 /** Where a guarded page landed on a sign-in page. */

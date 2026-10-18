@@ -822,6 +822,31 @@ Cut to keep L3.3 an M (Claude writes the scenario; no tool calls a model):
 - **Value:** Faster authoring loops on long flows; better targets on apps with weak accessibility.
 - **Hard parts:** A held session needs a command channel into a running job and its cleanup when the agent forgets it.
 
+### BL-74 — Recorder extras cut from L3.4
+*M · cut in L3.4 · builds on: L3.4, L4.8, BL-25*
+
+Cut to keep L3.4 an M (a person shows the flow in a headed window; the draft comes from it):
+- An index cache of the page's interactive elements (rebuilt when a MutationObserver flags a change): nearly every
+  press mutates a React page, so it was always dirty. A press resolves with a per-call memo and a 150 ms budget, then
+  falls back to the element's text (≈ 0.2 s on a page with ~10,000 controls).
+- Up to three verified alternative targets per step: no reader before L4.8's picker (R-UI-21), each costs a
+  verification at press time.
+- Tabs, pop-ups and frames: a new tab or pop-up is warned and its events dropped (no `new_tab` / `switch_page`
+  recording: each page would need its own isolated-world session and correlation); same-origin frames are not
+  recorded (`dropped.frame`).
+- The in-page pill (Stop / New scene) and its shortcuts: Stop = close the window, Ctrl-C or job_cancel (discard); a
+  new scene comes from page changes only. A pill would need every pointer, mouse, click and focus event on it
+  swallowed in the isolated world (a press on it closes an open popover otherwise); ⌘⇧N is Chrome's incognito window.
+- `hold` generation from idle pauses and `--no-holds`: pauses become `wait_for` the next target only; holds are an
+  editing choice.
+- Date pickers mapped to `date:` / calendar helpers, drags, hover-to-reveal: recorded as plain clicks (a hover not at
+  all), which replay when the product's clock is fixed.
+- Thumbnails per step and the quick inserts of R-UI-22 (hold, caption, mark, camera) while recording: L4.8's Record
+  screen.
+
+- **Value:** Recordings of richer apps (several tabs, embedded frames, date pickers) that need fewer fixes.
+- **Hard parts:** Per-page sessions and their correlation; UI-library heuristics for calendars and drags.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -853,6 +878,10 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 
 Founder idea 5 ("human capture": click Start, act, get a scenario — no video) is already planned as L3.4 Recorder
 and L4.8 Record screen. Fold these precisions in when the lots start; what goes beyond them is BL-25 to BL-27.
+*Applied in L3.4* (README "Recording a scenario", DESIGN §3.11–3.13), with two deviations: secret fields become
+`{{vars.<kind>_N}}` placeholders (CHANGE-ME, a showable demo value) — not `{{env:…}}` refs, which a scenario saved
+through MCP may not name — and `scenario_record` returns the draft itself (under `untrusted`) through `job_status`. The
+alternatives, the quick inserts and the thumbnails stay with L4.8 (BL-74).
 
 - Record what the user meant, not coordinates. Generate each target with the same resolver as page_inspect (role and name first, then label, text, testid; prefer role or testid when the project is localised). Check that each target resolves back to the same element, and keep the alternatives the user can pick from (R-UI-21).
 - Merge keystrokes into one `type` step and drop the human typing rhythm, since the runner sets pacing. Detect clear and select-all and turn them into the React-safe clear helper from L1.2.

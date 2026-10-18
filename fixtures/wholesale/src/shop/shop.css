@@ -1677,3 +1677,13 @@
   vertical-align: 1px;
   text-transform: none;
 }
+
+/* Recording lab (/record-lab, the recorder's tests) */
+.lab { padding: 24px 0 48px; }
+.lab-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.lab-grid .section-title { margin: 12px 0 8px; }
+.lab-otp { display: flex; gap: 6px; }
+.lab-otp-box { width: 40px; text-align: center; }
+.lab-editable { min-height: 60px; }
+.lab-drop { display: block; margin-top: 12px; padding: 14px; border: 2px dashed var(--border, #d9cfc2); border-radius: 10px; text-align: center; cursor: pointer; }
+.lab-report { white-space: pre-wrap; word-break: break-all; font-size: 12px; max-height: 160px; overflow: auto; }

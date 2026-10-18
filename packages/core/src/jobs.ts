@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { PROJECT_SLUG_RE } from './project.js';
 import { inspectPathProblem, INSPECT_PATH_MAX } from './inspect.js';
+import { RECORD_ID_RE } from './recording.js';
 import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
 
 export const JOB_INPUT_VERSION = 1;
@@ -15,8 +16,8 @@ export const JOB_INPUT_VERSION = 1;
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
-/** Kinds of L3.1, `render`, `review`, `export`, `preview` (L3.2), and `inspect` (L3.3). */
-export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect'] as const;
+/** Kinds of L3.1, `render`, `review`, `export`, `preview` (L3.2), `inspect` (L3.3) and `record` (L3.4). */
+export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect', 'record'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /** Who submitted a job (recorded; shapes the safety rules applied at submit). */
@@ -368,6 +369,35 @@ export const InspectJobInputSchema = z.strictObject({
   submitted_by: z.enum(JOB_CLIENTS),
 });
 
+/**
+ * A recording (L3.4, R-MCP-24): a HEADED browser window opens on the machine the worker runs on, at `path` of the
+ * environment page `page`, for a HUMAN to perform a flow and close the window — the job waits for it (it holds the queue
+ * like a headed sign-in; at most DEMO_STUDIO_RECORD_MAX_MIN, default 30 min). Nobody drives the window through the job:
+ * no field carries a step, a URL or typed text. A draft scenario is made from what the person did, saved as
+ * scenarios/<scenario>.yaml when the name is free (under agent trust), and checked by a headless dry replay. The
+ * recording's folder <project>/.demo-studio/records/<rec_id>/ is reserved by its id at submit. The environment's own
+ * access (production read-only: writes stopped or mocked), never --allow-writes; hooks never run.
+ */
+export const RecordJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('record'),
+  project: projectSlug,
+  rec_id: z.string().regex(RECORD_ID_RE, 'a recording id (rec_ followed by 26 characters), never a path'),
+  env: envName.optional(),
+  /** The page the window opens: an environment page key and a path under it. */
+  source: z.strictObject({
+    page: z.string().max(100).regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, 'an environment page key of project.yaml, never a URL or a path'),
+    path: inspectPath,
+  }),
+  /** The persona the window is signed in as (`none`: signed out); default the persona whose `pages` list the page. */
+  persona: personaName.optional(),
+  /** The draft's name (default recorded-YYYYMMDD-HHMM); saved only when free. */
+  scenario: scenarioName.optional(),
+  /** The headless check replay after the recording. */
+  check: z.boolean(),
+  submitted_by: z.enum(JOB_CLIENTS),
+});
+
 export const JobInputSchema = z.discriminatedUnion('kind', [
   RunJobInputSchema,
   HooksJobInputSchema,
@@ -380,6 +410,7 @@ export const JobInputSchema = z.discriminatedUnion('kind', [
   ExportJobInputSchema,
   PreviewJobInputSchema,
   InspectJobInputSchema,
+  RecordJobInputSchema,
 ]);
 
 export type RunJobInput = z.output<typeof RunJobInputSchema>;
@@ -393,5 +424,6 @@ export type ReviewJobInput = z.output<typeof ReviewJobInputSchema>;
 export type ExportJobInput = z.output<typeof ExportJobInputSchema>;
 export type PreviewJobInput = z.output<typeof PreviewJobInputSchema>;
 export type InspectJobInput = z.output<typeof InspectJobInputSchema>;
+export type RecordJobInput = z.output<typeof RecordJobInputSchema>;
 export type ExportFormatName = (typeof EXPORT_FORMAT_NAMES)[number];
 export type JobInput = z.output<typeof JobInputSchema>;

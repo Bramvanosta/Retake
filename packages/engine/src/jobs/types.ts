@@ -262,6 +262,55 @@ export interface InspectJobResult {
   untrusted: { error?: string; warnings: string[] };
 }
 
+/**
+ * What a `record` job did (L3.4): its folder <project>/.demo-studio/records/<rec_id>/ (draft.yaml, record.json,
+ * events.jsonl, check/). Counts, enums and file paths only: typed text and page text stay in that folder (the draft is
+ * read from draft.yaml, never from here). Scene ids are made from the product's paths, issue messages point at them,
+ * the check replay's failure is page text: under `untrusted`.
+ */
+export interface RecordJobResult {
+  kind: 'record';
+  rec_id: string;
+  /** The recording's folder and its draft.yaml (null when nothing was recorded: the folder was removed). */
+  dir: string | null;
+  draft: string | null;
+  /** The scenario name the draft was made for. */
+  name: string;
+  /** scenarios/<name>.yaml when the draft was saved (its hash: scenario_save's if_match). */
+  saved: { file: string; path: string; hash: string } | null;
+  not_saved?: 'name_taken' | 'invalid' | 'nothing_recorded' | 'refused';
+  env: string;
+  persona: string | null;
+  access: 'read-only' | 'read-write';
+  /** closed: the person closed the window; stopped: Ctrl-C or a worker signal; max_duration. */
+  stop: string;
+  ms: number;
+  window: { width: number; height: number } | null;
+  capture: { width: number; height: number };
+  counts: { events: number; actions: number; writes: number; redacted: number; dropped: Record<string, number> };
+  stats: { scenes: number; steps: number; actions: number; noise: number; secrets: number; fallbacks: number };
+  /** The draft's issues counted by severity, and their codes (the issues themselves are under `untrusted`). */
+  issues: { error: number; warning: number; info: number; codes: string[] };
+  /** The recording's warnings (written by the engine and the runner: no page text). */
+  warnings: string[];
+  /** Writes to the environment's hosts while recording (their labels are in record.json). */
+  writes: { total: number; by_steps: number; ambient: number };
+  check: {
+    status: 'passed' | 'failed' | 'skipped' | 'cancelled';
+    scope: 'all' | 'until_write' | null;
+    reason?: 'disabled' | 'stopped' | 'nothing_recorded' | 'invalid_draft' | 'first_step_writes';
+    steps_passed: number;
+    steps_total: number;
+    dir?: string;
+  };
+  untrusted: {
+    scenes: Array<{ id: string; steps: number; opens: boolean }>;
+    issues: Array<{ severity: string; code: string; message: string; scene?: string; step?: number }>;
+    first_write?: { scene: string; step: number };
+    check?: { until?: string; failed_at?: { scene: string; step: number; action: string }; error?: string };
+  };
+}
+
 export type JobResult =
   | RunJobResult
   | HooksJobResult
@@ -272,7 +321,8 @@ export type JobResult =
   | ReviewJobResult
   | ExportJobResult
   | PreviewJobResult
-  | InspectJobResult;
+  | InspectJobResult
+  | RecordJobResult;
 
 export interface JobErrorView {
   code: EngineErrorCode;

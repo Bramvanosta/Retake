@@ -17,6 +17,7 @@ import { hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DEMO_STUDIO_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@demo-studio/core';
 import type { RenderJobInput, RunJobInput } from '@demo-studio/core';
+import type { RecordJobTestHooks } from './record-job.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
@@ -47,6 +48,11 @@ export interface WorkerOptions {
   log?: (message: string) => void;
   /** How often the build is compared while idle (ms, default 5 000). */
   buildCheckMs?: number;
+  /**
+   * In-process tests only (never set by worker-main): Playwright plays the person of a `record` job in a headless
+   * "headed" window. A worker process has no way to receive it.
+   */
+  recordTest?: RecordJobTestHooks;
 }
 
 function shellQuote(s: string): string {
@@ -71,6 +77,8 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
     job.input.kind === 'inspect'
       ? { id: job.input.inspect_id, source: job.input.source.kind, ...(r?.kind === 'inspect' ? { status: r.status, reported: r.reported } : {}) }
       : undefined;
+  // A recording counts nothing (its check replay is a check, not a dry run of a saved scenario).
+  const record = job.input.kind === 'record' ? { id: job.input.rec_id, steps: r?.kind === 'record' ? r.stats.steps : 0, saved: r?.kind === 'record' && r.saved !== null } : undefined;
   const started = job.started_at ? Date.parse(job.started_at) : NaN;
   return {
     ...(job.finished_at ? { at: job.finished_at } : {}),
@@ -86,6 +94,7 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
     ...(exported ? { export: { render: exported.render, formats: exported.formats } } : {}),
     ...(preview ? { preview } : {}),
     ...(inspect ? { inspect } : {}),
+    ...(record ? { record } : {}),
     // A render counts once it wrote its video (the Remotion usage a licence would track); an export, its re-renders.
     counted: run
       ? runCounted(run.mode, run.status)
@@ -141,14 +150,21 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   let stopping = false;
   let signals = 0;
   let current: AbortController | undefined;
+  /** A running `record` job's stop: a signal stops its window and KEEPS what was recorded (job_cancel discards). */
+  let currentStop: AbortController | undefined;
   const quitSync = new Set<() => void>();
   const wake: { fn?: () => void } = {};
   const onSignal = (sig: NodeJS.Signals) => {
     signals++;
     if (signals === 1) {
       stopping = true;
-      log(`${sig}: stopping${current ? ' (cancelling the running job: its teardown still runs)' : ''}`);
-      current?.abort(new rw.CancelledError(`run cancelled (${sig})`));
+      if (currentStop) {
+        log(`${sig}: stopping (the recording's window closes; what was recorded is kept, without its check replay)`);
+        currentStop.abort();
+      } else {
+        log(`${sig}: stopping${current ? ' (cancelling the running job: its teardown still runs)' : ''}`);
+        current?.abort(new rw.CancelledError(`run cancelled (${sig})`));
+      }
       wake.fn?.();
       return;
     }
@@ -433,6 +449,19 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           const { executeInspectJob } = await import('./inspect-job.js');
           const result = await executeInspectJob({ ...base, input: job, progress: onProgress });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        case 'record': {
+          // A headed window for a person: it holds the queue (one job at a time) until it is closed.
+          const { executeRecordJob } = await import('./record-job.js');
+          const stop = new AbortController();
+          currentStop = stop;
+          try {
+            const result = await executeRecordJob({ ...base, input: job, stop: stop.signal, progress: onProgress, ...(o.recordTest ? { test: o.recordTest } : {}) });
+            rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          } finally {
+            currentStop = undefined;
+          }
           break;
         }
         default: {

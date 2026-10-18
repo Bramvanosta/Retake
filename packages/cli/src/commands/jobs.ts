@@ -71,6 +71,8 @@ export function jobWhat(j: JobRecord): string {
       return `preview of ${i.target.kind === 'component' ? i.target.component : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`;
     case 'inspect':
       return `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`;
+    case 'record':
+      return `record ${i.scenario ?? 'a scenario'} from page ${i.source.page} ${i.source.path}${on} → ${i.rec_id}`;
   }
 }
 
@@ -96,6 +98,10 @@ export function jobOutcome(j: JobRecord): string {
       return `${r.images.length} image${r.images.length === 1 ? '' : 's'} (${r.theme} theme) → ${r.dir}`;
     case 'inspect':
       return `${r.reported ? `${r.status}${r.counts ? `, ${r.counts.listed} elements listed` : ''}` : `not inspected (replay ${r.run_status})`} → ${r.dir}`;
+    case 'record':
+      return r.not_saved === 'nothing_recorded'
+        ? 'nothing recorded'
+        : `${r.stats.steps} steps${r.saved ? ` → ${r.saved.file}` : ` (not saved: ${r.not_saved})`} · check ${r.check.status}`;
     default:
       return r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed';
   }
@@ -103,6 +109,7 @@ export function jobOutcome(j: JobRecord): string {
 
 /** A running job's progress: percent for a render, steps for a run. */
 function progressText(p: NonNullable<JobRecord['progress']>): string {
+  if (p.steps_total === 0 && !p.current && p.phase) return p.phase;
   if (p.fraction !== undefined) return `${Math.round(p.fraction * 100)} %${p.phase ? ` · ${p.phase}` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}`;
   return `${p.steps_done}/${p.steps_total} steps${p.current ? ` · ${p.current.scene}.${p.current.step} ${p.current.action}` : p.phase ? ` · ${p.phase}` : ''}`;
 }

@@ -17,6 +17,7 @@ The tool is generic: it is not tied to any product or brand. Your projects, them
 - [Command line](#command-line)
 - [Project layout](#project-layout)
 - [Scenario language](#scenario-language)
+- [Recording a scenario](#recording-a-scenario)
 - [Your own media and motion](#your-own-media-and-motion)
 - [Editing: the edit plan](#editing-the-edit-plan)
 - [Rendering](#rendering)
@@ -237,7 +238,16 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   [Raw export for editors](#raw-export-for-editors).
 - **mcp** serves Demo Studio's tools to an MCP client over stdio (Claude Code, Claude desktop); `--print-config`
   prints how to register it — see [MCP: Claude drives Demo Studio](#mcp-claude-drives-demo-studio).
-- **record** (phase 3) and **ui** (phase 4) are listed and say when they arrive.
+- **record** `<project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check] [--json]`
+  opens a browser window on the environment's page: perform the flow by hand, then close the window (or press Ctrl-C:
+  stop and keep). Nothing is filmed. A draft scenario is made from what you did — verified targets, `select` / `pick` /
+  `menu` / `drop_file` steps, scenes split where the page changed, empty captions, secret fields as
+  `{{vars.password_1}}` placeholders (set a showable demo value) — saved as `scenarios/<name>.yaml` when the name is
+  free (default `recorded-YYYYMMDD-HHMM`; an existing scenario is never overwritten), then checked by a headless dry
+  replay (up to the step before the first write that reached a server, whatever its host). The recording's
+  files stay in `<project>/.demo-studio/records/` (the newest 20). The access is the environment's own, as a run.
+  See [Recording a scenario](#recording-a-scenario).
+- **ui** (phase 4) is listed and says when it arrives.
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
 invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a session, running js hooks or starting,
@@ -650,6 +660,80 @@ A password field shows bullets; any other field shows what is typed, so typing a
 (`types the value of a secret reference into a visible field`). For real credentials prefer signing in beforehand —
 personas, `studio login`, or their automated `login:` steps off camera (see
 [Signing in](#signing-in-personas-and-sessions)); put values the video may show in `vars`.
+
+## Recording a scenario
+
+Instead of writing a scenario, a person can **show the flow once**: `studio record` opens a browser window on an
+environment page, you click and type through the flow as you would for a colleague, then close the window. A draft
+scenario comes out of it, with targets the runner verified at the moment you pressed. Nothing is filmed while
+recording: the draft is a starting point you edit, dry-run and capture like any scenario.
+
+```sh
+node packages/cli/dist/bin.js record northfield-fixture my-quote --page shop            # opens the shop's home
+node packages/cli/dist/bin.js record northfield-fixture --url http://localhost:4401/imports
+node packages/cli/dist/bin.js run northfield-fixture my-quote --dry                     # then check it
+```
+
+- **Controls.** Close the window (the last tab) to finish, or press Ctrl-C in the terminal: both stop and **keep**
+  what was recorded (a Ctrl-C during the check replay that follows stops the check). The longest recording is 30 min
+  (`DEMO_STUDIO_RECORD_MAX_MIN`): it then stops and keeps. There is no in-page control: nothing is added to the page.
+  The window opens at its own size (maximised); a window narrower than the capture is warned and the check replay
+  runs at the capture size.
+- **What is recorded.** Presses (by mouse or by keyboard) on interactive elements, typing per field (committed when
+  you leave the field or press Enter), a few keys (Escape, Enter, arrows, Page Up / Down, shortcuts), selects, file
+  choices and drops, scrolls, and page changes. A press is resolved to the target a step would use (`click: Save`,
+  `{role: button, name: Increase}`, `{label: Message}`); a dropdown becomes `select` or `pick`, a row's menu `menu
+  {row, item, confirm?}`, a file zone `drop_file` (a fake file of the same name: set your own), the typed text a
+  `type`, an element you waited for a `wait_for`. Scenes split where the page changed; an address-bar visit opens its
+  page (`open:`). Captions are empty and nothing is held: add them.
+- **What is never recorded.** Anything typed into a field of a secret kind — passwords, card numbers and codes,
+  one-time codes, IBANs, PINs, API keys, a long pasted token, or a value autofill put in — becomes a placeholder
+  `type: {into: …, text: "{{vars.password_1}}"}` with `vars: {password_1: CHANGE-ME}` (a project.yaml var of that name
+  is used instead): set a **showable demo value**, never the real one (a real secret only as `{{env:…}}`, by hand,
+  which makes the scenario CLI-only). A long token pasted **or dropped** into any field makes it secret too. Such a
+  value never leaves the page: the recorder remembers the values a secret field was left with (6 characters or more —
+  not what it held half-way through typing, so a word a password starts with is not masked elsewhere) and masks them
+  everywhere else (a password revealed on screen, pasted elsewhere, a re-mounted field). Also never: query strings
+  (except one you typed in the address bar, filtered: keys like `token` and values that look like a token or an
+  e-mail address dropped), path segments that look like a token or an e-mail address (masked `•••`, in the paths kept
+  and the write labels; an `open:` holding one is warned: put a demo value back), coordinates, frames, pages of other
+  sites or sign-in pages (their stretch is left out, with a warning), other tabs or pop-ups, and Space / Backspace /
+  Delete pressed in a field the page hides in a closed shadow root. A field's initial value is never recorded on its
+  own: text you add at its end is recorded alone, but after an edit inside a prefilled field the step types its whole
+  final value (`clear: true`), which includes what you kept of the initial text. Text you typed that holds a `{{…}}`
+  template (which a scenario would resolve: a var, an environment variable) is left out, with an issue at its place.
+  The recorder runs in an isolated world: the page cannot see it or feed it events.
+- **Writes.** The window is a real session with the environment's own access, as a run: on a production / read-only
+  environment writes are stopped or answered by a mock (as in a dry run); on a read-write one (local, staging) your
+  writes reach the product — each is listed after the recording, whatever its host (an API on another host, a form
+  post, a beacon), attached to the step that caused it within 2 s (`note: sends POST shop:/api/quotes`), with the
+  advice to add a setup or reset hook so each take starts from the same data.
+  `--allow-writes` as for `studio run`. Hooks never run while recording.
+- **Signed in.** The window uses the page's persona (or `--persona`, `none` signed out): a session that expired signs
+  in again off camera when the persona has `login:` steps, otherwise the recording is refused before any window opens,
+  with the `studio login` command.
+- **After recording.** The summary lists scenes and steps, issues in the order they came, each at its place
+  (`scene.step: …`, the step it is about or the one that came next: a target only found by its text, a secret field, a
+  fake file, a page opened from the address bar, a write no action caused…), writes, and the **check replay**: a
+  headless dry run of the draft at the capture viewport, up to the step before the first one a write that reached a
+  server followed — whatever its host and however long after (nothing is written twice; on a read-only environment the
+  writes stopped or mocked do not count, so it usually replays the whole draft); it starts from the state the
+  recording left the product in. The draft is validated with the project before it is saved or checked. The draft is
+  saved as `scenarios/<name>.yaml` when that name is free (default `recorded-YYYYMMDD-HHMM`; an existing scenario is
+  never overwritten), and always kept with the recording in `<project>/.demo-studio/records/<id>/` (`draft.yaml`,
+  `record.json`, `events.jsonl`; private files; the newest 20). Exit 1 when nothing was recorded, the draft does not
+  validate or the check failed. `--json` prints the outcome; `--no-check` skips the replay.
+- **Through Claude.** `scenario_record` (MCP) starts the same recording as a job: the window opens on the machine the
+  worker runs on and **you** perform the flow — Claude never drives the window, types in it or sees keystrokes live.
+  It tells you what to do, waits on the job (the window holds the job queue, so it starts nothing else meanwhile), then
+  reads the draft: what you typed and the page's names come back to the conversation as untrusted data, counts and the
+  check as trusted fields; a value typed into a secret field never does. Claude then inspects flagged steps, fixes,
+  validates and dry-runs. Cancelling the job while the window is open discards the recording; stopping the worker
+  keeps it (without its check replay).
+- **Limits** (BACKLOG BL-74): tabs, pop-ups and frames are not recorded (a new tab is warned); a date picker, a drag
+  or a hover-to-reveal is recorded as plain clicks (or not at all for hover); no alternative targets are offered; on a
+  page with ~10,000 controls a press takes ≈ 0.2 s to resolve, then falls back to its text. Typing not yet committed
+  when the window closes is best effort.
 
 ## Your own media and motion
 
@@ -2407,7 +2491,8 @@ scenario change) and follows the render — the render runs guarded (only files 
 it (the contact sheet comes back as images Claude looks at) and exports it to delivery formats. To write a scenario,
 Claude inspects the product's pages (`page_inspect`: a marked screenshot and the visible elements with targets the
 runner resolves) and writes the YAML itself — no tool writes a scenario for it or calls a model (`scenario_from_script`
-only turns a timecoded table the user hands into a skeleton). Claude also lists and
+only turns a timecoded table the user hands into a skeleton), or the **user** shows the flow once in a window
+(`scenario_record`: Claude starts the recording and reads the draft, never drives it). Claude also lists and
 previews themes and components (stills come back as images), checks components and scaffolds new ones — component code,
 themes and project.yaml are never written through the server.
 
@@ -2454,6 +2539,7 @@ claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/pa
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
 | `page_inspect` | what a page shows, for writing steps (see *Authoring* below): `page` (+ `path`) or `url` (an origin of the environment's pages only), or `scenario` + `until` (a dry replay up to that step; a failing step is inspected where it failed); `persona`, `within` (list only inside a target), `targets` (≤ 20 of your own, checked), `limit` (default 80, ≤ 300), `images` (`marked` default, or `none`); a job, waits up to `wait_s` (default 25). Returns counts, open popups, scroll containers and the marked screenshot as an image; every element (mark, box, state, context, verified target, matches, `fragile`, action hint as one line of YAML) and all page text under `untrusted` | `.demo-studio/inspect/<id>/` |
+| `scenario_record` | a recording the **user** performs (see [Recording a scenario](#recording-a-scenario)): `page` (+ `path`) or `url` (an origin of the environment's pages only), `persona`, `scenario` (the draft's name; saved only when free), `check` (default true); a job returned at once — a browser window opens on the user's machine, the user performs the flow and closes it (Claude never drives it), the window holds the queue (≤ 30 min); `job_status` then returns counts, the saved file and hash, the check replay, issue counts, and the draft (`draft_lines`), its scene ids and issues under `untrusted`; `job_cancel` while the window is open discards it | `.demo-studio/records/<id>/`; `scenarios/<name>.yaml` when free; the environment, through what the user does in the window (read-write environments) |
 | `scenario_from_script` | an optional aid, only when the user hands a timecoded script table (see *Authoring*): an outline and a skeleton draft (one `hold` per beat, the action as its `note`) validated against the project, the script's issues with line / col, timing warnings; `env` (page keys of that environment), `name` (the draft's `video`) | — |
 | `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, outputs (paths + sha256 once finished), dry-run screenshots, and the state of its job (queued and its place, interrupted…); `wait_s` (≤ 25) waits for it to finish | — |
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
@@ -2472,7 +2558,7 @@ claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/pa
 | `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
 | `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.demo-studio/previews/<id>/` |
 | `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's template (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
-| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included), a cancel; a run, render, preview, review, export or inspect job's error message is under `untrusted.error` | — |
+| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included; a recording's draft), a cancel; a run, render, preview, review, export, inspect or record job's error message is under `untrusted.error` | — |
 | `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
 | `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
@@ -2539,7 +2625,7 @@ step that opens a dialog or a menu>}` to see what that step shows, and write the
   warnings against the look (video 1:00–2:00, scenes 4–25 s, under 2 s unreadable) and the draft validated against the
   project. It writes nothing and calls no model; `scenario_save` saves what Claude rewrote.
 
-**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export, a preview or an inspection is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
+**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export, a preview, an inspection or a recording is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
 with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
 `.demo-studio/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
 exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
@@ -2558,6 +2644,10 @@ progress notifications. A job `succeeded` when it ran to the end — its run may
   new one.
 - `studio run` in a terminal does not go through the queue (it runs in its own process, as before), so two captures —
   one from a terminal, one from Claude — can run at the same time.
+- A recording (`scenario_record`) holds the queue while its window is open, as a headed sign-in. The worker's first
+  signal closes its window and keeps what was recorded (the draft made and saved, its check replay skipped);
+  `job_cancel` discards it. A killed worker leaves no draft (`studio record` again; the events streamed so far stay in
+  the recording's folder).
 - A killed sign-in leaves nothing saved (`studio login` again); a killed sandbox job may leave services running and its
   seed unrecorded (the next `studio sandbox up` seeds again). Each interrupted job's `fix` says so.
 - **Renders.** `render` plans in the server's process (no browser; a refusal costs nothing), reserves the render id
@@ -2861,7 +2951,7 @@ committing them.
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
 | 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
-| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | In progress — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP |
+| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | In progress — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP; L3.3: page inspections and a script-table skeleton for Claude's authoring; L3.4: recording a scenario a person performs (`studio record`, `scenario_record`) |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |

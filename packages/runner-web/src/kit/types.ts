@@ -5,7 +5,7 @@
  * frame (R-ISS-07); every box and point crossing the boundary, both ways, is in top-level viewport CSS px (an element
  * in a frame is offset by the frames' positions).
  */
-import type { BBox, PointSpec, TargetObject } from '@demo-studio/core';
+import type { BBox, PointSpec, SecretFieldKind, TargetObject } from '@demo-studio/core';
 
 export type CursorStyle = 'arrow-dark' | 'arrow-light' | 'debug';
 export type CursorKind = 'arrow' | 'hand' | 'ibeam';
@@ -24,6 +24,11 @@ export interface KitConfig {
   };
   /** sessionStorage key holding the last cursor position (restored after a full navigation). */
   storage_key: string;
+  /**
+   * The recorder's copy (L3.4, in an isolated world): no cursor overlay, no listener, no patched API — only the
+   * resolver and the inspection functions. Nothing of it is visible to the page.
+   */
+  passive?: boolean;
 }
 
 export interface FindOptions {
@@ -451,4 +456,11 @@ export interface KitApi {
   inventory(opts?: InventoryOptions): KitInventory;
   /** `find` for each target (already normalised by the runner), with the per-call memo. */
   checkTargets(targets: TargetObject[]): KitTargetChecks;
+  /**
+   * Recorder (L3.4): the inventory's entry (`inventory({within, limit: 1})`) for the interactive element holding
+   * `target` — the element a person acted on, or a ref — or null when nothing interactive holds it.
+   */
+  suggestFor(target: Element | string, opts?: { budget_ms?: number }): InventoryElement | null;
+  /** Recorder (L3.4): the kind of secret a field holds (null: not a secret-class field). Never reads a value. */
+  secretField(target: Element | string): SecretFieldKind | null;
 }
