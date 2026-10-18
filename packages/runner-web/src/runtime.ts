@@ -27,6 +27,7 @@ import type { Jitter } from './motion.js';
 import { RunnerError, StepError } from './errors.js';
 import type { LoginPageError } from './errors.js';
 import type { LoginGuard } from './auth.js';
+import { INSPECT_PAUSE_CAP_S } from './inspect.js';
 import { fileSlug, throwIfAborted } from './util.js';
 import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
@@ -62,6 +63,11 @@ export interface RuntimeInit {
    * the project folder, an eval file is not one an agent can write and names no secret (core agent-trust).
    */
   agentTrust?: boolean;
+  /**
+   * The run replays a scenario for an inspection (L3.3, RunOptions.inspect): no per-step dry-run screenshots, and the
+   * pauses (`hold`, `wait`, a step's `hold:`, a scene's still) last at most INSPECT_PAUSE_CAP_S.
+   */
+  inspecting?: boolean;
 }
 
 /** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
@@ -120,6 +126,8 @@ export class Runtime {
   readonly cursorHidden: boolean;
   /** Work submitted through MCP: see RuntimeInit.agentTrust. */
   readonly agentTrust: boolean;
+  /** An inspection's replay: see RuntimeInit.inspecting. */
+  readonly inspecting: boolean;
   /** The scene and step being executed (notifications are attributed to them). */
   current: { scene: string; scene_index: number; step: number } | null = null;
   /** The last plain click of the scene, while the popup it may open late is not ruled out (settleLatePopup). */
@@ -167,6 +175,7 @@ export class Runtime {
     this.recorder = init.recorder;
     this.cursorHidden = init.cursorHidden === true;
     this.agentTrust = init.agentTrust === true;
+    this.inspecting = init.inspecting === true;
     this.log = init.log;
     this.guard = init.guard ?? null;
     this.plannedPersonas = init.plannedPersonas;
@@ -468,6 +477,11 @@ export class Runtime {
 
   sleep(ms: number): Promise<void> {
     return sleep(ms, this.signal);
+  }
+
+  /** A scenario's pause of `seconds` (`hold`, `wait`, a step's `hold:`): capped during an inspection's replay. */
+  pause(seconds: number): Promise<void> {
+    return this.sleep(Math.min(seconds, this.inspecting ? INSPECT_PAUSE_CAP_S : seconds) * 1000);
   }
 
   warn(message: string): void {

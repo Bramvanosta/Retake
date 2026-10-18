@@ -69,6 +69,8 @@ export function jobWhat(j: JobRecord): string {
       return `sandbox reset${i.reseed ? ' (reseed)' : ''}${on}`;
     case 'preview':
       return `preview of ${i.target.kind === 'component' ? i.target.component : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`;
+    case 'inspect':
+      return `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`;
   }
 }
 
@@ -92,6 +94,8 @@ export function jobOutcome(j: JobRecord): string {
       return `${r.outputs.length} files${r.failed.length ? `, ${r.failed.length} failed` : ''} → ${r.dir}`;
     case 'preview':
       return `${r.images.length} image${r.images.length === 1 ? '' : 's'} (${r.theme} theme) → ${r.dir}`;
+    case 'inspect':
+      return `${r.reported ? `${r.status}${r.counts ? `, ${r.counts.listed} elements listed` : ''}` : `not inspected (replay ${r.run_status})`} → ${r.dir}`;
     default:
       return r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed';
   }

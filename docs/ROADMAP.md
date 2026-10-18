@@ -54,8 +54,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L2.14 | Phase 2 acceptance (videos, clean review, theme/component switch, own media, raw export) + Mac handoff | S | **done** — phase 2 done |
 | L3.1 | Engine API + job runner + storage abstraction (ADR-1), MCP server skeleton, project/scenario/run/hooks/auth tools | L | **done** (live Claude Code run: MACOS-CHECKLIST 12c) |
 | L3.2 | MCP render/review/export + theme & component tools | M | **done** (live run: MACOS-CHECKLIST 12d) |
-| L3.3 | Authoring: scenario_from_script + page_inspect | M | **next** |
-| L3.4 | Recorder (`studio record`, scenario_record) | M | todo |
+| L3.3 | Authoring: scenario_from_script + page_inspect | M | **done** (live run: MACOS-CHECKLIST 12e) |
+| L3.4 | Recorder (`studio record`, scenario_record) | M | **next** |
 | L3.5 | Themes from brand inputs and from a site URL | M | todo |
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | todo |
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | todo |
@@ -598,7 +598,21 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   outside `untrusted`). Live Claude Code run: MACOS-CHECKLIST 12d (the user). Cut to BL-72: `still` tool, `render_list`,
   image-cap tuning, a guard for CLI renders, Remotion's bundle server bound on all interfaces.
 
-### L3.3 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.3 — Authoring: page_inspect + scenario_from_script (M)
+- **Goal:** Claude writes scenarios itself with facts about the real pages; the tool makes no model call (user
+  decision, 2026-10-18).
+- **Done (2026-10-18):** `page_inspect` (a worker job, dry-run semantics with the persona's session, optional replay of
+  a scenario up to a step or a failed step) returns the page's interactive elements with verified targets in the
+  scenario language (unique and round-tripped through the real resolver; ambiguous ones fall back to scoped or nth,
+  flagged fragile), the model's own targets checked, and a numbered screenshot; only the environment's own origins
+  (checked on every read; foreign navigations stopped); page text only under `untrusted`; no field values; inspections
+  kept in `.demo-studio/inspect/`. `studio inspect [--json]`. `scenario_from_script`: a deterministic aid turning a
+  timecoded Markdown table (EN / FR headers) into an outline and a draft that validates — never the start of the main
+  path (inspect → Claude writes → validate → save → inspect with `until` → run_dry). Acceptance in `test:slow`: the
+  scripted client writes its own steps from inspections and dry-runs them, no write reaches the fixture. A reviewer's
+  9 findings fixed (the worst: a late JS redirect got a foreign page inspected). Live run: MACOS-CHECKLIST 12e.
+
+### L3.4 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

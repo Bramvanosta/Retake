@@ -239,11 +239,27 @@ Built in L3.2 (renders, reviews, exports and previews are jobs of the same worke
 - previews go to `<workspace>/.demo-studio/previews/<id>/`, never into a component folder; no tool writes component
   code, a theme or project.yaml, and no tool takes an output location
 
+Built in L3.3 (authoring: Claude writes the scenario itself; no tool calls a model):
+- `page_inspect({project, env?, page + path? | url | scenario + until?, persona?, within?, targets?, limit?, images?:
+  marked|none, wait_s?})` → an `inspect` job (run_dry's rules: the environment's own page origins only, its access,
+  protected hosts, agent trust, no template, no hook; a scenario is replayed dry up to `until`, irreversible steps not
+  executed): a marked screenshot (numbered boxes) as an image and the visible interactive elements — dialogs and menus
+  first — each with its state, where it is (page, dialog, menu, listbox, row, shadow root, frame), a suggested target
+  the runner's own resolver was checked to resolve to exactly that element (`fragile` flags, `matches`) and an action
+  hint as one line of YAML; `within` (a target: the planned `selector?`) limits the list to an element, `targets` (≤ 20)
+  checks Claude's own targets. Every element and all page text are under `untrusted`; files in
+  `<project>/.demo-studio/inspect/<id>/` (newest 20 kept); `job_status` follows a long one. CLI: `studio inspect`.
+- `scenario_from_script({project, script_markdown, env?, name?})` — an optional aid, only when the user hands a
+  timecoded script table (one Markdown pipe table; English or French headers; `M:SS` times and ranges; a type column for
+  interstitial / title / outro): an outline and a draft that validates (one `hold` per beat, the action as its `note`,
+  pages as environment page keys, never a URL), with positioned issues and timing warnings; writes nothing. It is a
+  skeleton Claude rewrites into real steps from inspections, never the start of the authoring path, which is
+  page_inspect → write the YAML → `scenario_validate` → `scenario_save` → page_inspect `{scenario, until}` → `run_dry`.
+
 Later lots (names as planned):
 - `template_create_from_brand({logo, colors, fonts})` (L3.5)
 - `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
-- `scenario_from_script({project, script_markdown})` (helper that drafts YAML from a timecoded script table)
-- `page_inspect({project, url | page, selector?})` → screenshot + list of visible interactive elements with suggested targets (for authoring against any site); `scenario_record({project, url})` (headed browser: clicks/typing recorded into a draft scenario — CLI `studio record`)
+- `scenario_record({project, url})` (headed browser: clicks/typing recorded into a draft scenario — CLI `studio record`)
 - `template_from_site({url})` → draft theme from a live site (colours, fonts, logo candidates)
 
 All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s

@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-17, end of lot **L3.2 (MCP render / review / export, themes and components)** — phases 1 and 2
-are done, phase 3 is under way. **Next: L3.3 (authoring: scenario_from_script + page_inspect), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-18, end of lot **L3.3 (authoring: page_inspect + scenario_from_script)** — phases 1 and 2 are
+done, phase 3 is under way. **Next: L3.4 (recorder: `studio record`, scenario_record), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -28,7 +28,12 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.2)
+## State (after L3.3)
+- **L3.3 done (2026-10-18)**: Claude authors scenarios through MCP — `page_inspect` gives it verified targets and a
+  numbered screenshot of real pages (signed in, read-only, the environment's origins only), it writes the YAML,
+  validates, saves, inspects again mid-scenario and dry-runs; `scenario_from_script` drafts from a timecoded table. The
+  tool never calls a model. Tests on the Mac: **1887 — 1855 pass, 32 skipped (≈ 9 min)**. Requirements: 619 tracked — 528 done, 15 partial, 68
+  todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 12c, 12d, 12e.
 - **L3.2 done (2026-10-17)**: through MCP Claude can now plan, render (guarded: no network, project files only),
   review with contact sheets as images, export, and browse / preview themes and components (36 tools). Tests on the
   Mac: **1819 — 1791 pass, 28 skipped** (≈ 8 min); `pnpm test:slow` includes the whole MCP loop on the fixture.
@@ -149,7 +154,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.3 — Authoring: scenario_from_script + page_inspect** — only when the user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.4 — Recorder (`studio record`, scenario_record)** — only when the user asks for it (the kit's `inventory()` and
+target suggestions are reusable). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -889,6 +895,16 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   on read), every report key / id / code re-derived or moved under `untrusted`, job error messages under
   `untrusted.error`. Acceptance: `pnpm test:slow` now includes the full MCP loop on the fixture (capture quote → render
   editorial → review clean → render motion + laptop → export mp4 / gif / vertical) with frames looked at. 1819 tests: 1791 pass, 28 skipped; test:slow green. No new dependency.
+- **L3.3 done** (authoring; R-MCP-22, R-MCP-23, new R-MCP-36 done; R-PRIN-04 partial). User decision: Claude writes
+  the scenario, the tool makes no model call. Planned, criticised (ladder cost measured: 48 s per page without a
+  per-call cache), built in three parts (kit inventory + runner inspect; inspect job + page_inspect + `studio inspect`;
+  scenario_from_script aid + authoring acceptance + docs), reviewed (9 findings, the worst a late JS navigation getting
+  a foreign page inspected as `ok`) and fixed with mutation-checked tests. Kit 1.4.0: per-call memo, `inventory`,
+  verified suggestions, `checkTargets`, `nameText` (never field contents). Runner: `inspectPage`, `RunOptions.inspect`,
+  `KitClient.callOnce`, a main-frame route stopping foreign navigations during an inspection. Engine: `inspect` job
+  (pruned to 20, never a queued / running one), `markBoxes` + review `drawMarks`. MCP: `page_inspect`,
+  `scenario_from_script` (38 tools), INSTRUCTIONS give the authoring loop. Fixture: `/inspect-lab`. Also fixed: the
+  sandbox P6 test flake (a race in the test's fake ps). 1887 tests: 1855 pass, 32 skipped; test:slow green. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1118,6 +1134,15 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.3:
+- The authoring loop (INSTRUCTIONS): page_inspect → Claude writes the YAML → scenario_validate → scenario_save →
+  page_inspect {scenario, until} → run_dry. `scenario_from_script` is an optional deterministic aid.
+- Inspections: dry-run semantics (no hooks, writes only as a dry run would), inspection pacing, outputs in
+  `<project>/.demo-studio/inspect/<id>/` (never runs/), origin checked on every kit read (`callOnce`, no retry across
+  documents) and foreign main-frame navigations answered 204; an automated sign-in refreshes the persona's session like
+  any run. Page text only under `untrusted`; labels never include field contents (`nameText`).
+- Kit budget: per-call memo; an unscoped nth is not looked up among more than 10,000 matches (`NTH_MAX`).
+
 Notes from L3.2:
 - Worker renders are guarded (editor render/network-guard.ts: CDP Fetch on the browser connection, `/proxy` src check,
   `onDownload`, CSP meta; bundle format 2); `studio render` stays open (https: slots work). Remotion binds its bundle

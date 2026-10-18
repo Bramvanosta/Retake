@@ -1084,6 +1084,152 @@ read-only environment and an unusable clock throw before the run folder is made.
   missing, naming the `--project`'s docker-compose sandboxes; FAIL only when its default sandbox — `default_env` when
   a sandbox, else the first declared — is one). `auth status`: sandbox personas `auto` (above).
 
+### 3.9 Page inspection (L3.3; runner `inspect.ts`, kit `inventory` / `checkTargets`, core `inspect.ts`)
+
+What `page_inspect` and `studio inspect` (job, MCP tool, CLI: L3.3 part 2) run in the worker. The tool makes no model
+call: the inspection hands Claude page facts and verified targets; Claude writes the scenario.
+
+- **Run path.** `runScenario({mode: 'dry', inspect: {within?, targets?, limit?, budgetMs?, onResult}, runsDir, runId})`
+  — exactly `run_dry` semantics: the environment's own access (a production environment stays read-only, no extra
+  write guard), personas on session copies with the off-camera preflight (an automated sign-in refreshes the persona's
+  stored session in `DEMO_STUDIO_HOME`, as any run), the sign-in guard, the product clock, agent trust with `hookTrust:
+  'mcp'`. Hooks are always skipped (`record.hooks.setup: skipped`); a mode other than `dry` is refused. The replay runs
+  at `INSPECT_PACING` (fast cursor travel, hover, typing, scrolls; navigation / popup / settle waits unchanged), every
+  pause — `hold`, `wait`, a step's `hold:`, a scene's still — capped at 0.2 s (`Runtime.pause`), and takes no per-step
+  dry screenshot. A plain page uses core `inspectScenario(page, path)`: one scene `{page, open: path, steps: [{wait:
+  0}]}`; `inspectPathProblem` refuses a path that is not `/…`, `//host`, a backslash, `{{…}}` or a control character.
+  The caller passes `runsDir` / `runId` (the inspection id) so the folder stays out of `runs/` (`run_list`, `latest`
+  and reviews read `runs/` only).
+- **When.** After the last step (`at: end`) or at `until` (`at: until`); at the step that failed (`at: failed_step`,
+  `replay.failed`, the error under `untrusted`; the run still fails) — never after a sign-in landing (the run discards
+  everything, as any run). `replay` also reports `skipped_irreversible` (irreversible steps a dry run shows without
+  executing them: the page may differ past them) and `hooks: skipped`.
+- **Origin check.** Before anything is taken, `page.url()` must have the exact origin of one of the environment's pages
+  (core `isPageOrigin`: scheme + host + port — another localhost port is another app). Otherwise `status:
+  landed_elsewhere`, only the host under `untrusted.landed_host`: no screenshot, no inventory, no URL. A page can still
+  leave while it is inspected (a late script navigation, a slow redirect), so the check is made where the data comes
+  from: `inventory` and `checkTargets` return their document's `location.origin`, checked the same way; they run
+  through `KitClient.callOnce` (a document replaced during the call is `DocumentChangedError`, never retried in the new
+  document — the page's new URL then decides `landed_elsewhere` or `failed`); `page.url()` is checked again after the
+  screenshot (changed: the screenshot is deleted). While it runs, a page route answers a main-frame navigation request
+  to another origin with 204 No Content (the page keeps its document; counted in a warning) — a redirect is not
+  routed, the checks above catch it. Nothing read before a failed check is kept. The reported URL is origin + path.
+- **Inventory** (kit `inventory`, one synchronous in-page call). The visible interactive elements of the page (open
+  shadow roots and same-origin frames included; closed shadow roots are invisible, cross-origin frames counted),
+  labels merged into a visible control, an interactive element inside a button / link / option dropped. Order: the top
+  popup layer, then in view, then the rest; `limit` 80 (≤ 300). Per element: box, in view, `in` (page / dialog / menu /
+  listbox / popover / row), `where` (document / shadow / frame), state booleans (disabled, expanded, checked, selected,
+  popup expected, `covered`: something is drawn over its centre), role, tag, input type, name, shown text (never a
+  field's content), label, placeholder, testid, a link's path (no query, no fragment). Interactive includes ARIA
+  text fields without a tabindex (`textbox`, `searchbox`, `spinbutton`, `slider`). Label and `aria-labelledby` texts
+  and names from content leave out what a field holds (`nameText`: a textarea's text, a select's options, an edited
+  region, the element itself when `aria-labelledby` names it), and a contenteditable / ARIA text field is never named
+  by its content. Plus title, h1–h3 headings,
+  popups (kind as a closed enum + name), scroll containers, counts. No field value is ever read.
+- **Suggested target** (the ladder). Fields: `{label}`, `{placeholder}`, `{role, name}`; others: the text (a text of
+  several pieces — initials + name, a label + a count badge — tries its lettered pieces first; a text of symbols only
+  is skipped), `{role, name}`; then the same scoped `in: dialog | menu | listbox | popover | {row: key}` (the row key: a
+  leaf text of the row for which `rowFor` returns that row); then `{testid}`, `{aria}`, `{css: '#id'}` only for an id
+  that does not look generated (`GENERATED_ID`: `:`, 3+ digits, hashes); a symbols-only `{role, name}` last. In-memory
+  indexes over every visible interactive element (text, name, role + name, label, placeholder, aria, testid, id) skip
+  a candidate another element shares; each remaining one (≤ 5 per element) is **verified with `find` itself** and kept
+  only when the match is this element with count 1. None: the most specific base with `nth` = the element's index
+  among its visible matches, verified the same way (`fragile: nth`, `matches` = the count). Flags: `nth`, `css`,
+  `dynamic_text` (a digit in the text or row key), `broader` (another index key contains it: a substring tier would
+  match if it went away). **Per-call memo** (`withMemo`): during the call, `trees`, `deepQsa`, `isVisible`,
+  `accessibleName`, `labelPairs`, lower-cased texts and `rowFor` are computed once (the DOM cannot change inside a
+  synchronous call); every other kit call sees the live DOM. A time budget (2.5 s) stops suggesting (`partial`, the
+  rest `unsuggested`), checked before each lookup; an unscoped `nth` is not looked up among more than 10,000 matches
+  (`NTH_MAX`: one lookup over 50,000 identical buttons took ≈ 3 s on its own); measured ≈ 1.25 s in-page (1.3 s for the whole inspection) for 80 elements of the lab's
+  5,000-row table (10,021 visible interactive elements), 83 `find` verifications.
+- **Action hint**, checked through the runner's own helper: `select {field}` when `find({label})` gives this element
+  (native select, combobox), `menu {row}` when `rowFor(key)` is the row and `menuTrigger(row)` this element,
+  `drop_file {zone}` when `fileInputFor` finds the input; else `type {into}` for a field, `click`. `action_verified`
+  says so.
+- **Runner side** (`inspectPage`): `within` resolved first (not found: nothing listed, `within_found: false`),
+  `targets` (≤ 20, normalised; a point refused) checked with `find` (count, chosen index, box; desc and near texts
+  under `untrusted`), the screenshot last (viewport PNG, the cursor hidden; boxes are CSS px, × `scale` on it), the
+  sign-in guard checked again after it. Each suggestion is serialised (`targetValue`: the bare string only when
+  `normalizeTarget` reads it back as the same `{text}`; `flowYaml`) and kept only when the YAML reads back as the
+  verified target (`roundTrips`; else dropped and counted). Report → `secrets.redactDeep` → `inspect.json`.
+- **Trust split.** Page-controlled strings — URL, title, headings, every element's role, tag, input type, name, text,
+  label, placeholder, testid, link path, target and step hint, popup names, target-check descriptions, errors — sit
+  under an `untrusted` key (per element, per popup, per check, and at the top). Outside it: marks, boxes, booleans,
+  counts, matches and closed enums (`in`, `where`, `fragile`, `action`, popup kind, status, at).
+- **Job** (engine `jobs/inspect-job.ts`, core `InspectJobInputSchema`, kind `inspect`). Input: project, `inspect_id`
+  (`i_` + 26 Crockford characters, reserved at submit), env, `source` = `{kind: page, page, path, persona?}` or `{kind:
+  scenario, scenario, scenario_sha256, until?}`, `within?`, `targets?` (≤ 20; `InspectTargetSchema`: a target of ≤ 2,000
+  characters with no `{{`), `limit?` (≤ 300), `images: marked | none`. A client's `url` is resolved at submit
+  (`pageOfUrl`): http(s), no credentials, `isPageOrigin` against the environment's pages, then the page whose base path
+  is the longest prefix → page key + path (query and fragment kept). Submit and the worker both run `prepareInspect`
+  (page key exists, its own URL is http(s), the synthetic scenario validated against project + environment with its
+  persona; or `prepareRun(dry, until)` + the sha256 of the scenario file, `conflict` when it changed),
+  `checkWorkspaceProtection`; submit adds `checkAgentTrust` and the `{{` refusal of every argument; the worker runs the
+  replay with `hookTrust: 'mcp'` (agent trust in the runner) and `checkSandboxEnv`. The folder `<project>/.demo-studio/
+  inspect/<id>/` is made at submit (removed if the enqueue fails); `pruneInspections` keeps the newest 20 (ids sort by
+  creation; the new one and those of queued / running inspect jobs are never removed). `runInspection` (shared with the CLI) → `runScenario` with `runsDir` =
+  `inspect/`, `runId` = the id, then `drawMarks` through the engine's lazy `review()` import when the report is `ok`
+  and images are `marked`. Result (`InspectJobResult`): ids, folder, `reported`, status, at, page key, persona, the
+  replay's run status, file paths, counts, replay — no page text outside `untrusted: {error?, warnings}`. No report
+  (preflight, sign-in landing, a refused scenario): the job succeeds with `reported: false`, the run's error under
+  `untrusted.error`, and `sign_in: {env, persona}` when the runner asked for a persona's sign-in command (its
+  `loginCommand` callback is called only to word that fix). A cancel → job `cancelled`; an interrupted one's fix is the
+  `studio inspect` command. History: kind `inspect`, `inspect: {id, source, status, reported}`, counts nothing.
+- **Marks** (review `drawMarks(png, boxes, out, {scale})`, sharp): one outline and a numbered badge (20 CSS px × scale,
+  above the box when there is room) per listed element in view and not `covered` (engine `markBoxes`: a background
+  button under a modal would get a number drawn on the modal), boxes × `report.scale`, JPEG `marked.jpg`.
+- **MCP tool** `page_inspect` (`tools/inspect.ts`; RUN_JOB annotations; `wait_s` default 25). Exactly one of `page`
+  (+ `path`), `url`, `scenario` (+ `until`); `persona` only with a page. The summary: job line, replay line (steps,
+  irreversible steps skipped, hooks), the failure's step, counts, `within` / budget / truncation notes, the next step of
+  the authoring loop; the page key and the scenario's own ids only. Data: status, at, page, persona, viewport, scale,
+  replay, counts, popups (kind + box), scrollers, files, `truncated`, and `untrusted: {url, title, headings,
+  landed_host?, error?, warnings, popups (names), targets_checked, elements}` — every element whole under `untrusted`.
+  `capUntrusted` (2,000 characters a string) and a whole-result cap of 80,000 characters (elements dropped from the
+  end, counted). Image: `marked.jpg` (else `screenshot.png`) through `imageResult`'s caps, none for `images: none` or a
+  status other than `ok`. `job_status` of an inspect job returns the same output (and the image) with the job; `reported:
+  false` with `sign_in` gives the `auth_login {project, env, persona}` line for the user; a reported inspection whose
+  folder was pruned since says so (`pruned: true`). INSTRUCTIONS: the authoring
+  loop (page_inspect → Claude writes the YAML → scenario_validate → scenario_save → page_inspect {scenario, until} →
+  run_dry → capture).
+- **CLI** `studio inspect <project> <page|url|scenario> [--path] [--until] [--persona] [--env] [--within T] [--target
+  T]… [--limit] [--images] [--json] [--out DIR]` (`commands/inspect.ts`): the same `prepareInspect` + `runInspection`
+  in-process (trust `author`, no queue, no protected-hosts check), targets given as YAML or text; a table on stderr or
+  the report on stdout (`--json`); exit 0 only when the page was inspected (`ok`). The table flags `covered (not
+  marked)`; a page with `--until` is a usage error that says so; a page's argument errors (an unknown persona, a bad
+  path) are told by argument, never by a position in the scenario the command builds.
+
+### 3.10 Script → skeleton (L3.3 part 3; core `script-draft.ts`, engine `authoring.ts`, MCP `tools/authoring.ts`)
+
+An optional aid, never the start of the authoring loop: a timecoded Markdown table the user hands becomes an outline
+and a draft that validates. Pure and deterministic (no model, no network, nothing written).
+- **core** `draftScenarioFromScript(markdown, {env, video?})` → `{outline, yaml, issues}`. The first GFM pipe table
+  (header line + separator) whose headers map to a time or duration column and a scene, action or caption column;
+  header aliases normalised (lower case, accents, emphasis and `(…)` dropped): time, end, duration, scene, action,
+  caption, kicker, page, type, in English and French (`SCRIPT_MARKDOWN_MAX` 100 kB, `SCRIPT_ROWS_MAX` 500). Cells:
+  `\|` escapes, 1-based columns kept for issues; a cell with `{{` is dropped (warning). Times `M:SS` or a range
+  (`–`, `—`, `-`, `→`, `->`, `to`, `à`); duration = range / end, else the duration cell (`5`, `5s`, `M:SS`), else up to
+  the next timed row shared by the untimed rows between, else `SCRIPT_DEFAULT_ROW_S` (5) with a warning; overlaps and
+  end-before-start warned. Types: scene (default), interstitial (`intertitre`, `carton`), title (`titre`, `intro`),
+  outro (`end`, `fin`, `conclusion`); unknown → scene with a warning. Consecutive rows with the same (or an empty)
+  scene cell are beats of one scene; ids slugged from the name, unique (`-2`), `scene-<n>` when nothing is left. Pages:
+  a key (case-insensitive), `key:/path` / `key /path`, a `/path` on the current page, or a URL (or bare host) whose
+  origin — or a display base's host — is an environment page's, the longest base path winning → key + relative path
+  (checked by `inspectPathProblem`); anything else is left out with a warning. The first scene opens the
+  environment's first page when the script names none; a page cell inside a scene (not its first row) is warned, not
+  split. Timing warnings (`SCRIPT_TIMING`): total outside 45–150 s (the look's 60–120 s ± 25 %), a scene under 2 s
+  (unreadable), under 4 s or over 25 s. Errors only when there is no draft (no table, no usable table, too long, no
+  scene row). The YAML: `version`, `video`, `title` + `intro.duration`, `outro {tagline, duration}`, scenes (`id`,
+  first beat's caption, `page` + `open` when known, one `hold: <duration>` per beat with `note: <action>` and a later
+  beat's own caption), interstitials (`{kicker?, text, duration}`); flow style for caption / title / intro / outro /
+  interstitial maps; a header comment saying it is a skeleton.
+- **engine** `draftFromScript(project, markdown, {env?, name?, agent?})` (`engine.scenarios.fromScript`, feature
+  `scenarios.from_script`): resolves the environment, drafts, then `validateScenarioText` (agent rules for the MCP
+  client) → `{project, env, name, outline, yaml, script_issues, validation}`.
+- **MCP** `scenario_from_script({project, script_markdown, env?, name?})` (READ): summary = scenes, beats, title /
+  outro / interstitials, total, validates or not, "a skeleton: rewrite the holds from page_inspect, then validate and
+  save", every issue (`script L:C …`, `draft L:C …`). INSTRUCTIONS mention it on its own line after the loop, only for
+  a table the user hands.
+
 ## 4. CLI (`studio`)
 
 ```
@@ -1370,6 +1516,11 @@ proof that a read-only run changed nothing; `/#as-of` adds the shop hero's "Pric
 date from the browser's clock (every other date is the server's demo clock). The fixture project gives its pages
 display URLs (`*.northfield.example`) and an environment `production` (the local fixture, read-only, with an
 environment-level mock); its scenario `read-only` films a mocked quote request with `clock:` and `frame: browser`.
+L3.3: `/inspect-lab` on the shop (`server/inspect-lab.mjs`, server-rendered): two identical "Save" buttons, a
+"Publish" whose text a paragraph repeats, icon buttons with a generated and a stable id and a testid, fields (label,
+placeholder only, native select, a password field with a value, a file drop zone), instruction-like text in a
+paragraph, a `role` and an aria-label, an orders table with row menu triggers, an open shadow root, a same-origin and
+a cross-origin frame; `?dialog=1` an open dialog with its own "Save", `?rows=N` (≤ 5,000) a long table.
 L1.8: two sandboxes of the fixture project — `sandbox` (process: `node server.mjs` on 4501–4504, started by Demo
 Studio) and `sandbox-docker` (docker-compose, `sandbox/docker/{sandbox.yaml,compose.yaml}`: the fixture image on
 4511–4514 + `axllent/mailpit:v1.29.4` on 4525), same pages (the signed-in side), seed (`POST /api/reset`) and

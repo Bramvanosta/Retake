@@ -25,6 +25,8 @@ import { sandboxStatus } from './sandbox.js';
 import type { SandboxStatusView } from './sandbox.js';
 import { getScenario, saveScenarioText, validateScenarioText } from './scenarios.js';
 import type { SaveResult, ScenarioText, ValidateResult } from './scenarios.js';
+import { draftFromScript } from './authoring.js';
+import type { ScriptDraftView } from './authoring.js';
 import { openWorkspace } from './workspace.js';
 import { liveWorker } from './jobs/lock.js';
 import type { WorkerLockRecord } from './jobs/lock.js';
@@ -45,6 +47,10 @@ import { submitExportJob } from './jobs/export-job.js';
 import type { ExportRequest } from './jobs/export-job.js';
 import { reviewGet, thumbnail } from './reviews.js';
 import { submitPreviewJob } from './jobs/preview-job.js';
+import { readInspection, submitInspectJob } from './jobs/inspect-job.js';
+import type { InspectSubmitRequest } from './jobs/inspect-job.js';
+import type { InspectJobInput } from '@demo-studio/core';
+import type { InspectReport } from '@demo-studio/runner-web';
 import type { PreviewRequest } from './jobs/preview-job.js';
 import { componentCreate, componentGet, componentList, componentValidate } from './components.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from './components.js';
@@ -152,6 +158,11 @@ export interface Engine {
     get(project: string, name: string): Promise<ScenarioText>;
     validate(project: string, yaml: string, opts?: { env?: string; until?: string; name?: string }): Promise<ValidateResult>;
     save(project: string, name: string, yaml: string, opts?: { ifMatch?: string | null }): Promise<SaveResult>;
+    /**
+     * A timecoded script table → an outline and a draft scenario (one `hold` per beat, the action as its note), validated
+     * against the project (L3.3 aid; deterministic, no model call, nothing written — save with `save`).
+     */
+    fromScript(project: string, markdown: string, opts?: { env?: string; name?: string }): Promise<ScriptDraftView>;
   };
   runs: {
     /** run.json of each run, with the state of its job overlaid when run.json cannot say it (as `status`). */
@@ -234,6 +245,16 @@ export interface Engine {
     /** Queue a still of a component with a theme, slot values and params into .demo-studio/previews/ (never its folder). */
     preview(req: { project: string; template?: string; component: string; slots?: Record<string, string>; params?: Record<string, unknown>; at_s?: number }): Promise<PreviewSubmitted>;
   };
+  inspect: {
+    /**
+     * Queue an inspection (L3.3): a dry replay of a page (page key + path, or a URL of the environment's own origins) or
+     * of a saved scenario up to a step, then the page inventoried into <project>/.demo-studio/inspect/<id>/ — run_dry's
+     * trust rules (agent trust, protected hosts, production read-only, no hook, no template).
+     */
+    submit(req: InspectSubmitRequest): Promise<InspectSubmitted>;
+    /** An inspection's report read back (null before it is written); its marked screenshot when drawn. */
+    get(project: string, inspectId: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }>;
+  };
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
   sandbox: {
@@ -254,6 +275,17 @@ export interface PreviewSubmitted {
   targets: string[];
   /** Theme kinds with nothing to show. */
   skipped: ComponentKind[];
+  worker?: { pid?: number; spawned: boolean };
+}
+
+/** A queued inspect job. */
+export interface InspectSubmitted {
+  job: JobRecord;
+  inspect_id: string;
+  dir: string;
+  env: string;
+  source: InspectJobInput['source'];
+  warnings: string[];
   worker?: { pid?: number; spawned: boolean };
 }
 
@@ -334,6 +366,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       features: [
         'projects',
         'scenarios',
+        'scenarios.from_script',
         'runs.read',
         'runs.dry',
         'runs.capture',
@@ -355,6 +388,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'components.read',
         'components.create',
         'components.preview',
+        'inspect',
         'history',
       ],
       entitlements: entitlements(),
@@ -371,6 +405,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       // What the MCP server's agent writes is checked as the work it submits will be (core agent-trust).
       validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: opts.client === 'mcp' }),
       save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: opts.client === 'mcp' }),
+      fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: opts.client === 'mcp' }),
     },
     runs: {
       list: async (slug, o) => {
@@ -511,6 +546,14 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         const worker = await startWorker();
         return { ...r, ...(worker ? { worker } : {}) };
       },
+    },
+    inspect: {
+      submit: async (req) => {
+        const r = await submitInspectJob(submitCtx, req);
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+      get: (slug, id) => readInspection(ws, slug, id),
     },
     thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
     sandbox: {

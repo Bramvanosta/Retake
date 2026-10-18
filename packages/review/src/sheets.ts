@@ -103,3 +103,54 @@ export async function thumbnailOf(file: string, maxPx: number): Promise<{ base64
   const { data, info } = await sharp(file).resize(maxPx, maxPx, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80, mozjpeg: true }).toBuffer({ resolveWithObject: true });
   return { base64: data.toString('base64'), width: info.width, height: info.height, bytes: data.length };
 }
+
+/** A numbered box drawn by `drawMarks`, in the image's pixels. */
+export interface MarkBox {
+  mark: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const MARK_STROKE = '#ff2d78';
+
+/**
+ * A page inspection's marked screenshot (L3.3): each box outlined, its number on a filled badge at its top-left corner
+ * (inside the image), written as a JPEG. `scale` is the image's device pixels per CSS px: badges and strokes keep their
+ * CSS size (labels ≥ 20 CSS px, readable once the image is thumbnailed to 1280 px). Returns the size written.
+ */
+export async function drawMarks(png: string, boxes: readonly MarkBox[], out: string, opts: { scale?: number; quality?: number } = {}): Promise<{ width: number; height: number; marks: number }> {
+  const meta = await sharp(png).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+  const s = Math.max(0.5, opts.scale ?? 1);
+  const font = Math.round(20 * s);
+  const stroke = Math.max(2, Math.round(2 * s));
+  const svg: string[] = [];
+  let marks = 0;
+  for (const b of boxes) {
+    const x = Math.max(0, Math.min(width - 1, Math.round(b.x)));
+    const y = Math.max(0, Math.min(height - 1, Math.round(b.y)));
+    const w = Math.min(width - x, Math.round(b.w + (b.x < 0 ? b.x : 0)));
+    const h = Math.min(height - y, Math.round(b.h + (b.y < 0 ? b.y : 0)));
+    if (w < 2 || h < 2) continue;
+    marks++;
+    svg.push(`<rect x="${x + stroke / 2}" y="${y + stroke / 2}" width="${Math.max(1, w - stroke)}" height="${Math.max(1, h - stroke)}" fill="none" stroke="${MARK_STROKE}" stroke-width="${stroke}"/>`);
+    const label = String(b.mark);
+    const bw = Math.round(font * (0.62 * label.length + 0.5));
+    const bh = Math.round(font * 1.25);
+    const bx = Math.min(x, width - bw);
+    const by = y >= bh ? y - bh : Math.min(y, height - bh);
+    svg.push(`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${Math.round(font * 0.2)}" fill="${MARK_STROKE}"/>`);
+    svg.push(`<text x="${bx + bw / 2}" y="${by + bh * 0.78}" text-anchor="middle" font-family="${FONT}" font-size="${font}" font-weight="bold" fill="#ffffff">${label}</text>`);
+  }
+  const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${svg.join('')}</svg>`);
+  const jpeg = await sharp(png)
+    .flatten({ background: '#ffffff' })
+    .composite([{ input: overlay, left: 0, top: 0 }])
+    .jpeg({ quality: opts.quality ?? 82, mozjpeg: true })
+    .toBuffer();
+  await writeFile(out, jpeg);
+  return { width, height, marks };
+}

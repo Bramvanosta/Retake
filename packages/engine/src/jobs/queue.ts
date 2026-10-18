@@ -336,6 +336,18 @@ function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
       },
     };
   }
+  if (i.kind === 'inspect') {
+    return {
+      ...rec,
+      state: 'interrupted',
+      derived: true,
+      error: {
+        code: 'cancelled',
+        message: `interrupted: ${why}. The inspection stopped: it ran a dry replay only (no hook); submit it again`,
+        fix: `${cli} inspect ${i.project} ${i.source.kind === 'page' ? i.source.page : i.source.scenario}${i.env ? ` --env ${i.env}` : ''}`,
+      },
+    };
+  }
   const env = i.env ? ` --env ${i.env}` : '';
   const error: JobRecord['error'] =
     i.kind === 'auth_login'

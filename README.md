@@ -141,6 +141,8 @@ studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env 
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)
            [--raw [--cursor baked|none|layer] [--format mp4|prores] [--fps 30|60] [--layer prores|webm] [--selects]
            [--no-cuts] [--out DIR]]          # capture, then the raw package for editors
+studio inspect <project> <page|url|scenario> [--path P] [--until REF] [--persona P] [--env E] [--within T] [--target T]…
+               [--limit N] [--images marked|none] [--json] [--out DIR]   # a page's elements with verified targets
 studio hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
 studio hooks rollback <project> [run-id] [--env E] [--allow-writes] [--dry]
 studio env reset <project> [--env E] [--yes] [--allow-writes] [--dry]
@@ -186,6 +188,12 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   project.yaml allows writes be written to — see [Environments](#environments-display-urls-production-read-only-clock).
   `--sandbox` starts the sandbox environment if needed and resets it to its seed before the take — see
   [Sandbox mode](#sandbox-mode).
+- **inspect** replays a page (an environment page key with `--path`, or a URL of one of its pages) or a scenario up to
+  `--until` as a dry run (hooks skipped), then lists the page's visible interactive elements — dialogs and menus first
+  — with a target the runner resolves to each, its action, and why it may be fragile; `--target` checks your own
+  targets, `--within` lists inside one. Files in `<project>/.demo-studio/inspect/<id>/` (or `--out`), with a marked
+  screenshot; `--json` prints the report. What `page_inspect` gives Claude — see
+  [Authoring](#mcp-claude-drives-demo-studio).
 - **sandbox** starts, seeds, resets and stops the sandboxes of a project, shows their state and their services' logs —
   see [Sandbox mode](#sandbox-mode).
 - **hooks run** runs a scenario's setup or teardown, the project's `reset` hooks, or a YAML file listing hooks (same
@@ -2396,7 +2404,10 @@ server share one engine (`@demo-studio/engine`): a dry run, a capture or hooks s
 approval form the client shows (MCP elicitation). Sign-ins (a window for the human) and sandbox start / reset are jobs
 too, and so are renders: Claude previews the plan of a capture, renders it with another theme or edit overrides (no
 scenario change) and follows the render — the render runs guarded (only files of the project, no network) —, reviews
-it (the contact sheet comes back as images Claude looks at) and exports it to delivery formats. Claude also lists and
+it (the contact sheet comes back as images Claude looks at) and exports it to delivery formats. To write a scenario,
+Claude inspects the product's pages (`page_inspect`: a marked screenshot and the visible elements with targets the
+runner resolves) and writes the YAML itself — no tool writes a scenario for it or calls a model (`scenario_from_script`
+only turns a timecoded table the user hands into a skeleton). Claude also lists and
 previews themes and components (stills come back as images), checks components and scaffolds new ones — component code,
 themes and project.yaml are never written through the server.
 
@@ -2442,6 +2453,8 @@ claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/pa
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
+| `page_inspect` | what a page shows, for writing steps (see *Authoring* below): `page` (+ `path`) or `url` (an origin of the environment's pages only), or `scenario` + `until` (a dry replay up to that step; a failing step is inspected where it failed); `persona`, `within` (list only inside a target), `targets` (≤ 20 of your own, checked), `limit` (default 80, ≤ 300), `images` (`marked` default, or `none`); a job, waits up to `wait_s` (default 25). Returns counts, open popups, scroll containers and the marked screenshot as an image; every element (mark, box, state, context, verified target, matches, `fragile`, action hint as one line of YAML) and all page text under `untrusted` | `.demo-studio/inspect/<id>/` |
+| `scenario_from_script` | an optional aid, only when the user hands a timecoded script table (see *Authoring*): an outline and a skeleton draft (one `hold` per beat, the action as its `note`) validated against the project, the script's issues with line / col, timing warnings; `env` (page keys of that environment), `name` (the draft's `video`) | — |
 | `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, outputs (paths + sha256 once finished), dry-run screenshots, and the state of its job (queued and its place, interrupted…); `wait_s` (≤ 25) waits for it to finish | — |
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
 | `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
@@ -2459,7 +2472,7 @@ claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/pa
 | `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
 | `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.demo-studio/previews/<id>/` |
 | `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's template (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
-| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images), a cancel; a run, render, preview, review or export job's error message is under `untrusted.error` | — |
+| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included), a cancel; a run, render, preview, review, export or inspect job's error message is under `untrusted.error` | — |
 | `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
 | `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
@@ -2472,7 +2485,61 @@ Every result starts with a short summary for Claude, then the data as JSON (also
 paths it can read; an error is a tool error with a code (`not_found`, `invalid`, `conflict`, `refused`,
 `needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix`.
 
-**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export or a preview is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
+**Authoring: Claude writes the scenario.** The loop the server's instructions give: `project_get` (the README, the
+environments and their page keys) → `page_inspect` each page the video shows → Claude writes the YAML itself, copying
+the suggested targets and step hints → `scenario_validate` → `scenario_save` → `page_inspect {scenario, until: <the
+step that opens a dialog or a menu>}` to see what that step shows, and write the next steps → `run_dry` → fix →
+`run_capture`. No tool writes a scenario from a description and none calls a model: the client's model is the author.
+- **What an inspection gives.** The visible interactive elements (labels merged into their field; inside open shadow
+  roots and same-origin frames; cross-origin frames counted, closed shadow roots invisible), the open popup first, each
+  with a number drawn on the screenshot, its box, state (disabled, expanded, checked, selected, covered by something
+  drawn over it), context (page, dialog, menu, listbox, popover, row) and a **suggested target checked with the
+  runner's own resolver**: it resolves to exactly that element (`matches: 1`), or to it by position (`nth`, flagged),
+  and its YAML reads back as the same target. `fragile` says why it may break later: `nth`, `broader` (a looser text
+  also matches), `dynamic_text` (digits, dates, prices), `css` (a stable id only). The action hint (`click`, `type
+  {into}`, `select {field}` / `{combobox}`, `menu {row}`, `drop_file {zone}`) is checked through the runner's helper for
+  that action, else marked unverified. `targets` checks Claude's own targets (how many elements, which one a step
+  would use); `within` (R-MCP-23's selector, a target) lists only inside an element. Never a field's value — not even
+  inside a label or a name (a `<label>Notes <textarea>` is "Notes").
+- **A replay.** `scenario` + `until` replays a saved scenario as `run_dry` does (the environment's own access,
+  production read-only), fast (cursor travel and holds capped at 0.2 s; navigation and popup waits kept), hooks never
+  run (`replay.hooks: skipped`: data they prepare is missing) and irreversible steps shown but not executed
+  (`replay.skipped_irreversible`). A step that fails is inspected where it failed (`at: failed_step`). Signed-in pages
+  use their persona (`persona` overrides it for a page): a session that expired signs in again off camera when the
+  persona has `login:` steps; otherwise nothing is inspected and the result names `auth_login` for the user.
+- **Where it may go.** Only environment pages: a `url` must have the exact origin of one of the environment's pages
+  (another port of localhost is another app: refused), no `{{…}}` template in anything given, no credentials in a URL.
+  A page that ends on another origin (a redirect, a sign-in provider) is reported by its host alone
+  (`landed_elsewhere`): no screenshot, no element — also when it leaves while it is inspected (each in-page read
+  checks the document it read; a page script's own navigation elsewhere is stopped meanwhile). The page's URL is
+  reported without its query or fragment. A host another project protects (production / read-only) is refused
+  as for `run_dry`, and so is a scenario agent trust refuses. The checks run when the call is made and again in the
+  worker (the scenario's bytes are pinned by their sha256).
+- **Files.** `<project>/.demo-studio/inspect/<id>/`: `inspect.json` (the whole report), `screenshot.png` (the viewport,
+  cursor hidden, at the capture scale), `marked.jpg` (numbered boxes of the elements in view, except those something
+  is drawn over), and the dry replay's run.json, log and step-failure screenshot; the newest 20 inspections are kept
+  (never one whose job is queued or running; `job_status` says when a finished one was pruned since). Never in `runs/`: `run_list`,
+  `latest` and reviews do not see them. A result over 80 kB drops elements from its end (`truncated`; inspect.json has
+  them all). An inspection counts nothing in the history. `studio inspect` does the same from a terminal (no queue;
+  `--json` prints the report).
+- **An aid when the user hands a timecoded table: `scenario_from_script`.** Not the start of the loop, a skeleton to
+  rewrite through it. It reads the first Markdown pipe table of `script_markdown` (≤ 100 kB) whose headers name a time
+  (or duration) and a scene, action or caption — English or French, case and accents ignored: `time` / `temps` /
+  `timecode` / `start` / `début`, `end` / `fin`, `duration` / `durée`, `scene` / `scène` / `section` / `chapitre`,
+  `action` / `on screen` / `visual` / `à l'écran` / `visuel`, `caption` / `text` / `texte` / `voice-over` / `légende`,
+  `kicker` / `surtitre`, `page` / `url`, `type`. Times are `M:SS` or ranges `M:SS–M:SS` (`-`, `→`, `to`, `à`); a row
+  lasts until its end, its duration (`5`, `5s`, `M:SS`), else the next timed row (untimed rows between share the span),
+  else 5 s with a warning. Rows naming the same scene in a row (or an empty scene cell) are beats of one scene; `type`
+  `title` / `titre` / `intro` → the scenario `title` (+ `intro.duration`), `outro` → `outro.tagline`, `interstitial` /
+  `intertitre` → an interstitial card. A `page` cell is a page key, `key:/path`, a `/path`, or a URL whose origin (or
+  display host) is one of the environment's pages — mapped to the key and a relative `open`; any other URL is left out
+  with a warning (a draft never carries a URL), and so is a `{{…}}` template. It returns an outline (scenes, beats,
+  times, durations, captions, pages), a draft (one `hold` per beat sized to its duration, the action as its `note`,
+  captions, a header comment saying it is a skeleton), the script's issues positioned at their line and column, timing
+  warnings against the look (video 1:00–2:00, scenes 4–25 s, under 2 s unreadable) and the draft validated against the
+  project. It writes nothing and calls no model; `scenario_save` saves what Claude rewrote.
+
+**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export, a preview or an inspection is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
 with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
 `.demo-studio/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
 exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
@@ -2533,7 +2600,8 @@ progress notifications. A job `succeeded` when it ran to the end — its run may
   `studio export` that re-rendered a format), adds a line to
   `<workspace>/.demo-studio/history.jsonl` (kind, project, who, state, duration, captures / dry runs / renders
   produced — a render job counts once it wrote its video, with its render id; an export job counts the formats it
-  re-rendered; reviews and component previews are not counted — a preview job's line names the preview and its theme);
+  re-rendered; reviews, component previews and inspections are not counted — a preview job's line names the preview and
+  its theme, an inspect job's its id, its source and its outcome);
   `engine_info` reports the totals. It is local, never sent anywhere — the counters a licence or Remotion
   usage report would need later (an entitlements stub answers "everything, no limit" for now).
 - `studio doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where

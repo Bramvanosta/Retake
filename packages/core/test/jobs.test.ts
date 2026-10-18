@@ -4,7 +4,7 @@
  * and `project` is required (as for every kind).
  */
 import { describe, expect, it } from 'vitest';
-import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RENDER_ID_RE, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
+import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, INSPECT_ID_RE, InspectJobInputSchema, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RENDER_ID_RE, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
 
 const SHA = 'a'.repeat(64);
 const input = (extra: Record<string, unknown> = {}) => ({
@@ -164,5 +164,44 @@ describe('preview job input', () => {
     expect(ok({ params: { big: 'x'.repeat(9000) } })).toBe(false);
     expect(ok({ at_s: -1 })).toBe(false);
     expect(ok({ at_s: 601 })).toBe(false);
+  });
+});
+
+describe('inspect job input (L3.3)', () => {
+  const inspect = (extra: Record<string, unknown> = {}) => ({
+    version: JOB_INPUT_VERSION,
+    kind: 'inspect',
+    project: 'shop',
+    inspect_id: 'i_01JABCDEFGHJKMNPQRSTVWXYZ0',
+    source: { kind: 'page', page: 'shop', path: '/inspect-lab?dialog=1' },
+    images: 'marked',
+    submitted_by: 'mcp',
+    ...extra,
+  });
+  const ok = (x: Record<string, unknown>) => InspectJobInputSchema.safeParse(inspect(x)).success;
+
+  it('inspect is a job kind; a page and a scenario source parse through the union', () => {
+    expect(JOB_KINDS).toContain('inspect');
+    expect(JobInputSchema.parse(inspect()).kind).toBe('inspect');
+    const sha = 'a'.repeat(64);
+    expect(ok({ source: { kind: 'scenario', scenario: 'quote', scenario_sha256: sha, until: 'request.3' }, targets: ['Save', { role: 'button', name: 'Save', in: 'dialog' }], within: { css: '#main' }, limit: 300 })).toBe(true);
+    expect(INSPECT_ID_RE.test('i_01JABCDEFGHJKMNPQRSTVWXYZ0')).toBe(true);
+  });
+
+  it('never a URL, a path outside the page, a {{…}} template, a path as an id, or too much', () => {
+    expect(ok({ url: 'http://localhost:4402/' })).toBe(false);
+    expect(ok({ inspect_id: '../x' })).toBe(false);
+    expect(ok({ inspect_id: 'p_01JABCDEFGHJKMNPQRSTVWXYZ0' })).toBe(false);
+    for (const path of ['//elsewhere.example/', 'products', '/a\\b', '/{{env:HOME}}', '/a\u0000']) expect(ok({ source: { kind: 'page', page: 'shop', path } }), path).toBe(false);
+    expect(ok({ source: { kind: 'page', page: 'https://elsewhere.example', path: '/' } })).toBe(false);
+    expect(ok({ source: { kind: 'scenario', scenario: 'quote', scenario_sha256: 'a'.repeat(64), until: '{{env:X}}' } })).toBe(false);
+    expect(ok({ source: { kind: 'scenario', scenario: '../quote', scenario_sha256: 'a'.repeat(64) } })).toBe(false);
+    expect(ok({ targets: [{ text: '{{keychain:x}}' }] })).toBe(false);
+    expect(ok({ within: '{{env:X}}' })).toBe(false);
+    expect(ok({ targets: Array.from({ length: 21 }, (_, i) => `t${i}`) })).toBe(false);
+    expect(ok({ targets: ['x'.repeat(2001)] })).toBe(false);
+    expect(ok({ limit: 301 })).toBe(false);
+    expect(ok({ images: 'both' })).toBe(false);
+    expect(ok({ source: { kind: 'page', page: 'shop', path: '/', persona: '../x' } })).toBe(false);
   });
 });

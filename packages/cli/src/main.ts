@@ -32,6 +32,8 @@ import { runCommand } from './commands/run.js';
 import type { RunCommandOptions } from './commands/run.js';
 import { sandboxDownCommand, sandboxInitCommand, sandboxLogsCommand, sandboxResetCommand, sandboxStatusCommand, sandboxUpCommand } from './commands/sandbox.js';
 import type { SandboxCommandOptions } from './commands/sandbox.js';
+import { inspectCommand } from './commands/inspect.js';
+import type { InspectCommandOptions } from './commands/inspect.js';
 import { validateCommand } from './commands/validate.js';
 import type { ValidateOptions } from './commands/validate.js';
 import { EXIT, errorMessage, exitCodeOf, isKnownError } from './errors.js';
@@ -125,6 +127,23 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--no-cuts', 'with --raw: keep the loading inside scenes')
     .option('--out <dir>', 'with --raw: package folder (default exports/<run>-raw-<format><fps>-<cursor>/)')
     .action(action((u, g, p: string, s: string, o: RunCommandOptions) => runCommand(u, g, p, s, o)));
+
+  program
+    .command('inspect')
+    .description('replay a page or a scenario (dry, hooks skipped) and list the visible interactive elements with a target the runner resolves to each, plus a marked screenshot (what page_inspect gives Claude)')
+    .argument('<project>', 'project slug or directory')
+    .argument('<page>', 'an environment page key, a URL of one of its pages, or a scenario name (with --until)')
+    .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
+    .option('--path <path>', 'with a page: the path opened under it (default /)')
+    .option('--until <ref>', 'with a scenario: inspect after this step (<scene>.<step id|index>, a step id, or a scene id)')
+    .option('--persona <name>', 'with a page: sign it in as this persona ("none": signed out)')
+    .option('--within <target>', 'list only the elements inside this target (YAML: "{role: dialog}", or text / CSS)')
+    .option('--target <target>', 'check a target: matches and the one a step would use (repeatable, ≤ 20)', collect)
+    .option('--limit <n>', 'elements listed (default 80, at most 300)')
+    .addOption(new Option('--images <mode>', 'marked (default): also draw marked.jpg; none: the plain screenshot only').choices(['marked', 'none']))
+    .option('--json', 'print the report (inspect.json) on stdout')
+    .option('--out <dir>', 'folder for the inspection folder (default <project>/.demo-studio/inspect/)')
+    .action(action((u, g, p: string, w: string, o: InspectCommandOptions) => inspectCommand(u, g, p, w, o)));
 
   program
     .command('export-capture')

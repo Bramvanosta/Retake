@@ -21,7 +21,10 @@ import type {
   FieldState,
   FileSpec,
   FindOptions,
+  InventoryOptions,
   KitConfig,
+  KitInventory,
+  KitTargetChecks,
   MenuTrigger,
   OutsidePlan,
   PointInfo,
@@ -169,6 +172,13 @@ function cleanEvalError(e: unknown): string {
   return m.replace(/^page\.evaluate: /, '').replace(/^Error: /, '').split('\n    at ')[0];
 }
 
+/** The page replaced its document during a kit call that must not be retried (`KitClient.callOnce`). */
+export class DocumentChangedError extends StepError {
+  constructor() {
+    super('the page navigated during the inspection');
+  }
+}
+
 /** Typed RPC to the in-page kit of one page. Re-installs the kit when a document lost it. */
 export class KitClient {
   constructor(
@@ -181,6 +191,18 @@ export class KitClient {
   }
 
   async call<T>(path: string, ...args: unknown[]): Promise<T> {
+    return this.callWith<T>(true, path, args);
+  }
+
+  /**
+   * One call in the document the page shows now (an inspection, L3.3): a document replaced during the call (a late
+   * navigation) is an error, never retried in the new one — whatever that document holds is not what was asked for.
+   */
+  callOnce<T>(path: string, ...args: unknown[]): Promise<T> {
+    return this.callWith<T>(false, path, args);
+  }
+
+  private async callWith<T>(retry: boolean, path: string, args: unknown[]): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
         const res = await this.page.evaluate(
@@ -203,6 +225,7 @@ export class KitClient {
         return res.value as T;
       } catch (e) {
         if (e instanceof RunnerError) throw e;
+        if (isContextDestroyed(e) && !retry) throw new DocumentChangedError();
         if (isContextDestroyed(e) && attempt < 5) {
           await this.page.waitForLoadState('domcontentloaded', { timeout: 10_000 }).catch(() => undefined);
           continue;
@@ -316,6 +339,14 @@ export class KitClient {
   /** The focused element (type steps without `into`: the field typed into; `input_type`: a password field or not). */
   focused(): Promise<{ desc: string; bbox: BBox; input_type: string } | null> {
     return this.call('focused');
+  }
+  /** Inspection (L3.3): the visible interactive elements with verified suggested targets (one in-page call). */
+  inventory(opts: InventoryOptions = {}): Promise<KitInventory> {
+    return this.callOnce('inventory', opts);
+  }
+  /** Inspection (L3.3): `find` for each (normalised) target. */
+  checkTargets(targets: TargetObject[]): Promise<KitTargetChecks> {
+    return this.callOnce('checkTargets', targets);
   }
   cursorSet(x: number, y: number, show?: boolean): Promise<void> {
     return this.call('cursor.set', x, y, show);

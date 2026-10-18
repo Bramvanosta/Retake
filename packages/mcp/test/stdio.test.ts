@@ -75,6 +75,8 @@ describe('studio mcp over stdio', () => {
       'scenario_get',
       'scenario_validate',
       'scenario_save',
+      'page_inspect',
+      'scenario_from_script',
       'run_list',
       'run_status',
       'run_dry',
@@ -109,13 +111,15 @@ describe('studio mcp over stdio', () => {
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties, t.name).toBe(false);
       expect(t.description.length, t.name).toBeGreaterThan(20);
       expect(t.annotations?.readOnlyHint, t.name).toBe(
-        !['project_create', 'project_update_readme', 'scenario_save', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'template_preview', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
+        !['project_create', 'project_update_readme', 'scenario_save', 'page_inspect', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'template_preview', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
       );
-      expect(t.annotations?.openWorldHint, t.name).toBe(['run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login'].includes(t.name));
+      expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login'].includes(t.name));
       expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset'].includes(t.name));
       // No tool takes a credential.
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
-      expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes|"path"/);
+      expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes/);
+      // No file path: page_inspect's `path` is a URL path under an environment page (no host, no template), checked by core.
+      if (t.name !== 'page_inspect') expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/"path"/);
     }
     // A field with a default is optional for the caller.
     const runList = tools.find((t) => t.name === 'run_list');
@@ -341,7 +345,7 @@ describe('studio mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(36);
+    expect(TOOLS).toHaveLength(38);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

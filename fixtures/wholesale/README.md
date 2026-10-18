@@ -146,6 +146,13 @@ a self-contained page: a native "Destination" `<select>`, a "Bags" number field,
 Norway · €84.00 · 3–5 working days" from a fixed rate table in `server/embed.mjs`). Both sit below what the other shop
 scenarios film.
 
+**Inspection lab** (`/inspect-lab` on the shop, `server/inspect-lab.mjs`): a server-rendered page for the tests of
+`page_inspect` (L3.3) — two identical "Save" buttons and a "Save draft", an icon button with a generated id and one
+with a stable id, fields (a label, a placeholder only, a native select, a password field with a value, a file drop
+zone), instruction-like text in body text, in a `role` attribute and in an aria-label, an orders table whose rows have a
+menu trigger, an open shadow root, a same-origin frame and a cross-origin frame (the console). `?dialog=1` adds an open
+dialog with its own "Save"; `?rows=N` (at most 5,000) a long table. The page makes no request that writes.
+
 **Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,
 `DELETE /mailbox/api/v1/messages`. The confirmation email is a 600 px table layout with the logo as an inline `cid:`

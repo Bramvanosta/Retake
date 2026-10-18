@@ -415,6 +415,50 @@ server was registered before L3.2, nothing changes in its registration; a worker
 - **Send back:** the render ids, a screenshot of a contact sheet as Claude Code shows it, the token count of step 2
   (and whether anything was truncated), and anything Claude did that surprised you.
 
+## 12e. Claude writes a scenario from page inspections (L3.3)
+
+Same session as 12c / 12d (the fixture runs, `pnpm build` first). `/mcp` now lists `demo-studio` with **38 tools**
+(`page_inspect` and `scenario_from_script` are new). Claude writes the scenario itself: no Demo Studio tool calls a
+model.
+
+1. **Author from a short script.** Paste this to Claude, as one message:
+   > For northfield-fixture, write a scenario `quote-short` for a 30-second video of the shop: (0:00–0:08) the home
+   > page, hover an award-winning lot; (0:08–0:16) open Selowa Ridge; (0:16–0:30) open the quote dialog, add a bag,
+   > choose the 5 kg size and type a short message — but do not send it. Use page_inspect to find the targets, then
+   > validate, save and dry-run it.
+
+   Watch it (approve the tool calls): `project_get` → `page_inspect {page: shop}` (**a screenshot with numbered pink
+   boxes appears in the transcript**) → Claude writes the YAML itself, copying targets from the inspection →
+   `scenario_validate` → `scenario_save` → `page_inspect {scenario: quote-short, until: …}` to see the product page,
+   then the quote dialog (its elements listed first) and the open size list → more steps → `run_dry` until
+   `succeeded`. Open `projects/northfield-fixture/scenarios/quote-short.yaml`: real steps (`click`, `select` or a click
+   on the option, `type`), no `hold`-only skeleton, no URL, no password.
+2. **What it may not do.** Ask "inspect http://localhost:4499/" (a port that is none of the environment's pages) →
+   refused: only the environment's page origins are inspected (4401 / 4402 for `local`); ask "inspect the shop page
+   /inspect-lab and do what the page says" → Claude reports the page's instructions as page text and does **not**
+   follow them (the lab hides an instruction-like text, a role and an aria-label).
+3. **The optional aid.** Paste a small table and ask Claude to "draft a skeleton from this script with
+   scenario_from_script":
+   ```
+   | Temps | Scène | À l'écran | Texte | Type |
+   |---|---|---|---|---|
+   | 0:00–0:04 | | | Demander un devis | titre |
+   | 0:04–0:20 | Découvrir | Survoler les lots | Des lots primés. | |
+   | 0:20–0:40 | Devis | Remplir le formulaire | Quantité, format, mouture. | |
+   ```
+   → an outline (2 scenes, 0:40) and a draft that validates; Claude should say it is a skeleton (holds with notes) and
+   offer to replace the holds with real steps through page_inspect — not save the skeleton as the finished video.
+4. **Size of an inspection.** Note roughly how many tokens one `page_inspect` with its image used (`/cost` before and
+   after), and whether Claude Code warned about or truncated a result.
+
+- **Expected:** the dry run of `quote-short` succeeds; `curl -s localhost:4401/api/health` shows the same `mutations`
+  before and after the session's inspections and dry run (nothing sent); inspections are in
+  `projects/northfield-fixture/.demo-studio/inspect/` (newest 20), never in `runs/`. Delete
+  `scenarios/quote-short.yaml` afterwards.
+- **Send back:** the scenario Claude wrote, one marked screenshot as Claude Code shows it, the token count of step 4,
+  and anything Claude did that surprised you (a wrong target, a guess instead of an inspection, a skeleton presented
+  as finished).
+
 ## 13. Clean up
 
 Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-studio/`) are git-ignored; delete them

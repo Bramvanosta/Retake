@@ -478,11 +478,15 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
   it('the state entry is on disk before anything is awaited after the spawn: a crash then still leaves the service tracked (P6)', async () => {
     const [a] = await freePorts(1);
     const { project } = await svcSandbox('early', svc(a), [`url: http://localhost:${a}`, `pages: {app: "http://localhost:${a}"}`]);
-    // A ps that takes 3 s to give a start time: the window the entry used to wait in.
+    // A ps that takes 3 s to give a start time (the window the entry used to wait in), then leaves a marker named after
+    // the pid it answered for: the service's entry must be on disk before its marker exists. (Not "while a marker made
+    // when ps starts exists": the poll can read the entry between the save and the moment the shell running ps has
+    // started — a race that failed loaded full suites. Another ps call before the spawn answers for another pid.)
     const bin = join(dir, 'slowbin');
     await mkdir(bin, { recursive: true });
-    const marker = join(dir, 'ps-sleeping');
-    await writeFile(join(bin, 'ps'), `#!/bin/sh\ncase "$*" in *lstart=*-p*) touch ${JSON.stringify(marker)}; sleep 3; rm -f ${JSON.stringify(marker)};; esac\nexec /bin/ps "$@"\n`, { mode: 0o755 });
+    const answered = join(dir, 'ps-answered');
+    await mkdir(answered, { recursive: true });
+    await writeFile(join(bin, 'ps'), `#!/bin/sh\ncase "$*" in *lstart=*-p*) for a; do last=$a; done; sleep 3; touch ${JSON.stringify(answered)}/$last;; esac\nexec /bin/ps "$@"\n`, { mode: 0o755 });
     const script = [
       `import { loadProject } from ${JSON.stringify(join(REPO, 'packages/core/dist/index.js'))};`,
       `import { openSandbox } from ${JSON.stringify(join(REPO, 'packages/sandbox/dist/index.js'))};`,
@@ -490,18 +494,19 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     ].join('\n');
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
     const paths = sandboxPaths(project.dir, 'sandbox');
-    let seenWhileSlow = false;
+    let beforePsAnswered = false;
     let pid = 0;
-    for (let i = 0; i < 100 && !pid; i++) {
+    // Up to 15 s for the child to load and spawn (a loaded machine), polled every 50 ms.
+    for (let i = 0; i < 300 && !pid; i++) {
       await sleep(50);
       const s = readState(paths.state, 'sandbox', 'process').state.services.app as { pid?: number } | undefined;
       if (s?.pid) {
         pid = s.pid;
-        seenWhileSlow = existsSync(marker);
+        beforePsAnswered = !existsSync(join(answered, String(s.pid)));
       }
     }
     expect(pid).toBeGreaterThan(0);
-    expect(seenWhileSlow).toBe(true);
+    expect(beforePsAnswered).toBe(true);
     // The command dies in that window (kill -9): the service stays tracked, and down stops it.
     child.kill('SIGKILL');
     await new Promise((r) => child.once('exit', r));

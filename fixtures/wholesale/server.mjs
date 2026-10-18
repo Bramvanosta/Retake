@@ -24,6 +24,7 @@ import { bundleState, bundleVersion, OUT_DIR } from './bundle.mjs';
 import { handleApi } from './server/api.mjs';
 import { Sessions, handleSignIn, redirectToSignIn, signedIn } from './server/auth.mjs';
 import { renderShippingEmbed } from './server/embed.mjs';
+import { renderInspectLab } from './server/inspect-lab.mjs';
 import { sendError, sendJson, sendText } from './server/http.mjs';
 import { Mailbox, handleMailbox } from './server/mailbox.mjs';
 import { quotePdfFileName, renderNotFoundPdf, renderQuotePdf, renderQuotePrint } from './server/pdf.mjs';
@@ -118,6 +119,11 @@ function appHandler(appKey, ctx) {
       }
     }
     if (appKey === 'shop') {
+      // The inspection lab (page_inspect, L3.3): ambiguous buttons, generated ids, injection text, frames, a long table.
+      if (path === '/inspect-lab') {
+        const html = renderInspectLab({ dialog: url.searchParams.get('dialog') === '1', rows: Number(url.searchParams.get('rows') ?? 0), crossOrigin: ctx.urls.console });
+        return sendText(res, 200, 'text/html; charset=utf-8', html, { 'cache-control': 'no-store' });
+      }
       // The product page's "Shipping estimate" widget, shown in a same-origin iframe (R-ISS-07).
       if (path === '/embed/shipping') {
         let product = null;

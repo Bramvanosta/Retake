@@ -66,6 +66,11 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
     job.input.kind === 'preview'
       ? { id: job.input.preview_id, target: job.input.target.kind === 'component' ? job.input.target.component : 'theme', ...(r?.kind === 'preview' ? { theme: r.theme } : {}) }
       : undefined;
+  // An inspection counts nothing (a dry replay to read a page, not a dry run of the scenario).
+  const inspect =
+    job.input.kind === 'inspect'
+      ? { id: job.input.inspect_id, source: job.input.source.kind, ...(r?.kind === 'inspect' ? { status: r.status, reported: r.reported } : {}) }
+      : undefined;
   const started = job.started_at ? Date.parse(job.started_at) : NaN;
   return {
     ...(job.finished_at ? { at: job.finished_at } : {}),
@@ -80,6 +85,7 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
     ...(review ? { review } : {}),
     ...(exported ? { export: { render: exported.render, formats: exported.formats } } : {}),
     ...(preview ? { preview } : {}),
+    ...(inspect ? { inspect } : {}),
     // A render counts once it wrote its video (the Remotion usage a licence would track); an export, its re-renders.
     counted: run
       ? runCounted(run.mode, run.status)
@@ -419,6 +425,13 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           // Lazy: Remotion is loaded by the first preview. A cancel stops between images.
           const { executePreviewJob } = await import('./preview-job.js');
           const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        case 'inspect': {
+          // Lazy: the review package (sharp) draws the marks; the runner is already loaded.
+          const { executeInspectJob } = await import('./inspect-job.js');
+          const result = await executeInspectJob({ ...base, input: job, progress: onProgress });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;
         }

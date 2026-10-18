@@ -36,6 +36,7 @@ import { approach, settleLatePopup } from './actions/click.js';
 import { menuTriggerFor } from './actions/widgets.js';
 import { navigate } from './actions/pages.js';
 import { RunnerError, StepError, errorMessage, isCancelled } from './errors.js';
+import { INSPECT_PAUSE_CAP_S } from './inspect.js';
 import { Jitter } from './motion.js';
 import { resolveTarget } from './resolve.js';
 import type { Runtime, StepContext } from './runtime.js';
@@ -277,6 +278,8 @@ async function errorFiles(rt: Runtime, scene: string, step: number, e: unknown, 
 }
 
 async function dryScreenshot(rt: Runtime, opts: SceneLoopOptions, scene: string, step: NormalizedStep): Promise<void> {
+  // An inspection's replay takes one picture, of the page it ends on (inspect.ts).
+  if (rt.inspecting) return;
   const file = join(rt.screenshotsDir, `${fileSlug(scene)}-${pad(step.index, 2)}-${step.action}.png`);
   rt.assertSignedIn();
   try {
@@ -408,7 +411,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
         ev.hold = { t_start: ev.t_end, t_end: rt.now() };
       }
     } else if (step.hold !== undefined && step.hold > 0) {
-      await rt.sleep(step.hold * 1000);
+      await rt.pause(step.hold);
       ev.hold = { t_start: ev.t_end, t_end: rt.now() };
     }
     if (parked) ev.data = { ...(ev.data !== null && typeof ev.data === 'object' ? (ev.data as Record<string, unknown>) : {}), park: parked };
@@ -527,7 +530,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
       // A scene never starts on a sign-in page (L1.6).
       rt.assertSignedIn();
       // Scene-start cursor (scene key `cursor`): placed while the page loads, or glided during the still — never a jump.
-      const stillS = scene.still ?? rt.pacing.scene_start_still;
+      const stillS = Math.min(scene.still ?? rt.pacing.scene_start_still, rt.inspecting ? INSPECT_PAUSE_CAP_S : Infinity);
       const placed = await placeSceneCursor(rt, scene, {
         loading: scene.open !== undefined || switched,
         stillMs: stillS * 1000,
@@ -643,7 +646,7 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
     }
     rt.assertSignedIn();
     // Each page's cursor: next to that page's first target (its own steps), never on it.
-    const stillS = scene.still ?? rt.pacing.scene_start_still;
+    const stillS = Math.min(scene.still ?? rt.pacing.scene_start_still, rt.inspecting ? INSPECT_PAUSE_CAP_S : Infinity);
     const glides: Array<{ id: string; glide: () => Promise<void> }> = [];
     const records: Record<string, unknown> = {};
     for (const pg of pages) {

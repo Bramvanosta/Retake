@@ -799,6 +799,29 @@ Cut to keep L3.2 an M:
 - **Value:** A smoother agent loop on long videos, and the last gaps of the render sandbox.
 - **Hard parts:** Lanes need two browsers' worth of memory; WebRTC needs an OS-level sandbox.
 
+### BL-73 — Authoring extras cut from L3.3
+*M · cut in L3.3 · builds on: L3.3, L3.4, L4.4*
+
+Cut to keep L3.3 an M (Claude writes the scenario; no tool calls a model):
+- A held inspection session (inspect, act, inspect again without replaying the scenario): one-shot inspections with
+  `scenario` + `until` replay the prefix each time. A held page would occupy the single worker and drift from any
+  reproducible state; its natural home is L4.4's live-preview input channel. Inline `steps` in page_inspect and hooks
+  during a replay (an approval path) go with it.
+- Landmarks (`main`, `nav`, `aside`…) in the inventory: headings, popups and scroll containers are reported instead.
+- An alternatives list per element (every rung of the target ladder with its live match count): one verified
+  suggestion plus `matches` and `fragile` today; the recorder (L3.4) needs the ladder and can bring the list.
+- `images: clean | both` (the unmarked screenshot inline): `marked | none`; the plain screenshot.png stays on disk.
+- Other script formats for `scenario_from_script`: prose, tables without times, `0:05.5` / `00:00:05` / bare seconds
+  in the time column, several tables (only the first usable one is read), Google Docs or Notion exports, more header
+  languages than English and French.
+- MCP sampling (the server asking the client's model to write steps): Claude Code does not offer it to servers, and
+  it would hide the work from the user; the calling model writes the scenario.
+- A `studio draft` command over the script parser (a human with a table asks Claude), and the `url` of a host
+  `allow_hosts` lists as an inspection source (no page key, so no persona and no sign-in guard).
+
+- **Value:** Faster authoring loops on long flows; better targets on apps with weak accessibility.
+- **Hard parts:** A held session needs a command channel into a running job and its cleanup when the agent forgets it.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

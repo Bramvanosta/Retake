@@ -65,6 +65,8 @@ import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
 import type { ConfirmHook, HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
 import { HOLD_MAX_MS } from './hold.js';
+import { INSPECT_PACING, inspectPage } from './inspect.js';
+import type { InspectContext, InspectRequest } from './inspect.js';
 import { kitConfigFor } from './kit/source.js';
 import { ScreencastRecorder } from './recorder.js';
 import type { FrameIndexEntry } from './recorder.js';
@@ -132,6 +134,13 @@ export interface RunOptions {
    * approvals). Without it such hooks are refused, as before.
    */
   confirmHook?: ConfirmHook;
+  /**
+   * Inspect the page at the end (L3.3, inspect.ts): after the last step (or `until`), or at the step that failed — never
+   * after a sign-in landing. Needs `mode: 'dry'` (the environment's own access, as `run_dry`); hooks are skipped, the
+   * replay runs at INSPECT_PACING without per-step screenshots. With `runsDir` / `runId` the run folder (and the
+   * report's files) go where the caller keeps inspections, out of `runs/`.
+   */
+  inspect?: InspectRequest;
 }
 
 /**
@@ -233,9 +242,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   // is recorded — a refused --allow-writes or an unusable clock fails here, like --until.
   const access = resolveRunAccess(env, { allowWrites: opts.allowWrites === true, project });
   const runClock = resolveClock(sc.clock, project.config.clock, { timezone: projectBrowser(project, opts.browser).timezone });
-  const pacing = mergePacing(project.config.pacing, sc.pacing);
+  if (opts.inspect && mode !== 'dry') throw new RunnerError('an inspection replays the scenario as a dry run (mode: dry)');
+  const pacing = mergePacing(project.config.pacing, sc.pacing, opts.inspect ? INSPECT_PACING : undefined);
   const capture = mergeCapture(project.config.capture, sc.capture);
-  const hooksMode = opts.hooks ?? (mode === 'capture' ? 'run' : 'skip');
+  const hooksMode = opts.inspect ? 'skip' : (opts.hooks ?? (mode === 'capture' ? 'run' : 'skip'));
   let until: { sceneIndex: number; stepIndex: number } | null = null;
   if (opts.until !== undefined) {
     until = resolveStepRef(sc, opts.until);
@@ -355,6 +365,19 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   /** Capture time 0 is set (writes and the like are stamped from then on). */
   let captureStarted = false;
   let writeGuard: WriteGuardOptions | null = null;
+  const inspectContext = (at: InspectContext['at'], failed: StepFailure | null): InspectContext => ({
+    at,
+    persona: (rt?.activeId ? planned?.pages.get(rt.activeId) : null) ?? null,
+    replay: {
+      steps_done: record.steps_done,
+      steps_total: total,
+      until: opts.until ?? null,
+      skipped_irreversible: rt ? rt.timeline.events.filter((e) => e.status === 'dry').length : 0,
+      hooks: record.hooks.setup === 'skipped' || record.hooks.teardown === 'skipped' ? 'skipped' : 'none',
+      failed: failed ? { scene: failed.scene, step: failed.step, action: failed.action } : null,
+    },
+    ...(failed ? { error: secrets.redactText(failed.message) } : {}),
+  });
 
   try {
     throwIfAborted(signal);
@@ -465,6 +488,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       recorder: null,
       cursorHidden: opts.hideCursor === true,
       ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
+      ...(opts.inspect ? { inspecting: true } : {}),
       log,
       guard,
       ...(prepared.length ? { plannedPersonas: plan.pages } : {}),
@@ -545,9 +569,19 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       save: () => void files.saveRecord(),
     });
     rt.assertSignedIn();
+    if (opts.inspect) await inspectNow(opts.inspect, rt, inspectContext(until ? 'until' : 'end', null));
   } catch (e) {
     // A step that failed because its page landed on a sign-in page reports the landing (L1.6).
     failure = guard?.error ?? e;
+    // The step that failed is where an author needs to see the page (never a sign-in landing: nothing of it is kept).
+    if (opts.inspect && rt && failure === e && e instanceof StepFailure) {
+      try {
+        await inspectNow(opts.inspect, rt, inspectContext('failed_step', e));
+      } catch (err) {
+        if (guard?.error) failure = guard.error;
+        else log('warn', `inspection at the failed step: ${errorMessage(err)}`);
+      }
+    }
   } finally {
     endT = clock.now();
     if (failure === null && guard?.error) failure = guard.error;
@@ -753,6 +787,13 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   emit({ type: 'run_end', run: { ...record } });
   await files.close().catch(() => undefined);
   return secrets.redactRecord(record);
+}
+
+/** Inspect the page the run shows and hand the report over (inspect.ts). */
+async function inspectNow(req: InspectRequest, rt: Runtime, ctx: InspectContext): Promise<void> {
+  const { onResult, ...request } = req;
+  const report = await inspectPage(rt, request, ctx);
+  await onResult(report);
 }
 
 /**

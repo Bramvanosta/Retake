@@ -6,7 +6,8 @@
  */
 import { z } from 'zod';
 import { PROJECT_SLUG_RE } from './project.js';
-import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
+import { inspectPathProblem, INSPECT_PATH_MAX } from './inspect.js';
+import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
 
 export const JOB_INPUT_VERSION = 1;
 
@@ -14,8 +15,8 @@ export const JOB_INPUT_VERSION = 1;
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
-/** Kinds of L3.1, and `render`, `review`, `export`, `preview` (L3.2). */
-export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview'] as const;
+/** Kinds of L3.1, `render`, `review`, `export`, `preview` (L3.2), and `inspect` (L3.3). */
+export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /** Who submitted a job (recorded; shapes the safety rules applied at submit). */
@@ -46,6 +47,11 @@ export const RENDER_ID_RE = new RegExp(`^${SLUG_BODY}-v\\d+(?:-vertical|-square)
 export const TEMPLATE_NAME_RE = SLUG_RE;
 /** A preview id, the folder <workspace>/.demo-studio/previews/<id>/: "p_" + 26 Crockford base32 characters. */
 export const PREVIEW_ID_RE = /^p_[0-9A-HJKMNP-TV-Z]{26}$/;
+/** An inspection id, the folder <project>/.demo-studio/inspect/<id>/: "i_" + 26 Crockford base32 characters. */
+export const INSPECT_ID_RE = /^i_[0-9A-HJKMNP-TV-Z]{26}$/;
+/** Targets an inspection checks, at most; elements it lists, at most. */
+export const INSPECT_JOB_TARGETS_MAX = 20;
+export const INSPECT_JOB_LIMIT_MAX = 300;
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
 
@@ -308,6 +314,60 @@ export const PreviewJobInputSchema = z.strictObject({
   submitted_by: z.enum(JOB_CLIENTS),
 });
 
+/**
+ * A target an inspection is given (`within`, `targets`): the scenario language's target, bounded, with no `{{…}}`
+ * template anywhere (no `{{env:}}` / `{{keychain:}}` reaches the page through an inspection).
+ */
+export const InspectTargetSchema = TargetSpecSchema.refine((t) => JSON.stringify(t).length <= 2000, 'a target of at most 2000 characters').refine(
+  (t) => !JSON.stringify(t).includes('{{'),
+  'a target may not contain a {{…}} template',
+);
+
+/** A path opened under an environment page (core inspectPathProblem). */
+const inspectPath = z
+  .string()
+  .max(INSPECT_PATH_MAX)
+  .superRefine((p, ctx) => {
+    const problem = inspectPathProblem(p);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem });
+  });
+
+/**
+ * An inspection (L3.3, R-MCP-23): a dry replay — of a one-scene scenario opening `path` on the environment page `page`,
+ * or of a saved scenario (its bytes' sha256 at submit) up to `until` — then the page it shows inventoried for an author
+ * into <project>/.demo-studio/inspect/<inspect_id>/ (inspect.json, screenshot.png, marked.jpg). Run_dry semantics: the
+ * environment's own access, hooks never run, production read-only. No URL: a URL given to the client is resolved at
+ * submit to a page key and a path of the environment (same origin), and the runner re-checks the page's final origin.
+ */
+export const InspectJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('inspect'),
+  project: projectSlug,
+  inspect_id: z.string().regex(INSPECT_ID_RE, 'an inspection id (i_ followed by 26 characters), never a path'),
+  env: envName.optional(),
+  source: z.discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('page'),
+      page: z.string().max(100).regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, 'an environment page key of project.yaml, never a URL or a path'),
+      path: inspectPath,
+      /** The persona the page is signed in as (`none`: signed out); default the persona whose `pages` list it. */
+      persona: personaName.optional(),
+    }),
+    z.strictObject({
+      kind: z.literal('scenario'),
+      scenario: scenarioName,
+      scenario_sha256: sha256,
+      until: z.string().min(1).max(200).refine((s) => !s.includes('{{'), 'no {{…}} template').optional(),
+    }),
+  ]),
+  within: InspectTargetSchema.optional(),
+  targets: z.array(InspectTargetSchema).max(INSPECT_JOB_TARGETS_MAX).optional(),
+  limit: z.number().int().min(1).max(INSPECT_JOB_LIMIT_MAX).optional(),
+  /** `marked`: a JPEG with a numbered box per listed element in view (marked.jpg); `none`: the plain screenshot only. */
+  images: z.enum(['marked', 'none']),
+  submitted_by: z.enum(JOB_CLIENTS),
+});
+
 export const JobInputSchema = z.discriminatedUnion('kind', [
   RunJobInputSchema,
   HooksJobInputSchema,
@@ -319,6 +379,7 @@ export const JobInputSchema = z.discriminatedUnion('kind', [
   ReviewJobInputSchema,
   ExportJobInputSchema,
   PreviewJobInputSchema,
+  InspectJobInputSchema,
 ]);
 
 export type RunJobInput = z.output<typeof RunJobInputSchema>;
@@ -331,5 +392,6 @@ export type RenderJobInput = z.output<typeof RenderJobInputSchema>;
 export type ReviewJobInput = z.output<typeof ReviewJobInputSchema>;
 export type ExportJobInput = z.output<typeof ExportJobInputSchema>;
 export type PreviewJobInput = z.output<typeof PreviewJobInputSchema>;
+export type InspectJobInput = z.output<typeof InspectJobInputSchema>;
 export type ExportFormatName = (typeof EXPORT_FORMAT_NAMES)[number];
 export type JobInput = z.output<typeof JobInputSchema>;

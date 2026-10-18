@@ -18,7 +18,7 @@ export interface HistoryEntry {
   at: string;
   /** The job's id (a CLI command has none). */
   job?: string;
-  /** A job kind, or `render` / `still` / `export` (the CLI's commands; component previews are not counted). */
+  /** A job kind, or `render` / `still` / `export` / `inspect` (the CLI's commands; previews and inspections count nothing). */
   kind: string;
   project: string;
   submitted_by: JobClient;
@@ -34,6 +34,8 @@ export interface HistoryEntry {
   export?: { render: string; formats: string[] };
   /** A preview job's id and what it showed (a component id, or `theme`); it counts nothing (L3.2). */
   preview?: { id: string; target: string; theme?: string };
+  /** An inspect job's id, its source (a page or a scenario replay) and its outcome; it counts nothing (L3.3). */
+  inspect?: { id: string; source: 'page' | 'scenario'; status?: string; reported?: boolean };
   /** What it produced. */
   counted: { captures: number; dry_runs: number; renders: number };
 }

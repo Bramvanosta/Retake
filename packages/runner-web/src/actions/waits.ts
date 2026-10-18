@@ -39,12 +39,12 @@ async function unmet(ctx: StepContext, c: WaitForArgs & AssertArgs): Promise<str
 }
 
 export async function wait(ctx: StepContext, args: { seconds: number }): Promise<ActionResult> {
-  await ctx.rt.sleep(args.seconds * 1000);
+  await ctx.rt.pause(args.seconds);
   return {};
 }
 
 export async function hold(ctx: StepContext, args: { seconds: number }): Promise<ActionResult> {
-  await ctx.rt.sleep(args.seconds * 1000);
+  await ctx.rt.pause(args.seconds);
   return { hold: true };
 }
 

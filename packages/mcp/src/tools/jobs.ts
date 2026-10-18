@@ -8,14 +8,14 @@ import { CANCEL, READ, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 import { waitJob, waitS } from './run.js';
 
-const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, hooks_run, env_reset or job_list).');
+const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, page_inspect, hooks_run, env_reset or job_list).');
 
 /**
  * Kinds whose error message can quote the filmed product or the scenario (a page's text, a caption, a component's
  * error, ffmpeg on a render's file, a re-render's): outside an `interrupted` job (a message the engine writes), it is
  * shown only under `untrusted.error`.
  */
-const PRODUCT_TEXT_KINDS: ReadonlySet<JobRecord['kind']> = new Set(['run', 'render', 'preview', 'review', 'export']);
+const PRODUCT_TEXT_KINDS: ReadonlySet<JobRecord['kind']> = new Set(['run', 'render', 'preview', 'review', 'export', 'inspect']);
 
 /** Whether `job`'s error message is kept under `untrusted` (never in the summary nor the job's own fields). */
 export function untrustedError(job: JobRecord): boolean {
@@ -63,7 +63,9 @@ export function jobLine(j: JobRecord): string {
           ? `env_reset${i.dry ? ' (dry)' : ''}${on}`
           : i.kind === 'auth_login'
             ? `sign-in of ${i.persona ?? 'the persona'} (${i.mode})${on}`
-            : `${i.kind === 'sandbox_up' ? 'sandbox up' : `sandbox reset${i.reseed ? ' (reseed)' : ''}`}${on}`;
+            : i.kind === 'inspect'
+              ? `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`
+              : `${i.kind === 'sandbox_up' ? 'sandbox up' : `sandbox reset${i.reseed ? ' (reseed)' : ''}`}${on}`;
   const p = j.progress;
   const progress =
     p && j.state === 'running'
@@ -88,7 +90,9 @@ export function jobLine(j: JobRecord): string {
         ? ` · ${r.signed_in ? 'signed in' : `not signed in (${r.status})`}`
         : r.kind === 'hooks' || r.kind === 'env_reset'
           ? ` · ${r.ok ? 'ok' : 'with failures'}`
-          : ` · ${r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed'}`;
+          : r.kind === 'inspect'
+            ? ` · ${r.reported ? `${r.status}${r.counts ? `, ${r.counts.listed} elements listed` : ''}` : `not inspected (replay ${r.run_status})`}`
+            : ` · ${r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed'}`;
   return `${j.id} ${what} in ${j.input.project}: ${j.state}${progress}${result}${j.cancel_requested_at && j.state !== 'cancelled' ? ' (cancel requested)' : ''}`;
 }
 
@@ -120,7 +124,7 @@ export const jobStatus = defineTool({
   name: 'job_status',
   title: 'Status of a job',
   description:
-    'One job: its input, state, progress, place in the queue, result (for a run: the run id and its status — run_status has the details; for hooks and resets: each hook\'s outcome; for a preview: its stills as images) or why it failed. wait_s long-polls until it finishes. A job is "interrupted" when its worker died while it ran: its run stopped where it was and the fix names the environment reset a human runs.',
+    'One job: its input, state, progress, place in the queue, result (for a run: the run id and its status — run_status has the details; for hooks and resets: each hook\'s outcome; for a preview: its stills as images; for an inspection: the page_inspect result with its marked screenshot) or why it failed. wait_s long-polls until it finishes. A job is "interrupted" when its worker died while it ran: its run stopped where it was and the fix names the environment reset a human runs.',
   input: z.strictObject({ job_id: jobId, wait_s: waitS(0, 'the job to finish') }),
   annotations: READ,
   async run({ job_id, wait_s }, ctx) {
@@ -131,6 +135,13 @@ export const jobStatus = defineTool({
       job = await engine.jobs.get(job_id);
     }
     const position = job.state === 'queued' ? await engine.jobs.position(job_id) : undefined;
+    if (job.input.kind === 'inspect') {
+      // An inspection that outlived page_inspect's wait: the same result (marked screenshot included), with the job.
+      const { inspectOutput } = await import('./inspect.js');
+      const out = await inspectOutput(engine, job);
+      const ahead = position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : [];
+      return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...jobData(job), ...(position ? { queue: position } : {}) } }, ...(out.images ? { images: out.images } : {}) };
+    }
     return {
       summary: [
         jobLine(job),

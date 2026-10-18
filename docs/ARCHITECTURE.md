@@ -79,6 +79,8 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 | Projects, scenarios, themes, hooks files, READMEs | workspace (git) | engine, CLI, Claude | through the user's own git remote; **into the Claude conversation** when Claude reads them or a tool returns them (`project_get`, `scenario_get`: a password pasted literally into a file goes with it) |
 | Captures, frames, renders, reviews, exports | workspace, git-ignored | engine, CLI, Claude (paths), player | no, unless the user shares them — but a screenshot or frame **Claude reads** goes into the conversation |
 | Contact sheets, key frames, preview stills returned as images (L3.2) | review/<id>/, `.demo-studio/previews/` | the MCP server (JPEG thumbnails made on read) | **yes, into the Claude conversation**: `review`, `review_get`, `template_preview`, `component_preview` and `job_status` return a few images inline (≤ 4 and 1.5 MB per result by default) — pixels of the filmed product |
+| Page inspections (L3.3) | `<project>/.demo-studio/inspect/<id>/` (git-ignored; inspect.json, screenshot.png, marked.jpg, the replay's log; newest 20 kept) | the worker (writes), engine, Claude through `page_inspect` / `job_status` | **yes, into the Claude conversation**: the marked screenshot as an image (pixels of the filmed page) and the page's text — names, labels, headings, the URL path and title, suggested targets that embed them — under `untrusted` (secrets masked, no field values — not even inside a label or a name —, link queries dropped, the page URL as origin + path); a page that leaves the environment's origins before or while it is inspected gives its host alone An automated sign-in during one refreshes the persona's session in `~/.demo-studio`, as any dry run |
+| Script tables given to `scenario_from_script` (L3.3) | the conversation | the MCP server (parsed in memory) | already in the conversation; the tool writes nothing and calls no model |
 | Render plans and warnings (L3.2) | renders/<id>.json | engine, Claude through `plan_preview` / `render_status` | **yes, into the conversation**: captions, display URLs and page titles they quote (under `untrusted`) |
 | run.json, timeline.json, log.jsonl, job records and events | workspace, git-ignored (`runs/`, `.demo-studio/`) | engine, CLI, Claude through MCP tools | **yes, to the model provider when a tool returns them**: summaries, step error messages, page titles, DOM excerpts and page text of the filmed product (secrets masked; kept under `untrusted`) |
 | Persona profiles and storage states | `~/.demo-studio` (0700), never in the workspace or a job | the worker's and the CLI's Chromium | no (no tool returns a path, a cookie or a session; `auth_status` gives a state) |
@@ -91,7 +93,8 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
    tool returns — summaries, logs, step error messages, page text, and the screenshots or DOM snapshots Claude then
    reads from the paths it was given — becomes part of the Claude conversation, i.e. goes to the model provider.
    Tool outputs are kept minimal (paths and summaries; L3.2 adds a few inline images: contact sheets and preview stills,
-   capped per result). The README says so where MCP is set up.
+   capped per result; L3.3 adds one marked screenshot per page inspection and the inspected page's text, under
+   `untrusted`). The README says so where MCP is set up.
 
 ## ADR-2 — Flat files are the source of truth (2026-10-12)
 

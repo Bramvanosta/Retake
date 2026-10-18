@@ -25,6 +25,8 @@ export * from './writes.js';
 export * from './clock.js';
 export * from './hook-writes.js';
 export * from './agent-trust.js';
+export * from './inspect.js';
+export * from './script-draft.js';
 export { maskSql } from './sql-text.js';
 export { isoDay, parseDay } from './dates.js';
 export { didYouMean, editDistance, suggestion } from './validation/suggest.js';

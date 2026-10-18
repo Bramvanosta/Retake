@@ -256,6 +256,44 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(record.capture).toBeUndefined();
   });
 
+  it('inspect --json: the report of a page (elements with verified targets, a marked screenshot), out of runs/', async () => {
+    const runs = async () => (existsSync(join(ws, 'projects', 'e2e', 'runs')) ? readdir(join(ws, 'projects', 'e2e', 'runs')) : []);
+    const runsBefore = await runs();
+    const r = await studio('inspect', 'e2e', 'shop', '--path', '/inspect-lab', '--json', '--target', '{role: button, name: Publish}');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    const report = JSON.parse(r.out) as { status: string; file: string; marked: string; elements: Array<{ verified: boolean; untrusted: { target_yaml: string | null } }>; targets_checked: Array<{ count: number }> };
+    expect(report.status).toBe('ok');
+    expect(report.file.startsWith(join(ws, 'projects', 'e2e', '.demo-studio', 'inspect'))).toBe(true);
+    expect(existsSync(report.marked)).toBe(true);
+    expect(report.elements.filter((e) => e.verified && e.untrusted.target_yaml).length).toBeGreaterThan(15);
+    expect(report.targets_checked.map((t) => t.count)).toEqual([1]);
+    expect(await runs()).toEqual(runsBefore);
+  });
+
+  it('inspect a scenario up to a step: the open dialog first, as a table; an unknown page or scenario is a usage error', async () => {
+    const r = await studio('inspect', 'e2e', 'short', '--until', 'import.1', '--images', 'none');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    expect(r.err).toMatch(/dialog open/);
+    expect(r.err.split('\n').find((l) => /^\s+1\s/.test(l))).toMatch(/in dialog/);
+    const bad = await studio('inspect', 'e2e', 'nowhere');
+    expect(bad.code).toBe(EXIT.usage);
+    expect(bad.err).toMatch(/neither a page of environment local \(console, shop\) nor a scenario of e2e \([^)]*\bshort\b/);
+    const until = await studio('inspect', 'e2e', 'shop', '--until', 'import.1');
+    expect(until.code).toBe(EXIT.usage);
+    expect(until.err).toMatch(/"shop" is a page of environment local: --until goes with a scenario/);
+    const persona = await studio('inspect', 'e2e', 'shop', '--persona', 'nobody');
+    expect(persona.code).not.toBe(EXIT.ok);
+    expect(persona.err).toMatch(/cannot inspect page shop: persona: unknown persona "nobody"/);
+    // No position inside the scenario the command builds (it is never shown).
+    expect(persona.err).not.toMatch(/\d+:\d+/);
+  });
+
+  it('inspect a page under an open dialog: what the dialog covers is said so (and left unmarked)', async () => {
+    const r = await studio('inspect', 'e2e', 'shop', '--path', '/inspect-lab?dialog=1');
+    expect(r.code, r.err).toBe(EXIT.ok);
+    expect(r.err).toMatch(/covered \(not marked\)/);
+  });
+
   it('run --raw --json: JSON lines only — the RunProgress events, then one raw_export line with the manifest', async () => {
     const out = join(ws, 'raw-pkg');
     const r = await studio('run', 'e2e', 'short', '--raw', '--cursor', 'none', '--json', '--out', out);

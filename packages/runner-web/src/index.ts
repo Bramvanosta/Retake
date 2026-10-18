@@ -4,6 +4,8 @@
  */
 export { motionWarnings, runScenario } from './run.js';
 export type { RunOptions } from './run.js';
+export { INSPECT_BUDGET_MS, INSPECT_LIMIT, INSPECT_LIMIT_MAX, INSPECT_PACING, INSPECT_PAUSE_CAP_S, INSPECT_TARGETS_MAX, inspectElement, inspectPage } from './inspect.js';
+export type { InspectContext, InspectElement, InspectReport, InspectRequest, InspectStepHint, InspectTargetCheck } from './inspect.js';
 export type { ConfirmHook, HookApprovalRequestLike } from './hooks-bridge.js';
 export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './session.js';
 export type { RealmSpec, SessionOptions, StorageStateFile } from './session.js';

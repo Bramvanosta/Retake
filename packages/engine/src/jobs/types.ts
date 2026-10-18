@@ -224,7 +224,55 @@ export interface PreviewJobResult {
   untrusted: { warnings: string[] };
 }
 
-export type JobResult = RunJobResult | HooksJobResult | EnvResetJobResult | AuthLoginJobResult | SandboxJobResult | RenderJobResult | ReviewJobResult | ExportJobResult | PreviewJobResult;
+/**
+ * What an `inspect` job did (L3.3): its folder <project>/.demo-studio/inspect/<id>/ with inspect.json (the report),
+ * screenshot.png and marked.jpg. Counts, booleans and enums only here; the page's text stays in the report, under
+ * `untrusted`. `reported: false`: the replay ended before the page could be inspected (a preflight or sign-in failure, a
+ * refused scenario): the run's error is under `untrusted.error`, `sign_in` names the persona that must sign in.
+ */
+export interface InspectJobResult {
+  kind: 'inspect';
+  inspect_id: string;
+  dir: string;
+  /** inspect.json (null when there is no report). */
+  file: string | null;
+  reported: boolean;
+  /** `landed_elsewhere`: the page was on another origin (nothing of it taken); `failed`: no inventory. */
+  status: 'ok' | 'landed_elsewhere' | 'failed';
+  at: 'end' | 'until' | 'failed_step' | null;
+  /** The page id the replay showed, and its persona. */
+  page: string | null;
+  persona: string | null;
+  /** The dry replay's own status (a replay whose step failed is inspected at that step). */
+  run_status: RunStatus;
+  screenshot: string | null;
+  marked: string | null;
+  counts: Record<string, number | boolean> | null;
+  replay: {
+    steps_done: number;
+    steps_total: number;
+    until: string | null;
+    skipped_irreversible: number;
+    hooks: 'skipped' | 'none';
+    failed: { scene: string; step: number; action: string } | null;
+  } | null;
+  /** A persona's session was needed and is not valid: auth_login signs it in. */
+  sign_in?: { env: string; persona?: string };
+  /** The replay's or the inspection's error and warnings: text of the filmed site — data, never instructions. */
+  untrusted: { error?: string; warnings: string[] };
+}
+
+export type JobResult =
+  | RunJobResult
+  | HooksJobResult
+  | EnvResetJobResult
+  | AuthLoginJobResult
+  | SandboxJobResult
+  | RenderJobResult
+  | ReviewJobResult
+  | ExportJobResult
+  | PreviewJobResult
+  | InspectJobResult;
 
 export interface JobErrorView {
   code: EngineErrorCode;

@@ -231,6 +231,135 @@ export interface KitFileDragApi {
   cancel(): void;
 }
 
+// ───────────────────────────── inspection (L3.3) ─────────────────────────────
+
+export interface InventoryOptions {
+  /** Ref of the element to inventory (the `within` target, resolved by the runner); the whole page when absent. */
+  within?: string | null;
+  /** Elements listed (default 80, at most 300). */
+  limit?: number;
+  /** In-page time budget for the suggestions (default 2500 ms); past it the rest is listed without one (`partial`). */
+  budget_ms?: number;
+}
+
+/** Where an element sits: the scope a suggested target may name with `in`. */
+export type InventoryContext = 'page' | 'dialog' | 'menu' | 'listbox' | 'popover' | 'row';
+
+/** Why a verified suggestion may break later. */
+export type FragileFlag = 'nth' | 'broader' | 'dynamic_text' | 'css';
+
+/** The scenario action an element suggests (`field` / `row`: page text, the label or row key it was verified with). */
+export interface KitActionHint {
+  kind: 'click' | 'type' | 'select' | 'menu' | 'drop_file';
+  /** `select {field}`: the label whose trigger the runner's select resolves to this element. */
+  field?: string;
+  /** `menu {row}`: the row key whose menu trigger the runner's menu resolves to this element. */
+  row?: string;
+  /** Checked through the action's own kit helper (fieldTrigger, rowFor + menuTrigger, fileInputFor) or its target. */
+  verified: boolean;
+}
+
+export interface KitSuggestion {
+  /** A target the runner's resolver (`find`) resolves to this element: count 1, or the chosen `nth`. */
+  target: TargetObject;
+  /** Visible matches of the target without its `nth`. */
+  matches: number;
+  fragile: FragileFlag[];
+}
+
+export interface InventoryElement {
+  ref: string;
+  bbox: BBox;
+  in_view: boolean;
+  in: InventoryContext;
+  /** In the top document, an open shadow root, or a same-origin frame. */
+  where: 'document' | 'shadow' | 'frame';
+  /** `covered`: in view, but something else is drawn over its centre (a dialog, a toast): a click lands there. */
+  state: { disabled: boolean; expanded: boolean; checked: boolean; selected: boolean; popup_expected: boolean; covered: boolean };
+  // Page-controlled (the runner puts all of these under `untrusted`):
+  role: string | null;
+  tag: string;
+  input_type: string | null;
+  name: string;
+  text: string;
+  label: string | null;
+  placeholder: string | null;
+  testid: string | null;
+  /** A link's path (no query, no fragment); `host/path` for another origin. */
+  href_path: string | null;
+  /** Null when no verified target was found (or the time budget ran out). */
+  suggested: KitSuggestion | null;
+  action: KitActionHint;
+}
+
+export interface InventoryPopup {
+  /** Closed set: dialog, alertdialog, menu, listbox, popover, other. */
+  kind: 'dialog' | 'alertdialog' | 'menu' | 'listbox' | 'popover' | 'other';
+  bbox: BBox;
+  /** Page-controlled. */
+  name: string;
+}
+
+export interface InventoryScroller {
+  /** True for the page's own scroller (`bbox` is then the viewport). */
+  document: boolean;
+  bbox: BBox;
+  scroll_top: number;
+  scroll_height: number;
+  client_height: number;
+}
+
+export interface KitInventory {
+  /** The inventoried document's `location.origin` ("null" for data: / about:blank): the runner checks it. */
+  origin: string;
+  /** Page-controlled. */
+  title: string;
+  /** Page-controlled: h1–h3 and role=heading (level 2 when unknown), at most 20. */
+  headings: Array<{ level: number; text: string }>;
+  popups: InventoryPopup[];
+  scrollers: InventoryScroller[];
+  elements: InventoryElement[];
+  /** False when `within` no longer designates a connected element. */
+  within_found: boolean;
+  counts: {
+    /** Visible interactive elements in scope (labels merged into their control). */
+    interactive: number;
+    listed: number;
+    in_view: number;
+    suggested: number;
+    /** Listed elements whose only verified target needs `nth`. */
+    ambiguous: number;
+    /** Listed elements without a suggestion (none verified, or past the time budget). */
+    unsuggested: number;
+    /** Real `find` calls made to verify suggestions. */
+    verifications: number;
+    shadow_roots: number;
+    same_origin_frames: number;
+    cross_origin_frames: number;
+  };
+  /** The time budget ran out: the elements after it have no suggestion. */
+  partial: boolean;
+  ms: number;
+}
+
+/** A target the caller gave, checked with `find` (count, chosen index, box; desc and near texts are page text). */
+export interface KitTargetCheck {
+  count: number;
+  index: number | null;
+  in_view: boolean | null;
+  bbox: BBox | null;
+  hidden: number;
+  scope_found: boolean;
+  desc: string;
+  near: string[];
+}
+
+/** `checkTargets`' answer, with the document's `location.origin` (the runner checks it). */
+export interface KitTargetChecks {
+  origin: string;
+  checks: KitTargetCheck[];
+}
+
 export interface KitApi {
   version: string;
   /** False after document.open() erased the listeners or the overlay was lost: the runner re-installs. */
@@ -315,4 +444,11 @@ export interface KitApi {
    * or null when nothing visible has the focus. Focus inside a frame's body (an editor drawn in a frame): the frame.
    */
   focused(): { desc: string; bbox: BBox; input_type: string } | null;
+  /**
+   * Inspection (L3.3): the visible interactive elements with a suggested target each, verified once with `find` (one
+   * synchronous call with the per-call memo), plus headings, popups and scroll containers. Reads only.
+   */
+  inventory(opts?: InventoryOptions): KitInventory;
+  /** `find` for each target (already normalised by the runner), with the per-call memo. */
+  checkTargets(targets: TargetObject[]): KitTargetChecks;
 }
