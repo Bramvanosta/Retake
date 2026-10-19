@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCurrentFrame } from 'remotion';
-import { Background, FitText, cssFontFamily, darkLight, fadeIn, progress, rise, withAlpha } from '@demo-studio/components/kit';
+import { Background, FitText, cssFontFamily, darkLight, fadeIn, progress, rise, useCurrentFrame, withAlpha } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { tone: 'dark' | 'paper'; dim: number };

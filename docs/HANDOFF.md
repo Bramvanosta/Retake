@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-19, end of lot **L3.6 (frame comments API)** — phases 1 and 2 are done, phase 3 is under way.
-**Next: L3.7 (Claude skills + plugin packaging), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-20, end of lot **L3.7 (Claude skills + plugin packaging)** — phases 1 and 2 are done, phase 3
+is under way. **Next: L3.8 (phase 3 acceptance) — the user asked to chain it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -23,12 +23,19 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-76); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-78); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.6)
+## State (after L3.7)
+- **L3.7 done (2026-10-20)**: three Claude skills (`skills/demo-studio-scenario`, `demo-studio-theme`,
+  `demo-studio-component`) packaged as a Claude Code plugin with the MCP server (`skills/.claude-plugin/plugin.json`,
+  `skills/.mcp.json`, local marketplace `.claude-plugin/marketplace.json`); `mcp --print-config` prints the two install
+  lines (`--scope local`, values: node, studio, workspace, home). Every skill opens by checking `engine_info`'s root and
+  never runs the `studio` CLI through the shell. Component scaffolds import renderer primitives through the kit. Tests
+  on the Mac: **2445 — 2403 pass, 42 skipped (≈ 12 min)**; `pnpm test:slow` 36/36. Requirements: 619 tracked — 543
+  done, 17 partial, 51 todo, 8 n/a-here. Live check for the user: MACOS-CHECKLIST 12i.
 - **L3.6 done (2026-10-19)**: frame comments. A person comments a frame of a render (`studio comment add --at |
   --frame | --marker [--region]`); the thread is anchored to the edit (segment, scene, step and its fingerprint,
   marker, overlays, caption / screen / brand-mark area) with a still of the frame; Claude reads them over MCP
@@ -174,7 +181,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.7 — Claude skills (scenario, theme, component) + plugin packaging** — the user asked to chain it after L3.6. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.8 — Phase 3 acceptance (Claude drives the whole loop through MCP)** — the user asked to chain it after L3.7. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -964,6 +971,18 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   `tools/comments.ts`. Acceptance in `test:slow` (fixture-acceptance): CLI comment at the `proposal` marker → MCP
   list with anchor and still → reply → motion re-render → resolve. Cuts and limits: BL-76. 2355 tests: 2316 pass, 39
   skipped; test:slow 23/23. No new dependency.
+- **L3.7 done** (Claude skills + plugin packaging; R-SKL-01/02/03 done, R-DEC-05 partial until 12i). Planned, criticised
+  with a scratch Claude Code config (`${user_config.*}` expands in a plugin `.mcp.json` on 2.1.267; a user-scope install
+  would put 44 tools in every session — `--scope local` is the default; the plugin's `home` overrides an inherited
+  DEMO_STUDIO_HOME; 7 scaffolds imported remotion), built in three parts (kit re-export + scaffolds; plugin +
+  registration + PATH; skills + lint + docs), reviewed (the CLI rule still allowed `studio run` in the shell before any
+  refusal; the lint read one sentence; load-time `!` commands; two local installs share one set of values; workspace
+  folders on the serving PATH…) and fixed with mutation-checked tests. Files: `skills/` (3 skills + 2 references,
+  plugin manifest, `.mcp.json`, README), `.claude-plugin/marketplace.json`, components `kit/renderer.ts`, mcp
+  `config-snippet.ts` (`clientPath` absolute and outside the workspace, plugin install lines), `engine_info`
+  `started_in`, compile scan refuses `random()` without a seed; tests `mcp/test/skill-lint.ts` + `skills.test.ts` (73,
+  every tool call checked against the tool schemas) and `plugin.test.ts` (3 gated on the `claude` CLI). Cuts: BL-77.
+  2445 tests: 2403 pass, 42 skipped; test:slow 36/36. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1193,6 +1212,16 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.7:
+- A lot that changes a loop, a tool argument or a CLI flag must update the skills: `skills.test.ts` fails until it does.
+  The lint proves names, arguments, commands, links, examples and wording rules — not that Claude follows them.
+- The plugin's values (`node`, `studio`, `workspace`, `home`) are per user even with `--scope local`: one workspace at a
+  time (reinstall to switch); the skills stop when `engine_info`'s root is not the session's folder. `--plugin-dir
+  skills` loads the skills without the MCP server.
+- `studio mcp` keeps only absolute PATH entries outside the workspace, and completes PATH with Homebrew / system folders
+  when serving. The gated `claude` tests use a scratch CLAUDE_CONFIG_DIR (`DEMO_STUDIO_TEST_CLAUDE=1` or test:slow).
+- The Remotion licence question (BACKLOG open decisions) stays parked: it matters before selling, not for own use.
+
 Notes from L3.6:
 - Threads `<project>/comments/<scenario>/c_<ULID>.json` (ignored in this repository: `projects/*/comments/`), written
   only through the engine store under `<project>/.demo-studio/locks/comment-<id>.lock` (TakeLock: busy retried 3 s,

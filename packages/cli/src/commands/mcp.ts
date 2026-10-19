@@ -50,12 +50,23 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
     const input = { root, bin: studioBin() };
     ui.result(JSON.stringify(mcp.mcpConfigJson(input), null, 2));
     ui.line('');
-    ui.line('Claude Code, for every project of this user (or put the JSON above in .mcp.json at the workspace root):');
+    const repo = mcp.pluginMarketplaceRoot(input.bin);
+    const either = repo ? 'Either Claude Code with the server alone' : 'Claude Code';
+    ui.line(`${either}, for every project of this user (or put the JSON above in .mcp.json at the workspace root):`);
     ui.line(`  ${mcp.claudeCodeCommand(input)}`);
+    if (repo) {
+      ui.line(`Or the Claude Code plugin (the Demo Studio skills and this server), enabled in this workspace folder only — not both, or Claude Code gets two ${mcp.SERVER_NAME} servers:`);
+      for (const l of mcp.pluginInstallCommands({ ...input, repo })) ui.line(`  ${l}`);
+      ui.line(`  (run the install line again to change a value; skills edited in ${join(repo, 'skills')} load at the next session. claude --plugin-dir is for editing the skills: it loads them without this server's values.)`);
+    }
     ui.line("Claude desktop: the JSON above in ~/Library/Application Support/Claude/claude_desktop_config.json, then restart it.");
-    ui.line('Secrets that {{env:…}} references need go in "env" (or the keychain): a GUI client does not read your shell profile.');
+    ui.line('Secrets that {{env:…}} references need go in "env" (or the keychain): a GUI client does not read your shell profile. The plugin carries none: use the keychain, or the registration above.');
     return EXIT.ok;
   }
+  // A client may start the server with a bare PATH (Claude desktop, a plugin): complete it like a registration's, absolute
+  // entries only and none inside the workspace (the cwd is the client's project folder, the agent writes files in the
+  // workspace), so the server and the jobs worker it starts find ffmpeg & co., never a program the agent wrote.
+  process.env.PATH = mcp.clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   await mcp.startMcpServer({ root, log: (m) => ui.line(m) });
   return EXIT.ok;
 }

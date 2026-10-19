@@ -1,0 +1,11 @@
+{
+ "mcpServers": {
+  "demo-studio": {
+   "command": "${user_config.node}",
+   "args": ["${user_config.studio}", "--root", "${user_config.workspace}", "mcp"],
+   "env": {
+    "DEMO_STUDIO_HOME": "${user_config.home}"
+   }
+  }
+ }
+}

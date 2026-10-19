@@ -174,8 +174,8 @@ studio components new acme/launch-intro --kind intro --description "Our launch i
 
 ```tsx
 // components/acme/launch-intro/index.tsx
-import { AbsoluteFill, interpolate, spring, useCurrentFrame } from 'remotion';
-import { Logo, backgroundCss } from '@demo-studio/components/kit';
+import { interpolate, spring } from 'remotion';
+import { AbsoluteFill, Logo, backgroundCss, useCurrentFrame } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 export default function LaunchIntro({ theme, slots, unit, fps }: ComponentProps<{ accent_ring: boolean }>) {
@@ -194,8 +194,10 @@ export default function LaunchIntro({ theme, slots, unit, fps }: ComponentProps<
 ```
 
 Rules (checked by `studio components validate`): import only `react`, `remotion` and `@demo-studio/components/kit` (and
-your own files); read colours, fonts, logo from `props.theme`; size everything with `props.unit`; animate from
-`useCurrentFrame()` — no `Math.random`, `Date`, `fetch` or timers. Then:
+your own files) — the renderer primitives (`useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`,
+`random`) come from the kit, `remotion` only for the rest (`interpolate`, `spring`…); read colours, fonts, logo from
+`props.theme`; size everything with `props.unit`; animate from `useCurrentFrame()` — no `Math.random` (use the kit's
+`random(seed)`), `Date`, `fetch` or timers. Then:
 
 ```yaml
 intro: {component: acme/launch-intro}                    # in a scenario

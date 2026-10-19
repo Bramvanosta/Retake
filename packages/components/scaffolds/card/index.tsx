@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { Background, FitText, cssFontFamily, rise, stagger } from '@demo-studio/components/kit';
+import { Background, FitText, cssFontFamily, rise, stagger, useCurrentFrame } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { align: 'center' | 'left' };

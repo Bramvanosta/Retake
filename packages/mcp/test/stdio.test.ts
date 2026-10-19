@@ -5,7 +5,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -140,6 +140,9 @@ describe('studio mcp over stdio', () => {
     const info = await call('engine_info');
     expect(info.structuredContent).toMatchObject({ root: ws, client: 'mcp', api: 1 });
     expect(info.content[0].text).toContain(ws);
+    // started in the repository (this test's cwd), outside the workspace: said, so a skill can stop (review M3)
+    expect(info.structuredContent).toMatchObject({ started_in: resolve(REPO), started_outside_workspace: true });
+    expect(info.content[0].text).toContain(`Started in ${resolve(REPO)}, outside the workspace`);
     const list = await call('project_list');
     expect(list.content[0].text).toContain('northfield-fixture');
     expect((list.structuredContent as { projects: Array<{ slug: string }> }).projects.map((p) => p.slug)).toEqual(['northfield-fixture']);

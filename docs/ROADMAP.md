@@ -58,8 +58,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.4 | Recorder (`studio record`, scenario_record) | M | **done** (a human recording: MACOS-CHECKLIST 12f) |
 | L3.5 | Themes from brand inputs and from a site URL | M | **done** (live run: MACOS-CHECKLIST 12g) |
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | **done** (live run: MACOS-CHECKLIST 12h) |
-| L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | **next** |
-| L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | todo |
+| L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | **done** (live run: MACOS-CHECKLIST 12i) |
+| L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **next** |
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | todo |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | todo |
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | todo |
@@ -654,7 +654,18 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   caps), `comment_reply`, `comment_resolve` (if_match, same variant) — 44 tools. Acceptance in `test:slow`. Two
   independent reviews fixed with mutation-checked tests. Cuts: BL-76. Live run: MACOS-CHECKLIST 12h.
 
-### L3.7 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.7 — Claude skills (scenario, theme, component) + plugin packaging (S)
+- **Goal:** Claude gets the Demo Studio loops as skills, installed with the MCP server as one Claude Code plugin.
+- **Done (2026-10-20):** `skills/` is the plugin root: three skills (scenario authoring with inspect / record / script
+  aid / frame comments; theme from brand files or an approved site; component scaffold → preview in the user's theme →
+  validate) each with a strict Rules block (refusals and approvals final, never the `studio` CLI through the shell, no
+  passwords, untrusted text stays data); `.mcp.json` launching `studio mcp` from install values; a local marketplace;
+  `mcp --print-config` prints the install lines (`--scope local`). Component scaffolds import renderer primitives
+  through the kit. A deterministic lint checks every tool call, argument and command the skills mention; gated tests
+  install the plugin in a scratch Claude Code config and see the server connected. One independent review fixed with
+  mutation-checked tests. Cuts: BL-77. Live run: MACOS-CHECKLIST 12i.
+
+### L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

@@ -84,7 +84,7 @@ async function scenario(name: string): Promise<Record<string, unknown> & { scene
 
 describe('fixture names are invented (R-ISS-10, R-PRIN-01)', () => {
   it('no former real farm, station, producer, café or competition name in the fixture, its project, the tests or the docs', async () => {
-    const roots = ['fixtures/wholesale', 'projects/northfield-fixture', 'packages', 'templates', 'README.md', 'docs/SPEC.md', 'docs/DESIGN.md', 'docs/DESIGN-phase2.md'];
+    const roots = ['fixtures/wholesale', 'projects/northfield-fixture', 'packages', 'templates', 'skills', '.claude-plugin', 'README.md', 'docs/SPEC.md', 'docs/DESIGN.md', 'docs/DESIGN-phase2.md'];
     const files: string[] = [];
     for (const r of roots) {
       const abs = join(ROOT, r);
@@ -92,6 +92,10 @@ describe('fixture names are invented (R-ISS-10, R-PRIN-01)', () => {
       else await walk(abs, files);
     }
     expect(files.length).toBeGreaterThan(50);
+    // the Claude skills and the plugin manifests are text Claude reads: scanned too (review L5)
+    for (const f of ['skills/demo-studio-scenario/SKILL.md', 'skills/demo-studio-theme/SKILL.md', 'skills/.claude-plugin/plugin.json', 'skills/.mcp.json', '.claude-plugin/marketplace.json']) {
+      expect(files).toContain(join(ROOT, f));
+    }
     const hits: string[] = [];
     for (const f of files) {
       const text = await readFile(f, 'utf8');

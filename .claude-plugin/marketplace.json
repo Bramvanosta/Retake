@@ -1,0 +1,14 @@
+{
+ "name": "demo-studio",
+ "owner": {
+  "name": "Demo Studio"
+ },
+ "description": "Demo Studio from this repository: one plugin with the Claude skills and the MCP server.",
+ "plugins": [
+  {
+   "name": "demo-studio",
+   "source": "./skills",
+   "description": "Claude skills for authoring scenarios, themes and components with Demo Studio, and the Demo Studio MCP server."
+  }
+ ]
+}

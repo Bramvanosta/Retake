@@ -3,8 +3,8 @@
  * colour / font / logo from props.theme, size everything with props.unit and are deterministic. They are rendered
  * here with react-dom/server (remotion's frame hook mocked) and typechecked against the kit.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { createElement } from 'react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
@@ -12,7 +12,7 @@ import ts from 'typescript';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { COMPONENT_KINDS } from '@demo-studio/core';
 import type { ComponentKind } from '@demo-studio/core';
-import { PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir } from '@demo-studio/components';
+import { KIT_MODULE, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@demo-studio/components';
 import type { ComponentManifest, ComponentProps, ThemeTokens } from '@demo-studio/components';
 import { DARK, LIGHT } from './helpers.js';
 
@@ -197,6 +197,36 @@ describe('scaffold behaviour', () => {
     expect(html).toContain('<img src="last.png"/>');
     expect(html).toContain('A few days later');
     expect(render('interstitial', { params: { tone: 'paper' } })).toContain(`color:${LIGHT.colors.text}`);
+  });
+});
+
+/** Every module specifier of a source (static, side-effect, type-only, dynamic and re-export forms), comments ignored. */
+function moduleSpecifiers(src: string): string[] {
+  const text = stripComments(src);
+  const out: string[] = [];
+  for (const re of [/\b(?:import|export)\b[^'"`;]*?\bfrom\s*(['"])([^'"\n]+)\1/g, /\bimport\s*\(?\s*(['"])([^'"\n]+)\1/g, /\brequire\s*\(\s*(['"])([^'"\n]+)\1/g]) {
+    for (const m of text.matchAll(re)) out.push(m[2]);
+  }
+  return out;
+}
+
+describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer stays replaceable)', () => {
+  it('no scaffold file imports remotion (or anything but react and the kit): renderer primitives come from the kit', () => {
+    expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual([
+      'remotion',
+      'remotion',
+      'z',
+    ]);
+    for (const kind of COMPONENT_KINDS) {
+      const dir = scaffoldDir(kind);
+      const files = readdirSync(dir).filter((f) => ['.ts', '.tsx', '.js', '.jsx', '.mjs'].includes(extname(f)));
+      expect(files, kind).toContain('index.tsx');
+      for (const file of files) {
+        const specs = moduleSpecifiers(readFileSync(join(dir, file), 'utf8'));
+        expect(specs.length, `${kind}/${file}`).toBeGreaterThan(0);
+        expect(specs.filter((s) => s !== 'react' && s !== KIT_MODULE), `${kind}/${file}`).toEqual([]);
+      }
+    }
   });
 });
 

@@ -22,7 +22,9 @@ Every visual element is a component (SPEC §11). Nothing visual is hard-coded in
 Rules for implementations: read every colour/font/logo from `props.theme`; size everything with `props.unit`;
 deterministic (no Math.random/Date); no network; may import only `react`, `remotion` and
 `@demo-studio/components/kit` (shared helpers: fades/rises/stagger, easing presets, fitText, Logo, Wordmark,
-background renderer, safe-area helpers). Text slots must never overflow: fitText shrinks within bounds.
+background renderer, safe-area helpers; L3.7: also the renderer primitives `useCurrentFrame`, `useVideoConfig`, `Img`,
+`AbsoluteFill`, `Sequence`, `random`, re-exported from remotion in `kit/renderer.ts`, which the scaffolds import instead
+of `remotion`). Text slots must never overflow: fitText shrinks within bounds.
 
 ### 1.2 Built-in library (`packages/components/library/studio/*`), theme-agnostic
 | id | kind | notes |
@@ -180,8 +182,8 @@ per param value (does not scale to numbers). Contract:
   (width − 340) and the brand mark rect the card's right 320 px: width 1560 at 16:9 → card {180, 40, 1560 × 878},
   caption {180, 930, 1220 × 110}, brand mark {1420, 965, 320 × 40} (look.md); width 1400 → {260, 85, 1400 × 788}.
 
-`packages/components/scaffolds/<kind>/` are valid, theme-driven components (`scaffolds/<kind>` ids) used by
-`createComponent` and, as stand-ins, by the render pipeline until the library lands. Props added for kinds that need
+`packages/components/scaffolds/<kind>/` are valid, theme-driven components (`scaffolds/<kind>` ids; L3.7: they import
+only `react` and the kit) used by `createComponent` and, as stand-ins, by the render pipeline until the library lands. Props added for kinds that need
 them: `area` (caption: the layout's caption rect), `anchor` (overlay: target box in output px), `direction`
 (transition: `exiting` around the outgoing segment, `entering` around the incoming one, drawn on top; `screen` = the
 wrapped segment). The kit (`@demo-studio/components/kit`) is documented in the README, section "Components".

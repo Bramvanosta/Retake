@@ -36,9 +36,9 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~13 min on the Mac; run `pnpm build` first; 39 skip by default: 7 Postgres, 7 Docker, 23 slow, 1 old Node, 1 headed)
+pnpm test                            # = vitest run, full suite (~13 min on the Mac; run `pnpm build` first; 42 skip by default: 7 Postgres, 7 Docker, 23 slow, 3 Claude CLI, 1 old Node, 1 headed)
 pnpm test:pg                         # the 7 Postgres tests on a throwaway demo-studio-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
-pnpm test:slow                       # catalogue capture + MCP loops on the fixture, theme acceptance (~10 min)
+pnpm test:slow                       # catalogue capture + MCP loops on the fixture, theme acceptance, plugin (~7–10 min)
 DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file
 node fixtures/wholesale/server.mjs & # fixture product (console :4401, shop :4402; signed in: :4403, :4404); stop it with kill <its pid>
@@ -62,7 +62,7 @@ node packages/cli/dist/bin.js mcp --print-config               # MCP server regi
   (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report · `packages/cli` the `studio`
   command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
   scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker · `packages/mcp` the MCP
-  server (`studio mcp`, stdio, SDK imported only in `src/server.ts`).
+  server (`studio mcp`, stdio, SDK imported only in `src/server.ts`) · `skills/` the Claude skills and plugin root.
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

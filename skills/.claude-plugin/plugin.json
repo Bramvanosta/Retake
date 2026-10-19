@@ -1,0 +1,35 @@
+{
+ "name": "demo-studio",
+ "version": "0.1.0",
+ "description": "Claude skills for authoring scenarios, themes and components with Demo Studio, and the Demo Studio MCP server on one workspace.",
+ "author": {
+  "name": "Demo Studio"
+ },
+ "skills": "./",
+ "userConfig": {
+  "node": {
+   "type": "file",
+   "title": "Node.js 22 or later",
+   "description": "Absolute path of the node binary that runs the server (studio mcp --print-config prints one).",
+   "required": true
+  },
+  "studio": {
+   "type": "file",
+   "title": "Demo Studio entry point",
+   "description": "Absolute path of packages/cli/dist/bin.js in the Demo Studio repository (built with pnpm build).",
+   "required": true
+  },
+  "workspace": {
+   "type": "directory",
+   "title": "Workspace",
+   "description": "Absolute path of the workspace folder the server works on (its studio.yaml or projects/ folder).",
+   "required": true
+  },
+  "home": {
+   "type": "directory",
+   "title": "Studio home (optional)",
+   "description": "Absolute path of the studio home (signed-in profiles, approval key). Empty: ~/.demo-studio.",
+   "default": ""
+  }
+ }
+}

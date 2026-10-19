@@ -1,9 +1,11 @@
 /**
  * @demo-studio/components/kit — the helpers components may import (with react and remotion).
  *
- * Pure helpers (easing, frame-driven motion, text fitting, CSS from theme tokens) and React elements (Background,
- * Logo, Wordmark, SafeArea, FitText). Everything is deterministic and reads the theme passed in props.
+ * Pure helpers (easing, frame-driven motion, text fitting, CSS from theme tokens), React elements (Background,
+ * Logo, Wordmark, SafeArea, FitText) and the renderer primitives (useCurrentFrame, useVideoConfig, Img, AbsoluteFill,
+ * Sequence, random). Everything is deterministic and reads the theme passed in props.
  */
+export * from './renderer.js';
 export * from './easing.js';
 export * from './motion.js';
 export * from './fit-text.js';

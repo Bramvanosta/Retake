@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { clamp, cssFontFamily, darkLight, fadeOut, fitText, measureText, progress, readableOn, roundTo, safeAreaRect, withAlpha } from '@demo-studio/components/kit';
+import { clamp, cssFontFamily, darkLight, fadeOut, fitText, measureText, progress, readableOn, roundTo, safeAreaRect, useCurrentFrame, withAlpha } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { placement: 'auto' | 'above' | 'below'; max_width: number };

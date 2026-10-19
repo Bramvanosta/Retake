@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { Background, FitText, Logo, Wordmark, cssFontFamily, rise, stagger } from '@demo-studio/components/kit';
+import { Background, FitText, Logo, Wordmark, cssFontFamily, rise, stagger, useCurrentFrame } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { logo_size: number; stagger: number };

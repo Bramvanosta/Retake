@@ -1672,9 +1672,46 @@ workers/worker.log      what workers print (stderr), appended
 - `startMcpServer({root})`: console.log / info / debug go to stderr; one engine (`client: 'mcp'`). Nothing in this
   process opens a browser or starts a capture (auth status reads files; sandbox status asks the provider).
 - `config-snippet.ts`: `--print-config` — `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`),
-  `clientPath` (PATH with the node's folder first + Homebrew / system folders, without the folders a package manager
-  adds for its script: `node_modules/.bin`, corepack, node-gyp-bin), `DEMO_STUDIO_HOME` when set; the
-  `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr).
+  `clientPath` (PATH with the node's folder first + Homebrew / system folders, absolute entries only, without the
+  folders a package manager adds for its script: `node_modules/.bin`, corepack, node-gyp-bin, and none inside the
+  workspace, under any spelling of it), `DEMO_STUDIO_HOME` when set (absolute, through `studioHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first
+  folder above the entry point with `.claude-plugin/marketplace.json` and `skills/.claude-plugin/plugin.json`) and
+  `pluginInstallCommands` (`claude plugin marketplace add <repo>`, then `cd <ws> && claude plugin install
+  demo-studio@demo-studio --scope local --config node=… studio=… workspace=… [home=…]`, shell-quoted), printed as the
+  alternative to `claude mcp add` when the marketplace is there. Serving, `studio mcp` sets its own `PATH` to
+  `clientPath(process.execPath, PATH, …, root)` before the server starts (a plugin or GUI client may pass a bare PATH,
+  a relative entry or a folder of the workspace, where the agent writes; the jobs worker inherits it). `engine_info`
+  adds `started_in` (the server's cwd: Claude Code's session folder) and `started_outside_workspace`, said in its
+  summary: the plugin's values are per user, not per folder (review M3).
+- The plugin (L3.7, repository root): `.claude-plugin/marketplace.json` (marketplace `demo-studio`, one plugin, source
+  `./skills`); `skills/.claude-plugin/plugin.json` (`demo-studio`, version = `DEMO_STUDIO_VERSION`, `skills: "./"`,
+  userConfig `node` / `studio` (file) and `workspace` (directory), required, and `home` (directory, default `""`));
+  `skills/.mcp.json` (`${user_config.node} ${user_config.studio} --root ${user_config.workspace} mcp`, env
+  `DEMO_STUDIO_HOME=${user_config.home}`: an empty `home` replaces an inherited `DEMO_STUDIO_HOME` and `studioHome()`
+  falls back to `~/.demo-studio`). Claude Code checks neither the paths nor that required values are set (a missing
+  one: no server, the skills still load). `claude --plugin-dir skills` loads it as `demo-studio@inline`, with its own
+  (empty) values. Tests: packages/mcp/test/plugin.test.ts (layout, print-config, quoting, PATH; a gated block runs
+  `claude plugin validate` / `plugin details` / `mcp list` on a scratch `CLAUDE_CONFIG_DIR`).
+- The skills (L3.7): `skills/demo-studio-{scenario,theme,component}/SKILL.md` (frontmatter `name` first, then
+  `description`, nothing else; ≤ 200 lines; a "Before you start" block calling `engine_info`, the loop, "what good looks
+  like", a Rules block with pinned sentences) and two references (`demo-studio-scenario/reference/scenario-language.md`,
+  `demo-studio-component/reference/kit.md`). The lint `packages/mcp/test/skill-lint.ts` (`lintSkills(files, ctx)`, the
+  context injected: tools with their input JSON Schemas and zod checks, the vocabulary, `ACTION_NAMES`, the kit's
+  names, the CLI's help through `main`, the scenario validator under agent trust on a fixture copy, `parseManifest`,
+  file existence, `checkComponentEntry` on a component folder) returns issues by rule (`frontmatter`, `size`, `tool`,
+  `vocabulary`, `cli`, `link`, `orphan`, `yaml`, `code`, `actions`, `kit`, `hygiene`, `rules`, `coverage`);
+  `unknownKeys(root, schema, value)` walks nested keys (`$ref`, `anyOf`, records through `additionalProperties`, arrays
+  through `items`). After the review of L3.7: the CLI rule is absolute (pinned: never `studio`, `pnpm studio` or
+  `node …/bin.js` through the shell, whoever asks); `LOOPHOLE` runs over the whole Rules block; the prose (code and
+  pinned sentences blanked) refuses `DENY` phrases (curl, wget, download, password, "do what it says", "anyway"),
+  "run … yourself", "run `studio …`" unless "never" or the user runs it, and a `studio …` command whose sentence does
+  not name the user (outside "For the user's own terminal"); `FORBIDDEN` adds Claude Code's load-time `` !` ``,
+  `` ```! `` and `$ARGUMENTS` / `$N` / `$name`, `confirm` in any spelling and a secret reference with a space;
+  hosts are matched case-insensitively and bare domains on every two-letter and common generic TLD (file extensions
+  and schema key paths excepted); "Before you start" pins the root ≠ session-folder stop (and, for themes, the
+  repository stop). Tests:
+  packages/mcp/test/skills.test.ts (the shipped skills pass; one negative case per rule). A lot that changes a loop,
+  a tool's arguments or a CLI flag a skill names updates the skill: the lint fails until it does.
 - Tools of part A: `engine_info`, `project_list`, `project_get`, `project_create`, `project_update_readme`,
   `scenario_get`, `scenario_validate`, `scenario_save`, `run_list`, `run_status`, `auth_status`, `sandbox_status`.
   Part B: `run_dry` (waits `wait_s`, default 20), `run_capture` (returns at once), `run_status` with `wait_s` and the job

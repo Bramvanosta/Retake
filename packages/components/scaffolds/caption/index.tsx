@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { FitText, activeIndex, fadeOut, rise, textStyleCss } from '@demo-studio/components/kit';
+import { FitText, activeIndex, fadeOut, rise, textStyleCss, useCurrentFrame } from '@demo-studio/components/kit';
 import type { CaptionCue, ComponentProps, ThemeTextStyle } from '@demo-studio/components/kit';
 
 type Params = { align: 'center' | 'left'; max_lines: number; rule: boolean };

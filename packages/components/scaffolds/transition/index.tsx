@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCurrentFrame } from 'remotion';
-import { clamp, easing } from '@demo-studio/components/kit';
+import { clamp, easing, useCurrentFrame } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components/kit';
 
 type Params = { through: 'none' | 'paper' | 'text' | 'accent' };

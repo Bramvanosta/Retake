@@ -123,7 +123,9 @@ interface ForbiddenApi {
 
 /** APIs that make a frame depend on something else than (props, frame). */
 export const FORBIDDEN_APIS: readonly ForbiddenApi[] = [
-  { re: /\bMath\.random\s*\(/g, severity: 'error', message: 'Math.random() is not deterministic: use random(seed) from remotion' },
+  { re: /\bMath\.random\s*\(/g, severity: 'error', message: 'Math.random() is not deterministic: use random(seed) from the kit' },
+  // the kit's (remotion's) random: null is Math.random(), and no seed throws at render time
+  { re: /(?<![\w$.])random\s*\(\s*(?:null|undefined)?\s*\)/g, severity: 'error', message: 'random() needs a seed: random(null) is Math.random(); pass a number or a string' },
   { re: /\bDate\.now\s*\(/g, severity: 'error', message: 'Date.now() is not deterministic: derive time from useCurrentFrame() / fps' },
   { re: /\bnew\s+Date\s*\(\s*\)/g, severity: 'error', message: 'new Date() is not deterministic: derive time from useCurrentFrame() / fps' },
   { re: /\bperformance\.now\s*\(/g, severity: 'error', message: 'performance.now() is not deterministic: derive time from useCurrentFrame() / fps' },

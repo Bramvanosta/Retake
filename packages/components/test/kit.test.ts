@@ -309,3 +309,15 @@ describe('kit React elements (render-tested)', () => {
     for (const line of expected.lines) expect(fit).toContain(`>${line}</div>`);
   });
 });
+
+describe('kit renderer primitives (BACKLOG L3.7: components import the renderer through the kit)', () => {
+  it('re-exports useCurrentFrame, useVideoConfig, Img, AbsoluteFill, Sequence and random from remotion itself', async () => {
+    const kit = (await import('@demo-studio/components/kit')) as Record<string, unknown>;
+    const remotion = (await import('remotion')) as Record<string, unknown>;
+    for (const name of ['useCurrentFrame', 'useVideoConfig', 'Img', 'AbsoluteFill', 'Sequence', 'random']) {
+      expect(kit[name], name).toBeDefined();
+      expect(kit[name], name).toBe(remotion[name]);
+    }
+    expect((kit.random as (seed: string) => number)('seed')).toBe((remotion.random as (seed: string) => number)('seed'));
+  });
+});

@@ -41,7 +41,7 @@ import { INSPECT_TOOLS } from './tools/inspect.js';
 import { AUTHORING_TOOLS } from './tools/authoring.js';
 import { COMMENT_TOOLS } from './tools/comments.js';
 
-export { SERVER_NAME, claudeCodeCommand, clientPath, mcpConfigJson, mcpServerEntry, stableNodePath } from './config-snippet.js';
+export { PLUGIN_ID, PLUGIN_NAME, SERVER_NAME, claudeCodeCommand, clientPath, mcpConfigJson, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot, stableNodePath } from './config-snippet.js';
 export type { McpConfigInput, McpServerEntry } from './config-snippet.js';
 export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okResult } from './result.js';
 export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, siteApprovalForm, siteApprovalMessage } from './approval.js';

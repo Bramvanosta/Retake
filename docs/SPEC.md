@@ -68,7 +68,8 @@ demo-studio/
   apps/
     desktop/     # Tauri shell (Rust) around packages/ui — macOS
   templates/     # generic starter themes (brand themes live in the user's workspace)
-  skills/        # Claude skills shipped with the tool (scenario, theme, component authoring)
+  skills/        # Claude skills shipped with the tool (scenario, theme, component authoring); also the Claude Code plugin root
+  .claude-plugin/ # the local plugin marketplace (one plugin: skills/)
   projects/      # user projects (see §4)
 ```
 
@@ -321,6 +322,19 @@ asset server and Remotion's bundle server are reachable — any other request is
 Previews run with the same guard. A render (a preview, an export's re-render) records its browser: a worker killed
 mid-render leaves it running until the next worker starts, marks the job interrupted and kills it (a reused pid is
 never killed).
+
+Built in L3.7 (Claude skills, `skills/`): `demo-studio-scenario` (inspect → write → `scenario_validate` →
+`scenario_save` → `page_inspect {until}` → `run_dry` → capture → render → review; the recorder and the script table as
+alternatives; the frame-comments loop), `demo-studio-theme` (brand files in the workspace or `template_from_site` on a
+site the user named → `template_create_from_brand` → `template_preview` → render → review) and
+`demo-studio-component` (an existing component first → `component_create` → code edited with the user's agreement,
+renderer primitives through the kit → `component_validate` → `component_preview` in the user's theme → render). Skills
+are instructions only (frontmatter `name` + `description`, no pre-approved tools): every gate stays in the tools, and
+their Rules make a refusal or an approval request final and forbid running the `studio` CLI through Claude's shell for
+anything a tool refused, asked approval for or does not offer. `skills/` is also a Claude Code plugin (its
+`.mcp.json` starts `studio mcp` from userConfig values; a local marketplace at the repository root; installed per
+workspace with `--scope local`); a deterministic lint checks the skills against the tools' schemas, the CLI's help,
+the scenario and component validators and the files.
 
 ## 9. Editor (Remotion) rules
 

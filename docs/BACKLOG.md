@@ -507,6 +507,8 @@ The same Studio web UI served from the cloud. It talks to the user's local engin
 ### BL-45 — Official GitHub Action and CI recipes
 *S · seen in competitors · builds on: L2.6, L3.1; BL-05 optional; could fold into L3.7 packaging*
 
+Not folded into L3.7 (own use for now; a candidate for our own CI).
+
 A packaged GitHub Action wrapping `studio run/render/review`, with copy-ready recipes: regenerate videos on release, commit or upload the media, comment on the PR with the contact sheet and the render diff, refresh on a cron, fail the build when a flow breaks.
 
 - **Value:** The cheapest way to make 'videos regenerated on every release' visible; competitors use it as their main distribution channel.
@@ -514,6 +516,8 @@ A packaged GitHub Action wrapping `studio run/render/review`, with copy-ready re
 
 ### BL-52 — Distribution in agent channels
 *S · seen in competitors · builds on: L3.7 (plugin packaging); could fold into it*
+
+Not folded into L3.7 (own use for now): the local marketplace at the repository root is the shape a public listing reuses (BL-77).
 
 Publish the MCP server to the MCP Registry, the Claude skills and plugin to the Claude Code plugin marketplace, the CLI to npm and Homebrew, with a one-line install in each.
 
@@ -934,6 +938,39 @@ MCP):
   renders) and threads that merge cleanly once several people sync.
 - **Hard parts:** Agent-made threads blur the provenance the loop relies on; anchors that survive scenario edits.
 
+### BL-77 — Skill and plugin extras cut from L3.7
+*S · cut in L3.7 · builds on: L3.7, L2.7, BL-52*
+
+Cut to keep L3.7 an S (three skills in `skills/`, the plugin with the MCP server, a deterministic lint):
+- The built-in library moved to kit imports: its components still import `useCurrentFrame`, `Img` and `AbsoluteFill`
+  from `remotion` directly (33 imports); moving them regenerates 27+ committed previews. Then a compile warning for a
+  direct `remotion` import of a name the kit re-exports, in workspace components.
+- More reference files: recording and scripts, brand inputs and the component.yaml keys were folded into the
+  SKILL.md files and `reference/kit.md` (two references instead of five).
+- `studio skills install | print`, and a `studio doctor` line for the plugin (installed, a duplicate `claude mcp add`
+  registration, values that no longer exist: Claude Code does not check `type: file` values).
+- Several workspaces per install and `{{env:…}}` secrets through a `sensitive` userConfig value: one workspace at a
+  time, secrets in the keychain or the manual registration. Claude Code keeps the `--config` values once per user
+  (`pluginConfigs`), not per `--scope local` folder, so a second install re-points the first folder's sessions (the
+  skills stop on a root ≠ session folder; `engine_info` reports `started_in`). The fix to evaluate: `workspace`
+  defaulting to `${CLAUDE_PROJECT_DIR}` (the session's folder) in `.mcp.json`, and project-scope installs.
+- A copied install (a git or public marketplace) and its version policy: the local plugin loads in place, so its
+  `version` pins nothing (BL-52).
+- Slash commands, agents or hooks in the plugin (a `/demo-studio:video` that starts the whole loop), MCP prompts that
+  mirror the skills, `claude plugin eval` suites measuring triggering; checking argument values written as
+  placeholders (`<scene>.<step>`), which the lint skips.
+- Lint limits (documented, review of L3.7): a call written without braces (`run_dry` with `headed: true`) is not
+  checked against the schema (only `tool {args}` is); the prose rules match words and phrasings (run `studio …`,
+  "yourself", "unless", curl, password, "do what it says"…), so a loophole phrased otherwise still passes: the live
+  probes of MACOS-CHECKLIST 12i are the check of behaviour.
+- Claude desktop chat and claude.ai: a skill folder uploaded there, the desktop app's Code tab; documented as possible,
+  not part of the live check (MACOS-CHECKLIST 12i).
+- Not folded in L3.7 (own use): public listings (BL-52), the release-video skill (BL-13), the GitHub Action (BL-45).
+
+- **Value:** The built-in library as replaceable as user components; installs that follow the user across workspaces;
+  measured triggering.
+- **Hard parts:** Many previews to regenerate and look at; keeping skills, prompts and listings in step with the tools.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -955,7 +992,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.1** — Amend ADR-1 when L3.1 starts: split 'engine runs locally' from 'UI delivery'; define the job input contract (files, sessions, secrets, network reach); replace 'data never leave the machine' with a data-flow table. *Why:* It keeps the UI delivery decision open and makes the privacy claim accurate before it is used in sales material. *Applied in L3.1:* the ADR-1 amendment in docs/ARCHITECTURE.md.
 - **L3.6** — Done 2026-10-12 (DESIGN-phase2 §4, R-CMT-02). Fix DESIGN-phase2 §4 and R-CMT-02 to one file per thread (R-ARC-04). Make replies append-only (one file each, or entries with their own ids). Anchor comments on step `id` or a fingerprint, not only the step index. *Why:* This avoids sync conflicts on threads, and drag-and-drop in L4.3 reorders steps, which breaks anchors based on the index. *Applied in L3.6:* threads `c_<ULID>` with append-only `r_<ULID>` entries, the anchor with `step_id`, a step fingerprint and its occurrence (DESIGN-phase2 §4).
 - **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5.
-- **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component.
+- **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `demo-studio-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it.
 - **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code.
@@ -1008,7 +1045,7 @@ replaceable behind the EditPlan/component contract (R-V2-08, BL-24).
 
 Recorded for the founder; nothing here changes the roadmap until they decide.
 
-- Parked (commercialisation); see the active Remotion note above. Take the Remotion licence question out of L6 now. It is an email with no code, but get the written answer before building L3.7 (component skill) and L5.2 (distribution). *Why:* The answer decides whether user-written components, renders on customers' machines, hosted render and the marketplace are allowed and what they cost. Building them first risks rework or a blocked sale.
+- Parked (commercialisation); see the active Remotion note above. Take the Remotion licence question out of L6 now. It is an email with no code, but get the written answer before building L3.7 (component skill) and L5.2 (distribution). *Why:* The answer decides whether user-written components, renders on customers' machines, hosted render and the marketplace are allowed and what they cost. Building them first risks rework or a blocked sale. *L3.7:* built for own use under the free licence (settled 2026-10-12, not a blocker); the kit re-exports keep the renderer replaceable.
 - Parked (commercialisation). Name the first buyer now, and use it to judge the rest of phases 3–5. The recommendation is SaaS developer, devrel and docs teams who want videos in code, regenerated on every release. *Why:* The product as specified is a developer tool. Without an explicit buyer, UI work (L4.x) and polish lots compete with features that first buyer doesn't need.
 - Consider moving L5.3 (iOS Simulator runner, size L) to the backlog. *Why:* First buyers are web SaaS companies. The runner needs Xcode and a Mac, and it can't run in CI or the cloud cheaply (EC2 Mac hosts bill at least 24 hours).
 - Consider slimming L2.11–L2.13: keep clips per scene plus a CSV/JSON markers file, and defer FCPXML, EDL, OTIO, ProRes, split screen, picture-in-picture and Lottie. *Why:* They add a lot of scope for a minority use. ProRes via ffmpeg raises a licensing question, and @remotion/lottie falls under Remotion's licence.
@@ -1018,6 +1055,6 @@ Recorded for the founder; nothing here changes the roadmap until they decide.
 - Parked (commercialisation). Don't advertise 4K until L1.3 and L1.5 have measured it on a Mac. *Why:* HANDOFF measures 9.5–16 fps for the screencast at 4K, against 44–58 fps at 1080p, and 2–3 fps under backdrop blur.
 - Parked (commercialisation). Add a 'first sale' checklist next to L6: licence and billing (BL-39), compliance pack (BL-41), signed installer (BL-36), and a first video on the buyer's own app in under 15 minutes. *Why:* None of these are in the locked MVP, yet V2 cannot sell without them, and the external steps (lawyer, Remotion, Apple) take calendar time.
 - Decided 2026-10-12: voice-over is an evolution (backlog). From the competitive study: decide explicitly about voice. Either cover the minimum inside the locked lots (a narration track from a file, BL-46, next to L2.12, and SRT/VTT export, BL-30, next to L2.13), or state "videos without a voice" in the positioning and keep TTS (BL-12) for later. *Why:* Almost every close competitor narrates; a silent track (R-ED-18) is fine for motion-design marketing videos but disqualifying for tutorials.
-- Agent-channel listings parked; the GitHub Action stays a candidate for our own CI. From the competitive study: fold the GitHub Action (BL-45) and the agent-channel listings (BL-52) into L3.7 packaging. *Why:* Both are small, and they are how the open-source rivals are found.
+- Agent-channel listings parked; the GitHub Action stays a candidate for our own CI. From the competitive study: fold the GitHub Action (BL-45) and the agent-channel listings (BL-52) into L3.7 packaging. *Why:* Both are small, and they are how the open-source rivals are found. *L3.7:* not folded (own use; BL-77).
 - Parked (commercialisation). From the competitive study: consider a first public release (CLI + MCP) at the end of phase 3, before the nine Studio lots, and decide the open-core question then. *Why:* It tests the market early; free MIT engines set the developer price at zero, so what is sold must sit above the engine (Studio, packs, team features).
 - From the competitive study: do not trim L1.6 (personas) or L1.8 (sandbox). *Why:* Reproducible data preparation with rollback and a sandbox is the one capability no checked competitor has.
