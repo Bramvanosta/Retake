@@ -40,7 +40,8 @@ export const WORKSPACE_FILES = {
     machine: ['.demo-studio/'],
   },
   project: {
-    authored: ['project.yaml', 'README.md', 'scenarios/', 'hooks/', 'assets/', 'data/', 'sandbox/', '.gitignore'],
+    /** comments/: frame comment threads (L3.6; their stills live in .demo-studio/comments/, machine-local). */
+    authored: ['project.yaml', 'README.md', 'scenarios/', 'hooks/', 'assets/', 'data/', 'sandbox/', 'comments/', '.gitignore'],
     generated: ['runs/', 'renders/', 'review/', 'exports/', 'frames/'],
     /** journals/ (hooks outside a capture), sandbox/ (sandbox state and logs). */
     machine: ['.demo-studio/'],

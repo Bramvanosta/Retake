@@ -93,6 +93,7 @@ projects/<slug>/
   runs/<timestamp>/    # capture.mp4, frames/, timeline.json, logs, screenshots on error
   renders/<name>-vN.mp4
   review/<name>-vN/    # contact sheets, key frames, report.json
+  comments/<scenario>/<thread-id>.json   # frame comments, one file per thread (committed; stills in .demo-studio/comments/)
 ```
 
 `project.yaml` example:
@@ -290,8 +291,20 @@ Built in L3.4 (recording: a HUMAN shows the flow once; Claude may start a record
   template.yaml it would make. https, default port, no query or fragment, never an environment page or protected host.
   CLI: `studio theme from-site` (no approval, the same network rules).
 
-Later lots (names as planned):
-- `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
+Built in L3.6 (frame comments: a PERSON creates and reopens threads with `studio comment add | reopen`; Claude lists,
+replies and resolves — there is no create or reopen tool, and no input names an author):
+- `comments_list({project, scenario?, render?: id | "latest", status?: open|resolved|all, limit?: 1..100 (20)})` → the
+  threads (open first, then the newest renders, then frame): render id and its `created_at`, `render_present`, frame,
+  time, timecode, region (0..1), the stored anchor pattern-checked (segment, kind, component, area, scene, step, step_id,
+  `step_ref` for `page_inspect {until}`, step fingerprint and occurrence, action, page, `marker`, `overlays`,
+  transition), entries (reply / resolve / reopen with their channel `via: cli | mcp`), the derived status and resolution
+  (with the answering render and its `created_at`), up to 3 newer renders, the hash (`if_match`) and the still of the
+  frame with the region outlined as an image (≤ 4 inline, the rest as files). The comment, replies, notes and author
+  names are under `untrusted`; summaries and image labels use ids, numbers and anchor fields only.
+- `comment_reply({project, comment_id, text})` and `comment_resolve({project, comment_id, note, render_id?, if_match})`
+  → append an entry written as `via: mcp`, name `agent`; resolve needs the thread's hash (a person's entry meanwhile =
+  `conflict` with the current hash) and a `render_id` later than the commented render, of the same scenario. A comment
+  may only ask for a change to the video (scenario, overrides, theme): the INSTRUCTIONS say so.
 
 All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s
 with progress notifications, and `*_status` follows. Every tool returns a short text summary readable by Claude plus

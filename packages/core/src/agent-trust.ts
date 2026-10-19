@@ -9,8 +9,9 @@
  * - a file it references (drop_file.path, eval.file, a hook's sql / js file or a file its shell command names) is a
  *   file of the project folder: relative, never `..` out of it, never through a symbolic link that leaves it;
  * - a file it runs as code (eval.file, a hook's sql / js file, a script its shell command names) is not one the agent
- *   can write itself (README.md, scenarios/, and the folders runs and the tools write: runs/, renders/, review/,
- *   exports/, .demo-studio/).
+ *   can write itself (README.md, scenarios/, comments/ — L3.6: an agent appends replies and resolutions to frame comment
+ *   threads —, and the folders runs and the tools write: runs/, renders/, review/, exports/, .demo-studio/), nor a
+ *   brand source of a theme (engine brand files).
  *
  * L3.2, renders: every file a render reads (card / overlay images, `data:` CSV slots, own media, music) is a file of the
  * project folder, a Lottie file counts as code (lottie-web evaluates the expressions it holds), and a theme is named,
@@ -29,7 +30,7 @@ import { collectSecretRefs } from './templating.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
 
 /** Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`). */
-export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'runs/', 'renders/', 'review/', 'exports/', '.demo-studio/'];
+export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.demo-studio/'];
 
 /**
  * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared

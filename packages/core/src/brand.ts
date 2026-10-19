@@ -29,12 +29,26 @@ export const BRAND_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 export const BRAND_IMAGE_MIN_HEIGHT = 64;
 
 /**
- * Third-party text made printable on one line: C0 / C1 controls, DEL and the bidirectional formatting characters (which
- * reorder what a terminal or a Markdown viewer shows) replaced by a space, runs of spaces collapsed.
+ * The bidirectional formatting characters (they reorder what a terminal or a Markdown viewer shows), as the source of a
+ * RegExp character class (use the `u` flag).
+ */
+export const BIDI_CONTROL_CHARS = '\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069';
+/**
+ * Invisible format characters \u2014 zero-width space, word joiner and the invisible operators (U+2060\u20132064), the byte-order
+ * mark / zero-width no-break space, the tag characters (U+E0000\u2013E007F) \u2014: a reader sees nothing where a model still
+ * reads text. The source of a RegExp character class (use the `u` flag). ZWJ / ZWNJ stay (scripts and emoji need them).
+ */
+export const INVISIBLE_FORMAT_CHARS = '\\u200b\\u2060-\\u2064\\ufeff\\u{e0000}-\\u{e007f}';
+const INVISIBLE_G = new RegExp(`[${INVISIBLE_FORMAT_CHARS}]+`, 'gu');
+// eslint-disable-next-line no-control-regex
+const UNPRINTABLE_G = new RegExp(`[\\u0000-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}]+`, 'gu');
+
+/**
+ * Third-party text made printable on one line: invisible format characters removed (INVISIBLE_FORMAT_CHARS), C0 / C1
+ * controls, DEL and the bidirectional formatting characters replaced by a space, runs of spaces collapsed.
  */
 export function printableText(s: string): string {
-  // eslint-disable-next-line no-control-regex
-  return s.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return s.replace(INVISIBLE_G, '').replace(UNPRINTABLE_G, ' ').replace(/\s+/g, ' ').trim();
 }
 /** Body font files of a brand input, at most. */
 export const BRAND_BODY_FONTS_MAX = 4;

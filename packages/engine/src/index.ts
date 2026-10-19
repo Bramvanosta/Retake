@@ -8,7 +8,8 @@
  * up / reset as jobs (login moved from the CLI; shell seed steps approved like hooks), the job history and an
  * entitlements stub. L3.2 part A: renders as jobs (plan in the client's process through the trust gates, render in
  * the worker with the network guard), render status, the render history. Part B: reviews and exports as jobs (renders named by id, their files inside the project; export
- * re-renders under the render trust rules), review_get reading report.json as data, thumbnails made on read.
+ * re-renders under the render trust rules), review_get reading report.json as data, thumbnails made on read. L3.6:
+ * the frame comment store (one file per thread, entries appended under a lock, stills machine-local).
  */
 export { openWorkspace, openProject } from './workspace.js';
 export type { WorkspaceOptions } from './workspace.js';
@@ -147,6 +148,24 @@ export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueVie
 export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js';
 export { HISTORY_VERSION, appendHistory, historyFile, runCounted, usageCounts } from './history.js';
 export type { HistoryEntry, UsageCounts } from './history.js';
+export {
+  COMMENT_FILE_MAX_BYTES,
+  COMMENT_LIST_MAX_FILES,
+  COMMENT_LOCK_WAIT_MS,
+  MCP_AUTHOR_NAME,
+  addComment,
+  checkCommentId,
+  commentLockFile,
+  commentRef,
+  commentStillFile,
+  defaultAuthorName,
+  getComment,
+  listComments,
+  reopenComment,
+  replyComment,
+  resolveComment,
+} from './comments.js';
+export type { CommentAddRequest, CommentAdded, CommentEntryView, CommentListRequest, CommentListView, CommentResolveRequest, CommentView, CommentWritten } from './comments.js';
 export { entitlements } from './entitlements.js';
 export type { Entitlements } from './entitlements.js';
 export { SHELL_SEED_REASON, checkAgentTrust, seedApprovalItems } from './approvals.js';

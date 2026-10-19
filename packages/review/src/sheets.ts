@@ -118,9 +118,16 @@ const MARK_STROKE = '#ff2d78';
 /**
  * A page inspection's marked screenshot (L3.3): each box outlined, its number on a filled badge at its top-left corner
  * (inside the image), written as a JPEG. `scale` is the image's device pixels per CSS px: badges and strokes keep their
- * CSS size (labels ≥ 20 CSS px, readable once the image is thumbnailed to 1280 px). Returns the size written.
+ * CSS size (labels ≥ 20 CSS px, readable once the image is thumbnailed to 1280 px). Returns the size written. `png`: an
+ * image file, or an encoded image in memory (a frame comment's still, L3.6). `badge: false`: the outlines only (a frame
+ * comment's single region — a numbered badge would read as one of the video's own step badges and hide its pixels).
  */
-export async function drawMarks(png: string, boxes: readonly MarkBox[], out: string, opts: { scale?: number; quality?: number } = {}): Promise<{ width: number; height: number; marks: number }> {
+export async function drawMarks(
+  png: string | Buffer,
+  boxes: readonly MarkBox[],
+  out: string,
+  opts: { scale?: number; quality?: number; badge?: boolean } = {},
+): Promise<{ width: number; height: number; marks: number }> {
   const meta = await sharp(png).metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
@@ -137,6 +144,7 @@ export async function drawMarks(png: string, boxes: readonly MarkBox[], out: str
     if (w < 2 || h < 2) continue;
     marks++;
     svg.push(`<rect x="${x + stroke / 2}" y="${y + stroke / 2}" width="${Math.max(1, w - stroke)}" height="${Math.max(1, h - stroke)}" fill="none" stroke="${MARK_STROKE}" stroke-width="${stroke}"/>`);
+    if (opts.badge === false) continue;
     const label = String(b.mark);
     const bw = Math.round(font * (0.62 * label.length + 0.5));
     const bh = Math.round(font * 1.25);

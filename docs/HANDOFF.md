@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-19, end of lot **L3.5 (themes from brand inputs and from a site URL)** — phases 1 and 2 are
-done, phase 3 is under way. **Next: L3.6 (frame comments API), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-19, end of lot **L3.6 (frame comments API)** — phases 1 and 2 are done, phase 3 is under way.
+**Next: L3.7 (Claude skills + plugin packaging), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -28,7 +28,14 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.5)
+## State (after L3.6)
+- **L3.6 done (2026-10-19)**: frame comments. A person comments a frame of a render (`studio comment add --at |
+  --frame | --marker [--region]`); the thread is anchored to the edit (segment, scene, step and its fingerprint,
+  marker, overlays, caption / screen / brand-mark area) with a still of the frame; Claude reads them over MCP
+  (`comments_list`, the still as an image), adapts the scenario, re-renders, replies (`comment_reply`) and resolves
+  with the new render (`comment_resolve`). Only people create or reopen threads. 44 MCP tools. Tests on the Mac:
+  **2355 — 2316 pass, 39 skipped (≈ 13 min)**; `pnpm test:slow` 23/23. Requirements: 619 tracked — 540 done, 16 partial, 55 todo, 8 n/a-here.
+  Live check for the user: MACOS-CHECKLIST 12h.
 - **L3.5 done (2026-10-19)**: Claude makes a new workspace theme from the user's brand files
   (`template_create_from_brand`: logo, colours, fonts in `<workspace>/brand/`; deterministic palette with contrast
   checks, strict SVG scan, font sniff, licence notes) or drafts one from a public website the user approves
@@ -167,7 +174,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.6 — Frame comments API (store, anchors, MCP tools)** — only when the user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.7 — Claude skills (scenario, theme, component) + plugin packaging** — the user asked to chain it after L3.6. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -944,6 +951,19 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   (`mcp/test/theme-acceptance.test.ts`): site → draft → theme with the site's logo and the workspace's fonts → preview
   → fixture quote render reviewed clean, frames looked at. Cuts and limits: BL-75. 2294 tests: 2257 pass, 37 skipped;
   test:slow 21/21. No new dependency.
+- **L3.6 done** (frame comments API; R-MCP-17/18/19, R-CMT-02..05, R-ARC-04, R-DEC-06 done). Planned, criticised with
+  a real render (the anchor at a marker named the next step because a satisfied wait owns no frame — the planner now
+  puts the marked step on `plan.markers[]`; an `if_match`-only write lost entries across processes — writes go under
+  the sandbox package's `TakeLock`; "human" cannot be proven — entries carry `author.via: cli | mcp`; committed stills
+  would put product frames in git — stills stay in `.demo-studio/comments/`), built in three parts (types + anchor +
+  still; store + CLI; MCP + acceptance + docs), reviewed by two reviewers (trust / storage; anchor / docs / tests: an
+  injected lock-file text in an error, no size cap on comments_list, the caption band of the motion theme read as the
+  screen, a vertical render resolving a landscape thread, invisible tag characters, a file grown past the read cap…)
+  and fixed with 30 mutation-checked tests. Files: core `comments.ts`, `ids.ts` (shared ULID); editor plan markers;
+  review `anchor.ts`, `still.ts`; engine `comments.ts` (`engine.comments`); cli `commands/comment.ts`; mcp
+  `tools/comments.ts`. Acceptance in `test:slow` (fixture-acceptance): CLI comment at the `proposal` marker → MCP
+  list with anchor and still → reply → motion re-render → resolve. Cuts and limits: BL-76. 2355 tests: 2316 pass, 39
+  skipped; test:slow 23/23. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1173,6 +1193,17 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.6:
+- Threads `<project>/comments/<scenario>/c_<ULID>.json` (ignored in this repository: `projects/*/comments/`), written
+  only through the engine store under `<project>/.demo-studio/locks/comment-<id>.lock` (TakeLock: busy retried 3 s,
+  stale only when the holder is dead); entries are appended, the status derived; a file never passes 2 MB.
+- Trust: MCP has no create / reopen and no author field (entries are `{via: mcp, name: agent}`); every free text and
+  every field read from a thread file is untrusted (`trustedAnchor` shows a bad value as `unknown`); INSTRUCTIONS: a
+  comment may only ask for changes to the video. `studio comment add --author` from Claude's Bash stays possible (BL-76).
+- `--at` takes the frame on screen (floor); a marker name used twice is refused; a resolving render must be the same
+  variant (`latest` = newest of that variant); `comments_list` returns the last 10 entries per thread and at most
+  60,000 characters of text. `DEMO_STUDIO_AUTHOR` sets the CLI's default author.
+
 Notes from L3.5:
 - Two theme tools: `template_create_from_brand` (sources only from the workspace, never agent-writable folders,
   `.demo-studio/` only through a `site:<id>/logo-<n>` ref; SVG refused, never cleaned; new names lower-case, never a

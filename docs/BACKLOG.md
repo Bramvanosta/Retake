@@ -304,6 +304,9 @@ scenarios, project.yaml, template.yaml and studio.yaml to the current version �
 
 - **Value:** One command after an upgrade instead of hand edits; files that sync between machines converge.
 - **Hard parts:** Keeping the user's comments and layout; a rewrite that loses nothing a newer key cannot express.
+- Global render ids (L3.6 note): render ids are reused once renders/ is cleaned; frame comments store the render's
+  `created_at` beside its id to tell them apart. Moving renders to a ULID with `-vN` as a display label is a format
+  change of render records, review/ and exports/ folders, the MCP and CLI arguments — a migration of its own (BL-76).
 
 ### BL-71 — Network idle: requests the browser never reports as ended
 *S · found in L1.4 (R-ACT-21) · builds on: L1.4*
@@ -890,6 +893,47 @@ draft from one public page; the model chooses the values):
   hand-picking.
 - **Hard parts:** Every extra source is another untrusted channel (strings, files, network) to bound; font licences.
 
+### BL-76 — Comment extras cut from L3.6
+*S–M · cut in L3.6 · builds on: L3.6, L4.6, BL-01, BL-02, BL-70*
+
+Cut to keep L3.6 an S (people comment frames with `studio comment add`; Claude lists, replies and resolves through
+MCP):
+- Claude creating threads (`comment_create`, labelled agent) and a reopen tool for the agent: only `studio comment`
+  creates and reopens.
+- `step_now` (where the commented step is in today's scenario): `step_id`, `step_fp` / `step_fp_n` and `step_ref` let
+  Claude find it in the scenario it reads anyway. Mapping a thread onto the matching frame of a newer render, or across
+  variants.
+- Re-deriving the anchor on read (the record's plan is no more trusted than the thread file): the stored anchor is
+  returned pattern-checked, `render_present` is a boolean instead of present / replaced / missing.
+- A second image per thread (a crop of the region) and committed stills (opt-in, never for production environments):
+  one still, machine-local; stills for a thread made when ffmpeg failed, or regenerated lazily from the render.
+- The JSON Schema file of a thread and `studio schema comment` (the zod schema is the contract L4.6 imports);
+  `--at 12.4s` / `0:12.4` forms (seconds, `--frame` and `--marker` only).
+- Overlay / pane hit-testing for `component` (the overlays on screen are listed instead); interstitial backdrops traced
+  to their clip; several regions or drawings per comment; attachments.
+- Signed human entries and per-person identities (workspace members; BL-01 / BL-02): a signature would not stop
+  Claude Code's own shell (`studio comment add`) anyway — the server's instructions narrow what a comment may ask for
+  instead. A merge helper for a thread appended on both sides of a git branch (union of entries by id); editing or
+  deleting an entry; notifications or a watch (polling `comments_list` is the loop).
+- Entry-stable ids for cards and interstitials without an `id:` (positional `interstitial-4`, like step indexes).
+- Global render ids (a ULID with `-vN` as a label): render ids stay `<scenario>-v<N>`; a thread stores the render's
+  `created_at` beside its id (and a resolution the answering render's) so a reused id is detected — the format change
+  is BL-70's. Comments on renders written with `--out` (no `-vN` id) or on component previews.
+- Side finding: `scenario_save` and `project_update_readme` check `if_match` and rename in two steps (no lock): two
+  writers within milliseconds can both pass the check and the last rename wins. Comments take a per-thread lock
+  (sandbox `TakeLock`); the same lock around those two writes would close it.
+- Limits documented after the L3.6 review: a listing reads and parses every thread file (≤ 2000; about 23 s for 2000
+  threads) — an index or a cheap stat-based skip of unchanged files; `studio comment add | reopen` run through Claude
+  Code's Bash tool write as `cli` (the instructions forbid it, nothing enforces it — see signed entries above); a
+  thread holds at most 500 entries and 2 MB (a new thread past it), and the MCP tools carry its last 10 entries and
+  60,000 characters of thread text per listing (no paging: narrow by scenario or render); `step_playing` — inside a
+  marker window the anchor names the marked step, the step actually playing there (a hover after a satisfied wait) is
+  not named beside it.
+
+- **Value:** Fewer hand steps in the review loop (Claude proposing its own notes, comments that follow the step across
+  renders) and threads that merge cleanly once several people sync.
+- **Hard parts:** Agent-made threads blur the provenance the loop relies on; anchors that survive scenario edits.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -904,12 +948,12 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI. *Moved to L4.1* (L3.1 has no HTTP API: the MCP server is stdio only).
 - **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1.
 - **L3.1** — Make job payloads serialisable (kind, project ref, relative paths plus hashes, options) and use a worker interface that pulls jobs. Run the worker in a separate process, at least in tests. *Why:* This makes ADR-1's 'remote worker later' real rather than a paper interface, and a pulling worker works behind NAT (BL-05, BL-06). *Applied in L3.1:* core `JobInputSchema` (v1: slugs, scenario names + the sha256 of their bytes, reserved run ids, approvals as fingerprints; never a path, session or secret), a file queue under `<workspace>/.demo-studio/jobs/`, one worker per workspace in its own process (`worker.lock`) that claims jobs; tested in a separate process.
-- **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70).
+- **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70). *L3.6:* comment threads hold ids only (render id, run id; paths rebuilt from ids, never read from a file); render and run records unchanged (BL-70).
 - **L3.1** — Writes from the UI and MCP carry `if-match: <hash>`. All file writes are atomic (temp file then rename). The engine watches the workspace for outside edits. *Why:* Under ADR-2, Claude, the UI and the engine already write the same files, and sync would add another writer. *Applied in L3.1:* `if_match` (sha256 of the bytes written) on `scenario_save` and `project_update_readme`, atomic writes, a must-not-exist create; watching the workspace moves to L4.1.
-- **L3.1 / L3.6** — Use globally unique IDs (ULID, or UTC plus random) for runs, renders and comment threads; `-vN` becomes a display label only. *Why:* `newRunId` (core/src/util.ts:14) and `nextVersion` (editor/src/render/runs.ts:92) collide across machines, and comments anchor on render_id. *Partly applied in L3.1:* job ids are ULID-style (`j_` + 26 Crockford base32); run ids keep their readable format (L3.6 / BL-70).
+- **L3.1 / L3.6** — Use globally unique IDs (ULID, or UTC plus random) for runs, renders and comment threads; `-vN` becomes a display label only. *Why:* `newRunId` (core/src/util.ts:14) and `nextVersion` (editor/src/render/runs.ts:92) collide across machines, and comments anchor on render_id. *Partly applied in L3.1:* job ids are ULID-style (`j_` + 26 Crockford base32); run ids keep their readable format (L3.6 / BL-70). *Applied in L3.6:* comment threads are `c_` + a ULID and their entries `r_` + a ULID; render ids stay `<scenario>-v<N>` with the render's `created_at` stored beside them in a thread (BL-76, BL-70).
 - **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.demo-studio/history.jsonl` — one line per finished job and per CLI run / render / still (and per `studio export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
 - **L3.1** — Amend ADR-1 when L3.1 starts: split 'engine runs locally' from 'UI delivery'; define the job input contract (files, sessions, secrets, network reach); replace 'data never leave the machine' with a data-flow table. *Why:* It keeps the UI delivery decision open and makes the privacy claim accurate before it is used in sales material. *Applied in L3.1:* the ADR-1 amendment in docs/ARCHITECTURE.md.
-- **L3.6** — Done 2026-10-12 (DESIGN-phase2 §4, R-CMT-02). Fix DESIGN-phase2 §4 and R-CMT-02 to one file per thread (R-ARC-04). Make replies append-only (one file each, or entries with their own ids). Anchor comments on step `id` or a fingerprint, not only the step index. *Why:* This avoids sync conflicts on threads, and drag-and-drop in L4.3 reorders steps, which breaks anchors based on the index.
+- **L3.6** — Done 2026-10-12 (DESIGN-phase2 §4, R-CMT-02). Fix DESIGN-phase2 §4 and R-CMT-02 to one file per thread (R-ARC-04). Make replies append-only (one file each, or entries with their own ids). Anchor comments on step `id` or a fingerprint, not only the step index. *Why:* This avoids sync conflicts on threads, and drag-and-drop in L4.3 reorders steps, which breaks anchors based on the index. *Applied in L3.6:* threads `c_<ULID>` with append-only `r_<ULID>` entries, the anchor with `step_id`, a step fingerprint and its occurrence (DESIGN-phase2 §4).
 - **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5.
 - **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component.
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.

@@ -488,8 +488,10 @@ export interface EditPlan {
   /**
    * Timeline markers (`mark:` steps) in output frames: `frame` = the marked step's start (the timeline marker),
    * `done` = the screen once that step is done (a marked wait's awaited state; `markDoneAt`), clamped to the clip.
+   * `step` / `step_id` / `action`: the marked step (L3.6 — a satisfied wait owns no frame of `ClipSegment.steps`; a
+   * frame comment inside the marker window names this step). Absent in plans made before L3.6.
    */
-  markers: Array<{ name: string; frame: number; scene: string; done?: number }>;
+  markers: Array<{ name: string; frame: number; scene: string; done?: number; step?: number; step_id?: string; action?: string }>;
   timemap: TimeMapEntry[];
   music?: PlanMusic;
   /** Tutorial overlays (L2.10): what was planned, what could not be shown, the progress bar. Absent when none is on. */

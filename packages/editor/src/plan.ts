@@ -1744,7 +1744,17 @@ export function planEdit(input: PlanEditInput): EditPlan {
       if (k < k0 || k >= k1) continue;
       // `done`: the screen once the marked step is done (a marked wait's awaited state), inside this clip.
       const kd = clamp(outFrameAt(run, markDoneAt(timeline, mk)), k, k1 - 1);
-      markers.push({ name: mk.name, frame: F + (k - k0), scene: mk.scene, done: F + (kd - k0) });
+      // The marked step itself: a satisfied wait lasts less than one capture frame and owns no span of `steps`.
+      const ev = entry.events.find((e) => e.step === mk.step);
+      markers.push({
+        name: mk.name,
+        frame: F + (k - k0),
+        scene: mk.scene,
+        done: F + (kd - k0),
+        step: mk.step,
+        ...(ev?.id ? { step_id: ev.id } : {}),
+        ...(ev ? { action: ev.action } : {}),
+      });
     }
   });
 

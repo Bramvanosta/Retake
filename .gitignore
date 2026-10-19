@@ -8,6 +8,8 @@ projects/*/renders/
 projects/*/review/
 projects/*/exports/
 projects/*/.demo-studio/
+# frame comment threads of hand runs on the fixture (a user's workspace commits its own comments/)
+projects/*/comments/
 frames/
 fixtures/*/public/build/
 .demo-studio/

@@ -89,6 +89,9 @@ describe('studio mcp over stdio', () => {
       'review',
       'review_get',
       'export',
+      'comments_list',
+      'comment_reply',
+      'comment_resolve',
       'template_list',
       'template_preview',
       'template_from_site',
@@ -114,7 +117,7 @@ describe('studio mcp over stdio', () => {
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties, t.name).toBe(false);
       expect(t.description.length, t.name).toBeGreaterThan(20);
       expect(t.annotations?.readOnlyHint, t.name).toBe(
-        !['project_create', 'project_update_readme', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
+        !['project_create', 'project_update_readme', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'comment_reply', 'comment_resolve', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
       expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand'].includes(t.name));
@@ -349,7 +352,7 @@ describe('studio mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(41);
+    expect(TOOLS).toHaveLength(44);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

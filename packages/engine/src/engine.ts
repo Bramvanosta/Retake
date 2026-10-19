@@ -66,6 +66,8 @@ import type { ComponentKind } from '@demo-studio/core';
 import type { ReviewImagesMode, ReviewView } from './reviews.js';
 import type { PlanPreviewView, RenderStatusView } from './renders.js';
 import type { SandboxSubmitRequest } from './jobs/sandbox-job.js';
+import { MCP_AUTHOR_NAME, addComment, defaultAuthorName, getComment, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
+import type { CommentAddRequest, CommentAdded, CommentListRequest, CommentListView, CommentView, CommentWritten } from './comments.js';
 import { entitlements } from './entitlements.js';
 import type { Entitlements } from './entitlements.js';
 import { usageCounts } from './history.js';
@@ -287,6 +289,19 @@ export interface Engine {
   };
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
+  /**
+   * Frame comments (L3.6): threads on frames of renders. Entries are written as the channel `cli` for client `cli`,
+   * `mcp` for any other client (`test` included: fail-safe). Only client `cli` creates and reopens threads; any other
+   * client needs `if_match` to resolve.
+   */
+  comments: {
+    list(project: string, req?: CommentListRequest): Promise<CommentListView>;
+    get(project: string, id: string): Promise<CommentView>;
+    add(project: string, req: CommentAddRequest): Promise<CommentAdded>;
+    reply(project: string, id: string, text: string): Promise<CommentWritten>;
+    resolve(project: string, id: string, req: { note: string; render_id?: string; if_match?: string }): Promise<CommentWritten>;
+    reopen(project: string, id: string, note?: string): Promise<CommentWritten>;
+  };
   sandbox: {
     status(project: string, env?: string): Promise<SandboxStatusView>;
     /** Queue a sandbox up (start, health, seed when needed); its shell seed steps are approved first, as hooks are. */
@@ -343,6 +358,11 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^studio /, `${studio} `);
 
   const queue = new FileJobQueue(ws.root, studio);
+  // Who an entry is written by: the channel, never a person; anything but the CLI counts as the MCP (fail-safe).
+  const commentAuthor = () => (opts.client === 'cli' ? { via: 'cli' as const, name: defaultAuthorName() } : { via: 'mcp' as const, name: MCP_AUTHOR_NAME });
+  const cliOnly = (what: string) => {
+    if (opts.client !== 'cli') throw new EngineError('refused', `${what} is for a person at a terminal (studio comment ${what.split(' ')[0]}): an agent replies to and resolves comments`);
+  };
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
   const startWorker = async () =>
     opts.autoStartWorker === false ? undefined : ensureWorker(ws.root, opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {});
@@ -434,6 +454,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'components.preview',
         'inspect',
         'record',
+        'comments',
         'history',
       ],
       entitlements: entitlements(),
@@ -616,6 +637,30 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       get: (slug, id) => readRecording(ws, slug, id),
     },
     thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
+    comments: {
+      list: async (slug, req) => listComments(await project(slug), req),
+      get: async (slug, id) => getComment(await project(slug), id),
+      add: async (slug, req) => {
+        cliOnly('add (creating a thread)');
+        return addComment(await project(slug), req, commentAuthor());
+      },
+      reply: async (slug, id, text) => replyComment(await project(slug), id, text, commentAuthor()),
+      resolve: async (slug, id, req) => {
+        if (opts.client !== 'cli' && (req.if_match === undefined || req.if_match === null)) {
+          throw new EngineError('invalid', 'if_match is required to resolve a comment: the hash comments_list returned for the thread', { details: { argument: 'if_match' } });
+        }
+        return resolveComment(
+          await project(slug),
+          id,
+          { note: req.note, ...(req.render_id !== undefined ? { render_id: req.render_id } : {}), ...(req.if_match !== undefined ? { ifMatch: req.if_match } : {}) },
+          commentAuthor(),
+        );
+      },
+      reopen: async (slug, id, note) => {
+        cliOnly('reopen (reopening a thread)');
+        return reopenComment(await project(slug), id, note, commentAuthor());
+      },
+    },
     sandbox: {
       status: async (slug, env) => sandboxStatus(await project(slug), env),
       up: async (req, o = {}) => {

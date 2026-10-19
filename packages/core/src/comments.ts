@@ -1,0 +1,373 @@
+/**
+ * Frame comments (L3.6, R-CMT-01..05, ADR-1 #4): a person's comment on one frame of a render, optionally a region of
+ * it, kept as one thread file `<project>/comments/<scenario>/c_<ULID>.json`. A thread holds its comment, where the
+ * frame points in the edit (`anchor`, review frameAnchor) and append-only `entries` (replies, resolutions, reopenings),
+ * each with its own id: the file is its own audit trail and two writers (git branches, a later sync) only ever add
+ * entries. The status is derived from the entries (`deriveStatus`), never stored.
+ *
+ * Who wrote an entry is the channel it came through (`author.via`: `cli` — a `studio` command —, `mcp` — the MCP tools),
+ * never a claim of being a person: a command can be typed by anyone, Claude included. Every free text of a thread
+ * (comment, entries, author names) is data for its readers.
+ */
+import { createHash } from 'node:crypto';
+import { parse as parseYamlText } from 'yaml';
+import { z } from 'zod';
+import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './brand.js';
+import { ulid } from './ids.js';
+import { RENDER_ID_RE, RUN_FOLDER_RE } from './jobs.js';
+import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
+import { normalizeStep } from './steps.js';
+import { ACTION_NAMES } from './types.js';
+import type { FrameCommentAnchor } from './types.js';
+
+export const COMMENT_THREAD_VERSION = 1;
+
+/** A thread id, the file name comments/<scenario>/<id>.json: "c_" + 26 Crockford base32 characters (a ULID). */
+export const COMMENT_ID_RE = /^c_[0-9A-HJKMNP-TV-Z]{26}$/;
+/** An entry id of a thread: "r_" + 26 Crockford base32 characters (a ULID). */
+export const COMMENT_ENTRY_ID_RE = /^r_[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/** A new thread id (unique across machines, sortable by creation time). */
+export function newCommentId(now?: number): string {
+  return `c_${ulid(now)}`;
+}
+
+/** A new entry id. */
+export function newCommentEntryId(now?: number): string {
+  return `r_${ulid(now)}`;
+}
+
+/** Longest comment, reply and note text (= the MCP's cap on an untrusted string: a text reaches the model whole). */
+export const COMMENT_TEXT_MAX = 2000;
+/** Longest author name. */
+export const COMMENT_AUTHOR_MAX = 80;
+
+/** Control characters but the line feed (C0, DEL, C1), bidi controls and invisible format characters (core brand.ts). */
+const FORBIDDEN_CLASS = `[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`;
+const FORBIDDEN_TEXT = new RegExp(FORBIDDEN_CLASS, 'u');
+const FORBIDDEN_TEXT_G = new RegExp(`${FORBIDDEN_CLASS}+`, 'gu');
+
+/**
+ * A comment, reply or note as stored: line breaks normalised to `\n` (kept), tabs as spaces, other control characters
+ * (C0, DEL, C1), bidi controls and invisible format characters (zero-width space, word joiner, BOM, tag characters)
+ * removed, trailing spaces of each line and blank lines at both ends trimmed. The one sanitiser of the CLI's and the
+ * MCP's input; the length is checked after it (`commentTextProblem`).
+ */
+export function commentText(s: string): string {
+  return s
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(FORBIDDEN_TEXT_G, '')
+    .split('\n')
+    .map((l) => l.replace(/\s+$/, ''))
+    .join('\n')
+    .replace(/^\n+|\n+$/g, '');
+}
+
+/** Why a (sanitised) text is refused, or null: empty when `required`, longer than COMMENT_TEXT_MAX. */
+export function commentTextProblem(text: string, o: { what?: string; required?: boolean } = {}): string | null {
+  const what = o.what ?? 'the comment';
+  if (o.required !== false && text.trim() === '') return `${what} is empty`;
+  if (text.length > COMMENT_TEXT_MAX) return `${what} has ${text.length} characters: at most ${COMMENT_TEXT_MAX}`;
+  return null;
+}
+
+/** An author name as stored (core printableText: control and bidi characters out, spaces collapsed), or null when empty / too long. */
+export function commentAuthorName(s: string): string | null {
+  const name = printableText(s);
+  return name && name.length <= COMMENT_AUTHOR_MAX ? name : null;
+}
+
+/** A commented region, 0..1 of the output frame. */
+export interface CommentRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const EPS = 1e-9;
+
+/** Why a region is refused, or null: numbers in 0..1, w and h > 0, inside the frame (x + w ≤ 1, y + h ≤ 1). */
+export function regionProblem(r: CommentRegion): string | null {
+  const vals = [r.x, r.y, r.w, r.h];
+  if (!vals.every((v) => typeof v === 'number' && Number.isFinite(v))) return 'a region is four numbers x, y, w, h';
+  if (vals.some((v) => v < 0 || v > 1)) return 'a region is 0..1 of the frame (x, y, w, h)';
+  if (r.w <= 0 || r.h <= 0) return 'a region has a width and a height above 0';
+  if (r.x + r.w > 1 + EPS || r.y + r.h > 1 + EPS) return 'a region lies inside the frame (x + w ≤ 1, y + h ≤ 1)';
+  return null;
+}
+
+// ── Step fingerprints ───────────────────────────────────────────────────────
+
+/** JSON with object keys sorted at every level (a value's canonical text). */
+function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .filter((k) => o[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
+/**
+ * The fingerprint of a raw scenario step: the first 12 hex characters of the sha256 of its action and normalised
+ * arguments (a shorthand and its object form agree), modifiers left out (caption, hold next to an action, speed, camera,
+ * mark, overlay, id…) — a `hold:` that is the action stays. Undefined for a step without exactly one action.
+ */
+export function stepFingerprint(step: unknown): string | undefined {
+  let n: ReturnType<typeof normalizeStep>;
+  try {
+    n = normalizeStep(step as Parameters<typeof normalizeStep>[0], 0);
+  } catch {
+    return undefined;
+  }
+  return createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12);
+}
+
+/**
+ * Fingerprint of step `step` of scene `scene` in a scenario's text (the run's `scenario.yaml` snapshot: raw, templated
+ * values unexpanded, comparable with today's file) and its occurrence among the scene's earlier steps with the same
+ * fingerprint (`n`, 0-based: identical steps in a row). Undefined when the text, the scene or the step cannot be read.
+ */
+export function scenarioStepFingerprint(scenarioText: string, scene: string, step: number): { fp: string; n: number } | undefined {
+  let doc: unknown;
+  try {
+    doc = parseYamlText(scenarioText);
+  } catch {
+    return undefined;
+  }
+  const scenes = (doc as { scenes?: unknown } | null)?.scenes;
+  if (!Array.isArray(scenes)) return undefined;
+  const entry = scenes.find((e) => e && typeof e === 'object' && (e as { id?: unknown }).id === scene && Array.isArray((e as { steps?: unknown }).steps)) as
+    | { steps: unknown[] }
+    | undefined;
+  if (!entry || !Number.isInteger(step) || step < 0 || step >= entry.steps.length) return undefined;
+  const fp = stepFingerprint(entry.steps[step]);
+  if (!fp) return undefined;
+  let n = 0;
+  for (let i = 0; i < step; i++) if (stepFingerprint(entry.steps[i]) === fp) n++;
+  return { fp, n };
+}
+
+// ── The thread file ─────────────────────────────────────────────────────────
+
+/** ISO 8601 UTC, as `Date.toISOString` writes it. */
+const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const isoDate = z.string().max(40).regex(ISO_UTC_RE, 'an ISO 8601 UTC date (2026-10-19T18:00:00.000Z)');
+
+/** An ISO 8601 UTC date as `Date.toISOString` writes it (a render record's `created_at` is checked before it is quoted). */
+export function isIsoUtcDate(s: unknown): s is string {
+  return typeof s === 'string' && s.length <= 40 && ISO_UTC_RE.test(s);
+}
+const storedText = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .refine((s) => !FORBIDDEN_TEXT.test(s), 'control, bidi or invisible characters (only line breaks are kept)');
+const anchorString = z.string().min(1).max(200);
+
+export const CommentAuthorSchema = z.strictObject({
+  /** The channel that wrote it: `cli` (a `studio` command), `mcp` (the MCP tools). Never a claim of who typed it. */
+  via: z.enum(['cli', 'mcp']),
+  name: z
+    .string()
+    .min(1)
+    .max(COMMENT_AUTHOR_MAX)
+    .refine((s) => printableText(s) === s, 'a printable name (no control or bidi characters, single spaces)'),
+});
+export type CommentAuthor = z.output<typeof CommentAuthorSchema>;
+
+export const CommentRegionSchema = z
+  .strictObject({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
+  .superRefine((r, ctx) => {
+    const p = regionProblem(r);
+    if (p) ctx.addIssue({ code: 'custom', message: p });
+  });
+
+/**
+ * The stored anchor: its shape and number ranges. Its ids are strings here (a hand-edited file stays readable); a
+ * reader checks each against its pattern (`trustedAnchor`) before showing it as trusted.
+ */
+export const FrameCommentAnchorSchema = z.strictObject({
+  segment: anchorString,
+  kind: z.enum(['intro', 'outro', 'clip', 'card', 'interstitial']),
+  component: anchorString.optional(),
+  area: z.enum(['screen', 'caption', 'brandmark', 'card']).optional(),
+  scene: anchorString.optional(),
+  step: z.number().int().min(0).max(100_000).optional(),
+  step_id: anchorString.optional(),
+  step_ref: anchorString.optional(),
+  step_fp: anchorString.optional(),
+  step_fp_n: z.number().int().min(0).max(100_000).optional(),
+  action: anchorString.optional(),
+  page: anchorString.optional(),
+  src_time_s: z.number().min(0).max(1e7).optional(),
+  marker: anchorString.optional(),
+  overlays: z.array(anchorString).max(50).optional(),
+  transition: z
+    .strictObject({ kind: z.enum(['crossfade', 'fade-black']), from: anchorString.optional(), to: anchorString.optional() })
+    .optional(),
+});
+// The schema and the interface (types.ts) describe the same object.
+const anchorSchemaMatches: z.ZodType<FrameCommentAnchor> = FrameCommentAnchorSchema;
+void anchorSchemaMatches;
+
+/** The render a thread was made on, as it was then: tells a reused render id (renders/ cleaned) from that render. */
+export const CommentRenderSchema = z.strictObject({
+  id: z.string().max(200).regex(RENDER_ID_RE, 'a render id (<scenario>-v<N>[-vertical|-square])'),
+  /** The render record's `created_at`. */
+  created_at: isoDate,
+  run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name'),
+  variant: z.enum(['landscape', 'vertical', 'square']),
+  fps: z.number().positive().max(240),
+  frames: z.number().int().min(1),
+  width: z.number().int().min(1).max(16384),
+  height: z.number().int().min(1).max(16384),
+});
+export type CommentRender = z.output<typeof CommentRenderSchema>;
+
+export const COMMENT_ENTRY_KINDS = ['reply', 'resolve', 'reopen'] as const;
+export type CommentEntryKind = (typeof COMMENT_ENTRY_KINDS)[number];
+
+export const CommentEntrySchema = z
+  .strictObject({
+    id: z.string().regex(COMMENT_ENTRY_ID_RE, 'an entry id (r_ + a ULID)'),
+    kind: z.enum(COMMENT_ENTRY_KINDS),
+    author: CommentAuthorSchema,
+    /** The reply, the resolution note (required), the reopening note (may be empty). */
+    text: storedText(COMMENT_TEXT_MAX),
+    created_at: isoDate,
+    /** A resolution: the render that answers the comment, with its record's `created_at` (render ids can be reused). */
+    render_id: z.string().max(200).regex(RENDER_ID_RE, 'a render id').optional(),
+    render_created_at: isoDate.optional(),
+  })
+  .superRefine((e, ctx) => {
+    if (e.kind !== 'reopen' && e.text.trim() === '') ctx.addIssue({ code: 'custom', path: ['text'], message: `a ${e.kind} has a text` });
+    if (e.kind !== 'resolve' && (e.render_id !== undefined || e.render_created_at !== undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['render_id'], message: 'only a resolution names a render' });
+    }
+    if ((e.render_id === undefined) !== (e.render_created_at === undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['render_created_at'], message: 'render_id and render_created_at go together' });
+    }
+  });
+export type CommentEntry = z.output<typeof CommentEntrySchema>;
+
+/** Entries of one thread, at most (a thread is a conversation about one frame). */
+export const COMMENT_ENTRIES_MAX = 500;
+
+/** A thread file, `<project>/comments/<scenario>/<id>.json` (version 1). */
+export const CommentThreadSchema = z
+  .strictObject({
+    version: z.literal(COMMENT_THREAD_VERSION),
+    id: z.string().regex(COMMENT_ID_RE, 'a thread id (c_ + a ULID)'),
+    scenario: z.string().max(100).regex(SLUG_RE, 'a scenario name'),
+    render: CommentRenderSchema,
+    /** Output frame of the render, and its time (frame / fps). */
+    frame: z.number().int().min(0),
+    time_s: z.number().min(0),
+    region: CommentRegionSchema.optional(),
+    /** The marker the frame was picked by (`studio comment add --marker`). */
+    marker: z.string().max(100).regex(SLUG_RE, 'a marker name').optional(),
+    text: storedText(COMMENT_TEXT_MAX).refine((s) => s.trim() !== '', 'a comment has a text'),
+    author: CommentAuthorSchema,
+    created_at: isoDate,
+    anchor: FrameCommentAnchorSchema,
+    /** Append-only, in the order written. */
+    entries: z.array(CommentEntrySchema).max(COMMENT_ENTRIES_MAX),
+  })
+  .superRefine((t, ctx) => {
+    if (t.frame >= t.render.frames) ctx.addIssue({ code: 'custom', path: ['frame'], message: `frame ${t.frame} is past the render's last frame (${t.render.frames - 1})` });
+    if (!new RegExp(`^${t.scenario}-v\\d+(?:-vertical|-square)?$`).test(t.render.id)) {
+      ctx.addIssue({ code: 'custom', path: ['render', 'id'], message: `render ${t.render.id} is not a render of scenario ${t.scenario}` });
+    }
+    const seen = new Set<string>();
+    t.entries.forEach((e, i) => {
+      if (seen.has(e.id)) ctx.addIssue({ code: 'custom', path: ['entries', i, 'id'], message: `entry ${e.id} appears twice` });
+      seen.add(e.id);
+    });
+  });
+export type CommentThread = z.output<typeof CommentThreadSchema>;
+
+/** Where a thread stands, from its entries alone: the last resolve or reopen entry decides. */
+export interface CommentStatus {
+  status: 'open' | 'resolved';
+  /** The resolve entry in force. */
+  resolution?: { entry: string; by: CommentAuthor; note: string; at: string; render_id?: string; render_created_at?: string };
+}
+
+export function deriveStatus(entries: readonly CommentEntry[]): CommentStatus {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (e.kind === 'reopen') return { status: 'open' };
+    if (e.kind === 'resolve') {
+      return {
+        status: 'resolved',
+        resolution: {
+          entry: e.id,
+          by: e.author,
+          note: e.text,
+          at: e.created_at,
+          ...(e.render_id !== undefined ? { render_id: e.render_id, render_created_at: e.render_created_at } : {}),
+        },
+      };
+    }
+  }
+  return { status: 'open' };
+}
+
+// ── Reading a stored anchor ─────────────────────────────────────────────────
+
+const ANCHOR_ACTIONS = new Set<string>([...ACTION_NAMES, 'scene_open', 'scene_still', 'notification']);
+const PAGE_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_-]*$/;
+const STEP_REF_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*\.[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const STEP_FP_RE = /^[0-9a-f]{12}$/;
+/** Shown in place of a stored anchor value that fails its pattern (the value itself goes under `untrusted`). */
+export const ANCHOR_UNKNOWN = 'unknown';
+
+/**
+ * A stored anchor with every id checked against its pattern (segment / scene / step_id / marker / transition sides:
+ * SLUG_RE; component and overlays: COMPONENT_ID_RE; action: an action name; page, step_ref, step_fp: theirs). A
+ * failing value shows as `unknown` and is returned under `untrusted` (a hand-edited file, or one written by anything
+ * that is not the tool): the trusted copy only ever holds ids of a known shape.
+ */
+export function trustedAnchor(a: FrameCommentAnchor): { anchor: FrameCommentAnchor; untrusted?: Record<string, unknown> } {
+  const out: FrameCommentAnchor = { ...a };
+  const bad: Record<string, unknown> = {};
+  const check = (key: 'segment' | 'scene' | 'step_id' | 'marker' | 'component' | 'action' | 'page' | 'step_ref' | 'step_fp', ok: (v: string) => boolean) => {
+    const v = a[key];
+    if (v === undefined || ok(v)) return;
+    bad[key] = v;
+    out[key] = ANCHOR_UNKNOWN;
+  };
+  const slug = (v: string) => SLUG_RE.test(v);
+  check('segment', slug);
+  check('scene', slug);
+  check('step_id', slug);
+  check('marker', slug);
+  check('component', (v) => COMPONENT_ID_RE.test(v));
+  check('action', (v) => ANCHOR_ACTIONS.has(v));
+  check('page', (v) => PAGE_ID_RE.test(v));
+  check('step_ref', (v) => STEP_REF_RE.test(v));
+  check('step_fp', (v) => STEP_FP_RE.test(v));
+  if (a.overlays?.some((o) => !COMPONENT_ID_RE.test(o))) {
+    bad.overlays = a.overlays;
+    out.overlays = a.overlays.map((o) => (COMPONENT_ID_RE.test(o) ? o : ANCHOR_UNKNOWN));
+  }
+  if (a.transition) {
+    const t = { ...a.transition };
+    for (const side of ['from', 'to'] as const) {
+      const v = a.transition[side];
+      if (v !== undefined && !SLUG_RE.test(v)) {
+        bad.transition = a.transition;
+        t[side] = ANCHOR_UNKNOWN;
+      }
+    }
+    out.transition = t;
+  }
+  return Object.keys(bad).length ? { anchor: out, untrusted: bad } : { anchor: out };
+}

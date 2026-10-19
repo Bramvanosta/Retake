@@ -57,8 +57,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | **done** (live run: MACOS-CHECKLIST 12e) |
 | L3.4 | Recorder (`studio record`, scenario_record) | M | **done** (a human recording: MACOS-CHECKLIST 12f) |
 | L3.5 | Themes from brand inputs and from a site URL | M | **done** (live run: MACOS-CHECKLIST 12g) |
-| L3.6 | Frame comments API (store, anchors, MCP tools) | S | **next** |
-| L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | todo |
+| L3.6 | Frame comments API (store, anchors, MCP tools) | S | **done** (live run: MACOS-CHECKLIST 12h) |
+| L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | **next** |
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | todo |
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | todo |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | todo |
@@ -643,7 +643,18 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   tests): 21 findings fixed with mutation-checked tests. R-DEC-04 stays partial (theme editor, R-UI-07). Cuts: BL-75.
   Live run: MACOS-CHECKLIST 12g.
 
-### L3.6 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.6 — Frame comments API (store, anchors, MCP tools) (S)
+- **Goal:** a person comments a frame of a render; Claude reads the comment with enough context (anchor in the edit +
+  the frame still) to adapt the scenario, re-render, reply and resolve.
+- **Done (2026-10-19):** `studio comment add | list | reply | resolve | reopen` (only people create or reopen);
+  one file per thread (`comments/<scenario>/c_<ULID>.json`), append-only entries under a lock, status derived, the
+  render snapshot kept; anchor from the render's plan (segment, kind, component, scene, step, step fingerprint,
+  marker, overlays, caption / screen / brand-mark area), the planner now records the marked step; a still with the
+  region outlined in `.demo-studio/comments/`; MCP `comments_list` (still as an image, text under `untrusted`, size
+  caps), `comment_reply`, `comment_resolve` (if_match, same variant) — 44 tools. Acceptance in `test:slow`. Two
+  independent reviews fixed with mutation-checked tests. Cuts: BL-76. Live run: MACOS-CHECKLIST 12h.
+
+### L3.7 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

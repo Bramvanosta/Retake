@@ -288,6 +288,17 @@ describe('quote (real timeline)', () => {
     expect(d.slice(1).every((f, i) => f - d[i] === 1)).toBe(true);
   });
 
+  it('names the marked step on its marker, though the satisfied wait owns no frame of the clip (L3.6)', () => {
+    const mk = p.markers.find((m) => m.name === 'proposal')!;
+    const tm = tl.markers.find((m) => m.name === 'proposal')!;
+    const ev = events(tl, 'proposal').find((e) => e.step === tm.step)!;
+    expect(ev.action).toBe('wait_for');
+    expect(ev.t_end - ev.t_start).toBeLessThan(1 / FPS);
+    expect(mk).toMatchObject({ scene: 'proposal', step: tm.step, action: 'wait_for' });
+    expect(mk).not.toHaveProperty('step_id'); // the fixture's steps have no id
+    expect(clip(p, 'proposal').steps.some((s) => s.step === tm.step)).toBe(false);
+  });
+
   it('shows each scene caption over its clip, from the first visible frame to the next segment, never overlapping', () => {
     expect(p.captions.map((c) => c.scene)).toEqual(['discover', 'request', 'proposal']);
     for (const c of p.captions) {

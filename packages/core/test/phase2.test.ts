@@ -27,8 +27,8 @@ import {
   timelineJsonSchema,
   timelineVideo,
 } from '@demo-studio/core';
-import { COMMENTS_DIR, TEMPLATE_MEDIA_KINDS } from '@demo-studio/core';
-import type { FrameComment, FrameCommentsFile, Scenario, Template, Timeline, ValidationIssue } from '@demo-studio/core';
+import { COMMENTS_DIR, CommentThreadSchema, TEMPLATE_MEDIA_KINDS, deriveStatus } from '@demo-studio/core';
+import type { CommentThread, Scenario, Template, Timeline, ValidationIssue } from '@demo-studio/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
 type Json = Record<string, any>;
@@ -489,24 +489,31 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
 });
 
 describe('frame comments data model (R-CMT-01)', () => {
-  it('FrameComment carries the frame, an optional region, the anchor, replies and the resolution', () => {
-    const comment = {
-      id: 'c-1',
+  it('a thread carries the render, the frame, an optional region, the anchor and append-only entries; the status is derived', () => {
+    const thread = {
+      version: 1,
+      id: 'c_01JABCDEFGHJKMNPQRSTVWXYZ0',
       scenario: 'quote',
-      render_id: 'quote-v3',
+      render: { id: 'quote-v3', created_at: '2026-10-11T17:50:00.000Z', run_id: '20261011-174000-quote', variant: 'landscape', fps: 30, frames: 1792, width: 1920, height: 1080 },
       frame: 412,
       time_s: 13.733,
       region: { x: 0.52, y: 0.61, w: 0.2, h: 0.08 },
       text: 'The total should stay on screen a bit longer.',
-      author: 'reviewer',
+      author: { via: 'cli', name: 'Reviewer' },
       created_at: '2026-10-11T18:00:00.000Z',
+      anchor: { segment: 'proposal', kind: 'clip', component: 'studio/layout-card', scene: 'proposal', step: 2, step_id: 'total', step_ref: 'proposal.total', step_fp: '0123456789ab', step_fp_n: 0, action: 'wait_for', src_time_s: 41.2, marker: 'proposal', overlays: ['studio/overlay-callout'] },
+      entries: [
+        { id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ1', kind: 'reply', author: { via: 'mcp', name: 'agent' }, text: 'Hold extended to 2.5 s.', created_at: '2026-10-11T18:05:00.000Z' },
+        { id: 'r_01JABCDEFGHJKMNPQRSTVWXYZ2', kind: 'resolve', author: { via: 'mcp', name: 'agent' }, text: 'hold: 2.5 on the step', created_at: '2026-10-11T18:06:00.000Z', render_id: 'quote-v4', render_created_at: '2026-10-11T18:05:30.000Z' },
+      ],
+    } satisfies CommentThread;
+    expect(CommentThreadSchema.parse(JSON.parse(JSON.stringify(thread)))).toEqual(thread);
+    expect(deriveStatus(thread.entries)).toEqual({
       status: 'resolved',
-      anchor: { segment: 'proposal', kind: 'clip', component: 'studio/layout-card', scene: 'proposal', step: 2, step_id: 'total', src_time_s: 41.2 },
-      replies: [{ author: 'claude', text: 'Hold extended to 2.5 s.', created_at: '2026-10-11T18:05:00.000Z' }],
-      resolution: { by: 'claude', note: 'hold: 2.5 on the step', render_id: 'quote-v4' },
-    } satisfies FrameComment;
-    const file: FrameCommentsFile = { version: 1, scenario: 'quote', comments: [comment] };
-    expect(JSON.parse(JSON.stringify(file))).toEqual(file);
+      resolution: { entry: 'r_01JABCDEFGHJKMNPQRSTVWXYZ2', by: { via: 'mcp', name: 'agent' }, note: 'hold: 2.5 on the step', at: '2026-10-11T18:06:00.000Z', render_id: 'quote-v4', render_created_at: '2026-10-11T18:05:30.000Z' },
+    });
+    // No stored status / resolution, no single-file-per-scenario shape.
+    expect(CommentThreadSchema.safeParse({ ...thread, status: 'resolved' }).success).toBe(false);
     expect(COMMENTS_DIR).toBe('comments');
   });
 });

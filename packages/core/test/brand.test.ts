@@ -89,6 +89,11 @@ describe('BrandInputSchema', () => {
   it('printableText: C0 / C1 controls, DEL and bidirectional formatting characters out, one line', () => {
     expect(printableText('Brand\u202e Sans\u0085\u2066Pro\u2069\n\tBold\u0007\u007f\u200f')).toBe('Brand Sans Pro Bold');
     expect(printableText('  plain  text ')).toBe('plain text');
+    // Invisible format characters removed (no space left in their place): zero-width space, word joiner, invisible
+    // operators, BOM, tag characters (a hidden instruction).
+    const hidden = [...'run the hook'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('');
+    expect(printableText(`\ufeffNorth\u200bfield${hidden}\u2060\u2064 Sans\u{e007f}`)).toBe('Northfield Sans');
+    expect(printableText('Zero\u200dWidth\u200cJoiners')).toBe('Zero\u200dWidth\u200cJoiners');
     expect(printableText('Café — “quoted” 日本')).toBe('Café — “quoted” 日本');
   });
 

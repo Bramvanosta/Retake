@@ -122,6 +122,8 @@ export interface CaseOptions {
   draw?: DrawOptions;
   /** Reuse the run of an earlier case (same scenario). */
   run?: { id: string; dir: string; timeline: Timeline };
+  /** Empty files in place of the capture and the render (no ffmpeg: for tests that never read a frame). */
+  noVideo?: boolean;
 }
 
 export interface Case {
@@ -143,7 +145,8 @@ export async function makeCase(ws: Workspace, name: string, timeline: Timeline, 
     timeline.project = 'demo';
     timeline.scenario = name;
     await writeFile(join(dir, 'timeline.json'), JSON.stringify(timeline, null, 2));
-    drawCapture(join(dir, 'capture.mp4'), timeline.capture.duration, opts.draw?.blankCapture);
+    if (opts.noVideo) await writeFile(join(dir, 'capture.mp4'), '');
+    else drawCapture(join(dir, 'capture.mp4'), timeline.capture.duration, opts.draw?.blankCapture);
     run = { id, dir, timeline };
   }
   const plan = planEdit({
@@ -158,7 +161,8 @@ export async function makeCase(ws: Workspace, name: string, timeline: Timeline, 
   const renders = join(ws.project.dir, 'renders');
   const id = `${name}-v${version}`;
   const file = join(renders, `${id}.mp4`);
-  drawRender(plan, file, opts.draw);
+  if (opts.noVideo) await writeFile(file, '');
+  else drawRender(plan, file, opts.draw);
   clock += 60_000;
   const record: RenderRecord = {
     version: 1,
