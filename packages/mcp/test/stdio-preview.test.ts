@@ -98,7 +98,7 @@ describe.skipIf(!can)('studio mcp: themes and components', () => {
     for (const n of ['template_list', 'component_list', 'component_get', 'component_validate']) expect(by.get(n)?.annotations, n).toMatchObject({ readOnlyHint: true, openWorldHint: false });
     for (const n of ['template_preview', 'component_preview', 'component_create']) expect(by.get(n)?.annotations, n).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: false });
     expect(by.get('component_create')?.inputSchema.required).toEqual(['id', 'kind', 'description']);
-    expect(client.getInstructions()).toContain('component code, themes and project.yaml are never written through this server');
+    expect(client.getInstructions()).toContain('component code, existing themes and project.yaml are never written through this server');
   });
 
   it('template_list: the themes by name, the project\'s marked; template gives one in detail', async () => {

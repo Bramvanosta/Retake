@@ -271,11 +271,27 @@ Built in L3.4 (recording: a HUMAN shows the flow once; Claude may start a record
   `untrusted` (typed text and page names). The environment's own access (production read-only, never
   `--allow-writes`), no hook, the workspace's protected hosts. `job_cancel` while the window is open discards the
   recording; a worker signal stops it and keeps it (no check replay). CLI: `studio record` (the primary path).
+- `template_create_from_brand({name, base?, colors: {accent, text?, paper?, muted?, dark?}, background?, adjust?, logo,
+  wordmark?, fonts?: {display?, body?[]}, brand?: {name, url}, replace?})` (L3.5) → a new folder
+  `<templates_dir>/<name>/`: template.yaml over the base theme (default editorial; its components, frame, captions,
+  motion and durations kept) with a deterministic palette (hex; derived colours; WCAG contrast checked, misses lifted
+  and reported, the accent never changed — a suggestion instead), the logo / wordmark / fonts copied after header
+  checks and a strict SVG scan, LICENSES.md and a provenance file (sha256 of each file). Files are workspace-relative,
+  never in hidden, components or agent-writable folders; the name is lower-case, never a starter's or an existing
+  folder's (case ignored); `replace` only of an unchanged theme the tool made. Returns the path, the palette and a
+  `template_preview` hint. CLI: `studio theme create`.
+- `template_from_site({url, wait_s?})` (L3.5) → the USER approves the exact URL first (elicitation; without it:
+  `needs_approval` with `studio theme from-site <url>`), then a `site` job: a clean headless browser whose only network
+  is a local CONNECT proxy (public addresses only, port 443, hosts the page requested, GET / HEAD only, caps; no
+  WebSocket, WebRTC UDP, service worker, download or navigation away) opens the page; colour swatches by role (paper,
+  text, accent, dark) with contrast, font family names (never font files), ≤ 6 logo candidates as transparent PNGs
+  (`site:<id>/logo-<n>`) and a screenshot in `<workspace>/.demo-studio/site/<id>/`; returns them (images of a
+  third-party page; every page string under `untrusted`) with a draft input for `template_create_from_brand` and the
+  template.yaml it would make. https, default port, no query or fragment, never an environment page or protected host.
+  CLI: `studio theme from-site` (no approval, the same network rules).
 
 Later lots (names as planned):
-- `template_create_from_brand({logo, colors, fonts})` (L3.5)
 - `comments_list({project, scenario?, render?, status?})` (each comment with its frame still, region and scenario anchor), `comment_reply`, `comment_resolve`
-- `template_from_site({url})` → draft theme from a live site (colours, fonts, logo candidates)
 
 All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s
 with progress notifications, and `*_status` follows. Every tool returns a short text summary readable by Claude plus

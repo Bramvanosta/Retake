@@ -44,9 +44,27 @@ export type ApprovalOutcome =
   | { approved: true }
   | { approved: false; reason: 'declined' | 'cancelled' | 'timeout' | 'error'; message?: string };
 
+/**
+ * What a human is asked before a site extraction (L3.5, R-MCP-12): open exactly this URL in a clean browser. `href` is
+ * the canonical URL (percent-encoded path, punycode host) — what opens and what the approval's fingerprint covers;
+ * `unicode_host` is the same host as a person reads it. The decoded path is never shown (agent text).
+ */
+export interface SiteApprovalRequest {
+  what: 'site extraction';
+  href: string;
+  host: string;
+  unicode_host: string;
+  /** sha256("site\n" + href): the approval written with the job. */
+  fingerprint: string;
+  /** The `studio` command a human runs for the same extraction. */
+  fix: string;
+}
+
 /** How a client asks its human (MCP: elicitation). Absent: the client cannot ask anyone. */
 export interface Approver {
   approve(req: ApprovalRequest): Promise<ApprovalOutcome>;
+  /** A site extraction's URL (absent: this client cannot ask about one — refused like no approver). */
+  approveSite?(req: SiteApprovalRequest): Promise<ApprovalOutcome>;
 }
 
 export interface Preflight {
@@ -220,6 +238,45 @@ export async function takeApprovals(req: ApprovalRequest, approver: Approver | u
   }
   const at = new Date().toISOString();
   return req.items.map((i) => ({ fingerprint: i.fingerprint, by: 'human-elicitation' as const, at }));
+}
+
+function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): string {
+  return outcome.reason === 'declined'
+    ? 'the user declined'
+    : outcome.reason === 'cancelled'
+      ? 'the user dismissed the question'
+      : outcome.reason === 'timeout'
+        ? 'the user did not answer in time'
+        : `the question failed${outcome.message ? ` (${outcome.message})` : ''}`;
+}
+
+/**
+ * Ask the client's human to approve opening one site URL. Returns the approval to write with the job; throws
+ * `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time or the
+ * question failed — each with the `studio theme from-site` command a human runs in a terminal instead.
+ */
+export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined): Promise<JobApproval[]> {
+  const details = { url: req.href, host: req.host };
+  if (!approver?.approveSite) {
+    throw new EngineError(
+      'needs_approval',
+      `opening ${req.href} needs a human's approval of that exact URL, and this MCP client cannot ask its user (no elicitation support): a human runs it in a terminal`,
+      { fix: req.fix, details },
+    );
+  }
+  let outcome: ApprovalOutcome;
+  try {
+    outcome = await approver.approveSite(req);
+  } catch (e) {
+    outcome = { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+  }
+  if (!outcome.approved) {
+    throw new EngineError('refused', `the site extraction of ${req.href} was not started: ${outcomeText(outcome)}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
+      fix: req.fix,
+      details: { ...details, outcome: outcome.reason },
+    });
+  }
+  return [{ fingerprint: req.fingerprint, by: 'human-elicitation', at: new Date().toISOString() }];
 }
 
 /** The worker's approver: a hook runs only when its fingerprint was approved at submit. */

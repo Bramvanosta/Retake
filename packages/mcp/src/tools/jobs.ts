@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { JOB_ID_RE, JOB_STATES } from '@demo-studio/core';
+import { jobProject } from '@demo-studio/engine';
 import type { JobRecord } from '@demo-studio/engine';
 import type { ToolImage } from '../result.js';
 import { projectSlug } from '../schema.js';
@@ -8,14 +9,14 @@ import { CANCEL, READ, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 import { waitJob, waitS } from './run.js';
 
-const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
+const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
 
 /**
  * Kinds whose error message can quote the filmed product or the scenario (a page's text, a caption, a component's
  * error, ffmpeg on a render's file, a re-render's): outside an `interrupted` job (a message the engine writes), it is
  * shown only under `untrusted.error`.
  */
-const PRODUCT_TEXT_KINDS: ReadonlySet<JobRecord['kind']> = new Set(['run', 'render', 'preview', 'review', 'export', 'inspect', 'record']);
+const PRODUCT_TEXT_KINDS: ReadonlySet<JobRecord['kind']> = new Set(['run', 'render', 'preview', 'review', 'export', 'inspect', 'record', 'site']);
 
 /** Whether `job`'s error message is kept under `untrusted` (never in the summary nor the job's own fields). */
 export function untrustedError(job: JobRecord): boolean {
@@ -67,7 +68,9 @@ export function jobLine(j: JobRecord): string {
               ? `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`
               : i.kind === 'record'
                 ? `record ${i.scenario ?? 'a scenario'} from page ${i.source.page} ${i.source.path}${on} → ${i.rec_id}`
-                : `${i.kind === 'sandbox_up' ? 'sandbox up' : `sandbox reset${i.reseed ? ' (reseed)' : ''}`}${on}`;
+                : i.kind === 'site'
+                  ? `site extraction of ${i.url} → ${i.site_id}`
+                  : `${i.kind === 'sandbox_up' ? 'sandbox up' : `sandbox reset${i.reseed ? ' (reseed)' : ''}`}${on}`;
   const p = j.progress;
   const progress =
     p && j.state === 'running'
@@ -98,8 +101,10 @@ export function jobLine(j: JobRecord): string {
             ? ` · ${r.reported ? `${r.status}${r.counts ? `, ${r.counts.listed} elements listed` : ''}` : `not inspected (replay ${r.run_status})`}`
             : r.kind === 'record'
               ? ` · ${r.not_saved === 'nothing_recorded' ? 'nothing recorded' : `${r.stats.steps} steps${r.saved ? ', saved' : ''}, check ${r.check.status}`}`
-              : ` · ${r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed'}`;
-  return `${j.id} ${what} in ${j.input.project}: ${j.state}${progress}${result}${j.cancel_requested_at && j.state !== 'cancelled' ? ' (cancel requested)' : ''}`;
+              : r.kind === 'site'
+                ? ` · ${r.status === 'ok' ? `${r.candidates.length} logo candidates` : 'the page could not be read'}`
+                : ` · ${r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed'}`;
+  return `${j.id} ${what} in ${jobProject(j.input) ?? 'the workspace'}: ${j.state}${progress}${result}${j.cancel_requested_at && j.state !== 'cancelled' ? ' (cancel requested)' : ''}`;
 }
 
 export const jobList = defineTool({
@@ -130,7 +135,7 @@ export const jobStatus = defineTool({
   name: 'job_status',
   title: 'Status of a job',
   description:
-    'One job: its input, state, progress, place in the queue, result (for a run: the run id and its status — run_status has the details; for hooks and resets: each hook\'s outcome; for a preview: its stills as images; for an inspection: the page_inspect result with its marked screenshot; for a recording: the draft scenario) or why it failed. wait_s long-polls until it finishes. A job is "interrupted" when its worker died while it ran: its run stopped where it was and the fix names the environment reset a human runs.',
+    'One job: its input, state, progress, place in the queue, result (for a run: the run id and its status — run_status has the details; for hooks and resets: each hook\'s outcome; for a preview: its stills as images; for an inspection: the page_inspect result with its marked screenshot; for a recording: the draft scenario; for a site extraction: the template_from_site result with its screenshot and logo candidates) or why it failed. wait_s long-polls until it finishes. A job is "interrupted" when its worker died while it ran: its run stopped where it was and the fix names the environment reset a human runs.',
   input: z.strictObject({ job_id: jobId, wait_s: waitS(0, 'the job to finish') }),
   annotations: READ,
   async run({ job_id, wait_s }, ctx) {
@@ -150,6 +155,14 @@ export const jobStatus = defineTool({
       const { result: _result, ...rest } = jobData(job);
       return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...rest, ...(position ? { queue: position } : {}) } } };
     }
+    if (job.input.kind === 'site') {
+      // A site extraction that outlived template_from_site's wait: the same result (site.json read back, images included).
+      const { siteOutput } = await import('./theme.js');
+      const out = await siteOutput(engine, job);
+      const ahead = position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : [];
+      const { result: _result, ...rest } = jobData(job);
+      return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...rest, ...(position ? { queue: position } : {}) } }, ...(out.images ? { images: out.images } : {}) };
+    }
     if (job.input.kind === 'inspect') {
       // An inspection that outlived page_inspect's wait: the same result (marked screenshot included), with the job.
       const { inspectOutput } = await import('./inspect.js');
@@ -163,7 +176,7 @@ export const jobStatus = defineTool({
         ...(position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : []),
         // A failure that can quote the product (a page, a caption, a component's error): only under untrusted.error.
         ...(job.error ? [jobErrorLine(job)!] : []),
-        ...(job.result?.kind === 'run' ? [`run_status {project: "${job.input.project}", run_id: "${job.result.run_id}"} has the run's details`] : []),
+        ...(job.result?.kind === 'run' && job.input.kind === 'run' ? [`run_status {project: "${job.input.project}", run_id: "${job.result.run_id}"} has the run's details`] : []),
         ...(job.input.kind === 'render' ? [`render_status {project: "${job.input.project}", render_id: "${job.input.render_id}"} has the render's details`] : []),
         ...(job.input.kind === 'review' ? [`review_get {project: "${job.input.project}", render_id: "${job.input.render_id}"} reads the review (with its contact sheet)`] : []),
         ...(job.result?.kind === 'preview' ? [`preview images in ${job.result.dir} (shown below)`] : []),

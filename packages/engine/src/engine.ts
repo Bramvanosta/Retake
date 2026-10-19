@@ -57,6 +57,10 @@ import type { PreviewRequest } from './jobs/preview-job.js';
 import { componentCreate, componentGet, componentList, componentValidate } from './components.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from './components.js';
 import { templateGet, templateList } from './templates.js';
+import { createThemeFromBrand } from './brand/create.js';
+import { readSite, submitSiteJob } from './jobs/site-job.js';
+import type { SiteSubmitted } from './jobs/site-job.js';
+import type { ThemeCreated } from './brand/create.js';
 import type { TemplateDetail, TemplateListView } from './templates.js';
 import type { ComponentKind } from '@demo-studio/core';
 import type { ReviewImagesMode, ReviewView } from './reviews.js';
@@ -70,7 +74,7 @@ import type { Approver } from './approvals.js';
 import type { RunSubmitRequest } from './jobs/run-job.js';
 import { ensureWorker } from './jobs/spawn.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
-import type { JobEvent, JobRecord } from './jobs/types.js';
+import type { JobEvent, JobRecord, SiteJobResult } from './jobs/types.js';
 
 export const ENGINE_API_VERSION = 1;
 
@@ -236,6 +240,20 @@ export interface Engine {
     get(o: { template?: string; project?: string }): Promise<TemplateDetail>;
     /** Queue stills of a theme (intro, layout + caption, card, interstitial, outro) into .demo-studio/previews/. */
     preview(req: { project: string; template?: string }): Promise<PreviewSubmitted>;
+    /**
+     * A new workspace theme from brand inputs (L3.5; core BrandInputSchema), under trust `mcp`: brand files are
+     * workspace files outside agent-writable, hidden and components folders; never an existing theme, except `replace`
+     * of one this tool made that nobody changed. `studio theme create` calls createThemeFromBrand with trust `author`.
+     */
+    create(input: unknown): Promise<ThemeCreated>;
+    /**
+     * Queue a site extraction (L3.5, R-MCP-12) after asking the human (through `approver`) to approve the exact URL:
+     * colours, font names, logo PNGs and a screenshot into .demo-studio/site/<id>/, and a draft brand input. Refused
+     * for an environment page or a protected host; needs_approval when the client cannot ask anyone.
+     */
+    fromSite(req: { url: string }, o?: { approver?: Approver }): Promise<SiteSubmitted & { worker?: { pid?: number; spawned: boolean } }>;
+    /** A site extraction read back (site.json as a file of the workspace) with its draft; null view before it is written. */
+    site(siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }>;
   };
   components: {
     list(kind?: string): Promise<ComponentListView>;
@@ -409,6 +427,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'exports',
         'templates.read',
         'templates.preview',
+        'templates.create',
+        'templates.from_site',
         'components.read',
         'components.create',
         'components.preview',
@@ -545,6 +565,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     templates: {
       list: (o = {}) => templateList(ws, o.project),
       get: (o) => templateGet(ws, o),
+      create: (input) => createThemeFromBrand(ws, input, { trust: 'mcp' }),
+      fromSite: async (req, o = {}) => {
+        const r = await submitSiteJob(submitCtx, req, o.approver);
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+      site: (siteId, url) => readSite(ws, siteId, url),
       preview: async (req) => {
         const r = await submitPreviewJob(submitCtx, { project: req.project, ...(req.template !== undefined ? { template: req.template } : {}), target: { kind: 'theme' } });
         const worker = await startWorker();

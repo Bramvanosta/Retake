@@ -91,6 +91,8 @@ describe('studio mcp over stdio', () => {
       'export',
       'template_list',
       'template_preview',
+      'template_from_site',
+      'template_create_from_brand',
       'component_list',
       'component_get',
       'component_validate',
@@ -112,14 +114,15 @@ describe('studio mcp over stdio', () => {
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties, t.name).toBe(false);
       expect(t.description.length, t.name).toBeGreaterThan(20);
       expect(t.annotations?.readOnlyHint, t.name).toBe(
-        !['project_create', 'project_update_readme', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'template_preview', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
+        !['project_create', 'project_update_readme', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
       );
-      expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login'].includes(t.name));
-      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset'].includes(t.name));
+      expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
+      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand'].includes(t.name));
       // No tool takes a credential.
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes/);
-      // No file path: page_inspect's and scenario_record's `path` is a URL path under an environment page (no host, no template), checked by core.
+      // No file path: page_inspect's and scenario_record's `path` is a URL path under an environment page (no host, no template), checked by core;
+      // template_create_from_brand's files are references relative to the workspace root, checked by the engine (brand/files.ts).
       if (t.name !== 'page_inspect' && t.name !== 'scenario_record') expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/"path"/);
     }
     // A field with a default is optional for the caller.
@@ -346,7 +349,7 @@ describe('studio mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(39);
+    expect(TOOLS).toHaveLength(41);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

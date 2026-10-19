@@ -311,6 +311,43 @@ export interface RecordJobResult {
   };
 }
 
+/** A logo candidate of a site extraction, as a result shows it. */
+export interface SiteCandidateResult {
+  /** The reference template_create_from_brand takes: site:<site_id>/logo-<n>. */
+  ref: string;
+  file: string;
+  source: 'header-img' | 'header-svg' | 'page-img' | 'page-svg' | 'icon' | 'og-image';
+  width: number;
+  height: number;
+}
+
+/**
+ * What a `site` job produced (L3.5, R-MCP-12): hex colours, ratios, counts, sizes and the approved URL's host are the
+ * tool's own; everything the page or its server chose (title, description, site name, alt texts, font family names,
+ * the final and in-page URLs, refused hosts, errors) is only under `untrusted`. The images are pixels of a third-party
+ * page. `draft` is a brand input for template_create_from_brand and the template.yaml it would make (not written).
+ */
+export interface SiteJobResult {
+  kind: 'site';
+  site_id: string;
+  dir: string;
+  url: string;
+  host: string;
+  status: 'ok' | 'failed';
+  http_status: number | null;
+  redirects: number;
+  palette: {
+    roles: { paper: string; text: string; accent: string | null; dark: string | null };
+    swatches: Array<{ hex: string; background: number; text: number; interactive: number; contrast: { paper: number; text: number } }>;
+  } | null;
+  candidates: SiteCandidateResult[];
+  screenshot: string | null;
+  network: { requests: number; blocked: Record<string, number>; tunnels: number; bytes: number; refused: Record<string, number>; capped: number };
+  draft: { brand_input: Record<string, unknown>; template_yaml: string; base: string } | null;
+  warnings: string[];
+  untrusted: Record<string, unknown>;
+}
+
 export type JobResult =
   | RunJobResult
   | HooksJobResult
@@ -322,7 +359,8 @@ export type JobResult =
   | ExportJobResult
   | PreviewJobResult
   | InspectJobResult
-  | RecordJobResult;
+  | RecordJobResult
+  | SiteJobResult;
 
 export interface JobErrorView {
   code: EngineErrorCode;

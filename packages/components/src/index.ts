@@ -98,3 +98,8 @@ export {
   writePreviewReadme,
 } from './preview.js';
 export type { PreviewMeta, PreviewStatus } from './preview.js';
+/** Themes from brand inputs (L3.5): the deterministic palette and the generated template.yaml. */
+export { DARK_PAPER_LUMINANCE, PALETTE_THRESHOLDS, derivePalette, paletteTone } from './brand/palette.js';
+export type { Palette, PaletteAdjustment, PaletteBackground, PaletteCheck, PaletteColors, PaletteInput, PaletteTone } from './brand/palette.js';
+export { generateThemeFile } from './brand/template-file.js';
+export type { ThemeFile, ThemeFileInput } from './brand/template-file.js';

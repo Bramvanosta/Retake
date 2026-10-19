@@ -1,0 +1,15 @@
+@font-face { font-family: 'Quillmere Display'; src: url(/fonts/display.ttf) format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Quillmere Text'; src: url(https://cdn.test/fonts/text.ttf) format('truetype'); font-weight: 400; }
+html, body { margin: 0; background: #fbfaf7; color: #14161f; font-family: 'Quillmere Text', sans-serif; font-size: 18px; line-height: 1.6; }
+h1, h2, h3 { font-family: 'Quillmere Display', serif; font-weight: 400; }
+h1 { font-size: 64px; line-height: 1.1; margin: 0 0 24px; }
+header.top { display: flex; align-items: center; gap: 32px; padding: 24px 64px; }
+header .logo-mark { color: #14161f; }
+header .logo-mark .ring { fill: #0e7c66; }
+header .brand-logo { display: block; }
+nav { margin-left: auto; display: flex; gap: 24px; }
+nav a { color: #14161f; text-decoration: none; }
+nav a.cta, a.button { background: #0e7c66; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; }
+section { padding: 48px 64px; }
+section.hero { min-height: 520px; }
+footer.dark { background: #10151c; color: #e8e6e1; padding: 64px; min-height: 360px; }

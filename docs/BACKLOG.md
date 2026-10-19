@@ -261,6 +261,10 @@ During capture, read the app's design tokens (CSS custom properties such as prim
 - **Value:** Videos look on-brand with no setup; a competitor already does it automatically.
 - **Hard parts:** Apps without tokens; telling brand colours from incidental ones.
 
+*L3.5 note:* this item stays whole. L3.5's `template_from_site` reads a public site's computed colours and font names,
+not its `:root` custom properties (cut to BL-75, one less untrusted channel), and nothing is read from the captured app
+during a run.
+
 ### BL-55 — Frames and components beyond the same-origin case
 *M · found in L1.2 (R-ISS-07) · builds on: L1.2*
 
@@ -846,6 +850,45 @@ Cut to keep L3.4 an M (a person shows the flow in a headed window; the draft com
 
 - **Value:** Recordings of richer apps (several tabs, embedded frames, date pickers) that need fewer fixes.
 - **Hard parts:** Per-page sessions and their correlation; UI-library heuristics for calendars and drags.
+
+### BL-75 — Theme extras cut from L3.5
+*M · cut in L3.5 · builds on: L3.5, L4.7, BL-51*
+
+Cut to keep L3.5 an M (`template_create_from_brand` makes a theme from the user's files; `template_from_site` reads a
+draft from one public page; the model chooses the values):
+- Create inputs beyond `base`: a `tone` (light / dark) input, `components` and `style_bias` overrides — the base theme
+  carries them (a tone mismatch between the given paper and the base is a warning naming the better base).
+- A `javascript: false` option of the site extraction (JavaScript stays on, with the network contract around it).
+- The site's `:root` custom properties as colour or font sources (BL-51 stays whole); a `candidates.png` contact strip
+  of the logo candidates (the screenshot and up to three logo PNGs come back as images within the image caps);
+  detecting a consent dialog that covers the page (the screenshot shows it); clicking consent banners.
+- ΔE clustering of the swatches: quantised buckets are enough for ≤ 8 swatches.
+- Fonts: WOFF1 table decompression and WOFF2 `name` / `OS/2` parsing (magic and header only; the weight comes from the
+  input or the file name); copying a site's font files, even with an approval, and font search or download from font
+  services (only family names come from a site).
+- `studio theme list` (`studio list` already lists themes).
+- Several pages of a site, a mobile viewport, signed-in brand portals; bot-challenge pages are never bypassed.
+- Theme media files (intro / outro video, image, Lottie) in generated themes; editing an existing theme through MCP
+  beyond `replace` of an unchanged tool-made one; a theme diff, variants or a light + dark pair from one brand.
+- Brand guideline PDFs as input; cleaning a human's SVG with scripts (refused instead) or keeping a site's SVG logos as
+  vectors (PNG only).
+- Known limits of the site extraction as built: a subresource redirected to another host fails (refused at CONNECT:
+  only hosts the route announced are tunnelled); a site that serves its top URL differently to Node and to Chromium
+  (user-agent sniffing) may send Chromium elsewhere — refused at CONNECT when it is another host; "public" means a
+  public address, not "on the internet" (a VPN or split-horizon DNS can give a company host a public address); colour
+  roles are heuristics.
+- Known limits after the L3.5 review: a signed `site` job carries no nonce or expiry — a copy of its job.json queued
+  again replays the same approved URL (as hooks jobs since L3.1; the URL is still the one a human approved); a
+  top-level redirect to another host than the approved one (or its www / apex sibling) fails the extraction instead of
+  asking a second approval in the same call; with the unsafe test resolver set (tests only) Chromium accepts any
+  certificate for every host of that extraction (Playwright has no per-host switch); `template_list` returns a
+  tool-made theme's brand name and URL (agent text) as theme data, not under `untrusted`; the read-back checks of a
+  site candidate and the image read through MCP are two steps (a file swapped in between is read once — still a
+  plain file).
+
+- **Value:** Closer drafts from richer brand sources (several pages, brand PDFs, the site's own tokens) with less
+  hand-picking.
+- **Hard parts:** Every extra source is another untrusted channel (strings, files, network) to bound; font licences.
 
 ## Guard-rails for planned lots (no new scope)
 

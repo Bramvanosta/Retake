@@ -25,7 +25,7 @@ import { openWorkspace } from '../workspace.js';
 import { buildStamp } from './build.js';
 import { WorkerLock } from './lock.js';
 import { processStart, selfIdentity } from './proc.js';
-import { FileJobQueue, stateDir } from './queue.js';
+import { FileJobQueue, jobProject, stateDir } from './queue.js';
 import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
 import { executeRunJob, finaliseReservedRun } from './run-job.js';
 import { executeAuthLoginJob } from './auth-job.js';
@@ -79,12 +79,15 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
       : undefined;
   // A recording counts nothing (its check replay is a check, not a dry run of a saved scenario).
   const record = job.input.kind === 'record' ? { id: job.input.rec_id, steps: r?.kind === 'record' ? r.stats.steps : 0, saved: r?.kind === 'record' && r.saved !== null } : undefined;
+  // A site extraction counts nothing (workspace-level: no project).
+  const site = job.input.kind === 'site' ? { id: job.input.site_id, host: new URL(job.input.url).hostname, ...(r?.kind === 'site' ? { status: r.status } : {}) } : undefined;
+  const project = jobProject(job.input);
   const started = job.started_at ? Date.parse(job.started_at) : NaN;
   return {
     ...(job.finished_at ? { at: job.finished_at } : {}),
     job: job.id,
     kind: job.kind,
-    project: job.input.project,
+    ...(project !== undefined ? { project } : {}),
     submitted_by: job.input.submitted_by,
     state: job.state,
     ...(Number.isFinite(started) && job.finished_at ? { ms: Date.parse(job.finished_at) - started } : {}),
@@ -95,6 +98,7 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
     ...(preview ? { preview } : {}),
     ...(inspect ? { inspect } : {}),
     ...(record ? { record } : {}),
+    ...(site ? { site } : {}),
     // A render counts once it wrote its video (the Remotion usage a licence would track); an export, its re-renders.
     counted: run
       ? runCounted(run.mode, run.status)
@@ -337,7 +341,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     let rec: JobRecord = { ...stored, state: 'running', started_at: new Date().toISOString(), worker };
     await writeOrExit(rec);
     append([{ type: 'state', state: 'running' }]);
-    log(`job ${id}: running (${stored.kind} ${stored.input.project})`);
+    log(`job ${id}: running (${stored.kind} ${jobProject(stored.input) ?? 'workspace'})`);
 
     // Progress: job.json at most every 500 ms; nothing after the final write.
     let closed = false;
@@ -462,6 +466,13 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           } finally {
             currentStop = undefined;
           }
+          break;
+        }
+        case 'site': {
+          // A clean browser on one public page, through the worker's CONNECT proxy; refused without its signed approval.
+          const { executeSiteJob } = await import('./site-job.js');
+          const result = await executeSiteJob({ ...base, input: job, progress: onProgress });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;
         }
         default: {

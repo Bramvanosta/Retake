@@ -185,7 +185,7 @@ export class FileJobQueue {
       if (out.length >= limit) break;
       const stored = await this.stored(id);
       if (!stored) continue;
-      if (f.project !== undefined && stored.input.project !== f.project) continue;
+      if (f.project !== undefined && jobProject(stored.input) !== f.project) continue;
       if (f.kinds && !f.kinds.includes(stored.kind)) continue;
       if (f.runId !== undefined && !(stored.input.kind === 'run' && stored.input.run_id === f.runId)) continue;
       if (f.renderId !== undefined && !('render_id' in stored.input && stored.input.render_id === f.renderId)) continue;
@@ -299,8 +299,25 @@ function shellWord(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+/** The project of a job's input (a site extraction is workspace-level: none). */
+export function jobProject(input: JobInput): string | undefined {
+  return 'project' in input ? input.project : undefined;
+}
+
 function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
   const i = rec.input;
+  if (i.kind === 'site') {
+    return {
+      ...rec,
+      state: 'interrupted',
+      derived: true,
+      error: {
+        code: 'cancelled',
+        message: `interrupted: ${why}. The site extraction stopped with its browser (files written before stay in .demo-studio/site/${i.site_id}/); nothing else was touched`,
+        fix: `${cli} theme from-site ${shellWord(i.url)}`,
+      },
+    };
+  }
   if (i.kind === 'render') {
     return {
       ...rec,

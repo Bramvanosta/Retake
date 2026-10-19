@@ -1416,6 +1416,15 @@ may start a recording, never drive it. Nothing is filmed.
   persona that must sign in points at `auth_login`. `record` is a product-text kind: a failed job's message is only
   under `untrusted.error`. INSTRUCTIONS: one line on when to record and how to follow it.
 
+### 3.14 Themes from brand files (L3.5 part 1; core `brand.ts`, components `brand/`, engine `brand/`, MCP `template_create_from_brand`, `studio theme create`)
+The contract (input schema, palette formulas and thresholds, template.yaml generation, file checks, naming, replace
+and provenance) is DESIGN-phase2.md §1.10. Surfaces: `engine.templates.create(input)` (trust `mcp`, feature
+`templates.create`); MCP `template_create_from_brand` (WRITE_FILES annotations; 40 tools, 41 with `template_from_site` — DESIGN-phase2 §1.11) — input = `BrandInputSchema`,
+summary: folder, colours, every contrast ratio and change, the suggested accent, fonts, warnings and the next step
+(`template_preview {project, template}`), data = `ThemeCreated` with the font files' name strings under
+`untrusted.fonts`; `studio theme create <name> --accent --logo …` calls `createThemeFromBrand` with trust `author`
+(any local file, relative to the cwd). Synchronous: no browser, no job (file reads ≤ 25 MB).
+
 ## 4. CLI (`studio`)
 
 ```

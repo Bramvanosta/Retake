@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-18, end of lot **L3.4 (recorder)** — phases 1 and 2 are done, phase 3 is under way. **Next:
-L3.5 (themes from brand inputs and from a site URL), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-19, end of lot **L3.5 (themes from brand inputs and from a site URL)** — phases 1 and 2 are
+done, phase 3 is under way. **Next: L3.6 (frame comments API), when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -23,12 +23,20 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-70); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-76); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.4)
+## State (after L3.5)
+- **L3.5 done (2026-10-19)**: Claude makes a new workspace theme from the user's brand files
+  (`template_create_from_brand`: logo, colours, fonts in `<workspace>/brand/`; deterministic palette with contrast
+  checks, strict SVG scan, font sniff, licence notes) or drafts one from a public website the user approves
+  (`template_from_site`: a worker job behind a local CONNECT proxy, public addresses only, signed approval of the exact
+  URL; colours by role, font names, logo candidates as PNG, a screenshot), then previews and renders with it. CLI:
+  `studio theme create | from-site`. 41 MCP tools. Tests on the Mac: **2294 — 2257 pass, 37 skipped (≈ 13 min)**;
+  `pnpm test:slow` 21/21. Requirements: 619 tracked — 531 done, 16 partial, 64 todo, 8 n/a-here. Live check for the
+  user: MACOS-CHECKLIST 12g (a brand kit, then a public site you pick).
 - **L3.4 done (2026-10-18)**: `studio record` opens a real window where the person performs the flow; it becomes a
   scenario draft (verified targets, scenes, waits, secrets replaced by placeholders) that is saved, checked by a replay
   up to the first write and dry-runs. Claude can start one with `scenario_record` but never drives it. Tests on the
@@ -159,7 +167,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.5 — Themes from brand inputs and from a site URL** — only when the user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L3.6 — Frame comments API (store, anchors, MCP tools)** — only when the user asks for it. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -919,6 +927,23 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   `jobs/record-job.ts`, cli `record.ts`, mcp `scenario_record`; fixture `/record-lab`. Acceptance in `test:slow`: the
   quote flow recorded through the job by a Playwright driver standing in for the person → draft → validate → run_dry
   15/15, a sentinel password nowhere. 1967 tests: 1934 pass, 33 skipped; test:slow green. No new dependency.
+- **L3.5 done** (themes from brand inputs and from a site URL; R-MCP-10, R-MCP-12 done, R-DEC-04 partial — the theme
+  editor is R-UI-07). Planned, criticised with probes (a route-fulfil design let redirects and WebSocket / service
+  worker / preconnect escape — replaced by a local CONNECT proxy as Chromium's only network; `--force-webrtc-…` does
+  not stop STUN, `--webrtc-ip-handling-policy` does; starter names and existing folders must be compared without case),
+  built in three parts (brand files → theme; site extraction; acceptance + docs), reviewed by two independent
+  reviewers (21 findings: SVG scan bypasses through non-ASCII namespace prefixes and an ISO-2022-JP declaration, a
+  renderer busy loop hanging the worker, SharedWorker requests past the route, extraction files written through planted
+  links, stale-folder cleanup deleting a human's `.tmp-*` folder, WOFF weights read from the family name…) and fixed
+  with mutation-checked tests (the fixer also found `fetchLater` past the route). Files: core `brand.ts`, `ip-class.ts`,
+  `site.ts` (+ `site` job kind); components `brand/palette.ts`, `brand/template-file.ts`; engine `brand/files.ts`,
+  `brand/create.ts`, `jobs/site-job.ts`, site approvals; runner-web `site/proxy.ts`, `site/extract.ts`,
+  `site/page-script.ts`, `site/palette.ts`; mcp `template_create_from_brand`, `template_from_site` (41 tools), the site
+  approval form; cli `studio theme create | from-site`, doctor warning. Test fixture: `runner-web/test/fixtures/
+  brand-site` (invented brand on `.test` names over self-signed https; openssl needed). Acceptance in `test:slow`
+  (`mcp/test/theme-acceptance.test.ts`): site → draft → theme with the site's logo and the workspace's fonts → preview
+  → fixture quote render reviewed clean, frames looked at. Cuts and limits: BL-75. 2294 tests: 2257 pass, 37 skipped;
+  test:slow 21/21. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1148,6 +1173,25 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.5:
+- Two theme tools: `template_create_from_brand` (sources only from the workspace, never agent-writable folders,
+  `.demo-studio/` only through a `site:<id>/logo-<n>` ref; SVG refused, never cleaned; new names lower-case, never a
+  starter's or an existing folder's, compared without case; never inside the Demo Studio package — the repository root
+  cannot be the workspace of a theme create; `replace` only of an unchanged theme made the same way: MCP replaces only
+  MCP-made themes; annotated destructive) and `template_from_site` (a `site` job: the worker refuses the whole job
+  unless it carries a verified signed approval of the exact URL's fingerprint).
+- Site network contract (runner-web `site/`): Chromium's only network is a local CONNECT proxy in the worker (DNS
+  names on 443 only, every address public — core `ip-class.ts` —, connects to the checked address, tunnels only hosts
+  the route announced, caps per tunnel / job); the top-level redirect chain is followed first in Node, only to the same
+  host or its www / apex sibling; WebSocket closed, WebRTC UDP off, service workers, shared workers and `fetchLater`
+  removed in every frame (switch + init script); 15 s per page call, 120 s per extraction, `job_cancel` closes the
+  browser; outputs written via temp + rename into a folder the worker makes new. Every page string under `untrusted`.
+- Test-only `DEMO_STUDIO_UNSAFE_TEST_RESOLVE=<name>.test=127.0.0.1:<port>` (loopback only; doctor warns; it must be in
+  the MCP server's environment). Known limits (BL-75): subresource redirects to another host fail, a signed site job
+  has no expiry, "public" ≠ "the internet".
+- Many tests leave `ds-*` folders in `$TMPDIR` (≈ 10,000 / 7 GB since 2026-10-12 on the Mac): clean them now and then
+  (`find "$TMPDIR" -maxdepth 1 -name 'ds-*' -mmin +180 -exec rm -rf {} +`); making the tests clean up is a chore to do.
+
 Notes from L3.4:
 - The recorder never uses `exposeBinding` (its binding is visible to the page in Playwright 1.56): everything runs in
   a CDP isolated world (`Runtime.addBinding` scoped to it); the isolated world reports origin "://", so the origin is

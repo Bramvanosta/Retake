@@ -5,7 +5,7 @@
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `studio` command a human runs in a terminal).
  */
-import type { ApprovalOutcome, ApprovalRequest, Approver } from '@demo-studio/engine';
+import type { ApprovalOutcome, ApprovalRequest, Approver, SiteApprovalRequest } from '@demo-studio/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
 
@@ -47,19 +47,50 @@ export function approvalForm(req: ApprovalRequest): ElicitForm {
   };
 }
 
+/**
+ * The question of a site extraction (L3.5): the canonical URL as it opens (percent-encoded path, punycode host — never
+ * the decoded path, which is the agent's text) and the host in Unicode on its own line.
+ */
+export function siteApprovalMessage(req: SiteApprovalRequest): string {
+  return [
+    'Demo Studio: the agent asks to open a website and extract its colours, font names and logos for a new theme.',
+    `URL: ${req.href}`,
+    `Host: ${req.unicode_host}${req.unicode_host !== req.host ? ` (written ${req.host})` : ''}`,
+    'It opens once in a clean headless browser on this machine: no profile and no saved sign-in, page loads only (GET requests to public addresses; no form is sent, nothing is clicked or typed). A screenshot and logo images go to .demo-studio/site/; no theme is written.',
+    'Approve to open exactly this URL. Decline to refuse: nothing opens.',
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+export function siteApprovalForm(req: SiteApprovalRequest): ElicitForm {
+  return {
+    message: siteApprovalMessage(req),
+    requestedSchema: {
+      type: 'object',
+      properties: {
+        approve: { type: 'boolean', title: 'Open this URL', description: 'Check to let this one extraction open the URL shown above.', default: false },
+      },
+      required: ['approve'],
+    },
+  };
+}
+
+async function ask(elicit: NonNullable<CallContext['elicit']>, form: ElicitForm, timeoutMs: number): Promise<ApprovalOutcome> {
+  try {
+    const answer = await elicit(form, { timeoutMs });
+    if (answer.action === 'accept') return answer.content?.approve === true ? { approved: true } : { approved: false, reason: 'declined' };
+    return { approved: false, reason: answer.action === 'decline' ? 'declined' : 'cancelled' };
+  } catch (e) {
+    if (isTimeoutError(e)) return { approved: false, reason: 'timeout' };
+    return { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** The approver of a call whose client declared form elicitation (undefined otherwise: the engine refuses). */
 export function elicitationApprover(elicit: CallContext['elicit'], timeoutMs = approvalTimeoutMs()): Approver | undefined {
   if (!elicit) return undefined;
   return {
-    async approve(req: ApprovalRequest): Promise<ApprovalOutcome> {
-      try {
-        const answer = await elicit(approvalForm(req), { timeoutMs });
-        if (answer.action === 'accept') return answer.content?.approve === true ? { approved: true } : { approved: false, reason: 'declined' };
-        return { approved: false, reason: answer.action === 'decline' ? 'declined' : 'cancelled' };
-      } catch (e) {
-        if (isTimeoutError(e)) return { approved: false, reason: 'timeout' };
-        return { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
-      }
-    },
+    approve: (req: ApprovalRequest) => ask(elicit, approvalForm(req), timeoutMs),
+    approveSite: (req: SiteApprovalRequest) => ask(elicit, siteApprovalForm(req), timeoutMs),
   };
 }

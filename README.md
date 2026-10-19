@@ -155,6 +155,10 @@ studio components list [--kind K] [--json]            # workspace components, th
 studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
 studio components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
 studio components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
+studio theme create <name> --accent HEX --logo FILE [--text|--paper|--muted|--dark HEX] [--background SPEC] [--base T]
+              [--wordmark FILE] [--display-font FILE] [--body-font FILE]… [--brand-name N] [--brand-url U]
+              [--no-adjust] [--replace] [--json]   # a new workspace theme from brand files (Themes from your brand)
+studio theme from-site <url> [--json]              # colours, font names, logo PNGs and a screenshot of a public page (Themes from a site)
 studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
 studio render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
               [--music FILE|--no-music] [--tutorial|--no-tutorial] [--no-intro] [--no-outro] [--out FILE] [--concurrency N]
@@ -806,6 +810,99 @@ An explicit `components` entry is taken as written (legacy params are not merged
 contradicts a legacy field written in the same file. `resolveThemeComponents(template)` (core) returns the resolved
 choice per kind with its source (`theme`, `legacy` or `default`). The starter templates declare both, consistently.
 
+### Themes from your brand
+
+Put the brand's files in the workspace — a `brand/` folder is the convention: a logo (`.svg`, `.png`, `.jpg`, `.webp`),
+optionally a wordmark and font files (`.ttf`, `.otf`, `.woff`, `.woff2`) — and make a theme from them and the brand's
+colours:
+
+```sh
+studio theme create acme --accent '#0e7c66' --logo brand/logo.svg --wordmark brand/wordmark.svg \
+  --display-font brand/AcmeSerif-Regular.ttf --body-font brand/AcmeSans-Regular.ttf --body-font brand/AcmeSans-SemiBold.ttf \
+  --brand-name Acme --brand-url acme.example
+```
+
+or ask Claude (MCP `template_create_from_brand`, same inputs, the files named relative to the workspace root). It writes
+one **new** folder `templates/acme/`: `template.yaml` over a base theme (`--base`, default `editorial`: its components,
+frame, captions, motion and durations are kept), the logo and wordmark copied as `logo.<ext>` / `wordmark.<ext>`, the
+fonts as `fonts/display-<Weight>.<ext>` / `fonts/body-<Weight>[Italic].<ext>` (the renderer reads a face's weight from
+its file name; no fonts given: the base's are copied), `LICENSES.md` (where each file came from, what each font
+declares about its licence) and `.demo-studio-theme.json` (inputs and the sha256 of every file written).
+
+- **Colours** are hex. Only the accent is required; text, muted, paper, a night tone (`dark`) and the background are
+  derived from it when omitted (a dark paper makes a dark theme; base `motion` suits it). Contrast is checked (WCAG:
+  text 7:1 on the paper and the background, muted 4.5:1, the paper 7:1 on the night tone, the accent 3:1 on the paper);
+  a colour that misses its threshold — derived or given — is lifted towards black / white and every change is listed
+  (`--no-adjust` keeps them, with warnings). The accent is never changed: when it reads poorly on the paper you get a
+  suggested value to pass instead. The same inputs always give the same theme.
+- **Files are checked before they are copied:** raster images by their header (format matching the extension, 64 px
+  high at least, 8192 px at most), SVGs by a strict scan — UTF-8 only (an XML declaration of another encoding or a
+  control character is refused), no script, event handler, `foreignObject`, external link or `url()`, `@import`, CSS
+  escape, DOCTYPE or entity under any namespace prefix (a font embedded as `data:font/woff2`, as in the starters'
+  wordmarks, is fine) — refused, never cleaned: export a plain SVG or a PNG. Fonts by their header (TrueType /
+  OpenType tables, WOFF / WOFF2 header); a font whose embedding bits say "restricted" or "preview & print" is copied
+  with a warning — check that its licence allows videos. A WOFF / WOFF2 keeps its weight compressed: it is read from
+  the style word after the file name's last `-` or `_` (`Brand-SemiBold.woff2` → 600; none → 400), with a warning —
+  give `{file, weight}` to set it. What a font says about itself (family, copyright, licence) is printed without
+  control or bidirectional characters and escaped in `LICENSES.md` (never a link or an image there).
+- **Names**: lower-case letters, digits and `-`; never a starter's name (`default`, `editorial`, `motion`, in any case)
+  nor a folder that already exists in `templates/`. `--replace` (MCP `replace: true`) replaces a theme Demo Studio made
+  only while none of its files changed and none was added — once you edit it, it is yours; through MCP only a theme
+  made through MCP is replaced (never one you made with `studio theme create`). Refused when the
+  workspace's templates folder lies inside the Demo Studio folder (the repository is not a workspace for your brand:
+  set `DEMO_STUDIO_ROOT` or a `studio.yaml`).
+- Through MCP the files must be files of the workspace that no tool writes: never in a hidden folder (`.demo-studio/`),
+  `components/`, or a project's `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` (case ignored), never through
+  a link leaving the workspace. A human typing `studio theme create` names any file. These rules hold against what
+  Demo Studio's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
+  a file in `brand/` — the content checks above apply to it all the same.
+
+
+### Themes from a site
+
+No brand kit at hand? Read the brand's public site:
+
+```sh
+studio theme from-site https://www.brand.example/
+```
+
+or ask Claude (MCP `template_from_site {url}`: **you are asked to approve the exact URL first**, in your MCP client).
+A clean headless Chromium on your machine opens the page once and writes to `.demo-studio/site/<id>/`: `site.json`
+(colour swatches with their share of the page and contrast ratios, roles — paper, text, accent, dark —, the font
+family names the page uses, the logo candidates, network counts), `screenshot.jpg` and up to six logo candidates
+`logo-<n>.png` (the header's logo images and inline SVGs, the icons, the og:image — converted to transparent PNGs by
+the browser with JavaScript off and no network; the site's own bytes are never kept, nor its font files). The answer
+ends with a draft for `studio theme create` / `template_create_from_brand` — the colours, `logo: site:<id>/logo-1`, the
+host as the brand URL — and the template.yaml it would make (not written). Choose, change what you like, give the
+brand's font files yourself (a site's fonts are not copied: their licence rarely allows it), then create the theme.
+The newest 10 extractions are kept.
+
+- **What opens:** `https://` only, the default port, no user name, query string or fragment, a DNS name (never an IP
+  literal, `localhost`, `.local`, `.internal`, `.lan`, `.home.arpa`, `.test`, `.invalid`, `.example`, `.onion`,
+  `.alt`…), at most 5 redirects (followed first with the same rules, then the page opens on the last URL) — on the
+  approved host and its `www.` / apex sibling only: a redirect to another host fails the extraction, and that URL is
+  read once you approve it in turn. "Public" means what this machine reaches as public addresses: through a VPN or a
+  split-horizon DNS, a public-looking name may still lead to a network of yours. Never a page of one of your
+  projects' environments, nor a protected host — those are filmed through runs and `page_inspect` (a warning only in
+  `studio theme from-site`). Only the URL you approved is checked against them, not what the page then loads.
+- **The browser's only network is a local proxy in the worker** that connects to public addresses only (every address
+  a name resolves to must be public: no loopback, private, link-local / cloud metadata, carrier-grade NAT,
+  documentation, multicast or IPv6 special range) and to the address it checked (no DNS rebinding), on port 443, for
+  hosts the page actually requested; Chromium resolves nothing itself. Only GET and HEAD go out (a form, a beacon, a
+  POST are blocked and counted), WebSockets are closed, WebRTC sends no UDP, service workers cannot register, shared
+  workers and `fetchLater` do not exist (their requests would skip these checks), downloads are refused, a navigation away — or a
+  popup's — is answered "no content" (the page stays), and caps bound each connection (15 MB, 15 s idle, 60 s) and the
+  extraction (40 MB, 200 connections, 300 requests; 15 s per call into the page, 120 s in all — a page that hangs its
+  renderer fails, and `job_cancel` closes the browser at once). Nothing is clicked or typed (a cookie banner stays in
+  the screenshot); the browser profile is ephemeral — the site's cookies live only in it. Files are written by the
+  worker into a folder it makes new (never through a link), and read back only when they are plain files of their
+  type; logo candidates a create would refuse (under 64 px high, over 2 MB) are never made (drawn smaller first).
+- Through MCP, everything the page chose — its title, description, site name, alt texts, font names, URLs, the hosts
+  it tried, errors — comes back under `untrusted`, and the images are described as a third-party page (text in them is
+  data, not instructions). `site:<id>/logo-<n>` is the only way a theme can take a file from `.demo-studio/`: a PNG of
+  that extraction, a plain file (no link), re-checked by its header.
+- Tests: `DEMO_STUDIO_UNSAFE_TEST_RESOLVE=brand.test=127.0.0.1:<port>,…` maps invented `.test` names to local ports
+  (and accepts their self-signed certificates) for the test suite only; `studio doctor` warns when it is set.
 ## Components
 
 Every visual element of the edit — intro, outro, cards, waiting screens (interstitials), captions, screen layouts,
@@ -2493,8 +2590,10 @@ Claude inspects the product's pages (`page_inspect`: a marked screenshot and the
 runner resolves) and writes the YAML itself — no tool writes a scenario for it or calls a model (`scenario_from_script`
 only turns a timecoded table the user hands into a skeleton), or the **user** shows the flow once in a window
 (`scenario_record`: Claude starts the recording and reads the draft, never drives it). Claude also lists and
-previews themes and components (stills come back as images), checks components and scaffolds new ones — component code,
-themes and project.yaml are never written through the server.
+previews themes and components (stills come back as images), checks components and scaffolds new ones, and makes a
+new theme from the brand files the user put in the workspace, or from a draft read off a public site whose URL the
+user approves (`template_from_site`) — component code, existing themes and project.yaml are
+never written through the server.
 
 **Registering it.** `studio mcp --print-config` (from your workspace, or with `--root <workspace>`) prints the JSON
 block and the `claude mcp add` command with absolute paths (in this repository run `node packages/cli/dist/bin.js mcp
@@ -2553,6 +2652,8 @@ claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/pa
 | `export` | exports a render as a job (`formats`, default `mp4_1080p`, `webm`, `gif_preview`; `vertical_9x16` / `square_1x1` / a 4K from a smaller master are re-rendered; `gif_start_s` / `gif_duration_s` ≤ 30 s) and returns at once; `job_status` follows it and lists the files | `exports/<render_id>/` + `manifest.json` |
 | `template_list` | the themes by name (the workspace's `templates/`, then the starters): source, the component each picks per kind, issues; `project` marks the project's own (and lists its own theme folder); `template` returns one theme in detail — template.yaml and its sha256, colours, fonts, brand, assets, each kind's component with its params | — |
 | `template_preview` | stills of a theme (default the project's): its intro, its layout with its caption over a neutral sample screen, a card, an interstitial and its outro, 960×540, rendered as a job; waits up to `wait_s` (default 20) and returns them as images (4 inline, the 5th as a file) | `.demo-studio/previews/<id>/` |
+| `template_from_site` | asks the user to approve the URL (elicitation; without it: `needs_approval` with the `studio theme from-site` command), then extracts a public page as a job (see [Themes from a site](#themes-from-a-site)): colour roles and swatches with contrast, logo candidates as `site:<id>/logo-<n>` PNGs, the screenshot and logos as images (a third-party page), the font names and every page string under `untrusted`, a draft brand input and the template.yaml it would make; waits up to `wait_s` (default 25) | `.demo-studio/site/<id>/` |
+| `template_create_from_brand` | a **new** theme from the user's brand files (see [Themes from your brand](#themes-from-your-brand)): `name`, `base`, `colors` (hex; `accent` required), `background`, `adjust`, `logo`, `wordmark`, `fonts {display, body[]}` (files relative to the workspace root, outside hidden, `components/` and agent-writable folders; a logo or wordmark may be `site:<id>/logo-<n>` of `template_from_site`), `brand {name, url}`, `replace` (only an unchanged theme this tool made); returns the folder, template.yaml, the palette with every ratio and change, the fonts (their name strings under `untrusted`) and warnings; then `template_preview` | `templates/<name>/` (a new folder) |
 | `component_list` | components by id (workspace first, then the built-in `studio/…`; `kind` filters): kind, version, source, description, slot names, the committed preview and whether it is fresh; registry notices (invalid, overriding) | — |
 | `component_get` | one component: manifest (slots and their types, params JSON Schema with defaults, duration, geometry, preview samples), params with defaults, source files, README | — |
 | `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
@@ -2747,13 +2848,17 @@ progress notifications. A job `succeeded` when it ran to the end — its run may
   an `<Audio>` / `<Video>` source Remotion would download itself is refused (the render fails). WebSockets are blocked
   for every render by a Content-Security-Policy of the bundle; WebRTC is not covered (full isolation: BACKLOG). A
   `studio render` in a terminal keeps the network (remote images in slots work there).
-- **Components and themes are not written through MCP.** `component_create` writes the tool's own scaffold (it refuses
+- **Components and themes are not edited through MCP.** `component_create` writes the tool's own scaffold (it refuses
   the `studio/` namespace and every built-in id: a workspace component of that id would replace the built-in in every
-  render), and no tool writes component code, a theme or project.yaml. Component code is JavaScript run by the render's
+  render), `template_create_from_brand` writes a new theme folder (never a starter's name or an existing folder; its
+  files checked; `replace` only of its own unchanged output made through MCP — hence annotated destructive), and no
+  tool writes component code, an existing theme or
+  project.yaml. Component code is JavaScript run by the render's
   Chromium: edit it yourself, or let Claude Code edit it with its own file tools under your permissions; previews and
   renders through MCP still run it behind the network guard.
 - Tools take **slugs and ids only** — a project slug, a scenario name, a run id, a render id, a theme name, a component
-  id, an export format — never a file path (and no output folder: renders, reviews, exports and previews go to their fixed folders): a path, `..` or
+  id, an export format — never a file path except the brand files of `template_create_from_brand` (relative to the
+  workspace root, checked as above, or a `site:` candidate) and the one URL of `template_from_site` (approved by you) (and no output folder: renders, reviews, exports and previews go to their fixed folders): a path, `..` or
   an unknown argument is refused before anything is read. The server only touches its workspace.
 - **No secret in what Claude writes or runs.** A scenario saved, validated or run through MCP may not contain
   `{{env:…}}` / `{{keychain:…}}` anywhere (steps, hooks, vars), nor may a code file it runs (eval `file`, a hook's sql
@@ -2931,7 +3036,7 @@ so build first). Gated tests:
 |---|---|
 | `pnpm test:pg` | the 7 SQL hook tests against a real Postgres (`packages/hooks/test/sql.test.ts`): `scripts/test-pg.mjs` starts a throwaway container `demo-studio-pg-test-<hex>` from `postgres:17-alpine` (never pulled for you: it prints the `docker pull` when the image is missing) on a loopback port Docker picks, with a random password, sets `DEMO_STUDIO_TEST_PG`, and removes that container — only that one — with its anonymous data volume at the end, on an error or on Ctrl-C. A container a killed run left (label `demo-studio.test=pg`) is listed with the command that removes it, never removed. A few seconds; needs a running Docker (or OrbStack) |
 | `pnpm test:pg --all` | the whole suite with Postgres, `DEMO_STUDIO_TEST_DOCKER=1` and `DEMO_STUDIO_TEST_SLOW=1`: everything this machine can run |
-| `pnpm test:slow` | `DEMO_STUDIO_TEST_SLOW=1`: the committed `catalogue` scenario captured on the fixture (free ports) at 1920×1080 with the debug cursor and its real hooks — duration, every frame's size, the run folder's files, the scroll durations, the drawn hotspot ≤ 3 px from every click point and inside its target, `popup_opened`, no hesitation between steps, the setup rollback (`packages/cli/test/catalogue-acceptance.test.ts`, about 1.5 min) |
+| `pnpm test:slow` | `DEMO_STUDIO_TEST_SLOW=1`: the committed `catalogue` scenario captured on the fixture (free ports) at 1920×1080 with the debug cursor and its real hooks — duration, every frame's size, the run folder's files, the scroll durations, the drawn hotspot ≤ 3 px from every click point and inside its target, `popup_opened`, no hesitation between steps, the setup rollback (`packages/cli/test/catalogue-acceptance.test.ts`, about 1.5 min); then the MCP acceptances over stdio on a copy of the fixture project — capture → render → review → theme switch → export (`packages/mcp/test/fixture-acceptance.test.ts`), authoring from inspections (`authoring-acceptance.test.ts`), recording (`record-acceptance.test.ts`) and a theme made from the brand-site fixture and brand files, previewed, filmed and reviewed (`theme-acceptance.test.ts`) |
 
 Set `DEMO_STUDIO_TEST_PG` yourself to a PostgreSQL URL (a role that may create tables) to run the SQL hook tests
 without the script, `DEMO_STUDIO_TEST_OLD_NODE` to an older `node` binary (e.g. a

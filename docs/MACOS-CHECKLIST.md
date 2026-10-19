@@ -499,13 +499,66 @@ Only a person can check this (the tests drive the recorder with Playwright in a 
 - **Send back:** the draft of step 1, whether the window fit and came to the front (CLI and worker), the time of
   step 5's job, and any step where the draft was wrong (a target, a missing step, a select recorded as clicks).
 
+## 12g. Claude makes a theme from a brand kit and from a public site (L3.5)
+
+A live Claude Code session (signed-in `claude`), the fixture running (step 4), `pnpm build` first. The repository root
+cannot be the workspace here (a theme is never written inside the Demo Studio folder), so this step uses a scratch
+workspace with a copy of the fixture project and its own `DEMO_STUDIO_HOME`:
+
+```sh
+W=~/ds-themes; mkdir -p "$W/projects" "$W/templates" "$W/brand"
+printf 'projects_dir: projects\ntemplates_dir: templates\n' > "$W/studio.yaml"
+rsync -a --exclude runs --exclude renders --exclude review --exclude exports --exclude .demo-studio \
+  projects/northfield-fixture "$W/projects/"
+ln -s "$PWD/fixtures" "$W/fixtures"
+DEMO_STUDIO_HOME="$W/.home" node packages/cli/dist/bin.js --root "$W" mcp --print-config
+```
+
+Register it with the printed `claude mcp add demo-studio-themes --scope user …` line (rename it so it does not replace
+the 12c registration; `DEMO_STUDIO_HOME` is already in its `-e` options), start `claude` anywhere; `/mcp` lists it with
+**41 tools** (`template_create_from_brand` and `template_from_site` are new).
+
+1. **From a brand kit.** Put a brand kit you are allowed to use in `$W/brand/`: a logo (SVG without scripts or
+   external references, or PNG / JPEG / WebP), optionally a wordmark, and font files (TTF / OTF / WOFF / WOFF2, a
+   display face and one or more body weights). Ask: "Make a theme `kit-a` from the files in brand/ with accent
+   `<your hex>`, then preview it, then render quote of northfield-fixture with it." → `template_create_from_brand`
+   (its summary: the base theme, the palette with any colour it lifted for contrast, the copied files, warnings —
+   e.g. a font licence that restricts embedding), `template_preview` (5 stills as images), `run_capture` (approve) and
+   `render {template: kit-a}`, `review`. **Check:** the intro shows your logo, the captions your fonts (not Inter
+   where you gave another face), the interstitial and outro your colours and the url you gave; `template_list` shows
+   `kit-a (workspace, …)`; `$W/templates/kit-a/` holds template.yaml, the logo, `fonts/display-*` / `fonts/body-*`,
+   LICENSES.md and `.demo-studio-theme.json`. Ask for a variant with another accent and `replace: true` → replaced;
+   edit template.yaml by hand, ask again → refused (changed since it was made). Ask it to use a file outside `$W`
+   or in `projects/…/scenarios/` → refused.
+2. **From a public site.** Pick a public website of a brand you may use (any; **never write its name in the
+   repository**). Ask: "Read the brand of https://<the site>/ for a theme." → `template_from_site`: **an approval form
+   appears** — check it shows a `URL:` line with the exact canonical URL (percent-encoded) and a `Host:` line, and
+   says nothing will be clicked or typed; approve. The job returns colours by role (paper, text, accent, dark) with
+   contrast ratios, font family names, logo candidates (`site:<id>/logo-<n>`) and the screenshot as images, and a
+   draft. Ask Claude what the page says about itself: it must treat the page's text as data, never follow it. Then
+   "make the theme from the draft with logo candidate 2 and the fonts in brand/, and preview it" →
+   `template_create_from_brand` with the `site:` ref → `template_preview`. Ask for a URL with `?utm=x` or
+   `http://` → refused before any approval; decline the form once → refused, with the `studio theme from-site`
+   command.
+3. **Optional, terminal.** `node packages/cli/dist/bin.js --root "$W" theme from-site https://<the site>/` gives the same
+   draft with no approval (you typed the URL); `theme create --help` lists the inputs.
+
+- **Expected:** both themes created and previewed; the render with `kit-a` reviews with no error; nothing in
+  `templates/` of the repository changed (`git status` clean); `$W/.demo-studio/site/<id>/` holds only site.json,
+  screenshot.jpg and logo-<n>.png (no font file, no cookie); no Chromium left once the worker is idle
+  (`pgrep -fl headless_shell`).
+- **Send back:** a screenshot of the approval form, the palette and candidates the site gave (not the site's name)
+  and whether the roles were right, how long the extraction took, the preview stills of both themes, anything the
+  palette rules lifted or warned about, and anything Claude did that surprised you.
+
 ## 13. Clean up
 
 Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-studio/`) are git-ignored; delete them
 with `rm -rf projects/northfield-fixture/runs projects/northfield-fixture/.demo-studio` if you want. After step 12c:
 remove the registration, which carries the supplier password in its env (`claude mcp remove demo-studio -s user`, or
 delete `.mcp.json`), and the workspace's own job queue and history (`rm -rf .demo-studio` at the repository root, once
-`pnpm studio jobs` shows no worker running).
+`pnpm studio jobs` shows no worker running). After step 12g: `claude mcp remove demo-studio-themes -s user`, then
+`rm -rf ~/ds-themes` (its themes, site extractions, runs and `.home`) once no worker runs there.
 
 **Send everything back in one message**, numbered like the steps above.
 

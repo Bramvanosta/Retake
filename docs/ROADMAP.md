@@ -56,8 +56,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.2 | MCP render/review/export + theme & component tools | M | **done** (live run: MACOS-CHECKLIST 12d) |
 | L3.3 | Authoring: scenario_from_script + page_inspect | M | **done** (live run: MACOS-CHECKLIST 12e) |
 | L3.4 | Recorder (`studio record`, scenario_record) | M | **done** (a human recording: MACOS-CHECKLIST 12f) |
-| L3.5 | Themes from brand inputs and from a site URL | M | **next** |
-| L3.6 | Frame comments API (store, anchors, MCP tools) | S | todo |
+| L3.5 | Themes from brand inputs and from a site URL | M | **done** (live run: MACOS-CHECKLIST 12g) |
+| L3.6 | Frame comments API (store, anchors, MCP tools) | S | **next** |
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | todo |
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | todo |
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | todo |
@@ -626,7 +626,24 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   isolation, writes to another host, issue positions) fixed with mutation-checked tests. Cut to BL-74: tabs / popups /
   frames, holds, alternatives, date / drag / hover mapping. A real person's recording: MACOS-CHECKLIST 12f.
 
-### L3.5 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.5 — Themes from brand inputs and from a site URL (M)
+- **Goal:** Claude makes a new workspace theme from a brand's logo, colours and fonts — files the human put in the
+  workspace, or a draft taken from the brand's public website — previews it and renders with it; the palette is
+  derived deterministically (no model call), an existing theme is never edited and a site's font files never copied.
+- **Done (2026-10-19):** `template_create_from_brand` / `studio theme create` (sources checked: workspace files outside
+  agent-writable folders, strict SVG scan, raster and font header checks, fonts renamed by weight, licence notes in
+  LICENSES.md; palette from the accent with contrast checks, derived colours lifted and reported, the accent only
+  suggested; a new lower-case name never a starter's or an existing folder's; temp folder + rename, provenance hashes,
+  `replace` only of an unchanged tool-made theme); `template_from_site` / `studio theme from-site` (a worker job after a
+  signed human approval of the exact URL; a clean Chromium whose only network is a local CONNECT proxy — public
+  addresses only, the checked address connected, redirects re-checked —, escapes closed: WebSocket, WebRTC, service /
+  shared workers, fetchLater; colours by role with contrast, font names, logo candidates as PNG `site:` refs, a
+  screenshot; page text under `untrusted`). 41 MCP tools. Acceptance in `test:slow`: site draft → theme → preview →
+  fixture quote render reviewed clean, frames looked at. Two independent reviews (network / SSRF; theme writes, docs,
+  tests): 21 findings fixed with mutation-checked tests. R-DEC-04 stays partial (theme editor, R-UI-07). Cuts: BL-75.
+  Live run: MACOS-CHECKLIST 12g.
+
+### L3.6 – L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

@@ -36,6 +36,8 @@ import { inspectCommand } from './commands/inspect.js';
 import { recordCommand } from './commands/record.js';
 import type { RecordCommandOptions } from './commands/record.js';
 import type { InspectCommandOptions } from './commands/inspect.js';
+import { themeCreateCommand, themeFromSiteCommand } from './commands/theme.js';
+import type { ThemeCreateOptions } from './commands/theme.js';
 import { validateCommand } from './commands/validate.js';
 import type { ValidateOptions } from './commands/validate.js';
 import { EXIT, errorMessage, exitCodeOf, isKnownError } from './errors.js';
@@ -373,6 +375,35 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--out <dir>', 'write only the images to <dir>/<namespace>/<name>.png (component folders untouched)')
     .option('--json', 'machine-readable output')
     .action(action((u, g, id: string | undefined, o: ComponentsPreviewOptions) => componentsPreviewCommand(u, g, id, o)));
+
+  const theme = program.command('theme').description('themes (templates) from brand files or a site');
+  theme
+    .command('create')
+    .description('a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Demo Studio made)')
+    .argument('<name>', 'new theme name: lower-case letters, digits and "-", not a starter\'s or an existing folder\'s')
+    .requiredOption('--accent <hex>', 'brand colour (#rrggbb): kicker, rules, clock hand, cursor ripple — never changed')
+    .requiredOption('--logo <file>', 'logo: .svg, .png, .jpg or .webp')
+    .option('--text <hex>', 'text colour (default derived)')
+    .option('--paper <hex>', 'paper colour (default derived; a dark paper makes a dark theme)')
+    .option('--muted <hex>', 'muted colour (default derived)')
+    .option('--dark <hex>', 'night tone of dark cards and interstitials (default derived)')
+    .option('--background <spec>', 'a hex (solid) or radial:<from>:<to> / linear:<from>:<to> (default derived)')
+    .option('--base <theme>', 'theme whose components, frame, captions and motion are kept (default editorial)')
+    .option('--wordmark <file>', 'wordmark image of the outro (default: the brand name as text)')
+    .option('--display-font <file>', 'display font: .ttf, .otf, .woff or .woff2 (default the base theme\'s)')
+    .option('--body-font <file>', 'body font file, one per weight (repeatable; default the base theme\'s)', collect)
+    .option('--brand-name <name>', 'brand name (drawn when there is no wordmark)')
+    .option('--brand-url <url>', 'brand URL shown in the outro, e.g. example.com')
+    .option('--no-adjust', 'keep colours that miss a contrast threshold (warnings only)')
+    .option('--replace', 'replace a theme Demo Studio made under that name (this command or template_create_from_brand), when nobody changed it since')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, n: string, o: ThemeCreateOptions) => themeCreateCommand(u, g, n, o)));
+  theme
+    .command('from-site')
+    .description('open one public https page in a clean headless browser (no profile, GET only, public addresses only) and extract its colours by role, font family names, logo candidates (PNG) and a screenshot into .demo-studio/site/<id>/, with a draft for `studio theme create`')
+    .argument('<url>', 'https://<site>/<path>: default port, no query or fragment')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, url: string, o: { json?: boolean }) => themeFromSiteCommand(u, g, url, o)));
 
   program
     .command('doctor')

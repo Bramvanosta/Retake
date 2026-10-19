@@ -39,7 +39,7 @@ export type { InterruptOptions, InterruptPort, InterruptScope } from './interrup
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkSandboxEnv, executeRun, pickSandboxEnv, prepareRun, writesSummary } from './execute-run.js';
 export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
 export { newJobId } from './jobs/ids.js';
-export { FileJobQueue, jobsDir, stateDir } from './jobs/queue.js';
+export { FileJobQueue, jobProject, jobsDir, stateDir } from './jobs/queue.js';
 export type { ClaimRecord, JobFilter } from './jobs/queue.js';
 export { WorkerLock, liveWorker, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
 export type { WorkerLockRecord } from './jobs/lock.js';
@@ -60,8 +60,8 @@ export {
 export type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job.js';
 export { HooksSourceError, createHookContext, hooksAccess, selectHooks } from './hooks.js';
 export type { HookContextOptions, HookSelection } from './hooks.js';
-export { approvalChecker, preflightHooks, refusedError, takeApprovals } from './approvals.js';
-export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight } from './approvals.js';
+export { approvalChecker, preflightHooks, refusedError, takeApprovals, takeSiteApproval } from './approvals.js';
+export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight, SiteApprovalRequest } from './approvals.js';
 export type { RunSubmitRequest } from './jobs/run-job.js';
 export { ensureWorker, spawnWorker, workerCommand } from './jobs/spawn.js';
 export { runWorker } from './jobs/worker.js';
@@ -89,6 +89,8 @@ export type {
   RenderJobResult,
   ReviewJobResult,
   RunJobResult,
+  SiteCandidateResult,
+  SiteJobResult,
 } from './jobs/types.js';
 export { LoginOptionError, loginTarget, signInPersona } from './login.js';
 export type { SignInOutcome, SignInPorts } from './login.js';
@@ -151,3 +153,25 @@ export { SHELL_SEED_REASON, checkAgentTrust, seedApprovalItems } from './approva
 export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, workspaceProtectedHosts } from './protected-hosts.js';
 export type { WorkspaceProtectedHost } from './protected-hosts.js';
 export { APPROVAL_KEY_FILE, approvalKeyFile, approvalsOf, signApprovals, verifiedApprovals } from './jobs/signing.js';
+export { DEFAULT_BRAND_BASE, PACKAGE_ROOT, THEME_PROVENANCE_FILE, createThemeFromBrand, fileNameFace, replaceProblem } from './brand/create.js';
+export type { ThemeCreateOptions, ThemeCreated, ThemeFontView } from './brand/create.js';
+export { SITE_KEEP, checkSiteUrl, executeSiteJob, extractSiteForAuthor, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readSite, siteApproved, siteCommandLine, siteDir, siteDraft, siteHostConflicts, siteRoot, siteView, submitSiteJob } from './jobs/site-job.js';
+export type { SiteJobContext, SiteSubmitted } from './jobs/site-job.js';
+export {
+  BRAND_TOTAL_MAX_BYTES,
+  FONT_MAX_BYTES,
+  IMAGE_MAX_BYTES,
+  IMAGE_MAX_SIDE,
+  IMAGE_MIN_HEIGHT,
+  SVG_MAX_BYTES,
+  WEIGHT_NAMES,
+  brandSourceProblem,
+  checkImage,
+  fontCopyName,
+  rasterInfo,
+  readBrandFile,
+  scanSvg,
+  sniffFont,
+  standardWeight,
+} from './brand/files.js';
+export type { BrandFileKind, BrandTrust, FontFormat, FontInfo, ImageInfo, ResolvedBrandFile, SvgScan } from './brand/files.js';

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative } from 'node:path';
-import { WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxNames, studioHome } from '@demo-studio/core';
+import { UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxNames, studioHome, unsafeTestResolve } from '@demo-studio/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ChromiumProbe } from '@demo-studio/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -233,6 +233,19 @@ function notifyCheck(p: DoctorProbes): DoctorCheck {
     name: 'Notifications',
     detail: tool ? `${tool} not found: notify steps are only logged` : `no desktop notifications on ${p.platform}: notify steps are only logged`,
     hint: p.platform === 'linux' ? 'install libnotify-bin (notify-send) for desktop notifications' : undefined,
+  };
+}
+
+/** The unsafe test resolver of site extractions (L3.5): a warning whenever it is set (tests only). */
+export function unsafeTestResolveCheck(p: DoctorProbes): DoctorCheck | null {
+  const v = p.env[UNSAFE_TEST_RESOLVE_ENV];
+  if (!v) return null;
+  const { map, ignored } = unsafeTestResolve(p.env as NodeJS.ProcessEnv);
+  return {
+    status: 'warn',
+    name: 'Site extraction',
+    detail: `${UNSAFE_TEST_RESOLVE_ENV} is set: ${[...map.keys()].join(', ') || 'no valid entry'} reach loopback ports and their self-signed certificates are accepted${ignored.length ? ` (${ignored.length} entries ignored)` : ''}`,
+    hint: `unset ${UNSAFE_TEST_RESOLVE_ENV}: it is for the test suite only (an MCP server and its worker started with it keep it)`,
   };
 }
 
@@ -517,6 +530,8 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   out.push(await mediaTool(probes, 'ffmpeg', ws.ffmpeg));
   out.push(await mediaTool(probes, 'ffprobe', ws.ffmpeg));
   out.push(displayCheck(probes), secretsCheck(probes), notifyCheck(probes));
+  const resolve = unsafeTestResolveCheck(probes);
+  if (resolve) out.push(resolve);
   // Docker: a failure only when the --project's default sandbox is a docker-compose one.
   const need = opts.project ? await composeSandboxOf(ws, opts.project) : null;
   out.push(await dockerCheck(probes, need));

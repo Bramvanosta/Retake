@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { PROJECT_SLUG_RE } from './project.js';
 import { inspectPathProblem, INSPECT_PATH_MAX } from './inspect.js';
 import { RECORD_ID_RE } from './recording.js';
+import { siteUrlProblem } from './site.js';
 import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
 
 export const JOB_INPUT_VERSION = 1;
@@ -16,8 +17,8 @@ export const JOB_INPUT_VERSION = 1;
 export const JOB_STATES = ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 
-/** Kinds of L3.1, `render`, `review`, `export`, `preview` (L3.2), `inspect` (L3.3) and `record` (L3.4). */
-export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect', 'record'] as const;
+/** Kinds of L3.1, `render`, `review`, `export`, `preview` (L3.2), `inspect` (L3.3), `record` (L3.4) and `site` (L3.5). */
+export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect', 'record', 'site'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /** Who submitted a job (recorded; shapes the safety rules applied at submit). */
@@ -50,6 +51,8 @@ export const TEMPLATE_NAME_RE = SLUG_RE;
 export const PREVIEW_ID_RE = /^p_[0-9A-HJKMNP-TV-Z]{26}$/;
 /** An inspection id, the folder <project>/.demo-studio/inspect/<id>/: "i_" + 26 Crockford base32 characters. */
 export const INSPECT_ID_RE = /^i_[0-9A-HJKMNP-TV-Z]{26}$/;
+/** A site extraction id, the folder <workspace>/.demo-studio/site/<id>/: "s_" + 26 Crockford base32 characters. */
+export const SITE_ID_RE = /^s_[0-9A-HJKMNP-TV-Z]{26}$/;
 /** Targets an inspection checks, at most; elements it lists, at most. */
 export const INSPECT_JOB_TARGETS_MAX = 20;
 export const INSPECT_JOB_LIMIT_MAX = 300;
@@ -398,6 +401,30 @@ export const RecordJobInputSchema = z.strictObject({
   submitted_by: z.enum(JOB_CLIENTS),
 });
 
+/**
+ * A site extraction (L3.5, R-MCP-12): a clean ephemeral browser opens `url` through the worker's CONNECT proxy (public
+ * addresses only, GET / HEAD only, caps) and the page's colours, font family names, logo candidates (made PNG by the
+ * worker) and a screenshot are written to <workspace>/.demo-studio/site/<site_id>/. Workspace-level: no project.
+ * A job of this kind runs ONLY with a human's approval of exactly this URL, signed at submit (engine signing.ts):
+ * fingerprint sha256("site\n" + canonical href). The CLI never queues one (`studio theme from-site` runs in-process),
+ * so the worker refuses the whole job without it, whoever `submitted_by` names.
+ */
+export const SiteJobInputSchema = z.strictObject({
+  version: z.literal(JOB_INPUT_VERSION),
+  kind: z.literal('site'),
+  site_id: z.string().regex(SITE_ID_RE, 'a site extraction id (s_ followed by 26 characters), never a path'),
+  /** The canonical URL (core parseSiteUrl): https, default port, no userinfo, query or fragment. */
+  url: z
+    .string()
+    .max(300)
+    .superRefine((u, ctx) => {
+      const problem = siteUrlProblem(u);
+      if (problem) ctx.addIssue({ code: 'custom', message: problem });
+    }),
+  submitted_by: z.enum(JOB_CLIENTS),
+  approvals,
+});
+
 export const JobInputSchema = z.discriminatedUnion('kind', [
   RunJobInputSchema,
   HooksJobInputSchema,
@@ -411,6 +438,7 @@ export const JobInputSchema = z.discriminatedUnion('kind', [
   PreviewJobInputSchema,
   InspectJobInputSchema,
   RecordJobInputSchema,
+  SiteJobInputSchema,
 ]);
 
 export type RunJobInput = z.output<typeof RunJobInputSchema>;
@@ -425,5 +453,6 @@ export type ExportJobInput = z.output<typeof ExportJobInputSchema>;
 export type PreviewJobInput = z.output<typeof PreviewJobInputSchema>;
 export type InspectJobInput = z.output<typeof InspectJobInputSchema>;
 export type RecordJobInput = z.output<typeof RecordJobInputSchema>;
+export type SiteJobInput = z.output<typeof SiteJobInputSchema>;
 export type ExportFormatName = (typeof EXPORT_FORMAT_NAMES)[number];
 export type JobInput = z.output<typeof JobInputSchema>;

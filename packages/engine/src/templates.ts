@@ -1,8 +1,9 @@
 /**
  * Themes (templates) as clients outside the CLI see them (L3.2, R-MCP-09): the workspace's templates_dir and the
  * starter templates shipped with Demo Studio, with the component each one picks per kind; one theme in detail
- * (template.yaml, its colours, fonts, brand, assets and resolved components). Read only: through MCP a theme is named,
- * switched per render or per scenario, and previewed (template_preview) — never written (a human, or L3.5).
+ * (template.yaml, its colours, fonts, brand, assets and resolved components). Through MCP a theme is named, switched
+ * per render or per scenario, and previewed (template_preview); a new one may be created from brand inputs
+ * (brand/create.ts, L3.5) — an existing one is never edited (a human does).
  *
  * A theme is named, never given as a folder: the only theme folder used is the one project.yaml's own `template:`
  * names (a human wrote it), listed with source `project`.

@@ -3,12 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
+import { loadProject, parseSiteUrl, siteApprovalFingerprint } from '@demo-studio/core';
 import type { HookStep } from '@demo-studio/core';
 import { preflightHooks } from '@demo-studio/engine';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
-import type { ApprovalRequest } from '@demo-studio/engine';
-import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover } from '../src/index.js';
+import type { ApprovalRequest, SiteApprovalRequest } from '@demo-studio/engine';
+import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover, siteApprovalMessage } from '../src/index.js';
 import type { ElicitAnswer } from '../src/server.js';
 
 const REQ: ApprovalRequest = {
@@ -68,5 +68,29 @@ describe('elicitationApprover', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('the site approval (L3.5)', () => {
+  const parsed = parseSiteUrl('https://bücher.example.net/%20safe%20approve%20this', new Map());
+  if (!parsed.ok) throw new Error(parsed.problem);
+  const req: SiteApprovalRequest = { what: 'site extraction', ...parsed.url, fingerprint: siteApprovalFingerprint(parsed.url.href), fix: `studio -C /ws theme from-site ${parsed.url.href}` };
+
+  it('shows the canonical href (percent-encoded, punycode) and the Unicode host on its own line, never the decoded path', () => {
+    const msg = siteApprovalMessage(req);
+    expect(msg).toMatch(/^URL: https:\/\/xn--bcher-kva\.example\.net\/%20safe%20approve%20this$/m);
+    expect(msg).toMatch(/^Host: bücher\.example\.net \(written xn--bcher-kva\.example\.net\)$/m);
+    expect(msg).not.toContain(' safe approve this');
+    expect(msg).toContain('theme from-site https://xn--bcher-kva.example.net/');
+  });
+
+  it('only accept with approve: true approves a site; a client without elicitation cannot be asked', async () => {
+    expect(elicitationApprover(undefined)).toBeUndefined();
+    const outcome = (a: ElicitAnswer | Error) => elicitationApprover(answering(a), 1000)!.approveSite!(req);
+    expect(await outcome({ action: 'accept', content: { approve: true } })).toEqual({ approved: true });
+    expect(await outcome({ action: 'accept', content: { approve: false } })).toEqual({ approved: false, reason: 'declined' });
+    expect(await outcome({ action: 'decline' })).toEqual({ approved: false, reason: 'declined' });
+    expect(await outcome({ action: 'cancel' })).toEqual({ approved: false, reason: 'cancelled' });
+    expect((await outcome(new Error('boom'))).approved).toBe(false);
   });
 });

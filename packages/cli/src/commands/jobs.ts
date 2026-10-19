@@ -6,7 +6,7 @@
 import { resolve } from 'node:path';
 import { JOB_ID_RE, JOB_STATES } from '@demo-studio/core';
 import type { JobState } from '@demo-studio/core';
-import { EngineError, FINISHED_JOB_STATES, createEngine } from '@demo-studio/engine';
+import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject } from '@demo-studio/engine';
 import type { Engine, JobRecord } from '@demo-studio/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -73,6 +73,8 @@ export function jobWhat(j: JobRecord): string {
       return `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`;
     case 'record':
       return `record ${i.scenario ?? 'a scenario'} from page ${i.source.page} ${i.source.path}${on} → ${i.rec_id}`;
+    case 'site':
+      return `site extraction of ${i.url} → ${i.site_id}`;
   }
 }
 
@@ -102,6 +104,8 @@ export function jobOutcome(j: JobRecord): string {
       return r.not_saved === 'nothing_recorded'
         ? 'nothing recorded'
         : `${r.stats.steps} steps${r.saved ? ` → ${r.saved.file}` : ` (not saved: ${r.not_saved})`} · check ${r.check.status}`;
+    case 'site':
+      return `${r.status === 'ok' ? `${r.candidates.length} logo candidate${r.candidates.length === 1 ? '' : 's'}${r.palette ? `, accent ${r.palette.roles.accent ?? 'none'}` : ''}` : 'the page could not be read'} → ${r.dir}`;
     default:
       return r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed';
   }
@@ -144,7 +148,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
     const progress = j.state === 'running' && p ? ` · ${progressText(p)}` : '';
     const outcome = jobOutcome(j);
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
-    ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${j.input.project} · ${jobWhat(j)}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
+    ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
   }
   ui.line(c.dim(`worker: ${worker ? `running (pid ${worker.pid}, since ${ago(worker.since, now)})` : 'not running (an MCP client starts it when it submits a job)'}`));
   return EXIT.ok;
@@ -163,9 +167,9 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   const c = ui.c;
   const row = (k: string, v: string) => ui.result(`  ${c.dim(k.padEnd(9))} ${v}`);
   ui.result(`${c.bold(job.id)} ${stateText(ui, job.state).trimEnd()}`);
-  row('what', `${job.input.project} · ${jobWhat(job)}`);
+  row('what', `${jobProject(job.input) ?? 'workspace'} · ${jobWhat(job)}`);
   const approvals = 'approvals' in job.input ? (job.input.approvals ?? []) : [];
-  row('by', `${job.input.submitted_by}${approvals.length ? ` · ${approvals.length} hook approval${approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
+  row('by', `${job.input.submitted_by}${approvals.length ? ` · ${approvals.length} ${job.input.kind === 'site' ? 'URL' : 'hook'} approval${approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
   row('created', job.created_at);
   if (job.started_at) row('started', `${job.started_at}${job.worker ? ` (worker pid ${job.worker.pid})` : ''}`);
   if (job.finished_at) row('finished', `${job.finished_at}${job.started_at ? ` · ${formatMs(Date.parse(job.finished_at) - Date.parse(job.started_at))}` : ''}`);

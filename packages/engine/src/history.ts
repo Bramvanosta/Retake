@@ -20,7 +20,8 @@ export interface HistoryEntry {
   job?: string;
   /** A job kind, or `render` / `still` / `export` / `inspect` (the CLI's commands; previews and inspections count nothing). */
   kind: string;
-  project: string;
+  /** Absent for a workspace-level job (a site extraction). */
+  project?: string;
   submitted_by: JobClient;
   /** succeeded (it ran to the end; a run may still have failed: `run.status`), failed, cancelled, interrupted. */
   state: string;
@@ -38,6 +39,8 @@ export interface HistoryEntry {
   inspect?: { id: string; source: 'page' | 'scenario'; status?: string; reported?: boolean };
   /** A recording's id, its draft's steps and whether the draft was saved; it counts nothing (L3.4). */
   record?: { id: string; steps: number; saved: boolean };
+  /** A site extraction's id, host and outcome; it counts nothing (L3.5). */
+  site?: { id: string; host: string; status?: string };
   /** What it produced. */
   counted: { captures: number; dry_runs: number; renders: number };
 }
