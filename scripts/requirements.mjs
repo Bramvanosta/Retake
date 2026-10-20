@@ -3,14 +3,53 @@
 // Usage: node scripts/requirements.mjs                  → rewrite the Markdown + summary
 //        node scripts/requirements.mjs --lot L2.3       → list the requirements of one lot
 //        node scripts/requirements.mjs --untested [1]   → list the items no test exercises (of one phase), exit 1 if any
-import { readFileSync, writeFileSync } from 'node:fs';
+//        node scripts/requirements.mjs --check-cites [file] → list the quoted test titles no test file has, exit 1 if any
+// A rewrite also checks the quoted test titles and exits 1 when one is stale.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const data = JSON.parse(readFileSync(`${root}docs/requirements.json`, 'utf8'));
-const items = data.items;
 const lotArg = process.argv.indexOf('--lot');
 const untestedArg = process.argv.indexOf('--untested');
+const citesArg = process.argv.indexOf('--check-cites');
+const citesFile = citesArg > 0 && process.argv[citesArg + 1] && !process.argv[citesArg + 1].startsWith('--') ? process.argv[citesArg + 1] : undefined;
+const data = JSON.parse(readFileSync(citesFile ?? `${root}docs/requirements.json`, 'utf8'));
+const items = data.items;
+
+/**
+ * Quoted test titles: `'packages/<pkg>/test/<file>.test.ts > <describe> > … > <it>'` in an evidence or a gap. Each
+ * title must start a string literal of that file (an apostrophe escaped in the source counts as one; a title may be
+ * shortened, and one elided with "…" counts up to its first "…"). Other ways of naming a test are not checked.
+ */
+const CITE = /'((?:packages|scripts|fixtures)\/[^' ]+\.test\.tsx?) > ((?:[^'\\]|\\.|'(?![,.;)\s]|$))+)'/g;
+function staleCites(xs) {
+  const sources = new Map();
+  const out = [];
+  for (const i of xs) {
+    for (const field of ['evidence', 'gap']) {
+      for (const [, file, path] of (i[field] ?? '').matchAll(CITE)) {
+        if (!existsSync(`${root}${file}`)) {
+          out.push(`${i.id} (${field}): ${file} does not exist`);
+          continue;
+        }
+        if (!sources.has(file)) sources.set(file, readFileSync(`${root}${file}`, 'utf8').replace(/\\(['"`\\])/g, '$1'));
+        const src = sources.get(file);
+        for (const title of path.split(' > ')) {
+          const head = title.includes('…') ? title.slice(0, title.indexOf('…')).trimEnd() : title;
+          const found = [`'`, '"', '`'].some((q) => src.includes(q + head));
+          if (!found) out.push(`${i.id} (${field}): ${file} has no test titled '${title}'`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+if (citesArg > 0) {
+  const stale = staleCites(items);
+  for (const s of stale) console.log(s);
+  process.exit(stale.length ? 1 : 0);
+}
 
 /**
  * "Never exercised": an item whose gap says that no test exercises it (whatever its status). Gaps are written by hand,
@@ -66,4 +105,9 @@ console.log(`${items.length} requirements · done ${count(items, 'done')} · par
 for (const [lot, xs] of Object.entries(byLot).sort()) {
   if (lot === 'P1') continue;
   console.log(`  ${lot.padEnd(5)} ${String(xs.length).padStart(3)} open: ${xs.filter((i) => i.status !== 'done').length}`);
+}
+const stale = staleCites(items);
+if (stale.length) {
+  console.log(`${stale.length} quoted test title(s) no test file has:\n${stale.map((s) => `  ${s}`).join('\n')}`);
+  process.exitCode = 1;
 }

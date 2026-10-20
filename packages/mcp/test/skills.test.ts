@@ -15,7 +15,7 @@ import { checkComponentEntry, parseManifest } from '@demo-studio/components';
 import * as kit from '@demo-studio/components/kit';
 import { main, memoryIo } from '../../cli/src/index.js';
 import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { TOOLS } from '../src/index.js';
+import { INSTRUCTIONS, TOOLS } from '../src/index.js';
 import { argumentProblems, inputJsonSchema } from '../src/schema.js';
 import { DESCRIPTION_MAX, SKILL_MAX_LINES, lintSkills, schemaWords } from './skill-lint.js';
 import type { LintContext, LintIssue, LintRule, LintStats, SkillFile } from './skill-lint.js';
@@ -34,8 +34,8 @@ const COVERAGE: Record<string, readonly string[]> = {
     'run_dry', 'run_capture', 'run_status', 'plan_preview', 'render', 'review', 'review_get', 'export', 'scenario_record', 'job_status', 'scenario_from_script',
     'comments_list', 'comment_reply', 'comment_resolve',
   ],
-  'demo-studio-theme': ['engine_info', 'template_list', 'template_create_from_brand', 'template_from_site', 'template_preview', 'render', 'review', 'review_get', 'export', 'job_status'],
-  'demo-studio-component': ['engine_info', 'component_list', 'component_get', 'component_preview', 'component_create', 'component_validate', 'plan_preview', 'render', 'review', 'review_get'],
+  'demo-studio-theme': ['engine_info', 'template_list', 'template_create_from_brand', 'template_from_site', 'template_preview', 'render', 'review', 'review_get', 'export', 'job_status', 'run_capture'],
+  'demo-studio-component': ['engine_info', 'component_list', 'component_get', 'component_preview', 'component_create', 'component_validate', 'plan_preview', 'render', 'review', 'review_get', 'run_capture'],
 };
 
 /** Every file of the skill folders (not the plugin's own manifests or its README for humans). */
@@ -130,6 +130,59 @@ describe('the Claude skills in skills/', () => {
   it('the frame-comments loop resolves with the hash comment_reply returned, not the thread\'s older one (review L1)', () => {
     const text = shipped.find((f) => f.path === S)!.text.replace(/\s+/g, ' ');
     expect(text).toContain('`comment_resolve {project, comment_id, note, render_id, if_match}` with the new render and the hash `comment_reply` returned');
+  });
+
+  it('a scenario change is re-captured before a render: one sentence in the three skills, the scenario loop and comments, the server instructions (L3.8)', () => {
+    const recapture = 'A change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `run_capture`, then render.';
+    const flat = (t: string) => t.replace(/\s+/g, ' ');
+    const sectionOf = (t: string, heading: string) => flat(new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=^## )`, 'm').exec(t)?.[1] ?? '');
+    for (const dir of SKILLS) expect(flat(shipped.find((f) => f.path === `${dir}/SKILL.md`)!.text), dir).toContain(recapture);
+    const scenario = shipped.find((f) => f.path === S)!.text;
+    for (const heading of ['The loop', 'Frame comments on a render']) {
+      const section = sectionOf(scenario, heading);
+      expect(section, heading).toContain(recapture);
+      // never "change it, render again": the old wording is gone
+      expect(section, heading).not.toMatch(/render again|Make that change, render/);
+    }
+    // an edit reads the file first
+    expect(sectionOf(scenario, 'The loop')).toContain('To change an existing scenario, `scenario_get {project, name}` first');
+    const lines = INSTRUCTIONS.split('\n');
+    for (const start of ['Then review', 'Frame comments:']) {
+      const line = lines.find((l) => l.startsWith(start))!;
+      expect(line, start).toMatch(/[Aa] change to the scenario \(steps, captions, timing, title, intro\/outro, template\) shows only in a new capture: run_capture, then render/);
+      expect(line, start).toContain('a render override needs only a render');
+      expect(line, start).not.toMatch(/render again|Make that change, render/);
+    }
+  });
+
+  it('a theme or a render override needs only a render: pinned where the theme and component skills render again (L3.8 review L7)', () => {
+    const flat = (t: string) => t.replace(/\s+/g, ' ');
+    const only = 'a theme or a render override needs only a render, no new capture';
+    /** The numbered step of a skill that starts with `n. **Title.**`, up to the next step or heading. */
+    const step = (path: string, n: number, title: string) => {
+      const text = shipped.find((f) => f.path === path)!.text;
+      const at = text.indexOf(`\n${n}. **${title}.**`);
+      expect(at, `${path} step ${n}`).toBeGreaterThan(0);
+      return flat(text.slice(at, text.slice(at + 1).search(/\n(\d+\. \*\*|## )/) + at + 1));
+    };
+    const review = step(T, 4, 'Review');
+    expect(review.toLowerCase()).toContain(only);
+    expect(review, 'a theme fix is never re-captured').not.toContain('run_capture');
+    const use = step(C, 6, 'Use it in a video');
+    expect(use.toLowerCase()).toContain(only);
+    // the server instructions: a theme switched in project.yaml is recorded by a capture, so it is passed per render
+    const then = INSTRUCTIONS.split('\n').find((l) => l.startsWith('Then review'))!;
+    expect(then).toContain('a run keeps the theme it was captured with: after the project\'s theme changed in project.yaml, pass template per render');
+  });
+
+  it("README's skill table states the frame-comments loop with the re-capture, as the skills do (L3.8 review M2)", () => {
+    const readme = readFileSync(join(REPO, 'README.md'), 'utf8');
+    const row = readme.split('\n').find((l) => l.startsWith('| `demo-studio-scenario` |'))!;
+    expect(row).toContain('(`comments_list` → change → `run_capture` for a scenario change → render → `review` → `comment_reply` / `comment_resolve`)');
+    expect(row).not.toContain('`comments_list` → change → render');
+    const spec = readFileSync(join(REPO, 'docs', 'SPEC.md'), 'utf8').replace(/\s+/g, ' ');
+    expect(spec).not.toContain('adapt the scenario and re-render');
+    expect(spec).toContain('a scenario change captured again (`run_capture`), then rendered; a theme or an override only rendered');
   });
 
   it('three skills, each a SKILL.md, with the two references kept (scenario language, kit)', () => {

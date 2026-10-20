@@ -59,8 +59,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.5 | Themes from brand inputs and from a site URL | M | **done** (live run: MACOS-CHECKLIST 12g) |
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | **done** (live run: MACOS-CHECKLIST 12h) |
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | **done** (live run: MACOS-CHECKLIST 12i) |
-| L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **next** |
-| L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | todo |
+| L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **done** — phase 3 done (live run: MACOS-CHECKLIST 12j) |
+| L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **next** (when the user asks) |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | todo |
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | todo |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
@@ -645,7 +645,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 
 ### L3.6 — Frame comments API (store, anchors, MCP tools) (S)
 - **Goal:** a person comments a frame of a render; Claude reads the comment with enough context (anchor in the edit +
-  the frame still) to adapt the scenario, re-render, reply and resolve.
+  the frame still) to adapt the scenario, re-capture, re-render, reply and resolve.
 - **Done (2026-10-19):** `studio comment add | list | reply | resolve | reopen` (only people create or reopen);
   one file per thread (`comments/<scenario>/c_<ULID>.json`), append-only entries under a lock, status derived, the
   render snapshot kept; anchor from the render's plan (segment, kind, component, scene, step, step fingerprint,
@@ -665,7 +665,18 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   install the plugin in a scratch Claude Code config and see the server connected. One independent review fixed with
   mutation-checked tests. Cuts: BL-77. Live run: MACOS-CHECKLIST 12i.
 
-### L3.8, L4.1 – L4.9, L5.2 – L5.4, L6
+### L3.8 — Phase 3 acceptance (Claude drives the whole loop through MCP) (M)
+- **Goal:** prove that Claude can drive the whole phase-3 loop through MCP with no human step but approvals.
+- **Done (2026-10-20):** `packages/mcp/test/phase3-acceptance.test.ts` in `test:slow` (docs/ACCEPTANCE-phase3.md): a
+  scripted MCP client following the skills, on an empty workspace and the fixture — project from a README, scenario from
+  a timecoded script and page inspections, dry run with no product write, theme from brand files, intro component with
+  two code iterations, capture, render (64 s) and clean review, then a person's frame comment answered by a scenario
+  change, a re-capture, a render, a review, a reply and a resolve; zero approval requests. Found and fixed: a render
+  shows the run as captured, so a scenario change now warns and every text says re-capture. One review fixed with
+  mutation-checked tests (incl. a full-suite hang in the inspect path, now bounded). R-ACC3-01..06 partial until the live
+  run MACOS-CHECKLIST 12j.
+
+### L4.1 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

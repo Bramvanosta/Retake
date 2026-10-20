@@ -971,6 +971,32 @@ Cut to keep L3.7 an S (three skills in `skills/`, the plugin with the MCP server
   measured triggering.
 - **Hard parts:** Many previews to regenerate and look at; keeping skills, prompts and listings in step with the tools.
 
+### BL-78 — Phase 3 acceptance extras cut from L3.8
+*S · cut in L3.8 · builds on: L3.8, L3.6, L3.2*
+
+Cut to keep L3.8 an M (one scripted acceptance on an empty workspace, the scenario-changed warning, the live run as
+MACOS-CHECKLIST 12j):
+- The scenario-changed check where a comment is answered. `comments_list` could flag a thread whose render's run
+  snapshot differs from today's scenario, and `comment_resolve`'s trusted summary could say so when the resolving
+  render's run was captured from an older scenario file. Today a render of the old run, made after a scenario edit, is
+  accepted as resolving (same scenario and variant, made later). Only `plan_preview` / `render` and the CLI warn.
+- The same flag in `render_status` and the render job's result (it only matters before rendering).
+- `project_create` takes environment URLs only: no `display:` address and no hooks (marking production stays a human
+  edit by design). A project that shows a display address in its browser frame needs a hand edit of `project.yaml`.
+- `render {like: <render_id>}`: a re-render after a re-capture repeats `template` and `overrides` by hand.
+- A model-driven pass before the live run (a throwaway bridge letting Claude drive the stdio server in a test): the
+  live run in Claude Code (12j) is the evidence instead.
+- Refactoring the six slow MCP acceptances onto a shared helper (client, `call`, `follow`, `keep`, fixture start): each
+  file still carries its own copy.
+- Checking each phase's call order against the order of the skills' steps (today: an exact scripted sequence, and the
+  tools the skill sections name compared as a set).
+- `node scripts/requirements.mjs --check-cites` checks only test titles quoted as `'<file> > <describe> > <it>'`;
+  evidence that names a test another way (a title alone, a file and a title in prose) is not checked.
+
+- **Value:** The failure a re-capture prevents is caught at the exact point where Claude claims a fix; fewer hand
+  edits for projects with display addresses; shorter re-render calls.
+- **Hard parts:** A thread's render may come from a run whose snapshot is gone (renders/ or runs/ cleaned).
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

@@ -67,10 +67,13 @@ something else, they win.
    demo-studio-scenario skill). Follow `render_status {project, render_id, wait_s: 25}` until it is finished.
 4. **Review.** `review {project, render_id}` (it waits up to 20 s; a review still running: follow it with
    `review_get {project, render_id, wait_s: 25}`): look at the contact sheet (logo, colours, captions in the brand's
-   fonts) and the findings. Fix the theme (step 2) or the render overrides, render again. `export {project,
-   render_id}` when the user wants the files: it returns a job, follow it with `job_status {job_id, wait_s: 25}`.
+   fonts) and the findings. Fix the theme (step 2) or the render overrides, then render the same run again: a
+   theme or a render override needs only a render, no new capture. `export {project, render_id}` when the user
+   wants the files: it returns a job, follow it with `job_status {job_id, wait_s: 25}`.
 5. **Make it the default** (the user's call): a scenario takes `template: acme` (through the scenario skill and
-   `scenario_save`); the project's own theme is in project.yaml, which only the user edits.
+   `scenario_save`); the project's own theme is in project.yaml, which only the user edits. A change to the scenario
+   (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `run_capture`, then render.
+   A capture records its theme, so runs filmed before either change keep theirs: pass `template` per render.
 
 ## What good looks like
 

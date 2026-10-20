@@ -219,9 +219,11 @@ export interface Engine {
     plan(req: RenderRequest): Promise<PlanPreviewView>;
     /**
      * Queue a render (trust `mcp`: planned and checked first; the worker renders with the network guard). Returns at
-     * once with the reserved render id.
+     * once with the reserved render id; `scenario_changed` as plan_preview's.
      */
-    submit(req: RenderRequest): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean } }>;
+    submit(
+      req: RenderRequest,
+    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; scenario_changed?: boolean; worker?: { pid?: number; spawned: boolean } }>;
     /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
   };

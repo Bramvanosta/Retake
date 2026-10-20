@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scenarioChangedMessage } from '@demo-studio/core';
 import type { Engine, RenderStatusView } from '@demo-studio/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
 import { plural } from '../result.js';
@@ -42,16 +43,24 @@ export function renderStatusSummary(r: RenderStatusView): string {
   return lines.join('\n');
 }
 
-async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = []): Promise<ToolOutput> {
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}): Promise<ToolOutput> {
   const r = await engine.renders.status(project, id);
-  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: r as unknown as Record<string, unknown> };
+  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...(r as unknown as Record<string, unknown>), ...extraData } };
+}
+
+/**
+ * The trusted line of a plan or a render whose scenario file changed since its run was captured (L3.8): it names only
+ * the scenario (a checked name) and the run id, both the tool's.
+ */
+function scenarioChangedLine(project: string, scenario: string, runId: string): string {
+  return scenarioChangedMessage(scenario, runId, `run_capture {project: "${project}", scenario: "${scenario}"}`);
 }
 
 export const planPreview = defineTool({
   name: 'plan_preview',
   title: 'Preview the plan of a render',
   description:
-    'Plan a render without rendering it (fast, nothing is written): the video it would make — variant, size, fps, duration, theme, frame, the segments (intro, clips, cards, interstitials, outro) with their component and timing, music — and the planner\'s warnings. Use it to check a theme, a component switch or other overrides before render. Files the scenario names must be files of the project; a theme is named (template), never a folder. Captions, warnings and the text summary are under "untrusted": they quote the scenario and the filmed site.',
+    'Plan a render without rendering it (fast, nothing is written): the video it would make — variant, size, fps, duration, theme, frame, the segments (intro, clips, cards, interstitials, outro) with their component and timing, music — and the planner\'s warnings. Use it to check a theme, a component switch or other overrides before render. A render shows the run as captured: scenario_changed says the scenario file changed since — a change to the scenario shows only in a new capture (run_capture), a theme or an override needs only a render. Files the scenario names must be files of the project; a theme is named (template), never a folder. Captions, warnings and the text summary are under "untrusted": they quote the scenario and the filmed site.',
   input: z.strictObject(renderInput),
   annotations: READ,
   async run({ project, scenario, run_id, template, overrides }, { engine }) {
@@ -61,9 +70,13 @@ export const planPreview = defineTool({
     return {
       summary: [
         `plan of ${p.scenario} (run ${p.run_id}): ${p.variant} ${p.width}×${p.height} @ ${p.fps} fps, ${p.duration_s} s, theme ${p.theme}, frame ${p.frame}`,
+        ...(p.scenario_changed ? [scenarioChangedLine(project, scenario, p.run_id)] : []),
         `${plural(p.segments.length, 'segment')}: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')}${p.music ? '; music' : ''}`,
         ...(p.untrusted.warnings.length ? [`${plural(p.untrusted.warnings.length, 'warning')} in "untrusted"`] : []),
-        `render it: render {project: "${project}", scenario: "${scenario}"${run_id ? `, run_id: "${run_id}"` : ''}${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}} → ${p.next_render_id} (if no other render takes it first)`,
+        // A changed scenario shows only in a new capture: never offer to render the old run (L3.8 review M1).
+        p.scenario_changed
+          ? `capture first: run_capture {project: "${project}", scenario: "${scenario}"}; then render {project: "${project}", scenario: "${scenario}"${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}}`
+          : `render it: render {project: "${project}", scenario: "${scenario}"${run_id ? `, run_id: "${run_id}"` : ''}${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}} → ${p.next_render_id} (if no other render takes it first)`,
       ].join('\n'),
       data: p as unknown as Record<string, unknown>,
     };
@@ -74,17 +87,25 @@ export const render = defineTool({
   name: 'render',
   title: 'Render a capture',
   description:
-    "Render a capture run into a video (renders/<render_id>.mp4 + .json), with the run's theme or another (template) and edit overrides — no scenario change needed. It is planned and checked first (as plan_preview), then a job renders it in the background (one job at a time, ≈ 1–3 min for a minute of video): this call returns at once (or waits up to wait_s) with the reserved render_id; follow it with render_status {wait_s}, stop it with job_cancel. A failed or cancelled render writes nothing under its id (the next render of the scenario may reuse it). Through this server the render loads only the files of its plan: files outside the project, a theme folder, remote images in slots and any other network request are refused or blocked.",
+    "Render a capture run into a video (renders/<render_id>.mp4 + .json), with the run's theme or another (template) and edit overrides — no scenario change needed; a change to the scenario itself shows only in a new capture (run_capture first; scenario_changed says the file changed since the run). It is planned and checked first (as plan_preview), then a job renders it in the background (one job at a time, ≈ 1–3 min for a minute of video): this call returns at once (or waits up to wait_s) with the reserved render_id; follow it with render_status {wait_s}, stop it with job_cancel. A failed or cancelled render writes nothing under its id (the next render of the scenario may reuse it). Through this server the render loads only the files of its plan: files outside the project, a theme folder, remote images in slots and any other network request are refused or blocked.",
   input: z.strictObject({ ...renderInput, wait_s: waitS(0, 'the render to finish') }),
   annotations: RENDER_JOB,
   async run({ project, scenario, run_id, template, overrides, wait_s }, ctx: ToolContext) {
     const { engine } = ctx;
     const sub = await engine.renders.submit({ project, scenario, ...(run_id ? { run_id } : {}), ...(template ? { template } : {}), ...(overrides ? { overrides } : {}) });
     await waitJob(engine, sub.job, wait_s, ctx);
-    return statusOutput(engine, project, sub.render_id, [
-      `render ${sub.render_id} submitted (job ${sub.job.id}): run ${sub.run_id}, ${sub.variant}, ${sub.duration_s} s.`,
-      ...(sub.warnings.length ? [`${plural(sub.warnings.length, 'plan warning')}: render_status shows them under "untrusted".`] : []),
-    ]);
+    return statusOutput(
+      engine,
+      project,
+      sub.render_id,
+      [
+        `render ${sub.render_id} submitted (job ${sub.job.id}): run ${sub.run_id}, ${sub.variant}, ${sub.duration_s} s.`,
+        ...(sub.scenario_changed ? [scenarioChangedLine(project, scenario, sub.run_id)] : []),
+        ...(sub.warnings.length ? [`${plural(sub.warnings.length, 'plan warning')}: render_status shows them under "untrusted".`] : []),
+      ],
+      // the run it renders (the render's record names it only once rendered)
+      { run_id: sub.run_id, ...(sub.scenario_changed !== undefined ? { scenario_changed: sub.scenario_changed } : {}) },
+    );
   },
 });
 

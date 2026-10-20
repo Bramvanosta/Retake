@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { newerRunMessage, parseScenario, runIdMatchesScenario } from '@demo-studio/core';
+import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario } from '@demo-studio/core';
 import type { LoadedProject, Scenario } from '@demo-studio/core';
 import type { RenderRecord } from './types.js';
 import { RenderError } from './types.js';
@@ -24,10 +24,22 @@ function hasCaptureTimeline(dir: string): boolean {
   }
 }
 
+/** A run id the runner makes: `<yyyymmdd>-<hhmmss>-<scenario>`. */
+const DATED_RUN_ID_RE = /^\d{8}-\d{6}-/;
+
+/**
+ * `latest` order: dated run ids first, newest first (they sort chronologically), then any other folder name. A folder
+ * named to sort above every date (`zz…-quote`: runs/ is writable by an agent) is never preferred to a real capture.
+ */
+function latestFirst(a: string, b: string): number {
+  return Number(DATED_RUN_ID_RE.test(b)) - Number(DATED_RUN_ID_RE.test(a)) || (a < b ? 1 : a > b ? -1 : 0);
+}
+
 /**
  * The run to edit: a run id (folder of <project>/runs), a run directory, or `latest` (the most recent capture run —
- * dry runs and runs without a timeline are skipped —, of `scenario` when given). Run ids start with their date, so
- * they sort chronologically. A run whose run.json a newer Demo Studio wrote is refused (R-PRIN-13).
+ * dry runs and runs without a timeline are skipped —, of `scenario` when given). `latest` considers only folder names
+ * that are run ids (letters, digits, ".", "_", "-"; ≤ 200 characters: the name reaches trusted summaries) and prefers
+ * dated ids (latestFirst). A run whose run.json a newer Demo Studio wrote is refused (R-PRIN-13).
  */
 export function findRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
   const run = locateRun(project, arg, scenario);
@@ -46,10 +58,10 @@ function locateRun(project: LoadedProject, arg: string, scenario?: string): RunR
       ids = [];
     }
     const candidates = ids
+      .filter((id) => RUN_FOLDER_RE.test(id) && id.length <= 200)
       .filter((id) => (scenario ? runIdMatchesScenario(id, scenario) : true))
       .filter((id) => hasCaptureTimeline(join(runsDir, id)))
-      .sort()
-      .reverse();
+      .sort(latestFirst);
     if (candidates.length === 0) {
       throw new RenderError(`no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`studio run ${project.slug} ${scenario ?? '<scenario>'}\``);
     }

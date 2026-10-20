@@ -1,7 +1,7 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-20, end of lot **L3.7 (Claude skills + plugin packaging)** — phases 1 and 2 are done, phase 3
-is under way. **Next: L3.8 (phase 3 acceptance) — the user asked to chain it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-20, end of lot **L3.8 (phase 3 acceptance)** — **phases 1, 2 and 3 are done** (phase 3 pending
+the user's live runs, MACOS-CHECKLIST 12c–12j). **Next: phase 4, L4.1 (Studio app shell), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -23,12 +23,22 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-78); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-79); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.7)
+## State (after L3.8)
+- **L3.8 done (2026-10-20) — phase 3 done**: the phase-3 acceptance in `test:slow`
+  (`packages/mcp/test/phase3-acceptance.test.ts`, docs/ACCEPTANCE-phase3.md): over MCP on an empty workspace, a scripted
+  client following the skills creates a project from a README, drafts a scenario from a timecoded script and page
+  inspections (dry run with no write to the product), makes a theme from brand files and an intro component (two code
+  iterations), captures, renders (64 s) and reviews clean, then handles a person's frame comment (scenario change →
+  re-capture → render → review → reply → resolve) with zero approval requests. A render shows the run as captured: a
+  scenario change now warns (`scenario_changed`, MCP and CLI) and the wording everywhere says re-capture. Tests on the
+  Mac: **2484 — 2436 pass, 48 skipped (≈ 12 min), 3 full runs in a row green**; `pnpm test:slow` 56/56 (≈ 11.5 min).
+  Requirements: 619 tracked — 543 done, 23 partial, 45 todo, 8 n/a-here. Live check for the user: MACOS-CHECKLIST 12j
+  (the whole phase-3 loop in one Claude Code conversation).
 - **L3.7 done (2026-10-20)**: three Claude skills (`skills/demo-studio-scenario`, `demo-studio-theme`,
   `demo-studio-component`) packaged as a Claude Code plugin with the MCP server (`skills/.claude-plugin/plugin.json`,
   `skills/.mcp.json`, local marketplace `.claude-plugin/marketplace.json`); `mcp --print-config` prints the two install
@@ -39,7 +49,7 @@ automatically with themeable components, and let Claude operate everything throu
 - **L3.6 done (2026-10-19)**: frame comments. A person comments a frame of a render (`studio comment add --at |
   --frame | --marker [--region]`); the thread is anchored to the edit (segment, scene, step and its fingerprint,
   marker, overlays, caption / screen / brand-mark area) with a still of the frame; Claude reads them over MCP
-  (`comments_list`, the still as an image), adapts the scenario, re-renders, replies (`comment_reply`) and resolves
+  (`comments_list`, the still as an image), adapts the scenario, re-captures and re-renders, replies (`comment_reply`) and resolves
   with the new render (`comment_resolve`). Only people create or reopen threads. 44 MCP tools. Tests on the Mac:
   **2355 — 2316 pass, 39 skipped (≈ 13 min)**; `pnpm test:slow` 23/23. Requirements: 619 tracked — 540 done, 16 partial, 55 todo, 8 n/a-here.
   Live check for the user: MACOS-CHECKLIST 12h.
@@ -181,7 +191,9 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L3.8 — Phase 3 acceptance (Claude drives the whole loop through MCP)** — the user asked to chain it after L3.7. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**Phase 4 — L4.1 Studio app shell on the engine API (`studio ui`)** — only when the user asks. Before it: the user's
+live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j), gathered with the open questions in one test document outside the
+repository. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -983,6 +995,17 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   `started_in`, compile scan refuses `random()` without a seed; tests `mcp/test/skill-lint.ts` + `skills.test.ts` (73,
   every tool call checked against the tool schemas) and `plugin.test.ts` (3 gated on the `claude` CLI). Cuts: BL-77.
   2445 tests: 2403 pass, 42 skipped; test:slow 36/36. No new dependency.
+- **L3.8 done** (phase 3 acceptance; R-ACC3-01..06 partial until the live 12j). Planned, criticised with probes (a
+  component made over MCP renders as an intro override; the planned scenario either failed its dry run or wrote to the
+  product; the video was under the 45 s review floor; the planned skill-order check passed with a validate dropped),
+  built in three parts (the D1 scenario-changed check and wording; the acceptance; docs), reviewed (plan_preview still
+  offered a render of the old run; a crafted run folder name reached a trusted summary through `latest`; the check read
+  a FIFO; whitespace edits flagged; a full-suite hang in the inspect redirect test) and fixed with 20 mutation-checked
+  tests. Files: core `scenarioChangedSinceRun` / `scenarioChangedMessage`; engine `planRenderRequest`
+  (`scenario_changed`, run-id shape); editor `latest` filters run ids; runner-web `inspectPage` bounds every page wait
+  (guard 5 s, kit calls 15 s + budget; a deadline counts as a document change); mcp plan_preview / render / comments_list
+  wording; `scripts/requirements.mjs --check-cites` (every quoted test title exists); tests `phase3-acceptance`,
+  `inspect-deadline`, `requirements-cites`. 2484 tests: 2436 pass, 48 skipped; test:slow 56/56. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1212,6 +1235,16 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L3.8:
+- A render shows the run as captured: scenario edits (steps, captions, timing, title, intro / outro, template) need a
+  new capture; a theme or a render override needs only a render (a run keeps its captured theme: pass `template`).
+  `plan_preview` / `render` warn (`scenario_changed`) and then name `run_capture`.
+- `inspectPage` never waits on the page without a deadline; if the inspect redirect test ever hangs again, its 60 s
+  iteration cap reports the query, the stage and the last progress events (the root cause was not reproduced).
+- `node scripts/requirements.mjs --check-cites` (also run by every rewrite) fails on an evidence string quoting a test
+  title that no longer exists.
+- test:slow takes ≈ 11.5 min (phase3-acceptance ≈ 9 min of it).
+
 Notes from L3.7:
 - A lot that changes a loop, a tool argument or a CLI flag must update the skills: `skills.test.ts` fails until it does.
   The lint proves names, arguments, commands, links, examples and wording rules — not that Claude follows them.

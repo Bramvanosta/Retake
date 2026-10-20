@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs';
+import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { parse as parseYamlText } from 'yaml';
+import { parse as parseYamlText, parseDocument } from 'yaml';
 import { checkScenario } from './checks/scenario.js';
 import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
 import type { ScenarioCheckOptions } from './checks/scenario.js';
@@ -50,8 +50,13 @@ export function validateScenario(s: unknown, opts: ScenarioCheckOptions = {}): V
   return finalizeIssues([...structural, ...checkScenario(s, structural, opts)]);
 }
 
-function scenariosDir(project: LoadedProject): string {
+function scenariosDir(project: Pick<LoadedProject, 'dir'>): string {
   return join(project.dir, 'scenarios');
+}
+
+/** The files a scenario name stands for, in the order they are looked up: scenarios/<name>.yaml, then .yml. */
+function scenarioNameFiles(project: Pick<LoadedProject, 'dir'>, name: string): string[] {
+  return [join(scenariosDir(project), `${name}.yaml`), join(scenariosDir(project), `${name}.yml`)];
 }
 
 /** "catalogue" → <project>/scenarios/catalogue.yaml; paths are taken relative to the project dir, then the cwd. */
@@ -61,7 +66,7 @@ async function resolveScenarioFile(project: LoadedProject, nameOrPath: string): 
     ? isAbsolute(nameOrPath)
       ? [nameOrPath]
       : [resolve(project.dir, nameOrPath), resolve(nameOrPath)]
-    : [join(scenariosDir(project), `${nameOrPath}.yaml`), join(scenariosDir(project), `${nameOrPath}.yml`)];
+    : scenarioNameFiles(project, nameOrPath);
   const found = candidates.find((c) => existsSync(c));
   if (found) return found;
   const available = await listScenarioNames(project.dir);
@@ -69,6 +74,80 @@ async function resolveScenarioFile(project: LoadedProject, nameOrPath: string): 
   throw new ScenarioError(
     `scenario "${nameOrPath}" not found in ${where}${suggestion(nameOrPath, available)} (available: ${available.join(', ') || 'none'})`,
   );
+}
+
+/** The largest scenario file or snapshot scenarioChangedSinceRun compares (a scenario_save takes 500,000 characters). */
+export const SCENARIO_COMPARE_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * A small regular file read whole, or undefined: missing, a symbolic link, not a regular file (a FIFO or a device
+ * would block the reader), over `max` bytes or unreadable. Opened without following a link and without blocking, then
+ * checked on the open descriptor (no swap between the check and the read).
+ */
+function readSmallPlainFile(file: string, max: number): string | undefined {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    const st = fstatSync(fd);
+    if (!st.isFile() || st.size > max) return undefined;
+    const text = readFileSync(fd, 'utf8');
+    return Buffer.byteLength(text) > max ? undefined : text;
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** JSON with object keys sorted (arrays keep their order): two YAML texts with the same data give the same string. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+/** The data of a YAML text as canonical JSON; undefined when it does not parse cleanly. */
+function yamlData(text: string): string | undefined {
+  try {
+    const doc = parseDocument(text);
+    return doc.errors.length ? undefined : canonicalJson(doc.toJS());
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether a project's scenario changed since a run captured it (L3.8). A render reads the run — its timeline and its
+ * snapshot `<run>/scenario.yaml` —, never the current file: a change to the scenario (steps, captions, timing, title,
+ * intro / outro, template) shows only in a new capture. Compares `scenarios/<name>.yaml` (else `.yml`, as a name
+ * resolves) with the snapshot by their data (comments, blank lines, quoting, indentation and key order are no change;
+ * the text when either does not parse). Undefined when either file is missing, a symbolic link, not a regular file,
+ * over SCENARIO_COMPARE_MAX_BYTES or unreadable: a run of a file elsewhere, a scenario since deleted, a run without a
+ * snapshot.
+ */
+export function scenarioChangedSinceRun(project: Pick<LoadedProject, 'dir'>, runDir: string, scenario: string): boolean | undefined {
+  if (scenario === '' || /[\\/]/.test(scenario)) return undefined;
+  const file = scenarioNameFiles(project, scenario).find((f) => existsSync(f));
+  if (!file) return undefined;
+  const now = readSmallPlainFile(file, SCENARIO_COMPARE_MAX_BYTES);
+  const then = now === undefined ? undefined : readSmallPlainFile(join(runDir, 'scenario.yaml'), SCENARIO_COMPARE_MAX_BYTES);
+  if (now === undefined || then === undefined) return undefined;
+  if (now === then) return false;
+  const a = yamlData(now);
+  const b = a === undefined ? undefined : yamlData(then);
+  return a !== undefined && b !== undefined ? a !== b : true;
+}
+
+/**
+ * What a plan or a render of a run says when its scenario changed since the capture: the render shows the run as
+ * captured, `recapture` (the tool call or the command that films the scenario again) films the change. It names only
+ * the scenario and the run id.
+ */
+export function scenarioChangedMessage(scenario: string, runId: string, recapture: string): string {
+  return `scenario ${scenario} changed since run ${runId} was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: ${recapture}, then render`;
 }
 
 /** Load and validate a scenario of a project. Throws ScenarioError on any error-level issue. */

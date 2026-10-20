@@ -1,5 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { rm, symlink, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { formatIssues, formatPath, parseScenario, validateScenario } from '@demo-studio/core';
+import { SCENARIO_COMPARE_MAX_BYTES, formatIssues, formatPath, parseScenario, scenarioChangedMessage, scenarioChangedSinceRun, validateScenario } from '@demo-studio/core';
 import type { ValidationIssue } from '@demo-studio/core';
 import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
@@ -559,5 +561,98 @@ describe('semantic checks', () => {
     ]);
     const bad = only(parseScenario(text.replace('    cursor: {in: dialog}\n', '').replace('cursor: auto', 'cursor: [1, 2]'), { project }).issues);
     expect(bad.path).toEqual(['scenes', 3, 'cursor']);
+  });
+});
+
+describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', () => {
+  it('compares scenarios/<name>.yaml, else .yml, with the run\'s snapshot; undefined when either is missing', async () => {
+    const { dir, cleanup } = await tempDir();
+    try {
+      const run = `${dir}/runs/20260101-120000-quote`;
+      const text = scenario('      - hold: 1\n');
+      await writeFiles(dir, { 'runs/20260101-120000-quote/scenario.yaml': text });
+      const project = { dir };
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBeUndefined(); // no scenario file
+      await writeFiles(dir, { 'scenarios/quote.yml': text });
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBe(false); // .yml, as a name resolves
+      await writeFiles(dir, { 'scenarios/quote.yml': text.replace('hold: 1', 'hold: 3') });
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBe(true);
+      // .yaml wins over .yml, like loadScenario
+      await writeFiles(dir, { 'scenarios/quote.yaml': text });
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBe(false);
+      await writeFiles(dir, { 'scenarios/quote.yaml': text.replace('hold: 1', 'hold: 2') });
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBe(true);
+      expect(scenarioChangedSinceRun(project, `${dir}/runs/none`, 'quote')).toBeUndefined(); // no snapshot
+      expect(scenarioChangedSinceRun(project, run, 'other')).toBeUndefined();
+      expect(scenarioChangedSinceRun(project, run, '../scenarios/quote')).toBeUndefined(); // a name, never a path
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('compares the data: a comment, blank lines, quoting, indentation or key order is no change; the text when either does not parse (L3.8 review L6)', async () => {
+    const { dir, cleanup } = await tempDir();
+    try {
+      const run = `${dir}/runs/20260101-120000-quote`;
+      const text = 'video: Quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
+      await writeFiles(dir, { 'runs/20260101-120000-quote/scenario.yaml': text });
+      const project = { dir };
+      const changed = async (now: string) => {
+        await writeFiles(dir, { 'scenarios/quote.yaml': now });
+        return scenarioChangedSinceRun(project, run, 'quote');
+      };
+      expect(await changed(`# the quote tour\n${text}\n\n`)).toBe(false); // a comment, blank lines
+      expect(await changed(text.replace('      - hold: 1', '      - hold: 1   # one second'))).toBe(false); // an end-of-line comment
+      expect(await changed(text.replace('video: Quote', 'video: "Quote"'))).toBe(false); // quoting
+      expect(await changed(text.replace(/^ {2}/gm, '    '))).toBe(false); // indentation
+      expect(await changed(text.replace('    page: shop\n    open: /\n', '    open: /\n    page: shop\n'))).toBe(false); // key order
+      expect(await changed(text.replace('video: Quote', 'video: Quote tour'))).toBe(true); // a value
+      expect(await changed(text.replace('      - hold: 1\n', '      - hold: 1\n      - hold: 1\n'))).toBe(true); // a step
+      expect(await changed(`${text}  - [unclosed\n`)).toBe(true); // does not parse: the text differs
+      await writeFiles(dir, { 'runs/20260101-120000-quote/scenario.yaml': 'video: [unclosed\n' });
+      expect(await changed('video: [unclosed\n')).toBe(false); // neither parses: the same text
+      expect(await changed('video: [unclosed\n# a comment\n')).toBe(true); // neither parses: another text
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reads only small regular files: a link, a FIFO, a device or a huge file is unknown, never read (L3.8 review L5)', { timeout: 10_000 }, async () => {
+    const { dir, cleanup } = await tempDir();
+    try {
+      const run = `${dir}/runs/20260101-120000-quote`;
+      const snapshot = `${run}/scenario.yaml`;
+      const text = scenario('      - hold: 1\n');
+      await writeFiles(dir, { 'runs/20260101-120000-quote/scenario.yaml': text, 'scenarios/real.yaml': text, 'outside.yaml': text });
+      const project = { dir };
+      await symlink(`${dir}/scenarios/real.yaml`, `${dir}/scenarios/quote.yaml`);
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBeUndefined(); // the scenario file is a link
+      await rm(`${dir}/scenarios/quote.yaml`);
+      await writeFiles(dir, { 'scenarios/quote.yaml': text });
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBe(false);
+      await rm(snapshot);
+      await symlink(`${dir}/outside.yaml`, snapshot);
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBeUndefined(); // the snapshot is a link
+      await rm(snapshot);
+      await symlink('/dev/zero', snapshot);
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBeUndefined(); // a link to a device
+      await rm(snapshot);
+      execFileSync('mkfifo', [snapshot]);
+      const started = Date.now();
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBeUndefined(); // a FIFO nobody writes: never opened for a blocking read
+      expect(Date.now() - started).toBeLessThan(2000);
+      await rm(snapshot);
+      await writeFile(snapshot, text);
+      await writeFile(`${dir}/scenarios/quote.yaml`, `${text}# ${'x'.repeat(SCENARIO_COMPARE_MAX_BYTES)}\n`);
+      expect(scenarioChangedSinceRun(project, run, 'quote')).toBeUndefined(); // over the size limit
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the message names the scenario, the run and what films the change', () => {
+    expect(scenarioChangedMessage('quote', '20260101-120000-quote', '`studio run demo quote`')).toBe(
+      'scenario quote changed since run 20260101-120000-quote was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `studio run demo quote`, then render',
+    );
   });
 });

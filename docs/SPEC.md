@@ -224,7 +224,9 @@ Built in L3.1 (`studio mcp`, stdio; arguments as the tools publish them — ever
 
 Built in L3.2 (renders, reviews, exports and previews are jobs of the same worker; a theme is a name, never a folder):
 - `plan_preview({project, scenario, run_id?, template?, overrides?})` → the plan without rendering (segments, timings,
-  warnings); `render({project, scenario, run_id?, template?, overrides?, wait_s?})` → render id at once;
+  warnings; `scenario_changed` when the scenario file differs from the run's snapshot — a render shows the run as
+  captured, a scenario change needs `run_capture` first, L3.8); `render({project, scenario, run_id?, template?,
+  overrides?, wait_s?})` → render id at once;
   `render_status({project, render_id | "latest", scenario?, wait_s?})` (job first, then renders/<id>.json)
 - `review({project, render_id, fps: 1|2, previous?, images?, wait_s?})` and `review_get({project, render_id, images?,
   wait_s?})` → verdict, finding codes and times, durations, diff, file paths (contact sheets, scene sheets, key frames at
@@ -400,8 +402,9 @@ A client of the same packages (the MCP keeps working without it). Served locally
   render queue, review report and contact sheets.
 - **Frame comments**: click a frame (optionally draw a region) and write a comment. Comments are anchored to the
   render frame AND to the scenario (scene, step, segment, component) through the edit plan, stored in the workspace,
-  and exposed to Claude (`comments_list`, `comment_reply`, `comment_resolve`) so it can adapt the scenario and
-  re-render; resolved comments stay attached to the render version they were made on.
+  and exposed to Claude (`comments_list`, `comment_reply`, `comment_resolve`) so it can make the change — a scenario
+  change captured again (`run_capture`), then rendered; a theme or an override only rendered; resolved comments stay
+  attached to the render version they were made on.
 
 ## 13. Security
 
@@ -424,10 +427,13 @@ A client of the same packages (the MCP keeps working without it). Served locally
    outro, caption, card/browser/laptop/phone layouts, dark-clock interstitial, title card, overlays), themes picking
    components, render two videos (supplier "catalogue" and buyer "quote request") from scenarios. Accept: review report
    clean; output reviewed by Claude through contact sheets; switching a component or theme re-renders without touching
-   the scenario.
+   the scenario. Accepted in `docs/ACCEPTANCE-phase2.md`.
 3. **MCP + authoring + skills**: a Claude session creates a project from a README, drafts a scenario from a timecoded
    script (or inspects/records the site), creates a theme from a brand or a site, creates a component through the skill,
    dry-runs, captures, renders, reviews, reads frame comments and iterates without human steps except approval.
+   Accept: the whole loop over MCP on one empty workspace, scripted by the skills, with zero approvals and a clean
+   review of both renders (`docs/ACCEPTANCE-phase3.md`, `packages/mcp/test/phase3-acceptance.test.ts`); the same loop
+   by Claude itself in Claude Code (`docs/MACOS-CHECKLIST.md` step 12j).
 4. **Studio app (web)**: projects, scenario blocks, run, edit/verify timeline with component switching and live
    preview, frame comments.
 5. **macOS: Tauri desktop shell + iOS runner**.

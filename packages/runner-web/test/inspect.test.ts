@@ -509,23 +509,49 @@ describe('a page that leaves for another origin while it is inspected', () => {
     await away?.close();
   });
 
+  /**
+   * One inspection of the late page, bounded: past ITERATION_MS the run is cancelled and the test fails naming the query,
+   * the stage (the replay and the inspection, or the run's close after the report) and the run's last progress events —
+   * a hang shows where it is instead of the whole test timing out (L3.8 review: a full-suite hang of this file).
+   */
+  const ITERATION_MS = 60_000;
   async function inspectLate(query: string): Promise<{ r: InspectReport; startedAfter: number }> {
     let report: InspectReport | null = null;
     let startedAfter = 0;
-    const rec = await runScenario({
+    const events: string[] = [];
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const t0 = Date.now();
+    const run = runScenario({
       project: late,
       scenario: scenario({ scenes: [{ id: 'late', page: 'app', open: `/late?${query}#frag`, steps: [{ wait: 0 }] }] }),
       mode: 'dry',
       runsDir: join(dir, 'inspect'),
       runId: `i_late${++seq}`,
+      signal: abort.signal,
+      onProgress: (e) => {
+        const what = e.type === 'log' ? `${e.level}: ${e.message}` : e.type === 'step_start' || e.type === 'step_end' ? `${e.scene}.${e.step} ${e.action}` : '';
+        events.push(`${Date.now() - t0} ms ${e.type}${what ? ` ${what}` : ''}`);
+      },
       inspect: {
         targets: ['Item 3', { text: AWAY }],
         onResult: (r) => {
           report = r;
           startedAfter = Date.now() - r.timings.inspect_ms - served;
+          events.push(`${Date.now() - t0} ms report ${r.status}`);
         },
       },
     });
+    const rec = await Promise.race([
+      run,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          abort.abort();
+          const stage = report === null ? 'the replay or the inspection (no report yet)' : "the run's close (after the report)";
+          reject(new Error(`${query}: not finished within ${ITERATION_MS / 1000} s, in ${stage}; last events:\n${events.slice(-12).join('\n')}`));
+        }, ITERATION_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
     expect(rec.error?.message, query).toBeUndefined();
     const r = report as InspectReport | null;
     expect(r, query).not.toBeNull();

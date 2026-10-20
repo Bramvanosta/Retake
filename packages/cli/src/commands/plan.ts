@@ -1,7 +1,19 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, loadProjectTemplate, newerRunMessage, parseScenario, readJson, runIdMatchesScenario, writeJson } from '@demo-studio/core';
+import {
+  COMPONENT_ID_RE,
+  FRAME_STYLE_LAYOUTS,
+  MULTI_PAGE_LAYOUTS,
+  loadProjectTemplate,
+  newerRunMessage,
+  parseScenario,
+  readJson,
+  runIdMatchesScenario,
+  scenarioChangedMessage,
+  scenarioChangedSinceRun,
+  writeJson,
+} from '@demo-studio/core';
 import type { LoadedProject, Scenario, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import { planEdit, planInputFiles, runEnv, summarizePlan } from '@demo-studio/editor';
@@ -128,6 +140,10 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     const out = resolve(opts.out);
     await writeJson(out, plan);
     if (!opts.json) ui.ok(`plan written to ${ui.path(out)}`);
+  }
+  // L3.8: the plan is the run's, never the current scenario file's (stderr, so --json stays parseable).
+  if (scenarioChangedSinceRun(project, run.dir, timeline.scenario)) {
+    ui.warn(scenarioChangedMessage(timeline.scenario, run.id, `\`studio run ${project.slug} ${timeline.scenario}\``));
   }
   if (opts.json) {
     ui.result(JSON.stringify(plan, null, 2));

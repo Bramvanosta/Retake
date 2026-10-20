@@ -27,6 +27,13 @@ export const INSPECT_LIMIT_MAX = 300;
 export const INSPECT_TARGETS_MAX = 20;
 /** In-page time budget for the suggestions (ms). */
 export const INSPECT_BUDGET_MS = 2500;
+/**
+ * How long an inspection waits for one answer of the page (ms): the navigation guard's install and removal, the cursor;
+ * a kit call gets its in-page budget on top of `call_ms`. A protocol answer lost while the page commits a document of
+ * another origin would otherwise hang the inspection forever; a deadline counts as a document change (inspectPage).
+ */
+export const INSPECT_DEADLINES = { guard_ms: 5_000, call_ms: 15_000 } as const;
+export type InspectDeadlines = { guard_ms: number; call_ms: number };
 /** `hold`, `wait`, a step's `hold:` and a scene's still last at most this long during an inspection's replay (s). */
 export const INSPECT_PAUSE_CAP_S = 0.2;
 /**
@@ -256,13 +263,30 @@ class LandedElsewhere extends Error {
   }
 }
 
+/** The page did not answer one step of the inspection in time (`bounded`). */
+export class InspectDeadlineError extends Error {
+  constructor(readonly stage: string, ms: number) {
+    super(`the page did not answer (${stage}) within ${Math.round(ms / 100) / 10} s`);
+  }
+}
+
+/** `p`, or InspectDeadlineError after `ms` (`p` keeps running; a late rejection of it is handled here). */
+async function bounded<T>(stage: string, ms: number, p: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([p, new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new InspectDeadlineError(stage, ms)), ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * While the page is inspected, a navigation of its main frame to an origin that is not one of the environment's pages
  * (a late redirect by script, a meta refresh, a form posted elsewhere) is answered 204 No Content: the page stays where
  * it was.
  * Returns the guard's removal and the count of navigations it stopped.
  */
-async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; remove: () => Promise<void> }> {
+async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; remove: () => Promise<boolean> }> {
   const page = rt.page;
   let blocked = 0;
   const handler = async (route: Route): Promise<void> => {
@@ -282,7 +306,7 @@ async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; re
     await route.fallback().catch(() => undefined);
   };
   await page.route('**/*', handler);
-  return { blocked: () => blocked, remove: () => page.unroute('**/*', handler).catch(() => undefined) };
+  return { blocked: () => blocked, remove: () => page.unroute('**/*', handler).then(() => true, () => true) };
 }
 
 /**
@@ -292,8 +316,17 @@ async function guardNavigation(rt: Runtime): Promise<{ blocked: () => number; re
  * The origin is checked where the data comes from, not once: each kit call runs in one document only (a document
  * replaced during it is an error, never retried in the new one) and returns that document's origin; the page's URL is
  * checked again after the screenshot. Main-frame navigations to other origins are stopped while it runs.
+ *
+ * Every wait on the page is bounded (`deadlines`, INSPECT_DEADLINES): a step the page does not answer in time counts
+ * as a document change — where the page is then decides between `landed_elsewhere` and `failed` (naming the step) —,
+ * and a guard that cannot be removed in time is left to the page's close, with a warning.
  */
-export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResult'>, ctx: InspectContext): Promise<InspectReport> {
+export async function inspectPage(
+  rt: Runtime,
+  req: Omit<InspectRequest, 'onResult'>,
+  ctx: InspectContext,
+  deadlines: InspectDeadlines = INSPECT_DEADLINES,
+): Promise<InspectReport> {
   const started = performance.now();
   const file = join(rt.runDir, 'inspect.json');
   const shot = join(rt.runDir, 'screenshot.png');
@@ -340,9 +373,13 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
   const onEnv = (url: string): void => {
     if (!isPageOrigin(url, rt.env.pages)) throw new LandedElsewhere(url);
   };
+  const callMs = deadlines.call_ms + (req.budgetMs ?? INSPECT_BUDGET_MS);
+  /** Remove the guard (bounded): false when the page did not answer in time. */
+  const removeGuard = async (): Promise<boolean> => (guard ? bounded('removing the navigation guard', deadlines.guard_ms, guard.remove()).catch(() => false) : true);
   try {
-    guard = await guardNavigation(rt);
-    await rt.awaitLoaded().catch(() => undefined);
+    // Assigned once installed: a guard whose install timed out is never removed (its handler may never be added).
+    guard = await bounded('installing the navigation guard', deadlines.guard_ms, guardNavigation(rt));
+    await bounded('the page load', callMs, rt.awaitLoaded().catch(() => undefined));
     rt.assertSignedIn();
     const url = (read = rt.page.url());
     // Only a page of the environment is taken (its origin, not merely its host: another local port is another app).
@@ -350,7 +387,7 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
     let within: string | null = null;
     let withinFound = true;
     if (req.within !== undefined) {
-      const r = await rt.kit.callOnce<ResolveResult>('find', normalizeTarget(req.within), {});
+      const r = await bounded('finding `within`', callMs, rt.kit.callOnce<ResolveResult>('find', normalizeTarget(req.within), {}));
       if (r.count > 0 && 'ref' in r) within = r.ref;
       else {
         withinFound = false;
@@ -358,17 +395,19 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
       }
     }
     const t0 = performance.now();
-    const inv: KitInventory | null = withinFound ? await rt.kit.inventory({ within, limit, budget_ms: req.budgetMs ?? INSPECT_BUDGET_MS }) : null;
+    const inv: KitInventory | null = withinFound
+      ? await bounded('the inventory', callMs, rt.kit.inventory({ within, limit, budget_ms: req.budgetMs ?? INSPECT_BUDGET_MS }))
+      : null;
     // The document the inventory read (a script may have replaced the page since the URL was read).
     if (inv) onEnv(`${inv.origin}/`);
     const targets = (req.targets ?? []).slice(0, INSPECT_TARGETS_MAX);
     if ((req.targets?.length ?? 0) > INSPECT_TARGETS_MAX) warnings.push(`only the first ${INSPECT_TARGETS_MAX} targets were checked`);
     const normal: Array<TargetObject | null> = targets.map((t) => (isPoint(t as TargetSpec | PointSpec) ? null : normalizeTarget(t)));
-    const checked = await rt.kit.checkTargets(normal.filter((t): t is TargetObject => t !== null));
+    const checked = await bounded('checking the targets', callMs, rt.kit.checkTargets(normal.filter((t): t is TargetObject => t !== null)));
     onEnv(`${checked.origin}/`);
     const kitMs = Math.round(performance.now() - t0);
     // The screenshot last (the inventory reads only): the cursor hidden; marks are drawn from the boxes later.
-    await rt.kit.cursorShow(false).catch(() => undefined);
+    await bounded('hiding the cursor', deadlines.guard_ms, rt.kit.cursorShow(false).catch(() => undefined));
     await rt.page.screenshot({ path: shot, timeout: 10_000 });
     shotTaken = true;
     // A sign-in page that showed while the picture was taken (L1.6), or a page that left meanwhile: never kept.
@@ -401,16 +440,18 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
   } catch (e) {
     if (shotTaken) await rm(shot, { force: true }).catch(() => undefined);
     if (isCancelled(e) || rt.loginGuardError()) {
-      await guard?.remove();
+      await removeGuard();
       throw rt.loginGuardError() ?? e;
     }
     // Nothing read from a document that was not the environment's is kept: the report holds its host alone.
-    // A document replaced during a kit call: where the page went, once the new one committed.
-    if (e instanceof DocumentChangedError && read !== null) {
+    // A document replaced during a kit call (or a step the page did not answer in time): where the page went, once the
+    // new one committed.
+    const changed = e instanceof DocumentChangedError || e instanceof InspectDeadlineError;
+    if (changed && read !== null) {
       const from = read;
-      await rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 }).catch(() => undefined);
+      await bounded('the new document', 4_000, rt.page.waitForURL((u) => u.href !== from, { waitUntil: 'commit', timeout: 3_000 })).catch(() => undefined);
     }
-    const landed = e instanceof LandedElsewhere ? e.url : e instanceof DocumentChangedError && !isPageOrigin(rt.page.url(), rt.env.pages) ? rt.page.url() : null;
+    const landed = e instanceof LandedElsewhere ? e.url : changed && !isPageOrigin(rt.page.url(), rt.env.pages) ? rt.page.url() : null;
     if (landed !== null) {
       report.status = 'landed_elsewhere';
       report.untrusted.landed_host = hostOf(landed);
@@ -421,7 +462,7 @@ export async function inspectPage(rt: Runtime, req: Omit<InspectRequest, 'onResu
   }
   if (guard) {
     if (guard.blocked() > 0) warnings.push(`the page tried to leave for another origin during the inspection (${guard.blocked()} navigation(s) stopped)`);
-    await guard.remove();
+    if (!(await removeGuard())) warnings.push('the navigation guard could not be removed in time (the page closes with the run)');
   }
   report.untrusted.warnings.push(...warnings);
   return finish(rt, report, file, started);

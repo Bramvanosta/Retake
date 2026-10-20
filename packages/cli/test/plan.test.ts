@@ -120,4 +120,29 @@ describe('studio plan', () => {
       await rm(join(dir, 'run.json'), { force: true });
     }
   });
+
+  it('warns when the scenario file changed since the run was captured: the plan is the run\'s (L3.8; stderr, --json too)', async () => {
+    const run = '20261011-182706-quote';
+    const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
+    const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');
+    const warning = `scenario quote changed since run ${run} was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: \`studio run demo quote\`, then render`;
+    await writeFile(join(runs, run, 'scenario.yaml'), snapshot);
+    await mkdir(join(ws, 'projects', 'demo', 'scenarios'), { recursive: true });
+    try {
+      await writeFile(file, snapshot);
+      const same = await studio('plan', 'demo', run);
+      expect(same.code, same.err).toBe(EXIT.ok);
+      expect(same.err).not.toContain('changed since');
+      await writeFile(file, snapshot.replace('hold: 1', 'hold: 3'));
+      const changed = await studio('plan', 'demo', run);
+      expect(changed.code, changed.err).toBe(EXIT.ok);
+      expect(changed.err).toContain(`! ${warning}`);
+      const json = await studio('plan', 'demo', 'latest', '--scenario', 'quote', '--json');
+      expect(json.err).toContain(warning);
+      expect((JSON.parse(json.out) as EditPlan).meta.run_id).toBe(run);
+    } finally {
+      await rm(file, { force: true });
+      await rm(join(runs, run, 'scenario.yaml'), { force: true });
+    }
+  });
 });

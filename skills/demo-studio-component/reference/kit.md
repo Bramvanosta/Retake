@@ -51,7 +51,8 @@ export default function SplitIntro({ theme, slots, params, unit, width, fps }: C
   const enter = (i: number) => rise(frame, fps, { delay: stagger(i, { step: params.stagger }), unit });
   return (
     <Background theme={theme}>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', gap: 64 * unit, padding: 160 * unit }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', gap: 64 * unit, padding: 160 * unit,
+                    justifyContent: params.align === 'center' ? 'center' : 'flex-start' }}>
         <div style={enter(0)}><Logo theme={theme} size={96} unit={unit} /></div>
         <div style={enter(1)}>
           <FitText text={slots.title ?? ''} width={width * 0.5} maxFontSize={96 * unit} maxLines={2}

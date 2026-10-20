@@ -197,6 +197,9 @@ export class KitClient {
   /**
    * One call in the document the page shows now (an inspection, L3.3): a document replaced during the call (a late
    * navigation) is an error, never retried in the new one — whatever that document holds is not what was asked for.
+   * A document that has no kit when the call starts (its init script not run) gets it installed and the call runs
+   * there: whichever document answers, the inventory and the target checks return its origin, which the inspection
+   * checks.
    */
   callOnce<T>(path: string, ...args: unknown[]): Promise<T> {
     return this.callWith<T>(false, path, args);

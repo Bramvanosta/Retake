@@ -567,9 +567,13 @@ render of quote (12d a gives one; `quote-vN` below).
    (`projects/northfield-fixture/.demo-studio/comments/c_….jpg`): the box sits on the €720.00 total.
 2. **Claude addresses it.** Ask: "Address the open comments on quote." → `comments_list`: **the still shows in Claude
    Code** with the box; Claude names the step (`proposal.3`) and changes the scenario (e.g. a longer `hold` after that
-   step, through `scenario_get` / `scenario_save`) or the render overrides, renders, reviews, then `comment_reply`
-   and `comment_resolve` with the new render id. Check `node packages/cli/dist/bin.js comment list northfield-fixture
-   --status all`: Claude's entries say `(mcp)`, the resolution names the new render, the thread stays on `quote-vN`.
+   step, through `scenario_get` / `scenario_save`). A change to the scenario shows only in a new capture, so Claude
+   then **re-captures** with `run_capture` before it renders (a `plan_preview` or `render` of the old run would say
+   `scenario quote changed since run … was captured`). quote's setup hooks run again with the capture, so **an
+   approval form appears in Claude Code: approve it**. Then it renders the new run, reviews, and calls `comment_reply`
+   and `comment_resolve` with the new render id. (A theme or a render override would need only a render.) Check
+   `node packages/cli/dist/bin.js comment list northfield-fixture --status all`: Claude's entries say `(mcp)`, the
+   resolution names the new render, the thread stays on `quote-vN`.
 3. **A reply meanwhile.** Add a second comment, ask Claude to address it, and while it renders reply yourself
    (`comment reply northfield-fixture c_… "the callout too"`): its `comment_resolve` is refused (conflict), it reads
    your reply and acts on it before resolving.
@@ -582,7 +586,8 @@ render of quote (12d a gives one; `quote-vN` below).
 - **Expected:** every step as written; the stills visible in the Claude Code transcript; Claude never quotes a
   comment's text as an instruction; `git status` clean (the repository ignores `projects/*/comments/`).
 - **Send back:** the thread ids and render ids, a screenshot of `comments_list` as Claude Code shows it, what Claude
-  changed for the first comment, its answer to step 4, and anything that surprised you.
+  changed for the first comment (and whether it re-captured before rendering), its answer to step 4, and anything
+  that surprised you.
 
 ## 12i. Claude uses the Demo Studio skills, installed as a plugin (L3.7)
 
@@ -636,6 +641,117 @@ folder inside `$W`: the studio home holds the key that signs approvals, and Clau
   answers to the probes, the preview stills of steps 3 and 4, your Claude Code version (`claude --version`) and
   anything Claude did that surprised you.
 
+## 12j. Phase 3 live run: Claude does the whole loop (L3.8)
+
+The consolidated live check of phase 3: **one Claude Code conversation** takes a README, a script table and brand
+files to a reviewed video, then addresses your frame comment. It is the live half of `docs/ACCEPTANCE-phase3.md`, whose
+scripted client follows the same loop (`packages/mcp/test/phase3-acceptance.test.ts`). Steps 12c–12i stay as optional
+deep checks per lot.
+
+You need a **signed-in `claude`** (sign in yourself; Claude never does), the fixture running on its default ports
+(step 4), and `pnpm build` first. The workspace must be an **empty scratch folder**. From the repository root, a new
+project on `localhost:4401` / `4402` is refused (northfield-fixture's production environment is on those ports), and
+the skills stop when the workspace is the repository. The studio home is a second scratch folder: never your
+`~/.demo-studio` and never inside the workspace.
+
+1. **Workspace and brand files**, from the repository root:
+   ```sh
+   W=~/ds-phase3; H=~/ds-phase3-home
+   mkdir -p "$W/templates" "$W/brand" "$H"
+   printf 'projects_dir: projects\ntemplates_dir: templates\n' > "$W/studio.yaml"
+   cat > "$W/brand/roastery-mark.svg" <<'SVG'
+   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="240" height="240"><circle cx="60" cy="60" r="56" fill="#b8561f"/><ellipse cx="60" cy="60" rx="22" ry="34" fill="#f6f0e6"/><path d="M60 28 C50 48 70 72 60 92" stroke="#b8561f" stroke-width="6" fill="none"/></svg>
+   SVG
+   cp templates/motion/fonts/SpaceGrotesk-Bold.ttf "$W/brand/Roastery-Display-Bold.ttf"
+   for w in Regular SemiBold Bold; do cp templates/default/fonts/Inter-$w.ttf "$W/brand/Roastery-Text-$w.ttf"; done
+   ```
+2. **The plugin, re-pointed at the scratch folders.** The plugin's values are kept once per user, so remove any
+   earlier install first (12i: from `~/ds-themes`, `claude plugin uninstall demo-studio@demo-studio --scope local`;
+   `claude plugin list` shows no `demo-studio`). Then:
+   ```sh
+   DEMO_STUDIO_HOME="$H" node packages/cli/dist/bin.js --root "$W" mcp --print-config
+   ```
+   Run the two lines printed under "Or the Claude Code plugin" **as printed** (`claude plugin marketplace add <repo>`,
+   then `cd <W> && claude plugin install demo-studio@demo-studio --scope local --config … --config home=<H>`). In `$W`,
+   `claude mcp list` shows `plugin:demo-studio:demo-studio … ✔ Connected`. Note the fixture's write counter:
+   `curl -s http://localhost:4401/api/health` (`mutations`).
+3. **One conversation**, `cd "$W" && claude`. Name no tool and no skill. Paste each input as given; wait for each step
+   to finish before the next:
+   1. "Here is our README, create the project for it:", then this README:
+      ```markdown
+      # Northfield Roasters
+
+      ## Product
+      A wholesale shop where cafés discover specialty coffee lots and request quotes from the roaster, and a console
+      where the roaster answers them with priced proposals.
+
+      ## Audience
+      Café owners and head baristas who buy beans every week.
+
+      ## Goals
+      - Show how fast a café requests a quote: the lot, the quantity, the delivery window, sent.
+
+      ## Tone
+      Calm and precise; short captions, no hype.
+
+      ## Brand
+      - Accent #b8561f, text #2b1d14, paper #f6f0e6, muted #6a5546, dark #24170f.
+      - Name: Northfield Roasters; address on the outro: northfield-roasters.test.
+      - Logo and fonts: in the workspace brand/ folder.
+
+      ## Environments & links
+      - local: shop http://localhost:4402, console http://localhost:4401 (demo data only).
+      ```
+      → the `demo-studio-scenario` skill: `engine_info` (its root is `$W`), `project_create` with a name, a slug and a
+      `local` environment with both pages taken from the README, `project_get`.
+   2. "Here is the script of the video, draft it:", then this table:
+      ```markdown
+      | Time | Scene | Action | Kicker | Caption | Page | Type |
+      |---|---|---|---|---|---|---|
+      | 0:00–0:04 | | | For cafés | Request a quote in a minute | | title |
+      | 0:04–0:16 | Discover | Hover a lot, scroll to the fresh arrivals, open Selowa Ridge: its tasting notes, its 5 kg price | Discover | Award-winning lots and fresh arrivals, roasted to order. | shop:/ | |
+      | 0:16–0:28 | Request | Request a quote: three bags of 5 kg, whole bean | Request a quote | Choose the quantity, the bag size and the grind. | | |
+      | 0:28–0:46 | Delivery | A window from 10 to 24 January, a note for the roaster, a look at the estimate, Send; the confirmation “Quote request sent” | Delivery | Pick your delivery window and leave a note for the roaster. | | |
+      | 0:46–0:58 | Quotes | The quotes page: every request in one place; open an accepted proposal | Your quotes | Every request and proposal, in one place. | shop:/quotes | |
+      | 0:58–1:03 | | | | From request to proposal, in one place. | | outro |
+      ```
+      → `scenario_from_script`, then per beat `page_inspect` (marked screenshots shown), the YAML Claude writes,
+      `scenario_validate`, `scenario_save`; **Send marked `irreversible: true`**, with the wait for "Quote request
+      sent" in the same scene; `run_dry` succeeded, stopped at Send. `curl` the health again: `mutations` unchanged
+      (no inspection or dry run sent a quote).
+   3. "Make a theme from the files in brand/ with the README's colours, and show me." → the `demo-studio-theme`
+      skill: `template_create_from_brand` (it reports the palette; nothing lifted), `template_preview` (5 stills
+      shown).
+   4. "I want an intro with our logo on the left and the title on the right." → the `demo-studio-component` skill:
+      the existing intros looked at first, `component_create` under a namespace that is not `studio/`; it **asks
+      before editing** the code; `component_validate` after each edit; `component_preview` in the new theme (the still
+      shown).
+   5. "Capture it, then render it with that theme and the new intro, and review it." → `run_capture` (**no approval
+      form**: the project has no hooks), `plan_preview` (≥ 60 s), `render`, `review` (the contact sheet shown; clean,
+      or Claude says what it fixes).
+   6. **You comment, in a second terminal** at the repository root (use a marker Claude's scenario has, e.g. the one
+      on the confirmation, or `--at <seconds>` of the toast instead of `--marker`):
+      ```sh
+      DEMO_STUDIO_HOME=~/ds-phase3-home node packages/cli/dist/bin.js --root ~/ds-phase3 comment add <slug> latest \
+        --marker <name> --region 0.72,0.73,0.18,0.11 "Keep the confirmation on screen longer"
+      ```
+   7. "Address the open comments." → `comments_list` (the still shown with your box), `scenario_get`, a longer
+      `hold`, `scenario_validate`, `scenario_save`; then **a new capture** (`run_capture`) **before** it renders. A
+      `plan_preview` of the old run would say `scenario … changed since run … was captured`. Then `render`, `review`,
+      `comment_reply` and `comment_resolve` with the new render.
+
+- **Expected:** every step as written, the skills loaded without being named, **no approval form in the whole
+  conversation** (no hook, no URL to read; note any that appears), nothing run through Claude's shell that a tool
+  offers (no Bash call running `studio` or `bin.js`), `mutations` +0 until the first capture, both reviews clean,
+  `git status` clean in the repository, nothing new in `~/.demo-studio`.
+- **Send back:**
+  - which skill loaded at each step and the tools called, in order (the transcript lines);
+  - the project slug, the scenario name, the run ids and render ids;
+  - the theme and component stills and both contact sheets, as Claude Code showed them;
+  - the `mutations` numbers, any approval form, and the wall time of each step;
+  - whether Claude re-captured after the scenario edit **without being told**;
+  - `claude --version`, and anything Claude did that surprised you.
+
 ## 13. Clean up
 
 Stop the fixture (Ctrl-C in terminal 1). Generated folders (`runs/`, `.demo-studio/`) are git-ignored; delete them
@@ -647,7 +763,11 @@ delete `.mcp.json`), and the workspace's own job queue and history (`rm -rf .dem
 `rm -rf projects/northfield-fixture/comments` (git-ignored in this repository). After step 12i: if not done in its step 6,
 `claude plugin uninstall demo-studio@demo-studio --scope local` (from `~/ds-themes`) and `claude plugin marketplace
 remove demo-studio`; Claude Code may keep a copy under its `plugins/cache/demo-studio/` folder for a while (it cleans
-it itself; deleting it is safe); then `rm -rf ~/ds-themes ~/ds-themes-home` as after 12g.
+it itself; deleting it is safe); then `rm -rf ~/ds-themes ~/ds-themes-home` as after 12g. After step 12j: from
+`~/ds-phase3`, `claude plugin uninstall demo-studio@demo-studio --scope local`, then `claude plugin marketplace remove
+demo-studio`; once `DEMO_STUDIO_HOME=~/ds-phase3-home node packages/cli/dist/bin.js --root ~/ds-phase3 jobs` shows no
+worker running, `rm -rf ~/ds-phase3 ~/ds-phase3-home` (the project, its runs, renders and comments, the theme, the
+component and the studio home).
 
 **Send everything back in one message**, numbered like the steps above.
 

@@ -60,9 +60,11 @@ say something else, they win.
    `plan_preview {project, scenario, overrides: {components: {intro: acme/intro-split}}}` (the key is a kind or a
    segment id), then `render {project, scenario, overrides: {components: {intro: acme/intro-split}}}`, follow
    `render_status {project, render_id, wait_s: 25}` and `review {project, render_id}` (a review still running after
-   its 20 s: `review_get {project, render_id, wait_s: 25}`): look at the contact sheet.
-   Per scenario: `intro: {component: acme/intro-split}` through the scenario skill and `scenario_save`. As a theme's
-   default: the user edits the theme.
+   its 20 s: `review_get {project, render_id, wait_s: 25}`): look at the contact sheet. A theme or a render
+   override needs only a render, no new capture.
+   Per scenario: `intro: {component: acme/intro-split}` through the scenario skill and `scenario_save`. A change to
+   the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `run_capture`,
+   then render. As a theme's default: the user edits the theme (a theme needs only a render).
 7. **Its committed preview.** `preview.png` in the component's folder is never hand-made and never written through
    MCP: the user regenerates it in their own terminal with `studio components preview acme/intro-split`. Tell them
    when the code changed.

@@ -15,12 +15,12 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, TEMPLATE_NAME_RE } from '@demo-studio/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, TEMPLATE_NAME_RE, scenarioChangedSinceRun } from '@demo-studio/core';
 import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@demo-studio/core';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@demo-studio/editor';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
-import { checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
+import { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
 import { isAlive } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
@@ -68,9 +68,15 @@ export function checkRenderRequest(req: RenderRequest): EditOverridesInput {
 
 /**
  * Plan a render request in this process (no browser), through the trust gates of work submitted through MCP. A
- * refusal is EngineError `refused` with the `studio render` command a human runs.
+ * refusal is EngineError `refused` with the `studio render` command a human runs. `scenario_changed` (L3.8): the
+ * project's scenario file differs from the run's snapshot — the render shows the run as captured, a re-capture films
+ * the change (core scenarioChangedSinceRun; undefined when either file is missing).
  */
-export async function planRenderRequest(ws: WorkspaceConfig, cli: string, req: RenderRequest): Promise<{ project: LoadedProject; planned: PlannedRun; overrides: EditOverridesInput }> {
+export async function planRenderRequest(
+  ws: WorkspaceConfig,
+  cli: string,
+  req: RenderRequest,
+): Promise<{ project: LoadedProject; planned: PlannedRun; overrides: EditOverridesInput; scenario_changed?: boolean }> {
   const overrides = checkRenderRequest(req);
   const project = await openProjectBySlug(ws, req.project);
   const ed = await editor();
@@ -84,7 +90,12 @@ export async function planRenderRequest(ws: WorkspaceConfig, cli: string, req: R
       root: ws.root,
       trust: 'mcp',
     });
-    return { project, planned, overrides };
+    // The run id reaches trusted summaries: `latest` picks only run ids (editor findRun); never one of another shape.
+    if (!RUN_ID_RE.test(planned.run.id) || planned.run.id.length > 200) {
+      throw new EngineError('invalid', 'the run picked is not a run id of runs/ (letters, digits, ".", "_", "-"): pass run_id (run_list names the runs)');
+    }
+    const changed = scenarioChangedSinceRun(project, planned.run.dir, planned.timeline.scenario);
+    return { project, planned, overrides, ...(changed !== undefined ? { scenario_changed: changed } : {}) };
   } catch (e) {
     if (e instanceof ed.PlanTrustError) {
       throw new EngineError('refused', e.message, { fix: renderCommandLine(cli, req), details: { problems: e.problems } });
@@ -104,8 +115,8 @@ export function parseRenderId(renderId: string, scenario: string): { version: nu
 export async function submitRenderJob(
   ctx: SubmitContext,
   req: RenderRequest,
-): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[] }> {
-  const { project, planned, overrides } = await planRenderRequest(ctx.ws, ctx.cli, req);
+): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; scenario_changed?: boolean }> {
+  const { project, planned, overrides, scenario_changed } = await planRenderRequest(ctx.ws, ctx.cli, req);
   const ed = await editor();
   const timelineSha = sha256Hex(await readFile(join(planned.run.dir, 'timeline.json')));
   const scenario = planned.timeline.scenario;
@@ -134,7 +145,15 @@ export async function submitRenderJob(
     throw e;
   }
   const plan = planned.plan;
-  return { job, render_id: renderId, run_id: planned.run.id, variant: plan.variant, duration_s: Math.round((plan.durationInFrames / plan.fps) * 1000) / 1000, warnings: plan.warnings };
+  return {
+    job,
+    render_id: renderId,
+    run_id: planned.run.id,
+    variant: plan.variant,
+    duration_s: Math.round((plan.durationInFrames / plan.fps) * 1000) / 1000,
+    warnings: plan.warnings,
+    ...(scenario_changed !== undefined ? { scenario_changed } : {}),
+  };
 }
 
 /** Remove the version lock a render job reserved (a cancel before it started, an early failure). */

@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS } from '@demo-studio/core';
-import { RenderCancelledError, RenderError, VARIANT_SUFFIX, planRun, renderStill, renderVideo } from '@demo-studio/editor';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, scenarioChangedMessage, scenarioChangedSinceRun } from '@demo-studio/core';
+import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planRun, renderStill, renderVideo } from '@demo-studio/editor';
+import type { LoadedProject } from '@demo-studio/core';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
 import { appendHistory } from '@demo-studio/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -136,6 +137,21 @@ function summary(ui: Ui, r: RenderRecord): void {
 }
 
 /**
+ * L3.8: before a render, say when the scenario file changed since the run was captured — the render shows the run as
+ * captured. A run that cannot be found says nothing here: the render reports it.
+ */
+function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: string, scenario: string): void {
+  let dir: string;
+  let id: string;
+  try {
+    ({ dir, id } = findRun(project, runArg, scenario));
+  } catch {
+    return;
+  }
+  if (scenarioChangedSinceRun(project, dir, scenario)) ui.warn(scenarioChangedMessage(scenario, id, `\`studio run ${project.slug} ${scenario}\``));
+}
+
+/**
  * `studio render <project> <scenario>`: plan and render the latest capture of a scenario (or `--run`) into
  * renders/<scenario>-v<N>.mp4 + .json, with a progress bar and a summary.
  */
@@ -156,6 +172,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (opts.intro === false) overrides.intro = false;
   if (opts.outro === false) overrides.outro = false;
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;
+  warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
   const { signal, dispose } = abortOnSigint(ui);
   try {

@@ -3,7 +3,7 @@
  * the files, `--json`, and the usage / lookup errors. Needs ffmpeg and a Chromium headless shell.
  */
 import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main, memoryIo } from '../src/index.js';
@@ -34,17 +34,27 @@ describe.skipIf(!canRender)('studio render / still', () => {
     expect(r.err).toMatch(/✓ rendered synthetic-v1 → .*renders\/synthetic-v1\.mp4/);
     expect(r.err).toMatch(/1\.90 s · 57 frames @ 30 fps · 480×270 · [\d.]+ KB · h264 crf 16, silent audio · checked: 1\.9\d s, 480×270, 1 audio track/);
     expect(r.err).toMatch(/theme editorial · run 20260101-120000-synthetic · bundle (cached|built in .*) · render .* \(concurrency 2\)/);
+    expect(r.err).not.toContain('changed since'); // no scenario file: nothing to compare
     const renders = join(ws.project.dir, 'renders');
     expect((await readdir(renders)).sort()).toEqual(['synthetic-v1.json', 'synthetic-v1.mp4']);
   }, LONG);
 
-  it('--json prints the record without the plan; the next render takes the next version', async () => {
+  it('--json prints the record without the plan; the next render takes the next version; a scenario changed since the capture is warned about first (L3.8)', async () => {
+    // The run's snapshot and a scenario file edited since: the render shows the run as captured, and says so on stderr.
+    const snapshot = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
+    await writeFile(join(ws.runDir, 'scenario.yaml'), snapshot);
+    await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
+    await writeFile(join(ws.project.dir, 'scenarios', 'synthetic.yml'), snapshot.replace('hold: 1', 'hold: 3'));
     const r = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--no-intro', '--json');
     expect(r.code, r.err).toBe(EXIT.ok);
+    expect(r.err).toContain(
+      '! scenario synthetic changed since run 20260101-120000-synthetic was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `studio run demo synthetic`, then render',
+    );
     const rec = JSON.parse(r.out) as Record<string, unknown>;
     expect(rec).toMatchObject({ id: 'synthetic-v2', status: 'succeeded', frames: 57, width: 480, height: 270, overrides: { scale: 0.25, intro: false } });
     expect(rec.plan).toBeUndefined();
     expect(existsSync(rec.file as string)).toBe(true);
+    await rm(join(ws.project.dir, 'scenarios'), { recursive: true, force: true });
   }, LONG);
 
   it('still: one frame as a PNG (renders/stills/ by default)', async () => {

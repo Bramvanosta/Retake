@@ -124,6 +124,9 @@ describe('studio mcp: frame comments', () => {
     expect(r.content[0].text).toContain('step s2.1 (wait_for)');
     expect(r.content[0].text).toContain('marker proposal');
     expect(r.content[0].text).toContain('comment_resolve {comment_id, note, render_id: the new render, if_match: its hash}');
+    // L3.8: a render shows the run as captured — the hint says a scenario change needs a new capture first.
+    expect(r.content[0].text).toContain('A change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: run_capture {project, scenario}, then render; a theme or a render override needs only a render.');
+    expect(r.content[0].text).not.toMatch(/nothing else —, render and review/);
     for (const p of prose(r)) expect(p).not.toMatch(/IGNORE|Reviewer|intro is too long/);
     // One still inline (the cap here is 1 image), the other listed as a file.
     const imgs = imagesOf(r);
