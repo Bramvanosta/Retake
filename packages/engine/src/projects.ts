@@ -1,5 +1,7 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
-import { README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
+import { realpath } from 'node:fs/promises';
+import { join, relative, isAbsolute } from 'node:path';
+import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
 import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
@@ -14,8 +16,40 @@ export interface ProjectSummary {
   dir: string;
   scenarios: string[];
   environments: string[];
-  /** project.yaml (or a sandbox.yaml) does not load: the first line of why. */
+  /** project.yaml (or a sandbox.yaml) does not load: the first line of why (with its first problem when that line only counts them). */
   error?: string;
+}
+
+/** README.md's cap in characters, its final line break included (project_create / project_update_readme). */
+export const README_MAX_CHARS = 200_000;
+
+/**
+ * The first line of an error for a one-line display: "project.yaml has 1 error:" alone says nothing (review B L5), so a
+ * first line that ends with a colon gets the next non-empty line.
+ */
+export function firstErrorLine(message: string): string {
+  const lines = message.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return message;
+  return lines[0].endsWith(':') && lines[1] ? `${lines[0]} ${lines[1]}` : lines[0];
+}
+
+/**
+ * project.yaml must be a file of the project once symbolic links are followed (review B M5): one leading out is never
+ * read through the engine (MCP, the Studio) — its content would come back in errors and views. The CLI reads what the
+ * person points it at.
+ */
+async function checkProjectFile(dir: string): Promise<void> {
+  let real: string;
+  let realDir: string;
+  try {
+    [realDir, real] = await Promise.all([realpath(dir), realpath(join(dir, PROJECT_FILE))]);
+  } catch {
+    return; // no project.yaml (or no folder): core says so in its own words
+  }
+  const rel = relative(realDir, real);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+    throw new EngineError('refused', `${join(dir, PROJECT_FILE)} leads out of the project folder (a symbolic link): not read`, { fix: `replace the link with a regular file inside ${dir}` });
+  }
 }
 
 /** Every project of the workspace with its scenarios and environments (a broken one is listed with its error). */
@@ -24,10 +58,11 @@ export async function listProjectSummaries(ws: WorkspaceConfig): Promise<Project
   return Promise.all(
     projects.map(async (p) => {
       try {
+        await checkProjectFile(p.dir);
         const loaded = await openProject(ws, p.dir);
         return { ...p, scenarios: loaded.scenarios, environments: Object.keys(loaded.config.environments) };
       } catch (e) {
-        return { ...p, scenarios: [], environments: [], error: (e as Error).message.split('\n')[0] };
+        return { ...p, scenarios: [], environments: [], error: firstErrorLine((e as Error).message) };
       }
     }),
   );
@@ -35,7 +70,8 @@ export async function listProjectSummaries(ws: WorkspaceConfig): Promise<Project
 
 /** A project by slug (never a path: core would resolve one outside the workspace). */
 export async function openProjectBySlug(ws: WorkspaceConfig, slug: string): Promise<LoadedProject> {
-  return openProject(ws, checkProjectSlug(slug));
+  await checkProjectFile(join(ws.projectsDir, checkProjectSlug(slug)));
+  return openProject(ws, slug);
 }
 
 export interface PersonaView {
@@ -70,6 +106,12 @@ export interface ProjectView {
   readme: string | null;
   /** sha256 of README.md (the `if_match` of project_update_readme); null when there is none. */
   readme_hash: string | null;
+  /**
+   * Why README.md cannot be edited as text, when it cannot: a symbolic link leading out of the project (readme and
+   * readme_hash null: never read), or bytes that are not UTF-8 (readme shows U+FFFD in their place). The project itself
+   * still opens.
+   */
+  readme_error?: string;
   scenarios: string[];
   default_env?: string;
   environments: EnvironmentView[];
@@ -92,9 +134,23 @@ export function maskUrlCredentials<T>(value: T): T {
   return value;
 }
 
+/** README.md as project_get shows it: the text, or why it cannot be edited (review B M1, M3). */
+async function readmeOf(storage: LocalStorage): Promise<{ text: string; sha256: string; error?: string } | { text: null; sha256: null; error: string } | undefined> {
+  let r;
+  try {
+    r = await storage.readText(README_FILE);
+  } catch (e) {
+    if (e instanceof EngineError && e.code === 'refused') return { text: null, sha256: null, error: `${README_FILE} is a symbolic link leading out of the project folder: not read (replace it with a regular file)` };
+    throw e;
+  }
+  if (!r) return undefined;
+  if (!r.utf8) return { text: r.text, sha256: r.sha256, error: `${README_FILE} is not UTF-8 text (another encoding, or binary): shown with U+FFFD in place of the bytes that do not decode; convert it to UTF-8 in an editor before changing it here` };
+  return { text: r.text, sha256: r.sha256 };
+}
+
 export async function projectView(project: LoadedProject): Promise<ProjectView> {
   const storage = new LocalStorage(project.dir);
-  const readme = await storage.readText(README_FILE);
+  const readme = await readmeOf(storage);
   const environments: EnvironmentView[] = Object.keys(project.config.environments ?? {}).map((name) => {
     const env = resolveEnvironment(project, name);
     return {
@@ -120,6 +176,7 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
     file: storage.refOf(project.file),
     readme: readme?.text ?? null,
     readme_hash: readme?.sha256 ?? null,
+    ...(readme?.error ? { readme_error: readme.error } : {}),
     scenarios: project.scenarios,
     ...(project.config.default_env !== undefined ? { default_env: project.config.default_env } : {}),
     environments,
@@ -147,7 +204,8 @@ export async function createProjectFromRequest(ws: WorkspaceConfig, input: Creat
 
 /**
  * Replace README.md. An existing README needs `ifMatch` (its readme_hash): a conflict otherwise, naming the current hash;
- * a missing one is created (ifMatch absent or null).
+ * a missing one is created (ifMatch absent or null). The file ends with a line break and holds README_MAX_CHARS at most;
+ * a README.md linked to another file of the project is written through the link.
  */
 export async function updateProjectReadme(project: LoadedProject, markdown: string, ifMatch: string | null | undefined): Promise<{ file: string; path: string; hash: string }> {
   const storage = new LocalStorage(project.dir);
@@ -159,6 +217,11 @@ export async function updateProjectReadme(project: LoadedProject, markdown: stri
     });
   }
   const text = markdown.endsWith('\n') ? markdown : `${markdown}\n`;
+  // The cap holds for the file as written (review B L6): a text at the cap without its final line break would be
+  // written one character over it, and could not be sent back unchanged.
+  if (text.length > README_MAX_CHARS) {
+    throw new EngineError('invalid', `${README_FILE} would be ${text.length.toLocaleString('en')} characters with its final line break: at most ${README_MAX_CHARS.toLocaleString('en')}`, { fix: 'shorten it' });
+  }
   const res = await storage.writeText(README_FILE, text, { ifMatch: ifMatch ?? null });
   project.readme = text;
   return { file: res.ref, path: res.path, hash: res.sha256 };

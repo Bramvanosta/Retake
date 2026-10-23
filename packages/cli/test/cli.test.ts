@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT, main, memoryIo, parseEnvOptions } from '../src/index.js';
+import { LATER_COMMANDS, laterCommand } from '../src/commands/misc.js';
+import { Ui } from '../src/ui.js';
 
 let ws: string;
 /** The bundled starter templates (the temporary workspace uses them as its templates_dir). */
@@ -86,15 +88,22 @@ describe('studio usage, schema and later phases', () => {
   });
 
   it('says when later-phase commands arrive', async () => {
-    const r = await studio('ui');
+    // No command waits for a later phase since L4.1 (`ui` is real): the mechanism, with an injected entry.
+    expect(LATER_COMMANDS).toEqual([]);
+    const io = memoryIo();
+    const code = laterCommand(new Ui(io), 'shell', 5);
+    const r = { code, err: io.stderr() };
     expect(r.code).toBe(EXIT.failure);
-    expect(r.err).toContain('available in phase 4');
+    expect(r.err).toContain('studio shell is available in phase 5');
     expect(r.err).toContain('inspect, record, plan');
     expect(r.err).toContain('render, still, review, export');
+    expect(r.err).toContain('doctor, mcp and ui');
+    // ui is a real command since L4.1: an unknown option is a usage error (the server itself: packages/cli/test/ui.test.ts).
+    expect((await studio('ui', '--whatever')).code).toBe(EXIT.usage);
+    expect((await studio('ui', '--port', 'eighty')).code).toBe(EXIT.usage);
     // record is a real command since L3.4: an unknown option is a usage error, --url goes alone.
     expect((await studio('record', 'demo', '--whatever')).code).toBe(EXIT.usage);
     expect((await studio('record', 'demo', '--url', 'https://app.staging.example.com/', '--page', 'app')).code).toBe(EXIT.usage);
-    expect(r.err).toContain('doctor and mcp');
     // mcp is a real command since L3.1: an unknown option is a usage error (the server itself: packages/mcp/test).
     expect((await studio('mcp', '--whatever')).code).toBe(EXIT.usage);
     // render (L2.4), review (L2.6) and export (L2.8) are real commands: an unknown option is a usage error.

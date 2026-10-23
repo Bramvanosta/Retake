@@ -767,7 +767,55 @@ it itself; deleting it is safe); then `rm -rf ~/ds-themes ~/ds-themes-home` as a
 `~/ds-phase3`, `claude plugin uninstall demo-studio@demo-studio --scope local`, then `claude plugin marketplace remove
 demo-studio`; once `DEMO_STUDIO_HOME=~/ds-phase3-home node packages/cli/dist/bin.js --root ~/ds-phase3 jobs` shows no
 worker running, `rm -rf ~/ds-phase3 ~/ds-phase3-home` (the project, its runs, renders and comments, the theme, the
-component and the studio home).
+component and the studio home). After step 13a: Ctrl-C the `studio ui` and `studio mcp --http` terminals,
+`claude mcp remove demo-studio -s user` (the HTTP registration; its header reads the token file, which goes next), then
+once `DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/ds-studio jobs` shows no worker running,
+`rm -rf ~/ds-studio ~/ds-studio-home` (the workspace, its index and ui.json, the studio home and its token).
+
+## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
+
+What the automated tests cannot reach: Safari and Firefox (the tests drive Chromium only), a real Claude Code
+registered over HTTP, and Claude Code restarting. `pnpm build` first; no fixture needed. A scratch workspace and a
+scratch studio home, from the repository root (never your `~/.demo-studio`):
+```sh
+W=~/ds-studio; H=~/ds-studio-home
+mkdir -p "$W/projects" "$H" && cp -R projects/northfield-fixture "$W/projects/"
+rm -rf "$W/projects/northfield-fixture/"{runs,renders,review,exports,.demo-studio}
+printf 'projects_dir: projects\n' > "$W/studio.yaml"
+ln -s "$PWD/fixtures" "$W/fixtures"   # the fixture's sandbox.yaml names ../../../fixtures/wholesale
+mkdir -p "$W/projects/northfield-fixture/hooks"
+printf -- '- name: ok\n  shell: {run: "true"}\n  writes: false\n' > "$W/projects/northfield-fixture/hooks/ok.yaml"
+```
+
+1. **Safari, then Firefox.** `DEMO_STUDIO_HOME="$H" node packages/cli/dist/bin.js --root "$W" ui --no-open` (terminal 1;
+   it prints a link). Paste the link in Safari within 60 s: the Projects screen opens and the address bar shows no
+   `#c=`; reload: still in the session; paste the same link in another tab: *This Studio session ended*; Safari's
+   history (Cmd-Y) holds no `#c=` link. Run `studio ui` again (same command, terminal 2: it prints a new link and
+   exits) and repeat in Firefox.
+2. **Seven tabs.** In Safari open seven tabs, each with a new link from `studio ui` (terminal 2). Every tab loads and
+   its sidebar says *live updates*. Close the first tab (the one opened first), then edit
+   `$W/projects/northfield-fixture/README.md` in your editor: an open README editor tab shows the change within a few
+   seconds.
+3. **README editor.** In one tab: edit the README and save (Cmd-S) — the file on disk has your text. Edit it in your
+   editor meanwhile with no unsaved text in the tab: the tab loads the new version. Type in the tab, change the file in
+   your editor, save in the tab: the conflict panel shows both versions. Type again, then close the tab: the browser
+   asks before closing.
+4. **Stop.** Ctrl-C in terminal 1: `ls "$W/.demo-studio"` no longer lists `ui.json`; an open tab says the session
+   ended and still shows any unsaved text.
+5. **Claude Code over HTTP.** Remove a stdio registration first (`claude mcp remove demo-studio -s user`). Then
+   `DEMO_STUDIO_HOME="$H" node packages/cli/dist/bin.js --root "$W" mcp --print-config --http`: the JSON names
+   `${DEMO_STUDIO_MCP_TOKEN}` and nothing printed shows the token itself. Run the printed `claude mcp add --transport
+   http …` line as printed. Start the server: `DEMO_STUDIO_HOME="$H" node packages/cli/dist/bin.js --root "$W" mcp
+   --http` (terminal 1). `claude mcp list` shows `demo-studio … ✔ Connected`; in `claude`, `/mcp` lists **44 tools**.
+6. **An approval over HTTP.** In that Claude Code session: "Run the hooks of hooks/ok.yaml for real (dry false) in
+   northfield-fixture." → Claude Code shows the approval form; accept → the job succeeds (`job_list` / Claude says so).
+7. **Restarts.** Quit and start `claude` nine times or more (without `/mcp` disconnects in between): each time `/mcp`
+   lists the 44 tools — a Claude Code that went away without closing its session never locks the server out.
+
+- **Expected:** every step as written; no `#c=` in any history; the token never on screen; nothing changed in the
+  repository (`git status`) or in `~/.demo-studio`.
+- **Send back:** for each step, OK or what you saw instead (a screenshot of anything odd); the browsers' versions and
+  `claude --version`.
 
 **Send everything back in one message**, numbered like the steps above.
 

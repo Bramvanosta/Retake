@@ -179,6 +179,8 @@ studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]
 studio auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
 studio mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
+studio mcp --http [--port N] [--rotate-token] [--json] # the same MCP server over HTTP on 127.0.0.1 (--print-config --http: its registration)
+studio ui [--port N] [--no-open] [--json]             # the Studio web app on 127.0.0.1 until Ctrl-C (Studio app)
 studio jobs [--project P] [--state S] [--limit N] [--json]   # jobs Claude started (dry runs, captures, hooks…)
 studio jobs status <id> [--json] · studio jobs cancel <id>   # one job; cancel it (teardown and rollbacks still run)
 ```
@@ -247,7 +249,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   cursor data or layer, FCPXML / EDL / OTIO / CSV markers, `manifest.json` — see
   [Raw export for editors](#raw-export-for-editors).
 - **mcp** serves Demo Studio's tools to an MCP client over stdio (Claude Code, Claude desktop); `--print-config`
-  prints how to register it — see [MCP: Claude drives Demo Studio](#mcp-claude-drives-demo-studio).
+  prints how to register it; `--http` serves them over HTTP on `127.0.0.1` instead (`--port`, default 47820;
+  `--rotate-token`; `--json`: one line `{type, url, port, pid}`), `--print-config --http` prints that registration
+  (the token by reference only, never the token itself) — see [MCP: Claude drives Demo Studio](#mcp-claude-drives-demo-studio).
 - **record** `<project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check] [--json]`
   opens a browser window on the environment's page: perform the flow by hand, then close the window (or press Ctrl-C:
   stop and keep). Nothing is filmed. A draft scenario is made from what you did — verified targets, `select` / `pick` /
@@ -257,7 +261,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   replay (up to the step before the first write that reached a server, whatever its host). The recording's
   files stay in `<project>/.demo-studio/records/` (the newest 20). The access is the environment's own, as a run.
   See [Recording a scenario](#recording-a-scenario).
-- **ui** (phase 4) is listed and says when it arrives.
+- **ui** serves the Studio web app of the workspace on `127.0.0.1` until Ctrl-C and opens it in the browser
+  (`--no-open`: print the link only; `--port`: a fixed port; `--json`: one line `{type, url, port, pid, reused}`); one
+  server per workspace — run it again to reopen the running one with a new link — see [Studio app](#studio-app).
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
 invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a session, running js hooks or starting,
@@ -2709,6 +2715,30 @@ cd <workspace> && claude plugin install demo-studio@demo-studio --scope local --
 - Without a workspace (`--root`, `DEMO_STUDIO_ROOT` or a `studio.yaml` above the folder it starts in) it refuses to
   start, on stderr, exit 2. stdout carries the protocol only.
 
+**Over HTTP.** `studio mcp --http` serves the same tools, instructions and approval forms as Streamable HTTP at
+`http://127.0.0.1:47820/mcp` (`--port N` for another port; `0`: a free one) until Ctrl-C, for a client that registers
+a URL rather than a command. The server checks a bearer token: a stable one, created once in the studio home
+(`~/.demo-studio/mcp-http.token`, mode 600), so the registration survives restarts; `--rotate-token` replaces it (then
+register again). `studio mcp --print-config --http` prints the registration, and never the token itself:
+
+```sh
+# Claude Code, for every project of this user: the shell reads the token from its file as the line runs
+# (your shell history keeps "$(cat …)", not the token; Claude Code keeps the header in its own user settings)
+claude mcp add --transport http demo-studio http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat ~/.demo-studio/mcp-http.token)"
+# Or the JSON it prints in .mcp.json at the workspace root — "Authorization": "Bearer ${DEMO_STUDIO_MCP_TOKEN}", no
+# token in the file (safe to commit) — with the variable set where claude starts (your shell profile):
+export DEMO_STUDIO_MCP_TOKEN="$(cat ~/.demo-studio/mcp-http.token)"
+```
+
+Use it **instead of** the stdio registration, not beside it, and keep `studio mcp --http` running (a terminal, a login
+item). While `claude mcp add` runs, the token is in its command line (visible to your own account's `ps`). Each MCP
+session keeps its server, so an approval form reaches the client that asked. At most 8 sessions: a session in use (a
+call running, or the client's event stream open) never expires and is never closed for another; one not in use is
+closed after 30 min, or at once when a new client needs its place (a Claude Code that restarted without saying
+goodbye). The token is a secret: whoever holds it drives this workspace's tools and answers their approval forms — as
+the client that spawns `studio mcp` over stdio does; never paste it into a file you commit. See [Security](#security)
+for what the server refuses.
+
 **Tools.**
 
 | Tool | Does | Writes |
@@ -3060,8 +3090,78 @@ localhost). A negative case per rule proves it bites. What the lint cannot prove
 skill triggers, and that no real brand or person is named — is the live check of
 [docs/MACOS-CHECKLIST.md](docs/MACOS-CHECKLIST.md) 12i. A lot that changes a loop updates its skill.
 
+## Studio app
+
+`studio ui` serves the Studio — a web app on your own machine — for the workspace (Phase 4, being built). It runs
+the same engine and the same tools Claude uses over MCP, through the engine's local HTTP API, and needs nothing else
+running: the MCP server keeps working without it.
+
+- **Projects.** Every project of the workspace: its scenario count, its environments with *production*, *read-only*
+  and *sandbox* badges, its last run; a project whose `project.yaml` does not load is listed with its first problem. A
+  project shows its README, environments (pages, the URLs the video shows, personas), scenarios, recent runs and
+  recent activity.
+- **Search and recent activity.** A search box finds projects (name, slug, README words), scenarios, runs and renders
+  as you type (every word as a prefix); *Recent activity* lists the jobs that wait or run (with their progress; one
+  whose worker died says *interrupted*) and then what finished — Claude's jobs and your `studio run` / `render`
+  commands alike. Both come from the workspace index, `<workspace>/.demo-studio/index.sqlite`: a cache rebuilt from the
+  files (delete it any time), never the source of truth. It needs Node.js 22.13 or later (`node:sqlite`); on an older
+  Node.js 22 the Studio runs without search and activity.
+- **Live updates.** A change on disk — a README edited in your editor, a run Claude started, a new project — shows in
+  every open Studio tab within about a second (the server polls the workspace while a tab is open, never otherwise).
+  The browser keeps one update stream to the server whatever the number of tabs (the others hear from it); the status
+  line at the bottom of the sidebar says *live updates*, or *updates every 3 s* when it falls back to polling.
+- **README editor.** Plain text (no Markdown preview), saved with Save or Cmd/Ctrl+S as an atomic write of
+  `README.md`. If the file changes on disk while it is open (your editor, a terminal, Claude: the update stream says
+  so), the editor loads the new
+  version when you have no unsaved text, and otherwise keeps your edits and says so; a save that would overwrite a
+  newer file shows both versions — keep yours ("Save mine over it") or load the one on disk (your text stays there to
+  copy). Unsaved text survives moving around the app; closing the tab asks first; if the session ends (the server
+  stopped or restarted), the text stays on screen, read-only, to copy into the new one. The file keeps its line
+  breaks (CR LF stays CR LF) and ends with one; 200,000 characters at most, that final line break included. A README
+  that is not UTF-8 text, or a symbolic link leading out of the project, opens read-only with the reason (convert or
+  replace it in your editor); one linked to another file of the project is saved into that file. A project without a
+  README.md says that saving creates it.
+- **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
+  right-to-left override characters are shown as visible marks (`[U+202E]`).
+
+- **One server per workspace.** The running server is named in `<workspace>/.demo-studio/ui.json` (mode 600: its pid,
+  port and API token); `studio ui` again opens that one with a new link and exits (with `--port N` naming another port,
+  it says the running server keeps its own). Ctrl-C stops the server and removes the file. A `.demo-studio/` folder
+  you cannot write is refused with what to do.
+- **The link opens once.** It carries a one-time code (`http://127.0.0.1:<port>/#c=…`, valid 60 s) that the page
+  trades for the session token, kept in that tab only (it survives a reload); a copy of the link — browser history,
+  terminal scrollback — is dead after that. Another tab or browser needs a new link from `studio ui`.
+- **What the page may do** is an allow-list of tools (L4.1: `engine_info`, `project_list`, `project_get`,
+  `project_update_readme`, `job_list`, `run_list`, and the Studio's own reads: `activity_list` and `search` from the
+  index, `projects_overview` — every project card's environments and last run in one call), run
+  with the trust an agent has through MCP and no approver: a page's script cannot be told from your click, so anything
+  that needs your approval stays in the terminal.
+
 ## Security
 
+- **The Studio server** (`studio ui`) listens on `127.0.0.1` only and checks every request in a fixed order before
+  anything runs: the `Host` must be `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise: a DNS-rebinding page
+  carries its own name), a present `Origin` must be its own and API requests must not come from another page
+  (`Sec-Fetch-Site`; a page of another local port — a filmed local app — is *same-site* and refused), then the method
+  (no CORS: a preflight always fails), the bearer token (a header, never a cookie or a URL), `application/json` (a
+  `<form>` cannot send it) and a 2 MiB body cap. Every answer carries a strict Content-Security-Policy (scripts,
+  styles and fetches from the server itself only; no inline script, no `eval`, no framing). No secret is in the app's
+  files; the token comes from the one-time code (see [Studio app](#studio-app)).
+- **MCP over HTTP** (`studio mcp --http`) listens on `127.0.0.1` only and takes no request from a web page: the `Host`
+  check (421) stops a DNS-rebinding page, and a page holds no token; as a second line, any request carrying an
+  `Origin` header or a `Sec-Fetch-*` header is refused (browsers send an `Origin` on every POST and cross-origin fetch,
+  and `Sec-Fetch-*` from secure contexts; MCP clients send neither — Node's fetch sends `Sec-Fetch-Mode: cors` alone,
+  which is served). Then the route (`/mcp`), the bearer token (the stable one in the studio home, mode 600),
+  `application/json` and a 4 MiB body cap. It is a separate process from the Studio: a page of the Studio never holds
+  this token. Known limit: its port is fixed (47820) so the registration survives restarts — on a Mac shared with
+  other accounts, another local user's program could listen there first while `studio mcp --http` is not running and
+  receive the token a client sends (BACKLOG BL-79).
+- **Reads stay in the project.** README.md, scenario files and `project.yaml` read through the engine (MCP tools, the
+  Studio), and the files a tool names (a hook's SQL or JS file, a dropped file), never follow a symbolic link out of
+  the project folder: they are refused, and the refusal does not name where the link leads. A write through a link to
+  another file of the project lands in that file; through one leading out it is refused. The `studio` command line
+  itself reads what you point it at. The workspace index (`.demo-studio/index.sqlite`) indexes only regular files of
+  the project and takes the umask's mode, like the README files it holds.
 - **No secrets in files.** Use `{{env:VAR}}` or `{{keychain:service/account}}` references; validation flags database
   URLs with a clear-text password. Resolved secret values are redacted from hook logs, results and journals, and from
   the run's `log.jsonl`, `run.json`, `timeline.json` and error snippets (see "Secrets in steps").
@@ -3181,8 +3281,14 @@ packages/editor       edit planner (planEdit → EditPlan, reframing), the Remot
 packages/review       review of a render: contact sheets, key frames, output-time timeline, checks, report, diff
 packages/engine       the engine API the CLI and the MCP server share: workspace / project loading, project, scenario
                       (if_match saves), run, persona-session and sandbox reads, local storage refs, EngineError codes,
-                      the run executor of `studio run`, the job queue and its worker (worker-main.ts)
-packages/mcp          the MCP server (`studio mcp`): tools over stdio, zod schemas, results, --print-config
+                      the run executor of `studio run`, the job queue and its worker (worker-main.ts), the local
+                      HTTP servers' gate, 127.0.0.1 listener, tokens and discovery file (src/http/), the workspace
+                      index (src/index-db/: node:sqlite, the stat poll, the job watch)
+packages/mcp          the MCP server (`studio mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
+                      results, --print-config, the SDK-free tool layer (callTool) the Studio shares
+packages/ui           the Studio web app (`studio ui`): a React app bundled in memory by esbuild and its server — the
+                      engine's /v1 HTTP API behind the engine's gate (engine src/http/), an allow-list of the MCP tools,
+                      the event stream and the index reads (src/server/live.ts, ops.ts)
 skills/               the Claude Code plugin: Claude skills + the MCP server from userConfig values (skills/README.md)
 .claude-plugin/       the local plugin marketplace (`claude plugin marketplace add <repo>`)
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests (and its Dockerfile)
@@ -3225,7 +3331,7 @@ committing them.
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
 | 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | **Done, pending the live run** (automated acceptance in [docs/ACCEPTANCE-phase3.md](docs/ACCEPTANCE-phase3.md): on one empty workspace, a project from a README, a scenario from a script and page inspections, a theme from brand files, a workspace component, capture → render → review clean, a person's frame comment → scenario fix → re-capture → render → resolve, zero approvals; the same loop by Claude itself in Claude Code is `docs/MACOS-CHECKLIST.md` step 12j) — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP; L3.3: page inspections and a script-table skeleton for Claude's authoring; L3.4: recording a scenario a person performs (`studio record`, `scenario_record`); L3.5: themes from brand inputs and from a site URL (`template_create_from_brand`, `template_from_site`, contrast checked); L3.6: frame comments (`studio comment`, anchors on the plan's steps and markers, `comments_list` / `comment_reply` / `comment_resolve`); L3.7: the Claude skills (scenario, theme, component) and the Claude Code plugin that bundles them with the server; L3.8: the phase 3 acceptance, and a warning when the scenario changed since the run was captured (a render shows the run as captured) |
-| 4 | Studio web app (scenario blocks, timeline, frame comments) | Planned |
+| 4 | Studio web app (scenario blocks, timeline, frame comments) | In progress — L4.1: `studio ui` serves the Studio on 127.0.0.1 behind the engine's HTTP gate (one-time link, token, allow-list of the MCP tools): the Projects screen with search and recent activity (the workspace index), the README editor, live updates; `studio mcp --http` |
 | 5 | macOS desktop shell, iOS Simulator runner | Planned |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |
 

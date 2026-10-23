@@ -997,6 +997,44 @@ MACOS-CHECKLIST 12j):
   edits for projects with display addresses; shorter re-render calls.
 - **Hard parts:** A thread's render may come from a run whose snapshot is gone (renders/ or runs/ cleaned).
 
+### BL-79 — Studio extras cut from L4.1
+*M · cut in L4.1 · builds on: L4.1, L4.3, L4.4, L4.6, L5.2*
+
+Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, live updates, MCP over HTTP):
+- A Markdown preview of the README (a sanitising renderer or a sandboxed iframe: today plain text only).
+- Creating, renaming and configuring projects from the Studio (project.yaml stays a hand edit or `project_create`);
+  a workspace switcher (one server per workspace).
+- The themes and component gallery of SPEC §12 (R-UI-06 is L4.7); the Geist fonts and the visual identity (R-UI-02,
+  L4.9).
+- How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
+  or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
+  from a click). Decide per lot: approvals (L4.4: a prompt in the `studio ui` terminal or the Tauri shell's OS
+  dialog), comments (L4.6), block edits (L4.3).
+- Index-backed MCP tools (`render_list`, a search tool for Claude; BL-72 mentions `render_list`); the search over
+  captions, scenario text and comments (today: project names and READMEs, scenario names, run and render ids).
+- A stream of job progress to the page (today a `jobs` event carries ids and the page re-reads); `/v1/media` for
+  thumbnails (L4.2).
+- WebKit and Firefox in the automated suite (browsers to install; MACOS-CHECKLIST 13a checks them by hand), keyboard
+  end-to-end tests.
+
+Residues documented in L4.1 (accepted for a local tool used by one person per Mac account):
+- MCP over HTTP listens on a fixed port (47820) so a registration survives restarts: on a Mac shared with other
+  accounts, another user's program could take the port while `studio mcp --http` is not running and receive the token
+  Claude Code sends. A check that the listener is ours (a challenge signed with the token) or a per-user socket would
+  close it.
+- `.demo-studio/index.sqlite` (and its -wal / -shm) take the umask's mode (0644 by default): other local accounts can
+  read the project names and README text in it, as they can read the READMEs themselves.
+- `LocalStorage.readText` (README, scenarios) follows links inside the project and refuses those leading out, but it
+  has no size cap and would block on a FIFO named README.md or a scenario file (the index and the run records check
+  for regular files and caps already). Core's other reads of project files — a sandbox.yaml or a template a project
+  names — get the same audit.
+- Two Studio servers replacing the same stale ui.json at the same instant can both win (two servers, no corruption).
+
+- **Value:** Fewer hand edits; the Studio as the place a person approves and comments; Claude finds renders and text
+  without reading folders; a shared Mac without surprises.
+- **Hard parts:** Proving a person's presence in a page without an OS dialog; a Markdown renderer that never becomes
+  a script channel; a stable port that a client can authenticate.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -1008,11 +1046,11 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs. *Applied in L1.6:* `login:` steps run headless with no profile at all (in a run's preflight, or `studio login --auto`).
 - **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run. *Applied in L1.7:* the automated sign-in tab is exempt while it is on its persona's sign-in page (its writes there are recorded `exempt`, `via: sign-in`; what the page it lands on sends is guarded); the session check only reads, so it is guarded like the capture pages and passes; the product clock is installed after both (they run on the real time). Token refreshes from capture pages go in `read_only.allow`.
 - **L1.8** — Keep host paths out of the sandbox manifest, so the same file runs on a laptop, a VPS or in CI. *Why:* A cloud or CI sandbox (BL-05, BL-08) can then reuse the manifest unchanged.
-- **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI. *Moved to L4.1* (L3.1 has no HTTP API: the MCP server is stdio only).
-- **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1.
+- **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI. *Moved to L4.1* (L3.1 has no HTTP API: the MCP server is stdio only). *Applied in L4.1:* the engine's gate (DESIGN §4c) — 127.0.0.1 only, Host (421), Origin and Sec-Fetch-Site (403), no CORS at all (no `Access-Control-*` header, a preflight always fails), a bearer token per Studio launch (a one-time bootstrap code in the link, never the token in a URL), a stable token for MCP over HTTP; the asset server is L4.2's.
+- **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1. *Applied in L4.1:* `/v1` with `GET /v1/info` (engine info, `http_api: 1`, the allowed ops) and `<workspace>/.demo-studio/ui.json` (0600, claimed exclusively; the Tauri shell reads it in L5.2).
 - **L3.1** — Make job payloads serialisable (kind, project ref, relative paths plus hashes, options) and use a worker interface that pulls jobs. Run the worker in a separate process, at least in tests. *Why:* This makes ADR-1's 'remote worker later' real rather than a paper interface, and a pulling worker works behind NAT (BL-05, BL-06). *Applied in L3.1:* core `JobInputSchema` (v1: slugs, scenario names + the sha256 of their bytes, reserved run ids, approvals as fingerprints; never a path, session or secret), a file queue under `<workspace>/.demo-studio/jobs/`, one worker per workspace in its own process (`worker.lock`) that claims jobs; tested in a separate process.
 - **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70). *L3.6:* comment threads hold ids only (render id, run id; paths rebuilt from ids, never read from a file); render and run records unchanged (BL-70).
-- **L3.1** — Writes from the UI and MCP carry `if-match: <hash>`. All file writes are atomic (temp file then rename). The engine watches the workspace for outside edits. *Why:* Under ADR-2, Claude, the UI and the engine already write the same files, and sync would add another writer. *Applied in L3.1:* `if_match` (sha256 of the bytes written) on `scenario_save` and `project_update_readme`, atomic writes, a must-not-exist create; watching the workspace moves to L4.1.
+- **L3.1** — Writes from the UI and MCP carry `if-match: <hash>`. All file writes are atomic (temp file then rename). The engine watches the workspace for outside edits. *Why:* Under ADR-2, Claude, the UI and the engine already write the same files, and sync would add another writer. *Applied in L3.1:* `if_match` (sha256 of the bytes written) on `scenario_save` and `project_update_readme`, atomic writes, a must-not-exist create; watching the workspace moves to L4.1. *Applied in L4.1:* a bounded stat poll of the workspace while a Studio tab is open (no recursive fs.watch), told to the page as events; the README editor saves with `if_match` and shows a conflict.
 - **L3.1 / L3.6** — Use globally unique IDs (ULID, or UTC plus random) for runs, renders and comment threads; `-vN` becomes a display label only. *Why:* `newRunId` (core/src/util.ts:14) and `nextVersion` (editor/src/render/runs.ts:92) collide across machines, and comments anchor on render_id. *Partly applied in L3.1:* job ids are ULID-style (`j_` + 26 Crockford base32); run ids keep their readable format (L3.6 / BL-70). *Applied in L3.6:* comment threads are `c_` + a ULID and their entries `r_` + a ULID; render ids stay `<scenario>-v<N>` with the render's `created_at` stored beside them in a thread (BL-76, BL-70).
 - **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.demo-studio/history.jsonl` — one line per finished job and per CLI run / render / still (and per `studio export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
 - **L3.1** — Amend ADR-1 when L3.1 starts: split 'engine runs locally' from 'UI delivery'; define the job input contract (files, sessions, secrets, network reach); replace 'data never leave the machine' with a data-flow table. *Why:* It keeps the UI delivery decision open and makes the privacy claim accurate before it is used in sales material. *Applied in L3.1:* the ADR-1 amendment in docs/ARCHITECTURE.md.

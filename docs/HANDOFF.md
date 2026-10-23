@@ -1,7 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-20, end of lot **L3.8 (phase 3 acceptance)** — **phases 1, 2 and 3 are done** (phase 3 pending
-the user's live runs, MACOS-CHECKLIST 12c–12j). **Next: phase 4, L4.1 (Studio app shell), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-23, end of lot **L4.1 (Studio app shell, `studio ui`)** — phases 1–3 are done (phase 3 pending
+the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: L4.2 (scenario as blocks) — the user asked
+to chain it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -23,12 +24,21 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-79); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-80); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L3.8)
+## State (after L4.1)
+- **L4.1 done (2026-10-23)**: `studio ui` serves the Studio web app on 127.0.0.1 (new package `packages/ui`, React
+  bundled in memory by esbuild, strict CSP): the Projects screen, a project page and a README editor (if_match,
+  conflict and changed-on-disk flows, line endings kept, non-UTF-8 read-only), an activity feed and a search on a
+  SQLite index (`.demo-studio/index.sqlite`, node:sqlite, rebuilt from files), live updates over one event stream per
+  browser. Every request passes one gate (Host → Origin / Sec-Fetch-Site → route → token → body); the URL carries a
+  one-time code, never the token. `studio mcp --http` serves the same 44 tools over Streamable HTTP (stable token in
+  the studio home, browsers refused, approvals work). Tests on the Mac: **2593 — 2545 pass, 48 skipped (≈ 14 min),
+  3 full runs in a row green**; `pnpm test:slow` 56/56. Requirements: 619 tracked — 549 done, 25 partial, 37 todo, 8
+  n/a-here. Live checks for the user: MACOS-CHECKLIST 13a (Safari / Firefox, Claude Code over HTTP).
 - **L3.8 done (2026-10-20) — phase 3 done**: the phase-3 acceptance in `test:slow`
   (`packages/mcp/test/phase3-acceptance.test.ts`, docs/ACCEPTANCE-phase3.md): over MCP on an empty workspace, a scripted
   client following the skills creates a project from a README, drafts a scenario from a timecoded script and page
@@ -191,9 +201,9 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Phase 4 — L4.1 Studio app shell on the engine API (`studio ui`)** — only when the user asks. Before it: the user's
-live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j), gathered with the open questions in one test document outside the
-repository. Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+**L4.2 — Scenario as blocks (read) with run thumbnails** — the user asked to chain it after L4.1, then stop. Pending
+for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
+document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -1006,6 +1016,17 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   (guard 5 s, kit calls 15 s + budget; a deadline counts as a document change); mcp plan_preview / render / comments_list
   wording; `scripts/requirements.mjs --check-cites` (every quoted test title exists); tests `phase3-acceptance`,
   `inspect-deadline`, `requirements-cites`. 2484 tests: 2436 pass, 48 skipped; test:slow 56/56. No new dependency.
+- **L4.1 done** (Studio app shell; R-UI-01/04/05, R-CLI2-04, R-MCP-02, R-ARC-05 done; R-PRJ-02, R-DEC-07, R-ARC-01
+  partial). Planned, criticised with probes (one event stream per tab exhausted Chromium's 6 connections per host; an
+  index of job states would show a crashed job running forever; the planned security tests could not fail since they
+  never sent a token; README / scenario reads followed links out of the project), built in three parts (gate +
+  discovery + bootstrap code + `studio ui` skeleton; the app from files + Chromium e2e; index + events + MCP over HTTP),
+  reviewed by two reviewers (the token printed for a committed `.mcp.json`; abandoned HTTP sessions locking clients out;
+  unsaved text lost when the session ended; CRLF / Latin-1 READMEs rewritten; links followed by the index…) and fixed
+  with 35 mutation-checked tests. Files: engine `src/http/` (gate, token, bootstrap codes, discovery, token file),
+  `src/index-db/`, storage `readContained`; mcp `src/http.ts` (one `wireServer` for stdio and HTTP); new `packages/ui`
+  (server, ops incl. `projects_overview`, app); cli `commands/ui.ts`, `mcp --http`. Cuts: BL-79. 2593 tests: 2545 pass,
+  48 skipped; test:slow 56/56. No new external dependency (zod and playwright-core reused).
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1235,6 +1256,18 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.1:
+- Every HTTP route goes through engine `checkRequest` with a RouteSpec (fixed order: Host → Origin / Sec-Fetch-Site →
+  route / method → token → content type / body cap). MCP over HTTP refuses any Origin and any Sec-Fetch-* header but a
+  lone `Sec-Fetch-Mode: cors` (Node's fetch sends it); the Host check is what stops DNS rebinding.
+- The `ui` client runs a short op allow-list (9 ops) under agent trust with no approver; later lots add the ops their
+  screens need. Reads never follow a link out of a project (README, scenarios, project.yaml through the engine).
+- One Studio server per workspace (`.demo-studio/ui.json`, 0600); `studio ui` opens a one-time code (60 s); the index is
+  a cache (missing / corrupt / not a regular file → rebuilt); unfinished jobs come live from the queue.
+- `studio mcp --http` (default port 47820) keeps a stable token in the studio home (`--rotate-token`); print-config
+  never prints it. Port squatting on a multi-user Mac is an accepted residue (BL-79).
+- Mutation scripts must give restored files a fresh mtime (or run `tsc -b --force`): `tsc -b` keeps a stale dist.
+
 Notes from L3.8:
 - A render shows the run as captured: scenario edits (steps, captions, timing, title, intro / outro, template) need a
   new capture; a theme or a render override needs only a render (a run keeps its captured theme: pass `template`).

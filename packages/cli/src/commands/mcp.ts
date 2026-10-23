@@ -1,19 +1,98 @@
 /**
  * `studio mcp`: the MCP server over stdio (L3.1), for Claude Code, Claude desktop or any MCP client. stdout carries the
  * protocol only: this command writes nothing else there (diagnostics go to stderr). `--print-config` prints the
- * registration instead.
+ * registration instead. `--http` (L4.1) serves the same tools over Streamable HTTP on 127.0.0.1 (default port 47820)
+ * behind the engine's gate, with the stable token of the studio home (`--rotate-token` renews it); `--print-config
+ * --http` prints that registration for Claude Code — the URL, and the token only by reference (its file, an
+ * environment variable): never the token itself.
  */
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findWorkspaceRoot } from '@demo-studio/core';
-import { EXIT } from '../errors.js';
+import { EngineError } from '@demo-studio/engine';
+import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface McpCommandOptions {
   printConfig?: boolean;
+  http?: boolean;
+  port?: string;
+  rotateToken?: boolean;
+  json?: boolean;
+}
+
+function stopSignal(): Promise<NodeJS.Signals> {
+  return new Promise((resolve) => {
+    const stop = (s: NodeJS.Signals) => {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+      resolve(s);
+    };
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+  });
+}
+
+/** `--print-config --http` and `--http`: the registration, or the server until Ctrl-C / SIGTERM. */
+async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<ExitCode> {
+  const mcp = await import('@demo-studio/mcp');
+  const { mcpHttpTokenFile, stableToken } = await import('@demo-studio/engine');
+  let port = mcp.DEFAULT_MCP_HTTP_PORT;
+  if (opts.port !== undefined) {
+    port = Number(opts.port);
+    if (!/^\d+$/.test(opts.port) || port > 65535) throw new UsageError(`--port must be a port number from 0 to 65535, got "${opts.port}"`);
+  }
+  const file = mcpHttpTokenFile();
+  let token;
+  try {
+    token = await stableToken(file, { rotate: opts.rotateToken === true });
+  } catch (e) {
+    if (e instanceof EngineError) {
+      ui.error(`studio mcp --http: ${e.message}${e.fix ? `\nfix: ${e.fix}` : ''}`);
+      return EXIT.failure;
+    }
+    throw e;
+  }
+  if (opts.printConfig) {
+    if (port === 0) throw new UsageError('--print-config --http needs a fixed port: leave --port out (47820) or name one');
+    const url = `http://127.0.0.1:${port}${mcp.MCP_HTTP_PATH}`;
+    // Never the token itself (review A M1): the JSON names an environment variable, the command reads the token file.
+    ui.result(JSON.stringify(mcp.mcpHttpConfigJson({ url }), null, 2));
+    ui.line('');
+    ui.line('Claude Code, for every project of this user — instead of the stdio registration, not beside it (the shell reads the token from its file as the line runs; your history keeps $(cat …), not the token):');
+    ui.line(`  ${mcp.claudeCodeHttpCommand({ url, tokenFile: file })}`);
+    ui.line(`Or the JSON above in .mcp.json at the workspace root: it holds no token (safe to commit), Claude Code reads it from $${mcp.MCP_HTTP_TOKEN_ENV} — set in the shell that starts claude (your shell profile):`);
+    ui.line(`  ${mcp.mcpHttpTokenExport(file)}`);
+    ui.line(`Then keep the server running: studio --root ${root} mcp --http${opts.port !== undefined ? ` --port ${port}` : ''}`);
+    ui.line(`The token (${file}, 0600) is a secret: whoever holds it drives this workspace's tools and answers their approval forms. Never paste it into a file you commit. studio mcp --http --rotate-token replaces it.`);
+    if (token.rotated || token.created) ui.line(token.rotated ? 'A new token was written: register the server again.' : 'A token was created.');
+    return EXIT.ok;
+  }
+  process.env.PATH = mcp.clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
+  let server;
+  try {
+    server = await mcp.startMcpHttpServer({ root, port, token: token.token, log: (m) => ui.line(m) });
+  } catch (e) {
+    if (e instanceof EngineError) {
+      ui.error(`studio mcp --http: ${e.message}${e.fix ? `\nfix: ${e.fix}` : ''}`);
+      return EXIT.failure;
+    }
+    throw e;
+  }
+  if (opts.json) ui.result(JSON.stringify({ type: 'mcp-http', url: server.url, port: server.port, pid: process.pid }));
+  else {
+    ui.line(`Demo Studio MCP serves ${root} at ${server.url} — Ctrl-C stops it.`);
+    if (token.rotated) ui.line('The token was replaced: register the server again (studio mcp --print-config --http).');
+    else if (token.created) ui.line('A token was created: register the server with studio mcp --print-config --http.');
+    else ui.line('Registered once with studio mcp --print-config --http; the token stays the same across restarts.');
+  }
+  const signal = await stopSignal();
+  await server.close();
+  if (!opts.json) ui.line(`Demo Studio MCP stopped (${signal}).`);
+  return EXIT.ok;
 }
 
 /** The built entry point (dist/bin.js), also when this runs from the sources (tests). */
@@ -31,8 +110,11 @@ function isDir(p: string): boolean {
   }
 }
 
-/** The workspace root `studio mcp` serves: `--root`, $DEMO_STUDIO_ROOT or the studio.yaml lookup; it must look like one. */
-function workspaceRoot(global: GlobalOptions): string | undefined {
+/**
+ * The workspace root `studio mcp` (and `studio ui`) serves: `--root`, $DEMO_STUDIO_ROOT or the studio.yaml lookup; it
+ * must look like one.
+ */
+export function workspaceRoot(global: GlobalOptions): string | undefined {
   const root = global.root ? resolve(global.root) : findWorkspaceRoot();
   return existsSync(join(root, 'studio.yaml')) || isDir(join(root, 'projects')) ? root : undefined;
 }
@@ -45,6 +127,8 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
     );
     return EXIT.usage;
   }
+  if ((opts.port !== undefined || opts.rotateToken || opts.json) && !opts.http) throw new UsageError('--port, --rotate-token and --json go with --http');
+  if (opts.http) return mcpHttp(ui, root, opts);
   const mcp = await import('@demo-studio/mcp');
   if (opts.printConfig) {
     const input = { root, bin: studioBin() };

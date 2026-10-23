@@ -5,8 +5,9 @@
  * still write absolute paths into their own records: moving them to refs is a format change (L3.6 / BL-70).
  */
 import { createHash, randomBytes } from 'node:crypto';
+import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
-import { link, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { EngineError } from './errors.js';
 
@@ -39,12 +40,18 @@ export interface Storage {
   refOf(path: string): string;
   /** stat + (optionally) a streamed sha256; undefined when the file does not exist. */
   describe(ref: string, kind: StoredKind, opts?: { hash?: boolean }): Promise<StoredRef | undefined>;
-  /** The text of a ref and the sha256 of its bytes; undefined when it does not exist. */
-  readText(ref: string): Promise<{ text: string; sha256: string } | undefined>;
+  /**
+   * The text of a ref, the sha256 of its bytes and whether they are valid UTF-8 (when not, `text` has U+FFFD in place of
+   * the bytes it could not decode); undefined when it does not exist. Refused (`refused`) when a symbolic link takes it
+   * out of the project: an agent writes files in the workspace and must not read outside it this way.
+   */
+  readText(ref: string): Promise<{ text: string; sha256: string; utf8: boolean } | undefined>;
   /**
    * Write atomically (temporary file + rename). `ifMatch`: a hash → the file must exist with that content hash (checked
    * again just before the rename); null → the file must not exist (an atomic link: never overwrites); undefined → no
-   * check. A mismatch is an EngineError `conflict` with `details.current` (the current hash, or null).
+   * check. A mismatch is an EngineError `conflict` with `details.current` (the current hash, or null). A file that is a
+   * symbolic link to another file of the project is written through it (the link stays a link); a link leading out of
+   * the project, or to nothing, is refused.
    */
   writeText(ref: string, text: string, opts?: { ifMatch?: string | null }): Promise<WriteResult>;
 }
@@ -106,15 +113,33 @@ export class LocalStorage implements Storage {
     return { ref, path, kind, bytes: st.size, ...(opts.hash ? { sha256: await hashFile(path) } : {}) };
   }
 
-  async readText(ref: string): Promise<{ text: string; sha256: string } | undefined> {
-    let buf: Buffer;
+  async readText(ref: string): Promise<{ text: string; sha256: string; utf8: boolean } | undefined> {
+    const buf = await this.readContained(this.resolve(ref));
+    return buf === null ? undefined : { text: buf.toString('utf8'), sha256: sha256Hex(buf), utf8: isUtf8(buf) };
+  }
+
+  /**
+   * The bytes of a file of the project, read through its real path; null when it does not exist (a dangling link
+   * included). Refused when that real path lies outside the project's real path (a symbolic link leading out, at any
+   * level) — the read side of `writableDir`'s rule. A project folder that is itself a link is fine: both are real paths.
+   * The refusal never names the link's target (a path outside the project the agent must not learn either).
+   */
+  private async readContained(path: string): Promise<Buffer | null> {
+    let realRoot: string;
+    let real: string;
     try {
-      buf = await readFile(this.resolve(ref));
+      [realRoot, real] = await Promise.all([realpath(this.root), realpath(path)]);
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw e;
     }
-    return { text: buf.toString('utf8'), sha256: sha256Hex(buf) };
+    if (!isInside(realRoot, real)) throw new EngineError('refused', `${path} leads out of the project folder (a symbolic link): not read`, { fix: `replace the link with a regular file inside ${this.root}` });
+    try {
+      return await readFile(real);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw e;
+    }
   }
 
   /** The folder a write goes to, created if needed, and refused when a symbolic link takes it out of the project. */
@@ -122,21 +147,45 @@ export class LocalStorage implements Storage {
     const dir = dirname(path);
     await mkdir(dir, { recursive: true });
     const [realRoot, realDir] = await Promise.all([realpath(this.root), realpath(dir)]);
-    if (!isInside(realRoot, realDir)) throw new EngineError('refused', `${dir} leads out of the project folder (symbolic link to ${realDir}): not written`);
+    if (!isInside(realRoot, realDir)) throw new EngineError('refused', `${dir} leads out of the project folder (a symbolic link): not written`);
+  }
+
+  /**
+   * Where a write of `path` lands: `path` itself, or — when it is a symbolic link — its target, if that is a file of the
+   * project (review B M3: a README.md linked to docs/product.md is saved into docs/product.md, and stays a link).
+   * Refused when the link leads out of the project or to nothing.
+   */
+  private async writeTarget(path: string): Promise<string> {
+    let st;
+    try {
+      st = await lstat(path);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return path;
+      throw e;
+    }
+    if (!st.isSymbolicLink()) return path;
+    const fix = { fix: `replace the link with a regular file inside ${this.root}` };
+    let real: string;
+    let realRoot: string;
+    try {
+      [realRoot, real] = await Promise.all([realpath(this.root), realpath(path)]);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new EngineError('refused', `${path} is a symbolic link to a file that does not exist: not written`, fix);
+      throw e;
+    }
+    if (!isInside(realRoot, real)) throw new EngineError('refused', `${path} leads out of the project folder (a symbolic link): not written`, fix);
+    return real;
   }
 
   private async currentHash(path: string): Promise<string | null> {
-    try {
-      return sha256Hex(await readFile(path));
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw e;
-    }
+    const buf = await this.readContained(path);
+    return buf === null ? null : sha256Hex(buf);
   }
 
   async writeText(ref: string, text: string, opts: { ifMatch?: string | null } = {}): Promise<WriteResult> {
     const path = this.resolve(ref);
     await this.writableDir(path);
+    const target = await this.writeTarget(path);
     const buf = Buffer.from(text, 'utf8');
     const written = { ref, path, sha256: sha256Hex(buf), bytes: buf.length };
     const conflict = (current: string | null, why: string) =>
@@ -148,13 +197,13 @@ export class LocalStorage implements Storage {
       const current = await this.currentHash(path);
       if (current !== opts.ifMatch) throw conflict(current, current === null ? 'does not exist (if_match names a content it never had)' : 'changed since it was read (if_match does not match its content)');
     }
-    const tmp = `${path}.${randomBytes(4).toString('hex')}.tmp`;
+    const tmp = `${target}.${randomBytes(4).toString('hex')}.tmp`;
     await writeFile(tmp, buf);
     try {
       if (opts.ifMatch === null) {
         // Must not exist: link() fails with EEXIST instead of replacing (no exists-then-rename window).
         try {
-          await link(tmp, path);
+          await link(tmp, target);
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw conflict(await this.currentHash(path), 'already exists');
           throw e;
@@ -165,7 +214,7 @@ export class LocalStorage implements Storage {
         const current = await this.currentHash(path);
         if (current !== opts.ifMatch) throw conflict(current, 'changed while it was being written (if_match no longer matches)');
       }
-      await rename(tmp, path);
+      await rename(tmp, target);
       return written;
     } finally {
       await unlink(tmp).catch(() => undefined);

@@ -77,7 +77,7 @@ demo-studio/
 - Web automation: **Playwright** for orchestration + **CDP** (`Page.startScreencast` at quality 100, or `HeadlessExperimental.beginFrame` for deterministic frames when available). `deviceScaleFactor` 1 or 2 for crisp 4K. Headless new mode → any viewport, independent of the physical screen.
 - Video: ffmpeg (frames → mp4, VFR → CFR 30/60 fps), Remotion for composition (React, same stack as the existing toolkit).
 - iOS: `xcrun simctl io <device> recordVideo --codec h264`, input via `idb` (Facebook) or an XCUITest driver; device frame mockups.
-- Desktop shell (phase 4): **Tauri** — small, native, JS front-end, Rust only for OS glue (menus, notifications, file dialogs, keychain).
+- Desktop shell (phase 5, L5.2; the Studio web app it wraps is phase 4): **Tauri** — small, native, JS front-end, Rust only for OS glue (menus, notifications, file dialogs, keychain).
 - Persistence: plain files (YAML/JSON/MP4) in project folders, git-friendly. SQLite only for the render queue/history.
 
 ## 4. Project model
@@ -212,7 +212,7 @@ Target syntax: `text`, `contains`, `role` + `name`, `label`, `aria`, `css`, `in`
 
 ## 8. MCP server (tools)
 
-Built in L3.1 (`studio mcp`, stdio; arguments as the tools publish them — every `project` is a slug, never a path):
+Built in L3.1 (`studio mcp`, stdio; L4.1: the same tools over Streamable HTTP too, `studio mcp --http` on 127.0.0.1; arguments as the tools publish them — every `project` is a slug, never a path):
 - `engine_info`; `project_list`, `project_get({project})`, `project_create({name, slug?, readme?, environments?, template?})`, `project_update_readme({project, markdown, if_match?})` (`if_match` required once README.md exists)
 - `scenario_get({project, name})` → yaml + hash, `scenario_validate({project, yaml, env?, until?, name?})` → issues with line/col, `scenario_save({project, name, yaml, if_match?})` (`if_match` required once the file exists)
 - `run_dry({project, scenario, env?, until?, hooks?, wait_s?})` → the run as it is after `wait_s` (default 20 s): steps, screenshot paths, the failing step's screenshot and DOM paths

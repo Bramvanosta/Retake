@@ -32,8 +32,11 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      engine (`@demo-studio/engine`) is a Node library on the user's machine (later also on the user's own CI or VPS,
      BL-05); the CLI calls it in-process, and the MCP server (`studio mcp`, stdio) calls it in its own process.
    - *How a UI reaches it* is a separate, open choice. Today: the CLI in a terminal, and an MCP client (Claude Code,
-     Claude desktop) over stdio. L4.1 adds one web UI served by the engine on 127.0.0.1 behind a per-session token, with
-     the HTTP/JSON API and event stream of consequence 1 above (not built in L3.1); the Tauri shell is packaging around
+     Claude desktop) over stdio. L4.1 adds one web UI served by the engine on 127.0.0.1 behind a per-launch token, with
+     the HTTP/JSON API and event stream of consequence 1 above (L4.1: `studio ui`, the engine's HTTP gate, a one-time
+     bootstrap code in the opened URL instead of the token, the MCP tools behind an allow-list, an event stream per
+     browser — DESIGN §4c), and the same MCP server over Streamable HTTP for a client that registers a URL (`studio
+     mcp --http`: 127.0.0.1, a stable token in the studio home, no request from a web page); the Tauri shell is packaging around
      that same UI; a hosted UI would reach the engine through an outbound relay (BL-38).
 
    Nothing in the engine assumes a particular UI.
@@ -95,6 +98,10 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 | The filmed product's pages | the user's environments | the worker's Chromium | the user's own traffic to their own hosts; production environments are read-only (L1.7), always so through MCP |
 | Sandbox images | registries named in sandbox.yaml | docker | pulled (outbound); nothing uploaded |
 | Job queue, worker lock, job history (usage counters) | `<workspace>/.demo-studio/` (git-ignored) | engine | no |
+| Studio discovery file (L4.1) | `<workspace>/.demo-studio/ui.json` (0600: pid, start time, port, the server's API token; inside the workspace — keep `.demo-studio/` out of version control, as this repository's .gitignore does) | `studio ui` (a second launch reuses the running server), later the macOS shell | no; the token gives a local process the Studio's allow-list, under the agent's trust |
+| What the Studio page shows (L4.1) | the browser tab of `studio ui` (127.0.0.1; the session token in that tab's sessionStorage) | the person at the machine | no: the page loads nothing from the network (CSP `connect-src 'self'`, no remote asset) |
+| Workspace index (L4.1) | `<workspace>/.demo-studio/index.sqlite` (+ -wal / -shm; mode from the umask, readable like the READMEs it holds; not for version control, as above): a cache of project names, READMEs, runs, renders, the job history and their search | the Studio server only (activity feed, search) | no; delete it any time — it is rebuilt from the files |
+| MCP over HTTP token (L4.1) | `<studio home>/mcp-http.token` (0600), and the MCP client's registration that holds it | `studio mcp --http` (127.0.0.1, refuses any request a browser could send) | no; whoever holds it is an MCP client of the workspace it serves |
 
 5. **Consequence for privacy claims.** The engine sends nothing anywhere by itself. When Claude drives it, whatever a
    tool returns — summaries, logs, step error messages, page text, and the screenshots or DOM snapshots Claude then
@@ -109,6 +116,13 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 user's workspace folder. Large binaries (captures, frames, renders, exports) live in the workspace too but are
 git-ignored. A SQLite index under `<workspace>/.demo-studio/` (runs, renders, jobs history, search) is a cache rebuilt
 from the files — never the source of truth.
+
+*L4.1:* the index exists (`index.sqlite`, DESIGN §4c): projects (name, error, README text), runs, renders, the job
+history and a full-text search, rebuilt from the files and reconciled by a stat poll; it is the only SQLite in Demo
+Studio. The job queue stays files (`jobs/<id>/`: the worker claims a job by creating a file exclusively, ADR-1
+amendment), and an unfinished job's state is never read from the index (it is derived from process liveness, which no
+file records). SPEC §3's "SQLite only for the render queue/history" (R-PRJ-02) reads, under this ADR, "SQLite only as
+a rebuildable index; plain files are the source of truth, the job queue included" — a rewording that awaits the user.
 
 **Why.** Claude reads and edits files directly; git versions and reviews them (team collaboration through git in V1);
 portable, offline, no lock-in, easy backup.

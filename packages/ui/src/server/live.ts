@@ -1,0 +1,171 @@
+/**
+ * What changes, as the Studio sees it (L4.1 part 3): the workspace index (engine WorkspaceIndex, node:sqlite) kept up
+ * to date, and the event stream `GET /v1/events` — server-sent events read by the page through `fetch` (the token in a
+ * header: EventSource cannot send one, and a token in a URL lands in logs and history).
+ *
+ * - A bounded stat poll, every second while a stream is open and never otherwise (critique C2: no recursive
+ *   fs.watch): the index's reconcile (or, without node:sqlite, the same scan held in memory) and the job watch (live
+ *   from the queue, critique B2). An op of the index (activity_list, search) refreshes first, so it never answers
+ *   stale, and what it found goes out on the streams too.
+ * - Events: `hello {api, index, generation}`, `workspace {projects, readme}`, `jobs {changed}`, `index {generation}`,
+ *   and a comment line every 15 s (proxies and idle sockets).
+ * - At most 4 streams (critique B1): the page keeps one per browser (the tab holding a Web Lock relays to the others
+ *   over a BroadcastChannel); a 5th gets 503 `too_many_streams` and that tab re-reads on a timer instead. A stream is
+ *   never an op: the op counter does not move.
+ *
+ * Only this server writes the index (it holds ui.json). Nothing here logs a token, a path's content or an event body.
+ */
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, WorkspaceIndex, diffSources, scanSources, securityHeaders, workspaceChanges } from '@demo-studio/engine';
+import type { SourceMap, SqliteLoader } from '@demo-studio/engine';
+import type { WorkspaceConfig } from '@demo-studio/core';
+
+/** Event streams served at once, at most (below a browser's 6 connections per host). */
+export const EVENT_STREAMS_MAX = 4;
+/** The stat poll's period while a stream is open (ms). */
+export const EVENT_POLL_MS = 1000;
+/** A comment line on every stream this often (ms). */
+export const EVENT_KEEPALIVE_MS = 15_000;
+
+export interface LiveOptions {
+  ws: WorkspaceConfig;
+  /** node:sqlite (tests inject a Node.js without it). */
+  sqlite?: SqliteLoader;
+  pollMs?: number;
+  log?: (message: string) => void;
+}
+
+/** Why the index cannot answer: this Node.js has no node:sqlite. */
+export function noIndexError(): EngineError {
+  return new EngineError('unavailable', `the workspace index needs node:sqlite: Node.js 22.13 or later (this is ${process.versions.node}); activity and search are off`, {
+    fix: 'run studio ui with Node.js 22.13+ (projects and the README editor work without it)',
+  });
+}
+
+export class Live {
+  private readonly streams = new Set<ServerResponse>();
+  private readonly jobs: JobsWatch;
+  private sources: SourceMap | undefined;
+  private timer: NodeJS.Timeout | undefined;
+  private keepalive: NodeJS.Timeout | undefined;
+  private refreshing: Promise<void> | undefined;
+  private closed = false;
+
+  private constructor(
+    private readonly o: LiveOptions,
+    /** null: no node:sqlite on this Node.js. */
+    readonly index: WorkspaceIndex | null,
+  ) {
+    this.jobs = new JobsWatch(new FileJobQueue(o.ws.root));
+  }
+
+  /** Opens (builds, rebuilds) and reconciles the index, and takes stock of the jobs. */
+  static async start(o: LiveOptions): Promise<Live> {
+    let index: WorkspaceIndex | null = null;
+    try {
+      index = await WorkspaceIndex.open(o.ws, o.sqlite ? { loader: o.sqlite } : {});
+    } catch (e) {
+      o.log?.(`studio ui: the workspace index could not be opened (${e instanceof Error ? e.message : String(e)}): activity and search are off`);
+    }
+    const live = new Live(o, index);
+    const why = { corrupt: 'the file was damaged', schema: 'another version wrote it', not_a_file: 'it was not a regular file' } as const;
+    if (index?.rebuilt && index.rebuilt !== 'missing') o.log?.(`studio ui: the workspace index was rebuilt (${why[index.rebuilt]})`);
+    await live.refresh();
+    return live;
+  }
+
+  /** Streams open now. */
+  get streamCount(): number {
+    return this.streams.size;
+  }
+
+  /** The index, up to date with the files; `unavailable` without node:sqlite. */
+  async freshIndex(): Promise<WorkspaceIndex> {
+    if (!this.index) throw noIndexError();
+    await this.refresh();
+    return this.index;
+  }
+
+  /** One poll: what changed goes out on the streams. Concurrent callers share it; a failure is logged, never thrown. */
+  refresh(): Promise<void> {
+    if (this.closed) return Promise.resolve();
+    return (this.refreshing ??= this.poll()
+      .catch((e: unknown) => this.o.log?.(`studio ui: a workspace poll failed: ${e instanceof Error ? e.message : String(e)}`))
+      .finally(() => {
+        this.refreshing = undefined;
+      }));
+  }
+
+  private async poll(): Promise<void> {
+    let keys: string[];
+    let generation: number | undefined;
+    if (this.index) {
+      const c = await this.index.reconcile();
+      keys = c.keys;
+      generation = c.generation;
+    } else {
+      const next = await scanSources(this.o.ws);
+      keys = this.sources ? diffSources(this.sources, next) : [];
+      this.sources = next;
+    }
+    const changed = await this.jobs.poll();
+    if (this.closed) return;
+    const w = workspaceChanges(keys);
+    if (w.projects.length) this.send('workspace', { projects: w.projects, readme: w.readme });
+    if (changed.length) this.send('jobs', { changed });
+    if (keys.length && generation !== undefined) this.send('index', { generation });
+  }
+
+  private send(event: string, data: unknown): void {
+    const text = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of this.streams) res.write(text);
+  }
+
+  /** `GET /v1/events` (the gate already passed): a stream, or 503 when 4 are open. */
+  open(_req: IncomingMessage, res: ServerResponse, fail: (status: number, code: string, message: string) => void): void {
+    if (this.closed || this.streams.size >= EVENT_STREAMS_MAX) {
+      fail(503, 'too_many_streams', `this Studio serves at most ${EVENT_STREAMS_MAX} event streams: this tab re-reads on a timer instead`);
+      return;
+    }
+    res.writeHead(200, { ...securityHeaders('api'), 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.write(`event: hello\ndata: ${JSON.stringify({ api: ENGINE_HTTP_API, index: this.index !== null, generation: this.index?.generation ?? null })}\n\n`);
+    this.streams.add(res);
+    const drop = () => {
+      this.streams.delete(res);
+      this.schedule();
+    };
+    // The response's close (the client went away, or close() ended it) — never the request's: a GET's request
+    // "closes" as soon as its empty body is read.
+    res.on('close', drop);
+    this.schedule();
+  }
+
+  /** The poll and the keepalive run while a stream is open, and only then. */
+  private schedule(): void {
+    const want = this.streams.size > 0 && !this.closed;
+    if (want && !this.timer) {
+      this.timer = setInterval(() => void this.refresh(), this.o.pollMs ?? EVENT_POLL_MS);
+      this.keepalive = setInterval(() => {
+        for (const res of this.streams) res.write(': keepalive\n\n');
+      }, EVENT_KEEPALIVE_MS);
+      this.timer.unref();
+      this.keepalive.unref();
+    } else if (!want && this.timer) {
+      clearInterval(this.timer);
+      clearInterval(this.keepalive);
+      this.timer = undefined;
+      this.keepalive = undefined;
+    }
+  }
+
+  /** Ends every stream, stops the poll and closes the index (after a poll in flight). */
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    for (const res of this.streams) res.end();
+    this.streams.clear();
+    this.schedule();
+    await this.refreshing;
+    this.index?.close();
+  }
+}

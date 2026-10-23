@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
+import { README_MAX_CHARS } from '@demo-studio/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
@@ -71,7 +72,7 @@ export const projectGet = defineTool({
         `${p.name} (${p.slug}) · ${p.dir}`,
         `scenarios: ${p.scenarios.join(', ') || 'none yet'}`,
         `environments:${envs.length ? `\n${envs.map((l) => `- ${l}`).join('\n')}` : ' none'}`,
-        p.readme === null ? 'README.md: missing (project_update_readme writes it)' : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
+        p.readme_error ? `README.md: ${p.readme_error}` : p.readme === null ? 'README.md: missing (project_update_readme writes it)' : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
         ...(p.warnings.length ? [`project.yaml: ${plural(p.warnings.length, 'warning')}`] : []),
       ].join('\n'),
       data: p as unknown as Record<string, unknown>,
@@ -89,7 +90,7 @@ export const projectCreate = defineTool({
   input: z.strictObject({
     name: z.string().min(1).max(200).describe('Display name of the product.'),
     slug: projectSlug.optional().describe('Folder name (default: from the name).'),
-    readme: z.string().max(200_000).optional().describe('Full README.md content (default: a skeleton).'),
+    readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
     template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a template name of the workspace (never a path)').optional().describe('Template (theme) name; default "default".'),
   }),
@@ -110,7 +111,7 @@ export const projectUpdateReadme = defineTool({
     "Replace a project's README.md. if_match is required when the README exists: the readme_hash project_get returned (a conflict names the current hash when the file changed meanwhile).",
   input: z.strictObject({
     project: projectSlug,
-    markdown: z.string().max(200_000).describe('The full new README.md.'),
+    markdown: z.string().max(README_MAX_CHARS).describe(`The full new README.md (${README_MAX_CHARS.toLocaleString('en')} characters at most, the final line break included).`),
     if_match: ifMatch.describe('readme_hash from project_get; null or absent only when the project has no README.md.'),
   }),
   annotations: WRITE_FILES,

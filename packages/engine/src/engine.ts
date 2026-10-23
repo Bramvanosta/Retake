@@ -80,7 +80,17 @@ import type { JobEvent, JobRecord, SiteJobResult } from './jobs/types.js';
 
 export const ENGINE_API_VERSION = 1;
 
-export type EngineClient = 'cli' | 'mcp' | 'test';
+/**
+ * Who drives the engine. `ui` (L4.1) is the Studio web app: the server cannot tell a person's click from script running
+ * in the page, so the ops L4.1 allows it run under the agent's trust, with no approver (a person proving presence in
+ * the UI — approvals, comment authorship, edits with secret refs — is an open decision for L4.3 / L4.4 / L4.6).
+ */
+export type EngineClient = 'cli' | 'mcp' | 'test' | 'ui';
+
+/** Agent trust (core agent-trust) for every client but the CLI (a person at a terminal) and tests: fail-safe. */
+export function agentTrust(client: EngineClient): boolean {
+  return client !== 'cli' && client !== 'test';
+}
 
 export interface EngineOptions {
   /** Workspace root; default $DEMO_STUDIO_ROOT, else the studio.yaml lookup from the cwd. */
@@ -470,10 +480,10 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     },
     scenarios: {
       get: async (slug, name) => getScenario(await project(slug), name),
-      // What the MCP server's agent writes is checked as the work it submits will be (core agent-trust).
-      validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: opts.client === 'mcp' }),
-      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: opts.client === 'mcp' }),
-      fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: opts.client === 'mcp' }),
+      // What an agent (the MCP server, the Studio app) writes is checked as the work it submits will be (core agent-trust).
+      validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: agentTrust(opts.client) }),
+      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client) }),
+      fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: agentTrust(opts.client) }),
     },
     runs: {
       list: async (slug, o) => {

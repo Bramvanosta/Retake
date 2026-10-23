@@ -128,6 +128,48 @@ export function claudeCodeCommand(o: McpConfigInput): string {
 }
 
 /**
+ * MCP over HTTP (L4.1): the registration of `studio mcp --http` — a URL and the bearer header, no command. The printed
+ * registrations never carry the token itself (review A M1): the `.mcp.json` block names the environment variable
+ * Claude Code expands when it reads the file (a project's `.mcp.json` is often committed), and the `claude mcp add`
+ * line reads the token file in the shell that runs it (the shell history keeps `$(cat …)`, not the token).
+ */
+export interface McpHttpEntry {
+  type: 'http';
+  url: string;
+  headers: { Authorization: string };
+}
+
+/** The environment variable the `.mcp.json` registration reads the token from (Claude Code expands `${…}` there). */
+export const MCP_HTTP_TOKEN_ENV = 'DEMO_STUDIO_MCP_TOKEN';
+
+export function mcpHttpEntry(o: { url: string }): McpHttpEntry {
+  return { type: 'http', url: o.url, headers: { Authorization: `Bearer \${${MCP_HTTP_TOKEN_ENV}}` } };
+}
+
+/** The `mcpServers` block for .mcp.json with the HTTP registration (the token from $DEMO_STUDIO_MCP_TOKEN). */
+export function mcpHttpConfigJson(o: { url: string }): { mcpServers: Record<string, McpHttpEntry> } {
+  return { mcpServers: { [SERVER_NAME]: mcpHttpEntry(o) } };
+}
+
+/** `"$(cat '<token file>')"`: the token, read from its file by the shell that runs the line. */
+function tokenFromFile(tokenFile: string): string {
+  return `$(cat ${shellQuote(tokenFile)})`;
+}
+
+/**
+ * `claude mcp add --transport http …`: the same registration for Claude Code, per user (Claude Code keeps the header in
+ * its own user settings); the token read from `tokenFile` when the line runs.
+ */
+export function claudeCodeHttpCommand(o: { url: string; tokenFile: string }): string {
+  return ['claude mcp add --transport http', SERVER_NAME, shellQuote(o.url), '--scope user', '--header', `"Authorization: Bearer ${tokenFromFile(o.tokenFile)}"`].join(' ');
+}
+
+/** The line that gives the `.mcp.json` registration its token: `export DEMO_STUDIO_MCP_TOKEN="$(cat '<token file>')"`. */
+export function mcpHttpTokenExport(tokenFile: string): string {
+  return `export ${MCP_HTTP_TOKEN_ENV}="${tokenFromFile(tokenFile)}"`;
+}
+
+/**
  * The repository folder holding the local plugin marketplace (`.claude-plugin/marketplace.json`) the studio entry point
  * belongs to: the first such folder above it, or undefined (an install without the repository's `skills/`).
  */

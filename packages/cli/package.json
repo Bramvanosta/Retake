@@ -26,6 +26,7 @@
     "@demo-studio/review": "workspace:*",
     "@demo-studio/runner-web": "workspace:*",
     "@demo-studio/sandbox": "workspace:*",
+    "@demo-studio/ui": "workspace:*",
     "commander": "^14.0.0",
     "picocolors": "^1.1.1"
   },

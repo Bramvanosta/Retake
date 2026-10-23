@@ -10,6 +10,7 @@
     { "path": "packages/components" },
     { "path": "packages/editor" },
     { "path": "packages/mcp" },
+    { "path": "packages/ui" },
     { "path": "packages/cli" }
   ]
 }

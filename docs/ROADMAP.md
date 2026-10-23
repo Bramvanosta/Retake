@@ -60,8 +60,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.6 | Frame comments API (store, anchors, MCP tools) | S | **done** (live run: MACOS-CHECKLIST 12h) |
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | **done** (live run: MACOS-CHECKLIST 12i) |
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **done** — phase 3 done (live run: MACOS-CHECKLIST 12j) |
-| L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **next** (when the user asks) |
-| L4.2 | Scenario as blocks (read) with run thumbnails | M | todo |
+| L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **done** (live checks: MACOS-CHECKLIST 13a) |
+| L4.2 | Scenario as blocks (read) with run thumbnails | M | **next** |
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | todo |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | todo |
@@ -676,7 +676,17 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   mutation-checked tests (incl. a full-suite hang in the inspect path, now bounded). R-ACC3-01..06 partial until the live
   run MACOS-CHECKLIST 12j.
 
-### L4.1 – L4.9, L5.2 – L5.4, L6
+### L4.1 — Studio app shell on the engine API (`studio ui`), projects, README editor (M)
+- **Goal:** a local web app on the same engine as the CLI and MCP, starting with the projects and their README.
+- **Done (2026-10-23):** `studio ui` (packages/ui) on 127.0.0.1 behind one HTTP gate (Host, Origin / Sec-Fetch-Site,
+  per-launch token reached through a one-time code, body caps, strict CSP); Projects screen, project page, README editor
+  (conflict and changed-on-disk flows, line endings kept), activity and search on a SQLite index rebuilt from files,
+  live updates over one stream per browser; `studio mcp --http` (same 44 tools over Streamable HTTP, stable token,
+  browsers refused, approvals). Reads never follow a link out of a project. Two independent reviews fixed with
+  mutation-checked tests. R-PRJ-02 partial (the queue stays in files per ADR-2), R-DEC-07 partial until L5.2. Cuts:
+  BL-79. Live checks: MACOS-CHECKLIST 13a.
+
+### L4.2 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

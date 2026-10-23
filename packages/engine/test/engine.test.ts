@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, ConfigError, ScenarioError } from '@demo-studio/core';
-import { EngineError, LocalStorage, checkRef, createEngine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
+import { EngineError, LocalStorage, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
@@ -89,6 +89,23 @@ describe('toEngineError', () => {
 });
 
 describe('engine: projects', () => {
+  it('a project that does not load is listed with its first problem, not just "has 1 error:" (review B L5)', async () => {
+    expect(firstErrorLine('project.yaml has 1 error:\n  environments.local: expected an object\n')).toBe('project.yaml has 1 error: environments.local: expected an object');
+    expect(firstErrorLine('no project.yaml in /x')).toBe('no project.yaml in /x');
+    const dir = await mkdtemp(join(tmpdir(), 'studio-engine-broken-'));
+    try {
+      await mkdir(join(dir, 'projects', 'broken'), { recursive: true });
+      await writeFile(join(dir, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  local: "not a page map"\n');
+      const e = await createEngine({ root: dir, client: 'test', autoStartWorker: false });
+      const [b] = await e.projects.list();
+      expect(b.error).toMatch(/error[^\n]*: \S/);
+      expect(b.error).toContain('local');
+      expect(b.error).not.toMatch(/:$/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('lists projects and reads one without session paths, login steps or account passwords', async () => {
     const list = await engine.projects.list();
     expect(list.map((p) => p.slug)).toEqual(['northfield-fixture']);

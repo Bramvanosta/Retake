@@ -21,8 +21,11 @@ export type JobState = (typeof JOB_STATES)[number];
 export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'render', 'review', 'export', 'preview', 'inspect', 'record', 'site'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
-/** Who submitted a job (recorded; shapes the safety rules applied at submit). */
-export const JOB_CLIENTS = ['mcp', 'cli', 'test'] as const;
+/**
+ * Who submitted a job (recorded; shapes the safety rules applied at submit). `ui` (L4.1): the Studio web app, under the
+ * agent's trust (the worker runs every job under trust `mcp` whoever submitted it).
+ */
+export const JOB_CLIENTS = ['mcp', 'cli', 'test', 'ui'] as const;
 export type JobClient = (typeof JOB_CLIENTS)[number];
 
 /** "j_" + 26 Crockford base32 characters (10 of time, 16 random): sortable by creation. */

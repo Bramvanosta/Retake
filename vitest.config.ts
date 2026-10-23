@@ -18,6 +18,7 @@ export default defineConfig({
       '@demo-studio/review': pkg('review'),
       '@demo-studio/engine': pkg('engine'),
       '@demo-studio/mcp': pkg('mcp'),
+      '@demo-studio/ui': pkg('ui'),
     },
   },
   test: {

@@ -1,11 +1,18 @@
 /**
  * The only module that imports the MCP SDK (@modelcontextprotocol/sdk, pinned at 1.32.1): an SDK upgrade touches this
  * file alone. The low-level `Server` is used (not `McpServer.registerTool`): tool input schemas are our own JSON
- * Schemas, generated from zod, and argument errors keep our positioned wording.
+ * Schemas, generated from zod, and argument errors keep our positioned wording. Two transports serve the same tools
+ * through one wiring (`wireServer`): stdio (`serveStdio`) and Streamable HTTP with stateful sessions
+ * (`mcpHttpHandler`, L4.1) — a session keeps its server, so an approval form (elicitation) goes out on the session's
+ * stream and its answer comes back to the call that asked. The SDK's own Host / Origin options are deprecated and
+ * left off: the engine's gate runs before any request reaches the handler (http.ts).
  */
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Readable, Writable } from 'node:stream';
 
 export interface ToolAnnotations {
@@ -86,25 +93,26 @@ export interface ProtocolTool {
   call(args: Record<string, unknown>, ctx: CallContext): Promise<CallResult>;
 }
 
-export interface ServeOptions {
+export interface WireOptions {
   name: string;
   version: string;
   /** Shown to the client at initialize: how to use the tools, and the safety rules. */
   instructions: string;
   tools: readonly ProtocolTool[];
-  stdin?: Readable;
-  stdout?: Writable;
   /** Protocol-level problems (unparseable input…): diagnostics on stderr, never on stdout. */
   onError?: (e: Error) => void;
 }
 
+export interface ServeOptions extends WireOptions {
+  stdin?: Readable;
+  stdout?: Writable;
+}
+
 /**
- * Serve `tools` over stdio until the client goes away (stdin ends or closes, or stdout breaks). Resolves then; stdout
- * carries nothing but JSON-RPC messages.
+ * A low-level server with the tools wired (tools/list; tools/call with progress notifications and form elicitation
+ * when the client declared it), and the calls still running.
  */
-export async function serveStdio(o: ServeOptions): Promise<void> {
-  const stdin = o.stdin ?? process.stdin;
-  const stdout = o.stdout ?? process.stdout;
+function wireServer(o: WireOptions): { server: Server; inFlight: Set<Promise<unknown>> } {
   const server = new Server(
     { name: o.name, version: o.version },
     { capabilities: { tools: { listChanged: false }, logging: {} }, instructions: o.instructions },
@@ -152,6 +160,17 @@ export async function serveStdio(o: ServeOptions): Promise<void> {
   });
 
   server.onerror = (e) => o.onError?.(e);
+  return { server, inFlight };
+}
+
+/**
+ * Serve `tools` over stdio until the client goes away (stdin ends or closes, or stdout breaks). Resolves then; stdout
+ * carries nothing but JSON-RPC messages.
+ */
+export async function serveStdio(o: ServeOptions): Promise<void> {
+  const stdin = o.stdin ?? process.stdin;
+  const stdout = o.stdout ?? process.stdout;
+  const { server, inFlight } = wireServer(o);
   const closed = new Promise<void>((resolve) => {
     server.onclose = () => resolve();
   });
@@ -171,4 +190,121 @@ export async function serveStdio(o: ServeOptions): Promise<void> {
   stdin.once('close', () => void drainThenClose());
   stdout.once('error', close);
   await closed;
+}
+
+/**
+ * MCP sessions served at once over HTTP, at most. At the cap, a new client takes the place of the least recently seen
+ * session with no call running and no open event stream (a client that went away without DELETE: Claude Code
+ * restarted); only when every session is in use is it refused (503).
+ */
+export const MCP_HTTP_SESSIONS_MAX = 8;
+/** An HTTP session with no request for this long, no call running and no open event stream is closed (ms). */
+export const MCP_HTTP_IDLE_MS = 30 * 60_000;
+
+export interface HttpHandlerOptions extends WireOptions {
+  maxSessions?: number;
+  idleMs?: number;
+}
+
+export interface McpHttpHandler {
+  /**
+   * One request of the MCP endpoint, after the gate: `body` is the parsed JSON of a POST. A request naming no session
+   * must be an `initialize` (it opens one); a session id the server does not know is 404 (the client starts over).
+   */
+  handle(req: IncomingMessage, res: ServerResponse, body?: unknown): Promise<void>;
+  /** Sessions open now. */
+  readonly sessions: number;
+  /** Sessions closed to make room for a new one (at the cap). */
+  readonly evicted: number;
+  /** Close every session. */
+  close(): Promise<void>;
+}
+
+function rpcError(res: ServerResponse, status: number, code: number, message: string): void {
+  const text = JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null });
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Content-Length': String(Buffer.byteLength(text)) }).end(text);
+}
+
+/**
+ * Streamable HTTP with stateful sessions (one wired server per session), a session cap and an idle expiry. A session is
+ * in use while a call runs or its event stream (the GET the client keeps open for the server's requests: approval
+ * forms) is open: such a session never expires and is never evicted.
+ */
+export function mcpHttpHandler(o: HttpHandlerOptions): McpHttpHandler {
+  interface Session {
+    transport: StreamableHTTPServerTransport;
+    server: Server;
+    inFlight: Set<Promise<unknown>>;
+    /** The last request, or the end of the last event stream. */
+    seen: number;
+    /** Event streams (GET) open now. */
+    streams: number;
+  }
+  const sessions = new Map<string, Session>();
+  const max = o.maxSessions ?? MCP_HTTP_SESSIONS_MAX;
+  const idleMs = o.idleMs ?? MCP_HTTP_IDLE_MS;
+  let evicted = 0;
+  const unused = (s: Session) => s.inFlight.size === 0 && s.streams === 0;
+  const sweep = setInterval(() => {
+    const now = Date.now();
+    for (const s of sessions.values()) if (unused(s) && now - s.seen > idleMs) void s.transport.close().catch(() => undefined);
+  }, Math.min(60_000, Math.max(1000, Math.floor(idleMs / 2))));
+  sweep.unref();
+  /** Close the least recently seen session not in use; false when every session is in use. */
+  const evictOne = (): boolean => {
+    let oldest: [string, Session] | undefined;
+    for (const e of sessions) if (unused(e[1]) && (!oldest || e[1].seen < oldest[1].seen)) oldest = e;
+    if (!oldest) return false;
+    sessions.delete(oldest[0]);
+    evicted++;
+    void oldest[1].transport.close().catch(() => undefined);
+    return true;
+  };
+  return {
+    get sessions() {
+      return sessions.size;
+    },
+    get evicted() {
+      return evicted;
+    },
+    async handle(req, res, body) {
+      const sid = req.headers['mcp-session-id'];
+      if (typeof sid === 'string') {
+        const s = sessions.get(sid);
+        if (!s) return rpcError(res, 404, -32001, 'session not found: initialize a new session');
+        s.seen = Date.now();
+        if (req.method === 'GET') {
+          s.streams++;
+          res.once('close', () => {
+            s.streams--;
+            s.seen = Date.now();
+          });
+        }
+        return s.transport.handleRequest(req, res, body);
+      }
+      if (req.method !== 'POST' || !isInitializeRequest(body)) return rpcError(res, 400, -32000, 'no session: send initialize first (without an Mcp-Session-Id header)');
+      if (sessions.size >= max && !evictOne()) return rpcError(res, 503, -32000, `this server holds ${max} sessions, each running a call or holding its event stream: close one (DELETE) or try again later`);
+      const { server, inFlight } = wireServer(o);
+      let entry: Session | undefined;
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (id) => {
+          entry = { transport, server, inFlight, seen: Date.now(), streams: 0 };
+          sessions.set(id, entry);
+        },
+      });
+      // Chained by connect() before the server's own close handling (no server.close() here: it would close the
+      // transport again).
+      transport.onclose = () => {
+        if (transport.sessionId && sessions.get(transport.sessionId) === entry) sessions.delete(transport.sessionId);
+      };
+      await server.connect(transport);
+      await transport.handleRequest(req, res, body);
+    },
+    async close() {
+      clearInterval(sweep);
+      await Promise.allSettled([...sessions.values()].map((s) => s.transport.close()));
+      sessions.clear();
+    },
+  };
 }

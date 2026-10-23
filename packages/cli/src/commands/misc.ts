@@ -12,12 +12,13 @@ export function schemaCommand(ui: Ui, name: JsonSchemaName): ExitCode {
   return EXIT.ok;
 }
 
-/** Commands of later phases: registered so `studio --help` lists them, they only say when they arrive. */
-export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 2 | 3 | 4; summary: string }> = [
-  { name: 'ui', phase: 4, summary: 'Studio web app (scenario blocks, timeline, frame comments)' },
-];
+/**
+ * Commands of later phases: registered so `studio --help` lists them, they only say when they arrive. Empty since
+ * L4.1 made `ui` a real command; the mechanism stays for the next one.
+ */
+export const LATER_COMMANDS: ReadonlyArray<{ name: string; phase: 4 | 5; summary: string }> = [];
 
 export function laterCommand(ui: Ui, name: string, phase: number): ExitCode {
-  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, inspect, record, plan, render, still, review, export, comment, hooks, env reset, sandbox, components, theme create, schema, login, auth status, doctor and mcp`);
+  ui.error(`studio ${name} is available in phase ${phase}; available now: new, list, validate, run, inspect, record, plan, render, still, review, export, comment, hooks, env reset, sandbox, components, theme create, schema, login, auth status, doctor, mcp and ui`);
   return EXIT.failure;
 }

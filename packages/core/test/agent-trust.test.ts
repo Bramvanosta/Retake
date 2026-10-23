@@ -37,6 +37,8 @@ describe('projectFileProblem', () => {
     expect(projectFileProblem(project, '~/.ssh/id_rsa')).toContain('is an absolute path');
     expect(projectFileProblem(project, '../outside.txt')).toContain('resolves outside the project folder');
     expect(projectFileProblem(project, 'assets/link.txt')).toContain('resolves outside the project folder');
+    // The refusal never names where the link leads.
+    expect(projectFileProblem(project, 'assets/link.txt')).not.toContain(root);
     expect(projectFileProblem(project, 'assets/up/outside.txt')).toContain('resolves outside the project folder');
     expect(projectFileProblem(project, 'assets/up/missing/x.js')).toContain('resolves outside the project folder');
   });

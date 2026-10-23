@@ -9,7 +9,11 @@
  * entitlements stub. L3.2 part A: renders as jobs (plan in the client's process through the trust gates, render in
  * the worker with the network guard), render status, the render history. Part B: reviews and exports as jobs (renders named by id, their files inside the project; export
  * re-renders under the render trust rules), review_get reading report.json as data, thumbnails made on read. L3.6:
- * the frame comment store (one file per thread, entries appended under a lock, stills machine-local).
+ * the frame comment store (one file per thread, entries appended under a lock, stills machine-local). L4.1: the local
+ * HTTP servers' security gate, 127.0.0.1 listener, tokens and bootstrap codes, discovery file, error → status map, and
+ * the client `ui` (agent trust); reads never follow a symbolic link out of a project; the workspace index
+ * (index-db/: node:sqlite, a cache of the files for the Studio's activity feed and search), the bounded stat poll of
+ * the workspace's sources and the job watch behind the Studio's event stream.
  */
 export { openWorkspace, openProject } from './workspace.js';
 export type { WorkspaceOptions } from './workspace.js';
@@ -20,7 +24,7 @@ export type { EngineErrorCode } from './errors.js';
 export { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
 export { LocalStorage, checkRef, sha256Hex } from './storage.js';
 export type { Storage, StoredKind, StoredRef, WriteResult } from './storage.js';
-export { createProjectFromRequest, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
+export { README_MAX_CHARS, createProjectFromRequest, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
 export { getScenario, saveScenarioText, validateScenarioText } from './scenarios.js';
 export type { SaveResult, ScenarioText, ValidateResult } from './scenarios.js';
@@ -32,7 +36,7 @@ export { listRuns, runStatus } from './runs.js';
 export type { RunStatusView, RunSummary } from './runs.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
-export { ENGINE_API_VERSION, createEngine } from './engine.js';
+export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
 export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
@@ -166,6 +170,21 @@ export {
   resolveComment,
 } from './comments.js';
 export type { CommentAddRequest, CommentAdded, CommentEntryView, CommentListRequest, CommentListView, CommentResolveRequest, CommentView, CommentWritten } from './comments.js';
+export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders } from './http/gate.js';
+export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, readPrivateToken, stableToken } from './http/token-file.js';
+export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from './http/gate.js';
+export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';
+export { LOOPBACK, isLoopbackAddress, listenLoopback } from './http/listen.js';
+export { ERROR_STATUS } from './http/status.js';
+export { DISCOVERY_VERSION, claimDiscovery, discoveryFile, holderAlive, readDiscovery, releaseDiscovery } from './http/discovery.js';
+export type { DiscoveryClaim, DiscoveryRecord } from './http/discovery.js';
+export { INDEX_SCHEMA, WorkspaceIndex, ftsQuery, indexFile } from './index-db/index-db.js';
+export type { ActivityItem, HistoryRow, IndexChanges, IndexOptions, IndexRebuild, SearchHit } from './index-db/index-db.js';
+export { SQLITE_WARNING, isCorruptionError, loadSqlite } from './index-db/sqlite.js';
+export type { SqliteLoader, SqliteModule } from './index-db/sqlite.js';
+export { diffSources, scanSources, sourceKey, workspaceChanges } from './index-db/sources.js';
+export type { SourceKind, SourceMap } from './index-db/sources.js';
+export { JobsWatch } from './index-db/jobs-watch.js';
 export { entitlements } from './entitlements.js';
 export type { Entitlements } from './entitlements.js';
 export { SHELL_SEED_REASON, checkAgentTrust, seedApprovalItems } from './approvals.js';

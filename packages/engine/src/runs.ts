@@ -3,7 +3,7 @@
  * by the runner). Paths become project refs + local paths; text the filmed site controls (step error messages,
  * warnings) is kept apart under `untrusted`, never mixed into what the engine itself says.
  */
-import { readFile, readdir } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { newerFormatMessage, FORMAT_VERSIONS } from '@demo-studio/core';
 import type { LoadedProject, RunMode, RunRecord, RunStatus } from '@demo-studio/core';
@@ -30,9 +30,18 @@ export interface RunSummary {
 
 const FINISHED: ReadonlySet<RunStatus> = new Set(['succeeded', 'failed', 'cancelled']);
 
+/** run.json bigger than this is not read (it is not one the runner wrote). */
+const RUN_RECORD_MAX = 32 * 1024 * 1024;
+
+/**
+ * A run.json: only a regular file within the cap (the runner never writes anything else) — a link (leading out of the
+ * project, review A L3) or a FIFO is skipped like a folder without run.json.
+ */
 async function readRecord(file: string): Promise<{ record?: RunRecord; newer?: string }> {
   let value: unknown;
   try {
+    const st = await lstat(file);
+    if (!st.isFile() || st.size > RUN_RECORD_MAX) return {};
     value = JSON.parse(await readFile(file, 'utf8'));
   } catch {
     return {};

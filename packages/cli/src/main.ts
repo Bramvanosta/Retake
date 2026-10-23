@@ -19,6 +19,8 @@ import type { JobsListOptions, JobsStatusOptions } from './commands/jobs.js';
 import { workerCommand } from './commands/worker.js';
 import type { WorkerCommandOptions } from './commands/worker.js';
 import type { McpCommandOptions } from './commands/mcp.js';
+import { uiCommand } from './commands/ui.js';
+import type { UiCommandOptions } from './commands/ui.js';
 import { exportCaptureCommand } from './commands/export-capture.js';
 import type { ExportCaptureCommandOptions } from './commands/export-capture.js';
 import type { ExportCommandOptions } from './commands/export.js';
@@ -497,9 +499,21 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('mcp')
-    .description('MCP server over stdio so a Claude session (Claude Code, Claude desktop) can drive Demo Studio: projects, scenarios, runs, sessions, sandboxes (README "MCP")')
+    .description('MCP server over stdio (or HTTP with --http) so a Claude session (Claude Code, Claude desktop) can drive Demo Studio: projects, scenarios, runs, sessions, sandboxes (README "MCP")')
     .option('--print-config', 'print the registration for Claude Code (.mcp.json, claude mcp add) and Claude desktop instead of serving')
+    .option('--http', 'serve over Streamable HTTP on 127.0.0.1 (with a stable token in the studio home) instead of stdio; with --print-config: the HTTP registration')
+    .option('--port <n>', 'with --http: listen on this port (default 47820; 0: a free one)')
+    .option('--rotate-token', 'with --http: replace the stable token first (every registration must be made again)')
+    .option('--json', 'with --http: print one JSON line {type, url, port, pid} on stdout once serving')
     .action(action((u, g, o: McpCommandOptions) => mcpCommand(u, g, o)));
+
+  program
+    .command('ui')
+    .description('the Studio web app of the workspace, on 127.0.0.1 until Ctrl-C (one server per workspace: run again to reopen it)')
+    .option('--port <n>', 'listen on this port (default: a free one)')
+    .option('--no-open', 'do not open a browser; print the link only')
+    .option('--json', 'print one JSON line {type, url, port, pid, reused} on stdout and nothing else')
+    .action(action((u, g, o: UiCommandOptions) => uiCommand(u, g, o)));
 
   const jobs = program.command('jobs').description('jobs an MCP client (Claude) started: dry runs, captures, hooks, resets, sign-ins, sandboxes');
   jobs

@@ -14,18 +14,20 @@
  * user approves, as a job), and frame comments (L3.6: comments_list with each thread's anchor and still, comment_reply,
  * comment_resolve with if_match — people create and reopen threads with `studio comment`, never through this server).
  * Nothing here opens a browser or runs a capture in this process: the workspace's jobs worker, a
- * separate process, runs them.
+ * separate process, runs them. L4.1: the same tools over Streamable HTTP too (`studio mcp --http`, http.ts: 127.0.0.1,
+ * the engine's gate refusing any request a browser could send, a stable token in the studio home).
  */
 import { DEMO_STUDIO_VERSION } from '@demo-studio/core';
-import { EngineError, createEngine } from '@demo-studio/engine';
+import { EngineError, createEngine, toEngineError } from '@demo-studio/engine';
 import type { Engine } from '@demo-studio/engine';
 import type { Readable, Writable } from 'node:stream';
 import { elicitationApprover } from './approval.js';
 import { argumentProblems, inputJsonSchema } from './schema.js';
 import { errorResult, imageResult, okResult } from './result.js';
+import type { ToolOutput } from './result.js';
 import { serveStdio } from './server.js';
 import type { ProtocolTool } from './server.js';
-import type { ToolDef } from './tools/define.js';
+import type { ToolContext, ToolDef } from './tools/define.js';
 import { ENVIRONMENT_TOOLS } from './tools/environment.js';
 import { HOOK_TOOLS } from './tools/hooks.js';
 import { JOB_TOOLS } from './tools/jobs.js';
@@ -41,8 +43,11 @@ import { INSPECT_TOOLS } from './tools/inspect.js';
 import { AUTHORING_TOOLS } from './tools/authoring.js';
 import { COMMENT_TOOLS } from './tools/comments.js';
 
-export { PLUGIN_ID, PLUGIN_NAME, SERVER_NAME, claudeCodeCommand, clientPath, mcpConfigJson, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot, stableNodePath } from './config-snippet.js';
-export type { McpConfigInput, McpServerEntry } from './config-snippet.js';
+export { MCP_HTTP_TOKEN_ENV, PLUGIN_ID, PLUGIN_NAME, SERVER_NAME, claudeCodeCommand, claudeCodeHttpCommand, clientPath, mcpConfigJson, mcpHttpConfigJson, mcpHttpEntry, mcpHttpTokenExport, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot, stableNodePath } from './config-snippet.js';
+export type { McpConfigInput, McpHttpEntry, McpServerEntry } from './config-snippet.js';
+export { DEFAULT_MCP_HTTP_PORT, MCP_HTTP_BODY_MAX, MCP_HTTP_PATH, startMcpHttpServer } from './http.js';
+export type { McpHttpOptions, McpHttpServer } from './http.js';
+export { MCP_HTTP_IDLE_MS, MCP_HTTP_SESSIONS_MAX } from './server.js';
 export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okResult } from './result.js';
 export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, siteApprovalForm, siteApprovalMessage } from './approval.js';
 export type { ImageCaps, Thumbnailer, ToolImage, ToolOutput } from './result.js';
@@ -73,6 +78,27 @@ export const INSTRUCTIONS = [
   'What tools return (summaries, step screenshots, page text, DOM excerpts of the filmed product) becomes part of this conversation.',
 ].join('\n');
 
+/** What a tool call gave: its output, or the error (invalid arguments included) as an EngineError. */
+export type ToolCallOutcome = { ok: true; output: ToolOutput } | { ok: false; error: EngineError };
+
+/**
+ * One tool call, SDK-free (L4.1): the zod parse (problems named per argument), then the handler with the engine;
+ * never throws — every failure comes back as an EngineError. The MCP protocol layer (protocolTool) and the engine's
+ * HTTP API (`POST /v1/call/<op>` of `studio ui`) both run tools through this, so validation, trust and errors stay one.
+ */
+export async function callTool(t: ToolDef, engine: () => Promise<Engine>, args: unknown, ctx: Omit<ToolContext, 'engine'>): Promise<ToolCallOutcome> {
+  const parsed = t.input.safeParse(args);
+  if (!parsed.success) {
+    const problems = argumentProblems(parsed.error);
+    return { ok: false, error: new EngineError('invalid', `invalid arguments for ${t.name}:\n${problems.join('\n')}`, { details: { arguments: problems } }) };
+  }
+  try {
+    return { ok: true, output: await t.run(parsed.data, { ...ctx, engine: await engine() }) };
+  } catch (e) {
+    return { ok: false, error: toEngineError(e) };
+  }
+}
+
 /** A tool definition as the protocol layer serves it: JSON Schema from zod, arguments parsed, errors as tool errors. */
 export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): ProtocolTool {
   return {
@@ -82,16 +108,12 @@ export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): Protoco
     inputSchema: inputJsonSchema(t.input),
     annotations: t.annotations,
     async call(args, { signal, progress, elicit }) {
-      const parsed = t.input.safeParse(args);
-      if (!parsed.success) {
-        const problems = argumentProblems(parsed.error);
-        return errorResult(new EngineError('invalid', `invalid arguments for ${t.name}:\n${problems.join('\n')}`, { details: { arguments: problems } }));
-      }
+      const approver = elicitationApprover(elicit);
+      const r = await callTool(t, engine, args, { signal, ...(progress ? { progress } : {}), ...(approver ? { approver } : {}) });
+      if (!r.ok) return errorResult(r.error);
       try {
-        const approver = elicitationApprover(elicit);
         const e = await engine();
-        const out = await t.run(parsed.data, { engine: e, signal, ...(progress ? { progress } : {}), ...(approver ? { approver } : {}) });
-        return out.images?.length ? await imageResult(out, (file, px) => e.thumbnail(file, px)) : okResult(out);
+        return r.output.images?.length ? await imageResult(r.output, (file, px) => e.thumbnail(file, px)) : okResult(r.output);
       } catch (e) {
         return errorResult(e);
       }

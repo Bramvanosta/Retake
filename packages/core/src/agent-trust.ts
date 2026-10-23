@@ -75,7 +75,8 @@ export function projectFileProblem(projectDir: string, ref: string, o: { baseDir
   const target = realPath(resolve(o.baseDir ?? projectDir, ref));
   const rel = relative(root, target);
   if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    return `${ref} resolves outside the project folder (${target}): through MCP only files of the project folder are read`;
+    // Never the target itself: a path outside the project is not the agent's to learn (L4.1 review A).
+    return `${ref} resolves outside the project folder: through MCP only files of the project folder are read`;
   }
   if (o.code && agentWritable(rel)) {
     return `${ref} is a file an agent can write through MCP (${rel.split(sep).join('/')}): through MCP code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;

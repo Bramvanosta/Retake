@@ -20,7 +20,8 @@ packages/editor       (phase 2) Remotion compositions + edit planner + render AP
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
                       if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker
-packages/mcp          (L3.1) MCP server over stdio (§4b; HTTP transport: L4.1)
+packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c), SDK-free tool layer `callTool` (§4c)
+packages/ui           (L4.1) the Studio web app and its server (`studio ui`, §4c)
 packages/cli          `studio` command — everything the MCP does, for humans and CI
 fixtures/wholesale    local test product (supplier console + buyer shop) built with real Radix UI and Base UI components
 templates/<name>/     template.yaml + assets (fonts, logo)
@@ -1447,6 +1448,8 @@ studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Ch
                                               # MCP: registered Node path, PATH finds ffmpeg, worker, .demo-studio/ ignored)
 studio render / review / export               # phase 2
 studio mcp [--print-config]                   # §4b: MCP server over stdio (or its registration for Claude Code / desktop)
+studio mcp --http [--port N] [--rotate-token] [--json]   # §4c: the same server over HTTP on 127.0.0.1 (--print-config --http)
+studio ui [--port N] [--no-open] [--json]     # §4c: the Studio web app on 127.0.0.1 until Ctrl-C; one server per workspace
 studio jobs [list] [--project P] [--state S]… [--limit N] [--json] | status <id> [--json] | cancel <id>   # §4b jobs
 ```
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
@@ -1467,7 +1470,7 @@ boundary of clients outside the CLI (the MCP server; the jobs worker and the HTT
 ```ts
 openWorkspace({root?}) / openProject(ws, slugOrDir)   // moved from cli/src/workspace.ts (the CLI re-exports them)
 personaState / projectPersonaStates / tildePath       // moved from cli commands/auth.ts (`--check` stays in the CLI: Chromium)
-createEngine({root?, client: 'cli'|'mcp'|'test'}): Promise<Engine>
+createEngine({root?, client: 'cli'|'mcp'|'test'|'ui'}): Promise<Engine>   // agentTrust(client): every client but cli / test (§4c)
 Engine {
   root, workspace, cli /* `studio -C <root>`: commands a human is asked to run */, info(): EngineInfo
   projects: list() → ProjectSummary[]; get(slug) → ProjectView; create({name, slug?, readme?, environments?, template?});
@@ -1730,6 +1733,187 @@ workers/worker.log      what workers print (stderr), appended
   (required, default false). Only `accept` with `approve: true` approves. The timeout is explicit — 10 min
   (`DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS`), since the SDK's default request timeout is 60 s; a timeout
   (`isTimeoutError`) or any failure refuses. A client without form elicitation gets no approver: `needs_approval`.
+
+## 4c. Engine HTTP server and Studio app (L4.1)
+
+**Engine `src/http/`** (node built-ins only; shared by every local HTTP server of the engine):
+- `checkRequest(req, {port, token, route, refuseBrowsers?}) → {ok, path, route} | {ok: false, status, code, message,
+  allow?}` — the gate, one fixed order, each layer answering on its own: Host exactly `127.0.0.1:<port>` /
+  `localhost:<port>` (421: what stops DNS rebinding) → with `refuseBrowsers` (MCP over HTTP) any request `fromBrowser`
+  (an Origin header, or a Sec-Fetch-* header other than a lone `Sec-Fetch-Mode: cors` — the one Node's fetch adds to
+  every request) 403 — a second line, not the first: browsers send an Origin on every POST and cross-origin fetch, and
+  Sec-Fetch-* from secure contexts only (a plain-http page's no-cors GET carries neither; it holds no token) →
+  a present Origin this server's own, and on API routes (`RouteSpec.api`) a present Sec-Fetch-Site `same-origin` /
+  `none` (403) → route (404) and method, OPTIONS never (405 + Allow) → `Authorization: Bearer` compared in constant time
+  when `RouteSpec.token` (401) → POST `application/json` (415) and a declared Content-Length within `RouteSpec.maxBody`
+  (413). `readBody(req, max)` caps the bytes too; `drainBody` reads a refused body (≤ 8 MiB) before the answer so the
+  client reads it instead of a reset. `securityHeaders(kind)`: `STUDIO_CSP` (`default-src 'none'; script-src 'self';
+  style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none';
+  frame-ancestors 'none'`), nosniff, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, COOP / CORP same-origin,
+  `Cache-Control` no-store (API) / no-cache (static). Never an `Access-Control-*` header.
+- `listenLoopback(server, port = 0)` — 127.0.0.1 only (no host option), `busy` on EADDRINUSE, refused when the bound
+  address is not 127.0.0.1.
+- `newSecret()` (32 random bytes, base64url), `secretEquals`, `bearerToken`, `BootstrapCodes` (one-time codes, 60 s,
+  ≤ 16 waiting, kept as sha256 digests).
+- `ERROR_STATUS`: invalid 400, refused 403, needs_approval 403, not_found 404, conflict 409, cancelled 409, busy 423,
+  unavailable 503, internal 500.
+- `stableToken(file, {rotate?}) → {token, created, rotated}` / `readPrivateToken(file)` / `mcpHttpTokenFile()` =
+  `<studio home>/mcp-http.token` (part 3): created once (0600 temporary file, chmod, `link()` into place: two starts
+  never write two tokens), replaced by `rotate` (0600 temporary file renamed over it); trusted only as a regular file of
+  this user without group / other bits holding one token — anything else `refused`, never repaired silently.
+- Discovery file `<workspace>/.demo-studio/ui.json` `{version: 1, kind: 'ui', pid, started_at, port, url, token, since}`:
+  `claimDiscovery(file, record)` after the bind — a 0600 temporary file (chmod) hard-linked into place; on EEXIST a live
+  holder (pid + start time) is returned for reuse, a stale or broken file replaced once; a state folder this user cannot
+  write (EACCES / EPERM / EROFS) is `refused` with a fix; `readDiscovery` refuses a link, a non-regular file, another
+  user's file or any group / other permission bit; `releaseDiscovery` removes only its own record (pid + token), a
+  regular file of this user whatever its mode by then (a file made 0644 while serving does not outlive the server).
+
+**Engine client `ui`.** `EngineClient` and core `JOB_CLIENTS` gain `ui`; `agentTrust(client)` (= not `cli`, not
+`test`) gives the scenario checks agent trust; comment authorship and `cliOnly` already treat anything but `cli` as the
+agent; no approver is ever passed (`needs_approval`). The L4.1 allow-list runs under agent trust; how a person proves
+presence in the UI (approvals, comment authorship, edits with secret refs) is open for L4.3 / L4.4 / L4.6.
+
+**`LocalStorage` reads** (`readText`, and the if_match hash of `writeText`) go through the file's real path and are
+refused (`refused`) when it lies outside the project's real path — README.md, scenario_get, scenario_save,
+project_update_readme alike; the refusal never names the link's target. A project folder that is itself a link reads
+normally. `readText` also says whether the bytes are UTF-8 (`utf8`; `text` has U+FFFD where they are not). **Writes**
+(`writeText`) through a file that is a symbolic link land in its target when that is a file of the project (the link
+stays a link); a link leading out, or to nothing, is refused. `project.yaml` read through the engine (`project_get`,
+`project_list`, every job opening a project by slug) is refused when it leads out of the project; the CLI reads what
+the person points it at. `project_get` keeps opening a project whose README.md cannot be edited as text:
+`readme_error` says why (a link leading out: `readme` and `readme_hash` null; not UTF-8: the text with U+FFFD).
+`project_update_readme` holds `README_MAX_CHARS` (200,000) for the file as written, its final line break included.
+
+**MCP `callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** — the zod parse (problems per
+argument) and the handler, SDK-free; `protocolTool` and the Studio server both use it.
+
+**`@demo-studio/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it).
+- `buildUi()` — esbuild in memory: `src/app/main.tsx` + its CSS → `/app.js`, `/app.css` (ESM, minified, targets
+  chrome120 / safari17 / firefox120), `/` a static `INDEX_HTML` without inline script or style; ≈ 100 ms, ≈ 190 KB.
+- `startStudioServer({root, port?, log?, sqlite?, pollMs?}) → {url, port, token, mintCode(), launchUrl(), calls,
+  streams, live, engine, close()}` — engine `createEngine({client: 'ui', autoStartWorker: false})`; routes: static (GET
+  / HEAD, no token), `GET /v1/events` (token, api: the event stream, below), `POST
+  /v1/session` `{code}` → `{ok, token}` (no token; the code is the proof), `GET /v1/info` → engine info + `http_api: 1`
+  + `ops`, `POST /v1/bootstrap` → `{code, url}` (token), `POST /v1/call/<op>` (token, ≤ 2 MiB) → `{ok: true, summary,
+  data}` (untrusted caps applied) or `{ok: false, error: {code, message, fix?, details?}}` with `ERROR_STATUS`; an op
+  outside `UI_OPS` (`engine_info`, `project_list`, `project_get`, `project_update_readme`, `job_list`, `run_list` — MCP
+  tools — and `activity_list`, `search` — the Studio's own reads of the index — and `projects_overview` — every
+  project's environment flags and last run in one call, for the Projects screen; `ToolDef`s in `src/server/ops.ts`
+  that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
+- `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
+  code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
+  it. `studio ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
+- The page (`src/app/`): reads `#c=<code>` and removes it with `history.replaceState` before anything else (a route
+  fragment stays), trades it at `/v1/session`, keeps the token in sessionStorage, sends it as a header (`credentials:
+  'omit'`); no token or a 401 → "This Studio session ended — run `studio ui` again" (no input asks for a token), with
+  every unsaved README text of the tab still on screen, read-only, to copy.
+- App structure (L4.1 part 2; React, no router or state library): hash routes `#/`, `#/p/<slug>`, `#/p/<slug>/readme`
+  (`route.ts`: `parseRoute` decodes and caps a slug — the server checks it —, `hrefTo` is the only builder of an
+  `href`); `api.ts` `call(op, args)` / `useCall` (load, reload, refetch on focus) and the connection state (online /
+  offline / ended); `Shell` (sidebar: Projects, each project with Overview / README of the open one, the workspace
+  folder, connection, version, worker from `engine_info` every 15 s and at each `jobs` event, the update mode);
+  `ProjectsScreen` (`SearchBox`, `project_list`, then ONE `projects_overview` for every card's environment flags and
+  last run — re-read at any project event, resync or focus —, `ActivityPanel`); `ProjectPage` (`project_get`, `run_list {limit: 5}`, `ActivityPanel {project}`); `ReadmeEditor`
+  (below); `drafts.ts` (unsaved README text per project for this tab, `beforeunload` guard); `events.ts` (part 3,
+  below); `Activity.tsx` (`ActivityPanel`, `SearchBox`: hits link to their project through `hrefTo`).
+- README editor: a textarea with `maxLength` 200,000 (the tool's cap) and a counter; save (button, Cmd/Ctrl+S) →
+  `project_update_readme {markdown, if_match: the hash the text was based on}` — `markdown` with a final line break and
+  the file's own line breaks (the textarea works in LF; `drafts.ts` remembers CR LF or LF from the text loaded, so
+  loading a CR LF file is no change and a save keeps it CR LF), never sent over the cap (final line break included);
+  `readme_error` (not UTF-8, a link leading out) → a read-only view with why, never the editor; no README.md → "saving
+  creates it". While open, `project_get` at each
+  `workspace` event naming the project in `readme`, at each `resync` and on focus (skipped during a save; a read
+  started before a save ended is ignored — the epoch guard): a new hash with no unsaved text
+  → loaded and announced, with unsaved text → a banner ("Load the version on disk" / "Keep editing mine"); 409 → a
+  fresh `project_get` and a panel with both texts: "Save mine over it" (if_match = the shown version's hash; another
+  change meanwhile → 409 again), "Load the version on disk" (the person's text kept read-only to copy), "Back to
+  editing".
+- Untrusted text: every value is a React text node; names, slugs, paths, URLs and errors go through `Txt` (a `<bdi>`
+  with U+202A–U+202E / U+2066–U+2069 shown as `[U+…]` marks); README text is shown as-is in a `<pre>` and the
+  textarea. A source lint (`packages/ui/test/app-source.test.ts`) bans `dangerouslySetInnerHTML`, `innerHTML` /
+  `outerHTML`, HTML-from-string APIs, `document.write`, `eval` / `Function`, string timers, `setAttribute`,
+  `javascript:`, `src=` and any `href` not built by `hrefTo`, and raw direction controls in the sources.
+- `studio ui` (cli `commands/ui.ts`): workspace check as `studio mcp` (exit 2 with the `--root` hint), lazy import of
+  `@demo-studio/ui`, opens the browser (`open` / `xdg-open`) unless `--no-open`, serves until SIGINT / SIGTERM.
+
+**The workspace index** (part 3; engine `src/index-db/`, R-ARC-05, ADR-2) — `<workspace>/.demo-studio/index.sqlite`, a
+cache of the files, written only by the Studio server holding ui.json (the worker and the CLI never open it).
+- `loadSqlite()` imports `node:sqlite` once, with a `process.emitWarning` filter that lives only during the import and
+  swallows only the warning whose message starts "SQLite is an experimental feature" (a DeprecationWarning in the same
+  window still prints); `ERR_UNKNOWN_BUILTIN_MODULE` (Node 22.0–22.12) → null: no index, `activity_list` / `search`
+  answer `unavailable` ("needs Node.js 22.13"), everything else works.
+- `WorkspaceIndex.open(ws, {loader?})` → null without node:sqlite; `rebuilt`: `missing` (built), `corrupt`
+  (`PRAGMA quick_check` not ok, or SQLITE_CORRUPT 11 / SQLITE_NOTADB 26 by `errcode` — node:sqlite's `code` is
+  generic), `schema` (meta.schema ≠ `INDEX_SCHEMA`), `not_a_file` (the db, its -wal or its -shm is not a regular file:
+  a symbolic link — SQLite would follow it — is removed, never followed) → the file and its -wal / -shm deleted and
+  built again; WAL,
+  `timeout: 2000`. Tables: `meta` (schema, generation, history inode and byte offset), `sources` (key → signature),
+  `projects` (slug, name, error, scenario count), `runs` (run.json summaries), `renders` (renders/*.json read as data —
+  the index never loads the editor), `history` (one row per history.jsonl line), `search` (FTS5: kind, project, ref,
+  title, body — project name + README, scenario names, run and render ids with scenario / mode / theme / status).
+  **No jobs table** (critique B2).
+- `reconcile()` (one pass at a time) — `scanSources(ws, unfinished)` (sources.ts): per project, the signatures (inode,
+  size, mtime) of project.yaml + sandbox.yaml + `scenarios/` (`project:<slug>`), README.md (`readme:<slug>`), `runs/`
+  + the run.json of runs the index holds as queued / running (`runs:<slug>`), `renders/` (`renders:<slug>`), and
+  history.jsonl (`history`); `diffSources` against the `sources` table → only those re-read (`listProjectSummaries`,
+  README through `LocalStorage.readText` — a link out of the project is not read —, `listRuns`, renders/*.json — a
+  README or render record only when it is a regular file (≤ 4 MiB / 1 MiB) inside the project once links are
+  followed, a run.json only as a regular file (no link, no FIFO), never opened otherwise —,
+  history.jsonl from the stored offset to its last `\n`; a shorter file or another inode is read from the start) and
+  written in one transaction; returns `{keys, generation}`.
+- `activity({project?, limit})` — jobs whose job.json says queued / running (a job seen finished is never read again:
+  its file no longer changes), each `derive()`d now (a dead worker →
+  `interrupted`, a cancel before the start → `cancelled`), then history rows newest first: `{source: 'queue' |
+  'history', at, kind, project?, state, job?, submitted_by, ms?, run?, render?, progress?}` — ids, kinds and states
+  only (history lines carry no product text). `search(q, {project?, limit ≤ 50})` — `ftsQuery(q)`: every word (NFKC,
+  control characters dropped, split on spaces and FTS punctuation, ≤ 12) a quoted prefix term with quotes doubled,
+  bound as a parameter (no FTS syntax from the person reaches SQLite); ranked; a README snippet for projects.
+- `JobsWatch.poll()` — ids of jobs new since the last poll or unfinished then whose state / progress / cancel changed
+  (the first poll takes stock): a handful of job.json reads, whatever the queue's length.
+
+**The event stream** (part 3; ui `src/server/live.ts`, app `src/app/events.ts`).
+- `GET /v1/events` (token, api route: the gate's Origin / Sec-Fetch-Site rules apply) → `text/event-stream`: `hello
+  {api, index, generation}`, `workspace {projects, readme}` (slugs whose sources changed; `readme`: README.md),
+  `jobs {changed}` (ids), `index {generation}`, `: keepalive` every 15 s. A stream is never an op (`calls` unchanged).
+- `Live` polls every second (`pollMs`) while at least one stream is open, never otherwise (critique C2: no recursive
+  fs.watch): the index's `reconcile()` — or, without node:sqlite, `scanSources` diffed in memory — and `JobsWatch`.
+  `activity_list` / `search` refresh first (`freshIndex()`), and what that refresh found goes out on the streams too.
+  At most `EVENT_STREAMS_MAX` = 4 streams; the next is 503 `too_many_streams`.
+- The page keeps ONE stream per browser (critique B1: over HTTP/1.1 each stream holds one of the browser's 6
+  connections per host — at 6 tabs every call hung and a 7th tab did not load): the tab holding the Web Lock
+  `demo-studio.events` reads it (`fetch` with the token in a header — EventSource cannot send one) and relays each event
+  over the BroadcastChannel `demo-studio.events`; when that tab closes, the lock passes to another, which opens the
+  stream. Without Web Locks each tab leads its own; a leader answered 503 publishes `resync` every 3 s (30 s), then
+  tries again; when a stream opens again after one was lost, subscribers get `resync` (re-read what they show). `useEvents`,
+  `useProjectEvents(slug)`, `useEventMode()` (`stream` / `relay` / `polling`: the sidebar says *live updates* or
+  *updates every 3 s*). The `resync` after a lost stream is the next stream's `hello` (what changed meanwhile was told
+  to nobody).
+
+**MCP over HTTP** (part 3; R-MCP-02; mcp `src/http.ts`, `server.ts`; cli `studio mcp --http`).
+- `server.ts`: `wireServer(o)` (tools/list, tools/call with progress and form elicitation) shared by `serveStdio` and
+  `mcpHttpHandler({…, maxSessions = 8, idleMs = 30 min})` — Streamable HTTP with stateful sessions
+  (`StreamableHTTPServerTransport`, `sessionIdGenerator: randomUUID`): one wired `Server` per session, so an
+  elicitation goes out on the session's stream and its answer reaches the call that asked; a request without
+  `Mcp-Session-Id` must be an `initialize` (else 400), an unknown id 404, DELETE ends a session. A session is *in use*
+  while a call runs or its GET event stream is open: at the cap a new `initialize` closes the least recently seen
+  session not in use (a client gone without DELETE: Claude Code restarted), 503 only when all are in use (`evicted`
+  counts them); a session not in use for `idleMs` is closed. The SDK's deprecated Host / Origin options stay off.
+- `startMcpHttpServer({root, port = 47820, token, log?, maxSessions?, idleMs?}) → {url, port, sessions, evicted,
+  close()}` —
+  engine client `mcp` (one engine per process, as stdio), `INSTRUCTIONS`, `TOOLS.map(protocolTool)`; each request:
+  `checkRequest` with `refuseBrowsers` and the one route `/mcp` (GET / POST / DELETE, token, ≤ 4 MiB), the security
+  headers, the body read and parsed (400 JSON-RPC parse error), then the handler. `listenLoopback`: 127.0.0.1 only.
+- `studio mcp --http [--port N] [--rotate-token] [--json]` — `stableToken(mcpHttpTokenFile(), {rotate})`, the same PATH
+  clean-up as stdio, serves until SIGINT / SIGTERM (`--json`: one line `{type: 'mcp-http', url, port, pid}`);
+  `--print-config --http [--port N]` prints the registration without the token (review A M1): `mcpHttpConfigJson`
+  (`{type: 'http', url, headers: {Authorization: 'Bearer ${DEMO_STUDIO_MCP_TOKEN}'}}` — Claude Code expands the
+  variable when it reads `.mcp.json`, which is often committed) on stdout; on stderr `claudeCodeHttpCommand` (`claude
+  mcp add --transport http demo-studio <url> --scope user --header "Authorization: Bearer $(cat '<token file>')"` —
+  the shell reads the file, its history keeps the `$(cat …)`) and `mcpHttpTokenExport` (`export
+  DEMO_STUDIO_MCP_TOKEN="$(cat '<token file>')"`). `--port` / `--rotate-token` / `--json` without `--http`: usage
+  error.
+- Whoever holds the token is an MCP client of the workspace (agent trust) and answers its own approval forms — as the
+  client that spawns `studio mcp` over stdio. Separate process and token from the Studio: a Studio page never holds it.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 
