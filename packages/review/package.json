@@ -6,7 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./thumbs": { "source": "./src/thumbs.ts", "types": "./dist/thumbs.d.ts", "default": "./dist/thumbs.js" }
   },
   "files": ["dist", "src"],
   "dependencies": {

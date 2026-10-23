@@ -3,17 +3,20 @@
  * line and nothing on stderr, serves the app and `/v1` on 127.0.0.1, writes `.demo-studio/ui.json` (0600); a second
  * `studio ui` reuses the running server with a fresh one-time link and exits 0 (warning when --port names another
  * port); SIGTERM stops the first and removes the file; an unwritable state folder is a refusal with a fix (exit 1); a
- * folder that is not a workspace is a usage error naming --root.
+ * folder that is not a workspace is a usage error naming --root. L4.2 (critique B5): its PATH is sanitised like
+ * `studio mcp`'s — an `ffmpeg` an agent wrote in the workspace (`bin/`, `node_modules/.bin/`) is never what the
+ * thumbnails run.
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'bin.js');
 const built = existsSync(BIN) && existsSync(join(dirname(BIN), '..', '..', 'ui', 'dist', 'index.js'));
@@ -28,8 +31,8 @@ interface Started {
   exit: Promise<{ code: number | null; signal: NodeJS.Signals | null; out: string; err: string }>;
 }
 
-function studio(args: string[], cwd = base): Started {
-  const child = spawn(process.execPath, [BIN, ...args], { cwd, env: { ...process.env, DEMO_STUDIO_HOME: join(base, 'home'), DEMO_STUDIO_ROOT: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+function studio(args: string[], cwd = base, env: NodeJS.ProcessEnv = {}): Started {
+  const child = spawn(process.execPath, [BIN, ...args], { cwd, env: { ...process.env, DEMO_STUDIO_HOME: join(base, 'home'), DEMO_STUDIO_ROOT: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   children.push(child);
   let out = '';
   let err = '';
@@ -130,5 +133,38 @@ describe.skipIf(!built)('studio ui (built CLI)', () => {
     expect(r.code).toBe(2);
     expect(r.err).toContain('--root');
     expect(r.out).toBe('');
+  });
+  it('its PATH is sanitised like studio mcp’s: an ffmpeg written in the workspace is never run (the thumbnails use the real one)', async () => {
+    const dir = join(base, 'ws-path');
+    await mkdir(dir, { recursive: true });
+    await fixtureWorkspace(dir);
+    const project = join(dir, 'projects', 'northfield-fixture');
+    await writeFile(join(project, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
+    const run = await writeRun(project, capture('20261020-100000-blocks'));
+    // The video path: no kept frames.
+    await rm(join(run, 'frames'), { recursive: true, force: true });
+    await rm(join(run, 'frames.jsonl'), { force: true });
+    const marker = join(base, 'fake-ffmpeg-ran');
+    for (const bin of [join(dir, 'bin'), join(dir, 'node_modules', '.bin')]) {
+      await mkdir(bin, { recursive: true });
+      await writeFile(join(bin, 'ffmpeg'), `#!/bin/sh\necho ran >> ${JSON.stringify(marker)}\nexit 1\n`, { mode: 0o755 });
+    }
+    const first = studio(['--root', dir, 'ui', '--no-open', '--json'], base, { PATH: [join(dir, 'bin'), join(dir, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter) });
+    const info = JSON.parse(await first.line) as { port: number };
+    const { token } = JSON.parse(await readFile(join(dir, '.demo-studio', 'ui.json'), 'utf8')) as { token: string };
+    const r = await fetch(`http://127.0.0.1:${info.port}/v1/call/run_thumbs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ project: 'northfield-fixture', run: '20261020-100000-blocks', keys: ['one.0', 'two.1'] }),
+    });
+    const body = (await r.json()) as { data: { thumbs: Array<{ key: string; from: string }> } };
+    expect(r.status).toBe(200);
+    expect(body.data.thumbs.map((t) => [t.key, t.from])).toEqual([
+      ['one.0', 'video'],
+      ['two.1', 'video'],
+    ]);
+    expect(existsSync(marker), 'the workspace’s ffmpeg ran').toBe(false);
+    first.child.kill('SIGTERM');
+    expect((await first.exit).code).toBe(0);
   });
 });

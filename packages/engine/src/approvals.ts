@@ -8,11 +8,24 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, destructiveReason, hookKind, rollbackApprovalReason } from '@demo-studio/core';
-import type { HookStep, JobApproval, LoadedProject, Scenario } from '@demo-studio/core';
+import { agentTrustProblems, channelWords, hookApprovalReason, hookKind } from '@demo-studio/core';
+import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@demo-studio/core';
 import type { HookPhase, HookResult } from '@demo-studio/hooks';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
+
+/**
+ * The wording channel of a client's refusals (L4.2, critique B2): the Studio (`ui`) is told "from the Studio" and to
+ * run the command in a terminal, never that "this MCP client" cannot ask; every other client gets the MCP wording.
+ */
+export function agentChannel(client: JobClient | undefined): AgentChannel {
+  return client === 'ui' ? 'studio' : 'mcp';
+}
+
+/** Why the client cannot ask its human, for a `needs_approval` refusal. */
+function cannotAsk(client: JobClient | undefined): string {
+  return agentChannel(client) === 'studio' ? 'The Studio cannot approve hooks yet: run it in a terminal' : 'This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal';
+}
 
 /** One hook a human is asked to approve. */
 export interface ApprovalItem {
@@ -76,16 +89,7 @@ export interface Preflight {
 
 /** Why a hook needs a human, from its file alone (the preflight's backstop when its dry run could not template it). */
 function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase): string | null {
-  let kind: string;
-  try {
-    kind = hookKind(hook);
-  } catch {
-    return null;
-  }
-  const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, { projectDir: project.dir }) ?? (kind === 'shell' ? 'a shell command (runs local code)' : null));
-  const rollback = phase === 'setup' ? rollbackApprovalReason(hook, { projectDir: project.dir }) : null;
-  const reasons = [own, rollback].filter((r): r is string => r !== null);
-  return reasons.length ? reasons.join('; ') : null;
+  return hookApprovalReason(hook, phase, { projectDir: project.dir });
 }
 
 /**
@@ -95,13 +99,14 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase):
 export async function preflightHooks(
   project: LoadedProject,
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[] }>,
-  o: { env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string },
+  o: { env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
 ): Promise<Preflight> {
   const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback } = await import('@demo-studio/hooks');
   const { ctx, access } = await createHookContext(project, {
     env: o.env,
     dry: true,
     trust: 'mcp',
+    ...(o.via ? { via: o.via } : {}),
     ...(o.vars ? { vars: o.vars } : {}),
     ...(o.scenario ? { scenario: o.scenario } : {}),
     log: () => undefined,
@@ -181,10 +186,11 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
  * Work submitted through MCP (core agent-trust): a scenario that names a secret or references a file outside the
  * project (or, run as code, one an agent can write) is refused before anything is queued — the worker checks it again.
  */
-export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string): void {
-  const problems = agentTrustProblems(project, sc);
+export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient): void {
+  const via = agentChannel(client);
+  const problems = agentTrustProblems(project, sc, { via });
   if (problems.length) {
-    throw new EngineError('refused', `refused through MCP: ${problems.join('; ')}`, { fix, details: { problems } });
+    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems } });
   }
 }
 
@@ -204,15 +210,16 @@ function listItems(items: readonly ApprovalItem[]): string {
 /**
  * Ask the client's human to approve `req.items` (none: nothing to ask). Returns the approvals to write with the job;
  * throws `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time
- * or the question failed — each with the `studio` command a human runs in a terminal instead.
+ * or the question failed — each with the `studio` command a human runs in a terminal instead. `client` words the
+ * refusal for its channel (agentChannel).
  */
-export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined): Promise<JobApproval[]> {
+export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
   if (!req.items.length) return [];
   const details = { hooks: req.items.map(({ fingerprint: _f, ...rest }) => rest), env: req.env };
   if (!approver) {
     throw new EngineError(
       'needs_approval',
-      `${req.what} has hooks a human must approve before they run: ${listItems(req.items)}. This MCP client cannot ask its user (no elicitation support): a human runs it in a terminal`,
+      `${req.what} has hooks a human must approve before they run: ${listItems(req.items)}. ${cannotAsk(client)}`,
       { fix: req.fix, details },
     );
   }
@@ -255,12 +262,12 @@ function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): str
  * `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time or the
  * question failed — each with the `studio theme from-site` command a human runs in a terminal instead.
  */
-export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined): Promise<JobApproval[]> {
+export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
   const details = { url: req.href, host: req.host };
   if (!approver?.approveSite) {
     throw new EngineError(
       'needs_approval',
-      `opening ${req.href} needs a human's approval of that exact URL, and this MCP client cannot ask its user (no elicitation support): a human runs it in a terminal`,
+      `opening ${req.href} needs a human's approval of that exact URL, and ${agentChannel(client) === 'studio' ? 'the Studio cannot approve it yet: run it in a terminal' : 'this MCP client cannot ask its user (no elicitation support): a human runs it in a terminal'}`,
       { fix: req.fix, details },
     );
   }

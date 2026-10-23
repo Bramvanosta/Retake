@@ -5,7 +5,7 @@
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
 import { loadProjectTemplate, loadScenario, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioEnvOf } from '@demo-studio/core';
-import type { HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
+import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
 import type { ConfirmHook } from '@demo-studio/runner-web';
 import type { SandboxLog, Take } from '@demo-studio/sandbox';
 import { formatMs, sandboxUpText } from './format.js';
@@ -134,6 +134,8 @@ export interface ExecuteRunOptions {
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
   /** Who stands behind the scenario's hook flags (default `author`; `mcp` for a job submitted through MCP). */
   hookTrust?: HookTrust;
+  /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
+  hookVia?: AgentChannel;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
   confirmHook?: ConfirmHook;
 }
@@ -220,6 +222,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.allowWrites ? { allowWrites: true } : {}),
       ...(opts.hideCursor ? { hideCursor: true } : {}),
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
+      ...(opts.hookVia ? { hookVia: opts.hookVia } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(take ? { sandbox: take.info } : {}),
       onProgress: (e) => {

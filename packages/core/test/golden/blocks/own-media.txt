@@ -1,0 +1,26 @@
+# Bring your own motion (L2.12): the provided components are never mandatory. This video opens on the brand's own intro video (with its own chime: the music bed, when there is one, ducks under it), ends on the brand's own end card (a PNG), composites a transparent burst (VP9 + alpha .webm) over the capture when the request is sent, and plays two Lottie animations — a card between the scenes and a check badge over the quotes list — in the theme's colours. The media are generated locally by scripts/fixture-media.mjs (a small Remotion project, fixtures/own-media/, and hand-written Lottie JSON): any tool, or the output of any Claude motion / design skill, works the same way.
+video own-media · title “Your own motion” / “Request a quote, in your brand” · intro {"mode":"custom","file":{"kind":"video","path":"assets/intro.mp4"}} · outro {"mode":"custom","file":{"kind":"image","path":"assets/end-card.png"},"duration":3}
+  setup 1 L15-16 http reset: POST {{shop}}/api/reset
+  teardown 1 L19-20 http reset: POST {{shop}}/api/reset
+scene request L23-31 · page shop · open /products/selowa-ridge · caption “Request a quote” / “Choose the quantity, the bag size and the grind.”
+    request.0 L28 [click] click · button “Request a quote”
+    request.1 L29 [click] click · “Increase” (aria label) in the dialog
+    request.2 L30 [select] select · field “Bag size” · option “5 kg”
+    request.3 L31 [select] select · field “Grind” · option “Whole bean”
+# Same page, same dialog: joined to the scene before it (only the caption changes).
+scene send L34-46 · page shop (inherited) · continues · caption “Delivery” / “Pick a delivery window and send the request.”
+    send.0 L37 [click] click · field “Delivery window”
+    send.1 L38 [click] click · “Next month” (aria label)
+    send.2 L39 [click] click · “10 January 2027” (aria label)
+    send.3 L40 [click] click · “24 January 2027” (aria label)
+    # Your own alpha video, composited over the capture from the click, centred on the button (anchor: target — the
+    # step's own target; its box: the file's own size × scale, in page px).
+    send.4 L43-44 [click] click · “Send request” in the dialog · {overlay: overlay video file}
+    send.5 L45-46 [wait] wait for · text “Quote request sent” · {hold: hold 1.6 s}
+# A Lottie card: a generic animation in the theme's colours (its orange, ink and gold → accent, text, muted).
+card brewing L49-52 · lottie assets/cup-steam.json · params {"size":0.7,"colors":{"#ff5a1f":"accent","#2b2b33":"text","#f2c14e":"muted"}}
+scene quotes L54-64 · page shop (inherited) · open /quotes · caption “Quotes” / “Every request and proposal, in one list.”
+    quotes.0 L58-61 [hover] hover · “Selowa Ridge” · 600 ms · {hold: hold 2.2 s; overlay: overlay lottie file}
+    quotes.1 L62 [click] click · “Selowa Ridge”
+    quotes.2 L63-64 [wait] wait for · text “Your request” · {hold: hold 1.8 s}
+13 steps

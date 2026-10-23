@@ -4,15 +4,21 @@
  * project.yaml (+ sandbox.yaml) and the scenarios/ folder, README.md, the runs/ and renders/ folders (+ the run.json
  * of the runs it was told are unfinished), and the workspace's history.jsonl: a few stats per project, nothing read.
  *
- * A source is a key (`project:<slug>`, `readme:<slug>`, `runs:<slug>`, `renders:<slug>`, `history`) and a signature
- * (inode, size, mtime of each file or folder it covers); a key whose signature changed is a change to re-read.
+ * A source is a key (`project:<slug>`, `readme:<slug>`, `runs:<slug>`, `renders:<slug>`, `scenario:<slug>/<name>`,
+ * `history`) and a signature (inode, size, mtime of each file or folder it covers); a key whose signature changed is a
+ * change to re-read. Each scenario file is signed on its own (L4.2): an in-place save changes no folder, and the
+ * scenario screen re-reads only its own file's changes (critique B1). The index reads nothing for a scenario key (the
+ * project key covers the list of names).
  */
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { WorkspaceConfig } from '@demo-studio/core';
 import { historyFile } from '../history.js';
 
-export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'history';
+export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'history';
+
+/** A scenario file name (scenarios/<name>.yaml or .yml). */
+const SCENARIO_FILE_RE = /^([A-Za-z0-9][A-Za-z0-9_-]*)\.ya?ml$/;
 
 /** `kind:slug` (`history` alone) → signature. */
 export type SourceMap = Map<string, string>;
@@ -38,6 +44,22 @@ async function projectSlugs(ws: WorkspaceConfig): Promise<string[]> {
   return entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name).sort();
 }
 
+/** Scenario names of a scenarios/ folder → their files (.yaml, then .yml), sorted. */
+async function scenarioFiles(dir: string): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return out;
+  }
+  for (const f of names.sort()) {
+    const m = SCENARIO_FILE_RE.exec(f);
+    if (m) out.set(m[1], [...(out.get(m[1]) ?? []), f]);
+  }
+  return out;
+}
+
 /**
  * Signatures of every source of the workspace. `unfinished` names, per project, the runs whose run.json is still being
  * written (the runner rewrites it in place while it runs: the runs/ folder alone would not change).
@@ -54,6 +76,9 @@ export async function scanSources(ws: WorkspaceConfig, unfinished: ReadonlyMap<s
     for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await sig(join(dir, 'runs', id, 'run.json'))}`);
     out.set(`runs:${slug}`, runs.join('|'));
     out.set(`renders:${slug}`, await sig(join(dir, 'renders')));
+    for (const [name, files] of await scenarioFiles(join(dir, 'scenarios'))) {
+      out.set(`scenario:${slug}/${name}`, (await Promise.all(files.map((f) => sig(join(dir, 'scenarios', f))))).join('|'));
+    }
   }
   out.set('history', await sig(historyFile(ws.root)));
   return out;
@@ -67,23 +92,84 @@ export function diffSources(before: ReadonlyMap<string, string>, after: Readonly
   return [...changed].sort();
 }
 
-/** The kind and project of a source key. */
-export function sourceKey(key: string): { kind: SourceKind; project?: string } {
+/** The kind and project of a source key (and the scenario name of a `scenario:` key). */
+export function sourceKey(key: string): { kind: SourceKind; project?: string; scenario?: string } {
   const i = key.indexOf(':');
-  return i < 0 ? { kind: key as SourceKind } : { kind: key.slice(0, i) as SourceKind, project: key.slice(i + 1) };
+  if (i < 0) return { kind: key as SourceKind };
+  const kind = key.slice(0, i) as SourceKind;
+  const rest = key.slice(i + 1);
+  if (kind !== 'scenario') return { kind, project: rest };
+  const j = rest.indexOf('/');
+  return { kind, project: rest.slice(0, j), scenario: rest.slice(j + 1) };
 }
 
-/** What changed, as the event stream says it: projects touched (any key of theirs) and READMEs changed. */
-export function workspaceChanges(keys: readonly string[]): { projects: string[]; readme: string[]; history: boolean } {
+/**
+ * What changed, as the event stream says it: projects touched (any key of theirs), READMEs changed and scenario files
+ * changed, added or removed (`<slug>/<name>`).
+ */
+export function workspaceChanges(keys: readonly string[]): { projects: string[]; readme: string[]; scenarios: string[]; history: boolean } {
   const projects = new Set<string>();
   const readme = new Set<string>();
+  const scenarios = new Set<string>();
   let history = false;
   for (const k of keys) {
-    const { kind, project } = sourceKey(k);
+    const { kind, project, scenario } = sourceKey(k);
     if (kind === 'history') history = true;
     if (project === undefined) continue;
     projects.add(project);
     if (kind === 'readme') readme.add(project);
+    if (kind === 'scenario' && scenario !== undefined) scenarios.add(`${project}/${scenario}`);
   }
-  return { projects: [...projects].sort(), readme: [...readme].sort(), history };
+  return { projects: [...projects].sort(), readme: [...readme].sort(), scenarios: [...scenarios].sort(), history };
+}
+
+/** A run of a project as the index holds it (what a run change is told from). */
+export interface RunRow {
+  id: string;
+  scenario: string | null;
+  status: string | null;
+}
+
+/**
+ * A run that started, progressed, finished or went away (L4.2, critique B1): the `workspace` event names the run and
+ * its scenario, so a scenario screen re-reads only for runs of its own scenario.
+ */
+export interface RunChange {
+  project: string;
+  run: string;
+  scenario: string | null;
+  status: string | null;
+  finished: boolean;
+  /** new: a run folder appeared; status: its status changed; progress: an unfinished run's run.json was rewritten; removed. */
+  change: 'new' | 'status' | 'progress' | 'removed';
+}
+
+const FINISHED_RUN = new Set(['succeeded', 'failed', 'cancelled']);
+
+/** The run.json signatures a `runs:<slug>` signature holds (`<id>=<sig>` parts: the unfinished runs it watched). */
+function watchedRuns(sig: string | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const part of (sig ?? '').split('|').slice(1)) {
+    const i = part.indexOf('=');
+    if (i > 0) out.set(part.slice(0, i), part.slice(i + 1));
+  }
+  return out;
+}
+
+/** The runs of a project that changed between two reads (rows) and two `runs:` signatures, by run id. */
+export function runChanges(project: string, before: readonly RunRow[], after: readonly RunRow[], prevSig?: string, nextSig?: string): RunChange[] {
+  const old = new Map(before.map((r) => [r.id, r]));
+  const now = new Map(after.map((r) => [r.id, r]));
+  const sigsBefore = watchedRuns(prevSig);
+  const sigsAfter = watchedRuns(nextSig);
+  const out: RunChange[] = [];
+  const row = (r: RunRow, change: RunChange['change']): RunChange => ({ project, run: r.id, scenario: r.scenario, status: r.status, finished: FINISHED_RUN.has(r.status ?? ''), change });
+  for (const r of after) {
+    const o = old.get(r.id);
+    if (!o) out.push(row(r, 'new'));
+    else if (o.status !== r.status) out.push(row(r, 'status'));
+    else if (!FINISHED_RUN.has(r.status ?? '') && sigsBefore.has(r.id) && sigsAfter.has(r.id) && sigsBefore.get(r.id) !== sigsAfter.get(r.id)) out.push(row(r, 'progress'));
+  }
+  for (const o of before) if (!now.has(o.id)) out.push({ ...row(o, 'removed'), finished: FINISHED_RUN.has(o.status ?? '') });
+  return out.sort((a, b) => (a.run < b.run ? -1 : a.run > b.run ? 1 : 0));
 }

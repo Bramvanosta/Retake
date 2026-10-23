@@ -6,8 +6,8 @@
  * project may not point at them, and a run, hooks or an environment reset on a read-write environment that does is
  * refused (a human runs it from a terminal, where project.yaml is theirs).
  */
-import { environmentAccess, hostMatches, listProjects, normalizeAllowEntry, normalizeHost, resolveEnvironment } from '@demo-studio/core';
-import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
+import { channelWords, environmentAccess, hostMatches, listProjects, normalizeAllowEntry, normalizeHost, resolveEnvironment } from '@demo-studio/core';
+import type { AgentChannel, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';
 
@@ -102,7 +102,7 @@ export async function checkNewProjectHosts(ws: WorkspaceConfig, environments: Re
  * points at a host of another project's production or read-only environment. A protected environment itself is not
  * concerned (its run is read-only, or refuses what writes).
  */
-export async function checkWorkspaceProtection(ws: WorkspaceConfig, project: LoadedProject, envName: string | undefined, fix?: string): Promise<void> {
+export async function checkWorkspaceProtection(ws: WorkspaceConfig, project: LoadedProject, envName: string | undefined, fix?: string, via?: AgentChannel): Promise<void> {
   const env = resolveEnvironment(project, envName);
   if (isProtected(env) || env.sandbox !== undefined) return;
   const hosts = await workspaceProtectedHosts(ws, project.slug);
@@ -112,7 +112,7 @@ export async function checkWorkspaceProtection(ws: WorkspaceConfig, project: Loa
     if (hit) {
       throw new EngineError(
         'refused',
-        `environment ${env.name} of project ${project.slug} is read-write and its page ${page} (${url}) points at a host of ${describe(hit)}: through MCP nothing runs read-write on another project's production or read-only hosts — mark the environment production / read-only in project.yaml, or a human runs it in a terminal`,
+        `environment ${env.name} of project ${project.slug} is read-write and its page ${page} (${url}) points at a host of ${describe(hit)}: ${channelWords(via)} nothing runs read-write on another project's production or read-only hosts — mark the environment production / read-only in project.yaml, or a human runs it in a terminal`,
         fix ? { fix } : undefined,
       );
     }

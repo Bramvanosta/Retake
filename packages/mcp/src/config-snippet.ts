@@ -6,16 +6,15 @@
  * the `skills/` plugin with its userConfig values); `studio mcp` itself serves with `clientPath` as its PATH.
  */
 import { existsSync, realpathSync } from 'node:fs';
-import { delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
-import { studioHome } from '@demo-studio/core';
+import { dirname, join, resolve } from 'node:path';
+import { clientPath, studioHome } from '@demo-studio/core';
+
+export { clientPath };
 
 export const SERVER_NAME = 'demo-studio';
 /** The plugin and its marketplace (`.claude-plugin/marketplace.json` at the repository root, the plugin in `skills/`). */
 export const PLUGIN_NAME = 'demo-studio';
 export const PLUGIN_ID = `${PLUGIN_NAME}@${PLUGIN_NAME}`;
-
-/** Folders a GUI client's PATH lacks where Homebrew and the system keep the tools the engine runs. */
-const EXTRA_PATH = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 
 /**
  * A path to the same Node.js major that survives patch upgrades: mise's `installs/node/<major>` alias, Homebrew's
@@ -34,45 +33,6 @@ export function stableNodePath(execPath: string, exists: (p: string) => boolean 
     if (exists(alias)) return alias;
   }
   return execPath;
-}
-
-/**
- * Folders a package manager puts on the PATH of the script it runs (`pnpm studio …`): a project's node_modules/.bin, its
- * own versioned install (corepack, node-gyp-bin). Not for a registration: they move or vanish with the next install.
- */
-const TRANSIENT_PATH = /(?:^|[\\/])node_modules[\\/]\.bin(?:[\\/]|$)|[\\/]corepack[\\/]|[\\/]node-gyp-bin(?:[\\/]|$)/;
-
-/** A path and, when it exists, its real path (macOS: /tmp → /private/tmp, /var → /private/var). */
-function spellings(p: string): string[] {
-  const abs = resolve(p);
-  try {
-    return [...new Set([abs, realpathSync(abs)])];
-  } catch {
-    return [abs];
-  }
-}
-
-/** Whether `p` is `folder` or inside it, under any spelling of either. */
-function isUnder(p: string, folder: string): boolean {
-  const roots = spellings(folder);
-  return spellings(p).some((x) => roots.some((r) => x === r || x.startsWith(r.endsWith(sep) ? r : r + sep)));
-}
-
-/**
- * The current PATH, the node's own folder first, without the folders a package manager added for the script it runs,
- * plus the Homebrew / system folders that exist and are missing. Absolute entries only: a relative one (`.`, `bin`)
- * resolves against the cwd, and a server's cwd is the client's project folder, where an agent writes files. For the same
- * reason, no entry inside the workspace (`workspace`, when given: `<ws>/bin`, `<ws>/node_modules/.bin`): the agent writes
- * files there, and the server's children would run them. The node's folder goes first, so the `node` the server's
- * children find is the one that runs it (the registered one).
- */
-export function clientPath(node: string, current = process.env.PATH ?? '', exists: (p: string) => boolean = existsSync, workspace?: string): string {
-  const parts = [
-    dirname(node),
-    ...current.split(delimiter).filter((p) => p && isAbsolute(p) && !TRANSIENT_PATH.test(p) && !(workspace && isUnder(p, workspace))),
-  ];
-  for (const p of EXTRA_PATH) if (exists(p)) parts.push(p);
-  return [...new Set(parts)].join(delimiter);
 }
 
 export interface McpConfigInput {

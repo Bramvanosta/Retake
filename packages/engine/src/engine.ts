@@ -32,7 +32,12 @@ import { liveWorker } from './jobs/lock.js';
 import type { WorkerLockRecord } from './jobs/lock.js';
 import { FileJobQueue } from './jobs/queue.js';
 import type { JobFilter } from './jobs/queue.js';
-import { submitRunJob } from './jobs/run-job.js';
+import { runBlockers, submitRunJob } from './jobs/run-job.js';
+import { RunDataCache } from './run-data.js';
+import { RunThumbs } from './run-thumbs.js';
+import type { RunThumbsView } from './run-thumbs.js';
+import { ScenarioViews } from './scenario-view.js';
+import type { ScenarioView } from './scenario-view.js';
 import { submitEnvResetJob, submitHooksJob } from './jobs/hooks-job.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job.js';
 import { submitAuthLoginJob } from './jobs/auth-job.js';
@@ -73,8 +78,10 @@ import type { Entitlements } from './entitlements.js';
 import { usageCounts } from './history.js';
 import type { UsageCounts } from './history.js';
 import type { Approver } from './approvals.js';
-import type { RunSubmitRequest } from './jobs/run-job.js';
+import type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
 import { ensureWorker } from './jobs/spawn.js';
+import { cleanWorkerEnv } from './jobs/worker-env.js';
+import type { WorkerSpawnFn } from './jobs/spawn.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobEvent, JobRecord, SiteJobResult } from './jobs/types.js';
 
@@ -101,6 +108,10 @@ export interface EngineOptions {
   autoStartWorker?: boolean;
   /** The idle exit of a worker this engine starts (ms; default the worker's 60 s). */
   workerIdleExitMs?: number;
+  /** The environment of a worker this engine starts (default: the CLI's own; any other client's cleanWorkerEnv). */
+  workerEnv?: NodeJS.ProcessEnv;
+  /** Tests: starts the worker process (default node's spawn). */
+  workerSpawn?: WorkerSpawnFn;
 }
 
 /** A run's job as run_status shows it. */
@@ -158,6 +169,11 @@ export interface AuthStatus {
   errors: Array<{ project: string; error: string }>;
 }
 
+/** engine.scenarios.check: a saved scenario, its own issues and what would refuse running it from this client. */
+export interface ScenarioCheck extends ScenarioText, ValidateResult {
+  run_blockers: { dry: RunBlocker[]; capture: RunBlocker[] };
+}
+
 export interface Engine {
   readonly root: string;
   readonly workspace: WorkspaceConfig;
@@ -175,6 +191,19 @@ export interface Engine {
   scenarios: {
     get(project: string, name: string): Promise<ScenarioText>;
     validate(project: string, yaml: string, opts?: { env?: string; until?: string; name?: string }): Promise<ValidateResult>;
+    /**
+     * A saved scenario as the Studio's scenario screen reads it (L4.2): its text and hash, its own problems — validated
+     * against the project WITHOUT agent trust (a person's `{{env:…}}` is valid in their file) — and, apart, what would
+     * refuse a dry run and a capture submitted by this client (`run_blockers`: agent-trust problems, protected hosts,
+     * hooks a rule refuses, hooks that need a person), so a screen says it before any click.
+     */
+    check(project: string, name: string, opts?: { env?: string }): Promise<ScenarioCheck>;
+    /**
+     * The Studio's scenario screen in one read (L4.2, scenario-view.ts): `check`'s file, issues and run blockers, plus
+     * the blocks, the environment and scene URLs, the scenario's runs, the source run of the pictures (the one asked
+     * for, else the newest complete one) and every step's binding to it; memoised by file hash and the runs' files.
+     */
+    view(project: string, name: string, opts?: { run?: string; env?: string }): Promise<ScenarioView>;
     save(project: string, name: string, yaml: string, opts?: { ifMatch?: string | null }): Promise<SaveResult>;
     /**
      * A timecoded script table → an outline and a draft scenario (one `hold` per beat, the action as its note), validated
@@ -195,6 +224,11 @@ export interface Engine {
     submit(req: RunSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; run_id: string; warnings: string[]; worker?: { pid?: number; spawned: boolean } }>;
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
+    /**
+     * JPEG thumbnails (base64, ≤ 480 px) of up to 24 steps of a run, by the run's own step keys (L4.2, run-thumbs.ts):
+     * dry-run screenshots, error screenshots, the frame on screen at a capture step's end. Made in memory, never stored.
+     */
+    thumbs(project: string, runId: string, keys: readonly string[], opts?: { signal?: AbortSignal }): Promise<RunThumbsView>;
   };
   jobs: {
     get(id: string): Promise<JobRecord>;
@@ -376,8 +410,20 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     if (opts.client !== 'cli') throw new EngineError('refused', `${what} is for a person at a terminal (studio comment ${what.split(' ')[0]}): an agent replies to and resolves comments`);
   };
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
+  // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
+  const runData = new RunDataCache();
+  const runThumbs = new RunThumbs({}, runData);
   const startWorker = async () =>
-    opts.autoStartWorker === false ? undefined : ensureWorker(ws.root, opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {});
+    opts.autoStartWorker === false
+      ? undefined
+      : ensureWorker(ws.root, {
+          ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
+          // Any client but the CLI hands its worker a clean environment (review A #3: a worker an MCP client starts
+          // serves the Studio's later jobs too); the Studio passes its own (the same cleaner).
+          ...(opts.workerEnv ? { env: opts.workerEnv } : opts.client !== 'cli' ? { env: cleanWorkerEnv(process.env, ws.root) } : {}),
+          ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
+          startedBy: opts.client,
+        });
   const getJob = async (id: string): Promise<JobRecord> => {
     const job = await queue.get(id);
     if (!job) throw new EngineError('not_found', `job ${id} not found (job_list names the jobs)`);
@@ -404,6 +450,16 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   /** What run.json cannot say: its worker died (interrupted), or the job ended before the run started. */
   const overlaid = (status: RunStatusWithJob['status'], job: JobRecord): 'interrupted' | 'cancelled' | 'failed' | undefined =>
     job.state === 'interrupted' || ((job.state === 'cancelled' || job.state === 'failed') && status === 'queued') ? job.state : undefined;
+  const views = new ScenarioViews({
+    ws,
+    project,
+    blockers: (req) => runBlockers(submitCtx, req),
+    overlay: async (slug, run) => {
+      const job = await queue.ofRun(slug, run.id);
+      return (job ? overlaid(run.status, job) : undefined) ?? run.status;
+    },
+    runs: runData,
+  });
   const runStatusWithJob = async (slug: string, runId: string): Promise<RunStatusWithJob> => {
     const view: RunStatusWithJob = await runStatus(await project(slug), runId);
     const job = await queue.ofRun(slug, runId);
@@ -441,7 +497,9 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'projects',
         'scenarios',
         'scenarios.from_script',
+        'scenarios.view',
         'runs.read',
+        'runs.thumbs',
         'runs.dry',
         'runs.capture',
         'jobs',
@@ -482,6 +540,14 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       get: async (slug, name) => getScenario(await project(slug), name),
       // What an agent (the MCP server, the Studio app) writes is checked as the work it submits will be (core agent-trust).
       validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: agentTrust(opts.client) }),
+      check: async (slug, name, o = {}) => {
+        const p = await project(slug);
+        const text = await getScenario(p, name);
+        const { ok, issues } = await validateScenarioText(p, text.yaml, { name, ...(o.env !== undefined ? { env: o.env } : {}) });
+        const run_blockers = await runBlockers(submitCtx, { project: slug, scenario: name, ...(o.env !== undefined ? { env: o.env } : {}) });
+        return { ...text, ok, issues, run_blockers };
+      },
+      view: (slug, name, o = {}) => views.view(slug, name, o),
       save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client) }),
       fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: agentTrust(opts.client) }),
     },
@@ -513,6 +579,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         await startWorker();
         return rec;
       },
+      thumbs: async (slug, runId, keys, o = {}) => runThumbs.thumbs((await project(slug)).dir, slug, runId, keys, o),
     },
     jobs: {
       get: getJob,

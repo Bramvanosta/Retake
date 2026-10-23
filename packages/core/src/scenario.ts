@@ -1,4 +1,4 @@
-import { closeSync, constants as fsConstants, existsSync, fstatSync, openSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { parse as parseYamlText, parseDocument } from 'yaml';
@@ -6,6 +6,7 @@ import { checkScenario } from './checks/scenario.js';
 import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
 import type { ScenarioCheckOptions } from './checks/scenario.js';
 import { hasErrors, issuesMessage } from './issues.js';
+import { readPlainFile } from './plain-file.js';
 import { listScenarioNames } from './project.js';
 import { SLUG_RE } from './schemas/primitives.js';
 import { ScenarioSchema } from './schemas/scenario.js';
@@ -81,22 +82,11 @@ export const SCENARIO_COMPARE_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * A small regular file read whole, or undefined: missing, a symbolic link, not a regular file (a FIFO or a device
- * would block the reader), over `max` bytes or unreadable. Opened without following a link and without blocking, then
- * checked on the open descriptor (no swap between the check and the read).
+ * would block the reader), over `max` bytes or unreadable (core readPlainFile).
  */
 function readSmallPlainFile(file: string, max: number): string | undefined {
-  let fd: number | undefined;
-  try {
-    fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
-    const st = fstatSync(fd);
-    if (!st.isFile() || st.size > max) return undefined;
-    const text = readFileSync(fd, 'utf8');
-    return Buffer.byteLength(text) > max ? undefined : text;
-  } catch {
-    return undefined;
-  } finally {
-    if (fd !== undefined) closeSync(fd);
-  }
+  const r = readPlainFile(file, max);
+  return r.ok ? r.bytes.toString('utf8') : undefined;
 }
 
 /** JSON with object keys sorted (arrays keep their order): two YAML texts with the same data give the same string. */
@@ -134,7 +124,16 @@ export function scenarioChangedSinceRun(project: Pick<LoadedProject, 'dir'>, run
   if (!file) return undefined;
   const now = readSmallPlainFile(file, SCENARIO_COMPARE_MAX_BYTES);
   const then = now === undefined ? undefined : readSmallPlainFile(join(runDir, 'scenario.yaml'), SCENARIO_COMPARE_MAX_BYTES);
-  if (now === undefined || then === undefined) return undefined;
+  return now === undefined ? undefined : scenarioTextChanged(now, then);
+}
+
+/**
+ * scenarioChangedSinceRun's comparison of two texts already read (today's file, the run's snapshot): by their data —
+ * comments, blank lines, quoting, indentation and key order are no change; the text when either does not parse.
+ * Undefined when there is no snapshot.
+ */
+export function scenarioTextChanged(now: string, then: string | undefined): boolean | undefined {
+  if (then === undefined) return undefined;
   if (now === then) return false;
   const a = yamlData(now);
   const b = a === undefined ? undefined : yamlData(then);

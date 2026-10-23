@@ -396,7 +396,10 @@ A client of the same packages (the MCP keeps working without it). Served locally
   (page, URL, caption, speed); steps are rows with an action icon and **badges** (click, type, navigation, scroll, zoom,
   hold, mark, caption, speed, irreversible); inline editing, drag & drop reordering; each step shows the real frame from
   the last dry-run/capture.
-- **Run**: dry-run with live preview of the headless browser (screencast), capture with progress.
+- **Run**: dry-run with live preview of the headless browser (screencast), capture with progress. The scenario screen
+  (L4.2) already starts a dry run or a capture of its scenario and cancels it, with the run's progress in a banner;
+  what needs a person (hooks to approve) stays in the terminal, said before the click with the command. The live
+  preview and the run screen are L4.4.
 - **Edit/verify timeline**: segments (intro, scenes, cards, outro) with their **components switchable in one click**,
   caption / camera (zoom) / speed / marker tracks, a scrubber with a live preview (Remotion Player — no render needed),
   render queue, review report and contact sheets.

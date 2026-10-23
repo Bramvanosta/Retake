@@ -1,7 +1,7 @@
 /**
  * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
  * event stream per browser) and the screens inside the shell — Projects (with search and recent activity), a project,
- * its README editor. Every string from the server is a React text node: no HTML from data,
+ * its README editor, a scenario as blocks with its run's pictures (L4.2). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
  * is the second line.
  */
@@ -14,6 +14,7 @@ import { dirtyDrafts, guardUnload } from './drafts.js';
 import { ProjectPage } from './ProjectPage.js';
 import { ProjectsScreen } from './ProjectsScreen.js';
 import { ReadmeEditor } from './ReadmeEditor.js';
+import { ScenarioScreen } from './ScenarioScreen.js';
 import { hrefTo, parseRoute } from './route.js';
 import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
@@ -31,7 +32,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -44,7 +45,7 @@ function Studio() {
   });
   const first = useRef(true);
   useEffect(() => {
-    document.title = `${TITLES[route.name]} · Demo Studio`;
+    document.title = `${route.name === 'scenario' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · Demo Studio`;
     // Back on the projects: read them again (the first load is useCall's own).
     if (route.name === 'projects' && !first.current) reloadList();
     first.current = false;
@@ -55,6 +56,7 @@ function Studio() {
       {route.name === 'projects' && <ProjectsScreen list={list} />}
       {route.name === 'project' && <ProjectPage key={route.slug} slug={route.slug} />}
       {route.name === 'readme' && <ReadmeEditor key={route.slug} slug={route.slug} />}
+      {route.name === 'scenario' && <ScenarioScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} tab={route.tab} />}
       {route.name === 'not-found' && (
         <div className="screen">
           <h1>Nothing here</h1>

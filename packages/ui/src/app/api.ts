@@ -64,6 +64,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(path, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` }, credentials: 'omit', cache: 'no-store' });
   } catch {
+    // A call this tab gave up on (its signal) is not a lost server.
+    if (init.signal?.aborted) throw new CallError(0, { code: 'cancelled', message: 'cancelled' });
     setConnection('offline');
     throw new CallError(0, { code: 'unavailable', message: 'The Studio server does not answer: is `studio ui` still running?' });
   }
@@ -76,6 +78,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     body = (await res.json()) as typeof body;
   } catch {
+    if (init.signal?.aborted) throw new CallError(0, { code: 'cancelled', message: 'cancelled' });
     body = {};
   }
   if (!res.ok || !body.ok) throw new CallError(res.status, body.error ?? { code: 'internal', message: `HTTP ${res.status}` });
@@ -87,9 +90,12 @@ export function info<T>(): Promise<T> {
   return request<T>('/v1/info');
 }
 
-/** `POST /v1/call/<op>`: one op of the allow-list with its arguments; the tool's data, or a CallError. */
-export function call<T>(op: string, args: Record<string, unknown> = {}): Promise<T> {
-  return request<T>(`/v1/call/${encodeURIComponent(op)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+/**
+ * `POST /v1/call/<op>`: one op of the allow-list with its arguments; the tool's data, or a CallError. `signal` aborts
+ * it (the server then stops the op: closing the request aborts its work) — a CallError `cancelled`.
+ */
+export function call<T>(op: string, args: Record<string, unknown> = {}, o: { signal?: AbortSignal } = {}): Promise<T> {
+  return request<T>(`/v1/call/${encodeURIComponent(op)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args), ...(o.signal ? { signal: o.signal } : {}) });
 }
 
 export function errorText(e: unknown): string {

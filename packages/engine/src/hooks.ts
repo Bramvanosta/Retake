@@ -25,7 +25,7 @@ import {
   runAccess,
   urlOriginPath,
 } from '@demo-studio/core';
-import type { HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@demo-studio/core';
+import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@demo-studio/core';
 import type { HookContext, HookPhase } from '@demo-studio/hooks';
 import type { LoginCommandOf } from './auth.js';
 
@@ -130,6 +130,8 @@ export interface HookContextOptions {
   scenario?: Scenario;
   /** Default `author` (the CLI); `mcp` for jobs submitted through the MCP server. */
   trust?: HookTrust;
+  /** The channel trust-`mcp` work came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
+  via?: AgentChannel;
   /** Every message of the hooks (redacted by them). */
   log: HookContext['log'];
   /** Approves a hook that needs a human (CLI: --yes or the prompt; the worker: the job's approvals). */
@@ -199,6 +201,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     log: o.log,
     ...(o.confirm ? { confirmDestructive: o.confirm } : {}),
     ...(o.trust ? { trust: o.trust } : {}),
+    ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     evalInPage: async (pageKey, code) => {
       const rw = await import('@demo-studio/runner-web');

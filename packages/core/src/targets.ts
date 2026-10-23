@@ -112,3 +112,65 @@ export function pickTarget<T extends object>(o: T): TargetObject {
   }
   return out as TargetObject;
 }
+
+// ── Targets in plain words (L4.2) ───────────────────────────────────────────
+
+/** “text” — the curly quotes a reader sees around a word of the page (never markup: the Studio renders text nodes). */
+function quoted(s: string): string {
+  return `“${s}”`;
+}
+
+/** 1st, 2nd, 3rd, 4th… 11th, 12th, 13th, 21st. */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+}
+
+const SCOPE_WORDS: Readonly<Record<string, string>> = { dialog: 'the dialog', menu: 'the menu', listbox: 'the list', popover: 'the popover' };
+
+/** A scope in plain words: "the dialog", "the row containing “Iceland”", or a target's own words. */
+export function plainScope(s: ScopeSpec): string {
+  if (typeof s === 'string') return SCOPE_WORDS[s] ?? s;
+  if (s && typeof s === 'object' && 'row' in s && typeof (s as { row: unknown }).row === 'string') return `the row containing ${quoted((s as { row: string }).row)}`;
+  return plainTarget(s as TargetObject);
+}
+
+/**
+ * A target as a reader says it (L4.2, R-UI-09), next to `describeTarget` (the timeline's and the logs' selector-like
+ * form, unchanged): `"Save"` → `“Save”`; `{role: button, name: OK}` → `button “OK”`; `{aria: Increase, in: dialog}` →
+ * `“Increase” (aria label) in the dialog`; `{label: Delivery window}` → `field “Delivery window”`; css →
+ * `element matching .row > button`; `nth: 1` → `the 2nd …`; a point → `point 640, 360`. Every value as written (a
+ * templated `{{shop}}` stays a reference); never throws on a malformed value.
+ */
+export function plainTarget(t: TargetSpec | PointSpec | unknown): string {
+  if (isPoint(t)) return `point ${t.x}, ${t.y}`;
+  if (typeof t !== 'string' && (t === null || typeof t !== 'object' || Array.isArray(t))) return t === undefined ? 'the page' : String(JSON.stringify(t));
+  const o = normalizeTarget(t as TargetSpec) as Record<string, unknown>;
+  const str = (k: string): string | undefined => (typeof o[k] === 'string' ? (o[k] as string) : undefined);
+  const parts: string[] = [];
+  const role = str('role');
+  const name = str('name');
+  if (role !== undefined) parts.push(name !== undefined ? `${role} ${quoted(name)}` : role);
+  else if (name !== undefined) parts.push(quoted(name));
+  const text = str('text');
+  if (text !== undefined) parts.push(quoted(text));
+  const label = str('label');
+  if (label !== undefined) parts.push(`field ${quoted(label)}`);
+  const aria = str('aria');
+  if (aria !== undefined) parts.push(`${quoted(aria)} (aria label)`);
+  const placeholder = str('placeholder');
+  if (placeholder !== undefined) parts.push(`field with placeholder ${quoted(placeholder)}`);
+  const testid = str('testid');
+  if (testid !== undefined) parts.push(`element with test id ${quoted(testid)}`);
+  const css = str('css');
+  if (css !== undefined) parts.push(`element matching ${css}`);
+  const contains = typeof o.contains === 'string' ? [o.contains] : Array.isArray(o.contains) ? o.contains.filter((c): c is string => typeof c === 'string') : [];
+  if (contains.length) parts.push(`element containing ${contains.map(quoted).join(' and ')}`);
+  let s = parts.join(', ') || 'any element';
+  if (o.exact === true) s += ' (exact)';
+  if (typeof o.nth === 'number' && Number.isInteger(o.nth)) s = o.nth >= 0 ? `the ${ordinal(o.nth + 1)} ${s}` : o.nth === -1 ? `the last ${s}` : `the ${ordinal(-o.nth)} from last ${s}`;
+  else if (o.last_visible === true) s = `the last visible ${s}`;
+  if (o.in !== undefined && o.in !== 'page' && o.in !== null) s += ` in ${plainScope(o.in as ScopeSpec)}`;
+  return s;
+}

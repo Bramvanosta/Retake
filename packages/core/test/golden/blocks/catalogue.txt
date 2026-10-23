@@ -1,0 +1,33 @@
+# Supplier side: import a price list, manage availability by market, add a coffee from the registry.
+video catalogue · title “For suppliers” / “Manage your catalogue” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Your catalogue, under control."}
+  setup 1 L9-10 http reset: POST {{console}}/api/reset
+  # Finca Quenaro 2026 is already linked to an archived product, so the registry would refuse
+  # it as a duplicate. Free its registry ref for the shot (restored by the rollback / teardown).
+  setup 2 L13-18 http free-registry-ref: DELETE {{console}}/api/products/finca-quenaro/refs · rollback POST {{console}}/api/products/finca-quenaro/refs · needs a person: HTTP DELETE · [destructive: HTTP DELETE; with rollback; confirm]
+  teardown 1 L21-22 http reset: POST {{console}}/api/reset
+scene import L25-36 · page console · open /imports · caption “Catalogue import” / “Import your entire price list in seconds, with availability by region.”
+    import.0 L30 [click] click · “New import”
+    import.1 L31 [select] select · element matching #import-organization · option “Northfield Roasters”
+    import.2 L32 [drop_file] drop file · “Click to choose a file” · file “Northfield - Price list 2027.xlsx” (placeholder)
+    import.3 L33 [click] click · “Start import” in the dialog
+    import.4 L34-35 [wait] wait for · text “921 offers created”, up to 10 s · {mark: mark import-done}
+    import.5 L36 [hold] hold · 2.2 s
+scene availability L38-50 · page console (inherited) · open /availability/products/finca-lirandel-geisha · caption “Availability by market” / “Pause a market, or fine-tune bag sizes, grinds and label languages in a few clicks.” · speed ×1.6
+    availability.0 L43 [scroll] scroll · to 560 px, 1.5 s
+    availability.1 L44 [menu] menu · the row containing “Iceland” · item “Pause”, confirm “Pause”
+    availability.2 L45 [menu] menu · the row containing “Sweden” · item “Edit”
+    availability.3 L46 [pick] pick · field “Bag sizes” · option “1 kg”
+    availability.4 L47 [pick] pick · field “Grind options” · option “Espresso”
+    availability.5 L48 [pick] pick · field “Label languages” · option “Swedish”, search “Swe”
+    availability.6 L49 [click] click · “Save” in the dialog
+    availability.7 L50 [hold] hold · 2 s
+scene add-product L52-66 · page console (inherited) · open /products · caption “Add a coffee” / “Pick a lot from the registry: tasting notes, producer and awards fill in by themselves.”
+    add-product.0 L56 [click] click · “Add a coffee”
+    add-product.1 L57 [type] type · textbox in the dialog · “Finca Quenaro”
+    add-product.2 L58 [click] click · element containing “Finca Quenaro” and “2026” in the dialog
+    # Fails fast when the product page did not open (e.g. the registry refused a duplicate lot).
+    add-product.3 L60 [wait] wait for · text “Enrichment in progress”, up to 5 s
+    add-product.4 L61-63 [wait] wait for · text “Enrichment in progress” gone, up to 30 s · {hold: hold 1.4 s; mark: mark reveal}
+    add-product.5 L64-65 [scroll] scroll · “Awards” · 2.2 s · {zoom: zoom ×1.3}
+    add-product.6 L66 [hold] hold · 3.5 s
+21 steps

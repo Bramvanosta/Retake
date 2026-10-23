@@ -1,0 +1,47 @@
+# Buyer side: discover a coffee, request a quote (the roaster's console shows a web notification, captured and overlaid), receive the roaster's proposal, download the PDF (a real PDF, rasterised into a document card).
+# 
+# The `open-console` setup hook loads the supplier console in a background tab: it polls for quote requests and shows a web notification (Notification API) when ours arrives — the runner captures it (title, body, icon).
+# 
+# "A few hours later": the setup arms an automatic proposal for the NEXT quote request (POST /api/quotes/auto-proposal), stamped 4 h 18 min after the request. The shop loads notifications on page load only, so nothing shows until the `proposal` scene reopens the shop: the bell then rings with the new proposal — deterministic, no waiting, no polling.
+video quote · title “For cafés” / “Request a quote in a minute” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"From request to proposal, in one place."}
+  setup 1 L18-19 http reset: POST {{shop}}/api/reset
+  setup 2 L20-25 http prepare-proposal: POST {{shop}}/api/quotes/auto-proposal · rollback DELETE {{shop}}/api/quotes/auto-proposal · needs a person: its rollback: HTTP DELETE · [with rollback]
+  setup 3 L26-27 js open-console: return location.href (on page console)
+  teardown 1 L30-31 http reset: POST {{shop}}/api/reset
+scene discover L34-43 · page shop · open / · caption “Discover” / “Award-winning lots and fresh arrivals, roasted to order.”
+    discover.0 L39 [hover] hover · “Finca Lirandel — Geisha” · 700 ms
+    discover.1 L40 [scroll] scroll · “Fresh arrivals” · 1.6 s
+    discover.2 L41 [click] click · “Selowa Ridge”
+    discover.3 L42 [wait] wait for · button “Request a quote”
+    discover.4 L43 [hold] hold · 1.2 s
+# A full-screen chapter card (takes no capture time): the theme's card component (studio/card-title) with slots.
+card chapter-request L46-47 · slots kicker=“Step two”, title=“Ask the roaster for a quote” · 2.2 s
+scene request L49-56 · page shop (inherited) · continues · caption “Request a quote” / “Choose the quantity, the bag size and the grind.”
+    request.0 L52 [click] click · button “Request a quote”
+    request.1 L53 [click] click · “Increase” (aria label) in the dialog
+    request.2 L54 [click] click · “Increase” (aria label) in the dialog · #1
+    request.3 L55 [select] select · field “Bag size” · option “5 kg”
+    request.4 L56 [select] select · field “Grind” · option “Whole bean”
+# Same page, same dialog: a second scene keeps each one short (the reference look: 4–25 s per scene).
+scene delivery L59-76 · page shop (inherited) · continues · caption “Delivery” / “Pick your delivery window and leave a note for the roaster.”
+    delivery.0 L62 [click] click · field “Delivery window”
+    delivery.1 L63 [click] click · “Next month” (aria label)
+    delivery.2 L64 [click] click · “10 January 2027” (aria label)
+    delivery.3 L65 [click] click · “24 January 2027” (aria label)
+    delivery.4 L66 [type] type · field “Message” · “Light roast for filter, please. Deliveries before 9 am.”
+    delivery.5 L67 [click] click · “Send request” in the dialog
+    delivery.6 L68 [wait] wait for · text “Quote request sent”
+    # The roaster's console (background tab) shows a web notification: overlaid when it showed.
+    delivery.7 L70-76 [hold] hold · 3.2 s · {caption: caption “Instantly”; overlay: overlay studio/notification}
+interstitial interstitial-4 L78 · “A few hours later” · 2.6 s
+scene proposal L80-99 · page shop (inherited) · open / · caption “Proposal” / “The roaster's proposal arrives as a notification, with a PDF ready to share.”
+    proposal.0 L84 [wait] wait · 0.8 s
+    proposal.1 L85 [click] click · “Notifications” (aria label)
+    proposal.2 L86 [click] click · “New proposal from Northfield Roasters”
+    proposal.3 L87-94 [wait] wait for · text “€720.00” · {mark: mark proposal; overlay: overlay studio/overlay-callout}
+    proposal.4 L95-96 [hover] hover · “Accept proposal” · 600 ms · {hold: hold 1.5 s}
+    # A real PDF opens in a new tab: captured with the session and rasterised (pdf.js) for the document card.
+    proposal.5 L98 [download] download · “Download quote PDF” · as quote
+    proposal.6 L99 [hold] hold · 1 s
+card quote-pdf L101-106 · studio/document-pdf · slots document=“quote”, kicker=“Quote PDF”, title=“A real PDF, ready to share with your team.” · params {"motion":"zoom"} · 4.5 s
+25 steps

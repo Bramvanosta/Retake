@@ -257,6 +257,7 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   const approvals: JobApproval[] = await takeSiteApproval(
     { what: 'site extraction', href: first.href, host: first.host, unicode_host: first.unicode_host, fingerprint: siteApprovalFingerprint(first.href), fix },
     approver,
+    ctx.client,
   );
   // The folder is made by the worker (makeSiteDir), new: nothing is reserved on disk here.
   const id = newSiteId();

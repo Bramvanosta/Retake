@@ -57,6 +57,11 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     ui.error('studio ui: no workspace here (no studio.yaml or projects/ folder): pass --root <workspace folder> or set DEMO_STUDIO_ROOT');
     return EXIT.usage;
   }
+  // Like `studio mcp` (critique B5): the Studio's PATH keeps absolute entries only, none a package manager added for the
+  // script (`pnpm studio ui`: node_modules/.bin), none inside the workspace — the ffmpeg of the thumbnails and the
+  // worker it starts (with a clean environment: studioWorkerEnv) never run a program an agent wrote.
+  const { clientPath } = await import('@demo-studio/mcp');
+  process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   // Loaded only now: a broken app source breaks `studio ui`, never the other commands.
   const { launchStudio } = await import('@demo-studio/ui');
   let launched;

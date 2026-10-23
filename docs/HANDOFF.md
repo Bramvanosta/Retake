@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-23, end of lot **L4.1 (Studio app shell, `studio ui`)** — phases 1–3 are done (phase 3 pending
-the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: L4.2 (scenario as blocks) — the user asked
-to chain it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-24, end of lot **L4.2 (scenario as blocks with run thumbnails)** — phases 1–3 are done (phase 3
+pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: L4.3 (blocks editing), only when the
+user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,21 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-80); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-81); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.1)
+## State (after L4.2)
+- **L4.2 done (2026-10-24)**: the Studio's scenario screen shows a scenario as blocks (scenes as cards with pages, URLs,
+  caption, speed, layout, duration; steps as rows with an action badge, the target in plain words and chips; hooks strip;
+  a read-only inspector and YAML tab) with each step's real picture from the last dry run or capture (from kept frames
+  or the video, in memory only, matched to today's steps by step identity when the file changed). Dry run, Capture and
+  Cancel run from the screen; what would stop them (hooks needing a person, agent-trust rules, file errors) shows before
+  any click with the terminal command. The Studio starts the worker with a cleaned environment (as every non-CLI client
+  now does). Tests on the Mac: **2794 — 2744 pass, 50 skipped (≈ 13 min), 3 full runs in a row green**; `pnpm test:slow`
+  58/58. Requirements: 619 tracked — 554 done, 26 partial, 31 todo, 8 n/a-here. Live checks for the user:
+  MACOS-CHECKLIST 13b.
 - **L4.1 done (2026-10-23)**: `studio ui` serves the Studio web app on 127.0.0.1 (new package `packages/ui`, React
   bundled in memory by esbuild, strict CSP): the Projects screen, a project page and a README editor (if_match,
   conflict and changed-on-disk flows, line endings kept, non-UTF-8 read-only), an activity feed and a search on a
@@ -201,9 +210,10 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L4.2 — Scenario as blocks (read) with run thumbnails** — the user asked to chain it after L4.1, then stop. Pending
+**L4.3 — Blocks editing, two-way YAML, drag & drop** — only when the user asks. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
-document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
+document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
+(L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
 
@@ -1027,6 +1037,17 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   `src/index-db/`, storage `readContained`; mcp `src/http.ts` (one `wireServer` for stdio and HTTP); new `packages/ui`
   (server, ops incl. `projects_overview`, app); cli `commands/ui.ts`, `mcp --http`. Cuts: BL-79. 2593 tests: 2545 pass,
   48 skipped; test:slow 56/56. No new external dependency (zod and playwright-core reused).
+- **L4.2 done** (scenario as blocks; R-UI-08/09/10/13/14 done, R-UI-15 partial — "Open timeline" is L4.5). Planned,
+  criticised with probes (re-reading the view on every run step; a capture refused only after the click; the last
+  step's seek past the video; fingerprints blind to `on:` and scene pages; the Studio's worker inheriting its env),
+  built in four parts (core block model + safe reads + run blockers; view + thumbnails + events; read-only screen + e2e;
+  run actions + worker + acceptance), reviewed by two reviewers (a quadratic YAML alias check freezing every client; a
+  failed Studio run vanishing; multi-page scenes shown wrong; thumbnail reads unbounded; credentials kept in an
+  MCP-started worker's env…) and fixed with 40 mutation-checked tests. Files: core `blocks.ts`, `step-match.ts`,
+  `plain-file.ts`, `clientPath` moved to core; engine `run-files.ts`, `run-data.ts`, `run-thumbs.ts`, `scenario-view.ts`,
+  `cleanWorkerEnv`, `scenarios.check` (run_blockers); review `./thumbs`; ui ops `scenario_blocks`, `run_thumbs`,
+  `scenario_run`, `run_cancel`, `run_status`, the scenario screen. Cuts: BL-80. 2794 tests: 2744 pass, 50 skipped;
+  test:slow 58/58. No new dependency.
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
@@ -1256,6 +1277,18 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.2:
+- Pictures are never written to disk: the server keeps a byte-bounded memory cache keyed by run id + run key, and sends
+  base64 JPEG through the gated call route (`data:` URLs; the app's only `src=` is in `Thumb.tsx`).
+- Run files are read only through `readPlainFile` + realpath inside the run (no links, FIFOs or oversized files); the
+  video goes to ffmpeg as a file descriptor. A capture's picture is the frame on screen at the step's end (after its
+  hold): `min(floor(t·fps), frames−1)`.
+- The screen re-reads its view only for its own scenario file and its runs starting, finishing or being removed;
+  progress uses `run_status`. Step numbers a person reads are 1-based everywhere (`stepRef`).
+- `scenario_run` pins its arguments, takes the view's hash (409 when the file changed) and refuses a second run of a
+  scenario already queued; every non-CLI client's worker starts with `cleanWorkerEnv` (a deny-list: BL-80 residue).
+- `parseYaml`'s alias check is one pass (a quadratic version froze every client on a crafted file).
+
 Notes from L4.1:
 - Every HTTP route goes through engine `checkRequest` with a RouteSpec (fixed order: Host → Origin / Sec-Fetch-Site →
   route / method → token → content type / body cap). MCP over HTTP refuses any Origin and any Sec-Fetch-* header but a

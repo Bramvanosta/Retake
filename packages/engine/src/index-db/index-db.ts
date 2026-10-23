@@ -34,14 +34,15 @@ import type { RunSummary } from '../runs.js';
 import { LocalStorage } from '../storage.js';
 import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
-import { diffSources, scanSources, sourceKey } from './sources.js';
+import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
+import type { RunChange, RunRow } from './sources.js';
 
 /** Bumped when the tables change: an index of another schema is rebuilt. */
 export const INDEX_SCHEMA = 1;
 /** README text kept for the search, at most (the tool's own cap). */
 const README_INDEX_MAX = 200_000;
 /** A run folder holds at most this many runs in the index (newest first). */
-const RUNS_INDEX_MAX = 5000;
+export const RUNS_INDEX_MAX = 5000;
 /** Bytes read of a README for the index, at most (a bigger one is indexed without its text). */
 const README_BYTES_MAX = 4 * 1024 * 1024;
 /** A render record bigger than this is not one (skipped). */
@@ -99,9 +100,10 @@ export interface SearchHit {
   snippet?: string;
 }
 
-/** What a reconcile changed: the source keys re-read, and the generation after it. */
+/** What a reconcile changed: the source keys re-read, the runs that changed (critique B1), and the generation after it. */
 export interface IndexChanges {
   keys: string[];
+  runs: RunChange[];
   generation: number;
 }
 
@@ -278,7 +280,7 @@ export class WorkspaceIndex {
 
   /** Bring the index up to date with the files; concurrent callers share one pass. */
   reconcile(): Promise<IndexChanges> {
-    if (this.closed) return Promise.resolve({ keys: [], generation: 0 });
+    if (this.closed) return Promise.resolve({ keys: [], runs: [], generation: 0 });
     return (this.reconciling ??= this.pass().finally(() => {
       this.reconciling = undefined;
     }));
@@ -292,7 +294,7 @@ export class WorkspaceIndex {
     const next = await scanSources(this.ws, unfinished);
     const prev = new Map((this.db.prepare('SELECT key, sig FROM sources').all() as Array<{ key: string; sig: string }>).map((r) => [r.key, r.sig]));
     const keys = diffSources(prev, next);
-    if (keys.length === 0 || this.closed) return { keys: [], generation: this.generation };
+    if (keys.length === 0 || this.closed) return { keys: [], runs: [], generation: this.generation };
 
     // Read what changed (async), then write it in one transaction (sync).
     const reads = new Map<string, ProjectRead>();
@@ -300,7 +302,8 @@ export class WorkspaceIndex {
     let summaries: Map<string, ProjectSummary> | undefined;
     for (const key of keys) {
       const { kind, project } = sourceKey(key);
-      if (project === undefined) continue;
+      // A scenario file's own key: nothing to read (the project key re-reads the names).
+      if (project === undefined || kind === 'scenario') continue;
       const r = readOf(project);
       if (r.gone) continue;
       const dir = join(this.ws.projectsDir, project);
@@ -312,9 +315,10 @@ export class WorkspaceIndex {
       else if (kind === 'renders') r.renders = await readRenders(dir);
     }
     const history = keys.includes('history') ? await this.readHistory() : undefined;
-    if (this.closed) return { keys: [], generation: 0 };
+    if (this.closed) return { keys: [], runs: [], generation: 0 };
 
     const db = this.db;
+    const runs: RunChange[] = [];
     db.exec('BEGIN IMMEDIATE');
     try {
       const delSearch = db.prepare('DELETE FROM search WHERE project = ? AND kind = ?');
@@ -343,6 +347,9 @@ export class WorkspaceIndex {
           addSearch.run('project', r.slug, r.slug, name, body);
         }
         if (r.runs) {
+          const before = db.prepare('SELECT id, scenario, status FROM runs WHERE project = ?').all(r.slug) as unknown as RunRow[];
+          const after: RunRow[] = r.runs.filter((x) => !x.newer).map((x) => ({ id: x.id, scenario: x.scenario ?? null, status: x.status ?? null }));
+          runs.push(...runChanges(r.slug, before, after, prev.get(`runs:${r.slug}`), next.get(`runs:${r.slug}`)));
           db.prepare('DELETE FROM runs WHERE project = ?').run(r.slug);
           delSearch.run(r.slug, 'run');
           const add = db.prepare('INSERT INTO runs(project, id, scenario, mode, status, env, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
@@ -382,7 +389,7 @@ export class WorkspaceIndex {
       db.exec('ROLLBACK');
       throw e;
     }
-    return { keys, generation: this.generation };
+    return { keys, runs, generation: this.generation };
   }
 
   /** history.jsonl from where the last pass stopped (whole lines only); from the start when it shrank or was replaced. */

@@ -88,6 +88,23 @@ describe('agentTrustProblems', () => {
     expect(problems[2]).toMatch(/^setup hook 2 \(sql rollback file\): README\.md is a file an agent can write/);
     expect(problems[3]).toMatch(/^setup hook 3 \(js file\): \/etc\/hosts is an absolute path/);
   });
+
+  it('L4.2: the same refusals worded for the Studio (via studio) never say MCP; the default stays the MCP wording', () => {
+    const sc = scenario({
+      template: '../themes/x',
+      vars: { k: '{{env:TOKEN}}' },
+      scenes: [{ id: 'a', page: 'console', steps: [{ drop_file: { zone: { css: 'body' }, path: '../outside.txt' } }, { eval: { file: 'scenarios/x.js' } }, { eval: { file: '/etc/hosts' } }] }] as Scenario['scenes'],
+    });
+    const studio = agentTrustProblems({ dir: project, config: {} }, sc, { via: 'studio' });
+    const mcp = agentTrustProblems({ dir: project, config: {} }, sc);
+    expect(studio).toHaveLength(5);
+    expect(mcp).toHaveLength(5);
+    for (const p of studio) {
+      expect(p).not.toMatch(/MCP|template_list/);
+      expect(p).toContain('from the Studio');
+    }
+    for (const p of mcp) expect(p).toContain('through MCP');
+  });
 });
 
 describe('rollbackApprovalReason', () => {

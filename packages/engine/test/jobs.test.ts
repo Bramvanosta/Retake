@@ -3,15 +3,15 @@
  * cancel marker, states derived when reading (interrupted, cancelled before it started), the worker lock, run id
  * reservation and the hooks a human must approve.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_ID_RE, RunRecordSchema, reserveRunId } from '@demo-studio/core';
 import type { RunJobInput } from '@demo-studio/core';
-import { EngineError, FileJobQueue, RunOptionError, SandboxTakeError, WorkerLock, createEngine, newJobId, readWorkerLock, runCommandLine, toEngineError } from '../src/index.js';
+import { EngineError, FileJobQueue, RunOptionError, SandboxTakeError, WorkerLock, createEngine, liveWorker, newJobId, readWorkerLock, runCommandLine, toEngineError } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
@@ -157,6 +157,43 @@ describe('the worker lock', () => {
     expect(b).not.toBeNull();
     expect(notes[0]).toContain('took over a stale worker lock');
     b!.release();
+  });
+
+  it('started_by (L4.2): the client that started it, a client name only — anything else is dropped, written or read', async () => {
+    const root = join(ws, 'lock-started-by');
+    const a = await WorkerLock.acquire(root, 'b1', undefined, 'ui');
+    expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
+    a!.release();
+    const odd = await WorkerLock.acquire(root, 'b1', undefined, 'ui <b>x</b>');
+    expect(readWorkerLock(root)?.started_by).toBeUndefined();
+    expect(await readFile(join(root, '.demo-studio', 'workers', 'worker.lock'), 'utf8')).not.toContain('started_by');
+    odd!.release();
+    await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }));
+    const read = readWorkerLock(root);
+    expect(read?.pid).toBe(process.pid);
+    expect(read?.started_by).toBeUndefined();
+  });
+
+  it('a lock without its start time naming a live pid is stale (review A #7: a forged lock kept every worker off)', async () => {
+    const root = join(ws, 'lock-forged');
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' });
+    try {
+      for (const pid of [process.pid, child.pid!]) {
+        await mkdir(join(root, '.demo-studio', 'workers'), { recursive: true });
+        await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid, host: 'h', version: '0', build: 'b', since: 'now', started_by: 'ui' }));
+        expect(await liveWorker(root), String(pid)).toBeNull();
+        // A start time that is not the process's: stale too.
+        await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid, started_at: '2001-01-01T00:00:00.000Z', host: 'h', version: '0', build: 'b', since: 'now' }));
+        expect(await liveWorker(root), String(pid)).toBeNull();
+      }
+      // The forged lock is taken over by a real worker, whose own lock (with its start time) is alive.
+      const lock = await WorkerLock.acquire(root, 'b1', undefined, 'ui');
+      expect(lock).not.toBeNull();
+      expect(await liveWorker(root)).toMatchObject({ pid: process.pid, started_by: 'ui' });
+      lock!.release();
+    } finally {
+      child.kill('SIGKILL');
+    }
   });
 });
 

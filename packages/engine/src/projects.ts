@@ -5,7 +5,7 @@ import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjec
 import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
-import { LocalStorage } from './storage.js';
+import { LocalStorage, READ_TEXT_MAX_BYTES } from './storage.js';
 import { openProject } from './workspace.js';
 import { checkNewProjectHosts } from './protected-hosts.js';
 
@@ -140,7 +140,12 @@ async function readmeOf(storage: LocalStorage): Promise<{ text: string; sha256: 
   try {
     r = await storage.readText(README_FILE);
   } catch (e) {
-    if (e instanceof EngineError && e.code === 'refused') return { text: null, sha256: null, error: `${README_FILE} is a symbolic link leading out of the project folder: not read (replace it with a regular file)` };
+    if (e instanceof EngineError) {
+      const reason = e.details?.reason;
+      if (reason === 'link_out') return { text: null, sha256: null, error: `${README_FILE} is a symbolic link leading out of the project folder: not read (replace it with a regular file)` };
+      if (reason === 'not_file') return { text: null, sha256: null, error: `${README_FILE} is not a regular file (a FIFO, a device, a folder…): not read (replace it with a regular file)` };
+      if (reason === 'too_large') return { text: null, sha256: null, error: `${README_FILE} is too large to show here (over ${READ_TEXT_MAX_BYTES.toLocaleString('en')} bytes): shorten it in an editor` };
+    }
     throw e;
   }
   if (!r) return undefined;

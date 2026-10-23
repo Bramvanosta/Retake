@@ -1,0 +1,36 @@
+# Filmed on production, nothing written (L1.7). The café requests a quote on the environment `production` — the local fixture made pretend production in project.yaml: read-only, so the request's POST never reaches the server. The scenario's mock answers it (201, the quote's id and supplier: the toast reads them) and the flow goes on on screen; the quotes list afterwards is the one the server had. `GET /api/health` → `mutations` is the same before and after.
+# 
+# `clock:` sets the product's browser clock to 2 Nov 2026, 10:24 when the capture starts: the shop's "Prices as of" line (`/#as-of`, the fixture's only date from the browser's clock) reads the same in every take. Framed in a browser window: its address bar shows the display URLs (shop.northfield.example), never localhost — and so does `{{shop}}` in a caption. Setup reads only (a hook that writes would be refused); there is no teardown: nothing to undo.
+video read-only · title “Read-only” / “Filmed on production, nothing written” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Every request answered on screen, nothing written."}
+  env production
+  frame browser
+  clock 2026-11-02T10:24:00
+  mocks 1
+  setup 1 L20-21 http health: GET {{shop}}/api/health
+scene prices L31-41 · page shop · open /#as-of · caption “Production” / “Live prices at {{shop}}, filmed without changing a thing.”
+    prices.0 L36 [check] capture text · element with test id “prices-as-of” · as prices-as-of, pattern /as of (.+)$/
+    prices.1 L37 [hold] hold · 3 s
+    prices.2 L38 [scroll] scroll · “Fresh arrivals” · 1.6 s
+    prices.3 L39 [click] click · “Selowa Ridge”
+    prices.4 L40 [wait] wait for · button “Request a quote”
+    prices.5 L41 [hold] hold · 1.2 s
+card chapter-request L43-44 · slots kicker=“On production”, title=“A quote request, answered by a mock” · 2.2 s
+scene request L46-53 · page shop (inherited) · continues · caption “Request a quote” / “Choose the quantity, the bag size and the grind.”
+    request.0 L49 [click] click · button “Request a quote”
+    request.1 L50 [click] click · “Increase” (aria label) in the dialog
+    request.2 L51 [click] click · “Increase” (aria label) in the dialog · #1
+    request.3 L52 [select] select · field “Bag size” · option “5 kg”
+    request.4 L53 [select] select · field “Grind” · option “Whole bean”
+scene send L55-65 · page shop (inherited) · continues · caption “Mocked” / “The request is answered by a mock: the server never sees it.”
+    send.0 L58 [click] click · field “Delivery window”
+    send.1 L59 [click] click · “Next month” (aria label)
+    send.2 L60 [click] click · “10 January 2027” (aria label)
+    send.3 L61 [click] click · “24 January 2027” (aria label)
+    send.4 L62 [type] type · field “Message” · “Light roast for filter, please.”
+    send.5 L63 [click] click · “Send request” in the dialog
+    send.6 L64 [wait] wait for · text “Quote request sent”
+    send.7 L65 [hold] hold · 3.5 s
+scene quotes L67-72 · page shop (inherited) · open /quotes · caption “Unchanged” / “Your quotes, exactly as they were.”
+    quotes.0 L71 [wait] wait for · text “Your quote requests”
+    quotes.1 L72 [hold] hold · 3 s
+21 steps

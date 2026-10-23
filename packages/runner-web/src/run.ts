@@ -4,6 +4,7 @@ import type { Page } from 'playwright-core';
 import {
   ARTEFACTS_DIR,
   agentTrustProblems,
+  channelWords,
   FORMAT_VERSIONS,
   compileWritePolicy,
   guardsWrites,
@@ -30,6 +31,7 @@ import {
   writingHooks,
 } from '@demo-studio/core';
 import type {
+  AgentChannel,
   BrowserConfig,
   HookStep,
   HookTrust,
@@ -128,6 +130,11 @@ export interface RunOptions {
    * (`confirmHook`) and always counts as writing — a read-only run refuses it before anything runs.
    */
   hookTrust?: HookTrust;
+  /**
+   * The channel a trust-`mcp` run came through, for the wording of its refusals (L4.2): `studio` (a Studio user is told
+   * "from the Studio", never about MCP) or `mcp` (default).
+   */
+  hookVia?: AgentChannel;
   /**
    * Approves a hook that needs a human (L3.1: the jobs worker checks the hook's fingerprint against its job's
    * approvals). Without it such hooks are refused, as before.
@@ -383,12 +390,12 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // Work submitted through MCP (L3.1, core agent-trust): the scenario names no secret, and its files stay in the
     // project (code never from a file an agent can write) — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc);
-      if (problems.length) throw new RunnerError(`refused (work submitted through MCP): ${problems.join('; ')}`);
+      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp' });
+      if (problems.length) throw new RunnerError(`refused (work submitted ${channelWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {
-      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}) });
+      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
     // A read-only run stops the browser's writes (L1.7, write-guard.ts): armed in every browser at launch. Any run
@@ -520,6 +527,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         signal,
         running: hookGroups,
         ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
+        ...(opts.hookVia ? { via: opts.hookVia } : {}),
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       };
       hooks = await openHooks(deps);
@@ -957,6 +965,7 @@ interface SetupDeps {
   /** The process groups of the shell hooks running now (any phase): a second signal kills them before the process quits. */
   running: Set<number>;
   trust?: HookTrust;
+  via?: AgentChannel;
   confirmHook?: ConfirmHook;
 }
 
@@ -1172,6 +1181,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     // Every phase's shell commands (setup, teardown, rollbacks): a second signal kills them before the process quits.
     running: d.running,
     ...(d.trust ? { trust: d.trust } : {}),
+    ...(d.via ? { via: d.via } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
   };
   return { mod, journal, ctx };

@@ -24,7 +24,7 @@ export interface ProjectList {
 interface EngineInfoData {
   version: string;
   root: string;
-  worker: { pid: number } | null;
+  worker: { pid: number; started_by?: string } | null;
 }
 
 const CONNECTION: Record<Connection, string> = { connecting: 'Connecting…', online: 'Connected', offline: 'Not connected', ended: 'Session ended' };
@@ -59,7 +59,7 @@ function NavLink({ to, current, children }: { to: Route; current: boolean; child
 }
 
 function ProjectNav({ p, route }: { p: ProjectSummary; route: Route }) {
-  const open = (route.name === 'project' || route.name === 'readme') && route.slug === p.slug;
+  const open = (route.name === 'project' || route.name === 'readme' || route.name === 'scenario') && route.slug === p.slug;
   const dirty = useDirty(p.slug);
   return (
     <li>
@@ -134,7 +134,7 @@ export function Shell({ route, list, children }: { route: Route; list: Loaded<Pr
                 {' · '}
                 <span>v{info.version}</span>
                 {' · '}
-                <span>{info.worker ? `worker running (pid ${info.worker.pid})` : 'worker idle'}</span>
+                <span>{info.worker ? `worker running (pid ${info.worker.pid}${info.worker.started_by ? `, started by ${info.worker.started_by === 'ui' ? 'the Studio' : info.worker.started_by}` : ''})` : 'worker idle'}</span>
               </>
             )}
             {connection === 'online' && UPDATES[updates] && <> · {UPDATES[updates]}</>}

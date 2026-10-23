@@ -7,8 +7,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
-import { link, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { SCENARIO_COMPARE_MAX_BYTES, readPlainFile } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 
 export type StoredKind = 'run' | 'render' | 'review' | 'export' | 'journal' | 'asset' | 'scenario' | 'project';
@@ -43,7 +44,8 @@ export interface Storage {
   /**
    * The text of a ref, the sha256 of its bytes and whether they are valid UTF-8 (when not, `text` has U+FFFD in place of
    * the bytes it could not decode); undefined when it does not exist. Refused (`refused`) when a symbolic link takes it
-   * out of the project: an agent writes files in the workspace and must not read outside it this way.
+   * out of the project (an agent writes files in the workspace and must not read outside it this way) or when it is
+   * not a regular file (a FIFO would hold the reader); `invalid` when it is over READ_TEXT_MAX_BYTES (2 MiB).
    */
   readText(ref: string): Promise<{ text: string; sha256: string; utf8: boolean } | undefined>;
   /**
@@ -55,6 +57,12 @@ export interface Storage {
    */
   writeText(ref: string, text: string, opts?: { ifMatch?: string | null }): Promise<WriteResult>;
 }
+
+/**
+ * The largest file `readText` reads (README.md, a scenario): the size a scenario snapshot is compared at (core
+ * SCENARIO_COMPARE_MAX_BYTES); a README the Studio edits holds 200,000 characters (≤ 800 KB of UTF-8).
+ */
+export const READ_TEXT_MAX_BYTES = SCENARIO_COMPARE_MAX_BYTES;
 
 export function sha256Hex(data: string | Buffer): string {
   return createHash('sha256').update(data).digest('hex');
@@ -114,7 +122,7 @@ export class LocalStorage implements Storage {
   }
 
   async readText(ref: string): Promise<{ text: string; sha256: string; utf8: boolean } | undefined> {
-    const buf = await this.readContained(this.resolve(ref));
+    const buf = await this.readContained(this.resolve(ref), READ_TEXT_MAX_BYTES);
     return buf === null ? undefined : { text: buf.toString('utf8'), sha256: sha256Hex(buf), utf8: isUtf8(buf) };
   }
 
@@ -122,9 +130,12 @@ export class LocalStorage implements Storage {
    * The bytes of a file of the project, read through its real path; null when it does not exist (a dangling link
    * included). Refused when that real path lies outside the project's real path (a symbolic link leading out, at any
    * level) — the read side of `writableDir`'s rule. A project folder that is itself a link is fine: both are real paths.
-   * The refusal never names the link's target (a path outside the project the agent must not learn either).
+   * The refusal never names the link's target (a path outside the project the agent must not learn either). The real
+   * path is then read with core readPlainFile (L4.2, the BL-79 residue): a regular file only — a FIFO, a device or a
+   * folder is refused without blocking — of at most `max` bytes (`invalid`, "too large", never "not found").
+   * `details.reason` says which: `link_out`, `not_file`, `too_large`.
    */
-  private async readContained(path: string): Promise<Buffer | null> {
+  private async readContained(path: string, max: number): Promise<Buffer | null> {
     let realRoot: string;
     let real: string;
     try {
@@ -133,12 +144,24 @@ export class LocalStorage implements Storage {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw e;
     }
-    if (!isInside(realRoot, real)) throw new EngineError('refused', `${path} leads out of the project folder (a symbolic link): not read`, { fix: `replace the link with a regular file inside ${this.root}` });
-    try {
-      return await readFile(real);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw e;
+    const fix = { fix: `replace it with a regular file inside ${this.root}` };
+    if (!isInside(realRoot, real)) throw new EngineError('refused', `${path} leads out of the project folder (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
+    const r = readPlainFile(real, max);
+    if (r.ok) return r.bytes;
+    switch (r.reason) {
+      case 'missing':
+        return null;
+      case 'too_large':
+        throw new EngineError('invalid', `${path} is too large: ${r.size !== undefined ? `${r.size.toLocaleString('en')} bytes` : 'over the limit'}, at most ${max.toLocaleString('en')} — not read`, {
+          fix: 'shorten it (or split it) in an editor',
+          details: { reason: 'too_large', max },
+        });
+      case 'not_file':
+      case 'link':
+        // `link`: the real path became a link between the realpath and the open (a swap): refused like any non-file.
+        throw new EngineError('refused', `${path} is not a regular file (a FIFO, a device, a folder…): not read`, { ...fix, details: { reason: 'not_file' } });
+      default:
+        throw new EngineError('internal', `${path} could not be read (${r.error ?? 'unreadable'})`);
     }
   }
 
@@ -178,7 +201,7 @@ export class LocalStorage implements Storage {
   }
 
   private async currentHash(path: string): Promise<string | null> {
-    const buf = await this.readContained(path);
+    const buf = await this.readContained(path, READ_TEXT_MAX_BYTES);
     return buf === null ? null : sha256Hex(buf);
   }
 

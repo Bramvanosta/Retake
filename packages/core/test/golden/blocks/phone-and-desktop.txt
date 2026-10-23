@@ -1,0 +1,28 @@
+# One account, two screens (L2.11): the same shop filmed on a desktop and on a phone (mobile viewport preset: 390 × 844, touch, mobile emulation) at the same time, the phone shown over the desktop (studio/layout-pip). The café requests a quote from the phone; the desktop's quote list (live) shows it a second later.
+video phone-and-desktop · title “Any screen” / “Start on the phone, continue at the desk” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"One account, every screen."}
+  frame pip
+  tutorial steps on
+  setup 1 L14-15 http reset: POST {{shop}}/api/reset
+  teardown 1 L18-19 http reset: POST {{shop}}/api/reset
+scene phone L22-35 · pages desk page shop open /quotes “Desktop” | phone page shop open /products/selowa-ridge mobile “Phone” · caption “On the phone” / “Find a coffee and ask for a quote in a few taps.”
+    phone.0 L28-29 [click] click · button “Request a quote” · {page: on phone}
+    phone.1 L30-31 [click] click · “Increase” (aria label) in the dialog · {page: on phone}
+    phone.2 L32-33 [select] select · field “Bag size” · option “5 kg” · {page: on phone}
+    phone.3 L34-35 [select] select · field “Grind” · option “Whole bean” · {page: on phone}
+scene send L37-56 · pages desk | phone · continues · caption “On the phone” / “Choose the delivery window and send.”
+    send.0 L41-42 [click] click · field “Delivery window” · {page: on phone}
+    send.1 L43-44 [click] click · “Next month” (aria label) · {page: on phone}
+    send.2 L45-46 [click] click · “14 December 2026” (aria label) · {page: on phone}
+    send.3 L47-48 [click] click · “23 December 2026” (aria label) · {page: on phone}
+    send.4 L49-50 [click] click · “Send request” in the dialog · {page: on phone}
+    send.5 L51-52 [wait] wait for · text “Quote request sent” · {page: on phone}
+    # The desk's list polls every second: the request arrives here, live behind the phone, and the desk's scene
+    # opens on a still list (its opening still stays still).
+    send.6 L55-56 [hold] hold · 1.2 s · {page: on phone}
+scene desk L58-67 · pages desk | phone · continues · caption “At the desk” / “The request is already in your quotes, live.”
+    desk.0 L62-63 [wait] wait for · text “New” · {mark: mark synced}
+    desk.1 L64 [hover] hover · “New” · 900 ms
+    desk.2 L65 [click] click · element matching .quote-row.row-new
+    desk.3 L66 [wait] wait for · text “Delivery window”
+    desk.4 L67 [hold] hold · 1.6 s
+16 steps

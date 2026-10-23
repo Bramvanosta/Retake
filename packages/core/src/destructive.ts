@@ -219,3 +219,27 @@ export function rollbackApprovalReason(hook: HookStep, opts: DestructiveOptions 
     }
   }
 }
+
+/**
+ * Why a hook needs a human before work submitted by an agent (trust `mcp`: the MCP server, the Studio) runs it, from
+ * its file alone, or null: declared or detected destructive, any shell command (local code) and, for a setup hook
+ * (`phase`), a rollback that needs approval (rollbackApprovalReason). The submit's preflight (engine approvals.ts) also
+ * templates each hook; this is its backstop and what the Studio's hooks strip shows. A malformed hook gives null
+ * (validation reports it).
+ */
+export function hookApprovalReason(hook: HookStep, phase: string, opts: DestructiveOptions = {}): string | null {
+  let kind: HookKind;
+  try {
+    kind = hookKind(hook);
+  } catch {
+    return null;
+  }
+  try {
+    const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : null));
+    const rollback = phase === 'setup' ? rollbackApprovalReason(hook, opts) : null;
+    const reasons = [own, rollback].filter((r): r is string => r !== null);
+    return reasons.length ? reasons.join('; ') : null;
+  } catch {
+    return null;
+  }
+}

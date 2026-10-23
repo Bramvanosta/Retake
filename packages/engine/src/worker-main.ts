@@ -1,8 +1,10 @@
 /**
  * Entry point of a jobs worker process: `node …/engine/dist/worker-main.js --root <workspace> [--idle-exit <ms>]
- * [--once]` (what ensureWorker starts; `studio worker` runs the same). stdout stays empty: whatever a library prints goes
+ * [--once] [--started-by <client>]` (what ensureWorker starts — `--started-by` names the client that started it, recorded in
+ * the worker lock; `studio worker` runs the same). stdout stays empty: whatever a library prints goes
  * to stderr, which the spawner sends to .demo-studio/workers/worker.log.
  */
+import { WORKER_CLIENT_RE } from './jobs/lock.js';
 import { runWorker } from './jobs/worker.js';
 
 function arg(name: string): string | undefined {
@@ -22,7 +24,13 @@ if (!root) {
 }
 const idle = arg('--idle-exit');
 const idleExitMs = idle !== undefined ? Number(idle) : process.env.DEMO_STUDIO_WORKER_IDLE_MS ? Number(process.env.DEMO_STUDIO_WORKER_IDLE_MS) : undefined;
-runWorker({ root, ...(idleExitMs !== undefined && Number.isFinite(idleExitMs) ? { idleExitMs } : {}), once: process.argv.includes('--once') })
+const startedBy = arg('--started-by');
+runWorker({
+  root,
+  ...(idleExitMs !== undefined && Number.isFinite(idleExitMs) ? { idleExitMs } : {}),
+  once: process.argv.includes('--once'),
+  ...(startedBy !== undefined && WORKER_CLIENT_RE.test(startedBy) ? { startedBy } : {}),
+})
   .then((code) => process.exit(code))
   .catch((e: unknown) => {
     process.stderr.write(`worker: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);

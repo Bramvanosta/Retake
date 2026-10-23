@@ -1,0 +1,21 @@
+# Targets inside a web component and an iframe (R-ISS-07). The product page's "Before you order" section holds a Brew guide — a custom element with an OPEN shadow root and its own stylesheet — and a Shipping estimate — a same-origin iframe widget (/embed/shipping). The runner scrolls to, clicks, selects and types inside both exactly as anywhere else on the page: the drawn cursor shows the hand over their buttons and the ripples land on them.
+video embedded · title “For cafés” / “Plan the brew and the delivery” · intro {"mode":"theme"} · outro {"mode":"theme"}
+  setup 1 L11-12 http reset: POST {{shop}}/api/reset
+  teardown 1 L15-16 http reset: POST {{shop}}/api/reset
+scene brew L19-32 · page shop · open /products/selowa-ridge · caption “Brew guide” / “Dial in the recipe for your bar before you order.”
+    brew.0 L24 [wait] wait for · text “Brew guide”
+    brew.1 L25 [scroll] scroll · “Brew guide” · 1.4 s
+    brew.2 L26 [click] click · “Espresso”
+    brew.3 L27 [click] click · “More coffee” (aria label)
+    brew.4 L28 [click] click · “More coffee” (aria label) · #1
+    brew.5 L29 [wait] wait for · text “20 g coffee”
+    brew.6 L30 [click] click · “Copy recipe”
+    brew.7 L31 [wait] wait for · text “Recipe copied”
+    brew.8 L32 [hold] hold · 1.2 s
+scene shipping L34-41 · page shop (inherited) · continues · caption “Shipping” / “Estimate the delivery to your café, right on the product page.”
+    shipping.0 L37 [select] select · field “Destination” · option “Norway”
+    shipping.1 L38 [type] type · field “Bags” · “12”, clears first
+    shipping.2 L39 [click] click · “Estimate shipping”
+    shipping.3 L40 [wait] wait for · text “12 bags to Norway”
+    shipping.4 L41 [hold] hold · 2 s
+14 steps

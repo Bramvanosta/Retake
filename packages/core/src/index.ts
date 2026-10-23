@@ -55,3 +55,7 @@ export { RESERVED_PAGE_KEYS } from './checks/project.js';
 export * from './jobs.js';
 export * from './ids.js';
 export * from './comments.js';
+export * from './plain-file.js';
+export * from './step-match.js';
+export * from './blocks.js';
+export { clientPath, isUnder } from './client-path.js';

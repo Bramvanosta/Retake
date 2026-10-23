@@ -61,8 +61,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.7 | Claude skills (scenario, theme, component) + plugin packaging | S | **done** (live run: MACOS-CHECKLIST 12i) |
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **done** — phase 3 done (live run: MACOS-CHECKLIST 12j) |
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **done** (live checks: MACOS-CHECKLIST 13a) |
-| L4.2 | Scenario as blocks (read) with run thumbnails | M | **next** |
-| L4.3 | Blocks editing, two-way YAML, drag & drop | M | todo |
+| L4.2 | Scenario as blocks (read) with run thumbnails | M | **done** (live checks: MACOS-CHECKLIST 13b) |
+| L4.3 | Blocks editing, two-way YAML, drag & drop | M | **next** (when the user asks) |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | todo |
 | L4.6 | Frame comments UI | M | todo |
@@ -686,7 +686,16 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   mutation-checked tests. R-PRJ-02 partial (the queue stays in files per ADR-2), R-DEC-07 partial until L5.2. Cuts:
   BL-79. Live checks: MACOS-CHECKLIST 13a.
 
-### L4.2 – L4.9, L5.2 – L5.4, L6
+### L4.2 — Scenario as blocks (read) with run thumbnails (M)
+- **Goal:** read a scenario in the Studio as scenes and steps, each with its real picture from the last run.
+- **Done (2026-10-24):** the scenario screen: scenes as cards (pages, URLs, caption, speed, layout, duration), steps as
+  rows (action badge, plain-words target, chips), hooks strip, read-only inspector and YAML tab; each step's picture
+  from the last dry run or capture (kept frames or the video, memory only, matched to today's steps by step identity);
+  Dry run / Capture / Cancel from the screen with blockers shown before any click; the Studio starts a worker with a
+  cleaned environment. Two independent reviews fixed with mutation-checked tests. R-UI-15 partial ("Open timeline" is
+  L4.5). Cuts: BL-80. Live checks: MACOS-CHECKLIST 13b.
+
+### L4.3 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

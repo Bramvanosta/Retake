@@ -11,9 +11,12 @@
  * `UI_OPS` only.
  *
  * Trust: the engine client is `ui` — the ops L4.1 allows run under the agent's trust, with no approver (a page's
- * script cannot be told from a person's click). Nothing here logs a token, a body or a README.
+ * script cannot be told from a person's click): a run whose hooks need a person is refused with the `studio run …`
+ * command to type in a terminal, and the scenario screen shows that before any click (scenario_blocks `run_blockers`).
+ * Nothing here logs a token, a body or a README.
  */
 import { createServer } from 'node:http';
+import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import {
   BodyTooLargeError,
@@ -28,22 +31,34 @@ import {
   readBody,
   securityHeaders,
 } from '@demo-studio/engine';
-import type { Engine, RouteSpec, SqliteLoader } from '@demo-studio/engine';
+import type { Engine, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@demo-studio/engine';
 import { TOOLS, callTool, capUntrusted } from '@demo-studio/mcp';
 import type { ToolDef } from '@demo-studio/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { Live } from './live.js';
-import { OWN_OPS, indexOps, overviewOp } from './ops.js';
+import { OWN_OPS, indexOps, overviewOp, runOps, scenarioOps } from './ops.js';
+import { studioWorkerEnv } from './worker-env.js';
+import { z } from 'zod';
 
 /**
- * The ops the Studio may call in L4.1 — read the engine and the projects, write a README (if_match), list jobs, list a
+ * The ops the Studio may call — L4.1: read the engine and the projects, write a README (if_match), list jobs, list a
  * project's runs: MCP tools; and the Studio's own reads (ops.ts): the workspace index (activity_list, search) and the
- * Projects screen's cards in one call (projects_overview). Each later lot adds the ops its screen needs; a tool that is
- * not listed answers 404 `unknown op`.
+ * Projects screen's cards in one call (projects_overview). L4.2: a run's status (`run_status`, without its long-poll:
+ * the running banner's progress), the scenario screen's reads (scenario_blocks, run_thumbs), its Dry run / Capture
+ * (`scenario_run`, an own op with pinned arguments: no sandbox, no until, no wait — critique B11) and Cancel
+ * (`run_cancel`). Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
-export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', ...OWN_OPS] as const;
+export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', ...OWN_OPS] as const;
 export type UiOp = (typeof UI_OPS)[number];
+
+/**
+ * MCP tools the Studio calls with fewer arguments than Claude (critique B11: pin what a page can ask): `run_status`
+ * never long-polls from a page (`wait_s` absent or 0 — a page waiting 25 s holds one of the browser's 6 connections).
+ */
+const NARROWED: Partial<Record<UiOp, (t: ToolDef) => ToolDef>> = {
+  run_status: (t) => ({ ...t, input: (t.input as z.ZodObject).extend({ wait_s: z.literal(0).optional().describe('Always 0 from the Studio (no long-poll).') }) }),
+};
 
 /** A call's body cap: above the worst case of an accepted README (200,000 characters, control characters escaped). */
 export const CALL_BODY_MAX = 2 * 1024 * 1024;
@@ -71,6 +86,15 @@ export interface StudioServerOptions {
   sqlite?: SqliteLoader;
   /** The stat poll's period while an event stream is open (ms; default 1 s). */
   pollMs?: number;
+  /**
+   * Start the workspace's jobs worker when a run is submitted (default true; L4.2): with a clean environment
+   * (studioWorkerEnv). Tests turn it off to keep a submitted job queued, or inject `workerSpawn`.
+   */
+  startWorker?: boolean;
+  /** Tests: starts the worker process instead of node's spawn (sees its command and environment). */
+  workerSpawn?: WorkerSpawnFn;
+  /** The idle exit of a worker the Studio starts (ms; default the worker's 60 s). */
+  workerIdleExitMs?: number;
 }
 
 export interface StudioServer {
@@ -104,7 +128,7 @@ export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
   return new Map(UI_OPS.map((op) => {
     const t = mcp.get(op) ?? mine.get(op);
     if (!t) throw new Error(`UI op ${op} is not a tool`);
-    return [op, t];
+    return [op, NARROWED[op]?.(t) ?? t];
   }));
 }
 
@@ -117,10 +141,18 @@ function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefine
 export async function startStudioServer(o: StudioServerOptions): Promise<StudioServer> {
   const log = o.log ?? (() => undefined);
   const assets = await buildUi();
-  const engine = await createEngine({ root: o.root, client: 'ui', autoStartWorker: false });
+  // The Studio starts the worker when a run is submitted (L4.2), with a clean environment (critique B5).
+  const engine = await createEngine({
+    root: o.root,
+    client: 'ui',
+    autoStartWorker: o.startWorker !== false,
+    workerEnv: studioWorkerEnv(process.env, resolve(o.root)),
+    ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),
+    ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
+  });
   const getEngine = async () => engine;
   const live = await Live.start({ ws: engine.workspace, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
-  const tools = uiTools([...indexOps(live), overviewOp()]);
+  const tools = uiTools([...indexOps(live), overviewOp(), ...scenarioOps(), ...runOps()]);
   const token = newSecret();
   const codes = new BootstrapCodes();
   let port = 0;

@@ -1,0 +1,21 @@
+# A season recap made of story cards around one short capture: the accepted proposal's total read on the page (capture_text) and counted up in a key-figure card, the quotes list before / after opening it, the features, a chart from a CSV file of the project, a testimonial and a closing call to action with a QR code. Every name and figure is fictional (the Northfield fixture).
+video highlights · title “Season recap” / “A season of quotes, in a minute” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"From quote to cup, in one place."}
+  setup 1 L12-13 http reset: POST {{shop}}/api/reset
+  teardown 1 L16-17 http reset: POST {{shop}}/api/reset
+scene coffees L20-27 · page shop · open /coffees · caption “This season” / “Every lot of the season, priced for every bag size.”
+    coffees.0 L25 [hover] hover · “Selowa Ridge” · 900 ms
+    coffees.1 L26-27 [hover] hover · “Mountfern AA” · 900 ms · {hold: hold 1.2 s}
+scene quotes L29-40 · page shop (inherited) · open /quotes · caption “Quotes” / “Every request and every proposal, in one list.”
+    quotes.0 L33 [hover] hover · “Mountfern AA” · 700 ms
+    quotes.1 L34-35 [click] click · “Mountfern AA” · {caption: caption “Proposal”}
+    quotes.2 L36 [wait] wait for · element with test id “proposal-total”
+    # The total as the page shows it ("€465.00 incl. VAT" → "€465.00"): the key-figure card counts up to it.
+    quotes.3 L38-39 [check] capture text · element with test id “proposal-total” · as total, pattern /(€\s?[\d.,]+)/ · {mark: mark proposal-open}
+    quotes.4 L40 [hold] hold · 1.8 s
+card figure L42-46 · studio/card-figure · slots capture=“total”, kicker=“Accepted proposal”, label=“for 10 kg of Mountfern AA, delivered”, text=“Read from the proposal itself: the card counts up to the real total.” · 4.6 s
+card before-after L48-52 · studio/card-before-after · slots before=“start:quotes”, after=“proposal-open”, kicker=“One click”, title=“From the list to the full proposal”, before_label=“Quotes”, after_label=“Proposal” · 4.8 s
+card features L54-64 · studio/card-features · slots kicker=“Why cafés switch”, title=“Everything a quote needs” · params {"items":[{"title":"Prices for every bag size","text":"The roaster's price list follows each café.","icon":"tag"},{"title":"Delivery windows that fit","text":"Dates picked on the roaster's real calendar.","icon":"calendar"},{"title":"Proposals in hours","text":"Notified the moment a reply lands.","icon":"bell"},{"title":"One PDF for the books","text":"Every accepted quote as a document.","icon":"document"}]} · 5.4 s
+card chart L66-71 · studio/card-chart · slots kicker=“This season”, title=“Quote requests per month”, data=“data/quotes-per-month.csv”, note=“Fictional figures of the Northfield fixture.” · params {"y":"quote requests"} · 4.8 s
+card testimonial L73-81 · studio/card-testimonial · slots quote=“We used to chase three roasters by email. Now every quote, delivery date and invoice lives in one place.”, name=“Ilse Varnström”, role=“Head barista”, company=“Café Tallmora” · 5.4 s
+card cta L83-92 · studio/card-cta · slots kicker=“Ready when you are”, title=“Open your café account today”, text=“Request your first quote in minutes — no card needed.”, button=“Create an account”, url=“shop.northfield.example/signup” · 5.2 s
+7 steps

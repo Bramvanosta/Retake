@@ -9,10 +9,25 @@
  * - `projects_overview`: what the Projects screen's cards show beyond project_list — every project's environment flags
  *   (project_get's) and last run (run_list's) — in one call (review B L2: a card per project made two calls each, at
  *   every focus and reconnection).
+ * - `scenario_blocks` (L4.2): the scenario screen in one read — engine scenarios.view: text, hash, blocks, issues
+ *   (without agent trust), run blockers worded for the Studio, scene URLs, the runs (picker), the source run and every
+ *   step's binding to it; page text under `untrusted`. Memoised by the engine (file hash, runs' files). Plus `hints`:
+ *   the scenario language's description of each action the file uses (the inspector's edit hints).
+ * - `run_thumbs` (L4.2): base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
+ *   `data:image/jpeg;base64,…` (the CSP's `img-src data:`), never stored. Not MCP tools: Claude reads files, run_status
+ *   and review contact sheets.
+ * - `scenario_run` (L4.2, critique B11): the scenario screen's Dry run and Capture — engine runs.submit with pinned
+ *   arguments: the mode, the scenario, an environment of the project; the default hooks (none for a dry run, all for a
+ *   capture), never a sandbox reset, never `until`, never a wait. It runs under the `ui` client's agent trust with no
+ *   approver, so what the screen showed as a run blocker is refused here too (the submit is the authority) with the
+ *   `studio run …` command to type in a terminal. `hash` (the file as the screen showed it) makes a changed file a 409;
+ *   a run of the scenario already queued or running makes another a 409 (one submit per scenario at a time). Not an
+ *   MCP tool: Claude has run_dry / run_capture.
  */
 import { z } from 'zod';
-import { PROJECT_SLUG_RE } from '@demo-studio/core';
-import { firstErrorLine } from '@demo-studio/engine';
+import { ACTION_DESCRIPTIONS, PROJECT_SLUG_RE, SLUG_RE } from '@demo-studio/core';
+import type { ActionName } from '@demo-studio/core';
+import { EngineError, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
 import type { EnvironmentView, RunListItem } from '@demo-studio/engine';
 import type { ToolDef } from '@demo-studio/mcp';
 import type { Live } from './live.js';
@@ -29,6 +44,39 @@ const SearchInput = z.strictObject({
   q: z.string().max(200).describe('Words to find (each one as a prefix): project names and READMEs, scenario names, run and render ids.'),
   project: project.optional().describe('Only this project.'),
   limit: z.number().int().min(1).max(50).optional().describe('At most this many hits (default 20).'),
+});
+
+const scenario = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');
+const run = z.string().max(200).regex(RUN_ID_RE, 'a run id (scenario_blocks lists them), never a path');
+const env = z.string().max(100).regex(SLUG_RE, 'an environment name of the project');
+
+const BlocksInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
+  run: run.optional().describe('The run whose pictures to show (default: the newest complete run with pictures).'),
+  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
+});
+
+const ThumbsInput = z.strictObject({
+  project,
+  run,
+  keys: z
+    .array(z.string().max(130).regex(RUN_KEY_RE, 'a step key of the run: "<scene id>.<step index>"'))
+    .min(1)
+    .max(RUN_THUMBS_MAX_KEYS)
+    .describe(`The run's own step keys (scenario_blocks binds today's steps to them), 1 to ${RUN_THUMBS_MAX_KEYS}.`),
+});
+
+const RunInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
+  mode: z.enum(['dry', 'capture']).describe('A dry run (no hooks, a screenshot per step) or a capture (its hooks, the video).'),
+  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
+  hash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/, 'the sha256 of the file as scenario_blocks showed it')
+    .optional()
+    .describe('The file as the screen showed it (scenario_blocks `hash`): refused (409) when the file checked is another one.'),
 });
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
@@ -98,6 +146,88 @@ export function indexOps(live: Live): ToolDef[] {
   return [activity, search] as unknown as ToolDef[];
 }
 
+/** scenario_blocks and run_thumbs: the scenario screen's reads (engine scenarios.view, runs.thumbs). */
+export function scenarioOps(): ToolDef[] {
+  const blocks: ToolDef<typeof BlocksInput> = {
+    name: 'scenario_blocks',
+    title: 'Scenario as blocks',
+    description: "A scenario's text, blocks, issues and run blockers, its runs, and each step bound to the source run's pictures.",
+    input: BlocksInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      const v = await engine.scenarios.view(a.project, a.name, { ...(a.run ? { run: a.run } : {}), ...(a.env ? { env: a.env } : {}) });
+      const src = v.source ? `pictures from ${v.source.run}` : 'no run with pictures yet';
+      // The inspector's edit hints: what each action of this file does (the scenario language's own descriptions).
+      const hints: Partial<Record<ActionName, string>> = {};
+      for (const e of v.blocks.entries) if (e.type === 'scene') for (const s of e.steps) if (s.action) hints[s.action] = ACTION_DESCRIPTIONS[s.action];
+      return { summary: `${a.name}: ${plural(v.blocks.step_count, 'step')}, ${plural(v.issues.length, 'issue')}, ${src}`, data: { ...v, hints } as unknown as Record<string, unknown> };
+    },
+  };
+  const thumbs: ToolDef<typeof ThumbsInput> = {
+    name: 'run_thumbs',
+    title: 'Thumbnails of run steps',
+    description: "JPEG thumbnails (base64, ≤ 480 px) of a run's steps: dry-run screenshots, error screenshots, the frame at a capture step's end.",
+    input: ThumbsInput,
+    annotations: READ,
+    async run(a, { engine, signal }) {
+      const t = await engine.runs.thumbs(a.project, a.run, a.keys, { signal });
+      return { summary: `${plural(t.thumbs.length, 'thumbnail')} of ${a.run}${t.missing.length ? `, ${t.missing.length} without one` : ''}`, data: t as unknown as Record<string, unknown> };
+    },
+  };
+  return [blocks, thumbs] as unknown as ToolDef[];
+}
+
+/** What scenario_run answers: the run reserved and its job (the screen follows it with run_status and the events). */
+export interface ScenarioRunAnswer {
+  run_id: string;
+  job: string;
+  state: string;
+  mode: 'dry' | 'capture';
+  warnings: string[];
+  /** The worker serving the queue: started now, or already running (absent: not started — tests). */
+  worker?: { pid?: number; spawned: boolean };
+}
+
+/** scenario_run: the scenario screen's Dry run / Capture, arguments pinned (B11). */
+export function runOps(): ToolDef[] {
+  // One submit of a scenario at a time in this Studio (two tabs, a double click), and none while a run of it waits or
+  // runs (review B L2: two dry runs queued, or a capture's hooks run twice).
+  const chains = new Map<string, Promise<unknown>>();
+  const oneAtATime = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
+    const tail = next.catch(() => undefined);
+    chains.set(key, tail);
+    void tail.then(() => {
+      if (chains.get(key) === tail) chains.delete(key);
+    });
+    return next;
+  };
+  const run: ToolDef<typeof RunInput> = {
+    name: 'scenario_run',
+    title: 'Run a scenario from the Studio',
+    description: 'Queue a dry run or a capture of a scenario: default hooks, no sandbox reset, no until; refused (with the studio run command) when a hook needs a person.',
+    input: RunInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    async run(a, { engine }) {
+      const sub = await oneAtATime(`${a.project}\0${a.name}`, async () => {
+        const open = await engine.jobs.list({ project: a.project, kinds: ['run'], states: ['queued', 'running'] });
+        const busy = open.find((j) => j.input.kind === 'run' && j.input.scenario === a.name);
+        if (busy && busy.input.kind === 'run') {
+          throw new EngineError('conflict', `a ${busy.input.mode === 'dry' ? 'dry run' : 'capture'} of ${a.name} is ${busy.state} (${busy.input.run_id}): wait for it to end, or cancel it`, {
+            details: { run_id: busy.input.run_id, job: busy.id },
+          });
+        }
+        return engine.runs.submit({ project: a.project, scenario: a.name, mode: a.mode, ...(a.env ? { env: a.env } : {}), ...(a.hash ? { expect_sha256: a.hash } : {}) });
+      });
+      const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker: sub.worker } : {}) };
+      return { summary: `${a.mode === 'dry' ? 'dry run' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
+    },
+  };
+  return [run] as unknown as ToolDef[];
+}
+
 /** The names of the Studio's own ops (not MCP tools). */
 export const INDEX_OPS = ['activity_list', 'search'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview'] as const;
+export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs'] as const;
+export const RUN_OPS = ['scenario_run'] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS] as const;

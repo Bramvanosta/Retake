@@ -1,4 +1,4 @@
-import type { HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 
 /** What a hook's approval is asked about (@demo-studio/hooks HookApprovalRequest, structurally). */
 export interface HookApprovalRequestLike {
@@ -33,6 +33,8 @@ export interface HookContextLike {
   running?: Set<number>;
   /** Who stands behind the hook files' trust flags (L3.1): `mcp` for work submitted through the MCP server. */
   trust?: HookTrust;
+  /** The channel trust-`mcp` work came through, for the wording of refusals (`studio`: the Studio). */
+  via?: AgentChannel;
   /** Approves the hooks that need a human (RunOptions.confirmHook). */
   confirmDestructive?: ConfirmHook;
 }

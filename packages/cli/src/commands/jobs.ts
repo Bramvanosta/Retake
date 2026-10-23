@@ -135,7 +135,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
   const jobs = await engine.jobs.list({ ...(opts.project ? { project: opts.project } : {}), ...(opts.state?.length ? { states: opts.state as JobState[] } : {}), limit });
   const worker = await engine.jobs.worker();
   if (opts.json) {
-    ui.result(JSON.stringify({ jobs, worker: worker ? { pid: worker.pid, since: worker.since, build: worker.build } : null }, null, 2));
+    ui.result(JSON.stringify({ jobs, worker: worker ? { pid: worker.pid, since: worker.since, build: worker.build, ...(worker.started_by ? { started_by: worker.started_by } : {}) } : null }, null, 2));
     return EXIT.ok;
   }
   const c = ui.c;
@@ -150,7 +150,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
     ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
   }
-  ui.line(c.dim(`worker: ${worker ? `running (pid ${worker.pid}, since ${ago(worker.since, now)})` : 'not running (an MCP client starts it when it submits a job)'}`));
+  ui.line(c.dim(`worker: ${worker ? `running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''}, since ${ago(worker.since, now)})` : 'not running (an MCP client or the Studio starts it when it submits a job)'}`));
   return EXIT.ok;
 }
 

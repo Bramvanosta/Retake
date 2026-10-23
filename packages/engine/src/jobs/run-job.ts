@@ -21,15 +21,17 @@ import {
   writeJson,
 } from '@demo-studio/core';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@demo-studio/core';
-import { approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
-import type { Approver } from '../approvals.js';
+import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
+import type { Approver, Preflight } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
+import type { EngineErrorCode } from '../errors.js';
 import { executeRun, prepareRun } from '../execute-run.js';
 import type { PreparedRun, RunPorts } from '../execute-run.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
+import { getScenario } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
 import type { FileJobQueue } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RunJobResult } from './types.js';
@@ -42,6 +44,11 @@ export interface RunSubmitRequest {
   until?: string;
   hooks?: 'run' | 'skip';
   sandbox?: boolean;
+  /**
+   * sha256 of the scenario's bytes the client showed (the Studio's view `hash`): the submit is refused as `conflict`
+   * when the bytes it checks are other ones (review A #6: what was clicked is what runs).
+   */
+  expect_sha256?: string;
 }
 
 export interface SubmitContext {
@@ -99,46 +106,139 @@ export async function finaliseReservedRun(dir: string, status: Extract<RunStatus
   await writeJson(join(dir, 'run.json'), { ...rec, status, finished_at: new Date().toISOString(), error: { ...(rec.error ?? {}), message } });
 }
 
-/** Check, reserve the run id and queue a `run` job. */
-export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
+/** A run request opened and prepared once (its project, its scenario loaded and checked against its environment). */
+interface PreparedSubmit {
+  project: LoadedProject;
+  prepared: PreparedRun;
+}
+
+async function prepareSubmit(ctx: SubmitContext, req: RunSubmitRequest): Promise<PreparedSubmit> {
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);
   const project = await openProjectBySlug(ctx.ws, req.project);
-  let prepared: PreparedRun;
+  // The file is read first as the Studio and MCP read scenarios (L4.2): inside the project once links are followed, a
+  // regular file of bounded size — never through a link out, never a FIFO that would hold the reader.
+  await getScenario(project, req.scenario);
   try {
-    prepared = await prepareRun(ctx.ws, project, req.scenario, { dry: req.mode === 'dry', until: req.until, hooks: req.hooks, env: req.env, sandbox: req.sandbox });
+    return { project, prepared: await prepareRun(ctx.ws, project, req.scenario, { dry: req.mode === 'dry', until: req.until, hooks: req.hooks, env: req.env, sandbox: req.sandbox }) };
   } catch (e) {
     throw toEngineError(e);
   }
+}
+
+/**
+ * The checks a run must pass before it is queued, in the submit's order, each throwing its refusal: agent trust, the
+ * workspace's protected hosts, the hooks a safety rule refuses, then the approvals of the hooks that need a human (the
+ * last returns the approvals to write with the job). runBlockers runs the same gates without stopping at the first.
+ */
+function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, approver: Approver | undefined): Array<() => Promise<JobApproval[] | void>> {
+  const { project, prepared } = s;
   const sc = prepared.scenario.scenario;
   const env = resolveEnvironment(project, prepared.sandboxEnv ?? req.env ?? sc.env);
   const hooksMode = req.hooks ?? (req.mode === 'capture' ? 'run' : 'skip');
+  const fix = runCommandLine(ctx.cli, { ...req, hooks: hooksMode });
+  const what = `${req.mode === 'dry' ? 'the dry run' : 'the capture'} of scenario ${prepared.scenario.name}`;
   // The hooks this run executes, checked with trust `mcp` (R-MCP-35): what a safety rule refuses fails the submit; what
   // needs a human is asked through the client's approver, else refused with the `studio` command a human runs.
-  let approvals: JobApproval[] = [];
-  const fix = runCommandLine(ctx.cli, { ...req, hooks: hooksMode });
-  checkAgentTrust(project, sc, fix);
-  await checkWorkspaceProtection(ctx.ws, project, env.name, fix);
-  const what = `${req.mode === 'dry' ? 'the dry run' : 'the capture'} of scenario ${prepared.scenario.name}`;
-  // `sandbox`: the reset before the take may run the seed — its shell steps need a human too.
-  const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv) : [];
-  if (hooksMode === 'run' && ((sc.setup?.length ?? 0) > 0 || (sc.teardown?.length ?? 0) > 0)) {
-    const pre = await preflightHooks(
-      project,
-      [
-        { phase: 'setup', hooks: sc.setup ?? [] },
-        { phase: 'teardown', hooks: sc.teardown ?? [] },
-      ],
-      { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project) },
-    ).catch((e: unknown) => {
-      throw toEngineError(e);
-    });
-    if (pre.refused.length) throw refusedError(pre, fix);
-    approvals = await takeApprovals({ what, project: project.slug, env: pre.env, items: [...seedItems, ...pre.items], fix }, approver);
-  } else if (seedItems.length) {
-    approvals = await takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver);
+  const hasHooks = hooksMode === 'run' && ((sc.setup?.length ?? 0) > 0 || (sc.teardown?.length ?? 0) > 0);
+  let pre: Promise<Preflight | undefined> | undefined;
+  const preflight = (): Promise<Preflight | undefined> =>
+    (pre ??= hasHooks
+      ? preflightHooks(
+          project,
+          [
+            { phase: 'setup', hooks: sc.setup ?? [] },
+            { phase: 'teardown', hooks: sc.teardown ?? [] },
+          ],
+          { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
+        ).catch((e: unknown) => {
+          throw toEngineError(e);
+        })
+      : Promise.resolve(undefined));
+  return [
+    async () => checkAgentTrust(project, sc, fix, ctx.client),
+    async () => checkWorkspaceProtection(ctx.ws, project, env.name, fix, agentChannel(ctx.client)),
+    async () => {
+      const p = await preflight();
+      if (p?.refused.length) throw refusedError(p, fix);
+    },
+    async () => {
+      // `sandbox`: the reset before the take may run the seed — its shell steps need a human too.
+      const seedItems = prepared.sandboxEnv ? await seedApprovalItems(project, prepared.sandboxEnv) : [];
+      const p = await preflight();
+      if (p) return takeApprovals({ what, project: project.slug, env: p.env, items: [...seedItems, ...p.items], fix }, approver, ctx.client);
+      if (seedItems.length) return takeApprovals({ what, project: project.slug, env: { name: env.name, production: false, access: 'read-write' }, items: seedItems, fix }, approver, ctx.client);
+      return [];
+    },
+  ];
+}
+
+/** Why a run would be refused at submit, before anything is clicked (L4.2, critique B2): a refusal and its command. */
+export interface RunBlocker {
+  code: EngineErrorCode;
+  message: string;
+  /** The `studio` command a human runs instead, when there is one. */
+  fix?: string;
+  /** The same command for a person without `studio` on their PATH: `node <repository>/packages/cli/dist/bin.js …` (the Studio's view). */
+  fix_node?: string;
+  /** The file must be fixed first (it has errors): no command helps (the Studio's view). */
+  fix_file?: true;
+}
+
+/**
+ * What would refuse a dry run and a capture of a scenario submitted by this client with no approver (the Studio's
+ * buttons: default hooks — none for a dry run, all for a capture —, no sandbox, no `until`): the submit's own gates
+ * (runGates), every one of them run, nothing queued, nothing executed, no run id reserved. Empty: the submit would
+ * queue. The submit stays the authority: it checks again.
+ */
+export async function runBlockers(ctx: SubmitContext, req: { project: string; scenario: string; env?: string }): Promise<{ dry: RunBlocker[]; capture: RunBlocker[] }> {
+  const blocker = (e: unknown): RunBlocker => {
+    const err = toEngineError(e);
+    return { code: err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
+  };
+  const base: RunSubmitRequest = { project: req.project, scenario: req.scenario, mode: 'dry', ...(req.env !== undefined ? { env: req.env } : {}) };
+  let s: PreparedSubmit;
+  try {
+    s = await prepareSubmit(ctx, base);
+  } catch (e) {
+    const b = blocker(e);
+    return { dry: [b], capture: [b] };
   }
-  const sha = sha256Hex(await readFile(prepared.scenario.file));
+  const out: { dry: RunBlocker[]; capture: RunBlocker[] } = { dry: [], capture: [] };
+  for (const mode of ['dry', 'capture'] as const) {
+    for (const gate of runGates(ctx, s, { ...base, mode }, undefined)) {
+      try {
+        await gate();
+      } catch (e) {
+        const b = blocker(e);
+        // A preflight that failed fails both hook gates with the same error: said once.
+        if (!out[mode].some((x) => x.message === b.message)) out[mode].push(b);
+      }
+    }
+  }
+  return out;
+}
+
+/** Check, reserve the run id and queue a `run` job. */
+export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
+  const s = await prepareSubmit(ctx, req);
+  const { project, prepared } = s;
+  const sc = prepared.scenario.scenario;
+  const env = resolveEnvironment(project, prepared.sandboxEnv ?? req.env ?? sc.env);
+  const hooksMode = req.hooks ?? (req.mode === 'capture' ? 'run' : 'skip');
+  let approvals: JobApproval[] = [];
+  for (const gate of runGates(ctx, s, req, approver)) {
+    const r = await gate();
+    if (r) approvals = r;
+  }
+  // The bytes the gates checked (the text prepareRun parsed), never a later read of the file (review A #6); the
+  // worker checks the file against this hash before it runs.
+  const sha = sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
+  if (req.expect_sha256 !== undefined && req.expect_sha256 !== sha) {
+    throw new EngineError('conflict', `scenarios/${prepared.scenario.name} changed since it was shown: look at it again, then start the run`, {
+      details: { shown: req.expect_sha256, current: sha },
+    });
+  }
   const { id: runId, dir } = await reserveRunId(join(project.dir, 'runs'), prepared.scenario.name);
   const queued: RunRecord = {
     version: FORMAT_VERSIONS.run,
@@ -206,7 +306,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const runDir = join(project.dir, 'runs', input.run_id);
   try {
     const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox });
-    await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name);
+    await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
     const sha = sha256Hex(await readFile(prepared.scenario.file));
     if (sha !== input.scenario_sha256) {
       throw new EngineError('conflict', `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`, {
@@ -260,6 +360,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         loginCommand: (p) => coreLoginCommand(p).replace(/^studio /, `${ctx.cli} `),
         // A queued job came through MCP: the hook files' trust flags do not count; only the approvals taken at submit.
         hookTrust: 'mcp',
+        hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
       },
       ports,

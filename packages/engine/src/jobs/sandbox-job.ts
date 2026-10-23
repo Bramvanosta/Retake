@@ -67,6 +67,7 @@ export async function submitSandboxJob(
       fix: sandboxCommandLine(ctx.cli, kind, req),
     },
     approver,
+    ctx.client,
   );
   const base = { project: project.slug, ...(req.env !== undefined ? { env: req.env } : {}), submitted_by: ctx.client, ...(approvals.length ? { approvals } : {}) };
   const input: SandboxUpJobInput | SandboxResetJobInput =

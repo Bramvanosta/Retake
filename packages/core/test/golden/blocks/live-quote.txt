@@ -1,0 +1,34 @@
+# Both sides at once (L2.11): the café's shop and the roaster's console filmed at the same time on one clock, shown side by side (studio/layout-split). The café sends a quote request; the roaster's live list shows it arrive within a second (the console polls), the roaster sends a proposal, and a second later the café's notification bell rings with it (the shop polls its notifications too) — both hand-offs happen live, on screen.
+# 
+# Both pages are filmed at the laptop preset (1440 × 900): side by side, each is shown at about 0.65× — readable. Steps act on the first page (buyer) unless they say `on: supplier`; only the acting page's cursor moves.
+video live-quote · title “Both sides” / “From request to proposal in real time” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Cafés and roasters, on the same page."}
+  frame split
+  tutorial steps on
+  setup 1 L18-19 http reset: POST {{shop}}/api/reset
+  teardown 1 L22-23 http reset: POST {{shop}}/api/reset
+scene request L26-35 · pages buyer open shop:/products/selowa-ridge laptop “Café · shop” | supplier open console:/quotes laptop “Roaster · console” · caption “The café” / “Asks for a quote on a coffee: quantity, bag size, grind.”
+    request.0 L32 [click] click · button “Request a quote”
+    request.1 L33 [click] click · “Increase” (aria label) in the dialog
+    request.2 L34 [select] select · field “Bag size” · option “5 kg”
+    request.3 L35 [select] select · field “Grind” · option “Whole bean”
+# Same pages, same layout: contiguous scenes are joined (only the caption changes).
+scene delivery L38-47 · pages buyer | supplier · continues · caption “The café” / “Picks a delivery window and sends the request.”
+    delivery.0 L42 [click] click · field “Delivery window”
+    delivery.1 L43 [click] click · “Next month” (aria label)
+    delivery.2 L44 [click] click · “10 January 2027” (aria label)
+    delivery.3 L45 [click] click · “24 January 2027” (aria label)
+    delivery.4 L46 [click] click · “Send request” in the dialog
+    delivery.5 L47 [wait] wait for · text “Quote request sent”
+scene arrives L49-64 · pages buyer | supplier · continues · caption “The roaster” / “Sees the request arrive, live, and sends a proposal.”
+    arrives.0 L53-55 [wait] wait for · text “New” · {mark: mark request-arrived; page: on supplier}
+    arrives.1 L56-57 [click] click · “Send proposal” in the row containing “New” · {page: on supplier}
+    arrives.2 L58-59 [click] click · “Send proposal” in the dialog · {page: on supplier}
+    arrives.3 L60-61 [wait] wait for · text “Proposal sent” · {page: on supplier}
+    # Let the dialog close and the row leave the list before the café's scene starts (its opening still stays still).
+    arrives.4 L63-64 [hold] hold · 1.2 s · {page: on supplier}
+scene proposal L66-74 · pages buyer | supplier · continues · caption “The café” / “Gets the proposal a second later.”
+    proposal.0 L70 [click] click · “Notifications” (aria label)
+    proposal.1 L71 [click] click · “New proposal from Northfield Roasters”
+    proposal.2 L72-73 [wait] wait for · element with test id “proposal-total” · {mark: mark proposal}
+    proposal.3 L74 [hold] hold · 1.6 s
+19 steps

@@ -1,4 +1,4 @@
-import type { HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { AgentChannel, HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 
 /**
  * Which list of hooks is being run. Only `setup` hooks journal a rollback action. `seed` (L1.8): the steps that build a
@@ -49,6 +49,11 @@ export interface HookContext {
    * hook needs an approval and always counts as writing.
    */
   trust?: HookTrust;
+  /**
+   * The channel trust-`mcp` work came through, for the wording of its refusals (L4.2): `studio` (the Studio web app:
+   * "from the Studio", "run it in a terminal") or `mcp` (default: "through MCP").
+   */
+  via?: AgentChannel;
   /**
    * The access of the run (L1.7, core resolveRunAccess): on `read-only`, a hook that writes is refused (status
    * `refused`, reason `read-only`) and SQL runs in a read-only transaction. Absent: read-write.

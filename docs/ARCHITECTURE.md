@@ -40,7 +40,7 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      that same UI; a hosted UI would reach the engine through an outbound relay (BL-38).
 
    Nothing in the engine assumes a particular UI.
-2. **Every long task an MCP client starts is a job.** Dry runs, captures, hooks, environment resets, sign-ins,
+2. **Every long task an MCP client (or, since L4.2, the Studio) starts is a job.** Dry runs, captures, hooks, environment resets, sign-ins,
    sandbox up / reset, and (L3.2) renders, reviews, exports and component / theme previews have a serialisable, versioned payload (core `JobInputSchema`, v1), sit in a queue the engine
    owns (files under `<workspace>/.demo-studio/jobs/`), and are executed by the workspace's worker, which *pulls* them
    in a process of its own (one worker per workspace, one job at a time; the MCP process never opens a browser).
@@ -54,7 +54,12 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
    - *Sessions*: persona names only, resolved by the worker from its own `~/.demo-studio`; never in a payload or a
      result (no profile path, no cookie). A sign-in job opens a window on the worker's machine for a human.
    - *Secrets*: never in a payload, and no tool takes one. `{{env:}}` / `{{keychain:}}` refs are resolved by the worker
-     at use (from the environment of the MCP server that started it) and masked in every file it writes — but only
+     at use (from the environment of the client that started it — the MCP server or the Studio both hand it a clean
+     one, engine `cleanWorkerEnv`, L4.2: PATH sanitised like `studio mcp`'s, no package-manager variables, MCP token,
+     model / agent / code-host credentials, nothing that loads code from the workspace (NODE_OPTIONS files, NODE_PATH /
+     DYLD_* / LD_* entries inside it), DEMO_STUDIO_HOME kept; `studio worker` in a terminal keeps that terminal's; one
+     worker per workspace, so the first client's environment serves every job until it idles out — the lock records
+     `started_by`) and masked in every file it writes — but only
      refs a human wrote: project.yaml (personas' login steps, databases, mailbox, reset hooks) and the project's
      `hooks/` files. A scenario written or run through MCP names no secret, nor does a code file it runs (refused at
      save, at submit and by the worker): the agent could otherwise read any variable of that environment back through
@@ -100,6 +105,8 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 | Job queue, worker lock, job history (usage counters) | `<workspace>/.demo-studio/` (git-ignored) | engine | no |
 | Studio discovery file (L4.1) | `<workspace>/.demo-studio/ui.json` (0600: pid, start time, port, the server's API token; inside the workspace — keep `.demo-studio/` out of version control, as this repository's .gitignore does) | `studio ui` (a second launch reuses the running server), later the macOS shell | no; the token gives a local process the Studio's allow-list, under the agent's trust |
 | What the Studio page shows (L4.1) | the browser tab of `studio ui` (127.0.0.1; the session token in that tab's sessionStorage) | the person at the machine | no: the page loads nothing from the network (CSP `connect-src 'self'`, no remote asset) |
+| Runs started from the Studio (L4.2) | the job queue and `runs/` as any job (`submitted_by: ui`) | the Studio's Dry run / Capture (`scenario_run`: the scenario, the mode, an environment and the hash of the file as shown — never a sandbox reset, `until` or hooks of a dry run; one run of a scenario at a time) and Cancel (`run_cancel`), under the agent's trust with no approver (a hook that needs a person is refused with the `studio run …` command, shown before the click) | as any run: the user's own traffic to their own hosts; production read-only |
+| Step thumbnails of the scenario screen (L4.2) | the Studio server's memory only (≤ 32 MiB, JPEG ≤ 480 px made from the run's screenshots, kept frames or video) and the tab's memory (≤ 600 pictures, asked for the rows on screen, shown as `data:image/jpeg` URLs); never written to disk | the person at the machine (`run_thumbs`, a Studio op — not an MCP tool) | no: served to the Studio's own page over the gated call route, `Cache-Control: no-store` |
 | Workspace index (L4.1) | `<workspace>/.demo-studio/index.sqlite` (+ -wal / -shm; mode from the umask, readable like the READMEs it holds; not for version control, as above): a cache of project names, READMEs, runs, renders, the job history and their search | the Studio server only (activity feed, search) | no; delete it any time — it is rebuilt from the files |
 | MCP over HTTP token (L4.1) | `<studio home>/mcp-http.token` (0600), and the MCP client's registration that holds it | `studio mcp --http` (127.0.0.1, refuses any request a browser could send) | no; whoever holds it is an MCP client of the workspace it serves |
 

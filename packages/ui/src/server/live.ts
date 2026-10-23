@@ -7,8 +7,11 @@
  *   fs.watch): the index's reconcile (or, without node:sqlite, the same scan held in memory) and the job watch (live
  *   from the queue, critique B2). An op of the index (activity_list, search) refreshes first, so it never answers
  *   stale, and what it found goes out on the streams too.
- * - Events: `hello {api, index, generation}`, `workspace {projects, readme}`, `jobs {changed}`, `index {generation}`,
- *   and a comment line every 15 s (proxies and idle sockets).
+ * - Events: `hello {api, index, generation}`, `workspace {projects, readme, scenarios?, runs?}`, `jobs {changed}`,
+ *   `index {generation}`, and a comment line every 15 s (proxies and idle sockets). `scenarios` names the scenario files
+ *   changed (`<slug>/<name>`, an in-place save included) and `runs` the runs that started, progressed, finished or went
+ *   away, each with its scenario (L4.2, critique B1): a scenario screen re-reads only for its own file and its own
+ *   scenario's runs starting or finishing — a running run's progress is a `run_status` read, never a whole view.
  * - At most 4 streams (critique B1): the page keeps one per browser (the tab holding a Web Lock relays to the others
  *   over a BroadcastChannel); a 5th gets 503 `too_many_streams` and that tab re-reads on a timer instead. A stream is
  *   never an op: the op counter does not move.
@@ -16,9 +19,11 @@
  * Only this server writes the index (it holds ui.json). Nothing here logs a token, a path's content or an event body.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, WorkspaceIndex, diffSources, scanSources, securityHeaders, workspaceChanges } from '@demo-studio/engine';
-import type { SourceMap, SqliteLoader } from '@demo-studio/engine';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import { join } from 'node:path';
+import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@demo-studio/engine';
+import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@demo-studio/engine';
+
+import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 
 /** Event streams served at once, at most (below a browser's 6 connections per host). */
 export const EVENT_STREAMS_MAX = 4;
@@ -46,6 +51,8 @@ export class Live {
   private readonly streams = new Set<ServerResponse>();
   private readonly jobs: JobsWatch;
   private sources: SourceMap | undefined;
+  /** Without node:sqlite: each project's runs as last read (what a run change is told from). */
+  private readonly runRows = new Map<string, RunRow[]>();
   private timer: NodeJS.Timeout | undefined;
   private keepalive: NodeJS.Timeout | undefined;
   private refreshing: Promise<void> | undefined;
@@ -98,22 +105,47 @@ export class Live {
 
   private async poll(): Promise<void> {
     let keys: string[];
+    let runs: RunChange[];
     let generation: number | undefined;
     if (this.index) {
       const c = await this.index.reconcile();
       keys = c.keys;
+      runs = c.runs;
       generation = c.generation;
     } else {
-      const next = await scanSources(this.o.ws);
-      keys = this.sources ? diffSources(this.sources, next) : [];
-      this.sources = next;
+      ({ keys, runs } = await this.scanWithoutIndex());
     }
     const changed = await this.jobs.poll();
     if (this.closed) return;
     const w = workspaceChanges(keys);
-    if (w.projects.length) this.send('workspace', { projects: w.projects, readme: w.readme });
+    if (w.projects.length) {
+      this.send('workspace', { projects: w.projects, readme: w.readme, ...(w.scenarios.length ? { scenarios: w.scenarios } : {}), ...(runs.length ? { runs } : {}) });
+    }
     if (changed.length) this.send('jobs', { changed });
     if (keys.length && generation !== undefined) this.send('index', { generation });
+  }
+
+  /** The index's scan held in memory (Node.js without node:sqlite), runs re-read on a `runs:` change as the index does. */
+  private async scanWithoutIndex(): Promise<{ keys: string[]; runs: RunChange[] }> {
+    const unfinished = new Map<string, string[]>();
+    for (const [slug, rows] of this.runRows) {
+      const ids = rows.filter((r) => r.status === 'queued' || r.status === 'running').map((r) => r.id);
+      if (ids.length) unfinished.set(slug, ids);
+    }
+    const next = await scanSources(this.o.ws, unfinished);
+    const prev = this.sources;
+    this.sources = next;
+    const keys = prev ? diffSources(prev, next) : [...next.keys()];
+    const runs: RunChange[] = [];
+    for (const key of keys) {
+      const { kind, project } = sourceKey(key);
+      if (kind !== 'runs' || project === undefined) continue;
+      const read = next.has(key) ? await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX }).catch(() => []) : [];
+      const after: RunRow[] = read.filter((r) => !r.newer).map((r) => ({ id: r.id, scenario: r.scenario ?? null, status: r.status ?? null }));
+      if (prev) runs.push(...runChanges(project, this.runRows.get(project) ?? [], after, prev.get(key), next.get(key)));
+      this.runRows.set(project, after);
+    }
+    return { keys: prev ? keys : [], runs };
   }
 
   private send(event: string, data: unknown): void {

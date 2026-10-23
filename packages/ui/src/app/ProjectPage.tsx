@@ -1,7 +1,8 @@
 /**
  * A project (`project_get`): its README (as plain text — no Markdown rendering), environments with their pages, display
- * URLs, flags and personas, scenarios, recent runs (`run_list`), its recent activity (the index) and project.yaml
- * warnings. URLs are text, never links. It re-reads when the project's files change (events.ts).
+ * URLs, flags and personas, scenarios (each a link to its blocks, L4.2), recent runs (`run_list`), its recent activity
+ * (the index) and project.yaml warnings. URLs are text, never links. It re-reads when the project's files change
+ * (events.ts).
  */
 import type { EnvironmentView, ProjectView, RunListItem } from '@demo-studio/engine';
 import { useCall } from './api.js';
@@ -192,7 +193,9 @@ export function ProjectPage({ slug }: { slug: string }) {
               <ul className="scenarios">
                 {p.scenarios.map((s) => (
                   <li key={s}>
-                    <Txt className="mono" text={s} />
+                    <a href={hrefTo({ name: 'scenario', slug: p.slug, scenario: s, tab: 'blocks' })} data-testid="scenario-link">
+                      <Txt className="mono" text={s} />
+                    </a>
                   </li>
                 ))}
               </ul>

@@ -5,6 +5,7 @@ import { stringify } from 'yaml';
 import type { z } from 'zod';
 import { checkProject } from './checks/project.js';
 import { FORMAT_VERSIONS } from './formats.js';
+import { readPlainFile } from './plain-file.js';
 import { normalizeEnvironments } from './env.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { loadSandboxes, mergeSandboxes } from './sandbox.js';
@@ -89,6 +90,18 @@ export function parseProjectYaml(text: string, file?: string): { config?: Projec
   return { config: applyProjectDefaults(value as ProjectFile), issues };
 }
 
+/** The largest README.md a project load keeps in memory (the engine's own reader shows why a bigger one is not shown). */
+const README_LOAD_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * README.md for `project.readme`, or null: missing, or not a small plain file (L4.2, BL-79 residue: a FIFO named
+ * README.md held every project load; a link or an oversized file is left to the engine's reader, which says why).
+ */
+function readmeText(file: string): string | null {
+  const r = readPlainFile(file, README_LOAD_MAX_BYTES);
+  return r.ok ? r.bytes.toString('utf8') : null;
+}
+
 async function readOptional(file: string): Promise<string | null> {
   try {
     return await readFile(file, 'utf8');
@@ -169,7 +182,7 @@ export async function loadProject(dirOrSlug: string, root?: string): Promise<Loa
     dir,
     root: wsRoot,
     config: sandboxes ? mergeSandboxes(config, sandboxes) : config,
-    readme: await readOptional(join(dir, README_FILE)),
+    readme: readmeText(join(dir, README_FILE)),
     scenarios: await listScenarioNames(dir),
     file,
     issues,

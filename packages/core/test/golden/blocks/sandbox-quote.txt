@@ -1,0 +1,22 @@
+# Sandbox mode (L1.8): `studio run northfield-fixture sandbox-quote --sandbox` starts the fixture's sandbox when it is not running, resets it to its seed and films — as the buyer, signed in off camera by the sandbox's account. No setup or teardown hook on purpose: only the sandbox reset makes every take start from the same data, so each take shows the same latest quote, the same new reference and the same "requested" time (the fixture's demo clock restarts at the reset). The control: `--env sandbox` without `--sandbox` films without a reset, and the reference moves on.
+video sandbox-quote · title “For cafés” / “The same quote in every take” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"From request to proposal, in one place."}
+  env sandbox
+  pacing scene_start_still
+scene quotes L15-22 · page shop · open /quotes · caption “Quotes” / “Every request and proposal in one list.”
+    quotes.0 L20-21 [check] capture text · the 1st element matching .quote-row .k · as latest-quote, pattern /(Q-\d+)/ · {mark: mark quotes-before}
+    quotes.1 L22 [hold] hold · 0.8 s
+scene request L24-42 · page shop · open /products/selowa-ridge · caption “Request a quote” / “Pick the quantity and the delivery window, and send.”
+    request.0 L29 [click] click · button “Request a quote”
+    request.1 L30 [click] click · “Increase” (aria label) in the dialog
+    request.2 L31 [select] select · field “Bag size” · option “5 kg”
+    request.3 L32 [select] select · field “Grind” · option “Whole bean”
+    request.4 L33 [click] click · field “Delivery window”
+    request.5 L34 [click] click · “Next month” (aria label)
+    request.6 L35 [click] click · “10 January 2027” (aria label)
+    request.7 L36 [click] click · “24 January 2027” (aria label)
+    request.8 L37 [click] click · “Send request” in the dialog
+    request.9 L38 [wait] wait for · text “Quote request sent”
+    request.10 L39 [click] click · “View request”
+    request.11 L40-41 [check] capture text · element containing “requested” · as new-quote, pattern /(Q-\d+ · requested .+)$/ · {mark: mark quote-sent}
+    request.12 L42 [hold] hold · 1.2 s
+15 steps

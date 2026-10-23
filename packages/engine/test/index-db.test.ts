@@ -85,7 +85,7 @@ describe('the workspace index', () => {
       expect(ix.search('')).toEqual([]);
       // Nothing changed: nothing re-read, the generation stays.
       const again = await ix.reconcile();
-      expect(again).toEqual({ keys: [], generation: first.generation });
+      expect(again).toEqual({ keys: [], runs: [], generation: first.generation });
       expect(ix.history().map((h) => h.kind)).toEqual(['render', 'run']);
       expect(ix.history({ project: 'nope' })).toEqual([]);
     } finally {
@@ -417,6 +417,6 @@ describe('the bounded stat poll', () => {
     await writeFile(join(project(), 'README.md'), '# Northfield\n\nAgain.\n');
     const keys = diffSources(a, await scanSources(cfg));
     expect(keys).toEqual([`readme:${P}`]);
-    expect(workspaceChanges(keys)).toEqual({ projects: [P], readme: [P], history: false });
+    expect(workspaceChanges(keys)).toEqual({ projects: [P], readme: [P], scenarios: [], history: false });
   });
 });

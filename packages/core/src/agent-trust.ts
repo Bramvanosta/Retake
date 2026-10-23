@@ -29,6 +29,17 @@ import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
 
+/**
+ * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
+ * (the Studio web app, L4.2: "from the Studio"). The rules are the same.
+ */
+export type AgentChannel = 'mcp' | 'studio';
+
+/** "through MCP" / "from the Studio". */
+export function channelWords(via: AgentChannel | undefined): string {
+  return via === 'studio' ? 'from the Studio' : 'through MCP';
+}
+
 /** Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`). */
 export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.demo-studio/'];
 
@@ -67,19 +78,20 @@ export function insideFolder(dir: string, p: string): boolean {
  * project folder; a sandbox seed's: its sandbox.yaml folder) and must stay inside the project folder once symbolic
  * links are followed. `code`: the file is run (or sent to a database) — it must not be one an agent can write.
  */
-export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean } = {}): string | null {
+export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: AgentChannel } = {}): string | null {
+  const through = channelWords(o.via);
   if (isAbsolute(ref) || /^~(?:[\\/]|$)/.test(ref)) {
-    return `${ref} is an absolute path: through MCP a file is referenced relative to the project folder, inside it`;
+    return `${ref} is an absolute path: ${through} a file is referenced relative to the project folder, inside it`;
   }
   const root = realPath(resolve(projectDir));
   const target = realPath(resolve(o.baseDir ?? projectDir, ref));
   const rel = relative(root, target);
   if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
     // Never the target itself: a path outside the project is not the agent's to learn (L4.1 review A).
-    return `${ref} resolves outside the project folder: through MCP only files of the project folder are read`;
+    return `${ref} resolves outside the project folder: ${through} only files of the project folder are read`;
   }
   if (o.code && agentWritable(rel)) {
-    return `${ref} is a file an agent can write through MCP (${rel.split(sep).join('/')}): through MCP code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;
+    return `${ref} is a file an agent can write${o.via === 'studio' ? '' : ' through MCP'} (${rel.split(sep).join('/')}): ${through} code is only run from files a human put elsewhere in the project (hooks/, assets/…)`;
   }
   return null;
 }
@@ -136,11 +148,11 @@ export function scenarioFileRefs(sc: Scenario): ScenarioFileRef[] {
 }
 
 /** The refusal of secret references in what an agent wrote or runs (trust `mcp`). */
-export function secretRefsProblem(refs: Iterable<string>, where: string): string | null {
+export function secretRefsProblem(refs: Iterable<string>, where: string, via?: AgentChannel): string | null {
   const list = [...new Set(refs)];
   if (!list.length) return null;
   return (
-    `${where} uses ${list.map((r) => `{{${r}}}`).join(', ')}: through MCP a scenario never resolves a secret — ` +
+    `${where} uses ${list.map((r) => `{{${r}}}`).join(', ')}: ${channelWords(via)} a scenario never resolves a secret — ` +
     "only project.yaml (personas' login steps, databases, mailbox, reset hooks) and the project's hooks files do; a human runs it in a terminal"
   );
 }
@@ -155,10 +167,10 @@ export function isTemplatePath(ref: string): boolean {
  * workspace's templates_dir or a starter), never a folder — except the project's own `template:` of project.yaml
  * (`projectTemplate`), written by a human. `where`: "the scenario's template", "the run's theme"…
  */
-export function templateRefProblem(ref: string | undefined, projectTemplate: string | undefined, where: string): string | null {
+export function templateRefProblem(ref: string | undefined, projectTemplate: string | undefined, where: string, via?: AgentChannel): string | null {
   if (ref === undefined || !isTemplatePath(ref) || ref === projectTemplate) return null;
   return (
-    `${where} is a folder (${ref}): through MCP a theme is named (template_list names them) — a theme folder is used only ` +
+    `${where} is a folder (${ref}): ${channelWords(via)} a theme is named${via === 'studio' ? '' : ' (template_list names them)'} — a theme folder is used only ` +
     "when project.yaml's own template: names it (a human edits project.yaml)"
   );
 }
@@ -187,18 +199,18 @@ export function renderFileProblems(projectDir: string, refs: readonly RenderFile
 /**
  * Why a scenario cannot run as work submitted through MCP (trust `mcp`): its secret references, and the files it
  * references outside the project folder or, run as code, in files an agent can write; with the project's config, a
- * theme it names by folder (`template:`). Empty: nothing found.
+ * theme it names by folder (`template:`). Empty: nothing found. `via`: the wording's channel (the rules are the same).
  */
-export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario): string[] {
+export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: { via?: AgentChannel } = {}): string[] {
   const problems: string[] = [];
   if (project.config && typeof sc.template === 'string') {
-    const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template');
+    const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template', o.via);
     if (t) problems.push(t);
   }
-  const secrets = secretRefsProblem(collectSecretRefs(sc), 'the scenario');
+  const secrets = secretRefsProblem(collectSecretRefs(sc), 'the scenario', o.via);
   if (secrets) problems.push(secrets);
   for (const f of scenarioFileRefs(sc)) {
-    const p = projectFileProblem(project.dir, f.ref, { code: f.code });
+    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
     if (p) problems.push(`${f.where}: ${p}`);
   }
   return problems;

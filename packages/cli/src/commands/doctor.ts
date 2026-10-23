@@ -50,7 +50,7 @@ export interface DoctorProbes {
   /** The Node.js running this command (default process.execPath): what `studio mcp --print-config` registers. */
   execPath?: string;
   /** The jobs worker serving a workspace (L3.1), or null. */
-  worker?(root: string): Promise<{ pid: number; since: string } | null>;
+  worker?(root: string): Promise<{ pid: number; since: string; started_by?: string } | null>;
 }
 
 /** What doctor shows of a sandbox: up / partial / down, its services, its seed. */
@@ -124,7 +124,7 @@ export function systemProbes(): DoctorProbes {
     execPath: process.execPath,
     worker: async (root) => {
       const w = await (await import('@demo-studio/engine')).liveWorker(root);
-      return w ? { pid: w.pid, since: w.since } : null;
+      return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}) } : null;
     },
     head: async (url, timeoutMs) => {
       const t0 = performance.now();
@@ -512,7 +512,7 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
     else warns.push({ detail: 'ffmpeg is not on the PATH a GUI client gets from the registration', hint: 'install ffmpeg (Homebrew), or set ffmpeg: in studio.yaml' });
   }
   const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
-  parts.push(worker ? `worker running (pid ${worker.pid})` : 'worker idle (a client starts it with its first job)');
+  parts.push(worker ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''})` : 'worker idle (a client starts it with its first job)');
   const tree = gitWorkTree(p, ws.root);
   if (tree) {
     const rel = relative(tree, join(ws.root, '.demo-studio'));

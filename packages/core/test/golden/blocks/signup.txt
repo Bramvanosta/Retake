@@ -1,0 +1,35 @@
+# A café opens an account: the sign-up form, the confirmation email captured from the test mailbox (the fixture's Mailpit-compatible API) shown as a mail notification and in a mail client card, the same email arriving on a phone lock screen, the app badge counting up, and a tap that opens the confirmed account — then ⌘K search to the first product. A tutorial: the tutorial overlays follow the timeline (key caps of every key press, a spotlight on each step's target, numbered badges on the clicks, a loupe on the fields being typed, a chapter progress bar).
+video signup · title “For cafés” / “Open your café account in a minute” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"From sign-up to first quote, in one place."}
+  tutorial shortcuts on, spotlight steps, steps on, loupe on, progress scenes
+  vars cafe, contact, email
+  setup 1 L16-17 http reset: POST {{shop}}/api/reset
+  teardown 1 L20-21 http reset: POST {{shop}}/api/reset
+scene signup L24-44 · page shop · open /signup · caption “Sign up” / “Open a café account with your work email, no card needed.”
+    signup.0 L29 [type] type · field “Café name” · “{{vars.cafe}}”
+    # Tab to the next field: the key caps show ⇥, the loupe and the spotlight follow the focused field.
+    signup.1 L31 [type] press · Tab
+    signup.2 L32 [type] type · the focused field · “{{vars.contact}}”
+    signup.3 L33 [type] press · Tab · #1
+    signup.4 L34 [type] type · the focused field · “{{vars.email}}”
+    signup.5 L35 [click] click · “Create account”
+    signup.6 L36 [wait] wait for · text “Check your inbox”
+    # The confirmation email, captured from the mailbox; a mail notification slides in when it lands.
+    signup.7 L38-43 [wait] wait for email · to “{{vars.email}}”, subject “Confirm”, as welcome · {caption: caption “Confirmation”; overlay: overlay studio/mail-notification}
+    signup.8 L44 [hold] hold · 2.6 s
+# Tap the notification: the mail opens (the transition zooms out of the banner).
+card inbox L47-52 · studio/mail-view · slots email=“welcome”, date=“Today, 09:41” · 6 s · transition studio/transition-tap-open
+# The same email on the phone, after a reminder from the app.
+card lockscreen L55-63 · studio/phone-lockscreen · slots email=“welcome”, kicker=“On the go”, title=“Every step reaches you, on any device.” · params {"layout":"left","notifications":[{"app":"Northfield","title":"Almost there","body":"Confirm your email to request your first quote."}]} · 6 s
+card badge L65-70 · studio/phone-home-badge · slots kicker=“Notifications”, title=“Proposals and deliveries, the moment they happen.” · params {"from":0,"to":2,"layout":"left"} · 5 s
+# Tap the app icon: the confirmed account opens.
+scene welcome L73-93 · page shop · open /signup/confirm?token=latest · caption “Confirmed” / “One click in the email and the account is ready.” · transition studio/transition-tap-open
+    welcome.0 L79-80 [wait] wait for · text “Browse coffees” · {hold: hold 0.8 s}
+    # ⌘K: the shop's search shortcut (key caps on the real key press), then the search typed in the loupe.
+    welcome.1 L82-83 [type] press · Meta+K · {caption: caption “Search”}
+    welcome.2 L84 [type] type · the focused field · “Selowa”, then Enter
+    welcome.3 L85-86 [wait] wait for · text “Selowa Ridge” · {caption: caption “Ready to order”}
+    welcome.4 L87-88 [hover] hover · “Selowa Ridge” · 900 ms · {hold: hold 0.8 s}
+    welcome.5 L89-90 [click] click · “Selowa Ridge” · {caption: caption “First quote”}
+    welcome.6 L91 [wait] wait for · button “Request a quote”
+    welcome.7 L92-93 [hover] hover · button “Request a quote” · 900 ms · {hold: hold 3 s}
+17 steps

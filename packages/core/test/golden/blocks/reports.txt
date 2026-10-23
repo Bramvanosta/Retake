@@ -1,0 +1,15 @@
+# Full-page navigations (R-ISS-08). The console's Sales reports are classic server-rendered pages: leaving the app for them, opening a slow report (an empty skeleton first, the figures 1.2 s later) and coming back to the app (its empty shell paints once its data arrived) are full page loads, mid-scene — and the `september` scene opens on a slow report. The capture keeps the previous picture until each new page has painted content of its own, so no blank or skeleton frame is filmed; the edit cuts those held loads.
+video reports · title “For suppliers” / “Your sales, market by market” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Every month, at a glance."}
+  setup 1 L13-14 http reset: POST {{console}}/api/reset
+  teardown 1 L17-18 http reset: POST {{console}}/api/reset
+scene reports L21-33 · page console · open /products · caption “Sales reports” / “Each month's sales by market, one click from your catalogue.”
+    reports.0 L26 [click] click · “Sales reports”
+    reports.1 L27 [click] click · “October 2026”
+    reports.2 L28-30 [wait] wait for · text “Total sales” · {hold: hold 1.5 s; mark: mark report}
+    reports.3 L31 [click] click · “Back to the console”
+    reports.4 L32 [wait] wait for · text “Add a coffee”
+    reports.5 L33 [hold] hold · 1 s
+scene september L35-40 · page console (inherited) · open /reports/2026-09 · caption “Last month” / “Compare with September in one click.”
+    september.0 L39 [wait] wait for · text “Total sales”
+    september.1 L40 [hold] hold · 2 s
+8 steps

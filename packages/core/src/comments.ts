@@ -100,8 +100,8 @@ export function regionProblem(r: CommentRegion): string | null {
 
 // ── Step fingerprints ───────────────────────────────────────────────────────
 
-/** JSON with object keys sorted at every level (a value's canonical text). */
-function canonicalJson(v: unknown): string {
+/** JSON with object keys sorted at every level, undefined values left out (a value's canonical text). */
+export function canonicalJson(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
   if (v && typeof v === 'object') {
     const o = v as Record<string, unknown>;
@@ -120,13 +120,18 @@ function canonicalJson(v: unknown): string {
  * mark, overlay, id…) — a `hold:` that is the action stays. Undefined for a step without exactly one action.
  */
 export function stepFingerprint(step: unknown): string | undefined {
+  return stepFingerprintOf(step)?.fp;
+}
+
+/** stepFingerprint and the step's action (undefined: the step has no single action). */
+export function stepFingerprintOf(step: unknown): { fp: string; action: string } | undefined {
   let n: ReturnType<typeof normalizeStep>;
   try {
     n = normalizeStep(step as Parameters<typeof normalizeStep>[0], 0);
   } catch {
     return undefined;
   }
-  return createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12);
+  return { fp: createHash('sha256').update(canonicalJson({ action: n.action, args: n.args })).digest('hex').slice(0, 12), action: n.action };
 }
 
 /**

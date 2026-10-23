@@ -9,7 +9,7 @@
 import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment } from '@demo-studio/core';
 import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceConfig } from '@demo-studio/core';
 import type { HookResult } from '@demo-studio/hooks';
-import { approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
+import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { createHookContext, selectHooks } from '../hooks.js';
@@ -69,10 +69,10 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
   try {
     const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true });
     label = sel.label;
-    if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req));
+    if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req), ctx.client);
     const env = req.env ?? sel.env;
     resolveEnvironment(project, env);
-    await checkWorkspaceProtection(ctx.ws, project, env, hooksCommandLine(ctx.cli, req));
+    await checkWorkspaceProtection(ctx.ws, project, env, hooksCommandLine(ctx.cli, req), agentChannel(ctx.client));
     if (!dry) {
       const fix = hooksCommandLine(ctx.cli, { ...req, dry: false });
       const pre = await preflightHooks(project, [{ phase: sel.phase, hooks: sel.hooks }], {
@@ -82,7 +82,7 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
         journalFile: preflightJournal(project),
       });
       if (pre.refused.length) throw refusedError(pre, fix);
-      approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver);
+      approvals = await takeApprovals({ what: `hooks ${req.source}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
     }
   } catch (e) {
     throw toEngineError(e);
@@ -110,13 +110,13 @@ export async function submitEnvResetJob(ctx: SubmitContext, req: EnvResetSubmitR
   let approvals: JobApproval[] = [];
   try {
     resolveEnvironment(project, req.env);
-    await checkWorkspaceProtection(ctx.ws, project, req.env, envResetCommandLine(ctx.cli, req));
+    await checkWorkspaceProtection(ctx.ws, project, req.env, envResetCommandLine(ctx.cli, req), agentChannel(ctx.client));
     const reset = project.config.reset ?? [];
     if (!dry && reset.length) {
       const fix = envResetCommandLine(ctx.cli, { ...req, dry: false });
       const pre = await preflightHooks(project, [{ phase: 'reset', hooks: reset }], { ...(req.env !== undefined ? { env: req.env } : {}), journalFile: preflightJournal(project) });
       if (pre.refused.length) throw refusedError(pre, fix);
-      approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver);
+      approvals = await takeApprovals({ what: `the environment reset of ${project.slug}`, project: project.slug, env: pre.env, items: pre.items, fix }, approver, ctx.client);
     }
   } catch (e) {
     throw toEngineError(e);

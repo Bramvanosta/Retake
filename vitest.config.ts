@@ -15,6 +15,8 @@ export default defineConfig({
       '@demo-studio/runner-web': pkg('runner-web'),
       '@demo-studio/components': pkg('components'),
       '@demo-studio/editor': pkg('editor'),
+      // Before '@demo-studio/review', as for the kit: the thumbnails' own entry (no editor import).
+      '@demo-studio/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
       '@demo-studio/review': pkg('review'),
       '@demo-studio/engine': pkg('engine'),
       '@demo-studio/mcp': pkg('mcp'),

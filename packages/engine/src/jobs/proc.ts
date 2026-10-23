@@ -32,7 +32,10 @@ export async function processStart(pid: number): Promise<number | null> {
 /** Is the process `id` names still running (same pid, same start time)? */
 export async function isAlive(id: ProcessIdentity): Promise<boolean> {
   const { processStart, signalState } = await import('@demo-studio/sandbox');
-  if (id.pid === process.pid) return !own?.started_at || !id.started_at || own.started_at === id.started_at;
+  if (id.pid === process.pid) {
+    const me = await selfIdentity();
+    return !me.started_at || !id.started_at || me.started_at === id.started_at;
+  }
   const state = signalState(id.pid);
   if (state === 'gone') return false;
   if (state === 'foreign') return false; // another user's process: never a worker of ours

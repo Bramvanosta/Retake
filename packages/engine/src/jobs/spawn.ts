@@ -6,15 +6,28 @@
  * TypeScript through tsx with the packages' `source` export condition.
  */
 import { spawn } from 'node:child_process';
+import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { existsSync, openSync, closeSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { liveWorker, workersDir } from './lock.js';
+import { WORKER_CLIENT_RE, liveWorker, workersDir } from './lock.js';
+
+/** Starts the worker process: node's `spawn` (tests inject one to see the command and the environment). */
+export type WorkerSpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => Pick<ChildProcess, 'pid' | 'on' | 'unref'>;
 
 export interface WorkerSpawnOptions {
   /** Exit after this long without a job (ms; default the worker's own, 60 s). */
   idleExitMs?: number;
+  /**
+   * The worker's environment (default this process's). The Studio passes a clean one (L4.2, critique B5): the PATH
+   * sanitised like `studio mcp`'s, no package-manager or LLM variables, DEMO_STUDIO_HOME kept.
+   */
+  env?: NodeJS.ProcessEnv;
+  /** The client starting it, recorded in the worker lock (`started_by`). */
+  startedBy?: string;
+  /** Tests: the process starter (default node's spawn). */
+  spawn?: WorkerSpawnFn;
 }
 
 /** tsx's ESM loader, found from this file up (only needed when running from the sources). */
@@ -39,6 +52,7 @@ export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { co
   }
   args.push(entry, '--root', root);
   if (opts.idleExitMs !== undefined) args.push('--idle-exit', String(opts.idleExitMs));
+  if (opts.startedBy !== undefined && WORKER_CLIENT_RE.test(opts.startedBy)) args.push('--started-by', opts.startedBy);
   return { command: process.execPath, args };
 }
 
@@ -48,7 +62,7 @@ export async function spawnWorker(root: string, opts: WorkerSpawnOptions = {}): 
   const { command, args } = workerCommand(root, opts);
   const log = openSync(join(workersDir(root), 'worker.log'), 'a');
   try {
-    const child = spawn(command, args, { cwd: root, detached: true, stdio: ['ignore', log, log], env: process.env });
+    const child = (opts.spawn ?? spawn)(command, args, { cwd: root, detached: true, stdio: ['ignore', log, log], env: opts.env ?? process.env });
     child.on('error', () => undefined);
     child.unref();
     return child.pid;

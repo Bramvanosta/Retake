@@ -49,6 +49,18 @@ describe('hook trust', () => {
     expect(api.requests).toEqual([]);
   });
 
+  it('from the Studio (via studio, L4.2): the same refusals, worded for a Studio user — never MCP', async () => {
+    const refused = await runHooks([DELETE_CONFIRMED], context({ trust: 'mcp', via: 'studio' }).ctx, { phase: 'teardown', journal: await journal() });
+    expect(refused.results[0]).toMatchObject({ status: 'refused' });
+    expect(refused.results[0].error).toContain('without a human approval: from the Studio, "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal');
+    const ro = await runHooks([SHELL_READS], context({ trust: 'mcp', via: 'studio', access: READ_ONLY }).ctx, { phase: 'teardown', journal: await journal() });
+    expect(ro.results[0].status).toBe('refused');
+    expect(ro.results[0].error).toContain('from the Studio a shell hook always counts as writing');
+    for (const r of [...refused.results, ...ro.results]) expect(r.error).not.toMatch(/MCP/);
+    expect(writingHooks({ teardown: [SHELL_READS] }, { trust: 'mcp', via: 'studio' })[0].reason).toBe('a shell command (from the Studio a shell hook always counts as writing: its `writes: false` is not trusted)');
+    expect(api.requests).toEqual([]);
+  });
+
   it('mcp: the approver is asked with the raw hook and its fingerprint; it runs only when approved', async () => {
     const asked: HookApprovalRequest[] = [];
     const approve = (ok: boolean) => (_d: string, _r: string, req: HookApprovalRequest) => (asked.push(req), ok);

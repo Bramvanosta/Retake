@@ -1,0 +1,25 @@
+# Buyer side on a phone: the shop at 390 × 844 (responsive layout). Captured at 1×: the phone screen of the layout shows it at about its own size in a 1080p video (new-headless screencasts stay at CSS size at scale 2, see HANDOFF). Framed with the phone layout (studio/layout-phone): the capture aspect sizes the device screen.
+video mobile-quote · title “On the go” / “Request a quote from your phone” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Quotes from anywhere, in a minute."}
+  frame phone
+  capture {"width":390,"height":844,"scale":1}
+  setup 1 L13-14 http reset: POST {{shop}}/api/reset
+  teardown 1 L17-18 http reset: POST {{shop}}/api/reset
+scene browse L21-29 · page shop · open / · caption “Discover” / “Fresh arrivals, ready to order on the go.”
+    browse.0 L26 [scroll] scroll · “Fresh arrivals” · 1.4 s
+    browse.1 L27 [click] click · “Selowa Ridge”
+    browse.2 L28 [wait] wait for · button “Request a quote”
+    browse.3 L29 [hold] hold · 1 s
+scene request L31-45 · page shop (inherited) · continues · caption “Request a quote” / “Bags, grind and delivery window in a few taps.”
+    request.0 L34 [click] click · button “Request a quote”
+    request.1 L35 [click] click · “Increase” (aria label) in the dialog
+    request.2 L36 [select] select · field “Bag size” · option “5 kg”
+    request.3 L37 [select] select · field “Grind” · option “Whole bean”
+    request.4 L38 [click] click · field “Delivery window”
+    request.5 L39 [click] click · “Next month” (aria label)
+    request.6 L40 [click] click · “14 December 2026” (aria label)
+    request.7 L41 [click] click · “23 December 2026” (aria label)
+    request.8 L42 [type] type · field “Message” · “Light roast, please.”
+    request.9 L43 [click] click · “Send request” in the dialog
+    request.10 L44 [wait] wait for · text “Quote request sent”
+    request.11 L45 [hold] hold · 2.2 s
+16 steps

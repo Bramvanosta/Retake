@@ -16,8 +16,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { sessionEnded } from './api.js';
 
+/** A run that appeared, changed status, progressed (its run.json rewritten while unfinished) or went away (L4.2). */
+export interface RunEvent {
+  project: string;
+  run: string;
+  scenario: string | null;
+  status: string | null;
+  finished: boolean;
+  change: 'new' | 'status' | 'progress' | 'removed';
+}
+
 export type StudioEvent =
-  | { type: 'workspace'; projects: string[]; readme: string[] }
+  | { type: 'workspace'; projects: string[]; readme: string[]; scenarios?: string[]; runs?: RunEvent[] }
   | { type: 'jobs'; changed: string[] }
   | { type: 'index'; generation: number }
   | { type: 'resync' };
@@ -180,5 +190,38 @@ export function useEventMode(): EventMode {
 export function useProjectEvents(slug: string, fn: () => void): void {
   useEvents((e) => {
     if ((e.type === 'workspace' && e.projects.includes(slug)) || e.type === 'resync') fn();
+  });
+}
+
+/**
+ * What a scenario screen does with an event (L4.2, critique B1): `reread` its view only when its own file changed
+ * (`scenarios` names `<slug>/<name>`), a run of its scenario appeared, changed status or went away, or after a
+ * reconnection (`resync`); `progress` (a `run_status` read, never the whole view) when a run of its scenario only
+ * progressed; `jobs` for a job change (the screen then checks the run it shows running); nothing for anything else —
+ * another scenario, another project's runs, a README.
+ */
+export function scenarioEventAction(e: StudioEvent, slug: string, name: string): { reread: boolean; progress: string[]; jobs?: true } {
+  if (e.type === 'resync') return { reread: true, progress: [] };
+  // A job changed (a worker that died marks its job interrupted, with no word from the run's run.json): the screen
+  // checks the run it shows running, if any (review B M4) — a run_status read, never the whole view.
+  if (e.type === 'jobs') return { reread: false, progress: [], jobs: true };
+  if (e.type !== 'workspace') return { reread: false, progress: [] };
+  let reread = Array.isArray(e.scenarios) && e.scenarios.includes(`${slug}/${name}`);
+  const progress: string[] = [];
+  for (const r of Array.isArray(e.runs) ? e.runs : []) {
+    if (r.project !== slug || r.scenario !== name) continue;
+    if (r.change === 'progress') progress.push(r.run);
+    else reread = true;
+  }
+  return { reread, progress };
+}
+
+/** Call `reread` / `progress(runIds)` for the events a scenario screen acts on (scenarioEventAction). */
+export function useScenarioEvents(slug: string, name: string, on: { reread: () => void; progress: (runs: string[]) => void; jobs?: () => void }): void {
+  useEvents((e) => {
+    const a = scenarioEventAction(e, slug, name);
+    if (a.reread) on.reread();
+    else if (a.progress.length) on.progress(a.progress);
+    else if (a.jobs) on.jobs?.();
   });
 }

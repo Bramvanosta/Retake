@@ -53,6 +53,8 @@ export interface WorkerOptions {
    * "headed" window. A worker process has no way to receive it.
    */
   recordTest?: RecordJobTestHooks;
+  /** The client that started this worker (`ui`, `mcp`, …): recorded in the worker lock (`started_by`). */
+  startedBy?: string;
 }
 
 function shellQuote(s: string): string {
@@ -140,7 +142,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const cli = `studio -C ${shellQuote(root)}`;
   const queue = new FileJobQueue(root, cli);
   const build = buildStamp();
-  let lock = await WorkerLock.acquire(root, build, log);
+  let lock = await WorkerLock.acquire(root, build, log, o.startedBy);
   if (!lock) {
     log('another worker serves this workspace: exiting');
     return 0;
@@ -544,7 +546,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
         // Idle: release the lock, then look once more — a job queued while a client saw this worker alive must not wait.
         lock.release();
         if (!(await hasQueued())) break;
-        const again = await WorkerLock.acquire(root, build, log);
+        const again = await WorkerLock.acquire(root, build, log, o.startedBy);
         if (!again) break; // another worker took over
         lock = again;
         idleSince = Date.now();
@@ -566,6 +568,6 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     process.off('unhandledRejection', onRejection);
     lock.release();
   }
-  if (handover && !stopping && existsSync(stateDir(root)) && (await hasQueued())) await spawnWorker(root, { idleExitMs });
+  if (handover && !stopping && existsSync(stateDir(root)) && (await hasQueued())) await spawnWorker(root, { idleExitMs, ...(o.startedBy ? { startedBy: o.startedBy } : {}) });
   return 0;
 }

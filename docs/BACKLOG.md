@@ -1009,11 +1009,15 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
   from a click). Decide per lot: approvals (L4.4: a prompt in the `studio ui` terminal or the Tauri shell's OS
-  dialog), comments (L4.6), block edits (L4.3).
+  dialog), comments (L4.6), block edits (L4.3). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
+  hooks need a person is refused from the Studio with the `studio run …` command (shown before the click); approving
+  from the UI is BL-80 / L4.4.
 - Index-backed MCP tools (`render_list`, a search tool for Claude; BL-72 mentions `render_list`); the search over
   captions, scenario text and comments (today: project names and READMEs, scenario names, run and render ids).
-- A stream of job progress to the page (today a `jobs` event carries ids and the page re-reads); `/v1/media` for
-  thumbnails (L4.2).
+- A stream of job progress to the page (today a `jobs` event carries ids and the page re-reads). ~~`/v1/media` for
+  thumbnails (L4.2)~~ — decided in L4.2: no media route; thumbnails are base64 JPEGs over the gated call route
+  (`run_thumbs`), shown as `data:` URLs (the CSP already allows `img-src data:`), made in memory and never stored. Video
+  serving for the L4.5 Player is BL-80.
 - WebKit and Firefox in the automated suite (browsers to install; MACOS-CHECKLIST 13a checks them by hand), keyboard
   end-to-end tests.
 
@@ -1024,16 +1028,69 @@ Residues documented in L4.1 (accepted for a local tool used by one person per Ma
   close it.
 - `.demo-studio/index.sqlite` (and its -wal / -shm) take the umask's mode (0644 by default): other local accounts can
   read the project names and README text in it, as they can read the READMEs themselves.
-- `LocalStorage.readText` (README, scenarios) follows links inside the project and refuses those leading out, but it
-  has no size cap and would block on a FIFO named README.md or a scenario file (the index and the run records check
-  for regular files and caps already). Core's other reads of project files — a sandbox.yaml or a template a project
-  names — get the same audit.
+- ~~`LocalStorage.readText` (README, scenarios) follows links inside the project and refuses those leading out, but it
+  has no size cap and would block on a FIFO named README.md or a scenario file~~ — closed in L4.2 (core
+  `readPlainFile`: regular file, 2 MiB, no FIFO; also `project.readme` at project load and the scenario a run submit
+  reads). Core's other reads of project files — project.yaml, a sandbox.yaml or a template a project names, and
+  `loadScenario`'s own read after the submit's check — get the same audit.
 - Two Studio servers replacing the same stale ui.json at the same instant can both win (two servers, no corruption).
 
 - **Value:** Fewer hand edits; the Studio as the place a person approves and comments; Claude finds renders and text
   without reading folders; a shared Mac without surprises.
 - **Hard parts:** Proving a person's presence in a page without an OS dialog; a Markdown renderer that never becomes
   a script channel; a stable port that a client can authenticate.
+
+### BL-80 — Scenario screen extras cut from L4.2
+*M · cut in L4.2 · builds on: L4.2, L4.3, L4.4, L4.5*
+
+Cut to keep L4.2 an M (the scenario as read-only blocks, run pictures, Dry run / Capture / Cancel); critique C1–C5 and
+the lot's own cuts:
+- The sidebar's scenario list (the project page links each scenario); a deep link to one step
+  (`#/p/<slug>/s/<name>/<scene>.<i>`).
+- Per-step mixing of runs (a step's picture from an older run that reached it when the source run did not): one source
+  run per screen keeps a picture's provenance one fact.
+- A disk cache of thumbnails (`<project>/.demo-studio/thumbs/`, link-safe writes and pruning) if a measurement ever
+  asks for it — today memory only (≤ 32 MiB in the server, ≤ 600 pictures in the tab).
+- Virtualised step lists (today a file of more than 2,000 steps shows its first 2,000 and says so, review A #8; 1,200
+  measured: pictures in ≈ 0.3 s); the text layer of a 2 MiB scenario still takes seconds to build once a minute (the
+  blocks of 43,000 steps); "Picture shown when on screen" instead of "Loading the picture…" for rows not yet on screen.
+- Pictures for the intro, the outro, cards and interstitials (component previews: L4.5 / L4.7); all pages of a
+  multi-page step side by side; a large-frame viewer and two runs compared side by side.
+- Live thumbnails while a dry run runs (today they appear when it ends); the running banner's live step list, log and
+  live preview (critique C5: L4.4's Run screen).
+- `run_thumbs` as an MCP tool for Claude (Claude reads review contact sheets); captions and scenario text in the
+  search (BL-79).
+- "Open timeline" from a step (R-UI-15: the timeline screen is L4.5); video serving for the L4.5 Player (Range
+  requests: a blob URL against a capability URL — decided there).
+- Approving hooks from the Studio (a capture whose hooks need a person: today the button says "needs the terminal" and
+  shows the `studio run …` command); the sandbox reset, `until` and hooks of a dry run from the Studio (pinned out by
+  `scenario_run`, critique B11) — with the Run screen (L4.4) and its person-presence decision (BL-79).
+- Per-step source slices in the payload (the page slices the text by offsets); a live region announcing the selected
+  step (the option's accessible name carries it; screen readers are checked by hand, L4.9).
+
+Residues documented in L4.2:
+- One worker serves the workspace in the environment of the client that started it. Since the review fixes every
+  client but the CLI gives it the same cleaned environment (engine `cleanWorkerEnv`): what still differs between an
+  MCP-started and a Studio-started worker is only the starter's own variables that pass the cleaner (sign-in secrets,
+  HOME, locale). A worker started by `studio worker` in a terminal keeps that terminal's environment and serves the
+  clients' jobs too. `started_by` says which (sidebar, `studio jobs`, `studio doctor`); a worker per client
+  environment would need a queue split.
+- The worker-env cleaner is a deny-list (sign-in secrets are any name a project chose, so no allow-list): a credential
+  under a name it does not know reaches the worker. A per-project allow-list of the `{{env:…}}` names project.yaml uses
+  would close it.
+- A hard link inside a run to a file elsewhere is read like any file of the run (the run folder reader refuses
+  symbolic links and swapped folders, review A #7; a hard link is the file itself): only a process of the same user,
+  which can read that file anyway, can make one.
+- During a run the Studio's project list (L4.1, `project_list`) is read again at every step (a run's run.json is a
+  file of its project: the `workspace` event names the project), as is `engine_info` at every job change: cheap reads,
+  but a per-source flag in the event would spare them. The window's focus can fire twice (two reads at the same
+  millisecond; useCall has no in-flight de-dup).
+- The runner's own agent-trust refusal (a backstop after the submit's check) is worded per channel but only tested
+  through the hooks package and the submit; a Studio run never reaches it with a scenario the submit accepted.
+
+- **Value:** A scenario screen that scales, shows every segment, compares runs and approves from the UI.
+- **Hard parts:** A person's presence in a page (approvals); keeping one picture per step honest when runs are mixed;
+  serving video to the Player without a capability leak.
 
 ## Guard-rails for planned lots (no new scope)
 

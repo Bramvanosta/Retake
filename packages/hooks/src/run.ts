@@ -1,4 +1,4 @@
-import { SHELL_ALWAYS_WRITES, readOnlyHookMessage } from '@demo-studio/core';
+import { channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@demo-studio/core';
 import type { HookKind, HookStep, HttpHookSpec } from '@demo-studio/core';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
@@ -65,7 +65,9 @@ async function confirmDestructive(hook: HookStep, reason: string, description: s
   if (!approved) {
     throw new HookSecurityError(
       mcp
-        ? `refusing hook (${reason}) without a human approval: through MCP, "confirm: true" does not count — a human approves it when asked, or runs it in a terminal`
+        ? ctx.via === 'studio'
+          ? `refusing hook (${reason}) without a human approval: ${channelWords(ctx.via)}, "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal`
+          : `refusing hook (${reason}) without a human approval: ${channelWords(ctx.via)}, "confirm: true" does not count — a human approves it when asked, or runs it in a terminal`
         : `refusing destructive hook (${reason}) without "confirm: true"; add it to the hook once you have checked what it does`,
       'destructive',
     );
@@ -165,7 +167,7 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     description = withName(hook.name, prepared.description);
     if (prepared.rollback) rollbackShown = prepared.rollback.description;
     // Through MCP a shell hook always writes: its `writes: false` was written by whoever drives the server.
-    if (ctx.trust === 'mcp' && kind === 'shell' && !prepared.writes) prepared.writes = SHELL_ALWAYS_WRITES;
+    if (ctx.trust === 'mcp' && kind === 'shell' && !prepared.writes) prepared.writes = shellAlwaysWrites(ctx.via);
     // A read-only run (L1.7) refuses a hook that writes before anything else (no destructive prompt for it).
     if (ctx.access?.mode === 'read-only' && prepared.writes) {
       throw new HookSecurityError(readOnlyHookMessage(prepared.writes, ctx.access), 'read-only');

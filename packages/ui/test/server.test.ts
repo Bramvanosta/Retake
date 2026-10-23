@@ -115,14 +115,14 @@ describe('/v1/info and the session', () => {
 });
 
 describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
-  it("every UI op is an MCP tool or one of the Studio's three own reads (never an MCP name); any other tool is 404 unknown op and runs nothing", async () => {
+  it("every UI op is an MCP tool or one of the Studio's own reads (never an MCP name); any other tool is 404 unknown op and runs nothing", async () => {
     const names = new Set(TOOLS.map((t) => t.name));
     for (const op of UI_OPS) expect(names.has(op) !== (OWN_OPS as readonly string[]).includes(op), op).toBe(true);
     expect([...INDEX_OPS]).toEqual(['activity_list', 'search']);
-    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview']);
+    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'scenario_blocks', 'run_thumbs', 'scenario_run']);
     expect(() => uiTools([{ ...TOOLS.find((t) => t.name === 'run_capture')! }])).toThrow(/shadow/);
     const before = studio.calls;
-    for (const op of ['run_capture', 'hooks_run', 'job_cancel', 'project_create', 'scenario_save', 'auth_login', 'template_from_site', 'comment_reply']) {
+    for (const op of ['run_capture', 'run_dry', 'hooks_run', 'job_cancel', 'project_create', 'scenario_save', 'auth_login', 'template_from_site', 'comment_reply']) {
       const r = await call(op, {});
       expect(r.status, op).toBe(404);
       expect(r.json<{ error: { message: string } }>().error.message).toContain('unknown op');

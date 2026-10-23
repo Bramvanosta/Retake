@@ -3121,6 +3121,55 @@ running: the MCP server keeps working without it.
   that is not UTF-8 text, or a symbolic link leading out of the project, opens read-only with the reason (convert or
   replace it in your editor); one linked to another file of the project is saved into that file. A project without a
   README.md says that saving creates it.
+- **Scenarios as blocks** (read-only: edits are made in the file). A project's scenario names open the scenario screen: the video's
+  settings and the notes at the top of the file (without editor directives such as `yaml-language-server:`), the setup
+  and teardown hooks (each with its kind, what it does, *destructive* / *with rollback* in words and whether it needs
+  a person), then each filmed scene as a card, numbered 1, 2, 3… — its page, the URL it opens (shown without any
+  `user:password@`) and the one the video shows, caption, speed, layout and how long it took in the run; a scene filmed
+  on two pages lists each page with its URL (or the scene it continues from) and says how the video lays them out —
+  with its
+  steps as rows: what kind of action (*click*, *select*, *type*, *wait*, …), what it acts on in plain words
+  ("button “Request a quote”", "field “Bag size”"), its modifiers (*hold 1.5 s*, *zoom ×1.3*, *mark*, *irreversible*,
+  …) and the real picture of that step from a run: a dry run's screenshot, the frame on screen at the end of a capture
+  step (after its hold), or a failed step's error screenshot. *Pictures from* picks the run (by default the newest run
+  that went to the end and kept a copy of the scenario; a newer one that stopped early or left no picture is named
+  above the pictures). A step without a picture says why — not reached (and where the run stopped), changed or new
+  since that run, its scene skipped, a step with two actions — and when the scenario changed since
+  the run a banner says so (a step whose arguments did not change keeps its picture). Selecting a step (click, or the
+  arrow keys, Home and End: the steps are one stop for the Tab key) shows it in the inspector: what the action does,
+  its arguments, its lines in the file (*Show in YAML* opens the read-only YAML tab there), what the run did, and what
+  the run found on the page, in a box of its own (text the filmed site controls). The pictures are made when a step
+  comes on screen (a 1,200-step scenario opens in a fraction of a second on a recent Mac), kept in memory only — never
+  written to disk — and the screen follows the files: an edit of the scenario or a run of it that starts or finishes
+  shows within about a second. Steps are numbered from 1 everywhere on the screen ("failed at step 3 of proposal"). A
+  scenario of more than 2,000 steps shows its first 2,000 and says so (the YAML tab has the whole file).
+- **Dry run and Capture from the scenario screen.** *Runs from the Studio* has a **Dry run** button (no hooks, a
+  screenshot per step) and a **Capture** button (the setup and teardown hooks, the video), on the environment the
+  screen shows, and says before any click what would stop each one. One that cannot start from the Studio — a hook
+  that needs a person (shell, destructive, a destructive rollback), a scenario naming a secret or a file outside the
+  project — is disabled with the reason and the exact `studio run …` command to type in a terminal (and the same command
+  as `node <repository>/packages/cli/dist/bin.js …` where `studio` is not on your `PATH`); a scenario with errors says
+  to fix the file first (the terminal refuses it too). The server checks again when you click — the file as the screen
+  showed it: if it changed meanwhile, nothing starts and the screen reads it again — and words any refusal for the
+  Studio; a second click while a run of the scenario waits or runs (another tab) is refused. The Studio never resets a sandbox, never stops at a step
+  (`--until`) and never runs the hooks of a dry run: those stay `studio run` options. A run that starts shows a banner
+  with its progress (*3/7 steps · current step 4 of coffees*) and **Cancel this run** (a running capture stops at its
+  next step, then its teardown and rollbacks run); when it ends, *Runs from the Studio* says how it ended — and, for a
+  run that failed (the site not reachable, a step not found), the first line of its error — and its pictures replace
+  the old ones (the newest run that went to the end is the default). If the worker dies mid-run, the banner goes and
+  the run shows as interrupted. While a run of the scenario is queued or running, both buttons wait.
+- **The jobs worker.** A run from the Studio is a job, like one Claude starts: the Studio starts the workspace's
+  worker when you click (if none is running) and the worker exits after a minute without work. It gets a clean
+  environment: your terminal's, without the folders a package manager adds to `PATH` (`pnpm studio ui` puts
+  `node_modules/.bin` there) or any folder inside the workspace, without package-manager variables (`npm_*`: they can
+  carry a registry token), the MCP HTTP token, model and agent credentials (Anthropic, Claude Code, OpenAI, Bedrock,
+  Gemini and other model API keys — the tool never calls a model), GitHub / GitLab tokens, and anything that would make
+  node load code from the workspace (`NODE_OPTIONS` naming a file, `NODE_PATH` / `DYLD_*` / `LD_*` entries inside it),
+  and with `DEMO_STUDIO_HOME` kept (your signed-in profiles). Secrets that an automated sign-in reads with `{{env:…}}`
+  come from that environment, as for `studio worker` typed in the same terminal. Claude's MCP server starts the worker
+  with the same clean environment, so whoever starts it — Claude or the Studio — it never carries more: the sidebar,
+  `studio jobs` and `studio doctor` say who started it (*worker running (pid 4242, started by the Studio)*). `studio ui` itself
+  runs with the same cleaned `PATH`, like `studio mcp`.
 - **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
   right-to-left override characters are shown as visible marks (`[U+202E]`).
 
@@ -3133,7 +3182,10 @@ running: the MCP server keeps working without it.
   terminal scrollback — is dead after that. Another tab or browser needs a new link from `studio ui`.
 - **What the page may do** is an allow-list of tools (L4.1: `engine_info`, `project_list`, `project_get`,
   `project_update_readme`, `job_list`, `run_list`, and the Studio's own reads: `activity_list` and `search` from the
-  index, `projects_overview` — every project card's environments and last run in one call), run
+  index, `projects_overview` — every project card's environments and last run in one call; L4.2: `run_status` without
+  waiting, `scenario_blocks` — a scenario read as blocks with its runs and each step bound to the run's pictures —,
+  `run_thumbs` — small JPEG pictures of a run's steps, made in memory and never stored —, `scenario_run` — a dry run or
+  a capture with its arguments pinned: the scenario, the mode and an environment, nothing else — and `run_cancel`), run
   with the trust an agent has through MCP and no approver: a page's script cannot be told from your click, so anything
   that needs your approval stays in the terminal.
 
@@ -3288,7 +3340,8 @@ packages/mcp          the MCP server (`studio mcp`): tools over stdio and Stream
                       results, --print-config, the SDK-free tool layer (callTool) the Studio shares
 packages/ui           the Studio web app (`studio ui`): a React app bundled in memory by esbuild and its server — the
                       engine's /v1 HTTP API behind the engine's gate (engine src/http/), an allow-list of the MCP tools,
-                      the event stream and the index reads (src/server/live.ts, ops.ts)
+                      the event stream and the index reads (src/server/live.ts, ops.ts); the scenario screen
+                      (src/app/ScenarioScreen.tsx, Inspector.tsx, YamlView.tsx, Thumb.tsx, thumbs.ts)
 skills/               the Claude Code plugin: Claude skills + the MCP server from userConfig values (skills/README.md)
 .claude-plugin/       the local plugin marketplace (`claude plugin marketplace add <repo>`)
 fixtures/wholesale    the fictional "Northfield" product used for end-to-end tests (and its Dockerfile)

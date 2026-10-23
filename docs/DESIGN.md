@@ -1675,9 +1675,10 @@ workers/worker.log      what workers print (stderr), appended
 - `startMcpServer({root})`: console.log / info / debug go to stderr; one engine (`client: 'mcp'`). Nothing in this
   process opens a browser or starts a capture (auth status reads files; sandbox status asks the provider).
 - `config-snippet.ts`: `--print-config` — `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`),
-  `clientPath` (PATH with the node's folder first + Homebrew / system folders, absolute entries only, without the
-  folders a package manager adds for its script: `node_modules/.bin`, corepack, node-gyp-bin, and none inside the
-  workspace, under any spelling of it), `DEMO_STUDIO_HOME` when set (absolute, through `studioHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first
+  `clientPath` (core `client-path.ts` since L4.2, re-exported: PATH with the node's folder first + Homebrew / system
+  folders, absolute entries only, without the folders a package manager adds for its script: `node_modules/.bin`,
+  corepack, node-gyp-bin, and none inside the workspace, under any spelling of it — `realpathSync.native`, and any case
+  where the system ignores case), `DEMO_STUDIO_HOME` when set (absolute, through `studioHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first
   folder above the entry point with `.claude-plugin/marketplace.json` and `skills/.claude-plugin/plugin.json`) and
   `pluginInstallCommands` (`claude plugin marketplace add <repo>`, then `cd <ws> && claude plugin install
   demo-studio@demo-studio --scope local --config node=… studio=… workspace=… [home=…]`, shell-quoted), printed as the
@@ -1790,16 +1791,21 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
 **`@demo-studio/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it).
 - `buildUi()` — esbuild in memory: `src/app/main.tsx` + its CSS → `/app.js`, `/app.css` (ESM, minified, targets
   chrome120 / safari17 / firefox120), `/` a static `INDEX_HTML` without inline script or style; ≈ 100 ms, ≈ 190 KB.
-- `startStudioServer({root, port?, log?, sqlite?, pollMs?}) → {url, port, token, mintCode(), launchUrl(), calls,
-  streams, live, engine, close()}` — engine `createEngine({client: 'ui', autoStartWorker: false})`; routes: static (GET
+- `startStudioServer({root, port?, log?, sqlite?, pollMs?, startWorker?, workerSpawn?, workerIdleExitMs?}) → {url, port,
+  token, mintCode(), launchUrl(), calls, streams, live, engine, close()}` — engine `createEngine({client: 'ui',
+  autoStartWorker: startWorker !== false, workerEnv: studioWorkerEnv(process.env, root)})` (L4.1: no worker; L4.2 part
+  4: the worker starts on a submit, with a clean environment — engine `cleanWorkerEnv`, what every client but the CLI
+  gives its worker, §4d "Run actions"); routes: static (GET
   / HEAD, no token), `GET /v1/events` (token, api: the event stream, below), `POST
   /v1/session` `{code}` → `{ok, token}` (no token; the code is the proof), `GET /v1/info` → engine info + `http_api: 1`
   + `ops`, `POST /v1/bootstrap` → `{code, url}` (token), `POST /v1/call/<op>` (token, ≤ 2 MiB) → `{ok: true, summary,
   data}` (untrusted caps applied) or `{ok: false, error: {code, message, fix?, details?}}` with `ERROR_STATUS`; an op
-  outside `UI_OPS` (`engine_info`, `project_list`, `project_get`, `project_update_readme`, `job_list`, `run_list` — MCP
-  tools — and `activity_list`, `search` — the Studio's own reads of the index — and `projects_overview` — every
-  project's environment flags and last run in one call, for the Projects screen; `ToolDef`s in `src/server/ops.ts`
-  that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
+  outside `UI_OPS` (`engine_info`, `project_list`, `project_get`, `project_update_readme`, `job_list`, `run_list` and,
+  since L4.2, `run_status` without its long-poll (`wait_s` absent or 0: critique B11) — MCP tools — and
+  `activity_list`, `search` — the Studio's own reads of the index — `projects_overview` — every project's environment
+  flags and last run in one call, for the Projects screen — and, since L4.2, `scenario_blocks`, `run_thumbs`, the own
+  op `scenario_run` and the MCP tool `run_cancel` (§4d); `run_dry` / `run_capture` stay out (critique B11);
+  `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
   code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
   it. `studio ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
@@ -1832,7 +1838,9 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   with U+202A–U+202E / U+2066–U+2069 shown as `[U+…]` marks); README text is shown as-is in a `<pre>` and the
   textarea. A source lint (`packages/ui/test/app-source.test.ts`) bans `dangerouslySetInnerHTML`, `innerHTML` /
   `outerHTML`, HTML-from-string APIs, `document.write`, `eval` / `Function`, string timers, `setAttribute`,
-  `javascript:`, `src=` and any `href` not built by `hrefTo`, and raw direction controls in the sources.
+  `javascript:`, `src=` and any `href` not built by `hrefTo`, and raw direction controls in the sources. L4.2: one
+  image source — Thumb.tsx's `<img src={url}` with `url = jpegDataUrl(entry.base64)`, exactly once (§4d) — and no
+  `srcSet`, `createElement` / `cloneElement`, `src` key (a `{...{src}}` spread), frame, object or media element.
 - `studio ui` (cli `commands/ui.ts`): workspace check as `studio mcp` (exit 2 with the `--root` hint), lazy import of
   `@demo-studio/ui`, opens the browser (`open` / `xdg-open`) unless `--no-open`, serves until SIGINT / SIGTERM.
 
@@ -1873,7 +1881,9 @@ cache of the files, written only by the Studio server holding ui.json (the worke
 
 **The event stream** (part 3; ui `src/server/live.ts`, app `src/app/events.ts`).
 - `GET /v1/events` (token, api route: the gate's Origin / Sec-Fetch-Site rules apply) → `text/event-stream`: `hello
-  {api, index, generation}`, `workspace {projects, readme}` (slugs whose sources changed; `readme`: README.md),
+  {api, index, generation}`, `workspace {projects, readme, scenarios?, runs?}` (slugs whose sources changed; `readme`:
+  README.md; since L4.2 `scenarios`: `<slug>/<name>` of scenario files changed, an in-place save included, and `runs`:
+  `{project, run, scenario, status, finished, change: new | status | progress | removed}` — §4d),
   `jobs {changed}` (ids), `index {generation}`, `: keepalive` every 15 s. A stream is never an op (`calls` unchanged).
 - `Live` polls every second (`pollMs`) while at least one stream is open, never otherwise (critique C2: no recursive
   fs.watch): the index's `reconcile()` — or, without node:sqlite, `scanSources` diffed in memory — and `JobsWatch`.
@@ -1914,6 +1924,344 @@ cache of the files, written only by the Studio server holding ui.json (the worke
   error.
 - Whoever holds the token is an MCP client of the workspace (agent trust) and answers its own approval forms — as the
   client that spawns `studio mcp` over stdio. Separate process and token from the Studio: a Studio page never holds it.
+
+## 4d. Scenario blocks and run thumbnails (L4.2)
+
+Part 1 — the model and the safe reads (core `blocks.ts`, `step-match.ts`, `plain-file.ts`, targets `plainTarget`;
+engine `scenarios.check`, `runBlockers`, `LocalStorage.readText`). Part 2 — the view, the thumbnails and the events
+(engine `scenario-view.ts`, `run-thumbs.ts`, `run-data.ts`, `run-files.ts`, review `./thumbs`, index-db `sources.ts`;
+Studio ops `scenario_blocks`, `run_thumbs`, `run_status`). Part 3 — the read-only screen (ui `src/app/`
+ScenarioScreen.tsx, Inspector.tsx, YamlView.tsx, Thumb.tsx, thumbs.ts, scenario-words.ts, events.ts; route.ts). Part 4
+— the run actions and the Studio's worker (Studio op `scenario_run`, `run_cancel`, `studioWorkerEnv`; engine worker
+spawn options, the worker lock's `started_by`; the client's channel carried into the hooks package and the runner).
+
+**Blocks** (core `scenarioBlocks(text, {issues?, hookFiles?}) → ScenarioBlocks`; R-UI-08..10, R-UI-14). Pure, never
+throws: `{parsed, video, hooks: {setup, teardown}, entries, step_count, issues}`.
+- `video`: name, title, env, template, frame, intro / outro (`theme` | `off` | `custom` with component, file, duration,
+  tagline, url), music, tutorial, clock, capture overrides, pacing keys, var names, mock count, the file's top comment
+  as a person reads it (`topCommentWords`, review B M5: leading editor directives — `yaml-language-server:`, an Emacs
+  `-*- … -*-`, a vim modeline — left out with one blank line after them, hard wraps joined into paragraphs, list items
+  kept on their lines, URLs without userinfo) and `comment_lines` (its lines as written, what L4.3 edits).
+- `HookBlock`: phase, index, kind, name, one-line `summary` (http method + URL; sql file or first line, its database;
+  shell / js first line or file), `rollback`, `needs_person` (core `hookApprovalReason` — the same rule as the submit's
+  backstop: declared or detected destructive, any shell command, a setup hook's rollback that needs approval; engine
+  `approvals.ts` now calls it), `flags` (destructive, rollback, confirm, optional, reads only).
+- `entries` in file order: `scene` (id, effective `page` — its own, else the previous capture scene's,
+  `page_inherited` —, `pages[]` of a multi-page scene, `open`, `continues`, persona, caption, speed, still, cursor,
+  transition, frame, tutorial, irreversible, skip, note, `context`, `steps`), `card` (id or `card-<i>`, component,
+  string slots, params, file, duration, transition), `interstitial` (id or `interstitial-<i>`, text, kicker, duration,
+  component, file), `unknown` (not a mapping, a scene without a string id).
+- `StepBlock`: `key` "<scene>.<index>" (a timeline's key), id, action, `category` (`actionCategory`: an exhaustive
+  switch over ACTION_NAMES — navigation, click, hover, type, select, pick, menu, scroll, drag, drop_file, wait, hold,
+  check, script, cursor, download), `label` (the action in words), `target` (plain words), `summary` (one line: text
+  typed, key × times, option, URL, seconds, file), `args` (normalised), `chips` (`stepChips`: zoom, hold, mark, caption,
+  speed, irreversible — step or scene —, optional, park, overlay, tutorial, page (`on:`), timeout; each `{kind, label}`
+  with words), `fingerprint`, `picture`, `occurrence`, `range`, `comment`, `aliased`, `issues`. A step without exactly
+  one action is `category: unknown` with why in `label`.
+- `range` = 1-based lines and 0-based offsets `[start, end)` of the node (trailing blank space trimmed): the page and
+  L4.3 slice the text — no per-step source copy (critique B12). `comment` = the lines just above (the first item of a
+  list takes the list's). Issues (from `issues`, else core parseScenario without a project) go to the deepest block
+  their path points into (step → entry → hook), the rest to `issues`: each issue in exactly one place.
+- Strings as written: a templated `{{shop}}` / `{{env:…}}` stays a reference, never resolved; markup, bidi controls
+  and `javascript:` stay verbatim (the page renders text nodes). Only `user:password@` of a URL is left out of what a
+  block shows (`stripUrlUserinfo`: scene and page `open`, step targets / summaries / args, hook summaries, outro url,
+  card slots and params, every comment — up to the authority's LAST `@`: `https://u:p@ss@h/` → `https://h/`, review A
+  #5) — never out of the text or the ranges (the YAML tab shows the file as written).
+- YAML aliases: values come from core parseYaml (`maxAliasCount` 1000; a recursive alias — `a: &x {b: *x}`, which
+  overflowed every walker, parseScenario included — is now refused with its line). The check is one pass (review A
+  #1: `Alias.resolve` walks the whole document per alias — 20,000 aliases took a minute with the event loop blocked):
+  each alias's target is the latest node anchored with its name before it in document order, then each alias is
+  checked against its path; `locateOffset` uses the same map. 20,000 aliases: < 400 ms (test), refused by the alias
+  count. The walker never resolves an alias:
+  a block reached through one is `aliased`, carries the alias's range and no comment; L4.3 never edits through it.
+- `plainTarget(t)` beside `describeTarget` (unchanged for timelines and logs): `“Save”`, `button “OK”`, `“Increase”
+  (aria label) in the dialog`, `field “Delivery window”`, `field with placeholder “…”`, `element with test id “…”`,
+  `element matching .row > button`, `element containing “a” and “b”`, `the 2nd …` / `the last …` / `the last visible
+  …`, `… in the row containing “Iceland”`, `point 640, 360`.
+
+**Step identity across edits** (core `step-match.ts`; critique B4). Picture identity = sha256(stepFingerprint + `on:` +
+scene context), the context = sha256 of the scene's effective page, `open`, `pages` and `persona`; `n` = earlier steps
+of the scene with the same identity. `stepFingerprint` itself is unchanged (comment anchors store it).
+`scenarioIdentityOfValue` (shared by the blocks and the snapshots: one rule for both sides), `sceneStepFingerprints(text)`
+(parsed once — the old per-step re-parse was O(n²)), `matchRunSteps(today, run) → Map<"<scene>.<i>", RunStepMatch>`:
+`{run_index}` (same identity and occurrence in the run's scene), else `changed` (an unmatched run step lies between the
+same matched neighbours: one of the same action first — review B L1: a changed click is not the wait before it —,
+else in order; `run_index` = the replaced step), `new`, `scene_changed`, `scene_not_in_run`, `unreadable`. A modifier-only edit (caption, hold, speed, camera, mark, overlay, id) keeps the picture; reordering
+identical steps maps them in order.
+
+**Safe small-file reads** (BL-79 residue). Core `readPlainFile(file, max) → {ok, bytes} | {ok: false, reason: missing |
+link | not_file | too_large | unreadable}`: `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, fstat on the descriptor (a regular
+file of at most `max` bytes), at most `max + 1` bytes read; never throws. `{verify}` sees the descriptor's stat before
+the read (false → `link`): the run folder reader's check that the folders above the file were not swapped. Used by `scenarioChangedSinceRun`, by core
+`loadProject` for `project.readme` (a FIFO named README.md held every project load), and by engine
+`LocalStorage.readText` behind its realpath check: a link out stays `refused` (`details.reason: link_out`), a FIFO /
+device / folder is `refused` (`not_file`), a file over `READ_TEXT_MAX_BYTES` (2 MiB = SCENARIO_COMPARE_MAX_BYTES) is
+`invalid` "too large" (`too_large`) — never "not found". `projects.get` turns each into `readme_error`. A run submit
+reads its scenario through `getScenario` first (before, `prepareRun` read it with `readFile`: a link out was followed,
+a FIFO held the submit).
+
+**Run blockers** (critique #6, B2). `engine.scenarios.check(project, name, {env?}) → {name, file, path, yaml, hash, ok,
+issues, run_blockers: {dry, capture}}`: `issues` validated against the project WITHOUT agent trust (a person's
+`{{env:…}}` is valid in their file; `validate` keeps agent trust for what an agent writes); `run_blockers` from
+`runBlockers(ctx, {project, scenario, env?})` — the submit's own gates (`runGates`: agent trust, the workspace's
+protected hosts, hooks a rule refuses, hooks that need a person) run for a dry run (hooks skipped) and a capture
+(hooks run) with no approver, every gate run, nothing queued or reserved; each `{code, message, fix?}`. `submitRunJob`
+runs the same gates and stops at the first: the blockers are the submit's refusals (test: for every fixture scenario
+the first blocker equals the refusal; dry runs are never blocked, captures of catalogue and quote are). Wording per
+client (`agentChannel(client)`: `ui` → `studio`, else `mcp`): core `agentTrustProblems(…, {via})`, `projectFileProblem`,
+`secretRefsProblem`, `templateRefProblem`, engine `checkAgentTrust`, `takeApprovals`, `takeSiteApproval`,
+`checkWorkspaceProtection` say "from the Studio" / "The Studio cannot approve hooks yet: run it in a terminal" to the
+Studio — never "MCP" —, and keep the MCP wording otherwise.
+
+**The view** (engine `scenarios.view(project, name, {run?, env?})` → `ScenarioView`; Studio op `scenario_blocks`).
+`{project, name, file, hash, text, blocks, ok, issues, run_blockers, environment, scenes, runs, source, running, steps,
+untrusted}`.
+- `blocks`, `ok`, `issues`, `run_blockers` as `scenarios.check` (issues WITHOUT agent trust; blockers worded for the
+  client), then as the Studio shows them (`studioBlockers`, review B M2 / M6 / L6): a file with errors → one blocker
+  per mode, "the file has N errors (listed with the blocks): fix the file first — a run from the terminal refuses it
+  too", `fix_file`, no command; paths become words ("scenes[3].steps[0].click" → "step 1 of scene send (click)",
+  "setup[0]" → "setup hook 1"); a `fix` also as `fix_node` (`<node> <repository>/packages/cli/dist/bin.js -C …`, for a
+  person without `studio` on their PATH). A file of more than `VIEW_STEPS_MAX` = 2,000 steps (review A #8: a 2 MiB
+  file of 43,488 steps made a 20 MB answer): the first 2,000 steps' blocks and bindings (the entries after the one holding
+  the 2,000th step left out) and `limit: {steps_shown, steps_total, issues_shown, issues_total}`; issues ≤ `VIEW_ISSUES_MAX` = 500. `environment` = `{name, production, access, sandbox}` of `env` ?? the scenario's ?? the project's default.
+- `scenes[<id>]` = `{url?, display?, continues_from?, pages?, captured_s?, run_status?}`: the page base (its own page,
+  else inherited, else the environment's first) + `open` when it is a path, the `open` as written otherwise — URLs as
+  text, `user:password@` left out of both the base and the `open`; the display base the same way; a scene without
+  `open` `continues_from` the previous one; a multi-page scene (review B M1) `pages[] = {id, page?, url?, display?,
+  continues_from?}` — each page's environment page and full URL, or the scene that filmed it last; the source run's
+  capture time and outcome of the scene.
+- `runs` (the picker, ≤ `VIEW_RUNS_MAX` = 20, newest first) = `{id, mode, status (job state overlaid: interrupted),
+  env, started_at, finished_at?, steps_done, steps_total, pictures: screenshots | frames | video | null, complete,
+  snapshot, partial?}` — a status run.json holds that the runner never writes is `unknown`, and a scene in `partial` /
+  `why` is named only when it is a scene id (else "a scene"; review A #4: run.json is a file anyone may write);
+  `snapshot` = the run kept scenario.yaml; `partial` = `until step <i+1> of <scene>` | `failed at step <i+1> of <scene>` | `cancelled` |
+  `interrupted` (steps 1-based as the screen numbers them — engine `stepRef` —, never the run's 0-based key); `complete` =
+  succeeded, not stopped by `until`, with pictures. "With pictures" is read per run from a few lstats (dry: a PNG in
+  screenshots/; capture: frames.jsonl + frames/, else capture.mp4, else per-page frames / videos), never from the mode
+  (a cancelled capture has frames and no video).
+- `source` (critique B8) = the run asked for (`run`: a finished run of this scenario, else `invalid` / `not_found`),
+  else the newest complete run with a snapshot (review B L6: a newer one without could only say "cannot tell"), else
+  the newest complete run, else the newest finished run with pictures; `{run, mode, status, finished_at, picked,
+  changed, binding, notice?, hooks?, newer_partial[]}` — `newer_partial` (`{id, mode, partial, pictures}`) names the
+  finished runs newer than the default that are partial or left no picture (an `until` dry run of the authoring loop
+  never hides yesterday's complete capture; review B H1: a run that failed before its first step — the site down — is
+  named too, `partial` "failed at step 1 of …" or "no pictures"). `running` = the
+  newest queued / running run (never a source); its progress is a `run_status` read.
+- `steps[<today's key>]` (critique B4) — `changed` = core `scenarioTextChanged(today's text, the run's snapshot)`:
+  false → by position; true → core `matchRunSteps` (picture identity: fingerprint + `on:` + scene context); no
+  snapshot → by position, `notice: cannot_tell`. A bound step = `{run_key, status, ms?, picture, why?}` — `run_key`
+  is the run's own key (what `run_thumbs` takes: caches are keyed by run, never by today's key), `picture` =
+  `screenshot` | `error_screenshot` | `frame` | `video` | null, `why` for a step skipped after an irreversible step
+  ("after step 2 of one, irreversible: a dry run stops the scene there" — 1-based, review B M2). Otherwise `{missing, why?, run_key?}`:
+  `not_reached` (why: "the run failed at step 1 of two", "the run stopped at step 1 of two (until)", cancelled, no
+  timeline), `new`,
+  `changed` (+ the run's step it replaced), `scene_changed`, `scene_skipped`, `scene_not_in_run`, `unreadable` (why:
+  "this step has no single action (fix it in the file)", review B M3). Timeline
+  events with `step < 0` (scene_open, scene_still, notifications) bind nothing.
+- `untrusted` = `{run_error?, steps: {<today's key>: {target?, error?, url?}}}` — the target as found, the step error
+  and the URL visited (userinfo out): page text, cut to 2,000 characters by the call route's `capUntrusted`, never
+  outside `untrusted`.
+- Memo (critique B1), per engine (`ScenarioViews`): the text layer (blocks, validation, blockers, environment, scene
+  URLs, identity) by (file sha256, the signatures of project.yaml / sandbox.yaml / hooks/ / studio.yaml, env), redone
+  after 60 s at most (hook files, templates, protected hosts); the run list by the runs folder's signature (its newest
+  8 folders and their run.json, unfinished runs' run.json); the binding by (file sha256, the source run's folder and
+  file signatures). A repeat with nothing changed reads the file, hashes it and stats a few paths (1,200 steps: first
+  66 ms, repeat 4 ms, 454 KB of JSON); 20 rewrites of a running run's run.json recompute no text layer and no binding.
+
+**Run files** (engine `run-files.ts`, `run-data.ts`; critique B6). `RunFolder.open(projectDir, id)`: `runs/<id>` must be
+a real folder (lstat: not a link) whose real path is inside the project's `runs/`. A file is named by the code from
+validated parts — at most `<folder>/<file>`, each segment `^[A-Za-z0-9][A-Za-z0-9._-]*$`; the folder a real folder
+(lstat) inside the run; the file read by core `readPlainFile` (no link followed, no FIFO held, capped on the
+descriptor) and checked once open (review A #7: the runs folder, the run folder and the file's folder are still the
+folders resolved — same inode, not a link — and the name still names the file opened): run.json, timeline.json ≤ 32 /
+64 MiB, the snapshot ≤ 2 MiB, frame indexes ≤ 32 MiB, screenshots ≤ 16 MiB (`SCREENSHOT_MAX`; was 64), frames ≤ 16 MiB. Frame names in an index must match `^\d{6}\.(jpe?g|png)$` (others are left out); a track's files
+`^capture-[A-Za-z0-9._-]+\.mp4$` / `^frames-[A-Za-z0-9._-]+\.jsonl$` (else the step has no picture); screenshot names
+are rebuilt from the scene id and step (`<fileSlug(scene)>-<NN>-<action>.png`, `error-<fileSlug(scene)>-<i>.png`; the
+action one of the 27) — `RunRecord.screenshots` (absolute paths) is never used. A video goes to ffmpeg as open
+descriptors, never a path (review A #7: a path checked then opened by ffmpeg could be swapped for a link):
+`RunFolder.openVideo(name, n)` opens it n times (`O_NOFOLLOW`, a regular file, checked once open, the same inode each
+time), the child gets them as fds 3…, read as `-protocol_whitelist fd -f mp4 -fd <n> -i fd:`. `RunDataCache` holds 6
+runs, keyed by the run folder's real path and the lstat signatures of run.json, timeline.json, scenario.yaml,
+screenshots/, frames.jsonl, frames/, capture.mp4 and every page track's files (`frames-<page>.jsonl`, its folder,
+`capture-<page>.mp4`; review A #8: a re-written track served stale pictures).
+
+**Which frame** (critique B3). The picture of a capture step is the frame on screen at its end after its hold, T =
+`hold.t_end ?? t_end`, on the CFR grid the runner's encoder made (runner-web `cfrSchedule`): output frame n =
+min(floor(T·fps), frames − 1), frames = round(duration·fps) (a track: its own fps, the capture's duration). From kept
+frames: the latest frame stamped at or before n/fps + 0.5 ms (among those before the end); from the video: an input
+seek to (n − ¼)/fps (it returns the first frame at or after the time: frame n). Both give the same picture — the last
+step included (its hold ends at the end of the capture, past the last frame's start: the old seek wrote nothing), and a
+frame stamped between the tick and T is not shown by either. Multi-page scenes: the track of the page the step acted on
+(`ev.page`), else the scene's first page; a scenario made only of multi-page scenes has no main frames (its steps all
+use tracks).
+
+**Thumbnails** (engine `runs.thumbs(project, run, keys, {signal})` → `{project, run, thumbs: [{key, mime: image/jpeg,
+base64, width, height, from}], missing: [{key, reason}]}`; Studio op `run_thumbs`). 1–24 keys of the run
+(`^[A-Za-z0-9][A-Za-z0-9_-]{0,119}\.\d{1,4}$`). Sources in order: a failed step's error screenshot; a dry run's step
+screenshot; a capture's kept frame; the video. `reason`: `not_reached` (no event, or skipped), `no_step`, `no_picture`,
+`unreadable` (a link, a bad image, ffmpeg failed), `too_large`, `budget`, `cancelled`. Review `./thumbs` (sharp and
+`child_process` only — never the package root, which pulls the editor and Remotion: 79 ms / 27 MB instead of 354 ms /
+88 MB): `thumbJpeg(bytes)` fits inside 480 × 480, never enlarged, JPEG q 75, `limitInputPixels` 100 MP (a
+decompression bomb is refused before decoding), `failOn: error`; `videoFramesAt(input, seconds[])` (`input` a path —
+file protocol only — or `{fds}`, one descriptor per time — fd protocol only) — ONE ffmpeg process per batch: one
+`-ss t -i …` input per time, each frame written as a PNG to its own pipe (after the input descriptors), so a
+time that gives no frame is `null` without shifting the others; killed on abort and after 10 s, resolved on `exit`
+(pipes dropped). At most 2 ffmpeg processes per engine and 1 per run at a time (its batches queue), sharp work 2 at a
+time, each source read inside its sharp slot (review A #2: all 24 sources were read first — 24 hard links of a 60 MiB
+PNG took 1.5 GB; now ≤ 2 × 16 MiB held, `stats.sourceBytesPeak` in the test). One answer ≤ `RUN_THUMBS_RESPONSE_MAX` = 2 MiB of base64 (the rest `budget`: ask again), one thumbnail ≤
+`THUMB_BASE64_MAX` = 200,000 characters. Cache: memory only, ≤ 32 MiB of base64, keyed by (run folder, the run's file
+signatures, the run's key). Nothing is written to disk. Real fixture capture of catalogue (21 steps): 119 ms from kept
+frames, 1.19 s from the video, the same pictures (mean difference 2.6–2.8 / 255).
+
+**Events** (critique B1). `scanSources` signs each scenario file on its own (`scenario:<slug>/<name>`: a readdir and a
+stat per file, only while a stream is open); the index reads nothing for it. `WorkspaceIndex.reconcile()` →
+`{keys, runs, generation}`: `runs` from `runChanges` — the index's rows before and after a `runs:` re-read plus the
+run.json signatures the scan watched — `{project, run, scenario, status, finished, change: new | status | progress |
+removed}` (the pass after a run appears starts watching its run.json; its first progress is told from then). Without
+node:sqlite `Live` keeps the rows in memory and does the same. The `workspace` event carries `scenarios` and `runs`
+when there are any. A scenario screen (part 3) re-reads `scenario_blocks` only for its own file, a run of its scenario
+that starts or finishes, its picker, or `resync` — never on progress.
+
+**The screen** (part 3; R-UI-08..10, R-UI-13, R-UI-14). Routes `#/p/<slug>/s/<name>` (Blocks) and `…/yaml` (`hrefTo`;
+the name is a decoded, capped string the server checks), linked from the project page's scenario list (the sidebar's
+scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op adds `hints` — core
+`ACTION_DESCRIPTIONS` of the actions the file uses (the inspector's edit hints).
+- Layout: breadcrumb, name, file, step count, environment with its flags; tabs Blocks / YAML (links). A running run of
+  the scenario → a banner "A capture of this scenario is running · n/N steps · current step k of <scene> · action"
+  (1-based, critique C5: nothing more) with "Cancel this run" (part 4). Blocks: "Pictures from" (a `<select>` of the view's `runs`: the default = the view's source; running
+  / queued runs disabled; "no pictures" said) with the source line (mode, run id, status, when, hooks outcome), the
+  `changed` / `cannot_tell` banners, `newer_partial` offered ("Show its pictures"), the run's error in a "From the
+  page" box (its "scene x, step i" prefix said "step i+1 of x": `runErrorWords`, review B M2); "Runs from the Studio"
+  (the Dry run / Capture buttons and `run_blockers`: "nothing stops it" / "needs the terminal" + message + the `fix`
+  command and its `fix_node` form, `user-select: all` — part 4 below); issues (all blocks' issues, with line:col); the
+  "showing the first 2,000 steps of N" notice past the cap; the video card (facts, "Notes from the file"); the hooks strip (setup → capture → teardown; kind, name, summary, flags, rollback, `needs_person`, the source
+  run's hook outcome); entries in file order — a scene card (heading "Scene n id", skipped / irreversible badges,
+  caption, comment, facts: page (inherited said), URL or "continues from", "shown as" display, persona, speed, layout
+  (frame, pages side by side), duration (captured s + the scene's outcome in the run), transition, cursor, still,
+  tutorial; a multi-page scene's "Pages" (each page id, label, environment page, full URL or "continues from", viewport,
+  persona) and its layout in words (`layoutWords`: the scene's frame, else the video's — "2 pages, picture in picture
+  (pip) — the video's frame" —, else "chosen at render"; review B M1); note; issues; its steps; filmed scenes numbered
+  1, 2, 3… — cards and interstitials are not counted, review B L3), cards and interstitials as narrower dashed blocks
+  (component / file, duration or "default duration", slots / text), unknown entries with their issues. The inspector
+  is a sticky `aside`.
+- Step row: the picture (160 × 90 CSS px box, fixed: no layout shift) or words; the number, the category badge in
+  words, the label, the plain target, the summary; chips (`data-chip`); the state in the source run in words ("done",
+  "failed in this run", "skipped in this run", "not executed (irreversible)", or the missing reason: "Not reached:
+  <why>", "Changed since this run", "New since this run", "Its scene changed / was skipped / is not in this run",
+  "Cannot tell: …"), its duration, "matched by position: cannot tell whether it changed" under `cannot_tell`, the issue
+  count. Rows are memoised: a selection change re-renders two rows; a picture re-renders its own row
+  (useSyncExternalStore on the loader, per key).
+- Keyboard (critique B9): one `role="listbox"` per scene (labelled "Steps of scene <id>") of `role="option"` rows
+  (`aria-selected`, the listbox's `aria-activedescendant`); only the listbox holding the selection is tabbable (the
+  first one before any selection), so the steps are ONE tab stop; Up / Down / Home / End / Page Up / Page Down (10) move
+  across scenes (focus follows to the other scene's listbox, the row scrolls into view); a click selects. The option's
+  accessible name = "Step n: <label> <target>. <state>"; no live region; the selection survives the YAML tab and
+  re-reads (lifted to the screen; a key gone from the file falls back to the first step).
+- Inspector (R-UI-14): "Step n of scene id", badge + label, target, summary, the hint, arguments (key / value text;
+  non-strings as JSON, capped at 2,000 characters), modifiers with their kind, the comment, "In the file" (file, lines,
+  "Show in YAML" → the YAML tab with those lines outlined and scrolled to the centre) and the source slice
+  (`text.slice(range.start, range.end)`), "Written as a YAML alias", the edit hint ("Read-only here: change this step in
+  <file> (line n), or ask Claude to change it." — editing is L4.3), issues, "In the run" (status, duration, picture
+  source, the run's own step when it differs — "step 2 of one in that run", 1-based —, `why`), "From the page" (`untrusted.steps[key]`: target found, error,
+  URL).
+- YAML tab: one `<li>` per line in an `<ol>` (numbers are list markers: not copied), each line through `Txt`, the
+  issues with line:col, the focused lines outlined.
+- Pictures (thumbs.ts, Thumb.tsx): one `ThumbLoader` and one IntersectionObserver (rootMargin 200 px) per screen
+  (around both tabs). A row whose binding has a picture registers (run id, run key); every 50 ms the visible keys that
+  are neither known nor asked go out as `run_thumbs` calls of ≤ 24 keys of one run, ≤ 2 in flight, in the order they
+  came on screen. A row leaving the screen aborts every call none of whose rows is still visible (the fetch's signal;
+  the server's `res` close aborts ffmpeg); an aborted key is asked again when visible; `budget` / `cancelled` are asked
+  again while visible (an answer of nothing but those gives up: `failed`, no loop); other reasons are kept and said in
+  words. Entries are keyed by (run id, the run's own key) — never today's key — and ≤ 600 are kept (the oldest off
+  screen leave first). An answer is accepted only for keys asked, with integer sizes 1–4096 and a payload
+  `jpegDataUrl` accepts; anything else is `unreadable`. `jpegDataUrl(b64)` = `data:image/jpeg;base64,` + b64 when b64
+  is a string of 1–200,000 characters, a multiple of 4, `^[A-Za-z0-9+/]+={0,2}$`; else null. `alt` = the step's own
+  words + "step n of scene id, at the end of the step in <mode> <run>" (never page text). Attributes and `<option>`
+  text cannot hold a `<bdi>`: the row's `aria-label`, the `alt` and the picker's option text show direction controls
+  as marks (`visibleControls`; review A #4, #8), the option's status only through the known words. `api.call` takes a signal:
+  an aborted call is a CallError `cancelled`, never "offline".
+- Events (events.ts `scenarioEventAction`, `useScenarioEvents`): re-read on `resync`, a `workspace` event whose
+  `scenarios` holds `<slug>/<name>`, or whose `runs` hold a run of this project and scenario with change new / status
+  / removed; a `progress` change → `run_status {project, run_id}` (no `wait_s`), at most one in flight plus one queued;
+  a `jobs` event → a `run_status` read of the run shown running, if any (review B M4: a worker that died writes no
+  run.json — its job turns interrupted); a `run_status` that says the shown run finished (interrupted included) →
+  one re-read; nothing for anything else (other scenarios, projects, READMEs, the index). The window's focus re-reads (useCall),
+  as on every screen. Measured in the e2e: 4 progress writes → 0 view reads and ≥ 1 `run_status`; another scenario's
+  file and run → 0; the run finishing → 1; the file edited in place → 1.
+- Measured (e2e, an Apple-silicon Mac, Chromium headless): 1,200 steps (12 scenes × 100) → the screen with its first pictures in
+  ≈ 0.3 s after the route change (bound 5 s), 1 `scenario_blocks`, ≤ 2 `run_thumbs` before any scroll (only s0 keys),
+  End → the last row pictured with ≤ 2 more calls (only s11 keys). Real workspace (catalogue capture without frames:
+  video path; quote dry run): screen 120–165 ms, first pictures of catalogue 0.8 s from the video.
+
+**Run actions** (part 4; R-UI-15; critique B2, B5, B11).
+- Studio op `scenario_run {project, name, mode: dry | capture, env?, hash?}` (ops.ts `runOps`, strict zod: anything
+  else — `sandbox`, `until`, `hooks`, `wait_s`, `scenario` — is 400 before a read) → `engine.runs.submit({project,
+  scenario: name, mode, env?, expect_sha256: hash})` with no approver. `hash` = the view's: `submitRunJob` hashes the
+  text it parsed and checked (no later read of the file) and refuses another one, 409 `conflict` "changed since it was
+  shown" (review A #6: what was clicked is what runs; the worker checks the file against the same hash). One submit of
+  a scenario at a time in a Studio, and none while a `run` job of it is queued or running: 409 naming the run (review
+  B L2: two tabs queued two runs, a capture's hooks ran twice). Then the default hooks (a dry run skips them, a capture runs them), never a sandbox
+  reset, never `until`, never a wait; `{run_id, job, state, mode, warnings, worker?}`. `run_cancel` is the MCP tool (any
+  run started through a job; the screen offers it only for its scenario's running run). `run_dry` / `run_capture`
+  are not in `UI_OPS`. The submit is the authority: what the view showed as a blocker is refused the same way (403
+  `needs_approval` / `refused` with the `studio run …` fix), nothing queued, no run id reserved.
+- The screen: "Runs from the Studio" holds a Dry run and a Capture button. A mode with blockers is disabled, labelled
+  "Capture — needs the terminal" (`aria-describedby` → "why, and the command to type, below": said once, review B L6)
+  above its reasons and fix commands (`studio …` and its `node …/bin.js …` form); a file with errors → "Capture — fix
+  the file first", no command (review B M6); both are disabled while a run of the scenario is queued or running
+  ("waits for the run of this scenario to finish") or a click is in flight. A click sends exactly `{project, name,
+  mode, hash}`; success → "Dry run <id> queued: its progress shows above…" and a re-read, then, once the run has ended,
+  its outcome (review B H1): "The dry run <id> failed at step 1 of one" / "… cancelled", "It left no picture." and the
+  first line of its error from `run_status` in a "From the page" box; a refusal → a danger notice with the server's
+  message and fix (a 409 `conflict` also re-reads the view). The running banner's "Cancel this run" → `run_cancel {project, run_id}` → "Cancel asked" (a running run stops
+  at its next step; its teardown and rollbacks still run) and a re-read (a queued run is cancelled at once; a worker
+  finalises its run.json later, if one runs). Progress, the finish and the new pictures come through the events
+  (critique B1: `run_status` on progress, one re-read at start and at the end); the new run becomes the default source
+  when it is complete.
+- Wording for a Studio user everywhere (critique B2): `agentChannel('ui')` = `studio` reaches the preflight
+  (`preflightHooks({via})` → engine `createHookContext({via})` → hooks `HookContext.via`), the worker (`run-job` →
+  `executeRun({hookVia})` → runner-web `RunOptions.hookVia` → its agent-trust refusal, `writingHooks({via})`, the hooks'
+  context) and the worker's protected-hosts re-check: core `shellAlwaysWrites(via)` ("from the Studio a shell hook
+  always counts as writing…"; `SHELL_ALWAYS_WRITES` = the MCP wording), the hooks' approval refusal ("from the Studio,
+  "confirm: true" does not count and the Studio cannot approve hooks yet — run it in a terminal"). The rules are the
+  same; only the words differ. MCP keeps its wording.
+- Step references (part 4): every step a person reads is 1-based — the rows, the inspector ("Step 3 of scene
+  proposal"), the banner ("current step 3 of proposal"), `partial` and `why` ("failed at step 3 of proposal"), the
+  inspector's "step 2 of one in that run" (`keyWords(run_key)`); a run's own keys (`proposal.2`) stay internal (thumbnail
+  requests, `data-key`). MCP summaries keep `scene.step` (Claude's references).
+- The worker (critique B5): `studio ui` sets its own PATH with core `clientPath` (absolute entries only, none a package
+  manager added — `node_modules/.bin`, corepack —, none inside the workspace; the node first, Homebrew / system folders
+  completed), so the thumbnails' ffmpeg is never a program in the workspace. The engine takes `workerEnv` /
+  `workerSpawn` (tests) and passes them, with `startedBy: client`, to `ensureWorker` → `spawnWorker(root, {env,
+  startedBy, spawn})` → `worker-main --started-by <client>` → the worker lock's `started_by` (`^[a-z]{1,16}$`, checked
+  when written and when read; a handover passes it on). Every client but the CLI starts its worker with engine
+  `cleanWorkerEnv(env, root)` (review A #3: a worker an MCP client started inherited Claude Code's environment and
+  served the Studio's later jobs; the Studio's `studioWorkerEnv` is the same cleaner): no `npm_*` / `pnpm_*` /
+  `INIT_CWD` / `COREPACK_*` / npm tokens (a package manager's; `npm_config_*` can carry a registry token), no
+  `DEMO_STUDIO_MCP_TOKEN`, no model or agent credential (`ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*`, `AZURE_OPENAI_*`,
+  `AWS_BEARER_TOKEN_BEDROCK`, Gemini / Google AI, Mistral, Cohere, Groq, xAI, DeepSeek, OpenRouter, … keys, Hugging Face
+  tokens; review B L5) nor code-host tokens (`GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`), nothing that loads code from the
+  workspace (`NODE_OPTIONS` naming a file to load — `-r`, `--require`, `--import`, `--loader`, `--env-file`… —; `NODE_PATH`,
+  `DYLD_*`, `LD_PRELOAD`, `LD_LIBRARY_PATH` with a relative entry or one inside the workspace), PATH =
+  `clientPath(node, PATH, exists, root)` (the workspace under any spelling: `realpathSync.native`, and without case
+  where the system ignores it), DEMO_STUDIO_HOME made absolute — never more than `studio worker` typed in the same
+  terminal needs; sign-in secrets read through `{{env:…}}` stay. A worker lock without its start time names a pid that
+  cannot be told from any other: it counts as alive only where `ps` cannot tell that pid's start either (review A #7:
+  a lock forged with the Studio's own pid kept every worker off). One worker serves the workspace: a job runs in
+  the environment of whichever client started the worker (`studio jobs`, `studio doctor`, `engine_info` and the
+  Studio's sidebar say "started by …"). The worker exits after 60 s idle (`DEMO_STUDIO_WORKER_IDLE_MS`;
+  `workerIdleExitMs` for tests); the Studio never kills it (a capture finishes with its teardown after the Studio
+  stops).
+- Tests: scenario-run.test.ts (pinned arguments → 400, nothing queued or reserved; quote's capture → 403 equal to the
+  view's blocker, Studio wording, the fix; a dry run queued `submitted_by: ui`, no hooks / until / sandbox, cancelled;
+  a read-only environment's shell hook refused "from the Studio"; `studioWorkerEnv`; the spawn injected: the command,
+  `--started-by ui`, the env; a real worker: `started_by: ui`, its live environment read with `ps -E`, every worker
+  started exits once idle); studio-e2e-scenario.test.ts "run actions" (Chromium: blocked Capture disabled with its
+  command, no request; Dry run → exactly `{project, name, mode}`; the queued banner; Cancel → `run_cancel`; the
+  cancelled run in the picker); cli ui.test.ts (an `ffmpeg` in `<ws>/bin` and `<ws>/node_modules/.bin` never runs:
+  the thumbnails use the real one); hooks trust.test.ts (Studio wording); jobs.test.ts (`started_by` written / read
+  checked); test:slow scenario-run-acceptance.test.ts (the fixture on free ports, the real worker: highlights' Dry run
+  → progress → its pictures; a running dry run cancelled; the worker killed by pid at the end).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

@@ -10,7 +10,8 @@ export { CALL_BODY_MAX, SMALL_BODY_MAX, UI_OPS, startStudioServer, uiTools } fro
 export type { StudioServer, StudioServerOptions, UiOp } from './server/studio.js';
 export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexError } from './server/live.js';
 export type { LiveOptions } from './server/live.js';
-export { INDEX_OPS, OWN_OPS, indexOps, overviewOp } from './server/ops.js';
-export type { ProjectOverview } from './server/ops.js';
+export { INDEX_OPS, OWN_OPS, RUN_OPS, SCENARIO_OPS, indexOps, overviewOp, runOps, scenarioOps } from './server/ops.js';
+export type { ProjectOverview, ScenarioRunAnswer } from './server/ops.js';
+export { studioWorkerEnv } from './server/worker-env.js';
 export { launchStudio } from './server/launch.js';
 export type { Launched } from './server/launch.js';

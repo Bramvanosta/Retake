@@ -5,6 +5,8 @@
  */
 import { readProjectText, shellDestructiveReason, sqlSource } from './destructive.js';
 import type { DestructiveOptions } from './destructive.js';
+import { channelWords } from './agent-trust.js';
+import type { AgentChannel } from './agent-trust.js';
 import { maskSql } from './sql-text.js';
 import type { HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './writes.js';
@@ -17,8 +19,16 @@ import { graphqlOf, graphqlReadsOnly, graphqlWriteName, isWriteMethod } from './
  */
 export type HookTrust = 'author' | 'mcp';
 
-/** Why a shell hook writes when its `writes: false` is not trusted (work submitted through MCP). */
-export const SHELL_ALWAYS_WRITES = 'a shell command (through MCP a shell hook always counts as writing: its `writes: false` is not trusted)';
+/**
+ * Why a shell hook writes when its `writes: false` is not trusted (work submitted by an agent), worded for the channel
+ * it came through (L4.2: "from the Studio" — a Studio user is never told about MCP).
+ */
+export function shellAlwaysWrites(via?: AgentChannel): string {
+  return `a shell command (${channelWords(via)} a shell hook always counts as writing: its \`writes: false\` is not trusted)`;
+}
+
+/** shellAlwaysWrites through MCP. */
+export const SHELL_ALWAYS_WRITES = shellAlwaysWrites('mcp');
 
 /** Statements that only read (SELECT … INTO, SELECT … FOR UPDATE, data-modifying CTEs are caught below). */
 const READ_STATEMENTS = new Set(['SELECT', 'WITH', 'TABLE', 'VALUES', 'SHOW', 'EXPLAIN', 'SET', 'RESET']);
@@ -108,7 +118,7 @@ function sqlTextReason(source: { file?: string; query?: string }, opts: Destruct
  * A rollback counts too: an http rollback by its method, a sql rollback by its statements, a shell or js rollback
  * always — a hook that only reads but undoes something with a write is refused like a writing hook.
  */
-export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rollback?: boolean; trust?: HookTrust } = {}): string | null {
+export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rollback?: boolean; trust?: HookTrust; via?: AgentChannel } = {}): string | null {
   // Only setup hooks are rolled back: a rollback declared elsewhere is ignored when it runs, and here.
   const withRollback = opts.rollback !== false;
   if ('http' in hook) {
@@ -131,7 +141,7 @@ export function hookWriteReason(hook: HookStep, opts: DestructiveOptions & { rol
     const spec = (hook as { shell: string | ShellHookSpec }).shell;
     const run = typeof spec === 'string' ? spec : spec.run;
     if (hook.writes !== false) return 'a shell command — add `writes: false` to a shell hook that only reads';
-    if (opts.trust === 'mcp') return SHELL_ALWAYS_WRITES;
+    if (opts.trust === 'mcp') return shellAlwaysWrites(opts.via);
     const destructive = shellDestructiveReason(run, opts);
     if (destructive) return `${destructive}, although it declares writes: false`;
     return typeof spec === 'object' && spec.rollback !== undefined && withRollback ? 'its rollback: a shell command' : null;
@@ -157,7 +167,7 @@ export function rollbackWriteReason(action: { kind: string; request?: { method?:
 /** The hooks of a scenario that write, for the refusal of a read-only run (before anything runs). */
 export function writingHooks(
   lists: { setup?: readonly HookStep[]; teardown?: readonly HookStep[] },
-  opts: DestructiveOptions & { trust?: HookTrust } = {},
+  opts: DestructiveOptions & { trust?: HookTrust; via?: AgentChannel } = {},
 ): Array<{ phase: 'setup' | 'teardown'; index: number; name?: string; reason: string }> {
   const out: Array<{ phase: 'setup' | 'teardown'; index: number; name?: string; reason: string }> = [];
   for (const phase of ['setup', 'teardown'] as const) {

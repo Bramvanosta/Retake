@@ -770,7 +770,11 @@ worker running, `rm -rf ~/ds-phase3 ~/ds-phase3-home` (the project, its runs, re
 component and the studio home). After step 13a: Ctrl-C the `studio ui` and `studio mcp --http` terminals,
 `claude mcp remove demo-studio -s user` (the HTTP registration; its header reads the token file, which goes next), then
 once `DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/ds-studio jobs` shows no worker running,
-`rm -rf ~/ds-studio ~/ds-studio-home` (the workspace, its index and ui.json, the studio home and its token).
+`rm -rf ~/ds-studio ~/ds-studio-home` (the workspace, its index and ui.json, the studio home and its token). After step
+13b: Ctrl-C the `studio ui` terminal and the fixture (terminal 3); the worker the Studio started exits a minute after
+its last run (`DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/ds-studio jobs` says *worker:
+not running*; else `kill <its pid>`), then the same `rm -rf ~/ds-studio ~/ds-studio-home` (the runs it made go with
+the workspace).
 
 ## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
 
@@ -816,6 +820,49 @@ printf -- '- name: ok\n  shell: {run: "true"}\n  writes: false\n' > "$W/projects
   repository (`git status`) or in `~/.demo-studio`.
 - **Send back:** for each step, OK or what you saw instead (a screenshot of anything odd); the browsers' versions and
   `claude --version`.
+
+## 13b. The scenario screen in your browsers: blocks, pictures, a real dry run and capture (L4.2)
+
+What the automated tests cannot reach: Safari and Firefox (the tests drive Chromium only), what a screen reader says,
+and your own judgement of the pictures. The workspace of 13a (`W=~/ds-studio; H=~/ds-studio-home`, created as in 13a
+if you skipped it), the fixture running on its usual ports: `node fixtures/wholesale/server.mjs` (terminal 3).
+
+1. **Open a scenario.** `DEMO_STUDIO_HOME="$H" node packages/cli/dist/bin.js --root "$W" ui --no-open` (terminal 1),
+   the link in Safari → *Northfield (fixture)* → the scenario *quote*: the video card, the hooks (setup → capture →
+   teardown, *destructive* / *with rollback* in words), four scenes with their URLs ("shown as
+   https://shop.northfield.example/…") numbered Scene 1–4 (the cards between them are not counted), the video card's
+   *Notes from the file* without the `yaml-language-server` line, and steps (a kind of action in words, the target in
+   plain words, chips). Open *phone-and-desktop*: each scene lists its two pages with their full URLs (or *continues
+   from phone*) and *2 pages, picture in picture (pip) — the video's frame*.
+   Arrow keys move the selection across scenes (the steps are one stop for Tab), the inspector follows, *Show in YAML*
+   opens the YAML tab on the step's lines.
+2. **What stops a run, before any click.** On *quote*, *Runs from the Studio*: **Dry run** enabled (*nothing stops
+   it*); **Capture — needs the terminal**, disabled, with the reason (setup hook 2 and its HTTP DELETE rollback: *The
+   Studio cannot approve hooks yet: run it in a terminal*) — *needs the terminal* said once — and the `studio -C … run
+   northfield-fixture quote` command, with its `node …/packages/cli/dist/bin.js -C …` form below it — select one (it
+   selects whole) and run it in terminal 2: the capture runs there (answer its prompt if it asks) and the
+   screen, still open, shows the new run's pictures when it ends. Nowhere does the screen say "MCP".
+3. **A dry run from the Studio.** Open *highlights*, click **Dry run**: a banner *A dry run of this scenario is
+   running · n/7 steps · current step k of coffees · hover* (steps count from 1), both buttons wait, the sidebar says
+   *worker running (pid …, started by the Studio)*; ≈ 15 s later the banner goes and each step shows its screenshot
+   (the coffee grid, the quote dialog). *Pictures from* names the new dry run.
+4. **Cancel.** Click **Dry run** again and, while the banner counts steps, **Cancel this run**: *Cancel asked*, then
+   the banner goes; *Runs from the Studio* says *The dry run … cancelled*; the picker lists the run as *cancelled*; the
+   pictures stay those of the run before.
+4b. **A run that fails at once.** Stop the fixture (Ctrl-C in terminal 3), click **Dry run** on *highlights*: within
+   seconds the banner goes and *Runs from the Studio* says *The dry run … failed at step 1 of …*, *It left no picture.*
+   and the first line of its error (*net::ERR_CONNECTION_REFUSED …*, in a "from the page" box); *Newer runs stopped
+   early* names it above the pictures. Start the fixture again.
+5. **A capture from the Studio.** On *highlights* click **Capture** (its setup hook only resets the fixture, so nothing
+   stops it): the banner, then each step shows the frame at its end (the inspector says *picture from frame*).
+6. **Firefox.** Steps 1 and 3 again in Firefox (a new link from `studio ui` in terminal 2).
+7. **VoiceOver** (optional, Cmd-F5): on a scenario's steps, VoiceOver reads each step as "Step n: … . done" (or why it
+   has no picture) as the arrow keys move; the inspector's heading is reachable.
+
+- **Expected:** every step as written; the pictures are the real pages at the end of each step; no "MCP" wording on
+  the screen; the worker gone a minute after the last run (`studio jobs`).
+- **Send back:** for each step, OK or what you saw instead (a screenshot of the scenario screen during a run and after
+  it); the browsers' versions; how long the dry run and the capture took.
 
 **Send everything back in one message**, numbered like the steps above.
 
