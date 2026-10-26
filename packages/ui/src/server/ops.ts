@@ -24,13 +24,24 @@
  *   approver, so what the screen showed as a run blocker is refused here too (the submit is the authority) with the
  *   `studio run …` command to type in a terminal. `hash` (the file as the screen showed it) makes a changed file a 409;
  *   a run of the scenario already queued or running makes another a 409 (one submit per scenario at a time). Not an
- *   MCP tool: Claude has run_dry / run_capture.
+ *   MCP tool: Claude has run_dry / run_capture. L4.4: a capture whose scenario uses a persona whose stored session is
+ *   invalid (expired, error, never) and that no run signs in by itself (no `login:` steps, not a sandbox account, not
+ *   the legacy single-account file) needs `sessions_ack` naming it, else 409 `conflict` with `details.sessions` — a
+ *   confirmation against a wasted take, not person presence (a page script can send it; the run's own preflight stays
+ *   the authority and stops before anything is filmed). Dry runs need none.
+ * - `run_pause` (L4.4): Pause / Resume of the Run screen — engine runs.pause (a running run of a job pauses before its
+ *   next step, a capture without filming the pause; a queued, stopping or finished run is a 409; a terminal's run is
+ *   refused).
+ * - `scenario_sessions` (L4.4): the Run screen's preflight panel — engine auth.forScenario (the personas the run signs
+ *   in, their stored state, `auto`; no path; the last check's text under `untrusted`) and `confirm`: the personas a
+ *   capture's `sessions_ack` must name.
+ * - `sign_in_cancel` (L4.4): the Sessions panel's Cancel — engine auth.cancelSignIn (an `auth_login` job only).
  */
 import { z } from 'zod';
-import { ACTION_DESCRIPTIONS, PALETTE_ACTIONS, PROJECT_SLUG_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
+import { ACTION_DESCRIPTIONS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
 import type { ActionName } from '@demo-studio/core';
 import { EngineError, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
-import type { EnvironmentView, RunListItem } from '@demo-studio/engine';
+import type { Engine, EnvironmentView, RunListItem, ScenarioSessions } from '@demo-studio/engine';
 import type { ToolDef } from '@demo-studio/mcp';
 import type { Live } from './live.js';
 
@@ -79,7 +90,25 @@ const RunInput = z.strictObject({
     .regex(/^[0-9a-f]{64}$/, 'the sha256 of the file as scenario_blocks showed it')
     .optional()
     .describe('The file as the screen showed it (scenario_blocks `hash`): refused (409) when the file checked is another one.'),
+  sessions_ack: z
+    .array(z.string().max(100).regex(SLUG_RE, 'a persona name'))
+    .max(50)
+    .optional()
+    .describe('A capture: the personas whose invalid session the person confirmed (scenario_sessions `confirm`); refused (409) while one is missing.'),
 });
+
+const PauseInput = z.strictObject({
+  project,
+  run_id: run,
+  paused: z.boolean().describe('true: pause before the next step; false: resume.'),
+});
+const SessionsInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
+  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
+  mode: z.enum(['dry', 'capture']).optional().describe('capture (default) counts the personas of the hooks\' tabs too.'),
+});
+const SignInCancelInput = z.strictObject({ job: z.string().regex(JOB_ID_RE, 'a job id (j_…)').describe('The sign-in job (auth_login answered it).') });
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
 const editText = z.string().max(SCENARIO_EDIT_MAX_CHARS, `at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')} characters`);
@@ -293,6 +322,16 @@ export function runOps(): ToolDef[] {
             details: { run_id: busy.input.run_id, job: busy.id },
           });
         }
+        if (a.mode === 'capture') {
+          const missing = sessionsToConfirm(await engine.auth.forScenario(a.project, a.name, { ...(a.env ? { env: a.env } : {}), mode: 'capture' })).filter((p) => !(a.sessions_ack ?? []).includes(p.persona));
+          if (missing.length) {
+            throw new EngineError(
+              'conflict',
+              `${missing.map((p) => `${p.persona} (${p.status === 'never' ? 'never signed in' : p.status})`).join(', ')}: ${missing.length === 1 ? 'its session is' : 'their sessions are'} not valid and no run signs ${missing.length === 1 ? 'it' : 'them'} in by itself. ${confirmWhy(missing)}: sign in first, or confirm the capture`,
+              { details: { sessions: missing } },
+            );
+          }
+        }
         return engine.runs.submit({ project: a.project, scenario: a.name, mode: a.mode, ...(a.env ? { env: a.env } : {}), ...(a.hash ? { expect_sha256: a.hash } : {}) });
       });
       const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker: sub.worker } : {}) };
@@ -300,6 +339,97 @@ export function runOps(): ToolDef[] {
     },
   };
   return [run] as unknown as ToolDef[];
+}
+
+/** A persona a capture's `sessions_ack` must name: its stored session is invalid and no run signs it in by itself. */
+export interface SessionToConfirm {
+  persona: string;
+  status: 'expired' | 'error' | 'never';
+  /**
+   * The run's preflight checks it before anything is filmed (it has a `check`, or it never signed in: no session to
+   * start from) and stops there if it is not valid. False (review A M2): a saved session without a `check` is used as
+   * it is — the run fails only when a page lands on the sign-in page, after its setup hooks ran.
+   */
+  checked_first: boolean;
+}
+
+/**
+ * The personas of a scenario's sessions whose stored state is expired, error or never, that no run signs in by itself:
+ * no usable `login:` steps (`auto`), not a sandbox account (every take signs it in), not the legacy single-account file
+ * (a run starts signed out there).
+ */
+export function sessionsToConfirm(s: ScenarioSessions): SessionToConfirm[] {
+  const out: SessionToConfirm[] = [];
+  for (const p of s.personas) {
+    if ((p.status === 'expired' || p.status === 'error' || p.status === 'never') && !p.auto && !p.sandbox && !p.legacy) {
+      out.push({ persona: p.persona, status: p.status, checked_first: p.has_check || p.status === 'never' });
+    }
+  }
+  return out;
+}
+
+/** What a capture does with these sessions, truthfully (the 409's text; the Studio's dialog says the same). */
+export function confirmWhy(list: SessionToConfirm[]): string {
+  const checked = list.filter((p) => p.checked_first).map((p) => p.persona);
+  const not = list.filter((p) => !p.checked_first).map((p) => p.persona);
+  const parts: string[] = [];
+  if (checked.length) parts.push(`The run checks ${not.length ? checked.join(', ') : checked.length === 1 ? 'it' : 'each'} first and stops before filming if still not valid`);
+  if (not.length) {
+    parts.push(
+      `${not.length === 1 ? 'Persona' : 'Personas'} ${not.join(', ')} cannot be checked first (no \`check\`): the run uses ${not.length === 1 ? 'its saved session' : 'their saved sessions'} as ${not.length === 1 ? 'it is' : 'they are'} and fails only when a page lands on the sign-in page — after its setup hooks ran`,
+    );
+  }
+  return parts.join('. ');
+}
+
+const statusWords = (st: { status: string; paused?: { scene: string; step: number }; job?: { pause_requested_at?: string } }) =>
+  st.paused ? `paused before step ${st.paused.step + 1} of ${st.paused.scene}` : st.job?.pause_requested_at ? `${st.status}, pausing before its next step` : st.status;
+
+/** run_pause, scenario_sessions and sign_in_cancel: the Run screen's controls and the Sessions panel (L4.4). */
+export function liveOps(): ToolDef[] {
+  const pause: ToolDef<typeof PauseInput> = {
+    name: 'run_pause',
+    title: 'Pause or resume a run',
+    description: 'Pause a running run of a job before its next step (a capture does not film the pause), or resume it.',
+    input: PauseInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(a, { engine }) {
+      const st = await engine.runs.pause(a.project, a.run_id, a.paused);
+      return { summary: `${a.run_id}: ${statusWords(st)}`, data: st as unknown as Record<string, unknown> };
+    },
+  };
+  const sessions: ToolDef<typeof SessionsInput> = {
+    name: 'scenario_sessions',
+    title: 'Sessions a scenario needs',
+    description: "The personas a run of a scenario signs in on an environment, with their stored state (no browser), whether every run signs them in by itself, and those a capture must confirm (`confirm`).",
+    input: SessionsInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      const s = await scenarioSessions(engine, a);
+      return {
+        summary: `${a.name} on ${s.env}: ${plural(s.personas.length, 'persona')}${s.confirm.length ? `, ${s.confirm.length} to confirm for a capture` : ''}`,
+        data: s as unknown as Record<string, unknown>,
+      };
+    },
+  };
+  const cancel: ToolDef<typeof SignInCancelInput> = {
+    name: 'sign_in_cancel',
+    title: 'Stop a sign-in',
+    description: "Stop a sign-in job (its window closes; no session file or status is written — a persona's existing browser profile keeps what the window changed). Any other job is refused.",
+    input: SignInCancelInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(a, { engine }) {
+      const rec = await engine.auth.cancelSignIn(a.job);
+      return { summary: `sign-in ${rec.id}: ${rec.state}${rec.cancel_requested_at && rec.state === 'running' ? ' (stopping)' : ''}`, data: { id: rec.id, kind: rec.kind, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) } };
+    },
+  };
+  return [pause, sessions, cancel] as unknown as ToolDef[];
+}
+
+async function scenarioSessions(engine: Engine, a: z.infer<typeof SessionsInput>): Promise<ScenarioSessions & { confirm: SessionToConfirm[] }> {
+  const mode = a.mode ?? 'capture';
+  const s = await engine.auth.forScenario(a.project, a.name, { ...(a.env ? { env: a.env } : {}), mode });
+  return { ...s, confirm: mode === 'capture' ? sessionsToConfirm(s) : [] };
 }
 
 /**
@@ -343,4 +473,5 @@ export const INDEX_OPS = ['activity_list', 'search'] as const;
 export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] as const;
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS] as const;
+export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS] as const;

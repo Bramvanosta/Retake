@@ -602,6 +602,16 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   output frame to its stdout (`activity.ts`: changed cells per frame → slow transitions, `timeline.busy`). The take
   ends with `finish(endT)` (the last ticks, ≈ 20–60 ms); a cancelled or discarded take aborts it and removes the file.
 - `idle` intervals: gaps between consecutive frames ≥ 0.5 s.
+- **Capture time comes only from the capture clock** (L4.4, `timeline.ts` `CaptureClock`): every frame time, event,
+  cursor sample, load hold and stamp converted with `clock.at(wall)` / `clock.now()`, never from a wall-clock timer of
+  its own. Any CFR pump or streaming encoder (L5.7) is driven by frame / clock times, never by a wall timer, and a
+  paused clock emits no frame — so the capture pause (L4.4 part D) cuts a pause out of the take without filming it
+  (§4f). The clock keeps a list of pauses `{from, to}` (wall ms): `at(wall)` = (wall − t0 − the pauses ended before
+  it) / 1000, a wall time inside a pause (open or closed) being the pause instant; `now()` = `at(wallNow())`, so it
+  stands still while paused and the encoders' horizon with it; `t0Wall` (`timeline.capture.t0_wall`) never moves —
+  a reader converting a wall time of a paused take applies `timeline.pauses` (less the `ms` of every earlier pause, a
+  time inside one being its `t`). Conversions made after the take (held loads, critique B1) stay right whatever paused
+  in between.
 - Chromium keeps its frame rate limiter by default. With it, frame production stops ≈ 0.26 s when an element with a
   `backdrop-filter` goes away after a hover and a press (a closing dialog's overlay), measured on macOS / Metal
   whatever the raster path. L5.7 (R-FLD-20): after every press the recorder asks for a fresh frame (a screencast
@@ -1792,7 +1802,8 @@ workers/worker.log      what workers print (stderr), appended
 **Engine client `ui`.** `EngineClient` and core `JOB_CLIENTS` gain `ui`; `agentTrust(client)` (= not `cli`, not
 `test`) gives the scenario checks agent trust; comment authorship and `cliOnly` already treat anything but `cli` as the
 agent; no approver is ever passed (`needs_approval`). The L4.1 allow-list runs under agent trust; how a person proves
-presence in the UI (approvals, comment authorship, edits with secret refs) is open for L4.3 / L4.4 / L4.6.
+presence in the UI (approvals, comment authorship, edits with secret refs) is open: L4.3 and L4.4 kept agent trust
+(approvals and edits with secret refs: BL-106), comment authorship is L4.6's.
 
 **`LocalStorage` reads** (`readText`, and the if_match hash of `writeText`) go through the file's real path and are
 refused (`refused`) when it lies outside the project's real path — README.md, scenario_get, scenario_save,
@@ -1816,7 +1827,8 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   autoStartWorker: startWorker !== false, workerEnv: studioWorkerEnv(process.env, root)})` (L4.1: no worker; L4.2 part
   4: the worker starts on a submit, with a clean environment — engine `cleanWorkerEnv`, what every client but the CLI
   gives its worker, §4d "Run actions"); routes: static (GET
-  / HEAD, no token), `GET /v1/events` (token, api: the event stream, below), `POST
+  / HEAD, no token), `GET /v1/events` (token, api: the event stream, below), `POST /v1/live` (token, api, ≤ 4 KiB: one
+  run's stream, §4f — L4.4), `POST
   /v1/session` `{code}` → `{ok, token}` (no token; the code is the proof), `GET /v1/info` → engine info + `http_api: 1`
   + `ops`, `POST /v1/bootstrap` → `{code, url}` (token), `POST /v1/call/<op>` (token, ≤ 2 MiB) → `{ok: true, summary,
   data}` (untrusted caps applied) or `{ok: false, error: {code, message, fix?, details?}}` with `ERROR_STATUS`; an op
@@ -1825,7 +1837,8 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   `activity_list`, `search` — the Studio's own reads of the index — `projects_overview` — every project's environment
   flags and last run in one call, for the Projects screen — and, since L4.2, `scenario_blocks`, `run_thumbs`, the own
   op `scenario_run` and the MCP tool `run_cancel` (§4d); since L4.3 the MCP tool `scenario_validate` and the own op
-  `scenario_edit` (§4e); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
+  `scenario_edit` (§4e); since L4.4 the MCP tools `auth_status` and `auth_login` (NARROWED: `mode` headed only, `wait_s`
+  0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
   code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
@@ -2527,6 +2540,290 @@ setup's effect armed by hand: a Studio dry run skips hooks) ran 26 / 26 steps wi
 scenario.yaml the edited bytes, and its pictures shown; seven undos → `cmp` identical with the original; a YAML tab
 save (two lines changed, the blocks showing it, the undo history cleared) reverted in the YAML tab → `cmp` identical.
 Safari / Firefox drag & drop are checked by hand (MACOS-CHECKLIST 13c).
+
+## 4f. Run screen (L4.4)
+
+R-UI-16…19, R-AUTH-10: watch a dry run or a capture from the Studio as it happens. Built in parts (the lot's plan and
+critique, B1–B16, apply here): **A — runner and engine (built)**; **B — the Studio server's `/v1/live` relay and ops
+(built)**; **C — the Run screen and the Sessions panel (built)**; **D — the capture pause (built, on L5.7)**; **E — the
+acceptance on the fixture and the picture's CPU measured on a capture (done; "Acceptance and cost" below)**.
+
+**Progress events** (core `RunProgress`). `outline` once the run's secrets are resolved (review A: a value written as is
+in a step is masked there as in `step_start`; before the browser opens, before any `scene_start`): every step the run executes
+(`until` and skipped scenes honoured, `{scene, step, action, desc}` with `desc` described from a redacted copy as
+`step_start`'s) — the step list comes from the run, never from re-reading the scenario. `session` per persona from the
+preflight (runner `auth.ts` `onPersona`, before any setup hook): `valid` | `unchecked` | `none` (the single-account
+form starts signed out) | `signed_in_auto` | `failed`, `detail` page text (untrusted). `pause`: `paused` / `resumed`
+(`ms`; `paused` carries `max_ms`, the limit the screen says) before step `scene.step` (`refused` with a `reason` stays in
+the type for runs of parts A–C, which refused to pause a capture; nothing emits it now). Like every progress event they are redacted and
+written to `log.jsonl`; the CLI prints `session` with `--verbose` and the pauses.
+
+**Live picture** (runner `live-preview.ts`, `RunOptions.live: LiveSink {wanted, onWanted, frame}`). Its own CDP
+session on the page the run acts on (`rt.page`, looked at every 250 ms: a page switch, a new tab, a multi-page scene's
+acting page) — never the recorder's session, never `Emulation.*` — so a dry run (no recorder) has it and a capture's
+frames are untouched (probe: no recorder gap ≥ 150 ms, no wrong-size frame with it). `Page.startScreencast {jpeg,
+quality 60, maxWidth min(960, viewport), everyNthFrame: 1}`, acked at once; at most LIVE_FPS_MAX = 10 frames a second
+are handed on, latest-only with a trailing edge (the newest frame of a burst always follows within 100 ms): with a
+stride of 6 a page that changes once and goes still never sent its final picture (7 of 8 lost). Costs ≈ +21 %
+Chromium CPU on a full-motion page while attached (probe), +15.6 % on a real capture (part E, below), hence: no CDP session at all unless the sink is wanted (someone
+watches), and on camera only — `start()` right after capture time 0, `stop()` first thing in `finally` (before the
+effect check, the recorders, the session diagnosis, the teardown, the artefacts). In between it shows what the acting
+page shows — an `offscreen` scene and a `hook:` step's still page included (played live, cut by the edit; nothing needs
+to suspend it: review). What watching cost is counted (`watched()`: the seconds a screencast ran, the frames handed
+on): a capture filmed while someone watched records `perf.live_preview {seconds, frames_sent}` and warns "the live
+picture was watched for … s of the take (n frames sent): Chromium encoded it on top of the capture" (review A L4). The
+preflight's sign-in tab, hook pages and the artefacts' browser are never `rt.page`. A frame right after a navigation can be cropped (e.g. 800×461 of 800×600): the
+picture's header carries its size. Frames live in memory only.
+
+**Live channel** (engine `jobs/live-channel.ts`; the worker for every `run` job). The claiming worker opens a loopback
+listener (`listenLoopback`: 127.0.0.1, a free port) behind `checkRequest` with `refuseBrowsers` (Host its own
+`127.0.0.1:<port>` / `localhost:<port>`, any Origin or Sec-Fetch-* header but a lone `Sec-Fetch-Mode: cors` → 403, a
+fresh 32-byte bearer token in constant time → 401), one route `GET /v1/frames` (404 / 405 otherwise), at most
+LIVE_STREAMS_MAX = 2 streams (503 `too_many_streams`) and 8 sockets — a socket holding no stream is closed after
+LIVE_IDLE_MS = 2 s, and when all 8 are taken the oldest without a stream makes room for the newcomer (review A L3: 8
+idle connections locked the Studio out; a stream is never dropped for a newcomer). `<job>/live.json` `{v: 1, port, token, job, run,
+pid, started_at}` is created 0600 from the start (a `wx` 0600 temp file, chmod, rename) and removed when the job ends;
+`readLiveChannel` trusts it only as a private regular file of this user (opened `O_NOFOLLOW` and checked on the open
+descriptor — `readPlainRange` —: no link, no group / other bit, ≤ 4 KiB) naming
+this job and the identity of the worker that holds the job's claim, alive (pid and start time) — a stale file of a
+killed worker gives no picture. Wire format: a binary stream of records `u32 header length · JSON header {v: 1, kind:
+'frame', seq, page?, w, h, at} · u32 byte length · JPEG`; `kind` / `v` leave room for an input channel (BL-25 / BL-73:
+a separate authenticated route, not built). Backpressure latest-only per stream: a record is written only when the
+socket needs no drain, else it replaces the one waiting record (a reader that never reads: ≤ one record beyond Node's
+16 KiB buffer). One frame cache, the latest record, sent at once to a new stream (a still page sends nothing new),
+dropped when the job ends. `openLiveFeed` (the Studio server's upstream, part B) checks every record (header ≤ 4 KiB
+with its fields, JPEG `FF D8 FF`, ≤ 512 KiB, w / h ≤ 4096) and ends on anything else. Nothing writes, logs or indexes a
+frame: a test scans every file of the run, `.demo-studio`, the studio home and the worker's TMPDIR for the frames'
+bytes, whole, inside a file or in base64.
+
+**Pause** (runner `pause.ts`, dry runs and captures). Between steps only: at the top of `runStep` once the page is loaded
+(`awaitShownLoaded`) and signed in (`assertSignedIn`), before a late popup's settle and `step_start` (critique B4);
+never inside a step, never in hooks, teardown or encoding; a pause asked during setup or the last step takes effect at
+the next step, or not at all. While `PauseGate.requested` the run waits (polled every 100 ms): run.json `paused: {scene,
+step, since}`, then `pauses: [{scene, step, at, ms}]` and `paused` removed (also after a cancel); `assertSignedIn`
+again after it. A cancel or the sign-in guard ends the wait at once through the run's combined signal (teardown and
+rollbacks as for any cancel). A pause longer than `PauseGate.maxMs` (default 30 min; the worker reads
+`DEMO_STUDIO_PAUSE_MAX_MIN`, minutes (0, 1440]) stops the run: cancelled, "paused longer than … the run was stopped (its
+teardown and rollbacks still run)". The capture clock pauses with the run (a dry run's timeline too); the pause lands
+in `timeline.pauses: [{t, ms, scene, step}]` (`t` the capture time it stopped at, `ms` the wall ms left out).
+
+*A capture does not film the pause* (part D, critique B1 / B3 / B4 / B5). In order: the last click's effect check
+ends (`settleEffectChecks`) and the run waits until RIPPLE_S + 0.1 s after the last press or ripple of any cursor (the
+ripple is never cut); the clock pauses at the wall time read then and, in the same tick, every recorder filming now —
+the main capture and each page track of a multi-page scene (`recordingPage` set) — stops taking frames (`pause()`
+drops its session at once, then stops the screencast; the press-kick timer ends with it); the take's CPU sampler then
+takes a sample and stops counting (review B L10: the recorders used to stop first and the clock after, filming ≈ 0.1 s
+of frameless hold per pause). Capture time stands still: the encoders fed during the take
+(their 100 ms ticks follow `horizon()` = `clock.now()` − 0.5 s) write no tick for it, a frame painted meanwhile would
+land at the pause instant, the motion / stall / busy checks see one continuous take. On resume each recorder
+re-attaches to its page (`switchTo`; ≤ ≈ 300 ms with the attach check) and the clock's pause closes at the paint time
+of the first fresh frame of any of them (`waitFrameAfter(resumeWall)`, at most RESUME_FRAME_MS = 1 s, then at that
+time): that frame lands exactly at the pause instant — no frameless gap, no false freeze (B3); measured on an animated
+board (the test's own, 60 Hz; two takes): the last frame 15–20 ms before the instant, one frame at it, the next
+13–14 ms after. The ripple settle before the pause is filmed: a take paused right after a click is the same take
+unpaused plus that settle — measured after the review fix on three pairs (2.55–2.65 s pauses): the capture-time span
+between the step before and the step after the pause 0.54–0.56 s against 0 s unpaused, the wall time of the take less
+its capture time equal to the pause's length to 0–1 ms (nothing of the pause filmed); the whole videos 0.33–0.73 s
+longer (that settle, plus two takes' variance). One length for a pause everywhere: run.json `pauses[].ms`, the
+`resumed` event, the log and `timeline.pauses[].ms` are the time capture time stood still (from the pause to the first
+fresh frame). Then the sampler goes on,
+leaving out the CPU every process used meanwhile, the pause's seconds and the unfilmed time of each browser (`perf.cpu`
+and `perf.seconds` = the capture duration). A stop or the time limit while paused closes the clock's pause at once
+(no re-attach; the take is discarded as any cancelled one). The page keeps running during the pause — timers,
+animations, a running product clock (L1.7, re-anchoring it was left out): what it shows after the resume is what it
+shows, a jump at that point when it changed; the run says so in a warning ("paused once (2.5 s, not filmed): the video
+goes on where it paused — …"). A held page load before or after the pause keeps its place on the frames (B1); a pause
+never splits a load (it comes after `awaitShownLoaded`, B4).
+
+The control path: engine `runs.pause(project, run_id, paused)` → the job's `pause` marker (a client creates it, removes
+it to resume; the worker only reads it, polled with the cancel marker every 250 ms) → the gate. `runs.pause` refuses a
+run of the CLI (`refused`) and a queued, stopping or finished run (`conflict`), and writes no marker then; a capture is
+no exception (parts A–C refused it); resuming always removes the marker. Run views carry `paused` / `pauses`, a running job `pause_requested_at`, its progress `paused`
+(job long-polls wake on it), MCP run_status a line.
+
+**Sessions** (engine `auth.forScenario(project, scenario, {env?, mode?})`, `auth.ts` `scenarioPersonaStates`): the
+personas a run of the scenario signs in (core `planPersonas`, hooks' tabs counted for a capture), each with its stored
+state (no browser), `auto` — every run's preflight signs it in off camera: it has `login:` steps **and** each
+`{{env:…}}` they use is set in the environment of the worker this client starts (EngineOptions.workerEnv, else
+cleanWorkerEnv of the process for a client other than the CLI; review B M3) — `login_env_missing` (names, never a
+value; with an `issues` line), `login_keychain` (keychain items counted, never looked up: no prompt, no value read —
+taken as there), `has_check` (review A M2: the preflight checks it before filming), never a profile or snapshot path,
+the last check's `detail` / `at` under `untrusted`. The worker that runs the job may be another one (started from a
+terminal, with its own environment): the answer is about the worker this client would start. A headed `auth_login`
+job's window closes after `DEMO_STUDIO_SIGNIN_MAX_MIN` (default 30 min: it holds the single worker, and a click in the
+Studio opens it) — `timed_out`; `auth.cancelSignIn(job)` cancels an `auth_login` job and refuses any other kind. A
+stopped sign-in writes no snapshot and no status; a profile persona that already had a browser profile signed in on
+it, so what the window changed stays there (`profile_kept`, review A L5; `signInStoppedText` words it for the worker,
+MCP and the Studio) — a first sign-in removes its new profile, a `storage_state` persona's window ran on a throwaway
+one. (A temporary copy of the profile, swapped in on success, was weighed and left: the master's writer and its lock
+are `studio login`'s since L1.6.)
+
+**The run stream** (part B; ui `server/run-live.ts`, `RunLive`). `POST /v1/live {project, run_id, after?: {log,
+job?}, frames?}` — a route of the gate like every other (Host → Origin / Sec-Fetch-Site → route / method → token → JSON
+→ ≤ 4 KiB), the body a strict object (slug and run-id patterns, offsets ≥ 0; anything else 400), an unknown run 404,
+at most RUN_LIVE_STREAMS_MAX = 2 streams (the slot reserved before any await; a third 503 `too_many_streams`); never
+an op (the op counter does not move). `text/event-stream`, `Cache-Control: no-store`, a comment line every 15 s.
+Events: `hello {project, run_id, mode, job}`; `snapshot {from: 'start' | 'after', truncated, log_lines_dropped?,
+cursor: {log, job}, events: [{src, seq, ev}], notes?}`; `progress {src, seq, ev}`; `job {state, pause_requested,
+cancel_requested}` on change (polled every 4th read); `picture {state: off | none | waiting | live | busy | ended,
+why?}`; `frame {seq, w, h, at, page?, jpeg}` (base64); `end {status?, job_state?}`, then the stream closes.
+- *Steps and log* (critique B11, B12): the run's `log.jsonl` (every progress event, for a job's run and a terminal's
+  `studio run` alike) and, for a job's run, the worker's `events.jsonl` (`log` → `job_log`, `state` → `job_state`; its
+  `run` events are log.jsonl's and dropped) — read only while a stream is open, every RUN_LIVE_POLL_MS = 300 ms, from
+  byte offsets, through engine `RunFolder.readRange` / `readPlainRange` (no link followed — `O_NOFOLLOW`, no FIFO held,
+  a regular file checked once open, the run folder still the one resolved), ≤ 256 KiB a read, ≤ 2 MiB a poll and file.
+  `seq` = the byte offset of the line's end in its file; `after` resumes from those offsets (an offset past the end, a
+  replaced file: from the start, said so); on connect a log longer than LIVE_TAIL_MAX = 8 MiB is read from its last 8
+  MiB (the cut line dropped, `truncated`); a line over LIVE_LINE_MAX = 64 KiB is skipped with a `note` (the partial-line
+  buffer never grows past it). The snapshot keeps every event but the log lines, cut to the newest 500. The stream
+  ends (`end`) once the run's job finished (the worker finalises run.json first) or, for a terminal's run, once run.json
+  says it finished; after `run_end` it waits up to 10 s for the job. The run's lines and the worker's are merged by
+  `ts` in the snapshot and each poll (`mergeByTime`, each file's order kept — review B L5); the page inserts a line by
+  its time too, so a reload shows the same order.
+- *The view* (S9): never a raw RunProgress — every field type-checked (log.jsonl is a project file an agent could
+  write), unknown types and malformed lines dropped; `run_start` → status, mode, env, steps_total, production, access,
+  hooks, until; `run_end` → status, steps, hooks, stopped_at, error {scene, step, action}, warning / optional-failure
+  counts — no `dir`, output, screenshot or any other path field; names (scene, persona, hook, action) ≤ 200 characters
+  of one line; every text capped at LIVE_TEXT_MAX = 2,000 characters, control characters dropped, the project folder,
+  the workspace and the home folder replaced by `<project>`, `<workspace>`, `~`; the filmed site's and the hooks' text
+  (step_end / log / encode / job messages, session `detail`, hook `message`, run_end `error` and `warnings`) under
+  `untrusted` — the page renders it as text (`Txt`), never as a link or HTML. Step `desc` (the scenario's own, redacted)
+  stays outside. A hook named by its description (its shell command or URL) has its name scrubbed as a text; URLs in
+  every text keep their origin, path and query keys — a password, the query values, the fragment and path segments that
+  look like a secret are masked (`maskUrls`, review A). Every event is written by `sseText`: JSON with U+2028 / U+2029
+  escaped (review A M1: the page's old line regex ended a line there and dropped the whole event — the snapshot
+  included); the page's parser (`parseSseBlock`, shared by the event stream) splits lines on `\n` only. This closes
+  R-ARC-01's "job progress reaches the UI as ids the page re-reads" for the Run screen.
+- *The picture* (S3 is the worker's; B8, C2): ONE upstream per job (`FrameFeed`, engine `readLiveChannel` +
+  `openLiveFeed`, which checks every record), opened when the first page stream that wants frames subscribes, closed
+  (aborted) when the last one leaves — logs keep flowing from the files. A stream wants frames when `frames` says so,
+  else for a dry run only: a capture's stream carries none unless the page sent `frames: true` (user decision, kept
+  by the measure: the picture costs ≈ +15 % Chromium CPU during a take — "Acceptance and cost" below). No job (a terminal's run) or a finished run → `none`. While the job
+  is queued, or between upstream attempts, the feed looks again every second; a 503 of the worker → `busy` (another
+  Studio holds its second stream). The feed keeps the current frame while it is open (memory only — what a second page
+  stream joining it gets first: the worker only sends its cache to a new connection) and drops it when it closes or
+  the picture is no longer live. Latest-only toward each page: a frame is written only when the page's socket needs no
+  drain, else it replaces the one waiting frame (a page that never reads holds ≈ two frame records at most); progress
+  events are small and always written. Frames are never written, logged or put in an event file (S4: a test scans the
+  workspace and the studio home for their bytes, raw and base64). The page decodes with WebCodecs' `ImageDecoder` where
+  the browser has it, else `createImageBitmap` of a Blob, on a canvas (part C; no CSP change, no `src=`, no blob: URL).
+- *Ops*: `run_pause {project, run_id, paused}` → engine runs.pause (409 queued / stopping / finished, 403 a terminal's
+  run; the summary says "pausing before its next step" until the run reaches it); `scenario_sessions
+  {project, name, env?, mode?}` → engine auth.forScenario + `confirm`; `sign_in_cancel {job}` → engine
+  auth.cancelSignIn; `auth_status` (MCP, read-only); `auth_login` NARROWED to `mode: 'headed'` and `wait_s: 0` (S6: a
+  page script can only open a window the person sees, which closes after DEMO_STUDIO_SIGNIN_MAX_MIN; `auto` is what
+  every run's preflight does by itself).
+- *The session acknowledgement* (S7, critique B10): `scenario_run` of a capture reads auth.forScenario (capture mode)
+  and needs `sessions_ack: string[]` naming every persona whose stored status is expired / error / never and that no
+  run signs in by itself (not `auto`, not a sandbox account, not the legacy single-account file, where a run starts
+  signed out) — else 409 `conflict` with `details.sessions: [{persona, status, checked_first}]` and nothing queued;
+  extra names are ignored; a dry run needs none. A guard against a wasted take, not person presence (a page script can
+  send it). `checked_first` (review A M2): the run's own preflight checks the persona before setup hooks and before
+  anything is filmed when it has a `check` or never signed in, and stops there; a saved session without a `check` is
+  used as it is — the run fails only when a page lands on the sign-in page, after its setup hooks ran. The 409's text
+  (`confirmWhy`) and the dialog say which applies to whom.
+
+**The page** (part C; ui `app/RunScreen.tsx`, `run-live.ts`, `LiveView.tsx`, `Sessions.tsx`, `sse.ts`). Routes
+`#/p/<slug>/s/<name>/run` — the preflight: `scenario_sessions` (capture mode) as a table of the personas with their
+stored state and Sign in, the issues, `scenario_blocks`' run blockers beside Start dry run / Start capture (a running
+run of the scenario: "Watch … live" and both wait) — and `#/p/<slug>/s/<name>/run/<run_id>`: one run, any of the
+scenario's (the scenario screen's banner and its submit link there with "Watch live"; it keeps its own Dry run /
+Capture). A start navigates to the run's route.
+- *The stream client* (`useRunLive`): `POST /v1/live` through fetch (the token in a header, `openStream`), the events
+  folded into one state by a pure `applyEvent` (re-rendered at most every 100 ms; frames never enter React state). The
+  largest `seq` per source is the cursor: a stream that drops without `end` reopens with `after` after 1 s, doubling to
+  10 s; `from: 'start'` replaces the state, `'after'` appends. A hidden tab (`visibilitychange`) aborts its stream (the
+  server then closes the job's upstream when no other page wants frames — B8) and reopens it with `after` once shown.
+  `frames` is sent only once the person used the toggle: until then the server's default holds (a dry run's picture
+  on, a capture's off); the toggle reopens the stream with `frames: true / false`. 503 → `run_status` every 2.5 s
+  while visible (header, steps done, the current or paused step), the stream tried again after 30 s; 4xx → the
+  server's message. `end` stops it for good.
+- *The picture* (B14): a canvas of a fixed 960×540 drawing size in a 16:9 box; each frame's base64 checked (`FF D8
+  FF`, ≤ 700,000 characters, w / h ≤ 4096) and decoded by `ImageDecoder({data: bytes, type: 'image/jpeg'})` where the
+  browser has it (the bytes straight to the decoder), else `createImageBitmap(new Blob([bytes], {type: 'image/jpeg'}))`
+  (a browser may keep a Blob in its blob storage — on disk under memory pressure; a ≈ 50 KB frame stays in memory in
+  practice), letterboxed: scaled to fit the box and centred, dark bands (part E; it was drawn from the top,
+  a dark band below). The layout follows the frame size (`run-live.ts` `nextLayout` / `placeFrame`): a new width at
+  once (another page or viewport), a new height of the same width only after SETTLE_FRAMES = 3 frames in a row — a
+  dry run of a 1920×1080 scenario sends mostly 960×471 frames with, now and then, a 960×540 one (a capture's recorder
+  override gives 960×540 throughout), and such a frame is drawn at the picture's place and scale (its top at the
+  picture's top) instead of moving it; nothing resizes. Latest-only (one decode at a time, the newest frame waiting). The source lint allows the
+  two decoders (`new Decoder(…)`, createImageBitmap and `new Blob`) in LiveView.tsx only and bans `URL.createObjectURL` / `blob:` everywhere in src/app (Thumb.tsx's data: URL
+  stays the one image source). The canvas has a label; its state is words beside it (hidden, waiting, live — "not
+  recorded" —, none for a terminal's run, ended, another Run screen holds the stream).
+- *Steps and log*: the step list is the run's `outline` (a run older than L4.4: the steps it reported), grouped
+  *Before filming* (the preflight's `session` rows first, setup hooks — the runner's phase-start event shown as one
+  "running" row until its first hook reports), the scenes, *After the scenes* (teardown, rollbacks, encoding); each row
+  a status word with a glyph (waiting, running, done, skipped, failed, not reached, "paused before this step"; review B:
+  `stepStatus` — "stopped here" only for the step a Stop interrupted, the last that started when it did not end well,
+  never an optional step that failed before; "interrupted (its worker stopped)" for a step still running when the
+  stream ended without `run_end`, the elapsed time then stopped at the last event's `ts`; "skipped (dry run)" /
+  "skipped (hooks off)" for a `hook:` step of a run that skips its hooks; a `hook:` step's entries listed on its row);
+  "Follow the current step" scrolls the list only. "n/N steps done" counts the rows that say done (`stepCounts`: a
+  failed step is not done; skipped ones said apart). The log keeps the last LOG_KEEP = 1,000 lines (the dropped ones
+  counted), the run's, the worker's notes (its job states in words that are never the run's outcome: "the worker
+  finished the job") and the Studio's own notes, in time order, a warnings-only filter, follow. Every text of the view
+  is a text node through Txt; session details sit in "From the page" boxes, step messages and a step's run error in
+  boxes that say they may quote the page, an error of the tool (no step: a missing variable, the app not reachable)
+  plainly.
+- *Controls* (B15): Pause / Resume (`run_pause`) for a running run of a job (a capture: "the video does not show the
+  pause; the page keeps running, so what changes on it meanwhile shows as a jump"); disabled with the reason for a
+  queued run, a stopping run and a terminal's run ("press Ctrl-C there"). "Pausing before the next step" while asked, "Paused before step n of <scene>" with the
+  limit the `paused` event carries while paused, "the pause came too late: the run ended before its next step" when it
+  ended first. Stop (`run_cancel`) "stops now: the step in progress is interrupted" (it does not wait for the next step)
+  and says that the teardown and pending rollbacks still run; the outcome names the teardown hooks' results and the
+  rollbacks (or "no rollback was pending").
+- *Sessions* (B9, B10): the project page's Sessions panel (`auth_status`) and the preflight table; Sign in =
+  `auth_login {project, persona, env}` (the server pins headed / no wait); the job followed through `jobs` events and
+  `job_list` every 3 s (waiting for the queue, a window open with its time limit and "it may be behind this window",
+  the result) with Cancel (`sign_in_cancel`; "Stopped": nothing saved, or — `profile_kept` — the window's changes left in
+  the persona's browser profile, or, the result not known yet, "the saved session was not updated"). The preflight
+  table says `auto` (with "its keychain items are not looked up here"), the login variables missing for the worker, and
+  "no check: a run uses its saved session as it is". ConfirmSessions is a modal `<dialog>` naming each persona and its
+  state: per `checked_first`, "the capture checks … first and stops before filming if it is still not valid" or "…
+  cannot be checked first (no check): the capture uses its saved session as it is and fails only when a page lands on
+  the sign-in page — after its setup hooks ran", **Sign in first** first and focused, Escape closes it and sends
+  nothing, **Capture anyway** sends `sessions_ack` (also on a 409 `details.sessions` from a stale screen, and from the
+  scenario screen's Capture). It closes before it unmounts (review B L4): Escape gives focus back to Start capture,
+  "Sign in first" moves it to that persona's Sign in button, a refused start to the Start button.
+- *Accessibility*: every control a button or a labelled checkbox / select; the step list and the log are focusable
+  scrolling lists, not live regions; one visually hidden `role="status"` line says only the run's state changes
+  (queued, running, paused, stopping, ended).
+
+**Acceptance and cost** (part E, 2026-10-26; the built `studio ui`, a scratch copy of the fixture workspace with the
+fixture on ports of its own, a scratch `DEMO_STUDIO_HOME`, a headless Chromium driving the page). A dry run of
+`highlights` watched live (first frame drawn 1.3 s after Start, the picture letterboxed), paused before
+`quotes.0` for 3 s (no step moved) then resumed — succeeded 7/7; another stopped after 2 steps — cancelled, "no
+rollback was pending". A capture of `highlights`: the picture hidden by default (no `frames` asked, nothing drawn),
+shown by the toggle (the stream reopened with `after` + `frames: true`), paused once — `run.json pauses` 5.0 s,
+`timeline.pauses` `{t: 9.083, ms: 4801}`, the run warning "paused once (4.8 s, not filmed)" —, succeeded with its
+setup and teardown hooks. A capture submitted through MCP (`studio mcp` over stdio, `run_capture`) watched on the Run
+screen, paused there while MCP `run_status` printed "paused before step quotes.0 … (from the Studio: it resumes
+there …)", succeeded. The project page's Sessions panel on `signed-in`: the supplier *expired* (with the check's page
+text in a *From the page* box), the buyer *never signed in*; **Sign in** opened the headed window ("a browser window
+is open on this computer …", its 30-minute limit), **Cancel** closed it — "Stopped: nothing was saved" (the wording
+since the review: what a stop leaves, `profile_kept`), no browser left. With the supplier expired and its `login:` steps removed, **Start capture** of `proforma` opened the
+confirmation (nothing sent, *Sign in first* focused), **Capture anyway** sent `sessions_ack: ["supplier"]` and the
+run's preflight stopped it before filming (first row "Session of supplier — not signed in: the run stops before
+filming", 0 frames). No console error in any page.
+
+*The live picture's CPU on a capture* (R-UI-17; the take's own sampler, `run.json perf.cpu`, Chromium = browser +
+GPU + renderers + other helpers): the fixture's `live-quote` (a 32 s take: two pages filmed at once at 1440 × 900,
+the picture following the acting one; cursor moves, a quote request, live lists), captured from the Run screen four
+times in a row, the page watching each, the picture off / on / off / on:
+
+| take | picture | Chromium cpu-s | of which browser process | per take-second | recorder frames (fps) | stalls | load mean |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | off | 13.96 | 8.32 | 0.43 | 869 (26.7) | 0 | 7.4 |
+| 2 | on (212 frames drawn) | 15.70 | 10.33 | 0.49 | 879 (27.2) | 0 | 9.6 |
+| 3 | off | 12.77 | 7.76 | 0.40 | 877 (27.2) | 0 | 7.9 |
+| 4 | on (212 frames drawn) | 15.20 | 10.08 | 0.47 | 880 (27.3) | 0 | 5.9 |
+
+Mean 13.37 → 15.45 cpu-s: **+2.1 cpu-s, +15.6 %**, almost all in the browser process (+2.2 cpu-s: the second
+screencast's JPEG encoding at `everyNthFrame: 1`); GPU, renderers and the studio process within the noise; the
+recording untouched (frames, fps, no stall, nothing dropped). Above the plan's 10 % threshold: the picture stays off
+by default during a capture (one click shows it, the screen says it costs CPU), on for a dry run. A cheaper capture
+picture (a narrower `maxWidth`, a lower rate) is in the backlog's Run screen extras.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

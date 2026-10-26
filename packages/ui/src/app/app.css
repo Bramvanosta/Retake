@@ -1428,3 +1428,214 @@ textarea:focus-visible {
   padding: 0;
   max-width: 720px;
 }
+
+/* Run screen (L4.4): the header, the live picture, the steps, the log, the controls */
+.run-screen {
+  max-width: 1320px;
+  display: grid;
+  gap: 14px;
+}
+.run-screen > .breadcrumb,
+.run-screen > .screen-head {
+  margin-bottom: 0;
+}
+.run-id {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.run-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.run-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.run-progress progress {
+  width: min(360px, 60%);
+  height: 8px;
+  accent-color: var(--accent);
+}
+.run-controls {
+  display: grid;
+  gap: 8px;
+}
+.run-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.live-box {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #16181d;
+  border-radius: 6px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.live-box.is-live {
+  box-shadow: 0 0 0 2px var(--success-soft);
+}
+.live-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.live-empty {
+  position: relative;
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--fg);
+  text-align: center;
+}
+.live-card .muted.small {
+  margin-top: 8px;
+}
+.run-list,
+.run-list ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.run-list {
+  max-height: 560px;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  position: relative;
+}
+.run-group-title {
+  font-size: 12px;
+  font-weight: 620;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+.run-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.run-row .from-page {
+  flex-basis: 100%;
+}
+.run-row .run-substeps {
+  flex-basis: 100%;
+  padding-left: 22px;
+}
+.run-row.is-current {
+  background: var(--accent-soft);
+}
+.run-row-what {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.run-glyph {
+  width: 14px;
+  text-align: center;
+  color: var(--muted);
+}
+.run-row[data-status='failed'] .run-glyph {
+  color: var(--danger);
+}
+.run-row[data-status='ok'] .run-glyph,
+.run-row[data-status='dry'] .run-glyph {
+  color: var(--success);
+}
+.run-log {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  max-height: 280px;
+  overflow: auto;
+  background: #fafbfc;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12.5px;
+  display: grid;
+  gap: 2px;
+}
+.run-log li {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.run-log time {
+  font-size: 11.5px;
+}
+
+/* Sessions (L4.4) */
+.sessions {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sessions th,
+.sessions td {
+  text-align: left;
+  padding: 6px 8px 6px 0;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.sessions thead th {
+  border-top: 0;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.sessions th[scope='row'],
+.sessions td:nth-child(2) {
+  white-space: nowrap;
+}
+.sessions td:last-child {
+  width: 46%;
+}
+.wide-panel {
+  margin-top: 16px;
+}
+.sign-in,
+.sign-in-state {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.confirm-dialog {
+  max-width: 520px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  display: grid;
+  gap: 10px;
+  color: var(--fg);
+  background: var(--surface);
+}
+.confirm-dialog:not([open]) {
+  display: none;
+}
+.confirm-dialog::backdrop {
+  background: rgba(22, 24, 29, 0.35);
+}
+.confirm-dialog ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+@media (max-width: 1000px) {
+  .run-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -22,6 +22,7 @@ import {
   writeJson,
 } from '@demo-studio/core';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@demo-studio/core';
+import type { LiveSink, PauseGate } from '@demo-studio/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -301,6 +302,22 @@ export interface RunJobContext {
   event(e: JobEventBody): void;
   /** Progress of the job (the worker writes it to job.json, throttled). */
   progress(p: JobProgress): void;
+  /** L4.4: the live picture's sink (the worker's live channel). */
+  live?: LiveSink;
+  /** L4.4: the job's pause marker, as the worker polls it. */
+  pause?: PauseGate;
+}
+
+/** The environment variable that changes the longest pause of a run (minutes). */
+export const PAUSE_MAX_ENV = 'DEMO_STUDIO_PAUSE_MAX_MIN';
+
+/** The longest pause (ms): DEMO_STUDIO_PAUSE_MAX_MIN when set (minutes, more than 0 to 1440), else undefined (30 min). */
+export function pauseMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
+  const raw = env[PAUSE_MAX_ENV];
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 24 * 60) throw new EngineError('invalid', `${PAUSE_MAX_ENV} must be a number of minutes from more than 0 to 1440, got "${raw}"`);
+  return Math.round(n * 60_000);
 }
 
 /** Execute a `run` job: the hash check, then `executeRun` with the reserved run id. */
@@ -320,6 +337,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
     const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };
     const update = (patch: Partial<JobProgress>) => {
       Object.assign(progress, patch, { updated_at: new Date().toISOString() });
+      if (patch.paused === undefined && 'paused' in patch) delete progress.paused;
       ctx.progress({ ...progress });
     };
     const ports: RunPorts = {
@@ -348,8 +366,12 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
           case 'encode':
             if (e.status === 'start') update({ phase: 'encode' });
             break;
+          case 'pause':
+            if (e.state === 'paused') update({ paused: { scene: e.scene, step: e.step, since: new Date().toISOString() } });
+            else if (e.state === 'resumed') update({ paused: undefined });
+            break;
           case 'run_end':
-            update({ steps_done: e.run.steps_done, steps_total: e.run.steps_total, phase: 'done' });
+            update({ steps_done: e.run.steps_done, steps_total: e.run.steps_total, phase: 'done', paused: undefined });
             break;
         }
       },
@@ -366,6 +388,8 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         hookTrust: 'mcp',
         hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
+        ...(ctx.live ? { live: ctx.live } : {}),
+        ...(ctx.pause ? { pause: ctx.pause } : {}),
       },
       ports,
     );

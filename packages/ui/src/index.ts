@@ -8,10 +8,30 @@ export { APP_ENTRY, INDEX_HTML, UI_TARGETS, buildUi } from './bundle.js';
 export type { UiAsset } from './bundle.js';
 export { CALL_BODY_MAX, SMALL_BODY_MAX, UI_OPS, startStudioServer, uiTools } from './server/studio.js';
 export type { StudioServer, StudioServerOptions, UiOp } from './server/studio.js';
-export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexError } from './server/live.js';
+export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexError, sseText } from './server/live.js';
 export type { LiveOptions } from './server/live.js';
-export { EDIT_OPS, INDEX_OPS, OWN_OPS, RUN_OPS, SCENARIO_OPS, editOps, indexOps, overviewOp, runOps, scenarioOps } from './server/ops.js';
-export type { ProjectOverview, ScenarioRunAnswer } from './server/ops.js';
+export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RUN_OPS, SCENARIO_OPS, confirmWhy, editOps, indexOps, liveOps, overviewOp, runOps, scenarioOps, sessionsToConfirm } from './server/ops.js';
+export type { ProjectOverview, ScenarioRunAnswer, SessionToConfirm } from './server/ops.js';
+export {
+  JsonlTail,
+  LIVE_LINE_MAX,
+  LIVE_OUTLINE_MAX,
+  LIVE_READ_CHUNK,
+  LIVE_SNAPSHOT_LOG_LINES,
+  LIVE_TAIL_MAX,
+  LIVE_TEXT_MAX,
+  RUN_LIVE_POLL_MS,
+  RUN_LIVE_STREAMS_MAX,
+  RunLive,
+  RunLiveInput,
+  URL_MASK,
+  maskUrls,
+  mergeByTime,
+  scrubber,
+  viewJobEvent,
+  viewProgress,
+} from './server/run-live.js';
+export type { LiveItem, PictureState, RunLiveOptions, RunLiveRequest, Scrub } from './server/run-live.js';
 export { studioWorkerEnv } from './server/worker-env.js';
 export { launchStudio } from './server/launch.js';
 export type { Launched } from './server/launch.js';

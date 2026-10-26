@@ -2994,7 +2994,7 @@ for what the server refuses.
 | `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
 | `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
-| `auth_login` | signs a persona in, as a job: `headed` (default) opens a browser window **on the user's machine** — the user signs in there and closes it, Claude is told to ask them and never sees a password; `auto` plays the persona's `login:` steps (their secrets come from the server's environment or the keychain). The result says whether the session works now (no path, no cookie). The window holds the queue until it is closed | the session, in `~/.demo-studio` |
+| `auth_login` | signs a persona in, as a job: `headed` (default) opens a browser window **on the user's machine** — the user signs in there and closes it, Claude is told to ask them and never sees a password; `auto` plays the persona's `login:` steps (their secrets come from the server's environment or the keychain). The result says whether the session works now (no path, no cookie). The window holds the queue until it is closed, at most 30 minutes (`DEMO_STUDIO_SIGNIN_MAX_MIN`; then it closes, nothing saved) | the session, in `~/.demo-studio` |
 | `sandbox_status` | a sandbox's services, health, seed, last reset, take lock (starts nothing) | — |
 | `sandbox_up` | as a job: starts what is not running, checks health, seeds when it never was or the seed changed | the sandbox (its processes or containers, its data) |
 | `sandbox_reset` | as a job: back to the seed (`reseed: true` runs the seed even when a snapshot could be restored); the sandbox must be up | the sandbox's own data |
@@ -3439,6 +3439,68 @@ running: the MCP server keeps working without it.
   run that failed (the site not reachable, a step not found), the first line of its error — and its pictures replace
   the old ones (the newest run that went to the end is the default). If the worker dies mid-run, the banner goes and
   the run shows as interrupted. While a run of the scenario is queued or running, both buttons wait.
+- **Watching and pausing a run** (L4.4).
+  Every run the worker executes — the Studio's or Claude's — can be watched live: the worker serves a small picture of
+  the page the run acts on (at most 960 px wide and 10 frames a second) on a loopback port of its own, kept in memory
+  only and sent only while someone watches, from the first scene to the end of the last — never the sign-in before it,
+  the hooks or the teardown. A run — dry run or capture — can be paused between two steps (never inside a step): it
+  waits, its `run.json` says before which step, and resumes where it stopped; **Stop** still runs the teardown and the
+  rollbacks, paused or not; a pause longer than 30 minutes (`DEMO_STUDIO_PAUSE_MAX_MIN`) stops the run, since a paused
+  run holds the worker and its sessions. A **capture does not film the pause**: the last click's ripple plays out
+  first, then the capture clock stops and the recording with it, at the same instant; on resume the video goes on from
+  that instant, so not a frame of the pause is filmed — `capture.mp4` and the timeline are the take without the pause,
+  plus the end of the last click's ripple the pause let play out first (at most 0.65 s; measured 0.54–0.56 s on the
+  test board, and 0–1 ms of the pause itself). The pause is listed in `timeline.pauses` with the same length as in
+  `run.json`, and its time and CPU are left out of the perf report. The page itself keeps running meanwhile — timers,
+  animations, the product's clock: what it shows after the resume is what the video shows, a visible jump at that point
+  when something moved (the run warns "paused once (… s, not filmed)"). A sign-in window opened through the worker
+  (`auth_login` headed) closes by itself after 30 minutes (`DEMO_STUDIO_SIGNIN_MAX_MIN`): it holds the worker while it is
+  open. A stopped sign-in (Cancel, the time limit) writes no session file and no status — but a persona that already
+  has a browser profile signs in **on** it, so what the window changed there (cookies, storage) stays and the next run
+  starts from it; a first sign-in leaves nothing.
+  The Studio follows a run from the run's own log (steps, each persona's sign-in check, the log, pauses) — for a run
+  started in a terminal too, without its picture — and relays the picture only while a tab shows it: a hidden tab or
+  the picture switched off closes it, and **during a capture the picture is off unless you ask for it** (it costs
+  Chromium CPU during the take — about 15 % more on the fixture's 32-second two-page `live-quote` take, the
+  recording itself unaffected; a dry run shows it by default). A capture filmed while someone watched says so: run.json
+  `perf.live_preview` (the seconds the picture ran, the frames sent) and a run warning. At most two tabs follow runs at
+  once. Starting a **capture** whose scenario needs a persona whose saved session is invalid (expired, failed, never
+  signed in) and that no run signs in by itself asks you to confirm first: sign in, or capture anyway. A run signs a
+  persona in by itself when it has `login:` steps **and** every `{{env:…}}` they use is set for the worker (the Studio
+  checks the environment of the worker it starts, names a missing variable and never shows a value; a keychain item is
+  not looked up — it is taken as there). The confirmation says what really happens: a persona with a `check` (or never
+  signed in) is checked before filming and the run stops there if it is still invalid; one without a `check` cannot be
+  — its saved session is used as it is, and the run fails only when a page lands on the sign-in page, after its setup
+  hooks ran.
+- **The Run screen.** *Run screen* (the link under *Runs from the Studio*, or `#/p/<project>/s/<scenario>/run`) opens
+  on the **preflight**: the sessions the scenario's run signs in — each persona's last known state, in words, with
+  **Sign in** — and what would stop a run, then **Start dry run** and **Start capture**. A started run opens its own
+  screen (also **Watch live** on the scenario screen's banner and after a Dry run / Capture click), for any run of the
+  scenario, the Studio's or Claude's (a run started in a terminal: steps and log, no picture). It shows the mode, the
+  environment, the run's state, the time since it started and the steps done; the **live picture** of the page (a dry
+  run's on by default, a capture's behind **Show live picture**; *Not recorded*; it stops while the tab is hidden); the
+  **steps** as the run lists them, with their status in words — first *Before filming*: each persona's sign-in check
+  (*signed in*, *signed in automatically, off camera*, *not signed in: the run stops before filming*) and the setup
+  hooks, then the scenes (a `hook:` step's entries on its row; *skipped (dry run)* when the run skips its hooks), then
+  the teardown, the rollbacks and the encoding; the **log** (plain text, the last 1,000 lines in time order, warnings
+  only on request; the worker's notes say *job*, never the run's outcome); **Pause** / **Resume** (before the next
+  step; a capture says that the video will not show the pause; the pause's limit as the worker has it) and **Stop**
+  (*stopping now: the step in progress is interrupted; its teardown hooks and pending rollbacks still run* — only that
+  step says *stopped here*), then the outcome: how it ended, the steps done (a failed step is not done), where it
+  failed — a step's error, which may quote the page, in a box saying so; an error of the tool (a missing variable, the
+  app not reachable) said plainly —, how the teardown and rollbacks went, and a link back to the scenario's pictures.
+  A run whose worker was killed shows its running step as *interrupted* and its clock stopped at its last event. A third tab on a run screen (two at most follow runs) reads the run's
+  status every few seconds instead. Everything works with the keyboard; one status line tells a screen reader when
+  the run starts, pauses, stops or ends — the steps and the log are lists, not announcements.
+- **Sessions.** The project page lists every persona of every environment with its saved sign-in (*valid*, *expired*,
+  *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
+  known state: no browser opens to read it. **Sign in** queues a job that opens a browser window on this computer:
+  you sign in there yourself, then close it (it may open behind the Studio's window, and closes by itself after 30
+  minutes, `DEMO_STUDIO_SIGNIN_MAX_MIN`); the row follows it (*waiting for the queue* while a run — a paused one too —
+  holds the worker, *a browser window is open…*, then the result) with **Cancel** (*Stopped*: the saved session is not
+  updated; on a persona's existing browser profile, what the window changed stays there). No password ever goes
+  through the Studio. The Run screen's confirmation closes before it goes: Escape returns to **Start capture**, *Sign in
+  first* to that persona's **Sign in**.
 - **The jobs worker.** A run from the Studio is a job, like one Claude starts: the Studio starts the workspace's
   worker when you click (if none is running) and the worker exits after a minute without work. It gets a clean
   environment: your terminal's, without the folders a package manager adds to `PATH` (`pnpm studio ui` puts
@@ -3466,9 +3528,13 @@ running: the MCP server keeps working without it.
   index, `projects_overview` — every project card's environments and last run in one call; L4.2: `run_status` without
   waiting, `scenario_blocks` — a scenario read as blocks with its runs and each step bound to the run's pictures —,
   `run_thumbs` — small JPEG pictures of a run's steps, made in memory and never stored —, `scenario_run` — a dry run or
-  a capture with its arguments pinned: the scenario, the mode and an environment, nothing else — and `run_cancel`), run
-  with the trust an agent has through MCP and no approver: a page's script cannot be told from your click, so anything
-  that needs your approval stays in the terminal.
+  a capture with its arguments pinned: the scenario, the mode and an environment, nothing else — and `run_cancel`;
+  L4.4: `run_pause` — pause a run of a job (dry run or capture) before its next step, resume it —, `scenario_sessions` — the sessions a run of a
+  scenario needs, with `has_check`, the login variables missing for the worker —, `auth_status`, `auth_login` — only
+  the window where **you** sign in, never Claude's headless sign-in, never a wait — and `sign_in_cancel` — stop that
+  window, nothing else), run with the trust an agent has
+  through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
+  stays in the terminal.
 
 ## Security
 

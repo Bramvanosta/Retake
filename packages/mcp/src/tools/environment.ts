@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { SLUG_RE } from '@demo-studio/core';
 import type { Engine, JobRecord } from '@demo-studio/engine';
+import { signInStoppedText } from '@demo-studio/engine';
 import { envName, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';
@@ -66,7 +67,7 @@ export function environmentJobSummary(job: JobRecord): string {
   if (r?.kind === 'auth_login') {
     lines.push(
       r.interrupted
-        ? `sign-in of ${r.persona} on ${r.env} cancelled: the window closed, nothing was saved`
+        ? `sign-in of ${r.persona} on ${r.env} ${r.timed_out ? 'stopped' : 'cancelled'}: ${signInStoppedText(r)}`
         : r.signed_in
           ? `${r.persona} on ${r.env}: ${r.status === 'unchecked' ? 'session saved, not verified (the persona has no check)' : `signed in${r.already_signed_in ? ' (its session was still valid)' : ''}${r.kept ? ' — the window ended signed out; the session saved before still works and is kept' : ''}`}. Runs use a copy of this session.`
           : `${r.persona} on ${r.env} is not signed in (${r.status}; the check's message is under "untrusted"). A human tries again: ${r.command}`,

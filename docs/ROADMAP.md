@@ -63,8 +63,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **done** (live checks: MACOS-CHECKLIST 13a) |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | **done** (live checks: MACOS-CHECKLIST 13b) |
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | **done** (live checks: MACOS-CHECKLIST 13c) |
-| L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
-| L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | todo |
+| L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | **done** (live checks: MACOS-CHECKLIST 13e) |
+| L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | **next** |
 | L4.6 | Frame comments UI | M | todo |
 | L4.7 | Component library (with animated previews) + theme editor screens | M | todo |
 | L4.8 | Record screen | M | todo |
@@ -756,7 +756,16 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   env when hooks exist) never change from the Studio; a cross-process lock on every `if_match` write. Two independent
   reviews fixed with mutation-checked tests. Cuts: BL-95, BL-96. Live checks: MACOS-CHECKLIST 13c.
 
-### L4.4 – L4.9, L5.2 – L5.4, L6
+### L4.4 — Run screen: live headless preview, steps, log, pause/stop (M)
+- **Goal:** watch a dry run or a capture as it happens, pause or stop it, and see the sessions it needs.
+- **Done (2026-10-27, in a worktree, rebased on L5.7 and L5.8):** the Run screen (`#/p/<slug>/s/<name>/run[/<id>]`):
+  the live picture of the acting page (worker loopback channel, memory only, only while watched; on for dry runs, off
+  by default for captures: +15.6 % Chromium CPU measured), steps from the run's outline, log, Pause / Resume (captures
+  too, the pause not filmed), Stop with teardown and rollbacks; the Sessions panel (headed Sign in, Cancel) and the
+  capture's session confirmation. Two independent reviews fixed with mutation-checked tests. Cuts: BL-105, BL-106. Live
+  checks: MACOS-CHECKLIST 13e.
+
+### L4.5 – L4.9, L5.2 – L5.4, L6
 - L4.7 also shows an animated preview per component (R-UI-06b, user decision 2026-10-26).
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),

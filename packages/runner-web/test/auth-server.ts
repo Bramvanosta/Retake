@@ -118,6 +118,14 @@ export async function startAuthServer(): Promise<AuthServer> {
         page('Welcome', `<h1>Signed in as ${account.name}</h1><script>fetch('/api/last-seen', { method: 'PUT', body: '{}' }); navigator.sendBeacon('/api/onboarding', 'done');</script>`),
       );
     }
+    // A page that routes itself to the sign-in page after `?ms=` (default 800): a session lost while nobody acts.
+    if (path === '/later') {
+      const ms = Number(url.searchParams.get('ms') ?? 800);
+      return html(
+        200,
+        page('Later', `<h1>Signed in as ${account.name}</h1><script>setTimeout(() => { history.pushState({}, '', '/sign-in'); document.querySelector('h1').textContent = 'Sign in'; }, ${ms});</script>`),
+      );
+    }
     if (path === '/spa') {
       return html(
         200,

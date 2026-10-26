@@ -15,6 +15,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { sessionEnded } from './api.js';
+import { parseSseBlock } from './sse.js';
 
 /** A run that appeared, changed status, progressed (its run.json rewritten while unfinished) or went away (L4.2). */
 export interface RunEvent {
@@ -92,9 +93,9 @@ async function readStream(token: string, first: boolean): Promise<StreamEnd> {
       while ((i = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, i);
         buf = buf.slice(i + 2);
-        const type = /^event: (.+)$/m.exec(block)?.[1];
-        const data = /^data: (.+)$/m.exec(block)?.[1];
-        if (!type || data === undefined) continue; // a comment line (keepalive)
+        const parsed = parseSseBlock(block);
+        if (!parsed) continue; // a comment line (keepalive)
+        const { type, data } = parsed;
         if (type === 'hello') {
           if (!first) publish({ type: 'resync' });
           continue;

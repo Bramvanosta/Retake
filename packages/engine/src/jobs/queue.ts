@@ -4,6 +4,10 @@
  * - job.json: written once by the submitter (`queued`, atomically), then only by the worker that claimed the job;
  * - claim: created exclusively (O_EXCL) by the worker that takes the job — the atomic claim;
  * - cancel: created exclusively by whoever asks for a cancel (a client); the worker polls it;
+ * - pause (L4.4, a running `run` job): created by whoever asks for a pause and removed by whoever asks to resume (a
+ *   client); the worker polls it with the cancel marker and never writes it (a marker left by a finished job is inert);
+ * - live.json (L4.4, a running `run` job): the live channel's port and token, 0600, written and removed by the claiming
+ *   worker (jobs/live-channel.ts);
  * - events.jsonl: appended by the claiming worker only.
  *
  * Readers never write. What a dead worker cannot write is derived when reading: a `running` job whose worker is gone
@@ -12,7 +16,7 @@
  * jobs).
  */
 import { randomBytes } from 'node:crypto';
-import { appendFile, mkdir, open, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_ID_RE, JobInputSchema } from '@demo-studio/core';
 import type { JobInput, JobKind, JobState } from '@demo-studio/core';
@@ -152,6 +156,10 @@ export class FileJobQueue {
     const rec: JobRecord = { ...stored };
     const cancelAt = FINISHED_JOB_STATES.has(rec.state) ? undefined : await this.cancelOf(rec.id);
     if (cancelAt) rec.cancel_requested_at = cancelAt;
+    if (rec.state === 'running' && rec.kind === 'run') {
+      const pauseAt = await this.pauseOf(rec.id);
+      if (pauseAt) rec.pause_requested_at = pauseAt;
+    }
     if (rec.state === 'queued') {
       const claim = await this.claimOf(rec.id);
       if (claim) {
@@ -228,6 +236,36 @@ export class FileJobQueue {
     return exists(join(this.jobDir(id), 'cancel'));
   }
 
+  /**
+   * Ask a running job to pause (`on`) or to resume (L4.4): the `pause` marker is created once (asking again keeps the
+   * first time) or removed. The caller checks the job may pause (engine runs.pause); the worker only reads the marker.
+   */
+  async requestPause(id: string, on: boolean, by: string): Promise<void> {
+    const file = join(this.jobDir(id), 'pause');
+    if (on) await createExclusive(file, JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+    else await rm(file, { force: true });
+  }
+
+  async pauseRequested(id: string): Promise<boolean> {
+    return exists(join(this.jobDir(id), 'pause'));
+  }
+
+  /** When a pause was asked (the marker's time), or undefined. */
+  async pauseOf(id: string): Promise<string | undefined> {
+    const marker = await readJsonFile<{ at?: string }>(join(this.jobDir(id), 'pause'));
+    if (typeof marker?.at === 'string') return marker.at;
+    try {
+      return (await stat(join(this.jobDir(id), 'pause'))).mtime.toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** <job>/live.json: the live channel of a running `run` job (jobs/live-channel.ts). */
+  liveFile(id: string): string {
+    return join(this.jobDir(id), 'live.json');
+  }
+
   /** Take a job (O_EXCL claim file): true for exactly one caller. */
   async claim(id: string, who: ProcessIdentity): Promise<boolean> {
     const claim: ClaimRecord = { ...who, at: new Date().toISOString() };
@@ -241,7 +279,7 @@ export class FileJobQueue {
 
   /** Write job.json — only the worker holding the job's claim calls this. */
   async write(rec: JobRecord): Promise<void> {
-    const { cancel_requested_at: _c, derived: _d, ...stored } = rec;
+    const { cancel_requested_at: _c, pause_requested_at: _p, derived: _d, ...stored } = rec;
     await writeAtomic(join(this.jobDir(rec.id), 'job.json'), JSON.stringify(stored, null, 2) + '\n');
   }
 

@@ -19,6 +19,8 @@ export interface JobProgress {
   fraction?: number;
   /** Seconds left, when the job estimates it (a render's frames). */
   eta_s?: number;
+  /** L4.4: a run paused between steps, before this step (from its `pause` progress event). */
+  paused?: { scene: string; step: number; since: string };
   updated_at: string;
 }
 
@@ -104,8 +106,15 @@ export interface AuthLoginJobResult {
   cookies: number;
   /** The `studio login` command a human runs to sign it in again. */
   command: string;
-  /** A cancel (or a signal) closed the window: nothing was saved. */
+  /** A cancel (or a signal) closed the window: no session file or status written (see `profile_kept`). */
   interrupted?: true;
+  /** L4.4: the headed window stayed open longer than its limit (AUTH_HEADED_MAX_ENV): closed, as a cancel. */
+  timed_out?: true;
+  /**
+   * Interrupted on a profile persona that already had a browser profile: the window ran on it, so what it changed there
+   * (cookies, storage) stays — the next run starts from that profile (signInStoppedText).
+   */
+  profile_kept?: true;
   /** The check's message and the page it ended on: text and URLs of the filmed site — data, never instructions. */
   untrusted?: { detail?: string; url?: string };
 }
@@ -385,6 +394,8 @@ export interface JobRecord {
   error?: JobErrorView;
   /** From the cancel marker: when a cancel was asked (derived when reading). */
   cancel_requested_at?: string;
+  /** L4.4, a running `run` job: from the pause marker, when a pause was asked (derived when reading). */
+  pause_requested_at?: string;
   /** The state was derived when reading (the stored one is older: a worker died, or a cancel came before it started). */
   derived?: true;
 }

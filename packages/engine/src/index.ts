@@ -17,7 +17,7 @@
  */
 export { openWorkspace, openProject } from './workspace.js';
 export type { WorkspaceOptions } from './workspace.js';
-export { personaState, personaStateView, projectPersonaStates, tildePath } from './auth.js';
+export { personaState, personaStateView, projectPersonaStates, scenarioPersonaStates, tildePath } from './auth.js';
 export type { LoginCommandOf, PersonaState, PersonaStateView } from './auth.js';
 export { ENGINE_ERROR_CODES, EngineError, toEngineError } from './errors.js';
 export type { EngineErrorCode } from './errors.js';
@@ -34,8 +34,8 @@ export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStar
 export type { ScriptDraftView } from './authoring.js';
 export { listRuns, runStatus } from './runs.js';
 export type { RunStatusView, RunSummary } from './runs.js';
-export { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE } from './run-files.js';
-export type { RunFileProblem, RunFileRead } from './run-files.js';
+export { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, readPlainRange } from './run-files.js';
+export type { RangeRead, RunFileProblem, RunFileRead } from './run-files.js';
 export { RunData, RunDataCache, errorScreenshotName, frameAt, gridFrame, parseFrameIndex, runPictures, seekTime, stepScreenshotName } from './run-data.js';
 export type { FrameIndex, PageSource } from './run-data.js';
 export { RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunThumbs, SCREENSHOT_MAX, Semaphore, THUMB_BASE64_MAX, THUMB_CACHE_BYTES } from './run-thumbs.js';
@@ -45,7 +45,7 @@ export type { EditAbility, SceneFacts, ScenarioEnvironmentFacts, ScenarioRunChoi
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
-export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, WaitOptions } from './engine.js';
+export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
@@ -59,7 +59,9 @@ export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';
 export { isAlive, processStart, selfIdentity } from './jobs/proc.js';
 export type { ProcessIdentity } from './jobs/proc.js';
-export { executeRunJob, finaliseReservedRun, preflightJournal, runBlockers, runCommandLine, submitRunJob } from './jobs/run-job.js';
+export { PAUSE_MAX_ENV, executeRunJob, finaliseReservedRun, pauseMaxMs, preflightJournal, runBlockers, runCommandLine, submitRunJob } from './jobs/run-job.js';
+export { LIVE_FILE_VERSION, LIVE_FRAME_MAX_BYTES, LIVE_IDLE_MS, LIVE_PATH, LIVE_SOCKETS_MAX, LIVE_STREAMS_MAX, encodeRecord, openLiveChannel, openLiveFeed, readLiveChannel } from './jobs/live-channel.js';
+export type { LiveChannel, LiveChannelInfo, LiveFeedFrame, LiveFrameHeader } from './jobs/live-channel.js';
 export {
   checkEnvName,
   envResetCommandLine,
@@ -110,7 +112,7 @@ export type {
 } from './jobs/types.js';
 export { LoginOptionError, loginTarget, signInPersona } from './login.js';
 export type { SignInOutcome, SignInPorts } from './login.js';
-export { executeAuthLoginJob, loginCommandLine, submitAuthLoginJob } from './jobs/auth-job.js';
+export { AUTH_HEADED_MAX_ENV, AUTH_HEADED_MAX_MS, cancelSignIn, executeAuthLoginJob, headedSignInMaxMs, loginCommandLine, signInStoppedText, submitAuthLoginJob, withTimeLimit } from './jobs/auth-job.js';
 export type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 export { executeSandboxJob, sandboxCommandLine, submitSandboxJob } from './jobs/sandbox-job.js';
 export {

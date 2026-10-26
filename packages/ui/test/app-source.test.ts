@@ -2,7 +2,9 @@
  * L4.1 part 2: the Studio app's sources never build HTML from data (D13) — a lint over src/app bans the raw-HTML and
  * code-from-string APIs, `src=` attributes, and any `href` not built by `hrefTo` (or a literal in-app fragment) — and the
  * hash routes treat whatever the address bar holds as an inert string. L4.2: one image source (Thumb.tsx, a data: URL
- * from `jpegDataUrl`), and no srcSet, createElement, `src` key or embedded media anywhere.
+ * from `jpegDataUrl`), and no srcSet, createElement, `src` key or embedded media anywhere. L4.4 (critique B14): the live
+ * picture is decoded by `createImageBitmap(new Blob([bytes], {type: 'image/jpeg'}))` in LiveView.tsx only — no blob: or
+ * object URL anywhere (an address a frame could be loaded from).
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -30,7 +32,17 @@ const BANNED: Array<[RegExp, string]> = [
   [/(?:^|[{,\s])['"]?src['"]?\s*:|\[\s*['"]src['"]\s*\]/m, 'a src key (spread onto an element as {...{src: x}})'],
   [/<(?:iframe|object|embed|video|audio|source|track|image)\b|\bposter=/, 'a frame, an embedded object or media from data'],
   [/\b(?:formAction|action)=\{/, 'a form action bound to data'],
+  [/URL\.createObjectURL|\bcreateObjectURL\b|\bblob:/i, 'an object or blob: URL (the live picture is decoded in memory: createImageBitmap)'],
 ];
+
+/**
+ * L4.4 (B14): the one image decoder — LiveView.tsx's decodeJpeg: `new Decoder({ data: bytes, type: 'image/jpeg' })`
+ * (WebCodecs' ImageDecoder, review A) else `createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }))`, each once,
+ * on the checked bytes of a frame; no other file decodes an image.
+ */
+const LIVE_FILE = 'LiveView.tsx';
+const LIVE_DECODE = /createImageBitmap\(new Blob\(\[bytes\], \{ type: 'image\/jpeg' \}\)\)/g;
+const LIVE_IMAGE_DECODER = /new Decoder\(\{ data: bytes, type: 'image\/jpeg' \}\)/g;
 
 /**
  * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is `jpegDataUrl(entry.base64)` (a
@@ -113,6 +125,24 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(BANNED.some(([re]) => re.test(linted(THUMB_FILE, '<img alt="" src={url} />')))).toBe(true);
   });
 
+  it('L4.4: the one image decoder — ImageDecoder, else createImageBitmap of a JPEG Blob, in LiveView.tsx only; no blob: or object URL anywhere', async () => {
+    const files = new Map(await appSources());
+    const live = code(files.get(LIVE_FILE) ?? '');
+    expect(live.match(LIVE_DECODE)?.length, 'one createImageBitmap(new Blob([bytes], {type: image/jpeg})) in LiveView.tsx').toBe(1);
+    expect(live.match(LIVE_IMAGE_DECODER)?.length, "one new Decoder({ data: bytes, type: 'image/jpeg' }) in LiveView.tsx").toBe(1);
+    expect(live.match(/createImageBitmap/g)?.length).toBe(1);
+    expect(live.match(/new Blob\(/g)?.length).toBe(1);
+    expect(live.match(/new Decoder\(/g)?.length).toBe(1);
+    // bytes come from bytesOf (the frame's base64, checked FF D8 FF) only, through decodeJpeg.
+    expect(live.match(/const bytes = bytesOf\(f\.jpeg\);/g)?.length).toBe(1);
+    expect(live.match(/decodeJpeg\(bytes\)/g)?.length).toBe(1);
+    for (const [f, text] of files) {
+      if (f === LIVE_FILE) continue;
+      expect(/createImageBitmap|new\s+Blob\b|\bImageDecoder\b|\bFileReader\b/.test(code(text)), `${f}: decodes an image or builds a Blob`).toBe(false);
+    }
+    for (const line of ['const u = URL.createObjectURL(b);', "const a = 'blob:' + x;", 'const { createObjectURL } = URL;']) expect(BANNED.some(([re]) => re.test(code(line))), line).toBe(true);
+  });
+
   it('the one image source: Thumb.tsx, once, `src={url}` with url = jpegDataUrl(entry.base64)', async () => {
     const files = new Map(await appSources());
     const thumb = code(files.get(THUMB_FILE) ?? '');
@@ -143,6 +173,12 @@ describe('hash routes', () => {
     expect(parseRoute('#/p/x/s/quote/blocks')).toMatchObject({ name: 'not-found' });
     expect(parseRoute('#/p/x/s/')).toMatchObject({ name: 'not-found' });
     expect(parseRoute(`#/p/x/s/${'a'.repeat(201)}`)).toMatchObject({ name: 'not-found' });
+    // L4.4: the Run screen, with or without a run.
+    expect(parseRoute('#/p/northfield-fixture/s/quote/run')).toEqual({ name: 'run', slug: 'northfield-fixture', scenario: 'quote' });
+    expect(parseRoute('#/p/northfield-fixture/s/quote/run/20261026-120000-quote')).toEqual({ name: 'run', slug: 'northfield-fixture', scenario: 'quote', run: '20261026-120000-quote' });
+    expect(parseRoute('#/p/x/s/q/run/%3Cimg%3E')).toEqual({ name: 'run', slug: 'x', scenario: 'q', run: '<img>' });
+    expect(parseRoute('#/p/x/s/q/run/a/b')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute(`#/p/x/s/q/run/${'a'.repeat(201)}`)).toMatchObject({ name: 'not-found' });
   });
 
   it('hrefTo round-trips any slug through parseRoute and always yields an in-page fragment', () => {
@@ -159,6 +195,11 @@ describe('hash routes', () => {
         const href = hrefTo({ name: 'scenario', slug: 'p/q', scenario, tab });
         expect(href.startsWith('#/p/')).toBe(true);
         expect(parseRoute(href)).toEqual({ name: 'scenario', slug: 'p/q', scenario, tab });
+      }
+      for (const run of [undefined, '20261026-120000-quote', '../x', '<b>']) {
+        const href = hrefTo({ name: 'run', slug: 'p/q', scenario, ...(run ? { run } : {}) });
+        expect(href.startsWith('#/p/')).toBe(true);
+        expect(parseRoute(href)).toEqual({ name: 'run', slug: 'p/q', scenario, ...(run ? { run } : {}) });
       }
     }
   });

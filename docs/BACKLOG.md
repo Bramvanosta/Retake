@@ -816,7 +816,8 @@ Cut to keep L3.2 an M:
 Cut to keep L3.3 an M (Claude writes the scenario; no tool calls a model):
 - A held inspection session (inspect, act, inspect again without replaying the scenario): one-shot inspections with
   `scenario` + `until` replay the prefix each time. A held page would occupy the single worker and drift from any
-  reproducible state; its natural home is L4.4's live-preview input channel. Inline `steps` in page_inspect and hooks
+  reproducible state; its natural home is L4.4's live-preview input channel (its wire format leaves room; not built:
+  BL-105). Inline `steps` in page_inspect and hooks
   during a replay (an approval path) go with it.
 - Landmarks (`main`, `nav`, `aside`…) in the inventory: headings, popups and scroll containers are reported instead.
 - An alternatives list per element (every rung of the target ladder with its live match count): one verified
@@ -1008,11 +1009,11 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
   L4.9).
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
-  from a click). Decide per lot: approvals (L4.4: a prompt in the `studio ui` terminal or the Tauri shell's OS
-  dialog), comments (L4.6), block edits (L4.3: decided — agent trust kept, hooks unchanged from the Studio, a file
-  holding a secret reference or an outside file read-only with why; presence for those is BL-95 / L4.4). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
+  from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `studio ui` terminal or the Tauri shell's
+  OS dialog, BL-106), comments (L4.6), block edits (L4.3: decided — agent trust kept, hooks unchanged from the Studio, a file
+  holding a secret reference or an outside file read-only with why; presence for those is BL-95 / BL-106). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
   hooks need a person is refused from the Studio with the `studio run …` command (shown before the click); approving
-  from the UI is BL-80 / L4.4.
+  from the UI is BL-106 (L4.4 kept it cut).
 - Index-backed MCP tools (`render_list`, a search tool for Claude; BL-72 mentions `render_list`); the search over
   captions, scenario text and comments (today: project names and READMEs, scenario names, run and render ids).
 - A stream of job progress to the page (today a `jobs` event carries ids and the page re-reads). ~~`/v1/media` for
@@ -1057,15 +1058,15 @@ the lot's own cuts:
   blocks of 43,000 steps); "Picture shown when on screen" instead of "Loading the picture…" for rows not yet on screen.
 - Pictures for the intro, the outro, cards and interstitials (component previews: L4.5 / L4.7); all pages of a
   multi-page step side by side; a large-frame viewer and two runs compared side by side.
-- Live thumbnails while a dry run runs (today they appear when it ends); the running banner's live step list, log and
-  live preview (critique C5: L4.4's Run screen).
+- Live thumbnails while a dry run runs (today they appear when it ends; BL-105); ~~the running banner's live step
+  list, log and live preview~~ — built in L4.4 as the Run screen (critique C5), "Watch live" from the banner.
 - `run_thumbs` as an MCP tool for Claude (Claude reads review contact sheets); captions and scenario text in the
   search (BL-79).
 - "Open timeline" from a step (R-UI-15: the timeline screen is L4.5); video serving for the L4.5 Player (Range
   requests: a blob URL against a capability URL — decided there).
 - Approving hooks from the Studio (a capture whose hooks need a person: today the button says "needs the terminal" and
   shows the `studio run …` command); the sandbox reset, `until` and hooks of a dry run from the Studio (pinned out by
-  `scenario_run`, critique B11) — with the Run screen (L4.4) and its person-presence decision (BL-79).
+  `scenario_run`, critique B11) — L4.4 kept both out: approvals BL-106, the dry run's options BL-105.
 - Per-step source slices in the payload (the page slices the text by offsets); a live region announcing the selected
   step (the option's accessible name carries it; screen readers are checked by hand, L4.9).
 
@@ -1186,7 +1187,7 @@ record a digest of the resolved environment and persona bindings in run.json and
 element's box per step cheaply (or the elements the scenario names anywhere) so a later overlay finds its own target.
 
 ### BL-91 — Edit-only renders in the Studio
-*S · L5.5 follow-up, for L4.4 / L4.5*
+*S · L5.5 follow-up, for L4.5 (not taken by L4.4: BL-105)*
 
 The Studio's scenario screen says "only the edit changed since this run" but offers no render: a Render button on that
 notice (and a list of the edit changes, as plan_preview gives them) would close the loop without the terminal or MCP.
@@ -1228,7 +1229,7 @@ the inspector's form and a palette of 15 actions):
 - Drag & drop in WebKit and Firefox in the automated suite (checked by hand: MACOS-CHECKLIST 13c); a pointer-only
   drag fallback if a browser's native drag misbehaves.
 - Person presence for files the Studio does not write (a secret reference, an outside file: read-only with why) and for
-  hook edits from the Studio (today refused: "hooks unchanged") — the L4.4 decision (BL-79), not a structural rule (a
+  hook edits from the Studio (today refused: "hooks unchanged") — a presence decision (BL-106), not a structural rule (a
   "moved or deleted, never edited" rule still lets a page script move a secret-typing step onto another page).
 - Duplicating a step makes (fingerprint, n) of later identical steps name another one: a comment anchored on such a
   step locates the first copy (L4.6's locator by `step_id` first).
@@ -1239,7 +1240,7 @@ Residues documented in L4.3:
   (only a destructive command, which needs `confirm: true`, and a URL host are caught); the person's `studio run` then
   runs it without a prompt (author trust: only destructive hooks ask), and the Studio's own Capture refuses it (needs a
   person). The Studio cannot write one (hooks unchanged). Closing it: an approval at run time for hooks an agent wrote
-  or changed (L4.4), e.g. a hooks digest signed by the person.
+  or changed (BL-106), e.g. a hooks digest signed by the person.
 - Closed in the L4.3 reviews: an undo that brings back a hidden character the file no longer has works (restore takes
   only a version the Studio showed or wrote, which was on disk); a var templated into a hook can no longer be changed
   from the Studio (vars and env are frozen while the file has a hook or a mock).
@@ -1331,6 +1332,44 @@ L5.8 measured and cut `page_inspect`, `run_status` and `review` (and every resul
 `plan_preview` (segments, trims, notes of a long video), `render_status` (timings, ffprobe), `comments_list` and
 `job_list` were not measured on a 4-minute video: measure them on one and give the largest a `detail` too.
 
+### BL-105 — Run screen extras cut from L4.4
+*M · cut in L4.4 · builds on: L4.4, L4.5, BL-25, BL-73, BL-80*
+
+Cut to keep L4.4 within its size (the live picture, the Run screen with its steps, log, pause and stop, the Sessions
+panel and the capture's session confirmation):
+- The live preview's input channel (BL-25 recording through the preview, BL-73 held inspections): the wire format
+  leaves room (`kind` / `v`), nothing built.
+- A live picture of every page of a multi-page scene side by side (today it follows the acting page); live pictures
+  for `record` / `inspect` jobs and for a `studio run` in a terminal (no worker: steps and log only).
+- A cheaper picture during a capture — a narrower `maxWidth`, fewer frames a second: measured at ≈ +15 % Chromium CPU
+  on a take (DESIGN §4f), which is why it is off by default there.
+- An MCP `run_pause` tool (Claude sees `paused` in run_status and can stop a run, not pause one).
+- A crossfade (or a review note) at a capture's pause cut; re-anchoring the product's running clock after a pause
+  (today what moved meanwhile jumps); pausing inside a step or during hooks.
+- The sandbox reset, `until` and the hooks of a dry run from the Studio (BL-80 residue: `scenario_run` pins them out).
+- A live "check the sessions now" (a headless check job; today the stored state, and the run's own preflight before it
+  films); a keychain item of a persona's login steps checked for existence from the Studio (today counted and taken as
+  there: the Studio never touches the keychain); the login variables of the worker actually running (today: the
+  environment of the worker this Studio would start).
+- A headed sign-in in a temporary copy of the persona's profile, swapped in only when it succeeds (today a stopped
+  sign-in leaves what the window changed in an existing profile, and says so).
+- Render from the Run screen (BL-91, L4.5); recording or exporting the preview; live thumbnails on the scenario screen
+  while a run runs (BL-80).
+- WebKit and Firefox in the automated suite (MACOS-CHECKLIST 13e checks them by hand).
+
+### BL-106 — Person presence in the Studio (approvals from the UI)
+*M · cut in L4.4 · builds on: L4.4, L5.2, BL-79, BL-80, BL-95*
+
+The Studio's page runs under an agent's trust with no approver: a page script cannot be told from a click, so what
+needs a person stays in the terminal — a capture whose hooks need approval (the button says "needs the terminal" with
+the `studio run …` command), hook edits and files holding a secret reference or an outside file (read-only with why,
+BL-95), and an approval at run time for hooks an agent wrote or changed (the L4.3 residue). A presence primitive the
+page cannot forge would open them: a prompt in the `studio ui` terminal, or the Tauri shell's OS dialog (L5.2).
+Residue documented in L4.4: the capture's session confirmation (`sessions_ack`) is a guard against a wasted take, not
+presence — a page script can send it; the run's own preflight stays the authority and stops before filming a persona
+it can check (a `check`, or never signed in); one without a `check` is used as saved and fails only when a page lands on
+the sign-in page, after its setup hooks (the confirmation says so).
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -1354,7 +1393,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5.
 - **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `demo-studio-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
-- **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it.
+- **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it. *Applied in L4.4:* the worker's live channel records carry `{v, kind}` (`kind: 'frame'` today) so an input channel can be added as a separate authenticated route beside `GET /v1/frames` (DESIGN §4f); nothing of it is built (BL-105).
 - **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code.
 - **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI.
 

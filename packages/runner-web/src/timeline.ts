@@ -9,6 +9,7 @@ import type {
   TimelineEvent,
   TimelineBusy,
   TimelineLoading,
+  TimelinePause,
   TimelineStall,
   TimelineMarker,
   TimelinePageSegment,
@@ -19,16 +20,56 @@ import type {
 } from '@demo-studio/core';
 import { round3, wallNow } from './util.js';
 
-/** Capture-time clock: seconds since t0 (the moment recording starts), on the wall clock of screencast frames. */
+/**
+ * Capture-time clock: seconds since t0 (the moment recording starts), on the wall clock of screencast frames, less the
+ * pauses of the take (L4.4, R-UI-19): capture time stands still during a pause, so the video goes on from where it
+ * paused. Every wall time converts through the list of pauses — also one recorded before a pause and converted after it
+ * (a held page load, critique B1); a wall time inside a pause (open or closed) is the pause instant. `t0Wall` never moves.
+ */
 export class CaptureClock {
+  /** The pauses (wall ms; `to` undefined while one is open), in order. */
+  private readonly pauses: Array<{ from: number; to?: number }> = [];
   constructor(public t0Wall: number = wallNow()) {}
   /** Current capture time in seconds (ms precision). */
   now(): number {
-    return round3((wallNow() - this.t0Wall) / 1000);
+    return this.at(wallNow());
   }
   /** Capture time of a wall-clock instant (epoch ms). */
   at(wallMs: number): number {
-    return round3((wallMs - this.t0Wall) / 1000);
+    let w = wallMs;
+    let off = 0;
+    for (const p of this.pauses) {
+      if (w < p.from) break;
+      if (p.to === undefined || w <= p.to) {
+        w = p.from;
+        break;
+      }
+      off += p.to - p.from;
+    }
+    return round3((w - this.t0Wall - off) / 1000);
+  }
+  /** A pause is open. */
+  get paused(): boolean {
+    return this.pauses.length > 0 && this.pauses[this.pauses.length - 1].to === undefined;
+  }
+  /** Wall ms the pauses took out of capture time so far (an open one up to now). */
+  get pausedMs(): number {
+    return this.pauses.reduce((n, p) => n + ((p.to ?? wallNow()) - p.from), 0);
+  }
+  /** Capture time stops at wall time `wall` (default now) until `resume`; returns the capture time it stops at. */
+  pause(wall: number = wallNow()): number {
+    if (this.paused) throw new Error('the capture clock is paused already');
+    const last = this.pauses[this.pauses.length - 1];
+    const from = last?.to !== undefined ? Math.max(wall, last.to) : wall;
+    this.pauses.push({ from });
+    return this.at(from);
+  }
+  /** Capture time goes on from wall time `wall` (default now; never before the pause began); returns the ms taken out. */
+  resume(wall: number = wallNow()): number {
+    const p = this.pauses[this.pauses.length - 1];
+    if (!p || p.to !== undefined) throw new Error('the capture clock is not paused');
+    p.to = Math.max(wall, p.from);
+    return p.to - p.from;
   }
 }
 
@@ -58,7 +99,7 @@ const MOVE_MIN_S = 0.2;
  */
 export const STALL_MIN_S = 0.15;
 /** How long a click ripple animates after the press (kit: .5 s scale, .55 s fade). */
-const RIPPLE_S = 0.55;
+export const RIPPLE_S = 0.55;
 
 export interface CaptureStall {
   /** Capture time (s) of the last frame before the gap. */
@@ -314,6 +355,8 @@ export class TimelineBuilder {
   stalls: TimelineStall[] = [];
   /** Waits the main capture showed after clicks (L5.7, R-FLD-26), set when the run ends. */
   busy: TimelineBusy[] = [];
+  /** Where the take was paused between steps (L4.4). */
+  readonly pauses: TimelinePause[] = [];
   /** The run's environment (L1.7): access, display table, clock; the read-only guard appends to `writes`. */
   environment?: TimelineEnvironment;
 
@@ -405,6 +448,7 @@ export class TimelineBuilder {
       ...(this.loading.length ? { loading: this.loading } : {}),
       ...(this.stalls.length ? { stalls: this.stalls } : {}),
       ...(this.busy.length ? { busy: this.busy } : {}),
+      ...(this.pauses.length ? { pauses: this.pauses } : {}),
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),
       ...(this.environment ? { environment: this.environment } : {}),

@@ -4,6 +4,10 @@
  */
 export { DISK_FREE_MIN_GB, DISK_FREE_MIN_SHARE, choppyCause, diskCheck, motionWarnings, runScenario } from './run.js';
 export type { RunOptions } from './run.js';
+export { LIVE_FPS_MAX, LIVE_JPEG_QUALITY, LIVE_MAX_WIDTH, LivePreview } from './live-preview.js';
+export type { LiveFrame, LivePreviewOptions, LiveSink } from './live-preview.js';
+export { PAUSE_MAX_MS, RESUME_FRAME_MS, RunPauser } from './pause.js';
+export type { PauseGate, PausePoint, PauseTake } from './pause.js';
 export { INSPECT_BUDGET_MS, INSPECT_LIMIT, INSPECT_LIMIT_MAX, INSPECT_PACING, INSPECT_PAUSE_CAP_S, INSPECT_TARGETS_MAX, inspectElement, inspectPage } from './inspect.js';
 export type { InspectContext, InspectElement, InspectReport, InspectRequest, InspectStepHint, InspectTargetCheck } from './inspect.js';
 export { SERVICE_WORKER_BLOCK, UNROUTED_APIS_BLOCK, SITE_CALL_TIMEOUT_MS, SITE_CANDIDATES_MAX, SITE_DEADLINE_MS, SITE_REPORT_FILE, SITE_REPORT_VERSION, SITE_SCREENSHOT_FILE, extractSite, imageMime, requestUrlProblem, sameSiteHost, siteBrowserArgs } from './site/extract.js';

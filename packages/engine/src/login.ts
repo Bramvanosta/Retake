@@ -70,7 +70,7 @@ export function loginTarget(project: LoadedProject, opts: { env?: string; person
 
 /** What a sign-in tells its client while it runs (the CLI prints it; the worker records job events). */
 export interface SignInPorts {
-  /** A signal stops it: the window or the browser closes, nothing is saved. */
+  /** A signal stops it: the window or the browser closes; no session file or status is written (jobs signInStoppedText). */
   interrupts: InterruptPort;
   log(level: 'debug' | 'info' | 'warn' | 'error', message: string): void;
   /** The window (headed) or the headless browser (auto) shows its first page. */
@@ -82,7 +82,7 @@ export type SignInOutcome = { interrupted: true } | { interrupted: false; result
 /**
  * Sign one persona in: a headed window a human signs in to and closes, or `auto` (its login steps, headless). The
  * check made afterwards (the way a run sees the session) is in the result. Interrupted: the window or the browser
- * closed, nothing saved.
+ * closed, no session file or status written (a profile persona's existing profile keeps what the window changed).
  */
 export async function signInPersona(
   project: LoadedProject,

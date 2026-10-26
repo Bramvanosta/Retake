@@ -6,7 +6,7 @@
  */
 import { loadProjectTemplate, loadScenario, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioEnvOf } from '@demo-studio/core';
 import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
-import type { ConfirmHook } from '@demo-studio/runner-web';
+import type { ConfirmHook, LiveSink, PauseGate } from '@demo-studio/runner-web';
 import type { SandboxLog, Take } from '@demo-studio/sandbox';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
@@ -138,6 +138,10 @@ export interface ExecuteRunOptions {
   hookVia?: AgentChannel;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
   confirmHook?: ConfirmHook;
+  /** The live picture's sink (L4.4, the worker's live channel): memory only, from capture time 0 to the scenes' end. */
+  live?: LiveSink;
+  /** Pauses between steps (L4.4, the worker's `pause` marker): a dry run waits; a capture says it does not pause. */
+  pause?: PauseGate;
 }
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
@@ -224,6 +228,8 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
       ...(opts.hookVia ? { hookVia: opts.hookVia } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
+      ...(opts.live ? { live: opts.live } : {}),
+      ...(opts.pause ? { pause: opts.pause } : {}),
       ...(take ? { sandbox: take.info } : {}),
       onProgress: (e) => {
         if (take && e.type === 'run_start') take.note(e.run.id);

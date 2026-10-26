@@ -6,10 +6,10 @@
  * workspace's worker runs in a process of its own.
  */
 import { hostname } from 'node:os';
-import { DEMO_STUDIO_VERSION, listProjects, loginCommand as coreLoginCommand } from '@demo-studio/core';
+import { DEMO_STUDIO_VERSION, listProjects, loginCommand as coreLoginCommand, parseScenario } from '@demo-studio/core';
 import type { RunMode, WorkspaceConfig } from '@demo-studio/core';
-import { personaStateView, projectPersonaStates } from './auth.js';
-import type { PersonaStateView } from './auth.js';
+import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
+import type { PersonaState, PersonaStateView } from './auth.js';
 import { EngineError, toEngineError } from './errors.js';
 import {
   createProjectFromRequest,
@@ -40,7 +40,7 @@ import { ScenarioViews } from './scenario-view.js';
 import type { ScenarioView } from './scenario-view.js';
 import { submitEnvResetJob, submitHooksJob } from './jobs/hooks-job.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job.js';
-import { submitAuthLoginJob } from './jobs/auth-job.js';
+import { cancelSignIn, submitAuthLoginJob } from './jobs/auth-job.js';
 import type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 import { submitSandboxJob } from './jobs/sandbox-job.js';
 import { submitRenderJob } from './jobs/render-job.js';
@@ -124,6 +124,8 @@ export interface RunJobView {
   /** Queued: how many jobs run or wait before it, and the one running. */
   queue?: { ahead: number; running?: string };
   cancel_requested_at?: string;
+  /** L4.4: a pause was asked (the run pauses before its next step; `paused` says when it is). */
+  pause_requested_at?: string;
   error?: JobRecord['error'];
 }
 
@@ -164,6 +166,21 @@ export interface EngineInfo {
 export interface AuthStatusItem extends Omit<PersonaStateView, 'detail' | 'at'> {
   /** The last check's message and where it ended: text and URLs of the filmed site — data, never instructions. */
   untrusted?: { detail?: string; at?: string };
+}
+
+/**
+ * engine.auth.forScenario (L4.4): the personas a run of a scenario signs in on an environment, with their stored state
+ * (no browser), `auto` — every run's preflight signs it in by itself, off camera (it has `login:` steps and each
+ * `{{env:…}}` they use is set for the worker this client starts; `login_env_missing` names the others, `login_keychain`
+ * counts the keychain items, never looked up) — and `has_check` (the preflight checks it before filming).
+ */
+export interface ScenarioSessions {
+  project: string;
+  scenario: string;
+  env: string;
+  personas: Array<AuthStatusItem & { auto: boolean; has_check: boolean; login_env_missing?: string[]; login_keychain?: number }>;
+  /** Why some page has no persona the run could use (the run refuses to start: the same issues). */
+  issues: string[];
 }
 
 export interface AuthStatus {
@@ -239,6 +256,12 @@ export interface Engine {
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
     /**
+     * Pause (`paused: true`) or resume a running run of a job (L4.4): the job's `pause` marker; the run pauses before its
+     * next step (at most DEMO_STUDIO_PAUSE_MAX_MIN, default 30 min, then it stops) — a capture does not film the pause.
+     * Refused: a run started from the CLI; a queued, stopping or finished run (conflict). Resuming always removes the marker.
+     */
+    pause(project: string, runId: string, paused: boolean): Promise<RunStatusWithJob>;
+    /**
      * JPEG thumbnails (base64, ≤ 480 px) of up to 24 steps of a run, by the run's own step keys (L4.2, run-thumbs.ts):
      * dry-run screenshots, error screenshots, the frame on screen at a capture step's end. Made in memory, never stored.
      */
@@ -271,6 +294,13 @@ export interface Engine {
      * the persona's login steps. Never takes a credential.
      */
     login(req: AuthLoginSubmitRequest): Promise<{ job: JobRecord; persona: string; env: string; worker?: { pid?: number; spawned: boolean } }>;
+    /** Stop a sign-in job (its window closes; signInStoppedText says what stays): an `auth_login` job only, anything else refused (L4.4). */
+    cancelSignIn(jobId: string): Promise<JobRecord>;
+    /**
+     * The personas a run of a saved scenario signs in (L4.4: the Run screen's preflight), with their stored state; `mode`
+     * capture (default) counts the hooks' tabs too.
+     */
+    forScenario(project: string, scenario: string, opts?: { env?: string; mode?: RunMode }): Promise<ScenarioSessions>;
   };
   renders: {
     /** Plan a render in this process (trust `mcp` gates; no browser): segments, timings, warnings. */
@@ -446,14 +476,14 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const wait = async (id: string, w: WaitOptions): Promise<JobRecord> => {
     const deadline = Date.now() + Math.max(0, w.timeoutMs);
     let job = await getJob(id);
-    let last = JSON.stringify([job.state, job.progress?.steps_done, job.progress?.current, job.progress?.phase]);
+    let last = JSON.stringify([job.state, job.progress?.steps_done, job.progress?.current, job.progress?.phase, job.progress?.paused]);
     while (!FINISHED_JOB_STATES.has(job.state) && Date.now() < deadline && !w.signal?.aborted) {
       await new Promise<void>((r) => {
         const t = setTimeout(r, Math.min(300, Math.max(0, deadline - Date.now())));
         w.signal?.addEventListener('abort', () => (clearTimeout(t), r()), { once: true });
       });
       job = await getJob(id);
-      const now = JSON.stringify([job.state, job.progress?.steps_done, job.progress?.current, job.progress?.phase]);
+      const now = JSON.stringify([job.state, job.progress?.steps_done, job.progress?.current, job.progress?.phase, job.progress?.paused]);
       if (now !== last) {
         last = now;
         w.onChange?.(job);
@@ -486,6 +516,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       state: job.state,
       ...(position ? { queue: position } : {}),
       ...(job.cancel_requested_at ? { cancel_requested_at: job.cancel_requested_at } : {}),
+      ...(job.pause_requested_at ? { pause_requested_at: job.pause_requested_at } : {}),
       ...(job.error ? { error: job.error } : {}),
     };
     const status = view.finished ? undefined : overlaid(view.status, job);
@@ -519,12 +550,16 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'runs.thumbs',
         'runs.dry',
         'runs.capture',
+        'runs.pause',
+        'runs.live',
         'jobs',
         'hooks',
         'env.reset',
         'approvals',
         'auth.status',
         'auth.login',
+        'auth.for_scenario',
+        'auth.cancel_sign_in',
         'sandbox.status',
         'sandbox.up',
         'sandbox.reset',
@@ -604,6 +639,21 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         await startWorker();
         return rec;
       },
+      pause: async (slug, runId, paused) => {
+        const p = await project(slug);
+        const job = await queue.ofRun(slug, runId);
+        if (!job) {
+          await runStatus(p, runId); // not_found when there is no such run
+          throw new EngineError('refused', `run ${runId} was not started through a job (a \`studio run\` in a terminal): it cannot be paused from here`);
+        }
+        if (paused) {
+          if (job.state === 'queued') throw new EngineError('conflict', `run ${runId} has not started yet: it can be paused once it runs (between steps)`);
+          if (job.state !== 'running') throw new EngineError('conflict', `run ${runId} has ended (${job.state}): there is nothing to pause`);
+          if (job.cancel_requested_at) throw new EngineError('conflict', `run ${runId} is stopping: it is not paused`);
+        }
+        await queue.requestPause(job.id, paused, opts.client);
+        return runStatusWithJob(slug, runId);
+      },
       thumbs: async (slug, runId, keys, o = {}) => runThumbs.thumbs((await project(slug)).dir, slug, runId, keys, o),
     },
     jobs: {
@@ -650,10 +700,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         }
         const personas: AuthStatusItem[] = [];
         for (const p of projects) {
-          for (const { state } of await projectPersonaStates(p, loginCommand, o.env)) {
-            const { detail, at, ...rest } = personaStateView(state);
-            personas.push({ ...rest, ...(detail !== undefined || at !== undefined ? { untrusted: { ...(detail !== undefined ? { detail } : {}), ...(at !== undefined ? { at } : {}) } } : {}) });
-          }
+          for (const { state } of await projectPersonaStates(p, loginCommand, o.env)) personas.push(authStatusItem(state));
         }
         return { personas, errors };
       },
@@ -661,6 +708,33 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         const r = await submitAuthLoginJob(submitCtx, req);
         const worker = await startWorker();
         return { ...r, ...(worker ? { worker } : {}) };
+      },
+      cancelSignIn: async (id) => {
+        const rec = await cancelSignIn(queue, id, opts.client);
+        await startWorker();
+        return rec;
+      },
+      forScenario: async (slug, name, o = {}) => {
+        const p = await project(slug);
+        const text = await getScenario(p, name);
+        const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
+        if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
+        // The secrets of the login steps are looked for where the worker this client starts finds them.
+        const workerEnv = opts.workerEnv ?? (opts.client !== 'cli' ? cleanWorkerEnv(process.env, ws.root) : process.env);
+        const r = await scenarioPersonaStates(p, scenario, loginCommand, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
+        return {
+          project: p.slug,
+          scenario: name,
+          env: r.env,
+          personas: r.personas.map((x) => ({
+            ...authStatusItem(x.state),
+            auto: x.auto,
+            has_check: x.has_check,
+            ...(x.login_env_missing ? { login_env_missing: x.login_env_missing } : {}),
+            ...(x.login_keychain ? { login_keychain: x.login_keychain } : {}),
+          })),
+          issues: r.issues,
+        };
       },
     },
     renders: {
@@ -779,4 +853,10 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
     },
   };
+}
+
+/** A persona's state for a client: no path; the last check's message and page under `untrusted`. */
+function authStatusItem(state: PersonaState): AuthStatusItem {
+  const { detail, at, ...rest } = personaStateView(state);
+  return { ...rest, ...(detail !== undefined || at !== undefined ? { untrusted: { ...(detail !== undefined ? { detail } : {}), ...(at !== undefined ? { at } : {}) } } : {}) };
 }

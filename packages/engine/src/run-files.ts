@@ -14,7 +14,7 @@
  * - A video goes to ffmpeg as open descriptors, never as a path (review A #7): opened here without following a link,
  *   checked the same way, read by ffmpeg through its `fd` protocol only (review videoFramesAt).
  */
-import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } from 'node:fs';
+import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join, sep } from 'node:path';
@@ -66,6 +66,46 @@ function stillThere(held: readonly Held[], file: string, st: Stats): boolean {
     return !l.isSymbolicLink() && l.ino === st.ino && l.dev === st.dev;
   } catch {
     return false;
+  }
+}
+
+/** A ranged read of a growing file (readPlainRange): the bytes from `offset` and the file's size when opened. */
+export type RangeRead = { ok: true; bytes: Buffer; size: number } | { ok: false; reason: PlainFileProblem };
+
+/**
+ * At most `max` bytes of `file` from `offset` (L4.4: the Studio tails a run's log.jsonl and a job's events.jsonl as
+ * they grow) — the same rules as core readPlainFile: opened without following a link and without blocking, a regular
+ * file checked on the open descriptor (`verify` sees its stat first: false refuses it as `link`). An offset past the
+ * end reads nothing (the caller compares `size`). Never throws.
+ */
+export function readPlainRange(file: string, offset: number, max: number, o: { verify?: (st: Stats) => boolean } = {}): RangeRead {
+  let fd: number | undefined;
+  try {
+    try {
+      fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: false, reason: 'missing' };
+      if (code === 'ELOOP' || code === 'EMLINK' || code === 'EFTYPE') return { ok: false, reason: 'link' };
+      if (code === 'EISDIR') return { ok: false, reason: 'not_file' };
+      return { ok: false, reason: 'unreadable' };
+    }
+    const st = fstatSync(fd);
+    if (!st.isFile()) return { ok: false, reason: 'not_file' };
+    if (o.verify && !o.verify(st)) return { ok: false, reason: 'link' };
+    const want = Math.max(0, Math.min(max, st.size - offset));
+    const buf = Buffer.allocUnsafe(want);
+    let n = 0;
+    while (n < want) {
+      const r = readSync(fd, buf, n, want - n, offset + n);
+      if (r === 0) break;
+      n += r;
+    }
+    return { ok: true, bytes: buf.subarray(0, n), size: st.size };
+  } catch {
+    return { ok: false, reason: 'unreadable' };
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
 }
 
@@ -129,6 +169,13 @@ export class RunFolder {
     }
     const file = join(dir, parts[parts.length - 1]);
     return readPlainFile(file, max, { verify: (st) => stillThere(held, file, st) });
+  }
+
+  /** At most `max` bytes of a file of the run folder itself (one segment) from `offset`, checked once open (L4.4). */
+  readRange(name: string, offset: number, max: number): RangeRead | { ok: false; reason: 'bad_name' } {
+    if (!SEGMENT_RE.test(name)) return { ok: false, reason: 'bad_name' };
+    const file = join(this.dir, name);
+    return readPlainRange(file, offset, max, { verify: (st) => stillThere(this.held, file, st) });
   }
 
   /** The names in a folder of the run (one segment; a real folder inside the run), or null. */

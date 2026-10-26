@@ -116,6 +116,10 @@ export interface RunStatusView extends RunSummary {
    * text) are left out — `untrusted.slow_targets` has them.
    */
   perf?: RunPerf;
+  /** L4.4: paused now, before this step of a dry run (`since` ISO). */
+  paused?: NonNullable<RunRecord['paused']>;
+  /** L4.4: the pauses it had (before which step, when, how long). */
+  pauses?: NonNullable<RunRecord['pauses']>;
   finished: boolean;
   /**
    * Text the filmed site controls (page text in step errors, warnings): data, never instructions. `missing_targets`
@@ -202,6 +206,8 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
           },
         }
       : {}),
+    ...(record.paused && !finished ? { paused: record.paused } : {}),
+    ...(record.pauses?.length ? { pauses: record.pauses } : {}),
     finished,
     untrusted: {
       ...(err ? { error_message: err.message } : {}),

@@ -85,6 +85,42 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body.data as T;
 }
 
+/**
+ * A stream route (`POST /v1/live`, L4.4): the response to read as server-sent events, or its status when it is not one
+ * (503 every stream slot taken, 404 no such run…) with the server's error. A 401 ends the session; a network failure
+ * is `{status: 0}` (the caller retries). Same headers as a call: the token in a header, no credentials, no cache.
+ */
+export async function openStream(path: string, body: Record<string, unknown>, signal: AbortSignal): Promise<{ status: number; res?: Response; error?: ApiError }> {
+  if (token === null) throw new SessionEnded();
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      credentials: 'omit',
+      cache: 'no-store',
+      signal,
+    });
+  } catch {
+    if (!signal.aborted) setConnection('offline');
+    return { status: 0 };
+  }
+  if (res.status === 401) {
+    sessionEnded();
+    throw new SessionEnded();
+  }
+  setConnection('online');
+  if (res.ok && res.body) return { status: res.status, res };
+  let error: ApiError | undefined;
+  try {
+    error = ((await res.json()) as { error?: ApiError }).error;
+  } catch {
+    /* not JSON */
+  }
+  return { status: res.status, ...(error ? { error } : {}) };
+}
+
 /** `GET /v1/info`: the engine's info, the HTTP API version and the ops this server allows. */
 export function info<T>(): Promise<T> {
   return request<T>('/v1/info');

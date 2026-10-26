@@ -38,6 +38,7 @@ import type {
   OpenArgs,
   PressArgs,
   ResolvedPersona,
+  RunSessionStatus,
   Step,
   TargetObject,
   TargetSpec,
@@ -686,6 +687,8 @@ export interface PreflightDeps extends LoginDeps {
   log: Log;
   /** The command that signs a persona in again (default core loginCommand). */
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
+  /** Each persona's result as it is known (L4.4: the run's `session` progress events); `detail` may hold page text. */
+  onPersona?: (persona: string, status: RunSessionStatus, detail?: string) => void;
 }
 
 /**
@@ -700,7 +703,15 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
   const command = (p: ResolvedPersona) => (deps.loginCommand ?? loginCommand)({ project: deps.project, env: p.env, persona: p.legacy ? undefined : p.name });
   const failures: string[] = [];
   const statuses: Array<{ persona: ResolvedPersona; status: PersonaStatusRecord['status']; detail: string; at?: string }> = [];
+  const tell = (p: PreparedSession, status: RunSessionStatus, detail?: string) => {
+    try {
+      deps.onPersona?.(p.persona.name, status, detail);
+    } catch {
+      /* a listener error must not break the preflight */
+    }
+  };
   const fail = (p: PreparedSession, why: string, hint: 'once' | 'again' | 'reach') => {
+    tell(p, 'failed', why);
     failures.push(`  ${personaLabel(p.persona)}: ${why}`);
     failures.push(
       hint === 'once'
@@ -719,10 +730,13 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
     if (r.status === 'valid') {
       deps.log('debug', `${personaLabel(p.persona)}: signed in (${r.detail}, ${(r.ms / 1000).toFixed(1)} s)`);
       statuses.push({ persona: p.persona, status: 'valid', detail: r.detail, at: r.at });
+      tell(p, 'valid');
     } else if (r.status === 'unchecked' && !never) {
       deps.log('debug', `${personaLabel(p.persona)}: not checked (no \`check\`): its session comes from its ${p.source === 'copy' ? 'profile' : 'snapshot'}`);
+      tell(p, 'unchecked');
     } else if (r.status === 'unchecked' && p.persona.legacy) {
       deps.log('warn', `${personaLabel(p.persona)}: no saved session yet (auth.${p.persona.session}): the run starts signed out`);
+      tell(p, 'none');
     } else if (r.status === 'error') {
       fail(p, `could not be checked — ${r.detail}`, 'reach');
       statuses.push({ persona: p.persona, status: 'error', detail: r.detail, at: r.at });
@@ -765,6 +779,7 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
         if (p.persona.sandbox) deps.log('info', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}; a sandbox account)`);
         else deps.log('warn', `${personaLabel(p.persona)}: signed in automatically, off camera (${why}) — \`${command(p.persona)}\` saves a session runs can reuse`);
         statuses.push({ persona: p.persona, status: 'expired', detail: `${why}; signed in automatically for run ${deps.runId}`, at: again.at });
+        tell(p, 'signed_in_auto', why);
       } else {
         fail(p, `${why}; signed in automatically, but the check still fails: ${again.detail}`, p.source === 'fresh' ? 'once' : 'again');
         if (p.source !== 'fresh') statuses.push({ persona: p.persona, status: again.status === 'error' ? 'error' : 'expired', detail: again.detail, at: again.at });

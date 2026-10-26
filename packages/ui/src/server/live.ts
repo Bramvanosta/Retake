@@ -25,6 +25,14 @@ import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@demo-studio/en
 
 import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 
+/**
+ * One server-sent event: `data` is one line of JSON with U+2028 / U+2029 escaped (review A M1: JSON.stringify leaves
+ * them raw, and a reader treating them as line ends would drop the event — a page's text may hold them).
+ */
+export function sseText(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')}\n\n`;
+}
+
 /** Event streams served at once, at most (below a browser's 6 connections per host). */
 export const EVENT_STREAMS_MAX = 4;
 /** The stat poll's period while a stream is open (ms). */
@@ -149,7 +157,7 @@ export class Live {
   }
 
   private send(event: string, data: unknown): void {
-    const text = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    const text = sseText(event, data);
     for (const res of this.streams) res.write(text);
   }
 
@@ -160,7 +168,7 @@ export class Live {
       return;
     }
     res.writeHead(200, { ...securityHeaders('api'), 'Content-Type': 'text/event-stream; charset=utf-8', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-    res.write(`event: hello\ndata: ${JSON.stringify({ api: ENGINE_HTTP_API, index: this.index !== null, generation: this.index?.generation ?? null })}\n\n`);
+    res.write(sseText('hello', { api: ENGINE_HTTP_API, index: this.index !== null, generation: this.index?.generation ?? null }));
     this.streams.add(res);
     const drop = () => {
       this.streams.delete(res);

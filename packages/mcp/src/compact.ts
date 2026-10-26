@@ -44,6 +44,7 @@ export function compactRunStatus(r: RunStatusWithJob): Record<string, unknown> {
     steps_total: r.steps_total,
     ...(r.duration_ms !== undefined ? { duration_s: Math.round(r.duration_ms / 100) / 10 } : {}),
     ...(r.current && !r.finished ? { current: r.current } : {}),
+    ...(r.paused && !r.finished ? { paused: r.paused } : {}),
     ...(r.stopped_at ? { stopped_at: r.stopped_at } : {}),
     ...(Object.keys(hooks).length ? { hooks } : {}),
     ...(r.error
@@ -65,7 +66,7 @@ export function compactRunStatus(r: RunStatusWithJob): Record<string, unknown> {
       ...(out('timeline.json') ? { timeline: out('timeline.json') } : {}),
       ...(r.screenshots.length ? { screenshots: { dir: `${r.dir}/screenshots`, count: r.screenshots.length } } : {}),
     },
-    ...(r.job ? { job: { id: r.job.id, state: r.job.state, ...(r.job.queue ? { queue: r.job.queue } : {}), ...(r.job.cancel_requested_at ? { cancel_requested_at: r.job.cancel_requested_at } : {}), ...(r.job.error ? { error: r.job.error } : {}) } } : {}),
+    ...(r.job ? { job: { id: r.job.id, state: r.job.state, ...(r.job.queue ? { queue: r.job.queue } : {}), ...(r.job.cancel_requested_at ? { cancel_requested_at: r.job.cancel_requested_at } : {}), ...(r.job.pause_requested_at ? { pause_requested_at: r.job.pause_requested_at } : {}), ...(r.job.error ? { error: r.job.error } : {}) } } : {}),
     untrusted: {
       ...(r.untrusted.error_message !== undefined ? { error_message: r.untrusted.error_message } : {}),
       ...(r.untrusted.missing_targets?.length ? { missing_targets: r.untrusted.missing_targets } : {}),

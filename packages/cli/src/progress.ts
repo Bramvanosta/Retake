@@ -89,6 +89,16 @@ export class ProgressPrinter {
       case 'run_end':
         ui.clearStatus();
         break;
+      // L4.4: the step list (the Studio's), each persona's preflight result (its log lines say it already), pauses.
+      case 'outline':
+        break;
+      case 'session':
+        ui.debug(`session ${e.persona}: ${e.status.replace(/_/g, ' ')}`);
+        break;
+      case 'pause':
+        if (e.state === 'paused') ui.line(c.yellow(`  paused before step ${e.scene}.${e.step}`));
+        else if (e.state === 'resumed') ui.line(c.dim(`  resumed after ${formatMs(e.ms ?? 0)}`));
+        break;
     }
   }
 

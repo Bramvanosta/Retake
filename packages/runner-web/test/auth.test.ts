@@ -344,6 +344,74 @@ describe('automated login (R-AUTH-05)', () => {
     expect(log).toContain('***');
     for (const f of ['run.json', 'log.jsonl']) expect(await readFile(join(dir, f), 'utf8')).not.toContain(ACCOUNTS.supplier.password);
   });
+
+  it('nothing a run writes or emits holds a secret (L4.4: outline, session, pause events included) — a sandbox account signed in by the run or by a saved session, and a secret written as is in a step', async () => {
+    const VAR = 'DEMO_STUDIO_TEST_L44_SECRET';
+    const literal = 'l44-literal-secret-5531';
+    process.env[VAR] = literal;
+    /**
+     * Every text file the run writes under its folder (run.json, log.jsonl, timeline.json…) — but scenario.yaml, the
+     * scenario's own text copied as the author wrote it (a value written as is there stays as is, since L1).
+     */
+    const textFiles = async (d: string): Promise<string[]> =>
+      (await readdir(d, { recursive: true, withFileTypes: true }))
+        .filter((e) => e.isFile() && /\.(json|jsonl|txt|md|log|ya?ml)$/.test(e.name))
+        .map((e) => join(e.parentPath, e.name))
+        .filter((f) => f !== join(d, 'scenario.yaml'));
+    try {
+      for (const signedIn of [false, true]) {
+        if (signedIn) await master('supplier');
+        const p = await project({ test: authConfig({ supplier: login(ACCOUNTS.supplier.password) }) } as unknown as AuthConfig);
+        p.sandboxes = {
+          test: { env: 'test', file: join(p.dir, 'sandbox.yaml'), dir: p.dir, manifest: { version: 1, provider: 'process', services: {} }, issues: [], secrets: { supplier: [ACCOUNTS.supplier.password] } },
+        };
+        const gate = { requested: false };
+        const events: RunProgress[] = [];
+        const { rec, dir } = await run(
+          p,
+          `secrets-everywhere-${signedIn ? 'saved' : 'login'}`,
+          {
+            scenes: [
+              {
+                id: 'a',
+                page: 'app',
+                open: '/home',
+                steps: [{ assert: { not_text: ACCOUNTS.supplier.password } }, { assert: { not_text: `{{env:${VAR}}}` } }, { assert: { not_text: literal } }, { hold: 0.2 }],
+              },
+            ],
+          },
+          {
+            mode: 'capture',
+            pause: gate,
+            onProgress: (e) => {
+              events.push(e);
+              if (e.type === 'step_end' && e.step === 0) gate.requested = true;
+              if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 300);
+            },
+          },
+        );
+        expect(rec.error?.message).toBeUndefined();
+        expect(rec.status).toBe('succeeded');
+        expect(logs(events).some((l) => l.includes('signed in automatically')), JSON.stringify(logs(events))).toBe(!signedIn);
+        // The L4.4 events are there — and masked.
+        const outline = events.find((e) => e.type === 'outline');
+        expect(outline).toBeDefined();
+        expect(JSON.stringify(outline)).toContain('***');
+        expect(events.some((e) => e.type === 'session')).toBe(true);
+        expect(events.some((e) => e.type === 'pause' && e.state === 'paused')).toBe(true);
+        for (const e of events) for (const s of [ACCOUNTS.supplier.password, literal]) expect(JSON.stringify(e), e.type).not.toContain(s);
+        const written = await textFiles(dir);
+        expect(written.map((f) => f.slice(dir.length + 1))).toEqual(expect.arrayContaining(['run.json', 'log.jsonl', 'timeline.json']));
+        for (const f of written) {
+          const text = await readFile(f, 'utf8');
+          for (const s of [ACCOUNTS.supplier.password, literal]) expect(text, f).not.toContain(s);
+        }
+        for (const line of (await readFile(join(dir, 'log.jsonl'), 'utf8')).split('\n').filter(Boolean)) expect(() => JSON.parse(line)).not.toThrow();
+      }
+    } finally {
+      delete process.env[VAR];
+    }
+  });
 });
 
 describe('read-only environments and the product clock with personas (L1.7)', () => {
@@ -578,6 +646,30 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toContain(landing(`${srv.url}/sign-in`));
     expect(await pictures(dir)).toEqual([]);
+  });
+
+  it('a page that lands on the sign-in page while the run is paused: the run fails with the landing, the next step never starts', async () => {
+    const gate = { requested: false };
+    const events: RunProgress[] = [];
+    const { rec } = await run(
+      await project(),
+      'land-paused',
+      { scenes: [{ id: 'a', page: 'app', open: '/later?ms=900', steps: [{ hold: 0.1 }, { hold: 0.1 }, { hold: 0.1 }] }] },
+      {
+        mode: 'capture',
+        pause: gate,
+        onProgress: (e) => {
+          events.push(e);
+          if (e.type === 'step_end' && e.step === 0) gate.requested = true;
+          if (e.type === 'pause' && e.state === 'paused') setTimeout(() => (gate.requested = false), 2500);
+        },
+      },
+    );
+    expect(rec.status).toBe('failed');
+    expect(rec.error?.message).toContain(landing(`${srv.url}/sign-in`));
+    expect(events.filter((e) => e.type === 'step_start').map((e) => (e as { step: number }).step)).toEqual([0]);
+    expect(events.some((e) => e.type === 'pause' && e.state === 'paused')).toBe(true);
+    expect(rec.capture).toBeUndefined();
   });
 
   it('a page without a persona is guarded by auth.login_url unless written `persona: none`', async () => {

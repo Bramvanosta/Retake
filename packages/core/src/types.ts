@@ -1810,6 +1810,18 @@ export interface TimelineBusy {
 }
 
 /**
+ * A pause of the take (L4.4, R-UI-19): the run waited before step `step` of `scene` for `ms` wall ms, which capture time
+ * left out — the video goes on at `t` (capture seconds) from where it paused; what the page did meanwhile (timers,
+ * animations, a running product clock) shows as a jump there.
+ */
+export interface TimelinePause {
+  t: number;
+  ms: number;
+  scene: string;
+  step: number;
+}
+
+/**
  * Held page loads (`TimelineLoading`) at least this long are cut by the edit and the raw export; a shorter freeze of
  * the previous frame is invisible (the same bound as the L1.3 capture stalls). The cut sits on the page change itself.
  */
@@ -2066,7 +2078,11 @@ export interface Timeline {
     fps: number;
     /** Seconds. */
     duration: number;
-    /** Wall-clock epoch ms of capture time 0. */
+    /**
+     * Wall-clock epoch ms of capture time 0. A take paused from the Studio (L4.4, `pauses`) does not film its pauses:
+     * a later wall time converts with them applied — (wall − t0_wall) / 1000, less the `ms` / 1000 of every pause
+     * before it (one that falls inside a pause is that pause's `t`).
+     */
     t0_wall: number;
     frames: number;
     /**
@@ -2106,6 +2122,8 @@ export interface Timeline {
    * spinner, a blank panel — before the content the click asked for appeared. The edit shortens them.
    */
   busy?: TimelineBusy[];
+  /** Where the take was paused between steps (L4.4; absent when it never was): capture time did not run meanwhile. */
+  pauses?: TimelinePause[];
   /**
    * Emails, documents and web notifications (L2.9) and texts (`capture_text`, L2.10) captured by the run; files are
    * relative to the run directory.
@@ -2271,11 +2289,15 @@ export interface RunRecord {
   engine?: RunEngine;
   /** What the take cost and how smoothly it was filmed (L5.7; captures only). */
   perf?: RunPerf;
+  /** L4.4: the run is paused now (a run of a job, from the Studio), before this step; `since` ISO time. */
+  paused?: { scene: string; step: number; since: string };
+  /** L4.4: the pauses it had, in order (before which step, when, how long); absent when none. */
+  pauses?: RunPause[];
 }
 
 /** run.json `perf` (L5.7, R-FLD-23): what a take cost and how smoothly it was filmed. */
 export interface RunPerf {
-  /** Wall seconds of the take (capture time 0 to its end). */
+  /** Seconds of the take (capture time 0 to its end; the pauses of a take paused from the Studio left out, L4.4). */
   seconds: number;
   /** CPU seconds per process group over the take, sampled from the system's process table (absent when it failed). */
   cpu?: RunPerfCpu;
@@ -2294,6 +2316,11 @@ export interface RunPerf {
   stalls: Array<{ t: number; ms: number; during: 'move' | 'ripple' }>;
   /** Click → stable content: the clicks measured and the slow ones (over 800 ms), slowest first. */
   transitions?: { measured: number; slow: PerfTransition[] };
+  /**
+   * L4.4: the Studio's live picture was watched during the take — the seconds its screencast ran and the frames it sent
+   * (Chromium's browser process encoded them on top of the capture). Absent when nobody watched.
+   */
+  live_preview?: { seconds: number; frames_sent: number };
   /** The encoder fed during the take: codec, quality, the wait for its end after the take, frames that came too late for their tick. */
   encode?: { codec: string; quality: string; finish_ms: number; late_frames: number };
   /** The run folder (MB), whether its frames were kept, and the free space left on its disk (GB). */
@@ -2334,9 +2361,44 @@ export interface PerfTransition {
   target?: string;
 }
 
+/** One pause of a run (L4.4): before step `step` of `scene`, from `at` (ISO), `ms` long. */
+export interface RunPause {
+  scene: string;
+  step: number;
+  at: string;
+  ms: number;
+}
+
+/** One step a run executes, as its `outline` event lists it (L4.4): the step's own description, redacted. */
+export interface RunOutlineStep {
+  scene: string;
+  /** 0-based step index in the scene. */
+  step: number;
+  action: string;
+  desc: string;
+  /** A step of an `offscreen: true` scene (L5.8): played, live and pausable like any other, left out of the video. */
+  offscreen?: true;
+}
+
+/**
+ * A persona's result in a run's preflight (L4.4): signed in, saved but not checked, no session (the single-account
+ * form starts signed out), signed in automatically off camera, or failing (the run stops before anything is filmed).
+ */
+export type RunSessionStatus = 'valid' | 'unchecked' | 'none' | 'signed_in_auto' | 'failed';
+
 /** Progress events streamed by runners (CLI prints them, MCP stores them). */
 export type RunProgress =
   | { type: 'run_start'; run: RunRecord }
+  /** L4.4: right after run_start, every step this run executes (`until` and skipped scenes honoured). */
+  | { type: 'outline'; steps: RunOutlineStep[] }
+  /** L4.4: one per persona, from the preflight (before any setup hook); `detail` may hold page text. */
+  | { type: 'session'; persona: string; status: RunSessionStatus; detail?: string }
+  /**
+   * L4.4: a pause between steps: `paused` before step `step` of `scene` (`max_ms`: the longest it may last before the
+   * run stops), `resumed` after `ms` (a capture does not film it). `refused` (with its `reason`) is no longer emitted:
+   * runs of part A's lot wrote it for a capture.
+   */
+  | { type: 'pause'; state: 'paused' | 'resumed' | 'refused'; scene: string; step: number; ms?: number; max_ms?: number; reason?: string }
   | { type: 'hook'; phase: 'setup' | 'teardown' | 'rollback' | 'step'; name: string; status: 'start' | 'ok' | 'failed' | 'skipped'; message?: string }
   | { type: 'scene_start'; scene: string; index: number }
   | { type: 'step_start'; scene: string; step: number; action: string; desc: string }

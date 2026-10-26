@@ -111,6 +111,10 @@ const BusySchema = z
   .strictObject({ t_start: t(), t_end: t(), click: t().describe('Capture time of the click it followed.') })
   .describe('A wait the screen showed after a click (near-identical frames: a skeleton, a spinner, a blank panel): the edit shortens it.');
 
+const PauseSchema = z
+  .strictObject({ t: t(), ms: z.number().int().min(0).describe('Wall ms the pause lasted, left out of capture time.'), scene: z.string(), step: z.number().int() })
+  .describe('A pause of the take between steps (L4.4): capture time did not run meanwhile; the video goes on at t from where it paused.');
+
 const TimelineTrackSchema = z
   .strictObject({
     id: nonEmpty(),
@@ -329,7 +333,7 @@ export const TimelineSchema = z
       scale: z.number().gt(0),
       fps: z.number().gt(0),
       duration: z.number().min(0),
-      t0_wall: z.number().describe('Wall-clock epoch ms of capture time 0.'),
+      t0_wall: z.number().describe('Wall-clock epoch ms of capture time 0 (a later wall time converts with `pauses` applied: less the ms of every earlier pause).'),
       frames: z.number().int().min(0),
       cursor: z.literal('hidden').describe('Captured without the in-page cursor (raw export for editors).').optional(),
     }),
@@ -344,6 +348,7 @@ export const TimelineSchema = z
     loading: z.array(LoadingSchema).describe('Page loads `capture` did not show (the previous frame held until the new page painted).').optional(),
     stalls: z.array(StallSchema).describe('Where `capture` froze while the cursor moved or a click ripple played.').optional(),
     busy: z.array(BusySchema).describe('Waits the screen showed after a click (skeletons, spinners, blank panels).').optional(),
+    pauses: z.array(PauseSchema).describe('Where the take was paused between steps (from the Studio): not filmed.').optional(),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
     environment: TimelineEnvironmentSchema.optional(),
@@ -374,7 +379,7 @@ const cpuSeconds = () => z.number().min(0);
 /** run.json `perf` (L5.7): what the take cost and how smoothly it was filmed. */
 const RunPerfSchema = z
   .strictObject({
-    seconds: z.number().min(0).describe('Wall seconds of the take.'),
+    seconds: z.number().min(0).describe('Seconds of the take (capture time: its pauses left out).'),
     cpu: z
       .strictObject({
         browser: cpuSeconds(),
@@ -413,6 +418,10 @@ const RunPerfSchema = z
         slow: z.array(z.strictObject({ t: t(), ms: z.number().min(0), scene: z.string(), step: z.number().int(), target: z.string().optional() })),
       })
       .describe('Click → stable content: the clicks measured and the slow ones (over 800 ms), slowest first.')
+      .optional(),
+    live_preview: z
+      .strictObject({ seconds: z.number().min(0), frames_sent: z.number().int().min(0) })
+      .describe("The Studio's live picture watched during the take: the seconds its screencast ran, the frames it sent (L4.4).")
       .optional(),
     encode: z
       .strictObject({ codec: nonEmpty(), quality: z.string(), finish_ms: z.number().min(0), late_frames: z.number().int().min(0) })
@@ -503,5 +512,13 @@ export const RunRecordSchema = z
       .optional(),
     engine: RunEngineSchema.optional(),
     perf: RunPerfSchema.optional(),
+    paused: z
+      .strictObject({ scene: z.string(), step: z.number().int(), since: z.string() })
+      .describe('The run is paused now (a run of a job), before this step.')
+      .optional(),
+    pauses: z
+      .array(z.strictObject({ scene: z.string(), step: z.number().int(), at: z.string(), ms: z.number().int().min(0) }))
+      .describe('The pauses the run had: before which step, when, how long.')
+      .optional(),
   })
   .meta({ id: 'RunRecord', title: 'Demo Studio run record', description: 'runs/<id>/run.json' }) satisfies z.ZodType<RunRecord>;

@@ -5,7 +5,8 @@
  *
  * Routes: `/`, `/app.js`, `/app.css` (static, from memory, no token); `POST /v1/session` (a one-time bootstrap code →
  * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops); `POST /v1/bootstrap` (a new code,
- * for a second `studio ui`); `GET /v1/events` (the event stream: live.ts); `POST /v1/call/<op>` — the MCP tool of
+ * for a second `studio ui`); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
+ * and live picture: run-live.ts); `POST /v1/call/<op>` — the MCP tool of
  * that name, or one of the Studio's own reads (ops.ts: activity_list, search, projects_overview), run through the
  * same SDK-free `callTool` the MCP server uses (zod parse, trust, untrusted caps, typed errors), for the ops of
  * `UI_OPS` only.
@@ -37,7 +38,8 @@ import type { ToolDef } from '@demo-studio/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { Live } from './live.js';
-import { OWN_OPS, editOps, indexOps, overviewOp, runOps, scenarioOps } from './ops.js';
+import { OWN_OPS, editOps, indexOps, liveOps, overviewOp, runOps, scenarioOps } from './ops.js';
+import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { z } from 'zod';
 
@@ -48,17 +50,30 @@ import { z } from 'zod';
  * the running banner's progress), the scenario screen's reads (scenario_blocks, run_thumbs), its Dry run / Capture
  * (`scenario_run`, an own op with pinned arguments: no sandbox, no until, no wait — critique B11) and Cancel
  * (`run_cancel`). L4.3: the YAML tab's live check (`scenario_validate`, read-only) and the scenario write path
- * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`). Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
+ * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`).
+ * L4.4: the Run screen's Pause / Resume (`run_pause`) and preflight panel (`scenario_sessions`), the Sessions panel
+ * (`auth_status`, read-only; `auth_login` NARROWED to a headed window for the person, never a wait; `sign_in_cancel`).
+ * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
-export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', ...OWN_OPS] as const;
+export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
 export type UiOp = (typeof UI_OPS)[number];
 
 /**
  * MCP tools the Studio calls with fewer arguments than Claude (critique B11: pin what a page can ask): `run_status`
  * never long-polls from a page (`wait_s` absent or 0 — a page waiting 25 s holds one of the browser's 6 connections).
+ * `auth_login` (L4.4) opens only the headed window where the PERSON signs in (`mode: 'headed'`; `auto` is what every
+ * run's preflight does by itself) and never waits (`wait_s` 0: the Sessions panel follows the job): a page script can
+ * do no more than open a window the person sees (it closes by itself after DEMO_STUDIO_SIGNIN_MAX_MIN).
  */
 const NARROWED: Partial<Record<UiOp, (t: ToolDef) => ToolDef>> = {
   run_status: (t) => ({ ...t, input: (t.input as z.ZodObject).extend({ wait_s: z.literal(0).optional().describe('Always 0 from the Studio (no long-poll).') }) }),
+  auth_login: (t) => ({
+    ...t,
+    input: (t.input as z.ZodObject).extend({
+      mode: z.literal('headed').default('headed').describe('Always headed from the Studio: a window where the person signs in.'),
+      wait_s: z.literal(0).default(0).describe('Always 0 from the Studio (the panel follows the job).'),
+    }),
+  }),
 };
 
 /** A call's body cap: above the worst case of an accepted README (200,000 characters, control characters escaped). */
@@ -72,6 +87,7 @@ const ROUTES: Record<string, RouteSpec> = {
   '/v1/session': { methods: ['POST'], token: false, api: true, maxBody: SMALL_BODY_MAX },
   '/v1/bootstrap': { methods: ['POST'], token: true, api: true, maxBody: SMALL_BODY_MAX },
   '/v1/events': { methods: ['GET'], token: true, api: true },
+  '/v1/live': { methods: ['POST'], token: true, api: true, maxBody: SMALL_BODY_MAX },
 };
 const CALL: RouteSpec = { methods: ['POST'], token: true, api: true, maxBody: CALL_BODY_MAX };
 const CALL_PREFIX = '/v1/call/';
@@ -96,6 +112,8 @@ export interface StudioServerOptions {
   workerSpawn?: WorkerSpawnFn;
   /** The idle exit of a worker the Studio starts (ms; default the worker's 60 s). */
   workerIdleExitMs?: number;
+  /** How often a run stream reads the run's files (ms; default 300). */
+  runPollMs?: number;
 }
 
 export interface StudioServer {
@@ -114,6 +132,8 @@ export interface StudioServer {
   readonly streams: number;
   /** The workspace index and the event streams. */
   live: Live;
+  /** The run streams (`POST /v1/live`). */
+  runLive: RunLive;
   engine: Engine;
   close(): Promise<void>;
 }
@@ -153,7 +173,8 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   });
   const getEngine = async () => engine;
   const live = await Live.start({ ws: engine.workspace, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
-  const tools = uiTools([...indexOps(live), overviewOp(), ...scenarioOps(), ...runOps(), ...editOps()]);
+  const tools = uiTools([...indexOps(live), overviewOp(), ...scenarioOps(), ...runOps(), ...editOps(), ...liveOps()]);
+  const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
   const codes = new BootstrapCodes();
   let port = 0;
@@ -219,6 +240,12 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       live.open(req, res, (status, code, message) => fail(res, status, code, message));
       return;
     }
+    if (g.path === '/v1/live') {
+      const body = await jsonBody(req, res, SMALL_BODY_MAX);
+      if (!body) return;
+      await runLive.open(res, body, (status, code, message) => fail(res, status, code, message));
+      return;
+    }
     if (g.path === '/v1/session') {
       const body = await jsonBody(req, res, SMALL_BODY_MAX);
       if (!body) return;
@@ -266,6 +293,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   try {
     port = await listenLoopback(server, o.port ?? 0);
   } catch (e) {
+    runLive.close();
     await live.close();
     throw e;
   }
@@ -284,9 +312,10 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       return live.streamCount;
     },
     live,
+    runLive,
     engine,
     close: () =>
-      (closed ??= live.close().then(
+      (closed ??= (runLive.close(), live.close()).then(
         () =>
           new Promise<void>((resolve) => {
             server.close(() => resolve());

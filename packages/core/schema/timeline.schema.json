@@ -59,7 +59,7 @@
         },
         "t0_wall": {
           "type": "number",
-          "description": "Wall-clock epoch ms of capture time 0."
+          "description": "Wall-clock epoch ms of capture time 0 (a later wall time converts with `pauses` applied: less the ms of every earlier pause)."
         },
         "frames": {
           "type": "integer",
@@ -1213,6 +1213,39 @@
         "description": "A wait the screen showed after a click (near-identical frames: a skeleton, a spinner, a blank panel): the edit shortens it."
       },
       "description": "Waits the screen showed after a click (skeletons, spinners, blank panels)."
+    },
+    "pauses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Wall ms the pause lasted, left out of capture time."
+          },
+          "scene": {
+            "type": "string"
+          },
+          "step": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "t",
+          "ms",
+          "scene",
+          "step"
+        ],
+        "additionalProperties": false,
+        "description": "A pause of the take between steps (L4.4): capture time did not run meanwhile; the video goes on at t from where it paused."
+      },
+      "description": "Where the take was paused between steps (from the Studio): not filmed."
     },
     "artefacts": {
       "type": "array",

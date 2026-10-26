@@ -82,6 +82,11 @@ export interface SceneLoopOptions {
   record: RunRecord;
   emit: (e: RunProgress) => void;
   save: () => void;
+  /**
+   * Called at the top of every step, once its page is loaded and signed in, before anything of the step (L4.4: a pause
+   * between steps waits here).
+   */
+  beforeStep?: (scene: string, step: number) => Promise<void>;
 }
 
 /**
@@ -311,6 +316,12 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
   await rt.awaitShownLoaded();
   // …nor on a sign-in page (L1.6).
   rt.assertSignedIn();
+  if (opts.beforeStep) {
+    // A pause (L4.4) waits here: between steps, on a loaded page — then the page is checked again (a session may have
+    // expired meanwhile).
+    await opts.beforeStep(scene.id, step.index);
+    rt.assertSignedIn();
+  }
   const ctx: StepContext = {
     rt,
     scene: { id: scene.id, index: sceneIndex },

@@ -27,8 +27,10 @@ import { WorkerLock } from './lock.js';
 import { processStart, selfIdentity } from './proc.js';
 import { FileJobQueue, jobProject, stateDir } from './queue.js';
 import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
-import { executeRunJob, finaliseReservedRun } from './run-job.js';
-import { executeAuthLoginJob } from './auth-job.js';
+import { executeRunJob, finaliseReservedRun, pauseMaxMs } from './run-job.js';
+import { openLiveChannel } from './live-channel.js';
+import type { LiveChannel } from './live-channel.js';
+import { executeAuthLoginJob, signInStoppedText } from './auth-job.js';
 import { executeSandboxJob } from './sandbox-job.js';
 import { appendHistory, runCounted } from '../history.js';
 import { approvalsOf, verifiedApprovals } from './signing.js';
@@ -356,6 +358,9 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       const snapshot = rec;
       chain = chain.then(() => (closed ? undefined : queue.write(snapshot).catch(() => undefined)));
     };
+    // L4.4: a run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
+    // gate between steps (a capture does not film the pause).
+    const pauseGate: { requested: boolean; maxMs?: number } = { requested: false };
     const cancelPoll = setInterval(() => {
       void queue.cancelRequested(id).then((asked) => {
         if (asked && !controller.signal.aborted) {
@@ -363,6 +368,15 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           controller.abort(new rw.CancelledError('run cancelled (cancel requested)'));
         }
       });
+      if (stored.kind === 'run') {
+        void queue.pauseRequested(id).then(
+          (asked) => {
+            if (asked !== pauseGate.requested) log(`job ${id}: ${asked ? 'pause' : 'resume'} requested`);
+            pauseGate.requested = asked;
+          },
+          () => undefined,
+        );
+      }
     }, 250);
     let error: JobErrorView | undefined;
     try {
@@ -386,12 +400,32 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       };
       switch (job.kind) {
         case 'run': {
-          const result = await executeRunJob({
-            ...base,
-            input: job,
-            interrupts: interrupts(controller.signal),
-            progress: onProgress,
-          });
+          try {
+            const max = pauseMaxMs();
+            if (max !== undefined) pauseGate.maxMs = max;
+          } catch (e) {
+            event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
+          }
+          // The live picture's channel (L4.4): a loopback listener and live.json, for as long as the job runs.
+          let channel: LiveChannel | null = null;
+          try {
+            channel = await openLiveChannel({ queue, jobId: id, runId: job.run_id, worker: self });
+          } catch (e) {
+            log(`job ${id}: no live picture (${(e as Error).message})`);
+          }
+          let result: Awaited<ReturnType<typeof executeRunJob>>;
+          try {
+            result = await executeRunJob({
+              ...base,
+              input: job,
+              interrupts: interrupts(controller.signal),
+              progress: onProgress,
+              ...(channel ? { live: channel.sink } : {}),
+              pause: pauseGate,
+            });
+          } finally {
+            await channel?.close();
+          }
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: result.status === 'cancelled' ? 'cancelled' : 'succeeded' };
           if (result.status === 'cancelled') error = { code: 'cancelled', message: result.untrusted?.error_message ?? 'run cancelled' };
           break;
@@ -406,7 +440,12 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
         case 'auth_login': {
           const result = await executeAuthLoginJob({ ...base, input: job, interrupts: interrupts(controller.signal) });
           rec = { ...rec, result, state: result.interrupted ? 'cancelled' : 'succeeded' };
-          if (result.interrupted) error = { code: 'cancelled', message: 'sign-in cancelled: the window was closed, nothing was saved' };
+          if (result.interrupted) {
+            error = {
+              code: 'cancelled',
+              message: `sign-in ${result.timed_out ? 'stopped' : 'cancelled'}: ${signInStoppedText(result)}`,
+            };
+          }
           break;
         }
         case 'sandbox_up':

@@ -775,7 +775,8 @@ once `DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/d
 its last run (`DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/ds-studio jobs` says *worker:
 not running*; else `kill <its pid>`), then the same `rm -rf ~/ds-studio ~/ds-studio-home` (the runs it made go with
 the workspace). After step 13c: as after 13b (the copy `quote.orig.yaml` is in `~/ds-studio-home`); a
-fixture left with an armed proposal is reset by `curl -X POST localhost:4402/api/reset` or by stopping it.
+fixture left with an armed proposal is reset by `curl -X POST localhost:4402/api/reset` or by stopping it. After step
+13e: as after 13b; the supplier's session saved in step 6 lives in `~/ds-studio-home` and goes with it.
 
 ## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
 
@@ -933,6 +934,52 @@ counts. On the real project of the first field use (its own workspace), the prod
    timeout.
 
 - **Send back:** for each step, OK or what you saw instead; the sizes Claude Code reported if it showed them.
+
+## 13e. Watching a run live from the Studio: the Run screen and the Sessions panel (L4.4)
+
+What the automated tests cannot reach: Safari and Firefox (the tests drive Chromium only), a real headed sign-in where
+you type, VoiceOver, and your own eyes on the live picture. The workspace of 13a, the fixture running (terminal 3),
+`studio ui` as in 13b (terminal 1).
+
+1. **A dry run, watched (Safari).** Open *highlights* → *Runs from the Studio* → **Run screen**. It shows *Sessions
+   this run signs in* (none on *local*) and **Start dry run** / **Start capture**. Click **Start dry run**: the page
+   becomes the run's screen — *Dry run …*, *running on local*, the seconds counting, *n/7 steps*; within a few seconds
+   the **live picture** shows the shop page as the steps run (*Live: … Not recorded.*); the steps turn *done* one
+   after the other; the log fills.
+2. **Pause / Resume.** Start another dry run and click **Pause**: *Pausing before the next step…*, then *Paused before
+   step n of …* and that row says *paused before this step*; nothing moves in the steps for as long as you wait, the
+   picture still shows the page. **Resume**: it goes on and ends *succeeded*.
+3. **Hidden tab.** During a dry run, switch to another Safari tab for 10 s and back: the picture stops meanwhile and
+   comes back, no step is listed twice.
+4. **A capture, stopped.** **Start capture**: the picture says *Live picture hidden — a capture shows its picture only
+   when asked*; the controls say *(the video does not show the pause)*. Click **Show live picture**: the page appears.
+   Click **Stop**: *Stopping now: the step in progress is interrupted…*, then *The run was stopped*, *Its teardown ran:
+   reset ok*, only the step it interrupted *stopped here*, the rest *not reached*.
+5. **A capture, paused.** **Start capture** again; after a click step, **Pause**: *Paused before step n of …* and *The
+   video does not show the pause*; wait ≈ 10 s, **Resume**; it ends *succeeded* with the warning *paused once (… s, not
+   filmed)*. Open its `capture.mp4` (or `studio render … latest`) at the time `timeline.pauses[0].t` of its
+   `timeline.json`: no frozen picture there, the video is as long as an unpaused capture plus the end of the click's
+   ripple (≤ 0.65 s), that ripple whole; what moved on the page meanwhile (an animation, a counter) jumps at that point.
+   The paused line said the pause's limit (*A pause longer than 30 min stops the run*). Had you shown the picture
+   during it, the run also warns *the live picture was watched for … s of the take*.
+6. **Sign in by hand.** Open the project page → *Sessions*: *supplier* and *buyer* on *signed-in* with their state.
+   Click **Sign in** on *supplier*: the row says a browser window is open (it may be behind Safari); in that window
+   sign in as the supplier yourself (fixtures/wholesale/README.md gives the account — the Studio never asks for it),
+   close the window: the row says *Signed in: the session works now* and the state turns *valid*. Click **Sign in**
+   again, then **Cancel**: the window closes, and the row says the saved session was not updated, what the window
+   changed staying in the persona's browser profile (it had one by then).
+   Then on the Run screen of *proforma*, with the supplier expired and *NORTHFIELD_SUPPLIER_PASSWORD* not set where
+   `studio ui` started: its row names the variable (*not set for the worker*) and **Start capture** asks first — press
+   Escape: the focus is back on **Start capture**; again, then **Sign in first**: the focus is on the supplier's
+   **Sign in**.
+7. **Firefox.** Steps 1 and 4 again in Firefox (a new link from `studio ui` in terminal 2).
+8. **VoiceOver** (optional, Cmd-F5): on a run's screen VoiceOver says the run's state when it starts, pauses, stops or
+   ends — not every step or log line; Tab reaches Pause, Stop, the picture toggle, the step list and the log.
+
+- **Expected:** every step as written; the picture smooth enough to follow the run, centred in its box (a dry run's
+  shows thin dark bands above and below, a capture's fills it); no password field anywhere in the Studio.
+- **Send back:** for each step, OK or what you saw instead (a screenshot of the Run screen during a run and after it);
+  the browsers' versions.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

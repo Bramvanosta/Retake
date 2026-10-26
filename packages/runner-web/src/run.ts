@@ -77,6 +77,10 @@ import { HOLD_MAX_MS } from './hold.js';
 import { INSPECT_PACING, inspectPage } from './inspect.js';
 import type { InspectContext, InspectRequest } from './inspect.js';
 import { kitConfigFor } from './kit/source.js';
+import { LivePreview } from './live-preview.js';
+import type { LiveSink } from './live-preview.js';
+import { RunPauser } from './pause.js';
+import type { PauseGate } from './pause.js';
 import { ScreencastRecorder } from './recorder.js';
 import type { FrameIndexEntry } from './recorder.js';
 import { probePages, preflightRefusal } from './page-preflight.js';
@@ -86,7 +90,7 @@ import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { HookStepOutcome } from './runtime.js';
 import type { LogLevel } from './runtime.js';
-import { StepFailure, runScenes, templated, untilSteps } from './scenes.js';
+import { StepFailure, describeStep, runScenes, templated, untilSteps } from './scenes.js';
 import { settleEffectChecks } from './actions/effects.js';
 import { RunSecrets } from './secrets.js';
 import { BrowserSession } from './session.js';
@@ -163,6 +167,13 @@ export interface RunOptions {
    * report's files) go where the caller keeps inspections, out of `runs/`.
    */
   inspect?: InspectRequest;
+  /**
+   * The live picture (L4.4, live-preview.ts): frames of the page the run acts on, from capture time 0 to the end of the
+   * scenes, while the sink says someone watches. Memory only.
+   */
+  live?: LiveSink;
+  /** Pauses between steps (L4.4, pause.ts): a dry run waits while the gate asks; a capture says it does not pause. */
+  pause?: PauseGate;
 }
 
 /**
@@ -435,6 +446,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   let rt: Runtime | null = null;
   let notifications: { settled: () => Promise<void> } | null = null;
   let recorder: ScreencastRecorder | null = null;
+  /** The live picture (L4.4): on camera only, from capture time 0 to the start of `finally`. */
+  let live: LivePreview | null = null;
+  /** What watching the live picture cost (perf.live_preview). */
+  let livePreview: { seconds: number; frames_sent: number } | null = null;
   let hooks: HooksState | null = null;
   let failure: unknown = null;
   let frames: FrameIndexEntry[] = [];
@@ -525,6 +540,13 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // Sessions & personas (L1.6): which persona films each page, each one's browser on a copy of its session, checked
     // off camera before anything runs — no setup hook, no recorder yet.
     personas = resolvePersonas(project, env.name);
+    // A sandbox account's plain password (L1.8) is a secret as written: registered now, before anything this run writes
+    // can hold it (the outline below; autoLogin registers it again when its login runs).
+    for (const p of personas) for (const v of p.secrets ?? []) secrets.addValue(v);
+    // The steps this run executes (L4.4: the Studio's step list), described as step_start will describe them — once
+    // every secret is known (the prefetched ones, the sandbox accounts' passwords), so a value written as is in a step
+    // is masked here too (review A).
+    emit({ type: 'outline', steps: toRun.map((l) => ({ scene: sceneId(l.scene, l.sceneIndex), step: l.step.index, action: l.step.action, desc: describeStep(secrets.redactDeep(l.step)), ...(l.scene.offscreen === true ? { offscreen: true as const } : {}) })) });
     const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until, hooks: hooksMode === 'run' });
     if (plan.issues.length) throw new RunnerError(plan.issues.map((i) => `${formatIssuePath(i.path)}: ${i.message}`).join('\n'));
     planned = plan;
@@ -583,6 +605,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         // The automated sign-in tab is exempt from the write guard on its sign-in page (its POST /sign-in must happen).
         signInTab: (p, onSignInPage) => session?.markSignIn(p, onSignInPage),
         ...(opts.loginCommand ? { loginCommand: opts.loginCommand } : {}),
+        onPersona: (persona, status, detail) => emit({ type: 'session', persona, status, ...(detail !== undefined ? { detail } : {}) }),
       });
     }
     // The product's clock (L1.7, R-ENV-05): after the preflight (a sign-in under a far clock may fail its token checks),
@@ -696,6 +719,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     await session.anchorClock();
     clock.t0Wall = wallNow();
     captureStarted = true;
+    if (opts.live) {
+      const r = rt;
+      live = new LivePreview({ sink: opts.live, page: () => r.page, pageId: (p) => session?.idOf(p), width: capture.width, height: capture.height });
+      live.start();
+    }
     // A scenario whose first scene films several pages starts with their tracks (the main capture starts with the
     // first single-page scene, if any).
     if (firstPage) await rt.activate(firstPage);
@@ -741,6 +769,36 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       s.start();
       sampler = s;
     }
+    const pauseRt = rt;
+    const pauser = opts.pause
+      ? new RunPauser({
+          gate: opts.pause,
+          signal,
+          record,
+          emit,
+          save: () => void files.saveRecord(),
+          log,
+          // A capture does not film the pause (L4.4): its recorders, clock and CPU sampler stop meanwhile (pause.ts).
+          take: {
+            clock,
+            filming: () => {
+              const out: Array<{ recorder: ScreencastRecorder; page: Page }> = [];
+              for (const rec of [recorder, ...[...pauseRt.tracks.values()].map((t) => t.recorder)]) {
+                const page = rec?.recordingPage;
+                if (rec && page) out.push({ recorder: rec, page });
+              }
+              return out;
+            },
+            lastPress: () => {
+              const ts = [timeline.cursorEffects, ...timeline.tracks.map((t) => t.cursorEffects)].flat().filter((e) => e.type === 'press' || e.type === 'ripple').map((e) => e.t);
+              return ts.length ? Math.max(...ts) : null;
+            },
+            settleEffects: () => settleEffectChecks({ rt: pauseRt }),
+            sampler: () => sampler,
+            note: (p) => timeline.pauses.push(p),
+          },
+        })
+      : null;
     await runScenes(rt, {
       scenario: sc,
       scenarioName: loaded.name,
@@ -748,6 +806,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       record,
       emit,
       save: () => void files.saveRecord(),
+      ...(pauser ? { beforeStep: (scene: string, step: number) => pauser.before(scene, step) } : {}),
     });
     rt.assertSignedIn();
     if (opts.inspect) await inspectNow(opts.inspect, rt, inspectContext(until ? 'until' : 'end', null));
@@ -764,9 +823,26 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       }
     }
   } finally {
+    // Off camera from here (L4.4): the live picture stops before anything else (teardown, diagnosis, artefacts).
+    await live?.stop().catch(() => undefined);
+    // A capture filmed while someone watched its live picture says so (review A L4): the screencast's JPEG encoding ran
+    // in Chromium's browser process during the take.
+    livePreview = live ? live.watched() : null;
+    if (mode === 'capture' && livePreview && livePreview.seconds > 0) {
+      const m = `the live picture was watched for ${livePreview.seconds.toFixed(1)} s of the take (${livePreview.frames_sent} frames sent): Chromium encoded it on top of the capture`;
+      timeline.warn(m);
+      log('info', m);
+    }
     // The last click's effect check (R-FLD-12) ends before the capture does (--until, a failed step included).
     if (rt) await settleEffectChecks({ rt }).catch(() => undefined);
     endT = clock.now();
+    if (mode === 'capture' && timeline.pauses.length) {
+      const n = timeline.pauses.length;
+      const s = timeline.pauses.reduce((x, p) => x + p.ms, 0) / 1000;
+      const m = `paused ${n === 1 ? 'once' : `${n} times`} (${s.toFixed(1)} s, not filmed): the video goes on where it paused — what the page did meanwhile (timers, animations, the product's clock) shows as a jump there`;
+      timeline.warn(m);
+      log('info', m);
+    }
     // The encoders write no tick past the end of the take.
     mainEncoder?.endAt(endT);
     for (const t of rt?.tracks.values() ?? []) {
@@ -1014,6 +1090,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       },
       stalls: (perfMotion?.stalls ?? []).map((x) => ({ t: x.t, ms: x.ms, during: x.during })),
       ...(transitions ? { transitions } : {}),
+      ...(livePreview && livePreview.seconds > 0 ? { live_preview: livePreview } : {}),
       ...(encodeDone && encoderKind ? { encode: { ...encoderLabel({ encoder: encoderKind, crf: capture.crf }), ...encodeDone } } : {}),
       disk: { run_mb: await folderMB(dir), frames_kept: capture.keep_frames, ...(disk.free_gb !== undefined ? { free_gb: disk.free_gb } : {}) },
     };

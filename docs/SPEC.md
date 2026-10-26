@@ -409,7 +409,32 @@ A client of the same packages (the MCP keeps working without it). Served locally
 - **Run**: dry-run with live preview of the headless browser (screencast), capture with progress. The scenario screen
   (L4.2) already starts a dry run or a capture of its scenario and cancels it, with the run's progress in a banner;
   what needs a person (hooks to approve) stays in the terminal, said before the click with the command. The live
-  preview and the run screen are L4.4.
+  preview and the run screen are L4.4. Built in L4.4 part A (runner, engine, worker): the live picture of the acting
+  page (its own screencast, ≤ 960 px, ≤ 10 fps, memory only, only while watched and only on camera) served by the worker
+  on a gated loopback channel; the step list from the run's own `outline` event, each persona's preflight result as
+  `session` events; a dry run paused between steps and resumed (`runs.pause`; ≤ 30 min, then stopped with its
+  teardown); the sessions a scenario needs
+  (`auth.forScenario`); a headed sign-in from a job closing after 30 min, and stopped only as a sign-in. Part B (Studio
+  server): `POST /v1/live` — one run's steps and log tailed from its `log.jsonl` (byte offsets, a reduced view with the
+  site's text marked untrusted and no path) and its live picture relayed from the worker (one upstream per job, only
+  while a tab wants it, a capture's only when asked); the ops `run_pause`, `scenario_sessions`, `auth_status`,
+  `auth_login` (a headed window for the person only), `sign_in_cancel`; a capture with an invalid session confirmed by
+  name (`sessions_ack`). Part C (Studio app): the Run screen — `#/p/<slug>/s/<name>/run` (the preflight: the sessions
+  the run signs in with Sign in for each, what would stop a run, Start dry run / Start capture, the confirmation for an
+  invalid session) and `…/run/<run_id>` (any run watched: the live picture on a canvas — on for a dry run, off for a
+  capture unless shown —, the steps from the run's outline with live status, the preflight's result first, the log,
+  Pause / Resume, Stop with its teardown and rollbacks said, the outcome); "Watch live" from the scenario screen; the
+  Sessions panel on the project page. Part D: a capture paused between steps does not film the pause (the capture
+  clock stands still while its recorders are off; the video goes on at the first fresh frame after the resume; the
+  page keeps running meanwhile, so what moved shows as a jump there). Part E: the whole loop accepted on the fixture
+  from the built `studio ui` (dry runs watched, paused and stopped, a capture shown and paused, a capture Claude
+  started through MCP watched, the Sessions panel's headed Sign in and Cancel, the confirmation with an expired
+  persona); the live picture measured at ≈ +15 % Chromium CPU on a capture (DESIGN §4f), so it stays off by default
+  there, and a capture filmed while it was watched says so (`perf.live_preview`); the picture letterboxed in its box.
+  After the lot's review: a run signs a persona in by itself only when its login steps' variables are set for the
+  worker, the confirmation says which personas are checked before filming (a `check`) and which are not, a stopped
+  sign-in says what stays in the persona's browser profile, and the pause's clock stops before the recorders do (not
+  a frame of the pause filmed).
 - **Edit/verify timeline**: segments (intro, scenes, cards, outro) with their **components switchable in one click**,
   caption / camera (zoom) / speed / marker tracks, a scrubber with a live preview (Remotion Player — no render needed),
   render queue, review report and contact sheets.

@@ -5,8 +5,8 @@
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolveEnvironment, resolvePersonas, sandboxOf } from '@demo-studio/core';
-import type { LoadedProject, ResolvedPersona } from '@demo-studio/core';
+import { collectSecretRefs, planPersonas, resolveEnvironment, resolvePersonas, sandboxOf } from '@demo-studio/core';
+import type { LoadedProject, ResolvedPersona, Scenario } from '@demo-studio/core';
 
 /** The `studio login` command for a persona (messages print it). */
 export type LoginCommandOf = (p: { project: string; env: string; persona?: string }) => string;
@@ -109,6 +109,66 @@ export async function projectPersonaStates(
     for (const persona of resolvePersonas(project, e, home !== undefined ? { home } : {})) out.push({ persona, state: await personaState(project, persona, command) });
   }
   return out;
+}
+
+/** What a scenario's run does with one persona's session (scenarioPersonaStates). */
+export interface ScenarioPersona {
+  persona: ResolvedPersona;
+  state: PersonaState;
+  /**
+   * Every run's preflight signs it in by itself, off camera, when its session is not valid: it has `login:` steps and
+   * each `{{env:…}}` they use is set in the worker's environment (review B M3: a missing one fails the run instead).
+   */
+  auto: boolean;
+  /** It has a `check`: the preflight checks its session before anything is filmed. */
+  has_check: boolean;
+  /** The environment variables its login steps use that the worker's environment lacks (names, never values). */
+  login_env_missing?: string[];
+  /** Keychain items its login steps read: never looked up here (no keychain prompt, no value read) — taken as there. */
+  login_keychain?: number;
+}
+
+/**
+ * The personas a run of scenario `sc` signs in on an environment (L4.4, the Run screen's preflight panel), the way the
+ * run plans them (core planPersonas: its pages, `open: {page}`, tabs, multi-page scenes; the hooks' tabs when `hooks`),
+ * each with what is known of its session (no browser), whether every run signs it in by itself, off camera (its
+ * `login:` steps, their `{{env:…}}` set in `workerEnv` — the environment of the worker that runs it), and whether the
+ * preflight checks it (`check`).
+ */
+export async function scenarioPersonaStates(
+  project: LoadedProject,
+  sc: Scenario,
+  command: LoginCommandOf,
+  opts: { env?: string; hooks: boolean; workerEnv?: NodeJS.ProcessEnv },
+): Promise<{ env: string; personas: ScenarioPersona[]; issues: string[] }> {
+  const env = resolveEnvironment(project, opts.env ?? sc.env);
+  const personas = resolvePersonas(project, env.name);
+  const plan = planPersonas(sc, { env: env.name, envPages: env.pages, personas, until: null, hooks: opts.hooks });
+  const workerEnv = opts.workerEnv ?? process.env;
+  const out: ScenarioPersona[] = [];
+  const issues = plan.issues.map((i) => i.message);
+  for (const name of plan.used) {
+    const persona = personas.find((p) => p.name === name);
+    if (!persona) continue;
+    const refs = [...collectSecretRefs(persona.login ?? [])];
+    const missing = [...new Set(refs.filter((r) => r.startsWith('env:')).map((r) => r.slice(4)).filter((v) => workerEnv[v] === undefined))].sort();
+    const keychain = refs.filter((r) => r.startsWith('keychain:')).length;
+    const hasLogin = (persona.login?.length ?? 0) > 0;
+    if (hasLogin && missing.length) {
+      issues.push(
+        `persona ${persona.name}: its login steps use ${missing.join(', ')}, not set in the environment of the worker that runs it: a run cannot sign it in by itself (set ${missing.length === 1 ? 'it' : 'them'} where the worker starts, or sign in from here)`,
+      );
+    }
+    out.push({
+      persona,
+      state: await personaState(project, persona, command),
+      auto: hasLogin && missing.length === 0,
+      has_check: persona.check !== undefined,
+      ...(missing.length ? { login_env_missing: missing } : {}),
+      ...(hasLogin && keychain ? { login_keychain: keychain } : {}),
+    });
+  }
+  return { env: env.name, personas: out, issues };
 }
 
 /**

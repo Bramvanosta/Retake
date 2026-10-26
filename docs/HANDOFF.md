@@ -1,9 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-26, end of lot **L5.8 (environment, off-camera actions, MCP ergonomics)**, which closes the
-field-feedback group L5.5 – L5.8 (`docs/FIELD-FEEDBACK-1.md`) — phases 1–3 are done (phase 3 pending the user's live
-runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.3 done). **Next: the user's choice — L4.4 per the
-roadmap (a session has its worktree `../Video-l4.4`).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-27, end of lot **L4.4 (Studio Run screen)**, after the field-feedback group L5.5 – L5.8 —
+phases 1–3 are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.4
+done). **Next: L4.5 (edit / verify timeline, Remotion Player) — the user asked to chain it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -25,12 +24,24 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-105); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-107); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.8)
+## State (after L4.4)
+- **L4.4 done (2026-10-27)**: the Studio's Run screen (`#/p/<slug>/s/<name>/run[/<id>]`): the live picture of the page
+  the run acts on (its own CDP screencast in the worker, ≤ 10 fps keeping the last frame, a loopback channel behind the
+  engine gate, relayed by the Studio only while a tab watches; never on disk; on for dry runs, off by default for
+  captures — +15.6 % Chromium CPU measured, the video unaffected; a watched capture is noted in `perf.live_preview`),
+  the steps from the run's outline with live status, the log (redacted, paths scrubbed, URLs masked, untrusted text),
+  Pause / Resume between steps for dry runs **and captures** (the capture clock keeps a list of pauses: the pause is not
+  filmed, measured 0–1 ms), Stop (teardown and rollbacks), the Sessions panel (status per persona, headed Sign in with
+  a time limit and Cancel) and an honest confirmation before capturing with invalid sessions. Tests on the Mac: **3160 —
+  3104 pass, 54 skipped, 2 failures** in the one full run (load 3–9): a real leak (a sandbox password written in the
+  outline before it was registered — fixed with a scan of every event and run file) and a test artefact (frames.jsonl
+  lines land out of order under load — the test now sorts); runner-web 454/454 after the fix; `pnpm test:slow` 58/58.
+  Requirements: 647 tracked — 588 done, 26 partial, 25 todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 13e.
 - **L5.8 done (2026-10-26)** — environment, off-camera actions, MCP ergonomics (R-FLD-30 – R-FLD-34, all done): no
   hand-made reset script, no side script polling the database. **Off camera** (R-FLD-31): named hooks — `hooks: {<name>:
   hook | [hooks]}` in a scenario or project.yaml (core `named-hooks.ts`; the scenario's name wins; each entry named
@@ -1173,6 +1184,17 @@ sandbox, a hook step and compact results through Claude Code).
   `step-forms.ts`; engine `project-lock.ts`, storage write lock, `scenarios.edit`; ui `YamlTab.tsx`, `StepEditing.tsx`,
   `StepForm.tsx`, `forms.ts`, `TextEditing.tsx`; mcp `job_status` preview stills. Cuts: BL-95 (and BL-96: the CLI's
   writers take no write lock). No new dependency.
+- **L4.4 done** (Run screen; R-UI-16/17/18/19, R-AUTH-10 done). Planned with probes (a second CDP screencast does not
+  disturb the recorder), criticised (a pause clock shifting t0 would mis-convert page loads; `everyNthFrame` left the
+  preview stale; a resume gap would raise a false freeze), built in five parts in a worktree while L5.7 / L5.8 landed on
+  main (rebased twice): A runner / engine (live preview, worker live channel, dry-run pause, outline / session / pause
+  events, sign-in limit), B the Studio's `/v1/live` relay and ops, C the Run screen + Sessions panel + dialog, D pausing a
+  capture on L5.7's clock (pausable CaptureClock, recorders, encoder horizon, perf sampler), E acceptance, CPU, docs;
+  reviewed by two reviewers (U+2028 dropping events, a dishonest confirmation for check-less personas, idle sockets
+  starving the channel, an interrupted run's endless clock, 0.1 s of each pause filmed…) and fixed with 34
+  mutation-checked tests (99 mutations over the lot). Files: runner-web `live-preview.ts`, `pause.ts`, timeline
+  CaptureClock; engine `jobs/live-channel.ts`, `runs.pause`, `auth.forScenario`; ui `server/run-live.ts`,
+  `RunScreen.tsx`, `LiveView.tsx`, `Sessions.tsx`, `run-live.ts`, `sse.ts`. Cuts: BL-105, BL-106. No new dependency.
 - **L4.2 done** (scenario as blocks; R-UI-08/09/10/13/14 done, R-UI-15 partial — "Open timeline" is L4.5). Planned,
   criticised with probes (re-reading the view on every run step; a capture refused only after the click; the last
   step's seek past the video; fingerprints blind to `on:` and scene pages; the Studio's worker inheriting its env),
@@ -1413,6 +1435,20 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.4:
+- Live pictures never reach disk (a scan test enforces it); the worker channel (`live.json`, 0600, read without
+  following links) passes the engine gate with browsers refused; the Studio opens one upstream per job only while a tab
+  watches; a capture streams only when the page asks (`frames: true`).
+- Capture time comes only from the capture clock (DESIGN §3.4); a pause is a list entry the clock subtracts from every
+  wall time (`timeline.pauses`, `t0_wall` alone no longer converts). The product clock is not re-anchored after a pause
+  (what moved on the page shows as a jump; documented). `DEMO_STUDIO_PAUSE_MAX_MIN` (30), `DEMO_STUDIO_SIGNIN_MAX_MIN`
+  (30).
+- Every resolved persona's secrets (incl. sandbox account passwords) are registered before the outline is emitted:
+  nothing a run writes may hold a secret (auth.test scans every event and run file).
+- `sessions_ack` is a confirmation, not person presence (BL-106); `auto` sessions require every `{{env:}}` of their
+  login steps to be set for the worker.
+- capture-pause.test.ts (real Chromium) can fail when run in parallel with other browser tests; alone it passes.
+
 Notes from L5.8:
 - A `hook:` step runs while the recorder keeps filming (the encoder's clock goes on, the page holds still); only the
   edit and the raw export leave its span out. What the hook changed shows when the page fetches it: add a `wait_for`

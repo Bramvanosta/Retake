@@ -28,6 +28,8 @@ import type { ScenarioTab } from './route.js';
 import { NoThumb, Thumb, ThumbsProvider } from './Thumb.js';
 import type { ThumbAnswer } from './thumbs.js';
 import { YamlTab } from './YamlTab.js';
+import { ConfirmSessions } from './Sessions.js';
+import type { SessionToConfirm } from './Sessions.js';
 import { scenarioKey, useDirty } from './drafts.js';
 import { dropMove, keyboardMove } from './step-edit.js';
 import type { SceneSlots, StepRef } from './step-edit.js';
@@ -119,7 +121,7 @@ function firstLine(s: string): string {
 }
 
 /** "In a terminal: …" and, for a person without `studio` on their PATH, the same command through node. */
-function Commands({ fix, fixNode }: { fix?: string; fixNode?: string }) {
+export function Commands({ fix, fixNode }: { fix?: string; fixNode?: string }) {
   if (!fix) return null;
   return (
     <>
@@ -182,17 +184,25 @@ function SubmittedOutcome({ choice, mode, slug, isSource }: { choice: ScenarioRu
 function RunActions({ v, slug, name, busy, onSubmitted }: { v: View; slug: string; name: string; busy: boolean; onSubmitted: () => void }) {
   const [sending, setSending] = useState<'dry' | 'capture' | null>(null);
   const [last, setLast] = useState<Submitted | null>(null);
-  const start = (mode: 'dry' | 'capture') => {
+  // L4.4: a capture refused for sessions to confirm (409 `details.sessions`) asks the person (ConfirmSessions).
+  const [confirm, setConfirm] = useState<SessionToConfirm[] | null>(null);
+  const start = (mode: 'dry' | 'capture', ack?: string[]) => {
     setSending(mode);
     setLast(null);
+    setConfirm(null);
     // The file as this screen shows it (review A #6): a file changed since is refused (409) and the screen reads it again.
-    call<{ run_id: string }>('scenario_run', { project: slug, name, mode, hash: v.hash })
+    call<{ run_id: string }>('scenario_run', { project: slug, name, mode, hash: v.hash, ...(ack ? { sessions_ack: ack } : {}) })
       .then(
         (d) => {
           setLast({ mode, run_id: d.run_id });
           onSubmitted();
         },
         (e: unknown) => {
+          const listed = e instanceof CallError ? (e.error.details?.sessions as SessionToConfirm[] | undefined) : undefined;
+          if (mode === 'capture' && Array.isArray(listed) && listed.length > 0) {
+            setConfirm(listed);
+            return;
+          }
           setLast({ mode, error: errorText(e), ...(e instanceof CallError && e.error.fix ? { fix: e.error.fix } : {}) });
           if (e instanceof CallError && e.error.code === 'conflict') onSubmitted();
         },
@@ -251,7 +261,10 @@ function RunActions({ v, slug, name, busy, onSubmitted }: { v: View; slug: strin
       {/* Until the run it queued has ended: then its outcome (and the picker, the pictures) say the rest. */}
       {last && 'run_id' in last && !ended && (
         <p className="small" role="status" data-testid="run-submitted">
-          {last.mode === 'dry' ? 'Dry run' : 'Capture'} <Txt className="mono" text={last.run_id} /> queued: its progress shows above, its pictures here when it ends.
+          {last.mode === 'dry' ? 'Dry run' : 'Capture'} <Txt className="mono" text={last.run_id} /> queued: its progress shows above, its pictures here when it ends.{' '}
+          <a href={hrefTo({ name: 'run', slug, scenario: name, run: last.run_id })} data-testid="watch-submitted">
+            Watch it live
+          </a>
         </p>
       )}
       {last && 'run_id' in last && ended && <SubmittedOutcome choice={ended} mode={last.mode} slug={slug} isSource={v.source?.run === ended.id} />}
@@ -263,7 +276,14 @@ function RunActions({ v, slug, name, busy, onSubmitted }: { v: View; slug: strin
           <Commands {...(last.fix ? { fix: last.fix } : {})} {...(refusedFixNode ? { fixNode: refusedFixNode } : {})} />
         </Notice>
       )}
-      <p className="muted small">A dry run skips the hooks and takes a screenshot per step; a capture runs the hooks and films the video. Both use the environment shown above.</p>
+      <p className="muted small">
+        A dry run skips the hooks and takes a screenshot per step; a capture runs the hooks and films the video. Both use the environment shown above. The{' '}
+        <a href={hrefTo({ name: 'run', slug, scenario: name })} data-testid="run-screen-link">
+          Run screen
+        </a>{' '}
+        shows the sessions first and follows a run live.
+      </p>
+      {confirm && <ConfirmSessions sessions={confirm} onClose={() => setConfirm(null)} onConfirm={() => start('capture', confirm.map((c) => c.persona))} />}
     </section>
   );
 }
@@ -360,7 +380,7 @@ function SourceBar({ v, pick, onPick }: { v: View; pick: string | undefined; onP
   );
 }
 
-function Running({ run, live, slug, onCancelled }: { run: ScenarioRunChoice | null; live: LiveRun | null; slug: string; onCancelled: () => void }) {
+function Running({ run, live, slug, name, onCancelled }: { run: ScenarioRunChoice | null; live: LiveRun | null; slug: string; name: string; onCancelled: () => void }) {
   const [cancel, setCancel] = useState<{ id: string; state: 'sending' | 'asked' | string } | null>(null);
   const r = live && !live.finished ? live : run;
   if (!r) return null;
@@ -389,6 +409,9 @@ function Running({ run, live, slug, onCancelled }: { run: ScenarioRunChoice | nu
         )}
       </p>
       <p>
+        <a className="button small" href={hrefTo({ name: 'run', slug, scenario: name, run: r.id })} data-testid="watch-live">
+          Watch live
+        </a>{' '}
         <button type="button" className="button small" data-testid="run-cancel" disabled={mine?.state === 'sending' || mine?.state === 'asked'} onClick={stop}>
           {mine?.state === 'sending' ? 'Cancelling…' : mine?.state === 'asked' ? 'Cancel asked' : 'Cancel this run'}
         </button>
@@ -1310,7 +1333,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
         </p>
         <Tabs slug={slug} name={name} tab={tab} />
       </header>
-      <Running run={v.running} live={live} slug={slug} onCancelled={reload} />
+      <Running run={v.running} live={live} slug={slug} name={name} onCancelled={reload} />
       {/* Around both tabs: the pictures already loaded stay while the YAML tab is open. */}
       <ThumbsProvider fetch={fetchThumbs}>
         {tab === 'blocks' ? (

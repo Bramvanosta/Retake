@@ -4,7 +4,8 @@
  * (they encode the screencast's JPEG frames), GPU processes, page renderers and other helpers; the system's process
  * table (`ps -p`) for the encoders and the product's local servers (the processes listening on the environment's
  * localhost ports); the studio's own process from Node. The machine's load average is read on every sample. A process
- * that exits between two samples loses its last interval: a measure, not an account.
+ * that exits between two samples loses its last interval: a measure, not an account. A pause of the take (L4.4) counts
+ * for nothing: neither its CPU nor its seconds (`pause()` / `resume()`).
  */
 import { execFile } from 'node:child_process';
 import { cpus, loadavg } from 'node:os';
@@ -119,6 +120,10 @@ export class PerfSampler {
   private lastSampleAt = 0;
   /** Per realm: CPU seconds and wall seconds while no recorder filmed it. */
   private readonly unfilmed = new Map<string, { cpu: number; seconds: number }>();
+  /** A pause of the take (L4.4): when it began (0: none), the studio's CPU then, the wall ms of the pauses so far. */
+  private pausedAt = 0;
+  private studioAtPause = 0;
+  private pausedMs = 0;
 
   constructor(private readonly opts: PerfSamplerOptions) {}
 
@@ -144,31 +149,55 @@ export class PerfSampler {
     this.running = this.sample().finally(() => (this.running = null));
   }
 
+  /** The take pauses (L4.4): what ran up to now is sampled; from now until `resume` nothing counts. */
+  async pause(): Promise<void> {
+    if (this.pausedAt || !this.t0) return;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    if (this.running) await this.running;
+    await this.sample();
+    this.pausedAt = Date.now();
+    this.studioAtPause = cpuSeconds(process.cpuUsage());
+  }
+
+  /** The take goes on: the CPU every process used during the pause, and its seconds, are left out. */
+  async resume(): Promise<void> {
+    if (!this.pausedAt) return;
+    await this.sample(true);
+    this.pausedMs += Date.now() - this.pausedAt;
+    this.studio0 += cpuSeconds(process.cpuUsage()) - this.studioAtPause;
+    this.pausedAt = 0;
+    this.timer = setInterval(() => this.tick(), this.opts.intervalMs ?? PERF_SAMPLE_MS);
+    this.timer.unref?.();
+  }
+
   /** A process seen at the first sample counts from then; one that started later, from its start (during the take). */
-  /** Returns the CPU seconds the process used since the previous sample. */
-  private track(key: string, group: Group, cpu: number, realm?: string): number {
+  /** Returns the CPU seconds the process used since the previous sample (`skip`: the end of a pause — none counts). */
+  private track(key: string, group: Group, cpu: number, realm?: string, skip = false): number {
     const t = this.procs.get(key);
     if (t) {
       const d = Math.max(0, cpu - t.last);
+      if (skip) t.base += d;
       t.last = Math.max(t.last, cpu);
-      return d;
+      return skip ? 0 : d;
     }
-    const base = this.samples === 0 ? cpu : 0;
+    const base = this.samples === 0 || skip ? cpu : 0;
     this.procs.set(key, { group, base, last: cpu, ...(realm !== undefined ? { realm } : {}) });
     return Math.max(0, cpu - base);
   }
 
-  private async sample(): Promise<void> {
+  /** `skip`: the sample that ends a pause — what every process used since the previous sample does not count. */
+  private async sample(skip = false): Promise<void> {
     try {
-      this.loads.push(loadavg()[0]);
+      if (!skip) this.loads.push(loadavg()[0]);
       const [chromium, times] = await Promise.all([this.opts.chromium().catch(() => []), psTimes([...this.encoderPids, ...this.productPids])]);
       if (chromium.length) this.chromiumSeen = true;
       const now = Date.now();
       const filmed = this.opts.filmed?.();
       const used = new Map<string, number>();
-      for (const p of chromium) used.set(p.realm, (used.get(p.realm) ?? 0) + this.track(`c${p.pid}`, chromiumGroup(p.type), p.cpu, p.realm));
+      for (const p of chromium) used.set(p.realm, (used.get(p.realm) ?? 0) + this.track(`c${p.pid}`, chromiumGroup(p.type), p.cpu, p.realm, skip));
       // What each realm used since the previous sample while nobody filmed it.
-      if (filmed && this.samples > 0) {
+      if (filmed && this.samples > 0 && !skip) {
         for (const [realm, cpu] of used) {
           if (filmed.has(realm)) continue;
           const u = this.unfilmed.get(realm) ?? { cpu: 0, seconds: 0 };
@@ -178,7 +207,7 @@ export class PerfSampler {
         }
       }
       this.lastSampleAt = now;
-      for (const [pid, cpu] of times) this.track(`p${pid}`, this.encoderPids.has(pid) ? 'encoder' : 'product', cpu);
+      for (const [pid, cpu] of times) this.track(`p${pid}`, this.encoderPids.has(pid) ? 'encoder' : 'product', cpu, undefined, skip);
       this.samples++;
     } catch {
       /* a sample lost */
@@ -186,11 +215,13 @@ export class PerfSampler {
   }
 
   async stop(): Promise<RunPerfCpu | undefined> {
+    // Stopped while paused (a cancel): the pause counts for nothing either.
+    if (this.pausedAt) await this.resume();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.running) await this.running;
     await this.sample();
-    const seconds = Math.max(0.001, (Date.now() - this.t0) / 1000);
+    const seconds = Math.max(0.001, (Date.now() - this.t0 - this.pausedMs) / 1000);
     if (!this.chromiumSeen) return undefined;
     const list = [...this.procs.values()];
     const sum = (f: (p: Tracked) => boolean) => round2(list.filter(f).reduce((n, p) => n + Math.max(0, p.last - p.base), 0));

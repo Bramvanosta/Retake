@@ -1,8 +1,8 @@
 /**
  * A project (`project_get`): its README (as plain text — no Markdown rendering), environments with their pages, display
  * URLs, flags and personas, scenarios (each a link to its blocks, L4.2), recent runs (`run_list`), its recent activity
- * (the index) and project.yaml warnings. URLs are text, never links. It re-reads when the project's files change
- * (events.ts).
+ * (the index), the Sessions panel (L4.4: every persona's saved sign-in, "Sign in" for each) and project.yaml warnings.
+ * URLs are text, never links. It re-reads when the project's files change (events.ts).
  */
 import type { EnvironmentView, ProjectView, RunListItem } from '@demo-studio/engine';
 import { useCall } from './api.js';
@@ -10,6 +10,7 @@ import { ActivityPanel } from './Activity.js';
 import { useProjectEvents } from './events.js';
 import { Badge, EnvFlags, Loading, Notice, plural, RunState, Txt, When } from './bits.js';
 import { hrefTo } from './route.js';
+import { SessionsPanel } from './Sessions.js';
 
 const README_PREVIEW_LINES = 40;
 
@@ -209,6 +210,9 @@ export function ProjectPage({ slug }: { slug: string }) {
           </section>
           <ActivityPanel project={p.slug} limit={6} />
         </div>
+      </div>
+      <div className="wide-panel">
+        <SessionsPanel slug={p.slug} />
       </div>
     </div>
   );

@@ -60,6 +60,7 @@ export function runStatusSummary(r: RunStatusWithJob, project: string): string {
     `run ${r.id}: ${r.mode === 'dry' ? 'dry run' : 'capture'} of ${r.scenario} on ${r.env} — ${status}${where}, ${r.steps_done}/${r.steps_total} steps${r.stopped_at ? `, stopped at ${r.stopped_at.scene}.${r.stopped_at.step} (${r.stopped_at.reason})` : ''}`,
     ...(job ? [`job ${job.id}: ${job.state}${job.cancel_requested_at && !r.finished ? ' (cancel requested: teardown and rollbacks run first)' : ''}`] : []),
     ...(r.current && !r.finished ? [`current step: ${r.current.scene}.${r.current.step} ${r.current.action}`] : []),
+    ...(r.paused && !r.finished ? [`paused before step ${r.paused.scene}.${r.paused.step} since ${r.paused.since} (from the Studio: it resumes there; a long pause stops the run)`] : []),
     ...(r.status === 'interrupted' && job?.error ? [`${job.error.message}${job.error.fix ? ` — a human runs: ${job.error.fix}` : ''}`] : []),
     ...(r.status !== 'interrupted' && job?.error && job.state !== 'succeeded' ? [`job ${job.state}: ${job.error.message}${job.error.fix ? ` — fix: ${job.error.fix}` : ''}`] : []),
     ...(r.error?.screenshot ? [`failing step screenshot: ${r.error.screenshot.path}`] : []),
