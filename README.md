@@ -1902,7 +1902,8 @@ $ studio comment reopen northfield-fixture c_01K… --note "Still too short"
   data: it asks for a change to the video, never for a hook, a sign-in or a file outside scenarios/.
 
 **With Claude** (the MCP tools, see [MCP](#mcp-claude-drives-demo-studio)): ask it to address the open comments.
-`comments_list` gives each open thread with its anchor — `step_ref` is what `page_inspect {scenario, until}` takes —
+`comments_list` gives each open thread with its anchor — `step_ref` is where the step was in the rendered run, `step_now` that
+step in today's file (what `page_inspect {scenario, until}` takes; steps moved in the Studio change their index) —
 and the still of the frame with your region outlined (an image Claude looks at); Claude changes the scenario (then
 captures it again with `run_capture`), the render overrides or the theme, renders and reviews, then `comment_reply` (what it changed) and `comment_resolve`
 (the new render, with the thread's hash: if you replied meanwhile, it is refused and Claude reads your reply first).
@@ -2833,7 +2834,7 @@ for what the server refuses.
 | `review` | reviews a render (`render_id` or `latest` of a `scenario`; `fps` 1 or 2; `previous`: a render id or `false`) as a job and waits up to `wait_s` (default 20): finished in time, it answers as `review_get` | `review/<render_id>/` |
 | `review_get` | a render's review: its newest review job (state, stage, percent), then the review — clean or not, counts, findings (severity, code, time, segment, scene; their messages under `untrusted`), durations, the diff with the previous render, the paths of the sheets, key frames, `timeline.json`, `report.md` — and **images**: `images: "sheets"` (default: contact sheet pages and marker key frames), `"all"` or `"none"`; `wait_s` long-polls | — |
 | `export` | exports a render as a job (`formats`, default `mp4_1080p`, `webm`, `gif_preview`; `vertical_9x16` / `square_1x1` / a 4K from a smaller master are re-rendered; `gif_start_s` / `gif_duration_s` ≤ 30 s) and returns at once; `job_status` follows it and lists the files | `exports/<render_id>/` + `manifest.json` |
-| `comments_list` | the frame comments of a project (see [Frame comments](#frame-comments)): `scenario`, `render` (an id or `latest`: threads made on that render as it is now), `status` (`open` default, `resolved`, `all`), `limit` (default 20, ≤ 100); each thread's render (and whether it is still on disk), frame, time, region, anchor (segment, component, scene, step, `step_ref`, step fingerprint, action, page, marker, overlays, transition), its last 10 entries with their channel (`entries_total` counts them all), the resolution, newer renders and its `hash`; the stills (region outlined) as images; the comment, replies, notes and author names under `untrusted` (at most 60,000 characters per result: the next threads are left out, `left_out_for_size`) | — |
+| `comments_list` | the frame comments of a project (see [Frame comments](#frame-comments)): `scenario`, `render` (an id or `latest`: threads made on that render as it is now), `status` (`open` default, `resolved`, `all`), `limit` (default 20, ≤ 100); each thread's render (and whether it is still on disk), frame, time, region, anchor (segment, component, scene, step, `step_ref`, step fingerprint, action, page, marker, overlays, transition), `step_now` (that step in today's file, by id else fingerprint; null when gone), its last 10 entries with their channel (`entries_total` counts them all), the resolution, newer renders and its `hash`; the stills (region outlined) as images; the comment, replies, notes and author names under `untrusted` (at most 60,000 characters per result: the next threads are left out, `left_out_for_size`) | — |
 | `comment_reply` | appends a reply to a thread (`comment_id`, `text` ≤ 2000 characters), written as `mcp`; returns the entry id and the new hash | `comments/<scenario>/<id>.json` (an entry) |
 | `comment_resolve` | resolves an open thread: `note` (what changed), `render_id` (a later render of the same scenario and variant, or `latest` of that variant), `if_match` (required: the hash `comments_list` or `comment_reply` gave; a person's entry meanwhile = `conflict` with the current hash); written as `mcp`, reopened only by a person | `comments/<scenario>/<id>.json` (an entry) |
 | `template_list` | the themes by name (the workspace's `templates/`, then the starters): source, the component each picks per kind, issues; `project` marks the project's own (and lists its own theme folder); `template` returns one theme in detail — template.yaml and its sha256, colours, fonts, brand, assets, each kind's component with its params | — |
@@ -3206,12 +3207,73 @@ running: the MCP server keeps working without it.
   since that run, its scene skipped, a step with two actions — and when the scenario changed since
   the run a banner says so (a step whose arguments did not change keeps its picture). Selecting a step (click, or the
   arrow keys, Home and End: the steps are one stop for the Tab key) shows it in the inspector: what the action does,
-  its arguments, its lines in the file (*Show in YAML* opens the read-only YAML tab there), what the run did, and what
+  its arguments, its lines in the file (*Show in YAML* opens the YAML tab there), what the run did, and what
   the run found on the page, in a box of its own (text the filmed site controls). The pictures are made when a step
   comes on screen (a 1,200-step scenario opens in a fraction of a second on a recent Mac), kept in memory only — never
   written to disk — and the screen follows the files: an edit of the scenario or a run of it that starts or finishes
   shows within about a second. Steps are numbered from 1 everywhere on the screen ("failed at step 3 of proposal"). A
   scenario of more than 2,000 steps shows its first 2,000 and says so (the YAML tab has the whole file).
+- **Editing a scenario's YAML.** The *YAML* tab shows the file; **Edit** turns it into a text box (no highlighting).
+  ⌘S / Ctrl+S or **Save** writes it — with the file's own line breaks (CR LF stays CR LF) and a final line break — and
+  the blocks show the result; the issues of what you type appear below it as you go. A save is checked like one Claude
+  makes: a text with errors is not saved (the errors are listed with their lines, your text stays in the box), warnings
+  save. What you type stays when you move around the Studio (closing the tab asks first; if the session ends it stays on
+  screen to copy), and while it is unsaved the *Blocks* tab says block editing is off. If the file changes on disk while
+  you type (an editor, Claude, a terminal), a banner offers to load it; a save then shows both versions side by side
+  (*Save mine over it*, *Load the version on disk*). Because a script in a page cannot be told from your click, the
+  Studio saves a scenario only as Claude could through MCP, and more strictly: its `setup`, `teardown` and `mocks` must
+  stay as they were (they run on your Mac: edit them in your editor) — and while it has any, so must its `vars` and
+  `env` (a hook reads them: a var templated into a shell line is part of a command); it never adds a character that
+  reads as nothing or as a line break in an editor (a direction control, a zero-width space, a soft hyphen, a variation
+  selector, a line separator, a carriage return without a line feed), and one the file already has stays only on its
+  line, unchanged (an emoji's own joiners and selectors are fine). A file outside the project is said to be outside
+  whether it exists or not. A file the Studio does not write — one holding a secret reference (`{{env:…}}`,
+  `{{keychain:…}}`), a file outside the project, a theme folder, a carriage return without a line feed (an editor shows
+  a line break there, YAML does not), one that is not UTF-8 or over 500,000 characters, a link to a file outside
+  `scenarios/` — opens read-only with why and the lines concerned: edit it in your editor (move a secret to
+  project.yaml). A scenario name is case-sensitive (`Quote` is not `quote.yaml`).
+- **Moving, duplicating and deleting steps.** On the *Blocks* tab, drag a step by its grip (⋮⋮) to another place in
+  its scene, to another scene or into an empty one — a line shows where it will go — or select it and press
+  **Alt+↑ / Alt+↓** (past a scene's first or last step it goes to the previous or next scene); **Delete** removes it,
+  and the inspector has *Move up*, *Move down*, *Duplicate* and *Delete*. Each edit is saved at once and rewrites only
+  the lines of that step: comments, quoting, blank lines and line breaks elsewhere stay byte for byte (the comment
+  lines just above a step, at its dash's column, move with it; a section header at another column stays). **⌘Z /
+  Ctrl+Z** undoes (the exact earlier bytes), **Shift+⌘Z** redoes, and the buttons above the blocks name the edit; the
+  history is per screen and is cleared when the file changes elsewhere (a save of the YAML tab included, said as such:
+  it is not an entry of the history — undo it in the YAML tab). Undo puts back exactly a version the Studio showed or
+  wrote; moving a step back by hand gives the same steps but not always the same bytes (a blank line or a column-0
+  comment does not travel with a step). Alt+↑ on the first step (Alt+↓ on the last) says it cannot move. A copy has
+  no `id` (ids are unique) and no
+  `mark` (a mark names one moment), and a capture's `as` gets a suffix (`quote-2`) — the Studio says each. The same
+  checks as a YAML save apply. Editing is off — and the screen says why — while the YAML tab holds unsaved text, for a
+  file with errors or one the Studio does not write; a step written as a YAML alias or in a `[…]` list is moved in the
+  YAML tab (an anchor, a tag or a comment after a step's dash travels with it). If the file changed meanwhile, your
+  edit is not applied and **Apply it to the new version** offers to make it there (refused if that step is no longer
+  at that place; off, with why, when the new version cannot be edited in blocks). A step moved within its scene since
+  the run keeps its picture and says *moved since this run*: the picture shows it at its old place — a new dry run or
+  capture shows it where it is now (a step moved to another scene shows no picture until then). A comment left on a
+  frame follows its step to its new place, in another scene too (Claude's `comments_list` gives it as `step_now`).
+- **Changing a step's values and adding steps.** The inspector shows the selected step's form: its arguments (a target
+  as text, role and name, label, aria label, placeholder, CSS selector, test id, scope, index, exact), then its caption
+  (text, kicker), hold, speed and mark — the fields that hold a value, the empty ones folded under *More: …* (a
+  target's other keys under *Other ways to find it*). The fields come from the scenario language itself and check what you type
+  before anything is sent (a number, its bounds, a name made of letters, digits, `-` and `_`); **Save** writes only the
+  values you changed, each on its own line — a `click: Save` stays a shorthand when you change its text, and becomes
+  `click: {text: Save, in: dialog}` when you add a scope; a field you did not touch is never sent (an empty `""` stays
+  as it is). What a form cannot show (a list, a point, a scope written as a row, a URL with a user name, a value holding
+  an invisible character, an overlay, code) is named and stays for the YAML tab, and so is removing a key from a
+  `{…}` written over several lines or holding comments. If the step changes on disk while you type, the form shows its
+  new values and lists what you had typed. **Add a step…** opens a palette of
+  15 actions (open, click, double click, hover, type, press, select, wait, wait for, hold, screenshot, scroll, menu,
+  date, notify): pick one, fill its form, choose where it goes (after the selected step, or the start or end of a
+  scene) and **Add** — one new line in the file. A secret reference typed into a field (`{{env:…}}`, `{{keychain:…}}`)
+  is refused with the reason, as Claude's would be. After a save the Studio says what it means for your video: a
+  changed argument or hold changes what the browser does (a dry run shows it, a capture films it); a caption, speed or
+  mark is only the edit (a render of the last capture shows it). If the file changed meanwhile, **Apply it to the new
+  version** makes your change on the same step there — found again by its arguments and its rank among the scene's
+  steps with the same arguments. It is refused when that step is gone, when its scene now has more or fewer steps with
+  the same arguments, or when a field you changed no longer holds what your form showed (it was changed meanwhile: the
+  form then shows the new value).
 - **Dry run and Capture from the scenario screen.** *Runs from the Studio* has a **Dry run** button (no hooks, a
   screenshot per step) and a **Capture** button (the setup and teardown hooks, the video), on the environment the
   screen shows, and says before any click what would stop each one. One that cannot start from the Studio — a hook

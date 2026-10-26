@@ -108,6 +108,9 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
     await expect.poll(() => page.getByTestId('running').count(), RUN).toBe(0);
     await expect.poll(() => page.getByTestId('source-line').innerText().catch(() => ''), RUN).toContain(runId);
     expect(await page.getByTestId('source-line').innerText()).toContain('succeeded');
+    // Pictures are asked for the rows on screen only: the first step brought into view (the editing bar and notices of
+    // L4.3 / L5.5 put the steps below the first screen).
+    await page.locator('[data-testid="step"]').first().scrollIntoViewIfNeeded();
     await expect.poll(() => page.locator('[data-testid="thumb"][data-state="ok"]').count(), RUN).toBeGreaterThan(0);
     const first = page.locator('[data-testid="step"] img').first();
     expect(await first.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(100);

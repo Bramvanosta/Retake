@@ -18,9 +18,9 @@
  * clients (`mcp`). Only the CLI creates and reopens threads (Engine.comments refuses both for any other client).
  */
 import { randomBytes } from 'node:crypto';
-import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm } from 'node:fs/promises';
+import { lstat, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { userInfo } from 'node:os';
-import { dirname, isAbsolute, join, relative } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 import {
   COMMENTS_DIR,
   COMMENT_ENTRIES_MAX,
@@ -34,16 +34,17 @@ import {
   commentTextProblem,
   deriveStatus,
   isIsoUtcDate,
+  locateAnchorStep,
   newCommentEntryId,
   newCommentId,
-  printableText,
   regionProblem,
   trustedAnchor,
 } from '@demo-studio/core';
 import type { CommentAuthor, CommentEntry, CommentRegion, CommentThread, FrameCommentAnchor, LoadedProject, Timeline } from '@demo-studio/core';
 import type { RenderRecord } from '@demo-studio/editor';
-import { TakeLock, readLock } from '@demo-studio/sandbox';
+import type { TakeLock } from '@demo-studio/sandbox';
 import { EngineError } from './errors.js';
+import { lockHolder, takeProjectLock, toolDir } from './project-lock.js';
 import { checkRunId, checkScenarioName } from './refs.js';
 import { renderForWork } from './renders.js';
 import { LocalStorage, sha256Hex } from './storage.js';
@@ -63,7 +64,6 @@ export const COMMENT_STILL_MAX_BYTES = 10 * 1024 * 1024;
 export const COMMENT_LIST_MAX_FILES = 2000;
 /** How long a write waits for a thread's lock held by a live process (ms), and between tries. */
 export const COMMENT_LOCK_WAIT_MS = 3000;
-const LOCK_RETRY_MS = 50;
 /** The author name of entries written through the MCP tools (the channel, never a person). */
 export const MCP_AUTHOR_NAME = 'agent';
 /** A scenario snapshot or a timeline larger than this is not read for an anchor. */
@@ -158,29 +158,6 @@ async function readPlainFile(path: string, max: number): Promise<Buffer | null> 
   } catch {
     return null;
   }
-}
-
-/**
- * `<project>/.demo-studio/<sub>/`, made of real folders of the project: each level checked before it is created (never
- * through a symbolic link: a lock, its temp and breaker files, or a still would land outside), then its real path
- * checked inside the project. Throws EngineError refused.
- */
-async function toolDir(projectDir: string, sub: string): Promise<string> {
-  let dir = projectDir;
-  for (const part of ['.demo-studio', sub]) {
-    dir = join(dir, part);
-    let state = await realDir(dir);
-    if (state === 'missing') {
-      await mkdir(dir).catch((e: NodeJS.ErrnoException) => {
-        if (e.code !== 'EEXIST') throw e;
-      });
-      state = await realDir(dir);
-    }
-    if (state !== 'ok') throw new EngineError('refused', `${relative(projectDir, dir)}/ is ${state}: remove it (the tool makes it again)`);
-  }
-  const [realProject, realSub] = await Promise.all([realpath(projectDir), realpath(dir)]);
-  if (!isInside(realProject, realSub)) throw new EngineError('refused', `${relative(projectDir, dir)}/ leads out of the project folder`);
-  return dir;
 }
 
 /** The comments/ folder name that differs from `scenario` only by case (a case-insensitive disk would mix them), if any. */
@@ -289,6 +266,13 @@ export interface CommentView {
   created_at: string;
   /** Pattern-checked (core trustedAnchor): a value of an unknown shape shows as "unknown", the original under untrusted.anchor. */
   anchor: FrameCommentAnchor;
+  /**
+   * The anchored step in today's scenario file (L4.3, critique B10; core locateAnchorStep): "<scene>.<index>", what
+   * page_inspect {until} takes — `anchor.step_ref` is where it was in the rendered run, and steps moved since (a Studio
+   * drag) change the index. Null: today's file has no such step (deleted, changed, or not readable). Absent: the frame
+   * shows no step.
+   */
+  step_now?: string | null;
   /** Up to 3 later succeeded renders of the scenario and variant, newest first: the frame may already be fixed there. */
   newer_renders: string[];
   entries: CommentEntryView[];
@@ -349,9 +333,41 @@ async function stillOf(projectDir: string, id: string): Promise<string | null> {
   return head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff ? file : null;
 }
 
-async function threadView(projectDir: string, thread: CommentThread, hash: string, renders: readonly RenderRecord[]): Promise<CommentView> {
+/** Today's text of a scenario (.yaml, else an existing .yml), null when it cannot be read; one read per scenario and call. */
+async function todayText(projectDir: string, scenario: string, cache: Map<string, Promise<string | null>>): Promise<string | null> {
+  let p = cache.get(scenario);
+  if (!p) {
+    const storage = new LocalStorage(projectDir);
+    p = (async () => {
+      for (const ref of [`scenarios/${scenario}.yaml`, `scenarios/${scenario}.yml`]) {
+        try {
+          const r = await storage.readText(ref);
+          if (r) return r.text;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    })();
+    cache.set(scenario, p);
+  }
+  return p;
+}
+
+async function threadView(
+  projectDir: string,
+  thread: CommentThread,
+  hash: string,
+  renders: readonly RenderRecord[],
+  texts: Map<string, Promise<string | null>> = new Map(),
+): Promise<CommentView> {
   const { status, resolution } = deriveStatus(thread.entries);
   const { anchor, untrusted: badAnchor } = trustedAnchor(thread.anchor);
+  let stepNow: string | null | undefined;
+  if (anchor.scene !== undefined && anchor.step !== undefined) {
+    const today = await todayText(projectDir, thread.scenario, texts);
+    stepNow = today === null ? null : (locateAnchorStep(today, anchor) ?? null);
+  }
   const current = renders.find((r) => r.id === thread.render.id);
   const newer = renders
     .filter((r) => r.scenario === thread.scenario && r.variant === thread.render.variant && r.status === 'succeeded' && r.created_at > thread.render.created_at)
@@ -375,6 +391,7 @@ async function threadView(projectDir: string, thread: CommentThread, hash: strin
     via: thread.author.via,
     created_at: thread.created_at,
     anchor,
+    ...(stepNow !== undefined ? { step_now: stepNow } : {}),
     newer_renders: newer,
     entries: thread.entries.map((e) => ({
       id: e.id,
@@ -496,6 +513,7 @@ export async function listComments(project: LoadedProject, req: CommentListReque
   } else if (rootState !== 'missing') problems.push(`${COMMENTS_DIR}/ is ${rootState}: not read`);
 
   const views: CommentView[] = [];
+  const texts = new Map<string, Promise<string | null>>();
   for (const f of files) {
     const r = await readThread(project.dir, f);
     if (!r.ok) {
@@ -503,7 +521,7 @@ export async function listComments(project: LoadedProject, req: CommentListReque
       continue;
     }
     if (onRender && (r.thread.render.id !== onRender.id || r.thread.render.created_at !== onRender.created_at)) continue;
-    const view = await threadView(project.dir, r.thread, r.hash, renders);
+    const view = await threadView(project.dir, r.thread, r.hash, renders, texts);
     if (status !== 'all' && view.status !== status) continue;
     views.push(view);
   }
@@ -696,41 +714,26 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
 
 // ── Appending entries ───────────────────────────────────────────────────────
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 /**
  * The thread's lock: retried while a live process holds it (≤ COMMENT_LOCK_WAIT_MS); a dead holder's is broken. The
  * lock folder is a real folder of the project (toolDir); anything but a file at the lock path is refused. The lock file
  * is agent-writable: a busy error quotes its pid and a well-formed date only, its command printable, ≤ 80 characters,
  * under `details.untrusted`.
  */
-async function lockThread(projectDir: string, id: string, op: string): Promise<TakeLock> {
-  const file = commentLockFile(projectDir, id);
-  const ref = relative(projectDir, file);
-  await toolDir(projectDir, 'locks');
-  const deadline = Date.now() + COMMENT_LOCK_WAIT_MS;
-  for (;;) {
-    const st = await lstatOrNull(file);
-    if (st && !st.isFile()) {
-      throw new EngineError('refused', `${ref} is ${st.isSymbolicLink() ? 'a symbolic link' : 'not a file'}: comment ${id} cannot be locked`, { fix: `remove ${ref} (no studio command makes one)` });
-    }
-    try {
-      return TakeLock.acquire(file, `comment ${op} ${id}`, `comment ${id}`);
-    } catch (e) {
-      if (!(e instanceof Error && e.name === 'SandboxError' && (e as { code?: string }).code === 'busy')) throw e;
-      if (Date.now() >= deadline) {
-        const held = readLock(file);
-        const pid = held && Number.isInteger(held.pid) && held.pid > 0 ? held.pid : undefined;
-        const since = held && isIsoUtcDate(held.since) ? held.since : undefined;
-        const command = held && typeof held.command === 'string' ? printableText(held.command).slice(0, 80) : '';
-        throw new EngineError('busy', `comment ${id} is being written by another command${pid ? ` (pid ${pid}${since ? `, since ${since}` : ''})` : ''}: try again`, {
-          fix: `try again in a moment; if no studio command is running, remove ${ref}`,
-          ...(command ? { details: { untrusted: { command } } } : {}),
-        });
-      }
-      await sleep(LOCK_RETRY_MS);
-    }
-  }
+function lockThread(projectDir: string, id: string, op: string): Promise<TakeLock> {
+  return takeProjectLock(projectDir, basename(commentLockFile(projectDir, id)), {
+    command: `comment ${op} ${id}`,
+    what: `comment ${id}`,
+    waitMs: COMMENT_LOCK_WAIT_MS,
+    retryMs: 50,
+    busy: (ref, held) => {
+      const { pid, since, command } = lockHolder(held);
+      return new EngineError('busy', `comment ${id} is being written by another command${pid ? ` (pid ${pid}${since ? `, since ${since}` : ''})` : ''}: try again`, {
+        fix: `try again in a moment; if no studio command is running, remove ${ref}`,
+        ...(command ? { details: { untrusted: { command } } } : {}),
+      });
+    },
+  });
 }
 
 export interface CommentWritten {
@@ -770,7 +773,8 @@ async function appendEntry(
     const text = `${JSON.stringify(next.data, null, 2)}\n`;
     // Never write a file that reads refuse.
     if (Buffer.byteLength(text) > COMMENT_FILE_MAX_BYTES) throw new EngineError('refused', `comment ${id} would grow past ${COMMENT_FILE_MAX_BYTES / 1024 / 1024} MB with this entry: start a new thread`);
-    const written = await new LocalStorage(project.dir).writeText(f.ref, text, { ifMatch: r.hash });
+    // The thread's lock already serialises every write of its file: no second (write) lock inside it.
+    const written = await new LocalStorage(project.dir).writeText(f.ref, text, { ifMatch: r.hash, locked: true });
     return { thread: await threadView(project.dir, next.data, written.sha256, await renderIndex(project.dir)), entry: entry.id, hash: written.sha256 };
   } finally {
     lock.releaseSync();

@@ -1142,7 +1142,11 @@ commits its own `comments/`.
   text stays under each thread's `untrusted` (capped by `capUntrusted` like any result). Sizes: a thread carries its
   last 10 entries (ids, kinds and texts; `entries_total` counts them all), a result at most 60,000 characters of
   untrusted text — the threads past it are left out (`left_out_for_size`, the summary says to narrow with scenario,
-  render, status or a lower limit); the first thread always fits.
+  render, status or a lower limit); the first thread always fits. Since L4.3 (critique B10) each thread whose frame
+  shows a step also has `step_now`: that step in today's scenario file (core `locateAnchorStep`: by `step_id`, else
+  `step_fp` + `step_fp_n` in the same scene) — the `<scene>.<index>` to pass to `page_inspect {until}`, since
+  `step_ref` is the step's place in the rendered run and a reorder (a Studio drag) moves it; null when today's file no
+  longer has it. The summary line says "now <scene>.<index>" or "not in today's file" when they differ.
 - `comment_reply({project, comment_id, text ≤ 2000})` and `comment_resolve({project, comment_id, note ≤ 2000,
   render_id?: id | latest, if_match})` (WRITE_FILES: append-only, never destructive) → `engine.comments.reply /
   resolve`; `if_match` is required in the schema (and again by the engine for any client but `cli`). Each returns the

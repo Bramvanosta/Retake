@@ -2,9 +2,11 @@
  * The step inspector (L4.2, R-UI-14), read-only: the selected step's action with what it does (the scenario language's
  * description — the edit hint), its target in plain words, its arguments as written (key / value text), its modifiers,
  * where it is in the file ("Show in YAML") and its source lines, what the source run did with it, and — in a box titled
- * "From the page" — the target as the run found it, its error and the URL (text the filmed site controls). Editing
- * comes with the two-way editor (L4.3): until then the hint says where to change the step.
+ * "From the page" — the target as the run found it, its error and the URL (text the filmed site controls). L4.3 part 2:
+ * the screen's edit buttons for the step (move, duplicate, delete) sit at the top; part 3: its form (StepForm.tsx)
+ * below them — what a form cannot show changes in the YAML tab.
  */
+import type { ReactNode } from 'react';
 import type { SceneBlock, StepBlock } from '@demo-studio/core';
 import { Badge, Txt } from './bits.js';
 import { keyWords, missingWords, seconds } from './scenario-words.js';
@@ -43,7 +45,26 @@ function Args({ args }: { args: unknown }) {
   );
 }
 
-export function Inspector({ v, scene, step, onShowYaml }: { v: View; scene: SceneBlock | undefined; step: StepBlock | undefined; onShowYaml: (r: { line: number; end_line: number }) => void }) {
+export function Inspector({
+  v,
+  scene,
+  step,
+  onShowYaml,
+  editing = false,
+  actions,
+  form,
+}: {
+  v: View;
+  scene: SceneBlock | undefined;
+  step: StepBlock | undefined;
+  onShowYaml: (r: { line: number; end_line: number }) => void;
+  /** Block edits are on (L4.3): the hint says what can be done here. */
+  editing?: boolean;
+  /** The edit buttons for the selected step (move, duplicate, delete). */
+  actions?: ReactNode;
+  /** The selected step's form (L4.3 part 3: its values). */
+  form?: ReactNode;
+}) {
   return (
     <aside className="inspector card" aria-labelledby="inspector-h" data-testid="inspector">
       <h2 id="inspector-h" className="card-title">
@@ -52,13 +73,17 @@ export function Inspector({ v, scene, step, onShowYaml }: { v: View; scene: Scen
       {!step || !scene ? (
         <p className="muted">Select a step to see it here.</p>
       ) : (
-        <StepDetails v={v} scene={scene} step={step} onShowYaml={onShowYaml} />
+        <>
+          {actions}
+          {form}
+          <StepDetails v={v} scene={scene} step={step} onShowYaml={onShowYaml} editing={editing} />
+        </>
       )}
     </aside>
   );
 }
 
-function StepDetails({ v, scene, step, onShowYaml }: { v: View; scene: SceneBlock; step: StepBlock; onShowYaml: (r: { line: number; end_line: number }) => void }) {
+function StepDetails({ v, scene, step, onShowYaml, editing }: { v: View; scene: SceneBlock; step: StepBlock; onShowYaml: (r: { line: number; end_line: number }) => void; editing: boolean }) {
   const b = v.steps[step.key];
   const page = v.untrusted.steps[step.key];
   const hint = step.action ? v.hints?.[step.action] : undefined;
@@ -129,8 +154,14 @@ function StepDetails({ v, scene, step, onShowYaml }: { v: View; scene: SceneBloc
       )}
       {step.aliased && <p className="muted small">Written as a YAML alias: it repeats another step.</p>}
       <p className="hint small" data-testid="edit-hint">
-        Read-only here: change this step in <Txt className="path" text={v.file} />
-        {r ? ` (line ${r.line})` : ''}, or ask Claude to change it.
+        {editing && step.locked === undefined
+          ? step.form
+            ? 'Change its values in the form above, move, duplicate or delete it here; change anything else'
+            : 'Move, duplicate or delete it here; change its values'
+          : 'Read-only here: change this step'}{' '}
+        in{' '}
+        <Txt className="path" text={v.file} />
+        {r ? ` (line ${r.line})` : ''} or the YAML tab, or ask Claude to change it.
       </p>
       {step.issues.length > 0 && (
         <>
@@ -161,6 +192,7 @@ function StepDetails({ v, scene, step, onShowYaml }: { v: View; scene: SceneBloc
         </p>
       ) : (
         <p className="small" data-testid="inspector-run">
+          {b.moved && <>Moved since this run: the picture shows it at its old place · </>}
           {b.status}
           {b.ms !== undefined && ` · ${seconds(b.ms)}`}
           {b.picture && ` · picture from ${b.picture.replace('_', ' ')}`}

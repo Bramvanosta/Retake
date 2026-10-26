@@ -7,10 +7,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
-import { link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { chmod, link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { SCENARIO_COMPARE_MAX_BYTES, readPlainFile } from '@demo-studio/core';
+import type { TakeLock } from '@demo-studio/sandbox';
 import { EngineError } from './errors.js';
+import { lockHolder, takeProjectLock } from './project-lock.js';
 
 export type StoredKind = 'run' | 'render' | 'review' | 'export' | 'journal' | 'asset' | 'scenario' | 'project';
 
@@ -53,9 +55,11 @@ export interface Storage {
    * again just before the rename); null → the file must not exist (an atomic link: never overwrites); undefined → no
    * check. A mismatch is an EngineError `conflict` with `details.current` (the current hash, or null). A file that is a
    * symbolic link to another file of the project is written through it (the link stays a link); a link leading out of
-   * the project, or to nothing, is refused.
+   * the project, or to nothing, is refused. L4.3: a write with an `ifMatch` hash holds the target's write lock
+   * (`.demo-studio/locks/write-*.lock`, shared across processes) from the check to the rename — unless `locked`: the
+   * caller holds a lock that serialises every write of that file (a comment thread's) —; a replaced file keeps its mode.
    */
-  writeText(ref: string, text: string, opts?: { ifMatch?: string | null }): Promise<WriteResult>;
+  writeText(ref: string, text: string, opts?: { ifMatch?: string | null; locked?: boolean }): Promise<WriteResult>;
 }
 
 /**
@@ -63,6 +67,9 @@ export interface Storage {
  * SCENARIO_COMPARE_MAX_BYTES); a README the Studio edits holds 200,000 characters (≤ 800 KB of UTF-8).
  */
 export const READ_TEXT_MAX_BYTES = SCENARIO_COMPARE_MAX_BYTES;
+
+/** How long an `if_match` write waits for another write of the same file to finish (ms). */
+export const WRITE_LOCK_WAIT_MS = 3000;
 
 export function sha256Hex(data: string | Buffer): string {
   return createHash('sha256').update(data).digest('hex');
@@ -205,7 +212,28 @@ export class LocalStorage implements Storage {
     return buf === null ? null : sha256Hex(buf);
   }
 
-  async writeText(ref: string, text: string, opts: { ifMatch?: string | null } = {}): Promise<WriteResult> {
+  /**
+   * The lock of a write to `target` (critique B1): named after the target's real path in the project, so a write
+   * through a link and one to the file itself share it — the existing file's real path as the disk spells it (review A
+   * M1: on a case-insensitive disk "quote.yaml" and "QUOTE.yaml" are one file, so one lock).
+   */
+  private async lockWrite(ref: string, target: string): Promise<TakeLock> {
+    const [realRoot, realDir, realFile] = await Promise.all([realpath(this.root), realpath(dirname(target)), realpath(target).catch(() => null)]);
+    const key = relative(realRoot, realFile ?? join(realDir, basename(target))).split(sep).join('/');
+    return takeProjectLock(this.root, `write-${sha256Hex(key).slice(0, 24)}.lock`, {
+      command: `write ${key}`.slice(0, 200),
+      what: ref,
+      waitMs: WRITE_LOCK_WAIT_MS,
+      busy: (lockRef, held) => {
+        const { pid } = lockHolder(held);
+        return new EngineError('busy', `${ref} is being written by another command${pid ? ` (pid ${pid})` : ''}: try again`, {
+          fix: `try again in a moment; if no studio command is running, remove ${lockRef}`,
+        });
+      },
+    });
+  }
+
+  async writeText(ref: string, text: string, opts: { ifMatch?: string | null; locked?: boolean } = {}): Promise<WriteResult> {
     const path = this.resolve(ref);
     await this.writableDir(path);
     const target = await this.writeTarget(path);
@@ -216,31 +244,47 @@ export class LocalStorage implements Storage {
         details: { current },
         ...(current ? { fix: `read it again and pass if_match: "${current}"` } : {}),
       });
-    if (opts.ifMatch !== undefined && opts.ifMatch !== null) {
-      const current = await this.currentHash(path);
-      if (current !== opts.ifMatch) throw conflict(current, current === null ? 'does not exist (if_match names a content it never had)' : 'changed since it was read (if_match does not match its content)');
-    }
-    const tmp = `${target}.${randomBytes(4).toString('hex')}.tmp`;
-    await writeFile(tmp, buf);
+    // A write that checks a hash holds the target's lock from the first check to the rename (critique B1): another
+    // writer with the same if_match waits, then finds the new content and gets its conflict.
+    const lock = typeof opts.ifMatch === 'string' && !opts.locked ? await this.lockWrite(ref, target) : undefined;
     try {
-      if (opts.ifMatch === null) {
-        // Must not exist: link() fails with EEXIST instead of replacing (no exists-then-rename window).
-        try {
-          await link(tmp, target);
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw conflict(await this.currentHash(path), 'already exists');
-          throw e;
-        }
-        return written;
-      }
-      if (opts.ifMatch !== undefined) {
+      if (opts.ifMatch !== undefined && opts.ifMatch !== null) {
         const current = await this.currentHash(path);
-        if (current !== opts.ifMatch) throw conflict(current, 'changed while it was being written (if_match no longer matches)');
+        if (current !== opts.ifMatch) throw conflict(current, current === null ? 'does not exist (if_match names a content it never had)' : 'changed since it was read (if_match does not match its content)');
       }
-      await rename(tmp, target);
-      return written;
+      // The replaced file's permissions are kept (critique B11): set explicitly, since writeFile's `mode` is masked by
+      // the umask (a 0600 or 0664 scenario became 0644 after a save). A new file takes the umask's default.
+      const mode = await lstat(target).then(
+        (st) => (st.isFile() ? st.mode & 0o7777 : undefined),
+        () => undefined,
+      );
+      const tmp = `${target}.${randomBytes(4).toString('hex')}.tmp`;
+      // Never readable by others meanwhile (a 0600 file's new text); a new file takes the umask's default.
+      await writeFile(tmp, buf, mode !== undefined ? { mode: 0o600 } : {});
+      try {
+        if (mode !== undefined) await chmod(tmp, mode);
+        if (opts.ifMatch === null) {
+          // Must not exist: link() fails with EEXIST instead of replacing (no exists-then-rename window).
+          try {
+            await link(tmp, target);
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw conflict(await this.currentHash(path), 'already exists');
+            throw e;
+          }
+          return written;
+        }
+        if (opts.ifMatch !== undefined) {
+          const current = await this.currentHash(path);
+          if (current !== opts.ifMatch) throw conflict(current, 'changed while it was being written (if_match no longer matches)');
+        }
+        await rename(tmp, target);
+        return written;
+      } finally {
+        await unlink(tmp).catch(() => undefined);
+      }
     } finally {
-      await unlink(tmp).catch(() => undefined);
+      await lock?.release();
     }
   }
 }
+

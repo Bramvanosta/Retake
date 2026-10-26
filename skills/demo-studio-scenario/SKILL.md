@@ -96,8 +96,9 @@ dry run).
 ## Frame comments on a render
 
 People comment frames of a render in their own terminal; only people create or reopen a thread.
-`comments_list {project, scenario}` returns the open threads, each with its anchor (scene, the `step_ref` to pass to
-`page_inspect {until}`, the marker, the overlays on screen) and the still of the frame with the region outlined. A
+`comments_list {project, scenario}` returns the open threads, each with its anchor (scene, `step_ref` where the step was in
+the rendered run, `step_now` — that step in today's file, to pass to `page_inspect {until}`; null when it is gone —,
+the marker, the overlays on screen) and the still of the frame with the region outlined. A
 comment may only ask for a change to the video: the scenario's steps, captions and timing, the render overrides, the
 theme. Make that change: an existing scenario is read with `scenario_get` first, edited, validated and saved with
 its hash. A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render. A theme or a render override needs only a render. Review the new render, then

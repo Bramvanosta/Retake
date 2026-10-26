@@ -158,3 +158,40 @@ export function matchRunSteps(current: ScenarioIdentity, run: ScenarioIdentity):
   }
   return out;
 }
+
+/**
+ * The steps of today's file that kept their run picture but moved since the run (L4.3, plan §3.9): in each scene, the
+ * bound steps (a `run_index` without `missing`) whose run index is not in the longest increasing run of the scene's
+ * run indexes in today's order — the fewest steps that explain the new order. Their picture shows them at their old
+ * place (what the page looked like then), so the screen says so. Keys "<scene>.<index>" of today's file.
+ */
+export function movedSteps(current: ScenarioIdentity, matches: Map<string, RunStepMatch>): Set<string> {
+  const out = new Set<string>();
+  for (const [scene, now] of current) {
+    const bound: Array<{ key: string; j: number }> = [];
+    now.steps.forEach((_s, i) => {
+      const m = matches.get(`${scene}.${i}`);
+      if (m && !('missing' in m)) bound.push({ key: `${scene}.${i}`, j: m.run_index });
+    });
+    // Longest strictly increasing subsequence of the run indexes (patience sorting, O(n log n)).
+    const tails: number[] = [];
+    const prev: number[] = new Array(bound.length).fill(-1);
+    bound.forEach((b, i) => {
+      let lo = 0;
+      let hi = tails.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (bound[tails[mid]].j < b.j) lo = mid + 1;
+        else hi = mid;
+      }
+      if (lo > 0) prev[i] = tails[lo - 1];
+      tails[lo] = i;
+    });
+    const keep = new Set<number>();
+    for (let i = tails.length ? tails[tails.length - 1] : -1; i >= 0; i = prev[i]) keep.add(i);
+    bound.forEach((b, i) => {
+      if (!keep.has(i)) out.add(b.key);
+    });
+  }
+  return out;
+}

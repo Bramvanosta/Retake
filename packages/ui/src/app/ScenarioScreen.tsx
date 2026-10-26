@@ -4,7 +4,7 @@
  * would stop a run from the Studio (`run_blockers`, beside the Dry run / Capture buttons), the scenario's runs (the "Pictures from" picker), the source run
  * and every step's binding to it. Steps show their run's picture (Thumb.tsx, asked for the rows on screen only) or why
  * there is none, in words. The inspector shows the selected step (arguments, edit hints, its lines, what the run
- * found); the YAML tab shows the file as text.
+ * found); the YAML tab shows the file as text and edits it (L4.3, YamlTab.tsx).
  *
  * Events (critique B1): the view is read again only for this scenario's own file, a run of this scenario that
  * appears, changes status or goes away, the picker, a reconnection or the window's focus — a running run's progress
@@ -16,8 +16,8 @@
  * selection across scenes and the inspector follows it. No live region: the option's name carries the step.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
-import type { Chip, EntryBlock, HookBlock, SceneBlock, StepBlock, ValidationIssue, VideoBlock } from '@demo-studio/core';
+import type { DragEvent, KeyboardEvent, ReactNode } from 'react';
+import type { Chip, EntryBlock, HookBlock, SceneBlock, StepBlock, StepForms, ValidationIssue, VideoBlock } from '@demo-studio/core';
 import type { RunBlocker, ScenarioRunChoice, StepBinding } from '@demo-studio/engine';
 import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, EnvFlags, Loading, Notice, plural, RunState, Txt, visibleControls, When } from './bits.js';
@@ -27,7 +27,13 @@ import { hrefTo } from './route.js';
 import type { ScenarioTab } from './route.js';
 import { NoThumb, Thumb, ThumbsProvider } from './Thumb.js';
 import type { ThumbAnswer } from './thumbs.js';
-import { YamlView } from './YamlView.js';
+import { YamlTab } from './YamlTab.js';
+import { scenarioKey, useDirty } from './drafts.js';
+import { dropMove, keyboardMove } from './step-edit.js';
+import type { SceneSlots, StepRef } from './step-edit.js';
+import { EditBar, useStepEditor } from './StepEditing.js';
+import type { StepEditor } from './StepEditing.js';
+import { Palette, StepForm } from './StepForm.js';
 import { MODE, RUN_STATUS_WORDS, STATUS_WORDS, bindingWords, layoutWords, missingWords, runErrorWords, seconds, stepWords } from './scenario-words.js';
 import type { View } from './scenario-words.js';
 
@@ -311,7 +317,10 @@ function SourceBar({ v, pick, onPick }: { v: View; pick: string | undefined; onP
       {s?.notice === 'changed' && (
         <Notice tone="warning" role="note" title="What the browser does changed since this run">
           {s.filmed_changes && s.filmed_changes.length > 0 && <p>Changed: {s.filmed_changes.join('; ')}.</p>}
-          <p>A render of this run shows the take as it was captured: capture again to film the change. The pictures show the run as it was; steps changed or added since have no picture.</p>
+          <p data-testid="changed-since">
+            A render of this run shows the take as it was captured: capture again to film the change. The pictures show the run as it
+            was: steps changed or added since have no picture, and a moved step shows its old place.
+          </p>
         </Notice>
       )}
       {s?.notice === 'edit_changed' && (
@@ -539,9 +548,26 @@ interface RowProps {
   cannotTell: boolean;
   selected: boolean;
   onPick: (key: string) => void;
+  /** Its grip shows and it can be dragged (block edits on, not locked, no edit on its way). */
+  canDrag: boolean;
+  /** The insertion line: above or below this row (a drop there puts the step at that place). */
+  drop: 'before' | 'after' | null;
+  dragging: boolean;
+  drag: DragHandlers;
 }
 
-const StepRow = memo(function StepRow({ step, scene, optId, binding, source, cannotTell, selected, onPick }: RowProps) {
+/** Drag & drop of steps (native HTML5): the screen's handlers, stable across renders. */
+interface DragHandlers {
+  start: (ev: DragEvent<HTMLElement>, step: StepBlock, scene: string) => void;
+  over: (ev: DragEvent<HTMLElement>, scene: string, gap: number | 'half', index: number) => void;
+  drop: (ev: DragEvent<HTMLElement>) => void;
+  end: () => void;
+}
+
+/** The MIME type a step's drag carries (its key only: drop handlers never read it — they use the drag state). */
+const STEP_DRAG_TYPE = 'application/x-demo-studio-step';
+
+const StepRow = memo(function StepRow({ step, scene, optId, binding, source, cannotTell, selected, onPick, canDrag, drop, dragging, drag }: RowProps) {
   const words = bindingWords(binding, source !== null);
   const bound = binding && !('missing' in binding) ? binding : undefined;
   const tone = bound ? STATUS_WORDS[bound.status]?.[1] ?? 'neutral' : 'warning';
@@ -557,11 +583,21 @@ const StepRow = memo(function StepRow({ step, scene, optId, binding, source, can
       role="option"
       aria-selected={selected}
       aria-label={visibleControls(`Step ${step.index + 1}: ${step.label}${step.target ? ` ${step.target}` : ''}. ${words}`)}
-      className={selected ? 'step selected' : 'step'}
+      className={['step', selected ? 'selected' : '', canDrag ? 'can-drag' : '', drop ? `drop-${drop}` : '', dragging ? 'dragging' : ''].filter(Boolean).join(' ')}
       data-key={step.key}
       data-testid="step"
       onClick={() => onPick(step.key)}
+      draggable={canDrag}
+      onDragStart={canDrag ? (ev) => drag.start(ev, step, scene) : undefined}
+      onDragOver={(ev) => drag.over(ev, scene, 'half', step.index)}
+      onDrop={drag.drop}
+      onDragEnd={drag.end}
     >
+      {canDrag && (
+        <span className="grip" aria-hidden="true" title="Drag to move (or Alt+↑ / Alt+↓)">
+          ⋮⋮
+        </span>
+      )}
       {picture}
       <div className="step-body">
         <p className="step-head">
@@ -581,7 +617,7 @@ const StepRow = memo(function StepRow({ step, scene, optId, binding, source, can
           <Chips chips={step.chips} />
           {source && (
             <span className="step-state" data-testid="step-state">
-              <Badge tone={tone}>{words}</Badge>
+              <Badge tone={bound?.moved ? 'warning' : tone}>{words}</Badge>
               {bound?.ms !== undefined && <span className="muted small"> {seconds(bound.ms)}</span>}
               {bound && cannotTell && <span className="muted small"> · matched by position: cannot tell whether it changed</span>}
             </span>
@@ -701,9 +737,13 @@ interface EntryProps {
   onKey: (ev: KeyboardEvent<HTMLUListElement>) => void;
   listRef: (scene: string, el: HTMLUListElement | null) => void;
   firstScene: string | null;
+  canEdit: boolean;
+  dropAt: { scene: string; gap: number } | null;
+  dragKey: string | null;
+  drag: DragHandlers;
 }
 
-function Entry({ e, v, sceneNo, selected, optIds, onPick, onKey, listRef, firstScene }: EntryProps) {
+function Entry({ e, v, sceneNo, selected, optIds, onPick, onKey, listRef, firstScene, canEdit, dropAt, dragKey, drag }: EntryProps) {
   if (e.type === 'card' || e.type === 'interstitial') {
     return (
       <section className={`entry-small entry-${e.type}`} aria-label={`${e.type} ${e.id}`} data-testid={e.type}>
@@ -772,19 +812,41 @@ function Entry({ e, v, sceneNo, selected, optIds, onPick, onKey, listRef, firstS
       )}
       <IssueList issues={e.issues} />
       {e.steps.length === 0 ? (
-        <p className="muted small">No steps.</p>
+        <p
+          className={dropAt?.scene === e.id ? 'muted small drop-empty drop-here' : 'muted small drop-empty'}
+          data-testid="drop-empty"
+          onDragOver={(ev) => drag.over(ev, e.id, 0, 0)}
+          onDrop={drag.drop}
+        >
+          No steps.{canEdit && !e.steps_locked ? ' Drop a step here to move it into this scene.' : ''}
+        </p>
       ) : (
         <ul
           ref={(el) => listRef(e.id, el)}
           role="listbox"
           aria-label={`Steps of scene ${e.id}`}
           aria-activedescendant={hasSel ? optIds.get(selected!) : undefined}
+          aria-describedby={canEdit ? 'steps-keys' : undefined}
           tabIndex={hasSel || (selected === null && e.id === firstScene) ? 0 : -1}
           className="steps"
           onKeyDown={onKey}
         >
           {e.steps.map((s) => (
-            <StepRow key={s.key} step={s} scene={e.id} optId={optIds.get(s.key)!} binding={v.steps[s.key]} source={source} cannotTell={v.source?.notice === 'cannot_tell'} selected={s.key === selected} onPick={onPick} />
+            <StepRow
+              key={s.key}
+              step={s}
+              scene={e.id}
+              optId={optIds.get(s.key)!}
+              binding={v.steps[s.key]}
+              source={source}
+              cannotTell={v.source?.notice === 'cannot_tell'}
+              selected={s.key === selected}
+              onPick={onPick}
+              canDrag={canEdit && s.locked === undefined && s.guard !== undefined}
+              drop={dropAt?.scene === e.id ? (dropAt.gap === s.index ? 'before' : dropAt.gap === e.steps.length && s.index === e.steps.length - 1 ? 'after' : null) : null}
+              dragging={dragKey === s.key}
+              drag={drag}
+            />
           ))}
         </ul>
       )}
@@ -792,9 +854,49 @@ function Entry({ e, v, sceneNo, selected, optIds, onPick, onKey, listRef, firstS
   );
 }
 
+/** The inspector's edit buttons for the selected step (the same edits as the keyboard and drag & drop). */
+function StepActions({ disabled, locked, up, down, onMove, onAction }: { disabled: boolean; locked: string | undefined; up: boolean; down: boolean; onMove: (dir: -1 | 1) => void; onAction: (k: 'delete_step' | 'duplicate_step') => void }) {
+  return (
+    <div className="step-actions" data-testid="step-actions">
+      <button type="button" className="button small" disabled={disabled || !up} onClick={() => onMove(-1)} aria-keyshortcuts="Alt+ArrowUp">
+        Move up
+      </button>
+      <button type="button" className="button small" disabled={disabled || !down} onClick={() => onMove(1)} aria-keyshortcuts="Alt+ArrowDown">
+        Move down
+      </button>
+      <button type="button" className="button small" disabled={disabled} onClick={() => onAction('duplicate_step')}>
+        Duplicate
+      </button>
+      <button type="button" className="button small danger" disabled={disabled} onClick={() => onAction('delete_step')} aria-keyshortcuts="Delete">
+        Delete
+      </button>
+      {locked !== undefined && (
+        <p className="muted small">
+          Not movable here: <Txt text={locked} />
+        </p>
+      )}
+    </div>
+  );
+}
+
 const PAGE = 10;
 
-function Blocks({ v, picked, setPicked, onShowYaml }: { v: View; picked: string | null; setPicked: (key: string) => void; onShowYaml: (r: { line: number; end_line: number }) => void }) {
+function Blocks({
+  v,
+  picked,
+  setPicked,
+  onShowYaml,
+  ed,
+  forms,
+}: {
+  v: View;
+  picked: string | null;
+  setPicked: (key: string) => void;
+  onShowYaml: (r: { line: number; end_line: number }) => void;
+  ed: StepEditor;
+  forms: StepForms | null;
+}) {
+  const [palette, setPalette] = useState(false);
   const scenes = useMemo(() => v.blocks.entries.filter((e): e is SceneBlock => e.type === 'scene'), [v.blocks]);
   // Filmed scenes numbered 1, 2, 3… (review B L3: the entry index counted cards and interstitials).
   const sceneNo = useMemo(() => new Map(scenes.map((s, i) => [s.index, i + 1])), [scenes]);
@@ -826,23 +928,152 @@ function Blocks({ v, picked, setPicked, onShowYaml }: { v: View; picked: string 
   );
   const selRef = useRef(selected);
   selRef.current = selected;
+  const canEdit = ed.enabled && !ed.busy;
+  // The step of a key, as an edit names it (scene, index, guard).
+  const refOf = useCallback(
+    (key: string | null): (StepRef & { locked: boolean }) | null => {
+      const o = key === null ? undefined : order[index.get(key) ?? -1];
+      const st = o ? scenes.find((s) => s.id === o.scene)?.steps.find((x) => x.key === key) : undefined;
+      return o && st && st.guard !== undefined ? { scene: o.scene, index: st.index, guard: st.guard, locked: st.locked !== undefined } : null;
+    },
+    [order, index, scenes],
+  );
+  const slots: SceneSlots[] = useMemo(() => scenes.map((s) => ({ id: s.id, count: s.steps.length, locked: s.steps_locked !== undefined })), [scenes]);
+  const edRef = useRef(ed);
+  edRef.current = ed;
+  const keyMove = useCallback(
+    (dir: -1 | 1) => {
+      const at = refOf(selRef.current);
+      if (!at || at.locked) return;
+      const to = keyboardMove(slots, at, dir);
+      if (to) edRef.current.send({ kind: 'move_step', from: { scene: at.scene, index: at.index, guard: at.guard }, to });
+      // Review B L6: a key that moves nothing says so (the live region kept the last edit's words).
+      else edRef.current.say(`Step ${at.index + 1} of ${at.scene} is already the ${dir < 0 ? 'first' : 'last'} step: it cannot move ${dir < 0 ? 'up' : 'down'}.`);
+    },
+    [refOf, slots],
+  );
+  const stepAction = useCallback(
+    (kind: 'delete_step' | 'duplicate_step') => {
+      const at = refOf(selRef.current);
+      if (at && !at.locked) edRef.current.send({ kind, at: { scene: at.scene, index: at.index, guard: at.guard } });
+    },
+    [refOf],
+  );
   const onKey = useCallback(
     (ev: KeyboardEvent<HTMLUListElement>) => {
+      // Alt+↑ / Alt+↓ move the selected step, Delete / Backspace delete it (undoable); a held key does not repeat an edit.
+      if (ev.altKey && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) {
+        ev.preventDefault();
+        if (!ev.repeat && edRef.current.enabled && !edRef.current.busy) keyMove(ev.key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && !ev.altKey && !ev.metaKey && !ev.ctrlKey) {
+        ev.preventDefault();
+        if (!ev.repeat && edRef.current.enabled && !edRef.current.busy) stepAction('delete_step');
+        return;
+      }
       const cur = selRef.current === null ? 0 : (index.get(selRef.current) ?? 0);
       const to: Record<string, number> = { ArrowDown: cur + 1, ArrowUp: cur - 1, Home: 0, End: order.length - 1, PageDown: cur + PAGE, PageUp: cur - PAGE };
       if (!(ev.key in to)) return;
       ev.preventDefault();
       go(to[ev.key], true);
     },
-    [index, order.length, go],
+    [index, order.length, go, keyMove, stepAction],
   );
+  // After an edit, its view selects the moved step / the copy / the neighbour, and the focus stays in the steps — once:
+  // the same version read again (a file event, a run ending) never takes the selection back from a step picked since.
+  const selectFor = ed.select;
+  const selectedFor = useRef<typeof selectFor>(null);
+  useEffect(() => {
+    if (!selectFor || selectFor.hash !== v.hash || selectedFor.current === selectFor) return;
+    const i = index.get(selectFor.key);
+    if (i === undefined) return;
+    selectedFor.current = selectFor;
+    go(i, document.activeElement === null || document.activeElement === document.body || !!(document.activeElement as HTMLElement).closest?.('.steps, .inspector, .edit-bar-wrap'));
+  }, [selectFor, v.hash, index, go]);
+
+  // Drag & drop (critique B11): the drag state lives in this document — a drop is acted on only for a drag that started
+  // here (never from dataTransfer contents: a drag from another site can carry the same type); anything else dragged
+  // over the blocks (a file from the Finder) is refused, so the page never navigates away.
+  const dragState = useRef<StepRef | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ scene: string; gap: number } | null>(null);
+  const dropRef = useRef(dropAt);
+  dropRef.current = dropAt;
+  const lockedScenes = useMemo(() => new Set(scenes.filter((s) => s.steps_locked !== undefined).map((s) => s.id)), [scenes]);
+  const drag: DragHandlers = useMemo(
+    () => ({
+      start: (ev, step, scene) => {
+        if (!edRef.current.enabled || edRef.current.busy || step.guard === undefined || step.locked !== undefined) {
+          ev.preventDefault();
+          return;
+        }
+        dragState.current = { scene, index: step.index, guard: step.guard };
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData(STEP_DRAG_TYPE, step.key);
+        setDragKey(step.key);
+      },
+      over: (ev, scene, gap, index) => {
+        if (!dragState.current || lockedScenes.has(scene)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.dataTransfer.dropEffect = 'move';
+        let g = typeof gap === 'number' ? gap : index;
+        if (gap === 'half') {
+          const r = ev.currentTarget.getBoundingClientRect();
+          g = ev.clientY < r.top + r.height / 2 ? index : index + 1;
+        }
+        const cur = dropRef.current;
+        if (!cur || cur.scene !== scene || cur.gap !== g) setDropAt({ scene, gap: g });
+      },
+      drop: (ev) => {
+        const from = dragState.current;
+        const at = dropRef.current;
+        if (!from) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        dragState.current = null;
+        setDragKey(null);
+        setDropAt(null);
+        if (!at) return;
+        const to = dropMove(from, { scene: at.scene, index: at.gap });
+        if (to) edRef.current.send({ kind: 'move_step', from, to });
+      },
+      end: () => {
+        dragState.current = null;
+        setDragKey(null);
+        setDropAt(null);
+      },
+    }),
+    [lockedScenes],
+  );
+  useEffect(() => {
+    const over = (e: globalThis.DragEvent) => {
+      if (dragState.current) {
+        // Review B L5: over anything but a place to drop (rows stop the event), the insertion line goes away.
+        if (dropRef.current) setDropAt(null);
+        return;
+      }
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+    };
+    const dropped = (e: globalThis.DragEvent) => {
+      if (!dragState.current) e.preventDefault();
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', dropped);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('drop', dropped);
+    };
+  }, []);
   const sel = selected === null ? undefined : order[index.get(selected)!];
   const scene = sel ? scenes.find((s) => s.id === sel.scene) : undefined;
   const step = scene?.steps.find((s) => s.key === selected);
   const issues = allIssues(v);
   return (
     <div className="scenario-grid">
-      <div className="blocks" data-testid="blocks">
+      <div className="blocks" data-testid="blocks" aria-busy={ed.busy}>
         {!v.blocks.parsed && (
           <Notice tone="danger" role="alert" title="This file is not valid YAML">
             <p>The YAML tab shows the text and where it breaks.</p>
@@ -860,11 +1091,59 @@ function Blocks({ v, picked, setPicked, onShowYaml }: { v: View; picked: string 
         )}
         <VideoCard v={v} />
         <HooksStrip v={v} />
+        {ed.enabled && (
+          <div className="steps-edit-head">
+            <p id="steps-keys" className="muted small steps-keys">
+              Drag a step by its grip, or select it and press Alt+↑ / Alt+↓ to move it; Delete removes it; the inspector changes its values. ⌘Z / Ctrl+Z
+              undoes.
+            </p>
+            {forms && !palette && (
+              <button type="button" className="button small" data-testid="palette-open" onClick={() => setPalette(true)}>
+                Add a step…
+              </button>
+            )}
+          </div>
+        )}
+        {ed.enabled && forms && palette && <Palette forms={forms} scenes={scenes} selected={step && scene ? { scene, step } : null} ed={ed} onClose={() => setPalette(false)} />}
         {v.blocks.entries.map((e) => (
-          <Entry key={`${e.type}-${e.index}`} e={e} v={v} sceneNo={sceneNo.get(e.index)} selected={selected} optIds={optIds} onPick={onPick} onKey={onKey} listRef={listRef} firstScene={scenes[0]?.id ?? null} />
+          <Entry
+            key={`${e.type}-${e.index}`}
+            e={e}
+            v={v}
+            sceneNo={sceneNo.get(e.index)}
+            selected={selected}
+            optIds={optIds}
+            onPick={onPick}
+            onKey={onKey}
+            listRef={listRef}
+            firstScene={scenes[0]?.id ?? null}
+            canEdit={canEdit}
+            dropAt={dropAt}
+            dragKey={dragKey}
+            drag={drag}
+          />
         ))}
       </div>
-      <Inspector v={v} scene={scene} step={step} onShowYaml={onShowYaml} />
+      <Inspector
+        v={v}
+        scene={scene}
+        step={step}
+        onShowYaml={onShowYaml}
+        editing={ed.enabled}
+        form={step && scene && ed.enabled && forms && step.form && step.locked === undefined ? <StepForm key={step.key} forms={forms} scene={scene} step={step} ed={ed} /> : null}
+        actions={
+          step && scene && ed.enabled ? (
+            <StepActions
+              disabled={!canEdit || step.locked !== undefined}
+              locked={step.locked}
+              up={keyboardMove(slots, { scene: scene.id, index: step.index }, -1) !== null}
+              down={keyboardMove(slots, { scene: scene.id, index: step.index }, 1) !== null}
+              onMove={keyMove}
+              onAction={stepAction}
+            />
+          ) : null
+        }
+      />
     </div>
   );
 }
@@ -925,6 +1204,28 @@ function useLiveRun(slug: string, runningId: string | null, onEnded: () => void)
   return [live, progress];
 }
 
+/** The step forms (scenario_forms): static, read once per page; null until they are here (forms and palette hidden). */
+let formsOnce: Promise<StepForms> | null = null;
+function useStepForms(): StepForms | null {
+  const [forms, setForms] = useState<StepForms | null>(null);
+  useEffect(() => {
+    let live = true;
+    formsOnce ??= call<StepForms>('scenario_forms', {});
+    formsOnce.then(
+      (f) => {
+        if (live) setForms(f);
+      },
+      () => {
+        formsOnce = null;
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return forms;
+}
+
 export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string; tab: ScenarioTab }) {
   const [pick, setPick] = useState<string | undefined>(undefined);
   const [view, reload] = useCall<View>('scenario_blocks', { project: slug, name, ...(pick ? { run: pick } : {}) }, `${slug}/${name}`);
@@ -949,7 +1250,12 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     },
     [slug, name],
   );
+  // Critique B7: while the YAML tab holds unsaved text, block edits are off (they would make its base stale).
+  const yamlDraft = useDirty(scenarioKey(slug, name));
+  // The Blocks tab's step edits (L4.3 part 2): kept across tab switches; a YAML save clears their history.
+  const ed = useStepEditor(slug, name, view.state === 'ready' ? view.data : null, yamlDraft, reload, tab === 'blocks');
   const fetchThumbs = useCallback((run: string, keys: string[], signal: AbortSignal) => call<ThumbAnswer>('run_thumbs', { project: slug, run, keys }, { signal }), [slug]);
+  const forms = useStepForms();
 
   if (view.state === 'loading') {
     return (
@@ -1004,10 +1310,19 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
               <SourceBar v={v} pick={pick} onPick={setPick} />
               <RunActions v={v} slug={slug} name={name} busy={v.running !== null || (live !== null && !live.finished)} onSubmitted={reload} />
             </div>
-            <Blocks v={v} picked={picked} setPicked={setPicked} onShowYaml={onShowYaml} />
+            {yamlDraft && (
+              <Notice tone="info" role="note" title="Unsaved YAML changes">
+                <p data-testid="yaml-draft-open">
+                  The blocks show the file on disk. Block editing stays off until you save or discard your changes in the{' '}
+                  <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })}>YAML tab</a>.
+                </p>
+              </Notice>
+            )}
+            <EditBar ed={ed} />
+            <Blocks v={v} picked={picked} setPicked={setPicked} onShowYaml={onShowYaml} ed={ed} forms={forms} />
           </>
         ) : (
-          <YamlView v={v} focus={focus} issues={allIssues(v)} />
+          <YamlTab v={v} slug={slug} name={name} focus={focus} issues={allIssues(v)} reload={reload} onSaved={ed.ownSave} />
         )}
       </ThumbsProvider>
     </div>

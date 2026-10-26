@@ -17,6 +17,9 @@ import type { DestructiveOptions } from './destructive.js';
 import { destructiveReason, hookApprovalReason, hookKind, sqlSource } from './destructive.js';
 import type { IssuePath } from './issues.js';
 import { scenePageEntries } from './pages.js';
+import { stepGuard, stepsDashWhy, stepsLockedWhy } from './step-edits.js';
+import { stepFormValues } from './step-forms.js';
+import type { StepFormValues } from './step-forms.js';
 import { parseScenario } from './scenario.js';
 import { isSceneValue, scenarioIdentityOfValue } from './step-match.js';
 import type { SceneIdentity } from './step-match.js';
@@ -95,6 +98,15 @@ export interface StepBlock {
   comment?: string;
   /** Written as a YAML alias (`- *x`): its range is the alias's, and L4.3 never edits through it. */
   aliased?: true;
+  /** core stepGuard of the step as written (modifiers included): what a block edit names it by (L4.3, critique B2). */
+  guard?: string;
+  /** Why the Blocks tab cannot move, delete or duplicate it (an alias, a flow list of steps): edited in the YAML tab. */
+  locked?: string;
+  /**
+   * Its values for the inspector's form (L4.3 part 3, step-forms.ts): object form, a URL with a password never shown;
+   * absent for a step a form does not edit (not one action, `eval` / `emit` / `cursor`).
+   */
+  form?: StepFormValues;
   issues: ValidationIssue[];
 }
 
@@ -141,6 +153,8 @@ export interface SceneBlock {
   /** Hash of the scene's page, open, pages and persona (core step-match). */
   context: string;
   steps: StepBlock[];
+  /** Why no step can be moved into or out of it (its steps written as an alias or a flow list), L4.3. */
+  steps_locked?: string;
   comment?: string;
   range?: SourceRange;
   aliased?: true;
@@ -770,10 +784,17 @@ function hookBlocks(phase: 'setup' | 'teardown', list: unknown, seq: At, src: Sr
   });
 }
 
-function stepBlock(raw: unknown, index: number, sceneId: string, seq: At, src: Src, sceneIrreversible: boolean): StepBlock {
+/** A step's form values as a block field (absent when a form does not edit it). */
+function withForm(raw: unknown): { form?: StepFormValues } {
+  const form = stepFormValues(raw);
+  return form ? { form } : {};
+}
+
+function stepBlock(raw: unknown, index: number, sceneId: string, seq: At, src: Src, sceneIrreversible: boolean, stepsLocked: string | undefined): StepBlock {
   const at = childAt(seq, index);
   const comment = commentOf(seq, at, index);
   const range = rangeOf(at, src);
+  const locked = stepsLocked ?? (at.aliased ? 'written as a YAML alias: edit it in the YAML tab' : undefined);
   const base = {
     key: `${sceneId}.${index}`,
     index,
@@ -782,6 +803,9 @@ function stepBlock(raw: unknown, index: number, sceneId: string, seq: At, src: S
     ...(range ? { range } : {}),
     ...(comment !== undefined ? { comment } : {}),
     ...(at.aliased ? { aliased: true as const } : {}),
+    guard: stepGuard(raw),
+    ...(locked !== undefined ? { locked } : {}),
+    ...withForm(raw),
     issues: [] as ValidationIssue[],
   };
   if (!isObj(raw)) return { ...base, category: 'unknown', label: 'not a step (a step is a mapping with one action)' };
@@ -882,7 +906,8 @@ function entryBlock(entry: unknown, index: number, scenes: At, src: Src, page: s
   const sceneId = entry.id;
   const irreversible = entry.irreversible === true;
   const stepsAt = childAt(at, 'steps');
-  const steps = (Array.isArray(entry.steps) ? entry.steps : []).map((raw, i) => stepBlock(raw, i, sceneId, stepsAt, src, irreversible));
+  const stepsLocked = stepsLockedWhy(stepsAt.node, stepsAt.aliased) ?? stepsDashWhy(src.text, stepsAt.node);
+  const steps = (Array.isArray(entry.steps) ? entry.steps : []).map((raw, i) => stepBlock(raw, i, sceneId, stepsAt, src, irreversible, stepsLocked));
   const pages = pagesOf(entry.pages);
   const open = str(entry.open);
   const caption = captionOf(entry.caption);
@@ -912,6 +937,7 @@ function entryBlock(entry: unknown, index: number, scenes: At, src: Src, page: s
     ...(str(entry.note) !== undefined ? { note: entry.note as string } : {}),
     context: '',
     steps,
+    ...(stepsLocked !== undefined ? { steps_locked: stepsLocked } : {}),
   };
 }
 

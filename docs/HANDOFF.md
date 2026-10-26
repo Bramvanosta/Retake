@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-26, end of lot **L5.6 (capture reliability)**, after L5.5 (edit without re-capture) — phases 1–3
-are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the
-field-feedback lots L5.7 then L5.8 — decided 2026-10-26 after the first real use (`docs/FIELD-FEEDBACK-1.md`); L4.3
-resumes after them (its part 1 is parked on `wip/l4.3-part1`).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-26, end of lot **L4.3 (blocks editing, two-way YAML, drag & drop)**, after L5.5 and L5.6 —
+phases 1–3 are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the
+field-feedback lots L5.7 then L5.8 (decided 2026-10-26, `docs/FIELD-FEEDBACK-1.md`); L4.3 was finished in a worktree
+at the user's request meanwhile.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -25,12 +25,25 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-95); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-97); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.2)
+## State (after L4.3)
+- **L4.3 done (2026-10-26)**: the Studio's scenario screen edits a scenario. Blocks and YAML are two-way: every save is
+  a minimal text splice (or a yaml CST scalar edit) that keeps comments, quoting, blank lines and line endings, and is
+  verified by re-parsing (the new value must equal the intended one). Steps move (drag & drop or Alt+↑/↓, across
+  scenes), are duplicated, deleted, edited in inspector forms (scalar fields + a flat target, empty optional fields
+  folded) or added from a palette of 15 actions; undo / redo restore the exact bytes; the YAML tab is editable with
+  conflict and changed-on-disk flows. One write path (`scenario_edit`, agent trust worded "from the Studio"): hooks,
+  and `vars` / `env` when the file has hooks or mocks, never change from the Studio; every `if_match` write (MCP,
+  README, Studio) holds a cross-process lock. Also fixed: `job_status` of a preview job now returns its `stills` like
+  the preview tools (a slow preview broke the phase-3 acceptance under load). Tests on the Mac: **3019 — 2966 pass, 50
+  skipped, 3 timing failures under load 15–32** (two pass alone; run.test's "an AbortSignal cancels the run" fails the
+  same way on main 2f1813a at that load — see Notes from L4.3); `pnpm test:slow` 56/58 then the two phase-3 preview
+  failures explained and fixed (phase3-acceptance 20/20 alone). Requirements: 647 tracked — 569 done, 26 partial, 44
+  todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 13c.
 - **L5.6 done (2026-10-26)** — capture reliability (R-FLD-10 – R-FLD-16, all done): a take fails early, loudly and
   completely. The field's silent wrong `type` was reproduced on a new fixture page (console `/proforma`, "Pro forma
   invoices") with the old runner: `{label: Quantity (kg)}` resolved to the page's filter field **behind the modal
@@ -57,7 +70,7 @@ automatically with themeable components, and let Claude operate everything throu
   screenshots looked at. Tests on the Mac (on top of L5.5): **2836 — 2786 pass, 50 skipped (≈ 15 min)**; one test failed under another
   project's load (1-min load 21) and passes alone (the kit's debug-cursor style); `pnpm test:slow` 58/58 (≈ 18 min). The
   filmed-part fingerprint of L5.5 counts `retry_click` and leaves out `defaults` and `capture.step_shots`.
-  Requirements: 646 tracked — 567 done, 26 partial, 45 todo, 8 n/a-here. Follow-ups BL-92 – BL-94 (next free id BL-95). For L5.7: step pictures come from `frames/` (copied before
+  Requirements: 646 tracked — 567 done, 26 partial, 45 todo, 8 n/a-here. Follow-ups BL-92 – BL-94 (then BL-95 / BL-96 for L4.3; next free id BL-97). For L5.7: step pictures come from `frames/` (copied before
   `keep_frames: false` removes them).
 - **Field feedback 1 (2026-10-26)**: the first real use of the tool (three internal videos of a real two-sided B2B
   product, about four minutes each, filmed in two languages) was triaged in `docs/FIELD-FEEDBACK-1.md`: four lots
@@ -1087,6 +1100,17 @@ into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: ste
   `src/index-db/`, storage `readContained`; mcp `src/http.ts` (one `wireServer` for stdio and HTTP); new `packages/ui`
   (server, ops incl. `projects_overview`, app); cli `commands/ui.ts`, `mcp --http`. Cuts: BL-79. 2593 tests: 2545 pass,
   48 skipped; test:slow 56/56. No new external dependency (zod and playwright-core reused).
+- **L4.3 done** (blocks editing; R-UI-11, R-UI-12 done). Planned with probes (whole-file re-serialisation is lossy:
+  0/12 byte-exact; text splices exact), criticised (lost updates between two writers with the same hash; a re-apply
+  after a 409 reverting another writer's field; agent trust overclaimed; undo not byte-exact), built in four parts in a
+  worktree while another session worked on main (write path + YAML tab; step moves / DnD / undo; value edits / forms /
+  palette; acceptance + docs), rebased on L5.6, reviewed by two reviewers (hooks bypass through `vars`; a case-variant
+  name escaping the lock; a lone CR turning into a hidden step; step_now lost after a cross-scene move; forms removing
+  untouched empty values; a flow-map key removal dropping a comment…) and fixed with 28 mutation-checked tests (≈ 55k
+  fuzzed edits: 0 value mismatches, undo always byte-exact). Files: core `scenario-edit.ts`, `step-edits.ts`,
+  `step-forms.ts`; engine `project-lock.ts`, storage write lock, `scenarios.edit`; ui `YamlTab.tsx`, `StepEditing.tsx`,
+  `StepForm.tsx`, `forms.ts`, `TextEditing.tsx`; mcp `job_status` preview stills. Cuts: BL-95 (and BL-96: the CLI's
+  writers take no write lock). No new dependency.
 - **L4.2 done** (scenario as blocks; R-UI-08/09/10/13/14 done, R-UI-15 partial — "Open timeline" is L4.5). Planned,
   criticised with probes (re-reading the view on every run step; a capture refused only after the click; the last
   step's seek past the video; fingerprints blind to `on:` and scene pages; the Studio's worker inheriting its env),
@@ -1327,6 +1351,19 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.3:
+- `scenario_edit` is the only Studio write path; every kind (replace_text, restore, move / delete / duplicate, set_step,
+  insert_step) is verified by re-parse (value equals the intended one) and refused otherwise. `restore` accepts only a
+  version the engine showed or wrote. Hidden characters are kept only on lines identical to the base file.
+- From the Studio, hooks never change, and neither do `vars` / `env` while the file has hooks or mocks (hooks read
+  them); a scenario that is a link outside `scenarios/` or holds a lone CR is read-only there. A Studio dry run skips
+  hooks: scenarios like quote need their state prepared first.
+- Every `if_match` write holds `.demo-studio/locks/write-*.lock` keyed on the real path (the CLI's own writers do not:
+  BL-96). `comments_list` returns `step_now` (the step in today's file, across scenes).
+- `run.test.ts` "an AbortSignal cancels the run…" failed every time at load 26–32 on main 2f1813a too (setup 'failed'
+  instead of 'ok'): a timing flake that load now triggers reliably — worth hardening (L5.7 touches capture timing).
+- L4.7 gained R-UI-06b (user decision): an animated preview per component in the library.
+
 Notes from L4.2:
 - Pictures are never written to disk: the server keeps a byte-bounded memory cache keyed by run id + run key, and sends
   base64 JPEG through the gated call route (`data:` URLs; the app's only `src=` is in `Thumb.tsx`).

@@ -10,7 +10,7 @@ import { call, useConnection } from './api.js';
 import { useEventMode, useEvents } from './events.js';
 import type { EventMode } from './events.js';
 import type { Connection, Loaded } from './api.js';
-import { useDirty } from './drafts.js';
+import { readmeKey, useDirty } from './drafts.js';
 import { Txt } from './bits.js';
 import { hrefTo } from './route.js';
 import type { Route } from './route.js';
@@ -60,7 +60,7 @@ function NavLink({ to, current, children }: { to: Route; current: boolean; child
 
 function ProjectNav({ p, route }: { p: ProjectSummary; route: Route }) {
   const open = (route.name === 'project' || route.name === 'readme' || route.name === 'scenario') && route.slug === p.slug;
-  const dirty = useDirty(p.slug);
+  const dirty = useDirty(readmeKey(p.slug));
   return (
     <li>
       <NavLink to={{ name: 'project', slug: p.slug }} current={open && route.name === 'project'}>

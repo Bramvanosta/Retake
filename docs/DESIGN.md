@@ -1804,7 +1804,8 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   since L4.2, `run_status` without its long-poll (`wait_s` absent or 0: critique B11) — MCP tools — and
   `activity_list`, `search` — the Studio's own reads of the index — `projects_overview` — every project's environment
   flags and last run in one call, for the Projects screen — and, since L4.2, `scenario_blocks`, `run_thumbs`, the own
-  op `scenario_run` and the MCP tool `run_cancel` (§4d); `run_dry` / `run_capture` stay out (critique B11);
+  op `scenario_run` and the MCP tool `run_cancel` (§4d); since L4.3 the MCP tool `scenario_validate` and the own op
+  `scenario_edit` (§4e); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
   code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
@@ -2262,6 +2263,250 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   the thumbnails use the real one); hooks trust.test.ts (Studio wording); jobs.test.ts (`started_by` written / read
   checked); test:slow scenario-run-acceptance.test.ts (the fixture on free ports, the real worker: highlights' Dry run
   → progress → its pictures; a running dry run cancelled; the worker killed by pid at the end).
+
+## 4e. Scenario editing (L4.3)
+
+R-UI-11 / R-UI-12. Built in four parts: the write path and the editable YAML tab; the step structure edits (move,
+delete, duplicate), drag & drop, the keyboard path and undo / redo; value edits through the inspector's form and new
+steps from a palette — all on the same write path (the lot's plan and critique, B1–B11, apply here); then the
+acceptance on the fixture from the built `studio ui` (end of this section). Cut to BL-95: scenes, forms beyond scalars
+and a flat target, YAML saves in the undo history.
+
+**Write lock** (critique B1). Storage `writeText` with an `if_match` hash holds `<project>/.demo-studio/locks/
+write-<sha256 of the target's real project path, 24 hex>.lock` (engine `project-lock.ts` `takeProjectLock`: the L3.6
+TakeLock — created whole, stale only when its process is gone; busy retried every 20 ms for ≤ 3 s, then `busy`) from
+the first hash check to the rename, so two writers of one version — one process or several (`studio ui` beside
+`studio mcp`) — give exactly one success and one `conflict` (before: 221 of 300 concurrent pairs both "succeeded"). A
+write through a link and one to its target share the lock. It covers every if_match write: the Studio, MCP
+`scenario_save`, `project_update_readme`, comment threads (inside their own lock). Comments' `lockThread` uses the same
+helper. TakeLock's liveness check answers for its own process without `ps`.
+
+**Mode kept** (critique B11). The temp file of a replace is created 0600 and `chmod`ed to the replaced file's mode
+(`lstat` of the target, through an inside link the target's) — never through writeFile's `mode` (masked by the umask:
+0664 became 0644). A new file takes the umask's default.
+
+**The op** — `scenario_edit {project, name, hash, edit}` (ui `editOps`, strict zod: `edit` is
+`{kind: 'replace_text', text}` | `{kind: 'restore', text, text_hash}` | `{kind: 'move_step', from: StepAt, to: {scene,
+index}}` | `{kind: 'delete_step', at: StepAt}` | `{kind: 'duplicate_step', at: StepAt}` with `StepAt = {scene (a slug),
+index (0..100,000), guard (16 hex)}` | `{kind: 'set_step', at: StepAt, changes: [{path, from?, to?}] (1–40)}` |
+`{kind: 'insert_step', to: {scene, index}, after: guard | null, action (a palette action), values: {key: value} (≤ 40)}`
+with `path` 1–3 segments `[a-z][a-z_]*`, a value a string ≤ 10,000 characters, a finite number or a boolean (never an
+object, a list or null), text ≤ 500,000 characters, hashes 64 hex; any other key or kind is 400 before a
+read), edits of one file one at a time in a Studio server (`oneAtATime`), →
+engine `scenarios.edit(project, name, {hash, edit})` (scenarios.ts `editScenario`) with agent trust and channel
+`studio` for the `ui` client → `{name, file, path, hash, label, select, warnings, notices, change?}` (`select`: the step to
+select after a step edit; `change`: a block edit's kind under L5.5's rule — `filmed` when core `filmedChangesOf` finds a
+filmed part changed (an argument, a hold, a new / moved / deleted step: a dry run shows it, a capture films it), `edit`
+for a caption, speed or mark alone (a render of the same run re-plans it)). Steps:
+1. The file the view read: `scenarios/<name>.yaml`, else an existing `.yml` — written in place, never created
+   (`not_found`).
+2. `hash` ≠ the file's sha256 → 409 `conflict`, `details.current`.
+3. The file itself blocked (`scenarioEditBlocker`) → 403 `refused` with `details.problems [{line, message}]`: not
+   UTF-8 (getScenario now keeps `utf8`: a save would replace bytes with U+FFFD), over SCENARIO_EDIT_MAX_CHARS
+   (500,000), holding a carriage return without a line feed (review A M2: an editor — the tab's textarea included —
+   shows a line break where YAML reads none, so the file's text and what it runs differ; the tab's draft turns only CR
+   LF into LF, `crlfToLf`), or — agent clients — a symbolic link to a file of the project outside `scenarios/`
+   (`ScenarioText.linked_to`, review A L1: never written through into a hook script; MCP `scenario_save` refuses it
+   too) or holding what core agent trust refuses (a secret reference, a file out of the project, code in an
+   agent-writable file, a template folder: critique B3, the YAML tab read-only, never "delete your sign-in line to
+   save"). A name spelt with another case than the file (`QUOTE` for `quote.yaml` on a case-insensitive disk) is not
+   found (review A M1: getScenario, `scenario_save` a conflict), and the write lock is keyed on the existing file's
+   real path as the disk spells it: one file, one name, one lock.
+4. The new text: `replace_text` adds a final line break (the text's own, CR LF when it mostly uses CR LF) when
+   missing; `restore` writes the bytes as given and refuses a text whose sha256 is not `text_hash` (critique B5:
+   undo / redo byte-exact, a file without a final line break included) or that is not a version of that file this
+   process showed (getScenario) or wrote (review A L3: `knownScenarioVersion`, at most 128 hashes per file and 256
+   files, in memory) — a page cannot restore a text it made up; a step edit is spliced by core
+   `applyStepEdit` (below) and refused (403) unless `verifyEditText` finds the re-parsed text equal to the intended
+   value — a step no longer where the edit names it (its guard) is a 409 with `details.stale` (no "apply again"). ≤
+   500,000 characters.
+5. Hidden characters (critique B9, review A L2 / M2, core `newHiddenCharProblem`): controls (`\p{Cc}`) but tab, LF and
+   a CR LF's CR — a carriage return without a line feed is one —, format characters (`\p{Cf}`: direction controls,
+   zero-width, soft hyphen, U+FEFF past offset 0, interlinear annotations, tags), U+2028 / U+2029, every
+   `\p{Default_Ignorable_Code_Point}` (variation selectors, combining grapheme joiner, Khmer inherent vowels, Mongolian
+   separators, Hangul fillers) and the braille blank — a text with one on a line the file does not have word for word
+   (a new one, or one moved from a comment into a value), or with more of one than the file did (a copied line), is
+   refused (400) naming the character, its line and column; a ZWJ between two pictographs and U+FE0E / U+FE0F after an
+   emoji character are emoji sequences. A restored version (step 4) is not checked: it was on disk. `editValueProblem`
+   is the stricter rule for single form values (part 3), and a form field holding one is locked (`stepFormValues`).
+6. Hooks unchanged (critique B3, review A H1, agent clients): core `changedHookSections` compares `setup`, `teardown`,
+   `mocks` of the base and the new value by canonical JSON (an absent section = an empty one; an unparseable base: any
+   section counts as changed) → 403 "setup changed: hooks and mocks run on this Mac, so the Studio saves a scenario
+   only with them unchanged — edit them in your editor"; while the base has any hook or mock, `changedHookInputs` holds
+   its `vars` (templated into a shell line, a SQL text, an HTTP body) and `env` (where the hooks run) the same way →
+   403 "vars changed: this scenario has hooks or mocks, which read its vars and its environment and run on this Mac, so
+   the Studio saves it only with vars and env unchanged — change them in your editor" (`details.sections`). `restore`
+   is held to both.
+7. Validated against the project and its template, plus agent-trust issues placed at their lines
+   (`agentTrustProblemsAt`, critique B11: one issue per string holding a secret reference, a file reference at the
+   string naming it, a template folder at `template`) worded "from the Studio": errors → ScenarioError (400, issues
+   with line / col in `details.issues`), nothing written; warnings come back. The new text is checked `confined` to
+   the channel (review A L4, also `scenarios.validate` / `save` for agent clients): a file reference outside the
+   project is "resolves outside the project folder" without a stat, one leading out through a link "not found" — the
+   answer never tells whether a file exists outside the project (a person at a terminal still gets "not found").
+8. `writeText(file, text, {ifMatch: hash})`: atomic, under the write lock, mode kept. Core's own writers (`saveScenario`,
+   `writeTextAtomic`: a new project's files, scaffolds) take no lock — core cannot take the engine's project lock —
+   and write without `if_match` (review A note; BL-96).
+`verifyEditText(text, intended)` (core) is the verify of edits built from a value (parts 2–3): the text re-parsed with
+core `parseYaml` — a bare parseDocument misses an alias before its anchor — must deep-equal the intended value.
+`scenarios.validate` / `save` now pass the client's channel as well (they said "through MCP" to the Studio).
+
+**Step edits** (part 2; core `step-edits.ts`, pure). `applyStepEdit(text, edit) → {text, intended, label, select,
+notices}` or `StepEditError {code: stale | not_editable | invalid}`; text splices of the original (whole lines), never a
+re-serialisation — every byte outside the touched lines is the original's:
+- A step's span: its dash line (the `- ` must open the line: the item's value range read back over spaces, and over
+  an anchor, a tag or a comment between the dash and the value — review B L4: `- &s` then the keys; a dash item not
+  written plainly, `- &a<tab>{…}`, locks its scene's steps with why: `stepsDashWhy`, since an edit of a step needs its
+  neighbours' spans) to the end of its last content line (an inline comment included); plus the comment lines it owns (critique B6, by column): the
+  contiguous `#` lines just above at the dash's own column, not past the previous item's last content line nor the
+  `steps:` line, and the contiguous `#` lines just after it deeper than the dash (a commented-out modifier). Any other
+  comment (a column-0 section header) and blank lines stay put; a `#` line inside a block scalar is part of the scalar
+  (inside the node's range).
+- Move: the span removed, re-inserted before the target item's span (or after the last item's), re-indented by the
+  dash-column difference (a line less indented than its dash → refused). `to.index` is the final index (in its own
+  scene counted without it; the same place → `invalid`). The only step moved out or deleted leaves ` []` after the
+  `steps:` colon; into `steps: []` the flow `[]` is cut (what follows on its line — an inline comment — kept) and a
+  block list written under the key at the source's indentation relative to its own key.
+- Delete: the span removed (notice "Its comment lines went with it." when it owned some). Duplicate (critique B8): the
+  step's own lines (not its comments — nor a comment line after its last value that the node's range takes in: the
+  copy ends at its last scalar or flow collection) after its span, without `id` (ids are unique) and `mark` (one moment), and a
+  capture's `as` (capture_text, download, wait_for_email) suffixed with the first free `-2`, `-3`… (inserted before
+  the closing quote of a quoted value); each a notice. A step defining an anchor is not duplicated (the anchor would be
+  defined twice).
+- Final line break state kept (a block appended after a last line without one gets the break first; a removal
+  leaving one where the file had none drops it); the file's line break (CR LF kept); a BOM stays.
+- Refused (`not_editable`, with why, also on the view): a step or scene or `steps` written as an alias, a non-empty
+  flow list of steps, a file that is not valid YAML. An anchor moved after its alias, a keep-chomped scalar losing a
+  trailing blank line, anything unforeseen: the verify refuses it.
+- Guard (critique B2): `stepGuard(raw)` = sha256 of the step's canonical JSON as written (modifiers included: a caption
+  change changes it; fingerprints leave modifiers out), 16 hex. Every addressed step must have it, so an edit re-sent on
+  a newer version applies only if that place still holds that very step.
+Goldens: every step of the fixture's scenarios moved to every place in its scene and to the start / end of every
+other scene, deleted and duplicated — value exact, every line kept, moves reversible to the byte (2,368 edits on 13
+files). Outside the goldens a move back by hand gives the same value but not always the same bytes (review B fuzz:
+about 2 % — a blank line or a column-0 comment does not travel with a step, `steps: [ ]` comes back as `steps: []`);
+undo is byte-exact (`restore`).
+
+**Forms** (part 3; core `step-forms.ts`, pure). `stepForms()` → `{actions: ActionForm[], modifiers, palette}` derived
+once from `z.toJSONSchema(ACTION_ARG_SCHEMAS[a])` (the conversion of the published schema): an object branch's
+properties become fields `{key (dotted path from the step: "type.into.label"), label, kind: text | number | integer |
+boolean | enum, required?, options?, min? / exclusive_min? / max?, min_length?, pattern?, description?, group?}`; a
+property that is a TargetSpec (by its `$defs` name) becomes a group of flat target fields (text, role, name, label,
+aria, placeholder, css, testid, `in` — the ScopeSpec keywords —, nth, exact), a click / hover's own target keys too;
+a union takes its first plain scalar branch (`scroll.to` a number); lists, points, nested targets, `contains`,
+`last_visible`, `in` as a row → `yaml_only` (critique C2). Modifiers: caption.text / caption.kicker (group `caption`),
+hold, speed, mark. `eval`, `emit`, `cursor` take no form. Palette (critique C3, `PALETTE_ACTIONS`): open, click,
+double click, hover, type, press, select, wait, wait for, hold, screenshot, scroll, menu, date, notify; `defaults`: a
+required number 1 (or its minimum), a required text empty. `stepFormValues(raw)` → `{action, values, locked, yaml_only}`:
+each field read in object form (a shorthand reads as the field it means — normalizeStep for the action, normalizeTarget
+for a target, `{text}` for a caption); a value of the wrong kind or a non-scalar → `locked` with why, a URL with
+`user@` → locked ("sign-in details"), never in `values`; on each `StepBlock` as `form`.
+
+**Value edits** (part 3; core `step-edits.ts` `set_step` / `insert_step`, critique B2 / B4). Each change must name a
+form field of the step's action (else `invalid`), not a locked one, with a value of its kind and — strings — no hidden
+character, line break or more than 10,000 characters (`editValueProblem`, critique B9; refused naming the field:
+`StepEditError.field` → `details.field`); `from` must deep-equal what the step holds there now (else `stale` naming the
+field and its value now: a field changed meanwhile is never reverted; the step's guard still names the step). Each
+change becomes one raw operation, applied to the text one by one, each re-parsed and checked against the whole file's
+intended value: `scalar` — yaml's `CST.setScalarValue` on the node's source token (its quoting and comments kept),
+again as `QUOTE_DOUBLE` (a number / yes-no: `PLAIN`) when the re-parse differs (`123`, `yes`, `a, b` in a flow map);
+`replace` — a shorthand that must become an object, a flow map rendered by yaml in its place; `add` — `, key: value`
+after a flow map's last pair, or one `key: value` line after a block map's last line at its key column (the file's
+line break); `remove` — the pair with its comment lines (pairRemoval), a target or caption left empty going with it,
+the action's last value refused; in a flow map, refused (`not_editable`) when what lies between the tokens — a scalar
+value's own characters left out — holds a comment or a line break (review B M3: the comment belongs to a key that
+stays). A shorthand is kept when the new object still reads as that one field and the
+schema takes the scalar (`shorthandOf`: never `type: x`); then the step's form values must equal the shown ones with
+the changes (a text that looks like CSS is written `{text: "#x"}`, never as a shorthand that would read as css). A
+file without a final line break keeps it so. `insert_step`: `newStepValue(action, values)` (palette actions, known
+fields, kinds, B9, required ones) in field order, one-value targets and the action as their shorthand when that reads
+the same; rendered by yaml as `- action: <flow>` when ≤ 120 characters, else a block; inserted with the move's
+insertion (indentation, `steps: []`, CR LF); `after` must be the guard of the step before that place (null at 0), else
+`stale`. Goldens: every value field of every fixture step given a new value — exactly its own line changes (its node's
+line in the original); one removal and one added modifier per step; palette steps at the start, middle and end of
+every scene (one line); fixture steps → form values → `newStepValue` → the same arguments; a hostile corpus of 29
+YAML-syntax values on four kinds of scalar, an added key and a new step (values stay values, one line each).
+
+**The form and the palette** (ui `StepForm.tsx`, `forms.ts` pure and unit-tested; `scenario_forms` read once per page).
+The inspector shows the selected step's form under its edit buttons (editing on, the step not locked): its fields
+(target groups folded while empty, the modifiers after the action's own fields — a hold step's seconds first; the empty
+optional fields of each part folded under "More: clear, enter" — a set target's other keys under "Other ways to find
+it (n)" —, decided by the file's values so a field never moves while it is typed in; `click: {aria: Increase, in:
+dialog}` shows 4 of its 23 fields until a fold is opened), locked fields read-only with why, "Also in this step, edited
+in the YAML tab: …"; each input checked with its field's rules before sending (a number and its bounds, a whole number,
+a pattern, one line, its options; a group's required field only once the group has a value; `aria-invalid` + the
+error under the field); **Save** sends `set_step` with the fields whose input differs from what it showed only (each
+with the value shown — review B M2: an untouched `""` read as not set was a removal; an empty input of a text field
+that holds `""` and allows it reads as `""`, so `type: {text: "", clear: true}` needs no value); a server refusal shows
+at its field (`details.field`, or an issue's path inside the step: `issueField`). The form resets when the step
+changes on disk (its guard), saying so and listing what was typed (`form-dropped`) when it held changes. **Add a step…** opens the palette: the 15
+actions, the chosen one's form with its defaults, **Where** (after the selected step, the start / end of each scene),
+**Add** → `insert_step`. After a form's save the live region adds the change's kind ("What the browser does changed: a
+dry run shows it, a capture films it." / "Only the edit changed: a render of the last capture shows it, no new capture
+needed."). "Apply it to the new version" after a 409 (forms.ts `editAgain`): a form's changes go to the same step found
+again by its fingerprint and which of the scene's steps with it — only while the scene has as many steps with that
+fingerprint as before (review A L5: a fingerprint leaves modifiers out, so a deleted twin made the nth the next one) —
+(its new guard; the server applies each change only while that field holds what the form showed), a new step after the
+same step by its guard; moves as before. Off, with why (`edit-conflict-off`), when the new version turns block
+editing off (review B L9).
+
+**Blocks** (core blocks.ts, part 2): `StepBlock.guard`, `StepBlock.locked` (why: an alias, a flow list), and
+`SceneBlock.steps_locked`. **Moved** (core `movedSteps`, scenario-view): in each scene, the bound steps whose run index
+is not in the longest increasing subsequence of the scene's run indexes (today's order) get `moved: true` — the picture
+stays, the row says "moved since this run" and the inspector "the picture shows it at its old place".
+
+**The Blocks tab** (ui `StepEditing.tsx` `useStepEditor` + `EditBar`, `step-edit.ts` pure — `keyboardMove`,
+`dropMove`, `EditHistory`, unit-tested; ScenarioScreen.tsx): each edit is `scenario_edit` on the shown hash, then a
+re-read (non-optimistic). Input lock (critique B7): from the send until the view with the edit's hash lands, `busy` —
+rows not draggable, keys and buttons ignored, `aria-busy` on the blocks — and a held key (`repeat`) never edits.
+Editing off (no grip, nothing sent, the reason in the bar) while the YAML draft holds unsaved text or when
+`edit.blocks` is not ok. Native HTML5 DnD (no library): a grip (`aria-hidden`) on draggable rows; `dragstart` sets
+only `application/x-demo-studio-step` (never read on drop); the drag state lives in the document (critique B11): rows
+and the empty scene's zone accept a drag only when a drag started here, the insertion line by the pointer's half; a
+window listener cancels any other dragover / drop with `dropEffect = 'none'` (a file from the Finder never opens in
+place of the page). Keyboard: Alt+↑ / Alt+↓ (one place; past the scene's edge to the end / start of the previous /
+next scene that takes steps, cards skipped), Delete / Backspace; the listbox's `aria-describedby` names them; the
+inspector has Move up / Move down / Duplicate / Delete. One polite status region ("Moved step 3 of request to position
+1. Saved." + notices + warnings count; "Undone: …"; Alt+↑ on the first step / Alt+↓ on the last: "Step 1 of a is
+already the first step: it cannot move up.", review B L6); refusals in an alert with their issues. While a drag is on,
+a dragover that reaches the window (not a row or the empty scene's zone: they stop it) clears the insertion line
+(review B L5). Undo / redo: ⌘Z / Ctrl+Z,
+Shift+⌘Z / Ctrl+Y outside fields and buttons naming the edit; `restore` of the text before on the edit's hash (redo:
+the text after on the hash before), ≤ 50 entries / 16 MiB; a view with a hash this screen did not make clears the
+history with a notice (a YAML save from the same screen included, in its own words: "Saved from the YAML tab: the undo
+history of block edits was cleared.", review B L7). The bar's "Editing the blocks is off (moves, copies, deletes, forms
+and new steps): <why>". After an edit its view selects the moved step,
+the copy or the delete's neighbour — once: the same version read again (a file event, a run ending) never takes the
+selection back from a step picked since. A 409 → "Your edit (…) was not applied" with
+**Apply it to the new version** (the same op on the re-read view's hash: the guard decides) and **Leave it**; a stale
+answer is an error, never offered again.
+
+**The view's `edit`** — `{yaml: EditAbility, blocks: EditAbility}`, `EditAbility = {ok: true} | {ok: false, why,
+problems?}`: `yaml` from `scenarioEditBlocker` (computed in the text layer for agent clients); `blocks` also refused for
+a file that does not parse, has errors, or is shown truncated (2,000 steps). Said before any edit.
+
+**The YAML tab** (ui `YamlTab.tsx`; `TextEditing.tsx` holds the README editor's `DiskBanner`, `TextConflict`,
+`KeptText`): `edit.yaml` not ok → a warning with the why and each problem's line, the read-only YamlView, any unsaved
+text to copy; else the read-only view with **Edit**, which opens the editor (also directly when a draft exists). The
+editor: a textarea (LF text; the file's EOL from `detectEol` restored on save, a final line break added; maxLength and
+counter at 500,000), Save / ⌘S / Ctrl+S → `scenario_edit replace_text` with the base hash, Discard, Close (only
+without changes); live issues from `scenario_validate` 400 ms after the last keystroke, one call in flight; a save
+refused with issues lists them with their lines ("1 error in this text: nothing was written, your text is kept");
+409 → `scenario_blocks` read → the conflict panel ("Save mine over it" with the shown version's hash). The view's
+re-reads (workspace events, focus) drive "changed on disk": no unsaved text → loaded and announced; unsaved → the
+banner; a view still showing a version this tab replaced is ignored (the set of superseded hashes). Lines of the
+draft holding a hidden character are listed. Drafts (drafts.ts) are keyed `readme:<slug>` / `scenario:<slug>/<name>`;
+the session-ended page names each. While the scenario's draft holds unsaved text the Blocks tab says block editing is
+off (critique B7). The app builds no YAML: no `yaml` import, only type imports from `@demo-studio/*` (source lint).
+
+**Acceptance** (part 4): the built `studio ui` on a scratch copy of the fixture workspace, its own fixture on free
+ports, headless Chromium, on `quote`: the type step's text and speed (one save, one line), a caption (one line), a
+drag & drop, an Alt+↓, a Duplicate, a Delete and a palette `hold` — each save diffed against the version before
+(exactly the intended lines: −1/+1, −1/+1, −1/+1, −1/+1, +1, −1, +1); a Dry run of the edited file from the screen (the
+setup's effect armed by hand: a Studio dry run skips hooks) ran 26 / 26 steps with the new text, the run's
+scenario.yaml the edited bytes, and its pictures shown; seven undos → `cmp` identical with the original; a YAML tab
+save (two lines changed, the blocks showing it, the undo history cleared) reverted in the YAML tab → `cmp` identical.
+Safari / Firefox drag & drop are checked by hand (MACOS-CHECKLIST 13c).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

@@ -122,6 +122,8 @@ export function readLock(file: string): LockRecord | null {
 
 /** Does the process that wrote this lock still run? */
 export function lockAlive(rec: LockRecord): boolean {
+  // This process (a busy lock retried by another write of the same process): its start time is known — no `ps`.
+  if (rec.pid === process.pid) return !rec.started_at || !selfStart() || Math.abs(Date.parse(rec.started_at) - Date.parse(selfStart()!)) <= START_TOLERANCE_MS;
   if (signalState(rec.pid) !== 'alive') return false;
   if (!rec.started_at) return true;
   const start = processStartSync(rec.pid);

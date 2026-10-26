@@ -774,7 +774,8 @@ once `DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/d
 13b: Ctrl-C the `studio ui` terminal and the fixture (terminal 3); the worker the Studio started exits a minute after
 its last run (`DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js --root ~/ds-studio jobs` says *worker:
 not running*; else `kill <its pid>`), then the same `rm -rf ~/ds-studio ~/ds-studio-home` (the runs it made go with
-the workspace).
+the workspace). After step 13c: as after 13b (the copy `quote.orig.yaml` is in `~/ds-studio-home`); a
+fixture left with an armed proposal is reset by `curl -X POST localhost:4402/api/reset` or by stopping it.
 
 ## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
 
@@ -863,6 +864,49 @@ if you skipped it), the fixture running on its usual ports: `node fixtures/whole
   the screen; the worker gone a minute after the last run (`studio jobs`).
 - **Send back:** for each step, OK or what you saw instead (a screenshot of the scenario screen during a run and after
   it); the browsers' versions; how long the dry run and the capture took.
+
+## 13c. Editing a scenario from the Studio: blocks, drag & drop, undo, a real edit and dry run (L4.3)
+
+What the automated tests cannot reach: drag & drop and the keyboard in Safari and Firefox (the tests drive Chromium
+only), a file dropped from the Finder, and your own reading of the diffs. The workspace of 13a (`W=~/ds-studio;
+H=~/ds-studio-home`), the fixture running (terminal 3), `studio ui` as in 13b (terminal 1). First keep a copy of the
+file: `Q="$W/projects/northfield-fixture/scenarios/quote.yaml"; cp "$Q" "$H/quote.orig.yaml"`. After each save below,
+`git diff --no-index "$H/quote.orig.yaml" "$Q"` (terminal 2) shows what changed so far.
+
+1. **Drag & drop (Safari).** Open *quote* → *Blocks*. Each step has a grip (⋮⋮). Drag *select field "Grind"* (step 5
+   of *request*) onto the top half of step 4: a line shows where it goes; drop → below the blocks *Moved step 5 of
+   request to position 4. Saved.*; the diff swaps those two lines only. Drag a step into another scene: it lands there.
+2. **Keyboard and the inspector.** Select step 4 of *discover* (*wait for*), press **Alt+↓**: it moves below the hold
+   (*Moved step 4 of discover to position 5*); **Alt+↑** moves it back. Select step 1 of *discover*, press **Delete**:
+   the step is gone (one line less). Select the last *hold* of *proposal*, click **Duplicate** in the inspector: one
+   new line `- hold: 1`.
+3. **The form.** Select step 5 of *delivery* (*type*): the inspector's form shows the target's *label*, *text*, *cps*
+   and the caption fields, the rest folded (*Other ways to find it (10)*, *More: clear, enter*, *More: hold, speed,
+   mark*). Change the text and the cps, **Save**: one line changes in the diff, and the screen says *What the browser
+   does changed: a dry run shows it, a capture films it.* Change the caption of step 8 (*hold* 3.2 s): one line, *Only
+   the edit changed …*. Type `{{env:HOME}}` in a text field and save: refused at the field, *from the Studio a scenario
+   never resolves a secret …*, nothing written.
+4. **The palette.** **Add a step…** → *hold*, *seconds* 0.6, *Where* *After step 1 of request (the selected step)* →
+   **Add**: one new line `- hold: 0.6` there, its row *New since this run*.
+5. **Undo.** Press **⌘Z** until *Undo* is disabled (the buttons name each edit; the screen says *Undone: …*), then
+   `cmp "$H/quote.orig.yaml" "$Q"` → no output (the same bytes). **Shift+⌘Z** redoes the last undone edit; ⌘Z again.
+6. **A real edit and a dry run.** Change the message of step 5 of *delivery* again (step 3). A dry run from the Studio
+   skips the hooks, so do what the setup does first (terminal 2): `curl -X POST localhost:4402/api/reset; curl -X POST
+   -H 'content-type: application/json' -d '{"after_minutes":258,"note":"x"}' localhost:4402/api/quotes/auto-proposal`.
+   Click **Dry run**: the banner counts the steps, ≈ 1 min later every step shows its screenshot and step 5 of
+   *delivery* shows your new message typed. Undo (⌘Z) → `cmp` → no output.
+7. **The YAML tab.** *YAML* → **Edit**, change a scene caption, ⌘S: *Saved · …*; *Blocks* shows the new caption and
+   *Undo* is disabled (a YAML save is not in the undo history). Change it back in the YAML tab, ⌘S, `cmp` → no output.
+8. **The Finder.** Drag any file from the Finder onto the steps: nothing happens (the page stays, nothing is written).
+   While dragging a step, move the pointer over the inspector: the insertion line goes away; back over the steps, it
+   comes back. Select the first step of *discover* and press **Alt+↑** (or VoiceOver on: it is read out): *Step 1 of
+   discover is already the first step: it cannot move up.*
+9. **Firefox.** Steps 1, 2 and 5 again in Firefox (a new link from `studio ui` in terminal 2).
+
+- **Expected:** every step as written; each diff shows only the lines of the edit; `cmp` silent after every undo; the
+  page never navigates away on a drop.
+- **Send back:** for each step, OK or what you saw instead (a screenshot of anything odd, the diff that surprised you);
+  the browsers' versions.
 
 **Send everything back in one message**, numbered like the steps above.
 

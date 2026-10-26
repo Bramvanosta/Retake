@@ -13,6 +13,8 @@
  *   (without agent trust), run blockers worded for the Studio, scene URLs, the runs (picker), the source run and every
  *   step's binding to it; page text under `untrusted`. Memoised by the engine (file hash, runs' files). Plus `hints`:
  *   the scenario language's description of each action the file uses (the inspector's edit hints).
+ * - `scenario_forms` (L4.3): the step forms (core stepForms: each action's fields derived from its schema, the
+ *   modifiers, the palette) — static, read once by the scenario screen.
  * - `run_thumbs` (L4.2): base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
  *   `data:image/jpeg;base64,…` (the CSP's `img-src data:`), never stored. Not MCP tools: Claude reads files, run_status
  *   and review contact sheets.
@@ -25,7 +27,7 @@
  *   MCP tool: Claude has run_dry / run_capture.
  */
 import { z } from 'zod';
-import { ACTION_DESCRIPTIONS, PROJECT_SLUG_RE, SLUG_RE } from '@demo-studio/core';
+import { ACTION_DESCRIPTIONS, PALETTE_ACTIONS, PROJECT_SLUG_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
 import type { ActionName } from '@demo-studio/core';
 import { EngineError, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
 import type { EnvironmentView, RunListItem } from '@demo-studio/engine';
@@ -79,9 +81,72 @@ const RunInput = z.strictObject({
     .describe('The file as the screen showed it (scenario_blocks `hash`): refused (409) when the file checked is another one.'),
 });
 
+const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
+const editText = z.string().max(SCENARIO_EDIT_MAX_CHARS, `at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')} characters`);
+
+const sceneId = z.string().max(100).regex(SLUG_RE, 'a scene id of the file');
+const stepIndex = z.number().int().min(0).max(100_000);
+/** A step as the screen showed it: scene id, index, and its guard (scenario_blocks `guard`, critique B2). */
+const StepAtInput = z.strictObject({
+  scene: sceneId,
+  index: stepIndex.describe('Its index in the scene (0-based).'),
+  guard: z.string().regex(/^[0-9a-f]{16}$/, 'the step\'s guard as scenario_blocks gave it (16 hex characters)'),
+});
+
+/** A form field's value (critique B9 is checked by core, which names the field): one line of text, a number, yes / no. */
+const fieldValue = z.union([z.string().max(10_000, 'at most 10,000 characters'), z.number().finite(), z.boolean()]);
+const fieldSeg = z.string().regex(/^[a-z][a-z_]{0,39}$/, 'a field name of the form (lower-case letters and _)');
+/** A form field's key, dotted ("type.into.label"): at most three levels (a flat target). */
+const fieldKey = z.string().max(122).regex(/^[a-z][a-z_]{0,39}(\.[a-z][a-z_]{0,39}){0,2}$/, 'a field key of the form ("type.text", "click.in")');
+const FieldChangeInput = z.strictObject({
+  path: z.array(fieldSeg).min(1).max(3).describe('The field, as its key split on dots: ["type", "text"], ["caption", "text"], ["hold"].'),
+  from: fieldValue.optional().describe('The value the form showed (absent: none) — the change is applied only while the file still holds it.'),
+  to: fieldValue.optional().describe('The new value (absent: the value is removed).'),
+});
+
+const EditInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: the file scenario_blocks read (scenarios/<name>.yaml, or an existing .yml).'),
+  hash: sha256.describe('The file as the screen showed it (scenario_blocks `hash`): refused (409) when the file changed since.'),
+  edit: z
+    .discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('replace_text'), text: editText.describe('The YAML tab\'s text (a final line break is added when missing).') }),
+      z.strictObject({
+        kind: z.literal('restore'),
+        text: editText.describe('The exact text of an earlier version (undo / redo).'),
+        text_hash: sha256.describe('Its sha256: the text is written byte for byte, checked against it.'),
+      }),
+      z.strictObject({
+        kind: z.literal('move_step'),
+        from: StepAtInput,
+        to: z.strictObject({ scene: sceneId, index: stepIndex.describe('Its index in that scene once moved (in its own scene: counted without it).') }),
+      }),
+      z.strictObject({ kind: z.literal('delete_step'), at: StepAtInput }),
+      z.strictObject({ kind: z.literal('duplicate_step'), at: StepAtInput.describe('The step to copy (the copy goes right after it, without id or mark, a capture renamed).') }),
+      z.strictObject({
+        kind: z.literal('set_step'),
+        at: StepAtInput,
+        changes: z.array(FieldChangeInput).min(1).max(40).describe("The form's changed fields (scenario_forms names them)."),
+      }),
+      z.strictObject({
+        kind: z.literal('insert_step'),
+        to: z.strictObject({ scene: sceneId, index: stepIndex.describe('Its index in the scene once added.') }),
+        after: z
+          .string()
+          .regex(/^[0-9a-f]{16}$/, "the guard of the step before that place, as scenario_blocks gave it")
+          .nullable()
+          .describe('The guard of the step just before that place (null at the start of the scene).'),
+        action: z.enum(PALETTE_ACTIONS as unknown as [ActionName, ...ActionName[]]).describe('An action of the palette.'),
+        values: z.record(fieldKey, fieldValue).describe("The new step's form values (scenario_forms names the fields).").refine((v) => Object.keys(v).length <= 40, 'at most 40 values'),
+      }),
+    ])
+    .describe('One edit.'),
+});
+
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
 const OverviewInput = z.strictObject({});
+const FormsInput = z.strictObject({});
 
 /** A card's extras: environment flags and the last run (or why the project does not open). */
 export interface ProjectOverview {
@@ -174,7 +239,18 @@ export function scenarioOps(): ToolDef[] {
       return { summary: `${plural(t.thumbs.length, 'thumbnail')} of ${a.run}${t.missing.length ? `, ${t.missing.length} without one` : ''}`, data: t as unknown as Record<string, unknown> };
     },
   };
-  return [blocks, thumbs] as unknown as ToolDef[];
+  const forms: ToolDef<typeof FormsInput> = {
+    name: 'scenario_forms',
+    title: 'Step forms',
+    description: "The inspector's and the palette's forms: each action's fields (from the scenario language's schemas), the modifiers, the palette's actions.",
+    input: FormsInput,
+    annotations: READ,
+    async run() {
+      const f = stepForms();
+      return { summary: `${plural(f.actions.length, 'action')}, ${plural(f.palette.length, 'palette action')}`, data: f as unknown as Record<string, unknown> };
+    },
+  };
+  return [blocks, thumbs, forms] as unknown as ToolDef[];
 }
 
 /** What scenario_run answers: the run reserved and its job (the screen follows it with run_status and the events). */
@@ -226,8 +302,45 @@ export function runOps(): ToolDef[] {
   return [run] as unknown as ToolDef[];
 }
 
+/**
+ * scenario_edit (L4.3): the Studio's one write path for scenarios — engine scenarios.edit under the `ui` client's agent
+ * trust ("from the Studio"): the file the view read, `hash` as if_match, refused whole when the file is blocked (the
+ * view's `edit` said so first), no hidden character added, hooks and mocks unchanged, validated (errors refuse with
+ * their lines, warnings save), atomic with its mode kept, under the write lock. Edits of one file run one at a time in
+ * this server (a double click, two tabs): the second then finds the new hash and gets its 409. Not an MCP tool:
+ * Claude edits a scenario with scenario_save.
+ */
+export function editOps(): ToolDef[] {
+  const chains = new Map<string, Promise<unknown>>();
+  const oneAtATime = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
+    const tail = next.catch(() => undefined);
+    chains.set(key, tail);
+    void tail.then(() => {
+      if (chains.get(key) === tail) chains.delete(key);
+    });
+    return next;
+  };
+  const edit: ToolDef<typeof EditInput> = {
+    name: 'scenario_edit',
+    title: 'Edit a scenario from the Studio',
+    description: "Apply one edit (the YAML tab's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette) to a scenario, on the version the screen showed.",
+    input: EditInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    async run(a, { engine }) {
+      const r = await oneAtATime(`${a.project}\0${a.name}`, () => engine.scenarios.edit(a.project, a.name, { hash: a.hash, edit: a.edit }));
+      return {
+        summary: `${r.label}: ${r.file} (hash ${r.hash})${r.warnings.length ? ` with ${plural(r.warnings.length, 'warning')}` : ''}`,
+        data: r as unknown as Record<string, unknown>,
+      };
+    },
+  };
+  return [edit] as unknown as ToolDef[];
+}
+
 /** The names of the Studio's own ops (not MCP tools). */
 export const INDEX_OPS = ['activity_list', 'search'] as const;
-export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs'] as const;
+export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] as const;
 export const RUN_OPS = ['scenario_run'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS] as const;
+export const EDIT_OPS = ['scenario_edit'] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS] as const;

@@ -17,6 +17,7 @@ import { ulid } from './ids.js';
 import { RENDER_ID_RE, RUN_FOLDER_RE } from './jobs.js';
 import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
 import { normalizeStep } from './steps.js';
+import { parseYaml } from './validation/yaml-source.js';
 import { ACTION_NAMES } from './types.js';
 import type { FrameCommentAnchor } from './types.js';
 
@@ -157,6 +158,53 @@ export function scenarioStepFingerprint(scenarioText: string, scene: string, ste
   let n = 0;
   for (let i = 0; i < step; i++) if (stepFingerprint(entry.steps[i]) === fp) n++;
   return { fp, n };
+}
+
+/**
+ * Where an anchored step is in today's scenario text (L4.3, critique B10; review B M1): a thread's `step_ref` names the
+ * step's place in the run that was rendered, which a reorder (a Studio drag, an edit — into another scene too) moves.
+ * Located by its `step_id` in any scene, else by its fingerprint and occurrence (`step_fp`, `step_fp_n`) in the same
+ * scene, else by the one step anywhere with that fingerprint: "<scene>.<index>" (what page_inspect's `until` takes),
+ * null when today's text has no such step (deleted, changed, several candidates elsewhere, the anchor kept no
+ * fingerprint, the text does not parse). Undefined when the anchor names no step.
+ */
+export function locateAnchorStep(
+  scenarioText: string,
+  a: Pick<FrameCommentAnchor, 'scene' | 'step' | 'step_id' | 'step_fp' | 'step_fp_n'>,
+): string | null | undefined {
+  if (a.scene === undefined || a.step === undefined) return undefined;
+  const value = parseYaml(scenarioText).value as { scenes?: unknown } | undefined;
+  const raw = value && typeof value === 'object' ? value.scenes : undefined;
+  if (!Array.isArray(raw)) return null;
+  const scenes = raw.filter(
+    (e): e is { id: string; steps: unknown[] } => !!e && typeof e === 'object' && typeof (e as { id?: unknown }).id === 'string' && Array.isArray((e as { steps?: unknown }).steps),
+  );
+  if (a.step_id !== undefined) {
+    for (const sc of scenes) {
+      const i = sc.steps.findIndex((s) => s && typeof s === 'object' && (s as { id?: unknown }).id === a.step_id);
+      if (i >= 0) return `${sc.id}.${i}`;
+    }
+    return null;
+  }
+  if (a.step_fp === undefined) return null;
+  const own = scenes.find((sc) => sc.id === a.scene);
+  if (own) {
+    let n = a.step_fp_n ?? 0;
+    for (let i = 0; i < own.steps.length; i++) {
+      if (stepFingerprint(own.steps[i]) !== a.step_fp) continue;
+      if (n === 0) return `${own.id}.${i}`;
+      n--;
+    }
+  }
+  // Moved to another scene: the single step with that fingerprint anywhere else (two or more: which one is unknown).
+  const elsewhere: string[] = [];
+  for (const sc of scenes) {
+    if (sc === own) continue;
+    sc.steps.forEach((s, i) => {
+      if (stepFingerprint(s) === a.step_fp) elsewhere.push(`${sc.id}.${i}`);
+    });
+  }
+  return elsewhere.length === 1 ? elsewhere[0] : null;
 }
 
 // ── The thread file ─────────────────────────────────────────────────────────

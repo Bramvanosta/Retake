@@ -1009,7 +1009,8 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
   from a click). Decide per lot: approvals (L4.4: a prompt in the `studio ui` terminal or the Tauri shell's OS
-  dialog), comments (L4.6), block edits (L4.3). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
+  dialog), comments (L4.6), block edits (L4.3: decided — agent trust kept, hooks unchanged from the Studio, a file
+  holding a secret reference or an outside file read-only with why; presence for those is BL-95 / L4.4). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
   hooks need a person is refused from the Studio with the `studio run …` command (shown before the click); approving
   from the UI is BL-80 / L4.4.
 - Index-backed MCP tools (`render_list`, a search tool for Claude; BL-72 mentions `render_list`); the search over
@@ -1212,6 +1213,57 @@ frames sent and clipboard writes; ignore DOM changes the page made in the second
 When a target is missing, R-FLD-10 looks up the scene's later targets on the current page only, up to the first step
 that opens another page. An off-camera inspection of the pages the later steps open (as `page_inspect {until}` does)
 would check every remaining target of the scenario in the same failed take.
+
+### BL-95 — Blocks editing extras cut from L4.3
+*M · cut in L4.3 · builds on: L4.3, L4.4, L4.6*
+
+Cut to keep L4.3 an M (the YAML tab, step moves / duplicates / deletes with drag & drop and Alt+↑ / Alt+↓, undo / redo,
+the inspector's form and a palette of 15 actions):
+- Scene edits from the Blocks tab: moving, adding, duplicating and deleting scenes, cards and interstitials, and their
+  values (page, open, caption, speed, layout); today the YAML tab.
+- Forms beyond scalars and a flat target: lists (`steps` of a `menu`, `keys`, `files`), points, nested targets
+  (`in: {…}` as a target, `contains`, `last_visible`), the `optional` / `when` style fields a form cannot show today,
+  overlays and code (`eval`, `emit`, `cursor`); the form names them for the YAML tab.
+- YAML tab saves as entries of the Blocks undo history (today a YAML save clears it — undone in the YAML tab).
+- Drag & drop in WebKit and Firefox in the automated suite (checked by hand: MACOS-CHECKLIST 13c); a pointer-only
+  drag fallback if a browser's native drag misbehaves.
+- Person presence for files the Studio does not write (a secret reference, an outside file: read-only with why) and for
+  hook edits from the Studio (today refused: "hooks unchanged") — the L4.4 decision (BL-79), not a structural rule (a
+  "moved or deleted, never edited" rule still lets a page script move a secret-typing step onto another page).
+- Duplicating a step makes (fingerprint, n) of later identical steps name another one: a comment anchored on such a
+  step locates the first copy (L4.6's locator by `step_id` first).
+
+Residues documented in L4.3:
+- MCP `scenario_save` can plant a hook agent trust does not refuse: a `shell:` hook that copies a private file into
+  the project (`cat ~/.ssh/… > assets/…`), a `python3 -c …` or an inline `js:` hook get no error and no trust problem
+  (only a destructive command, which needs `confirm: true`, and a URL host are caught); the person's `studio run` then
+  runs it without a prompt (author trust: only destructive hooks ask), and the Studio's own Capture refuses it (needs a
+  person). The Studio cannot write one (hooks unchanged). Closing it: an approval at run time for hooks an agent wrote
+  or changed (L4.4), e.g. a hooks digest signed by the person.
+- Closed in the L4.3 reviews: an undo that brings back a hidden character the file no longer has works (restore takes
+  only a version the Studio showed or wrote, which was on disk); a var templated into a hook can no longer be changed
+  from the Studio (vars and env are frozen while the file has a hook or a mock).
+- A hidden character on a line the file has is kept only while that line is unchanged: a form edit of another field on
+  that line (a flow map) is refused; the form locks a field that holds one.
+- A move back by hand gives the same value but not always the same bytes (about 2 % in the review's fuzz: a blank
+  line or a column-0 comment does not travel with a step); undo is byte-exact.
+- The edit's live region and errors are tested in Chromium only; VoiceOver is checked by hand (L4.9).
+
+- **Value:** The whole scenario editable from the Studio; one undo history for both tabs; edits of files holding
+  sign-in references once a person's presence can be proved.
+- **Hard parts:** Scene moves keep comment ownership and page continuity honest; forms for recursive targets without a
+  second YAML writer; proving a person's presence in a page.
+
+### BL-96 — One write lock for every writer of a project file
+*S · L4.3 review follow-up · builds on: L4.3*
+
+Every `if_match` write of a project file holds the engine's write lock (the Studio, MCP `scenario_save`, the README,
+comments). Core's own writers (`saveScenario`, `writeTextAtomic`: a new project's files, scaffolds) take none — core
+cannot take the engine's project lock — and write without `if_match`. Moving the lock (TakeLock) where core can use it,
+or routing those writes through the engine, would make every writer of a scenario or a README wait for the others.
+
+- **Value:** No write of a project file can interleave with a Studio or MCP save, whoever makes it.
+- **Hard parts:** Core stays free of the sandbox package; the CLI's writes of new files have no version to match.
 
 ## Guard-rails for planned lots (no new scope)
 

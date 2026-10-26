@@ -27,6 +27,8 @@ import { sqlSource } from './destructive.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
+import type { IssuePath } from './issues.js';
+import { locateOffset, parseYaml } from './validation/yaml-source.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
 
 /**
@@ -214,4 +216,62 @@ export function agentTrustProblems(project: { dir: string; config?: { template?:
     if (p) problems.push(`${f.where}: ${p}`);
   }
   return problems;
+}
+
+/** A problem of agentTrustProblems with where it is in the file: its data path, and line / column when known. */
+export interface PositionedTrustProblem {
+  message: string;
+  path: IssuePath;
+  line?: number;
+  col?: number;
+}
+
+/** Every string of a parsed YAML value with its path (`note` fields skipped: never templated). */
+function stringLeaves(v: unknown, path: IssuePath, out: Array<{ path: IssuePath; text: string }>): void {
+  if (typeof v === 'string') out.push({ path, text: v });
+  else if (Array.isArray(v)) v.forEach((x, i) => stringLeaves(x, [...path, i], out));
+  else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (k !== 'note') stringLeaves(x, [...path, k], out);
+}
+
+/**
+ * agentTrustProblems with where each one is in `text`, the file `sc` was parsed from (L4.3, critique B11: "line 42 uses
+ * {{env:SHOP_TOKEN}}"): one problem per string holding a secret reference (its path, line and column), a file
+ * reference at the string that names it, a template folder at `template`. The same rules; a problem that cannot be
+ * placed keeps an empty path and no line.
+ */
+export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: { via?: AgentChannel } = {}): PositionedTrustProblem[] {
+  const parsed = parseYaml(text);
+  const at = (message: string, path: IssuePath): PositionedTrustProblem => {
+    const off = path.length && parsed.value !== undefined ? locateOffset(parsed.source, path) : undefined;
+    if (off === undefined) return { message, path };
+    const { line, col } = parsed.source.lineCounter.linePos(off);
+    return { message, path, line, col };
+  };
+  const out: PositionedTrustProblem[] = [];
+  if (project.config && typeof sc.template === 'string') {
+    const t = templateRefProblem(sc.template, project.config.template, "the scenario's template", o.via);
+    if (t) out.push(at(t, ['template']));
+  }
+  const leaves: Array<{ path: IssuePath; text: string }> = [];
+  stringLeaves(parsed.value, [], leaves);
+  let placed = 0;
+  for (const leaf of leaves) {
+    const p = secretRefsProblem(collectSecretRefs(leaf.text), 'the scenario', o.via);
+    if (!p) continue;
+    out.push(at(p, leaf.path));
+    placed++;
+  }
+  if (!placed) {
+    // Never fewer refusals than agentTrustProblems: a reference the walk did not see is still reported, unplaced.
+    const p = secretRefsProblem(collectSecretRefs(sc), 'the scenario', o.via);
+    if (p) out.push({ message: p, path: [] });
+  }
+  for (const f of scenarioFileRefs(sc)) {
+    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
+    if (!p) continue;
+    const named = leaves.filter((l) => l.text === f.ref || (l.text.includes(f.ref) && f.ref.length > 2));
+    const leaf = named.find((l) => ['path', 'file', 'drop_file', 'eval', 'sql', 'js'].includes(String(l.path[l.path.length - 1]))) ?? named[0];
+    out.push(at(`${f.where}: ${p}`, leaf?.path ?? []));
+  }
+  return out;
 }

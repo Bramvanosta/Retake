@@ -25,7 +25,7 @@ const PLUGIN = join(REPO, 'skills');
 const SKILLS = ['demo-studio-component', 'demo-studio-scenario', 'demo-studio-theme'];
 
 /** Result fields a skill may name in snake_case (they are outputs, not in any input schema). */
-const RESULT_FIELDS = ['target_yaml', 'step_ref', 'dynamic_text', 'readme_hash', 'draft_lines', 'scenario_changed', 'filmed_changes', 'edit_changes'];
+const RESULT_FIELDS = ['target_yaml', 'step_ref', 'step_now', 'dynamic_text', 'readme_hash', 'draft_lines', 'scenario_changed', 'filmed_changes', 'edit_changes'];
 
 /** The tools each skill's loop must name. */
 const COVERAGE: Record<string, readonly string[]> = {

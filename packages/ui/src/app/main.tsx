@@ -70,7 +70,7 @@ function Studio() {
 }
 
 /**
- * The session ended (the server restarted or stopped answering this tab's token). Unsaved README text stays on screen,
+ * The session ended (the server restarted or stopped answering this tab's token). Unsaved text (a README, a scenario's YAML) stays on screen,
  * read-only, to copy into the new session (review B H1: the editor is gone, the text must not go with it); closing the
  * tab still asks first while there is some.
  */
@@ -89,9 +89,9 @@ function Ended() {
           <h2 id="kept-h">Your unsaved text</h2>
           <p>It was not saved. Copy it before you close this tab, then paste it into the editor of the new session.</p>
           {drafts.map((d) => (
-            <label key={d.slug} className="field">
+            <label key={d.key} className="field">
               <span className="label">
-                README.md of <Txt text={d.slug} />
+                <Txt text={d.label} />
               </span>
               <textarea className="kept" readOnly value={d.text} rows={10} data-testid="unsaved-draft" />
             </label>

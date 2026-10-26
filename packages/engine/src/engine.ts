@@ -23,8 +23,8 @@ import { listRuns, runStatus } from './runs.js';
 import type { RunStatusView, RunSummary } from './runs.js';
 import { sandboxStatus } from './sandbox.js';
 import type { SandboxStatusView } from './sandbox.js';
-import { getScenario, saveScenarioText, validateScenarioText } from './scenarios.js';
-import type { SaveResult, ScenarioText, ValidateResult } from './scenarios.js';
+import { editScenario, getScenario, saveScenarioText, validateScenarioText } from './scenarios.js';
+import type { SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
 import { draftFromScript } from './authoring.js';
 import type { ScriptDraftView } from './authoring.js';
 import { openWorkspace } from './workspace.js';
@@ -77,6 +77,7 @@ import { entitlements } from './entitlements.js';
 import type { Entitlements } from './entitlements.js';
 import { usageCounts } from './history.js';
 import type { UsageCounts } from './history.js';
+import { agentChannel } from './approvals.js';
 import type { Approver } from './approvals.js';
 import type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
 import { ensureWorker } from './jobs/spawn.js';
@@ -205,6 +206,12 @@ export interface Engine {
      */
     view(project: string, name: string, opts?: { run?: string; env?: string }): Promise<ScenarioView>;
     save(project: string, name: string, yaml: string, opts?: { ifMatch?: string | null }): Promise<SaveResult>;
+    /**
+     * One edit of a saved scenario from the Studio (L4.3, scenarios.ts editScenario): the file the view read, `hash` as
+     * if_match, the file itself not blocked (view `edit`), no hidden character added, hooks and mocks unchanged (agent
+     * clients), validated (errors refuse, warnings save) with agent trust worded for the client — atomic, mode kept.
+     */
+    edit(project: string, name: string, req: ScenarioEditRequest): Promise<ScenarioEditResult>;
     /**
      * A timecoded script table → an outline and a draft scenario (one `hold` per beat, the action as its note), validated
      * against the project (L3.3 aid; deterministic, no model call, nothing written — save with `save`).
@@ -453,6 +460,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const views = new ScenarioViews({
     ws,
     project,
+    agent: agentTrust(opts.client),
+    via: agentChannel(opts.client),
     blockers: (req) => runBlockers(submitCtx, req),
     overlay: async (slug, run) => {
       const job = await queue.ofRun(slug, run.id);
@@ -498,6 +507,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'scenarios',
         'scenarios.from_script',
         'scenarios.view',
+        'scenarios.edit',
         'runs.read',
         'runs.thumbs',
         'runs.dry',
@@ -539,7 +549,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     scenarios: {
       get: async (slug, name) => getScenario(await project(slug), name),
       // What an agent (the MCP server, the Studio app) writes is checked as the work it submits will be (core agent-trust).
-      validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: agentTrust(opts.client) }),
+      validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
       check: async (slug, name, o = {}) => {
         const p = await project(slug);
         const text = await getScenario(p, name);
@@ -548,7 +558,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...text, ok, issues, run_blockers };
       },
       view: (slug, name, o = {}) => views.view(slug, name, o),
-      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client) }),
+      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
+      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
       fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: agentTrust(opts.client) }),
     },
     runs: {

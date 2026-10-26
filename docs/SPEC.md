@@ -392,11 +392,20 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
 
 A client of the same packages (the MCP keeps working without it). Served locally by `studio ui`; the Tauri app
 (phase 5, macOS) wraps the same UI.
-- **Projects**: list, README editor, themes & component gallery (previews rendered with the project theme).
+- **Projects**: list, README editor, themes & component gallery (previews rendered with the project theme, and a short
+  animated preview per component so motion can be judged without a render).
 - **Scenario as blocks** (WYSIWYG-like, two-way with the YAML — comments and formatting preserved): scenes are cards
   (page, URL, caption, speed); steps are rows with an action icon and **badges** (click, type, navigation, scroll, zoom,
   hold, mark, caption, speed, irreversible); inline editing, drag & drop reordering; each step shows the real frame from
-  the last dry-run/capture.
+  the last dry-run/capture. Built in L4.3: the YAML tab is editable, saved with the same checks as an MCP save
+  (if_match, validation, agent trust) plus the Studio's own — hooks unchanged (and, while there are hooks, the vars and
+  env they read), no hidden character added or moved — and a file holding a secret reference is shown read-only with
+  why. Steps move (drag & drop with grips, Alt+↑/↓), duplicate and
+  delete on the Blocks tab: each edit rewrites only that step's lines, is verified by re-parsing and is undoable (⌘Z,
+  the exact earlier bytes). The inspector edits a step's values through a form derived from the scenario schema
+  (scalars and a flat target, the empty optional fields folded; the rest in the YAML tab) and a palette of 15 actions
+  adds steps: each change rewrites only its own line(s) and applies only while the field still holds what the form
+  showed. Scene edits, richer forms and YAML saves in the undo history are BL-95.
 - **Run**: dry-run with live preview of the headless browser (screencast), capture with progress. The scenario screen
   (L4.2) already starts a dry run or a capture of its scenario and cancels it, with the run's progress in a banner;
   what needs a person (hooks to approve) stays in the terminal, said before the click with the command. The live

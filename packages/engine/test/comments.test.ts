@@ -595,3 +595,30 @@ describe('frame comment store', () => {
     expect(mcp.info().features).toContain('comments');
   }, LONG);
 });
+
+describe("step_now: the anchored step in today's scenario file (L4.3, critique B10)", () => {
+  it('follows a step moved since the render, is null when it is gone or the file is missing, and absent for a frame without a step', async () => {
+    const { thread } = await add({ frame: undefined, marker: 'proposal' });
+    expect(thread.anchor).toMatchObject({ scene: 's2', step: 1, step_ref: 's2.1' });
+    const today = join(project.dir, 'scenarios', 'quote.yaml');
+    const had = existsSync(today) ? await readFile(today, 'utf8') : null;
+    const now = async () => (await listComments(project, { scenario: 'quote' })).threads.find((t) => t.id === thread.id)!.step_now;
+    try {
+      await rm(today, { force: true });
+      expect(await now()).toBeNull();
+      await mkdir(join(project.dir, 'scenarios'), { recursive: true });
+      await writeFile(today, `${SCENARIO}\n`);
+      expect(await now()).toBe('s2.1');
+      // The marked wait_for moved below the hold (a Studio drag): step_ref still says s2.1, step_now says s2.2.
+      await writeFile(today, `${SCENARIO.replace('      - wait_for: Proposal ready\n        mark: proposal\n      - hold: 2.4', '      - hold: 2.4\n      - wait_for: Proposal ready\n        mark: proposal')}\n`);
+      expect(await now()).toBe('s2.2');
+      expect((await getComment(project, thread.id)).step_now).toBe('s2.2');
+      await writeFile(today, `${SCENARIO.replace('      - wait_for: Proposal ready\n        mark: proposal\n', '')}\n`);
+      expect(await now()).toBeNull();
+      expect((await add({ frame: v1.record.frames - 1 })).thread).not.toHaveProperty('step_now');
+    } finally {
+      if (had === null) await rm(today, { force: true });
+      else await writeFile(today, had);
+    }
+  }, LONG);
+});

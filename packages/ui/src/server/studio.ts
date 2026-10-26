@@ -37,7 +37,7 @@ import type { ToolDef } from '@demo-studio/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { Live } from './live.js';
-import { OWN_OPS, indexOps, overviewOp, runOps, scenarioOps } from './ops.js';
+import { OWN_OPS, editOps, indexOps, overviewOp, runOps, scenarioOps } from './ops.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { z } from 'zod';
 
@@ -47,9 +47,10 @@ import { z } from 'zod';
  * Projects screen's cards in one call (projects_overview). L4.2: a run's status (`run_status`, without its long-poll:
  * the running banner's progress), the scenario screen's reads (scenario_blocks, run_thumbs), its Dry run / Capture
  * (`scenario_run`, an own op with pinned arguments: no sandbox, no until, no wait — critique B11) and Cancel
- * (`run_cancel`). Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
+ * (`run_cancel`). L4.3: the YAML tab's live check (`scenario_validate`, read-only) and the scenario write path
+ * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`). Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
-export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', ...OWN_OPS] as const;
+export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', ...OWN_OPS] as const;
 export type UiOp = (typeof UI_OPS)[number];
 
 /**
@@ -152,7 +153,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   });
   const getEngine = async () => engine;
   const live = await Live.start({ ws: engine.workspace, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
-  const tools = uiTools([...indexOps(live), overviewOp(), ...scenarioOps(), ...runOps()]);
+  const tools = uiTools([...indexOps(live), overviewOp(), ...scenarioOps(), ...runOps(), ...editOps()]);
   const token = newSecret();
   const codes = new BootstrapCodes();
   let port = 0;

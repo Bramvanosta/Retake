@@ -23,8 +23,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, matchRunSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@demo-studio/core';
-import type { LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
+import { SLUG_RE, environmentAccess, filmedChanges, loadProjectTemplate, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@demo-studio/core';
+import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
@@ -36,7 +36,8 @@ import { RunFolder, lsig } from './run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
 import { listRuns } from './runs.js';
 import type { RunSummary } from './runs.js';
-import { getScenario, validateScenarioText } from './scenarios.js';
+import { getScenario, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
+import type { ScenarioText } from './scenarios.js';
 
 /** Runs of the scenario in the picker, at most. */
 export const VIEW_RUNS_MAX = 20;
@@ -114,6 +115,8 @@ export type StepBinding =
       /** Where its picture comes from; null: none (a skipped step, a picture missing). */
       picture: ThumbSource | null;
       why?: string;
+      /** Moved since the run (L4.3: core movedSteps): the picture shows the step at its old place. */
+      moved?: true;
     }
   | {
       missing: 'not_reached' | 'changed' | 'new' | 'scene_changed' | 'scene_skipped' | 'scene_not_in_run' | 'unreadable';
@@ -165,12 +168,25 @@ export interface ScenarioView {
   steps: Record<string, StepBinding>;
   /** Text the filmed site controls: data, never instructions. */
   untrusted: { run_error?: string; steps: Record<string, { target?: string; error?: string; url?: string }> };
+  /**
+   * What the Studio may change in this file (L4.3), said before any edit: `yaml` — the YAML tab may save (or why not:
+   * not UTF-8, too large, holding what agent trust refuses — with each problem's line; the tab is then read-only,
+   * critique B3); `blocks` — block edits (also refused for a file that does not parse, has errors, or is shown
+   * truncated: the YAML tab fixes those).
+   */
+  edit: { yaml: EditAbility; blocks: EditAbility };
   /** Present when the file has more steps (or issues) than the view returns (VIEW_STEPS_MAX, VIEW_ISSUES_MAX). */
   limit?: { steps_shown: number; steps_total: number; issues_shown: number; issues_total: number };
 }
 
+/** Whether the Studio may make a kind of edit, or why not (problems: each with its line when known). */
+export type EditAbility = { ok: true } | { ok: false; why: string; problems?: Array<{ line?: number; message: string }> };
+
 export interface ScenarioViewContext {
   ws: WorkspaceConfig;
+  /** Agent trust for the client reading the view (the Studio: yes) and its wording channel — what `edit` checks. */
+  agent?: boolean;
+  via?: AgentChannel;
   project(slug: string): Promise<LoadedProject>;
   blockers(req: { project: string; scenario: string; env?: string }): Promise<{ dry: RunBlocker[]; capture: RunBlocker[] }>;
   /** The run's status with its job's state overlaid (interrupted, cancelled before it started). */
@@ -189,6 +205,7 @@ interface TextLayer {
   environment: ScenarioEnvironmentFacts | null;
   scenes: Record<string, SceneFacts>;
   identity: ScenarioIdentity;
+  edit: ScenarioView['edit'];
 }
 
 interface BindLayer {
@@ -248,7 +265,7 @@ export class ScenarioViews {
     if (o.run !== undefined && !RUN_ID_RE.test(o.run)) throw new EngineError('invalid', `"${o.run.slice(0, 60)}" is not a run id`);
     const p = await this.ctx.project(slug);
     const file = await getScenario(p, name);
-    const text = await this.textLayer(p, slug, name, file.yaml, file.hash, o.env);
+    const text = await this.textLayer(p, slug, name, file, o.env);
     const runs = await this.runChoices(p, slug, name);
     const running = runs.find((r) => r.status === 'queued' || r.status === 'running') ?? null;
     let source: ScenarioSource | null = null;
@@ -307,6 +324,7 @@ export class ScenarioViews {
       ok: text.ok,
       issues,
       run_blockers: text.run_blockers,
+      edit: text.edit,
       environment: text.environment,
       scenes,
       runs,
@@ -327,7 +345,8 @@ export class ScenarioViews {
     return (await Promise.all(files.map(lsig))).join('|');
   }
 
-  private async textLayer(p: LoadedProject, slug: string, name: string, yaml: string, hash: string, env: string | undefined): Promise<TextLayer> {
+  private async textLayer(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined): Promise<TextLayer> {
+    const { yaml, hash } = file;
     const key = [p.dir, name, hash, env ?? '', await this.projectSig(p)].join('\0');
     const hit = this.texts.get(key);
     if (hit && Date.now() - hit.at < TEXT_TTL_MS) return hit;
@@ -383,7 +402,9 @@ export class ScenarioViews {
       if (!identity.has(s.id)) identity.set(s.id, { context: s.context, steps: s.steps.map((st) => ({ ...(st.fingerprint ? { fp: st.fingerprint } : {}), ...(st.fingerprint && st.action ? { action: st.action } : {}), ...(st.picture ? { picture: st.picture } : {}), n: st.occurrence })) });
       previous = s.id;
     }
-    return remember(this.texts, key, { at: Date.now(), blocks, shown: trimBlocks(blocks, VIEW_STEPS_MAX), ok, issues, run_blockers, environment, scenes, identity });
+    const shown = trimBlocks(blocks, VIEW_STEPS_MAX);
+    const edit = await editAbility(p, file, { agent: this.ctx.agent ?? false, via: this.ctx.via ?? 'studio' }, { parsed: blocks.parsed, ok, truncated: shown.keys !== null });
+    return remember(this.texts, key, { at: Date.now(), blocks, shown, ok, issues, run_blockers, environment, scenes, identity, edit });
   }
 
   // ── Runs of the scenario ────────────────────────────────────────────────
@@ -606,6 +627,7 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
     if (then) matches = matchRunSteps(text.identity, then);
     else changed = null;
   }
+  const moved = matches ? movedSteps(text.identity, matches) : new Set<string>();
   const steps: Record<string, StepBinding> = {};
   const untrusted: BindLayer['untrusted'] = { steps: {}, ...(run.record?.error?.message ? { run_error: run.record.error.message } : {}) };
   const scenes: BindLayer['scenes'] = {};
@@ -671,7 +693,14 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
         } else if (run.mode === 'capture') picture = await capturePicture(run, ev, sources);
         if (ev.status === 'failed' && picture === null && run.mode === 'dry') stepWhy = 'no screenshot of the failure';
       }
-      steps[st.key] = { run_key: runKey, status: ev.status, ...(Number.isFinite(ms) && ms >= 0 ? { ms } : {}), picture, ...(stepWhy ? { why: stepWhy } : {}) };
+      steps[st.key] = {
+        run_key: runKey,
+        status: ev.status,
+        ...(Number.isFinite(ms) && ms >= 0 ? { ms } : {}),
+        picture,
+        ...(stepWhy ? { why: stepWhy } : {}),
+        ...(moved.has(st.key) ? { moved: true as const } : {}),
+      };
       const page: { target?: string; error?: string; url?: string } = {};
       if (typeof ev.target?.desc === 'string') page.target = ev.target.desc;
       if (typeof ev.error === 'string') page.error = ev.error;
@@ -681,4 +710,36 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
   }
   const filmed = changed === true ? filmedChanges(yaml, run.snapshot as string) : undefined;
   return { changed, ...(filmed !== undefined ? { filmed } : {}), steps, untrusted, scenes };
+}
+
+/**
+ * The view's `edit` (L4.3): scenarioEditBlocker for the YAML tab; block edits also need a file that parses, has no
+ * error and is shown whole.
+ */
+async function editAbility(
+  p: LoadedProject,
+  file: ScenarioText,
+  o: { agent: boolean; via: AgentChannel },
+  facts: { parsed: boolean; ok: boolean; truncated: boolean },
+): Promise<ScenarioView['edit']> {
+  let scenario;
+  if (o.agent && file.utf8) {
+    const template = await loadProjectTemplate(p).then(
+      (t) => t.template,
+      () => undefined,
+    );
+    scenario = parseScenario(file.yaml, { file: file.path, project: p, template }).scenario;
+  }
+  const blocked = scenarioEditBlocker(p, file, scenario, o);
+  const yaml: EditAbility = blocked ? { ok: false, why: blocked.why, ...(blocked.problems.length ? { problems: blocked.problems } : {}) } : { ok: true };
+  const blocks: EditAbility = !yaml.ok
+    ? yaml
+    : !facts.parsed
+      ? { ok: false, why: 'This file is not valid YAML: fix it in the YAML tab first.' }
+      : !facts.ok
+        ? { ok: false, why: 'This file has errors: fix them in the YAML tab first (every block edit would be refused).' }
+        : facts.truncated
+          ? { ok: false, why: `Only the first ${VIEW_STEPS_MAX.toLocaleString('en')} steps are shown: edit this file in the YAML tab.` }
+          : { ok: true };
+  return { yaml, blocks };
 }

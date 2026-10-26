@@ -1,5 +1,5 @@
-import { existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, realpathSync, statSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
 import type { IssuePath } from '../issues.js';
 import { brokenUnder } from '../validation/document.js';
 import type { LocatedIssue } from '../validation/located.js';
@@ -8,6 +8,12 @@ import { issue } from '../validation/located.js';
 /** Shared state of the semantic checks of one document. */
 export class CheckContext {
   readonly out: LocatedIssue[] = [];
+  /**
+   * Work an agent submits, by its channel (MCP, the Studio: review A L4): a file reference outside the directory is
+   * reported as such without looking at it, and one that leads out through a link as not found — whether a file exists
+   * outside the project is never told.
+   */
+  confined: 'mcp' | 'studio' | undefined = undefined;
 
   constructor(
     /** Issues of the structural (schema) pass: semantic checks skip broken subtrees. */
@@ -46,18 +52,28 @@ export class CheckContext {
       return;
     }
     const abs = resolve(dir, rel);
+    const where = dir === this.projectDir ? this.dirLabel : dir;
+    if (this.confined && (isAbsolute(rel) || !isInside(dir, abs))) {
+      // agent-trust projectFileProblem's words (that check needs a scenario that parses: this one runs first).
+      this.out.push(issue('error', path, `${what} "${rel}" resolves outside ${where} folder: ${this.confined === 'studio' ? 'from the Studio' : 'through MCP'} only files of the project folder are read`));
+      return;
+    }
     let isFile = false;
     try {
-      isFile = existsSync(abs) && statSync(abs).isFile();
+      isFile = existsSync(abs) && statSync(abs).isFile() && (!this.confined || isInside(realpathSync(dir), realpathSync(abs)));
     } catch {
       isFile = false;
     }
     if (!isFile) {
       const consequence = severity === 'warning' ? ' (it will fail when it runs)' : '';
-      const where = dir === this.projectDir ? this.dirLabel : dir;
       this.out.push(issue(severity, path, `${what} "${rel}" not found in ${where}${consequence}`));
     }
   }
+}
+
+function isInside(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 export function isObj(v: unknown): v is Record<string, unknown> {

@@ -182,7 +182,9 @@ export const jobStatus = defineTool({
         ...(job.result?.kind === 'preview' ? [`preview images in ${job.result.dir} (shown below)`] : []),
         ...(job.result?.kind === 'export' ? [...job.result.outputs.map((o) => `${o.format} (${o.method}): ${o.file}`), `manifest: ${job.result.manifest}`, ...(job.result.failed.length ? [`failed: ${job.result.failed.join(', ')} (messages in result.untrusted.failures)`] : [])] : []),
       ].join('\n'),
-      data: { ...jobData(job), ...(position ? { queue: position } : {}) },
+      // A finished preview: its folder and stills where template_preview / component_preview put them (a client reads
+      // `stills` whichever tool answered).
+      data: { ...jobData(job), ...(job.state === 'succeeded' && job.result?.kind === 'preview' ? { dir: job.result.dir, stills: job.result.images } : {}), ...(position ? { queue: position } : {}) },
       // A finished preview's stills (component_preview / template_preview that outlived their wait).
       ...(previewImages(job).length ? { images: previewImages(job) } : {}),
     };

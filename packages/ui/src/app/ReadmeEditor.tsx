@@ -23,10 +23,11 @@ import type { ProjectView } from '@demo-studio/engine';
 import { CallError, call, errorText, useCall } from './api.js';
 import { useEvents } from './events.js';
 import { Loading, Notice, Txt } from './bits.js';
-import { detectEol, getDraft, isDirty, normalizeEol, setDraft, toEol } from './drafts.js';
+import { detectEol, getDraft, isDirty, normalizeEol, readmeKey, setDraft, toEol } from './drafts.js';
 import type { Draft } from './drafts.js';
 import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
+import { DiskBanner, KeptText, TextConflict } from './TextEditing.js';
 
 /** project_update_readme's cap: README.md's characters, its final line break included. */
 export const README_MAX = 200_000;
@@ -55,7 +56,7 @@ function Breadcrumb({ slug, name }: { slug: string; name: string }) {
 
 function Editor({ view }: { view: ProjectView }) {
   const slug = view.slug;
-  const [draft, setLocal] = useState<Draft>(() => getDraft(slug) ?? { text: diskOf(view).text, base: diskOf(view) });
+  const [draft, setLocal] = useState<Draft>(() => getDraft(readmeKey(slug)) ?? { text: diskOf(view).text, base: diskOf(view) });
   const [disk, setDisk] = useState<Disk | null>(null);
   const [dismissed, setDismissed] = useState<string | null | undefined>(undefined);
   const [conflict, setConflict] = useState<{ mine: string; disk: Disk } | null>(null);
@@ -74,7 +75,7 @@ function Editor({ view }: { view: ProjectView }) {
     (d: Draft) => {
       draftRef.current = d;
       setLocal(d);
-      setDraft(slug, isDirty(d) ? d : undefined);
+      setDraft(readmeKey(slug), isDirty(d) ? d : undefined);
     },
     [slug],
   );
@@ -220,55 +221,19 @@ function Editor({ view }: { view: ProjectView }) {
           </button>
         </Notice>
       )}
-      {showDisk && (
-        <Notice tone="warning" role="alert" title="README.md changed on disk">
-          <p>The file changed while you were editing (in an editor, a terminal or by Claude). Your edits are kept; saving them will ask which version wins.</p>
-          <div className="actions">
-            <button type="button" className="button" onClick={() => loadDisk(disk)}>
-              Load the version on disk
-            </button>
-            <button type="button" className="button quiet" onClick={() => setDismissed(disk.hash)}>
-              Keep editing mine
-            </button>
-          </div>
-        </Notice>
-      )}
+      {showDisk && <DiskBanner what="README.md" onLoad={() => loadDisk(disk)} onKeep={() => setDismissed(disk.hash)} />}
       {conflict && (
-        <section className="conflict" role="alert" aria-labelledby="conflict-h" data-testid="conflict">
-          <h2 id="conflict-h">README.md changed on disk since your text was loaded</h2>
-          <p>Your text was not saved. Keep one version — copy what you need from the other first.</p>
-          <div className="compare">
-            <label className="field">
-              <span className="label">Your text</span>
-              <textarea readOnly value={conflict.mine} rows={12} />
-            </label>
-            <label className="field">
-              <span className="label">{conflict.disk.hash === null ? 'On disk now: no README.md' : 'On disk now'}</span>
-              <textarea readOnly value={conflict.disk.text} rows={12} data-testid="conflict-disk" />
-            </label>
-          </div>
-          <div className="actions">
-            <button type="button" className="button primary" disabled={saving} onClick={() => void save(conflict.disk)}>
-              Save mine over it
-            </button>
-            <button type="button" className="button" disabled={saving} onClick={() => loadDisk(conflict.disk)}>
-              Load the version on disk
-            </button>
-            <button type="button" className="button quiet" onClick={() => setConflict(null)}>
-              Back to editing
-            </button>
-          </div>
-        </section>
+        <TextConflict
+          what="README.md"
+          mine={conflict.mine}
+          disk={conflict.disk.hash === null ? null : conflict.disk.text}
+          saving={saving}
+          onSaveMine={() => void save(conflict.disk)}
+          onLoadDisk={() => loadDisk(conflict.disk)}
+          onBack={() => setConflict(null)}
+        />
       )}
-      {kept !== null && (
-        <Notice tone="info" title="Your previous text">
-          <p>The editor now shows the version on disk. Your text is here to copy from; it is not saved anywhere.</p>
-          <textarea className="kept" readOnly aria-label="Your previous text" value={kept} rows={6} />
-          <button type="button" className="button small" onClick={() => setKept(null)}>
-            Dismiss
-          </button>
-        </Notice>
-      )}
+      {kept !== null && <KeptText text={kept} onDismiss={() => setKept(null)} />}
       {error && (
         <Notice tone="danger" role="alert" title="Not saved">
           <p>{error}</p>
@@ -321,7 +286,7 @@ function Editor({ view }: { view: ProjectView }) {
  * and any unsaved text of this project, kept to copy.
  */
 function ReadOnly({ view }: { view: ProjectView }) {
-  const mine = getDraft(view.slug);
+  const mine = getDraft(readmeKey(view.slug));
   return (
     <div className="screen editor-screen">
       <Breadcrumb slug={view.slug} name={view.name} />

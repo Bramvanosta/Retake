@@ -75,6 +75,16 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(visibleControls('Café — 東京 עברית')).toBe('Café — 東京 עברית');
   });
 
+  it('L4.3: the app builds no YAML — no yaml import, only types from core (the server alone writes scenario text)', async () => {
+    const files = await appSources();
+    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['YamlTab.tsx', 'TextEditing.tsx']));
+    for (const [f, text] of files) {
+      const src = code(text);
+      expect(/from\s+['"]yaml['"]|import\(\s*['"]yaml['"]\s*\)|require\(\s*['"]yaml['"]/.test(src), `${f}: imports yaml`).toBe(false);
+      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*from\s+['"](@demo-studio\/[a-z-]+)['"]/gm)) expect(m[1], `${f}: a runtime import of ${m[2]}`).toBeTruthy();
+    }
+  });
+
   it('the lint catches each banned API (a planted line fails it)', () => {
     const planted = [
       '<div dangerouslySetInnerHTML={{ __html: x }} />',

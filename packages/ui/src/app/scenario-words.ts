@@ -90,5 +90,7 @@ export function bindingWords(b: StepBinding | undefined, hasSource: boolean): st
   if (!hasSource) return 'no run with pictures yet';
   if (!b) return 'not in this run';
   if ('missing' in b) return missingWords(b);
-  return STATUS_WORDS[b.status]?.[0] ?? b.status;
+  const words = STATUS_WORDS[b.status]?.[0] ?? b.status;
+  // L4.3: a step moved since the run keeps its picture, which shows it at its old place.
+  return b.moved ? `${words} · moved since this run` : words;
 }

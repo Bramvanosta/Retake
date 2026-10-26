@@ -62,11 +62,11 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **done** — phase 3 done (live run: MACOS-CHECKLIST 12j) |
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **done** (live checks: MACOS-CHECKLIST 13a) |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | **done** (live checks: MACOS-CHECKLIST 13b) |
-| L4.3 | Blocks editing, two-way YAML, drag & drop | M | parked (part 1 on `wip/l4.3-part1`) until L5.5 – L5.8 are done |
+| L4.3 | Blocks editing, two-way YAML, drag & drop | M | **done** (live checks: MACOS-CHECKLIST 13c) |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | todo |
 | L4.6 | Frame comments UI | M | todo |
-| L4.7 | Component library + theme editor screens | M | todo |
+| L4.7 | Component library (with animated previews) + theme editor screens | M | todo |
 | L4.8 | Record screen | M | todo |
 | L4.9 | Studio acceptance, accessibility pass | S | todo |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
@@ -738,7 +738,16 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   mid-take cut from the render; `doctor` pointing to a sandbox; compact MCP outputs measured in tokens. Packages:
   runner-web, hooks, sandbox, core, mcp, skills, cli.
 
-### L4.3 – L4.9, L5.2 – L5.4, L6
+### L4.3 — Blocks editing, two-way YAML, drag & drop (M)
+- **Goal:** edit a scenario in the Studio, in blocks or as YAML, without losing the file's comments or formatting.
+- **Done (2026-10-26, in a worktree, rebased on L5.6):** one verified write path (`scenario_edit`: text splices and yaml
+  CST scalar edits, re-parsed and compared to the intended value); step moves by drag & drop or Alt+↑/↓, duplicates,
+  deletes, inspector forms, a 15-action palette, undo / redo to the exact bytes, an editable YAML tab; hooks (and vars /
+  env when hooks exist) never change from the Studio; a cross-process lock on every `if_match` write. Two independent
+  reviews fixed with mutation-checked tests. Cuts: BL-95, BL-96. Live checks: MACOS-CHECKLIST 13c.
+
+### L4.4 – L4.9, L5.2 – L5.4, L6
+- L4.7 also shows an animated preview per component (R-UI-06b, user decision 2026-10-26).
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

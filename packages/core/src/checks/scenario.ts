@@ -36,6 +36,8 @@ export interface ScenarioCheckOptions {
   env?: string;
   /** A `--until` step reference that must resolve. */
   until?: string;
+  /** Work an agent submits, by its channel: file references stay inside the project, unlooked-at outside (CheckContext.confined). */
+  confined?: 'mcp' | 'studio';
 }
 
 const STATIC_PAGE_IDS = ['main', 'previous'];
@@ -98,6 +100,7 @@ class ScenarioChecker {
     private readonly opts: ScenarioCheckOptions,
   ) {
     this.ctx = new CheckContext(structural, opts.project?.dir ?? inferProjectDir(opts.file));
+    this.ctx.confined = opts.confined;
     this.maxZoom = opts.template?.motion.max_zoom ?? DEFAULT_TEMPLATE.motion.max_zoom;
   }
 

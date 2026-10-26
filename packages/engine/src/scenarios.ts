@@ -1,11 +1,31 @@
 /** Scenarios of a project for clients outside the CLI: read with a hash, validate text, save with `if_match`. */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { ScenarioError, agentTrustProblems, hasErrors, issuesMessage, loadProjectTemplate, parseScenario } from '@demo-studio/core';
-import type { LoadedProject, Scenario, Template, ValidationIssue } from '@demo-studio/core';
+import { existsSync, readdirSync } from 'node:fs';
+import { realpath } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative } from 'node:path';
+import {
+  SCENARIO_EDIT_MAX_CHARS,
+  ScenarioError,
+  StepEditError,
+  agentTrustProblemsAt,
+  applyStepEdit,
+  changedHookInputs,
+  changedHookSections,
+  filmedChangesOf,
+  hasErrors,
+  hookInputsChangedMessage,
+  hooksChangedMessage,
+  issuesMessage,
+  loadProjectTemplate,
+  newHiddenCharProblem,
+  parseScenario,
+  parseYaml,
+  textEol,
+  verifyEditText,
+} from '@demo-studio/core';
+import type { AgentChannel, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 import { checkScenarioName } from './refs.js';
-import { LocalStorage } from './storage.js';
+import { LocalStorage, sha256Hex } from './storage.js';
 
 export interface ScenarioText {
   name: string;
@@ -15,6 +35,57 @@ export interface ScenarioText {
   yaml: string;
   /** sha256 of the file's bytes: the `if_match` of a save. */
   hash: string;
+  /** Its bytes are valid UTF-8 (when not, `yaml` has U+FFFD in place of what could not be decoded: never saved back). */
+  utf8: boolean;
+  /**
+   * Set when the file is a symbolic link to a file of the project outside scenarios/ (its project-relative path): the
+   * Studio never writes through it (review A L1: a scenario linked to a hook script would be written into the script).
+   */
+  linked_to?: string;
+}
+
+function isInside(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/**
+ * The entry of scenarios/ that `ref` names on a case-insensitive disk when it is not spelt `ref`'s way ("quote.yaml"
+ * for scenarios/QUOTE.yaml), else null (review A M1: two spellings of one file were two names — two write locks, and a
+ * save renamed the file).
+ */
+function caseTwin(project: LoadedProject, ref: string): string | null {
+  const want = basename(ref);
+  let names: string[];
+  try {
+    names = readdirSync(join(project.dir, 'scenarios'));
+  } catch {
+    return null;
+  }
+  if (names.includes(want)) return null;
+  return names.find((n) => n.toLowerCase() === want.toLowerCase()) ?? null;
+}
+
+// The versions of each scenario file this process showed (getScenario) or wrote (review A L3): undo / redo `restore`
+// only these — an earlier version the person had on disk may hold a hidden character today's file no longer has.
+const VERSIONS_PER_FILE = 128;
+const VERSION_FILES = 256;
+const versions = new Map<string, string[]>();
+
+function rememberVersion(path: string, hash: string): void {
+  const list = versions.get(path) ?? [];
+  versions.delete(path);
+  const at = list.indexOf(hash);
+  if (at !== -1) list.splice(at, 1);
+  list.push(hash);
+  if (list.length > VERSIONS_PER_FILE) list.shift();
+  versions.set(path, list);
+  if (versions.size > VERSION_FILES) versions.delete(versions.keys().next().value!);
+}
+
+/** Whether this process showed or wrote that version of the file (`path`: getScenario's). */
+export function knownScenarioVersion(path: string, hash: string): boolean {
+  return versions.get(path)?.includes(hash) ?? false;
 }
 
 /** The file of a scenario name: scenarios/<name>.yaml, else an existing scenarios/<name>.yml. */
@@ -28,11 +99,24 @@ export async function getScenario(project: LoadedProject, name: string): Promise
   checkScenarioName(name);
   const storage = new LocalStorage(project.dir);
   const ref = scenarioRef(project, name);
+  const twin = caseTwin(project, ref);
+  if (twin) throw new EngineError('not_found', `scenario "${name}" not found in ${project.slug}: the file is scenarios/${twin} (scenario names are case-sensitive)`);
   const read = await storage.readText(ref);
   if (!read) {
     throw new EngineError('not_found', `scenario "${name}" not found in ${project.slug} (scenarios: ${project.scenarios.join(', ') || 'none'})`);
   }
-  return { name, file: ref, path: storage.resolve(ref), yaml: read.text, hash: read.sha256 };
+  const path = storage.resolve(ref);
+  const [realScenarios, real, realProject] = await Promise.all([realpath(join(project.dir, 'scenarios')), realpath(path), realpath(project.dir)]);
+  rememberVersion(path, read.sha256);
+  return {
+    name,
+    file: ref,
+    path,
+    yaml: read.text,
+    hash: read.sha256,
+    utf8: read.utf8,
+    ...(isInside(realScenarios, real) ? {} : { linked_to: relative(realProject, real).split('\\').join('/') }),
+  };
 }
 
 /** The project's template, for the checks that need it (theme slots, components); undefined when it does not load. */
@@ -51,11 +135,16 @@ export interface ValidateResult {
 }
 
 /**
- * What an agent may not write in a scenario (work submitted through MCP, core agent-trust): secret references, files
- * outside the project, code from agent-writable files — as error issues.
+ * What an agent may not write in a scenario (work submitted through MCP or from the Studio, core agent-trust): secret
+ * references, files outside the project, code from agent-writable files — as error issues placed at their line (L4.3,
+ * critique B11), worded for the channel (`via`: "through MCP" / "from the Studio").
  */
-function agentIssues(project: LoadedProject, scenario: Scenario | undefined): ValidationIssue[] {
-  return scenario ? agentTrustProblems(project, scenario).map((message) => ({ severity: 'error' as const, path: [], message })) : [];
+function agentIssues(project: LoadedProject, scenario: Scenario | undefined, text: string, via: AgentChannel | undefined): ValidationIssue[] {
+  return scenario ? agentTrustProblemsAt(project, scenario, text, { ...(via ? { via } : {}) }).map((p) => trustIssue(p)) : [];
+}
+
+function trustIssue(p: PositionedTrustProblem): ValidationIssue {
+  return { severity: 'error', path: p.path, message: p.message, ...(p.line !== undefined ? { line: p.line, col: p.col ?? 1 } : {}) };
 }
 
 /**
@@ -65,7 +154,7 @@ function agentIssues(project: LoadedProject, scenario: Scenario | undefined): Va
 export async function validateScenarioText(
   project: LoadedProject,
   yaml: string,
-  opts: { env?: string; until?: string; name?: string; agent?: boolean } = {},
+  opts: { env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel } = {},
 ): Promise<ValidateResult> {
   if (opts.name !== undefined) checkScenarioName(opts.name);
   const file = join(project.dir, 'scenarios', `${opts.name ?? 'untitled'}.yaml`);
@@ -75,8 +164,9 @@ export async function validateScenarioText(
     ...(opts.env !== undefined ? { env: opts.env } : {}),
     ...(opts.until !== undefined ? { until: opts.until } : {}),
     template: await templateOf(project),
+    ...(opts.agent ? { confined: opts.via ?? 'mcp' } : {}),
   });
-  const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario)] : parsed;
+  const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
   return { ok: !hasErrors(issues), issues };
 }
 
@@ -96,16 +186,27 @@ export interface SaveResult {
  * null (or absent) for a new file, which must not exist when written. An existing scenarios/<name>.yml is refused
  * (a new .yaml would shadow it).
  */
-export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean } = {}): Promise<SaveResult> {
+export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel } = {}): Promise<SaveResult> {
   checkScenarioName(name);
   const ref = `scenarios/${name}.yaml`;
   if (existsSync(join(project.dir, 'scenarios', `${name}.yml`))) {
     throw new EngineError('conflict', `scenarios/${name}.yml exists: a scenarios/${name}.yaml would shadow it — rename or remove the .yml file first (by hand)`);
   }
+  const twin = caseTwin(project, ref);
+  if (twin) {
+    throw new EngineError('conflict', `scenarios/${twin} exists: on this disk scenarios/${name}.yaml is the same file under another spelling — save it as "${twin.replace(/\.ya?ml$/, '')}"`);
+  }
   const storage = new LocalStorage(project.dir);
   const path = storage.resolve(ref);
-  const { scenario, issues: parsed } = parseScenario(yaml, { file: path, project, template: await templateOf(project) });
-  const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario)] : parsed;
+  if (opts.agent) {
+    const linked = await realpath(path).then(
+      async (real) => (isInside(await realpath(join(project.dir, 'scenarios')), real) ? null : real),
+      () => null,
+    );
+    if (linked) throw new EngineError('refused', `${ref} is a symbolic link to a file outside scenarios/: an agent writes scenarios only inside scenarios/ — edit it in your editor`);
+  }
+  const { scenario, issues: parsed } = parseScenario(yaml, { file: path, project, template: await templateOf(project), ...(opts.agent ? { confined: opts.via ?? 'mcp' } : {}) });
+  const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
   if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, path)}`, issues, path);
   const current = await storage.readText(ref);
   if (current && (opts.ifMatch === undefined || opts.ifMatch === null)) {
@@ -116,6 +217,183 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
   }
   const text = yaml.endsWith('\n') ? yaml : `${yaml}\n`;
   const res = await storage.writeText(ref, text, { ifMatch: opts.ifMatch ?? null });
+  rememberVersion(path, res.sha256);
   if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
   return { name, file: res.ref, path: res.path, hash: res.sha256, created: !current, warnings: issues };
+}
+
+/** engine.scenarios.edit: one edit of a saved scenario, applied to the version the client showed (`hash`). */
+export interface ScenarioEditRequest {
+  /** sha256 of the file as the client read it (scenario_blocks / scenario_get): a conflict otherwise, naming the current one. */
+  hash: string;
+  edit: ScenarioEdit;
+}
+
+export interface ScenarioEditResult {
+  name: string;
+  /** The file written: the one the view read (scenarios/<name>.yaml, or an existing .yml — never a new file). */
+  file: string;
+  path: string;
+  /** sha256 of the bytes written: the next edit's `hash` (and undo's `hashAfter`). */
+  hash: string;
+  /** What was done, for the screen and its undo stack: "Saved the YAML", "Restored an earlier version". */
+  label: string;
+  /** The step to select after the edit ("<scene>.<index>": the moved step, its copy, the delete's neighbour), or null. */
+  select: string | null;
+  warnings: ValidationIssue[];
+  notices: string[];
+  /**
+   * A block edit's kind of change (L5.5's rule): `filmed` (what the browser does: a dry run shows it, a capture films
+   * it) or `edit` (a caption, a speed, a mark: a render of the same run re-plans it). Absent for the YAML tab and undo.
+   */
+  change?: 'filmed' | 'edit';
+}
+
+/**
+ * Why the Studio (an agent channel) may not save this file at all, with each problem's line (critique B3: the YAML tab
+ * read-only when the file is blocked; B11 lines), or null: not UTF-8 (a save would replace bytes with U+FFFD), larger
+ * than SCENARIO_EDIT_MAX_CHARS, holding a carriage return without a line feed (review A M2), a link to a file outside
+ * scenarios/ (review A L1, agent channels), or holding what agent trust refuses (a secret reference, an outside file,
+ * code in an agent-writable file, a template folder) — the person edits such a file in their editor.
+ */
+export function scenarioEditBlocker(
+  project: LoadedProject,
+  file: Pick<ScenarioText, 'file' | 'yaml' | 'utf8' | 'linked_to'>,
+  scenario: Scenario | undefined,
+  o: { agent: boolean; via: AgentChannel },
+): { why: string; problems: Array<{ line?: number; message: string }> } | null {
+  if (!file.utf8) {
+    return { why: `${file.file} is not UTF-8 text: saving it here would replace the bytes that cannot be read with U+FFFD — edit it in your editor`, problems: [] };
+  }
+  if (file.yaml.length > SCENARIO_EDIT_MAX_CHARS) {
+    return { why: `${file.file} holds ${file.yaml.length.toLocaleString('en')} characters: the Studio edits scenarios of at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')} — edit it in your editor`, problems: [] };
+  }
+  const cr = /\r(?!\n)/.exec(file.yaml);
+  if (cr) {
+    // Review A M2: a text editor (the YAML tab's textarea included) shows a line break where YAML reads none — the
+    // file's text and what it runs differ, and a save from the tab would turn a comment into a step.
+    const line = file.yaml.slice(0, cr.index).split('\n').length;
+    return {
+      why: `${file.file} holds a carriage return without a line feed (line ${line}): an editor shows a line break there, YAML reads none — fix its line breaks in your editor (LF or CR LF); the Studio shows it read-only.`,
+      problems: [{ line, message: 'a carriage return without a line feed (CR): an editor shows a line break here, YAML reads none' }],
+    };
+  }
+  if (!o.agent) return null;
+  if (file.linked_to !== undefined) {
+    return { why: `${file.file} is a symbolic link to ${file.linked_to}, outside scenarios/: the Studio writes scenarios only inside scenarios/ — edit it in your editor; the Studio shows it read-only.`, problems: [] };
+  }
+  if (!scenario) return null;
+  const problems = agentTrustProblemsAt(project, scenario, file.yaml, { via: o.via });
+  if (!problems.length) return null;
+  const first = problems[0];
+  return {
+    why:
+      `${file.file} holds what the Studio never writes${first.line !== undefined ? ` (line ${first.line}${problems.length > 1 ? ` and ${problems.length - 1} more` : ''})` : ''}: ` +
+      'a secret reference, a file outside the project or code an agent can write. Edit this file in your editor (move a secret to project.yaml); the Studio shows it read-only.',
+    problems: problems.map((p) => ({ ...(p.line !== undefined ? { line: p.line } : {}), message: p.message })),
+  };
+}
+
+/**
+ * Apply one edit to a saved scenario for the Studio (L4.3; MCP writes with scenario_save): the file the view read, its
+ * hash as if_match (a conflict otherwise, naming the current hash), refused whole when the file itself is blocked
+ * (scenarioEditBlocker), the new text checked — no hidden character added (critique B9), hooks and mocks unchanged
+ * (critique B3, agent channels), the scenario validated against the project with agent trust worded for the channel
+ * (errors refuse the save with their lines, warnings come back) — then written atomically, keeping the file's mode,
+ * under the write lock (storage writeText). `replace_text` adds a final line break (the file's own) when missing;
+ * `restore` writes the bytes given, which must have `text_hash` (undo / redo: byte-exact); a step edit (move, delete,
+ * duplicate, a form's field changes, a new step from the palette: core applyStepEdit) splices the file and is refused unless the result re-parses to exactly the intended
+ * value (core verifyEditText) — a step no longer where the edit says (its guard), or a field no longer holding what the
+ * form showed (critique B2), is a conflict with `details.stale`.
+ */
+export async function editScenario(project: LoadedProject, name: string, req: ScenarioEditRequest, o: { agent: boolean; via: AgentChannel }): Promise<ScenarioEditResult> {
+  const base = await getScenario(project, name);
+  const storage = new LocalStorage(project.dir);
+  if (base.hash !== req.hash) {
+    throw new EngineError('conflict', `${base.file} changed since it was read (its hash is no longer the one the edit was made on): read it again`, {
+      details: { current: base.hash },
+    });
+  }
+  const tplt = await templateOf(project);
+  // The file as it is (its trust problems block it whole, below); the new text as an agent's work (confined: a file
+  // outside the project is said to be outside, never looked at).
+  const baseParsed = base.utf8 ? parseScenario(base.yaml, { file: base.path, project, template: tplt }) : { scenario: undefined, issues: [] };
+  const checkOpts = { file: base.path, project, template: tplt, ...(o.agent ? { confined: o.via } : {}) };
+  const blocked = scenarioEditBlocker(project, base, baseParsed.scenario, o);
+  if (blocked) {
+    throw new EngineError('refused', blocked.why, {
+      ...(blocked.problems.length ? { details: { problems: blocked.problems } } : {}),
+    });
+  }
+  const edit = req.edit;
+  let text: string;
+  let label: string;
+  let select: string | null = null;
+  let notices: string[] = [];
+  let change: 'filmed' | 'edit' | undefined;
+  switch (edit.kind) {
+    case 'replace_text':
+      text = edit.text.endsWith('\n') || edit.text === '' ? edit.text : `${edit.text}${textEol(edit.text)}`;
+      label = 'Saved the YAML';
+      break;
+    case 'restore':
+      if (sha256Hex(edit.text) !== edit.text_hash) {
+        throw new EngineError('invalid', 'the text to restore is not the version named by text_hash: nothing written', { details: { argument: 'edit.text_hash' } });
+      }
+      // Review A L3: only a version of this file the Studio showed or wrote (undo / redo), never any text a page makes up.
+      if (!knownScenarioVersion(base.path, edit.text_hash)) {
+        throw new EngineError('refused', `the text to restore is not a version of ${base.file} the Studio showed or wrote: nothing written — read the file again`, {
+          details: { argument: 'edit.text_hash' },
+        });
+      }
+      text = edit.text;
+      label = 'Restored an earlier version';
+      break;
+    case 'move_step':
+    case 'delete_step':
+    case 'duplicate_step':
+    case 'set_step':
+    case 'insert_step': {
+      let applied: ReturnType<typeof applyStepEdit>;
+      try {
+        applied = applyStepEdit(base.yaml, edit);
+      } catch (e) {
+        if (!(e instanceof StepEditError)) throw e;
+        // stale: the step the edit names is no longer at that place in this version (critique B2: never edit a neighbour).
+        const field = e.field !== undefined ? { field: e.field } : {};
+        if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
+        throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
+      }
+      // The verify (plan §3.1.4): the spliced text, re-parsed, must be exactly the edit applied to the file's value.
+      const wrong = verifyEditText(applied.text, applied.intended);
+      if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
+      ({ text, label, select, notices } = applied);
+      // L5.5's rule, said after each block edit: a step edit is a filmed change (a new capture films it), a caption,
+      // speed or mark alone is an edit change (a render of the same run re-plans it).
+      change = filmedChangesOf(applied.intended, parseYaml(base.yaml).value).length ? 'filmed' : 'edit';
+      break;
+    }
+    default:
+      throw new EngineError('invalid', `unknown edit kind "${String((edit as { kind?: unknown }).kind).slice(0, 40)}"`);
+  }
+  if (text.length > SCENARIO_EDIT_MAX_CHARS) {
+    throw new EngineError('invalid', `the scenario would hold ${text.length.toLocaleString('en')} characters: the Studio writes at most ${SCENARIO_EDIT_MAX_CHARS.toLocaleString('en')}`, { fix: 'shorten it, or edit it in your editor' });
+  }
+  // A restored version was on disk once (knownScenarioVersion): its hidden characters are the person's own.
+  const hidden = edit.kind === 'restore' ? null : newHiddenCharProblem(text, base.yaml);
+  if (hidden) throw new EngineError('invalid', `not saved: ${hidden}`);
+  if (o.agent) {
+    const before = base.utf8 ? parseYaml(base.yaml).value : undefined;
+    const after = parseYaml(text).value;
+    const changed = changedHookSections(before, after);
+    if (changed.length) throw new EngineError('refused', `not saved: ${hooksChangedMessage(changed)}`, { details: { sections: changed } });
+    const inputs = changedHookInputs(before, after);
+    if (inputs.length) throw new EngineError('refused', `not saved: ${hookInputsChangedMessage(inputs)}`, { details: { sections: inputs } });
+  }
+  const { scenario, issues: parsed } = parseScenario(text, checkOpts);
+  const issues = o.agent ? [...parsed, ...agentIssues(project, scenario, text, o.via)] : parsed;
+  if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, base.path)}`, issues, base.path);
+  const res = await storage.writeText(base.file, text, { ifMatch: req.hash });
+  rememberVersion(base.path, res.sha256);
+  return { name, file: base.file, path: res.path, hash: res.sha256, label, select, warnings: issues, notices, ...(change ? { change } : {}) };
 }

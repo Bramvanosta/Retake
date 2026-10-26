@@ -170,6 +170,10 @@ describe.skipIf(!can)('studio mcp: themes and components', () => {
     let js = await call('job_status', { job_id: jobId, wait_s: 25 });
     for (let i = 0; i < 4 && !imagesOf(js).length; i++) js = await call('job_status', { job_id: jobId, wait_s: 25 });
     expect(imagesOf(js)).toHaveLength(1);
+    // The same stills as component_preview gives when it finishes in time (a client reads `stills` either way).
+    const stills = (js.structuredContent as { stills?: Array<{ file: string }>; dir?: string }).stills;
+    expect(stills).toHaveLength(1);
+    expect(stills![0].file.startsWith((js.structuredContent as { dir: string }).dir)).toBe(true);
     expect(existsSync(join(root, 'components', 'acme', 'intro-split', 'preview.png'))).toBe(false);
     expect(stderr).not.toMatch(/unhandled|TypeError/i);
   }, LONG);

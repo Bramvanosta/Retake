@@ -1190,3 +1190,232 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
 }
+
+/* Scenario YAML tab editor (L4.3) */
+.yaml-actions {
+  margin-left: auto;
+}
+.yaml-editor .editor {
+  margin-top: 4px;
+}
+.yaml-input {
+  min-height: calc(100vh - 340px);
+  padding: 12px 14px;
+  font: 12.5px/1.55 var(--mono);
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  tab-size: 2;
+}
+.live-issues {
+  padding-top: 6px;
+}
+
+/* L4.3 part 2: step editing on the Blocks tab (grips, drop line, edit bar). */
+.edit-bar-wrap {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.edit-live {
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--muted);
+}
+.steps-keys {
+  margin: 0;
+}
+.step {
+  position: relative;
+}
+.step.can-drag {
+  grid-template-columns: 14px 160px minmax(0, 1fr);
+  cursor: grab;
+}
+.grip {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: -3px;
+  line-height: 1;
+  user-select: none;
+}
+.step.dragging {
+  opacity: 0.45;
+}
+.step.drop-before {
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+.step.drop-after {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.drop-empty {
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+}
+.drop-empty.drop-here {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.blocks[aria-busy='true'] .steps {
+  opacity: 0.75;
+}
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.step-actions p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.button.danger {
+  color: var(--danger);
+  border-color: #e7b4ae;
+}
+.edit-bar .button {
+  max-width: 44ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edit-bar .button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* L4.3 part 3: the step's form (inspector) and the palette of new steps. */
+.step-form {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.form-field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.form-field label,
+.form-field > span {
+  font-size: 12.5px;
+}
+.form-field input,
+.form-field select {
+  min-height: 30px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--fg);
+  font: 13px/1.4 var(--mono);
+}
+.form-field input:focus-visible,
+.form-field select:focus-visible {
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+.form-field input:disabled,
+.form-field select:disabled {
+  background: #f9fafb;
+  color: var(--muted);
+}
+.form-field.has-error input,
+.form-field.has-error select {
+  border-color: var(--danger);
+}
+.field-error {
+  margin: 0;
+  color: var(--danger);
+}
+.form-sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.form-group {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.form-group summary {
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.form-group-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 6px 8px;
+  margin-top: 6px;
+}
+.form-more {
+  grid-column: 1 / -1;
+}
+.form-more summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.form-more-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+.palette .step-form {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  column-gap: 10px;
+  align-items: start;
+}
+.palette .step-form > .hint,
+.palette .step-form > .form-group,
+.palette .step-form > .form-actions,
+.palette .step-form > .field-error {
+  grid-column: 1 / -1;
+}
+.palette .step-form > .palette-where {
+  grid-column: span 2;
+}
+.form-actions {
+  margin: 0;
+}
+.steps-edit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.palette {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.palette-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.palette-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.palette .step-form {
+  border-bottom: 0;
+  margin: 0;
+  padding: 0;
+  max-width: 720px;
+}
