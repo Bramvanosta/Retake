@@ -62,7 +62,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L3.8 | Phase 3 acceptance (Claude drives the whole loop through MCP) | M | **done** — phase 3 done (live run: MACOS-CHECKLIST 12j) |
 | L4.1 | Studio app shell on the engine API (`studio ui`), projects, README editor | M | **done** (live checks: MACOS-CHECKLIST 13a) |
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | **done** (live checks: MACOS-CHECKLIST 13b) |
-| L4.3 | Blocks editing, two-way YAML, drag & drop | M | **next** (when the user asks) |
+| L4.3 | Blocks editing, two-way YAML, drag & drop | M | parked (part 1 on `wip/l4.3-part1`) until L5.5 – L5.8 are done |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | todo |
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | todo |
 | L4.6 | Frame comments UI | M | todo |
@@ -73,6 +73,10 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
+| L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **next** (with L5.6, in parallel) |
+| L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **next** (with L5.5, in parallel) |
+| L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | todo |
+| L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -694,6 +698,31 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   Dry run / Capture / Cancel from the screen with blockers shown before any click; the Studio starts a worker with a
   cleaned environment. Two independent reviews fixed with mutation-checked tests. R-UI-15 partial ("Open timeline" is
   L4.5). Cuts: BL-80. Live checks: MACOS-CHECKLIST 13b.
+
+### L5.5 – L5.8 — Field feedback 1 (decided 2026-10-26, before L4.3)
+The first real use (`docs/FIELD-FEEDBACK-1.md`: triage, decisions and the performance measurements) opened four lots,
+done before L4.3 resumes. L5.5 and L5.6 touch different packages and run in parallel; then L5.7, then L5.8. What the
+field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
+
+- **L5.5 — Edit without re-capture (M).** Goal: a change that does not touch the browser renders on the existing take.
+  Scope (`--lot L5.5`): a filmed-part fingerprint replaces the whole-file comparison of L3.8 (R-FLD-01, R-FLD-02);
+  card durations from their text and a review warning (R-FLD-03); `mail-view` without scroll by default (R-FLD-04);
+  `target_length` per scenario (R-FLD-05); a document shown before what produces it (R-FLD-06). Acceptance: on the
+  fixture, change a caption, a card's text and duration, the card order and an overlay, render on the same run with no
+  `scenario_changed`; change a step and see it reported. Packages: core, editor, engine, review, cli, mcp, components,
+  skills.
+- **L5.6 — Capture reliability (M).** Goal: a take fails early, loudly and completely, never silently wrong. Scope
+  (`--lot L5.6`): R-FLD-10 – R-FLD-16. Acceptance: fixture cases for each (a field below the fold in a scrolling
+  dialog, a dead button, a flaky download, a mail to another address, two renamed labels in one scene). Packages:
+  runner-web, core, hooks, components (mail-view label), mcp / cli result output.
+- **L5.7 — Capture performance and disk (M).** Goal: a take costs under a core with the limiter on, ends without a
+  long encode and weighs tens of MB. Scope (`--lot L5.7`): R-FLD-20 – R-FLD-28, starting from the measurements in
+  `docs/FIELD-FEEDBACK-1.md`. Acceptance: the same sampler on fixture `quote` before / after, frames looked at, the
+  edit still frame-accurate. Packages: runner-web, editor, review, cli, engine, mcp.
+- **L5.8 — Environment, off-camera actions, MCP ergonomics (M).** Goal: no hand-made reset script or side script
+  polling the database. Scope (`--lot L5.8`): R-FLD-30 – R-FLD-34. Acceptance: a fixture scenario with a `hook:` step
+  mid-take cut from the render; `doctor` pointing to a sandbox; compact MCP outputs measured in tokens. Packages:
+  runner-web, hooks, sandbox, core, mcp, skills, cli.
 
 ### L4.3 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

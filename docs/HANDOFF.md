@@ -1,8 +1,9 @@
 # Handoff — read this first in a new session
 
 Last updated: 2026-10-24, end of lot **L4.2 (scenario as blocks with run thumbnails)** — phases 1–3 are done (phase 3
-pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: L4.3 (blocks editing), only when the
-user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the field-feedback lots L5.5 and L5.6
+(in parallel), then L5.7 and L5.8 — decided 2026-10-26 after the first real use (`docs/FIELD-FEEDBACK-1.md`); L4.3
+resumes after them (its part 1 is parked on `wip/l4.3-part1`).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +25,18 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-81); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-90); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
 ## State (after L4.2)
+- **Field feedback 1 (2026-10-26)**: the first real use of the tool (three internal videos of a real two-sided B2B
+  product, about four minutes each, filmed in two languages) was triaged in `docs/FIELD-FEEDBACK-1.md`: four lots
+  L5.5 – L5.8 (edit without re-capture; capture reliability; capture performance and disk; sandboxes, off-camera hook
+  steps and compact MCP outputs), 27 requirements R-FLD-01 – R-FLD-34, and BL-81 – BL-89 for the rest. Performance
+  measured on the fixture: GPU active, `frame_rate_limit: false` ×2.8 Chromium CPU, frames at JPEG 100 = 99 % of a
+  run's size and read only by the raw export and the L4.2 pictures.
 - **L4.2 done (2026-10-24)**: the Studio's scenario screen shows a scenario as blocks (scenes as cards with pages, URLs,
   caption, speed, layout, duration; steps as rows with an action badge, the target in plain words and chips; hooks strip;
   a read-only inspector and YAML tab) with each step's real picture from the last dry run or capture (from kept frames

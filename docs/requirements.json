@@ -6197,6 +6197,276 @@
    "gap": "",
    "phase": "5",
    "lot": "L5.1"
+  },
+  {
+   "id": "R-FLD-01",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A render of an existing run re-plans the edit from today's scenario file while the filmed part is unchanged: a fingerprint of what drives the browser (environment, personas, scene pages / open / viewport, steps and their arguments and targets, waits, hooks, capture settings) decides; everything else (cards and their order between scenes, durations, captions, overlays, component params, title, intro / outro, template, speeds, layouts) is edit and comes from today's file. Step overlays added after the capture still find their target (the runner records every step's target box).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.5"
+  },
+  {
+   "id": "R-FLD-02",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`scenario_changed` (plan, render, MCP, Studio) is reported only when the filmed part changed, and says which filmed parts changed; an edit-only change renders without a new take and says so. The L3.8 rule and its message are updated in DESIGN-phase2, README and the skills.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.5"
+  },
+  {
+   "id": "R-FLD-03",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "Card and interstitial default durations follow their text: about 250 words a minute plus 1.5 s for entry and exit (bounded by the component's min / max); the review warns when a card is shorter than its text needs.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.5"
+  },
+  {
+   "id": "R-FLD-04",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`studio/mail-view` does not scroll by default (`scroll: none`); `auto` stays available.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.5"
+  },
+  {
+   "id": "R-FLD-05",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A scenario sets its own target length (`target_length: {min_s, max_s}`); the review's video-length rule uses it instead of the reference 60–120 s.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.5"
+  },
+  {
+   "id": "R-FLD-06",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "The review warns when a document or mail card shows before the step that produces it (a document card before the mail that attaches it or the action that generates it).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.5"
+  },
+  {
+   "id": "R-FLD-10",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "When a step's target is not found, the error lists every other target of the scene that does not resolve on the current page too (without acting), and the closest visible elements for each (role, name, text), so one take reveals all renamed labels of a scene.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-11",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`type` brings its field into view inside its own scrolling container (a scrolling dialog included), waits for the scroll to settle before it computes the click point, checks after the click that the focused element is the target (else fails with a screenshot naming what got the focus), and after typing compares the field's value with the typed text (warning on a mismatch).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-12",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A click on a control that produces nothing within about a second (no network request, no DOM change, no navigation, no dialog) is reported at once with a screenshot; `retry_click: true` on a step clicks once more before failing.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-13",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`download` retries a transient network failure (socket hang up, reset, timeout) two or three times with a delay, and fails at once on a real error (4xx, wrong type).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-14",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A project and a scenario set the default step timeout (`defaults: {timeout_s}`), used by every wait and action that has no timeout of its own.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-15",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A persona declares its mail address (`email`); `wait_for_email {to: persona:<name>}` uses it and `studio/mail-view` labels the mailbox after the persona; when no mail matches, the error lists the messages received during the wait (subject, sender, recipients); when several match, a warning names them.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-16",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "The run result lists the `optional` steps that failed (with their error); `capture.step_shots: true` keeps one screenshot per step of a capture, as a dry run does.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.6"
+  },
+  {
+   "id": "R-FLD-20",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "Captures keep Chromium's frame-rate limiter and the dialog-close freeze (R-ISS-12) is handled another way (frames kept flowing through the close, or the freeze repaired in the edit from the known click time); `browser.frame_rate_limit: false` is documented with its measured cost and the run warns when it is set.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-21",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "The capture encodes during the take (screencast frames streamed to the encoder on the CFR schedule), so a take ends without a long encode and keeps no `frames/` by default; frames are kept only on request (raw export at the screencast's real timing); the edit stays frame-accurate (zooms, cursor sync, markers).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-22",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "The default screencast JPEG quality is lowered from 100 after a measured visual check of small text (SSIM and frames looked at), with its disk and CPU gain stated.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-23",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "Every take reports its performance in run.json and the run result: CPU per process group (browser, GPU, renderer, studio, encoder; the product's local servers when known), real frame rate, stalls, and the slow transitions (click to stable content over 800 ms, worst ones named) that the review lists.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-24",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`studio doctor` checks that the capture browser is GPU-accelerated (chrome://gpu feature status) and the run warning about choppy motion states the measured cause instead of a generic list.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-25",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A two-persona capture is measured; when the unfilmed page costs CPU, it is throttled while not filmed and resumes fresh when filmed again.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-26",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "The edit shortens skeletons, blank screens and spinners beyond page loads (near-identical frames around a dialog opening or a refresh) down to a short transition to the stable state.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-27",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "Each page of a scenario can be visited once off camera before the take (`capture.prewarm`), so the first visit is not filmed cold.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-28",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`studio prune` and an MCP tool keep the last successful take per scenario and every take a render or a comment uses, delete failed takes and dry runs, keep the last N renders and reviews per scenario, and say how much they free; the run warns when the disk passes a threshold.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.7"
+  },
+  {
+   "id": "R-FLD-30",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "The scenario skill, the MCP instructions and `studio doctor` point to sandboxes when a project films a local environment that has a database or a mailbox but no sandbox, with the matching `sandbox.yaml` example (process and docker-compose).",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.8"
+  },
+  {
+   "id": "R-FLD-31",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A `hook: <name>` step runs a project hook during the take (approved like setup / teardown hooks, same kinds: sql, http, shell, js) and is cut from the edit; a scene `offscreen: true` is played but absent from the render.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.8"
+  },
+  {
+   "id": "R-FLD-32",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "A docker-compose sandbox takes its image versions and settings from a `.env` next to its compose file (checked to reach `docker compose`), and the README shows a \"stage\" sandbox for a product shipped as images in a production build.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.8"
+  },
+  {
+   "id": "R-FLD-33",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "Before a take, every page of the environment must answer (sandbox or not), with the page and URL named when one does not.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.8"
+  },
+  {
+   "id": "R-FLD-34",
+   "source": "Field feedback 1 (docs/FIELD-FEEDBACK-1.md, 2026-10-26)",
+   "requirement": "`page_inspect`, `run_status` and `review` answer compactly by default (status, error, findings, paths; elements in view or in a dialog) with the full detail on request; `job_status` can wait up to 10 minutes for a job to end.",
+   "status": "todo",
+   "evidence": "",
+   "gap": "",
+   "phase": "5",
+   "lot": "L5.8"
   }
  ]
 }

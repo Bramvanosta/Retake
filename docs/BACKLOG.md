@@ -1092,6 +1092,88 @@ Residues documented in L4.2:
 - **Hard parts:** A person's presence in a page (approvals); keeping one picture per step honest when runs are mixed;
   serving video to the Player without a capability leak.
 
+## Field feedback 1 (2026-10-26)
+
+From the first real use (`docs/FIELD-FEEDBACK-1.md`); what went into a lot is L5.5 – L5.8.
+
+### BL-81 — Edit "extras" independent of the capture
+*M–L · field feedback 1 (chantier G) · builds on: L5.5*
+
+A notification (and a callout, a badge, an app toast) should land on any shot — a chapter card, an interstitial, a
+mail or document card included — at a relative moment (`at: end - 2s`, `at: 1.5s`) instead of only at the end of a
+filmed step. A mail captured by a `wait_for_email` without a picture, anywhere in the take, is usable everywhere in the
+render by its name (`as`), whatever the scene order; the wait itself happens off camera and is cut. `studio/mail-view`
+with `notification: true`: the notification slides over the end of the previous shot, then the card opens. A warning
+when a mail's notification shows on another persona's page (needs R-FLD-15). Six chapter starts in the field videos
+needed a filmed waiting shot only for this.
+
+### BL-82 — Multilingual scenarios
+*L · field feedback 1 (chantier H)*
+
+Switching the product's language rewrote every target, expected text and calendar label. Targets by translation key
+(`{i18n: deals.actions.send}`) resolved from translation files declared in project.yaml; multilingual captions and
+cards (`caption: {en: …, fr: …}`) and `render {locale}`; locale-formatted values (`{{money:408}}`, `{{date:+10d}}`,
+`{{date_range:+10d,+23d}}`); a persona locale applied to the browser (Accept-Language, navigator.language, a
+configurable localStorage key) and checked on `<html lang>`; an expected locale per scenario with the review detecting
+the language of captured documents and mails.
+
+### BL-83 — Reusable fragments and project vars
+*M · field feedback 1 (chantier H)*
+
+Three scenarios repeated the same twenty steps. Parameterised fragments (`use: {fragment: request-quote, with: {…}}`)
+and project-level `vars` shared by scenarios; the step identity (comments, thumbnails, fingerprints) must survive
+expansion.
+
+### BL-84 — Storyboard before a take
+*S–M · field feedback 1 (chantier H)*
+
+`scenario_outline` / `studio outline`: chapters, scenes with page and persona, cards, mails, documents,
+notifications and estimated durations, read in ten seconds before paying for a take (it would have caught a document
+shown before its mail).
+
+### BL-85 — Project memory
+*M · field feedback 1 (chantier H)*
+
+What a session learns while filming is lost: product rules, workarounds in place, checks to repeat, the user's edit
+preferences. A `memory/` folder per project with `memory_list` / `memory_add` / `memory_get` in four kinds (rule,
+workaround with date and reason, check, feedback); the MCP instructions say to read it before writing a scenario;
+checks become review rules where possible and feedback becomes project defaults.
+
+### BL-86 — Controlled data tools instead of direct access
+*L · field feedback 1 (chantier H) · builds on: L1.8, L5.8*
+
+Today the assistant prepares and resets data with ad hoc SQL, the mailbox API and scripts that mint tokens and push
+queue jobs — allowed for lack of an alternative, but unreviewed and unversioned. Target: seeds and resets declared in
+the project (`seeds/`, parameterised: `seed: demo-accounts`, `simulate: period-ended {booking}`), approved once like
+hooks; MCP tools to draft, statically check (no DELETE without WHERE, allowed tables, local environments only), run
+with a journal and roll back, snapshot and restore; an allow-list of environments and databases and a refusal of
+production. Long term, the server's instructions and the machine's permissions refuse direct `psql`, `curl` to the
+product's API or queue access outside a validated script. Ready-made hook kinds for queues (BullMQ / Redis) and an
+`http` hook authenticated as a persona belong here.
+
+### BL-87 — Demo hygiene checks
+*S–M · field feedback 1 (chantier H)*
+
+Real names showed in the account bar and in mails. A `forbidden_text` list per project (real names, "demo", "test")
+searched by the review in captured pages, mails and PDFs; `auth_login` says which account is signed in (the visible
+name or a persona `check.identity`).
+
+### BL-88 — Iterating past an irreversible step
+*L · field feedback 1 (chantier B) · builds on: L3.3, L5.6*
+
+Irreversible steps are skipped in dry runs and inspections, so everything after the first real send is only tested
+by real takes (5 takes for one scenario in the field). Options: resume a take from a step on the state a failed take
+left, then assemble the parts or re-film once validated (`run_capture {from: <step>}`); an exploration mode that
+performs the writes, keeps no video, stops at the first error and leaves `page_inspect` on the reached state; a
+`scenario_check` that replays to the first write and checks the remaining targets against the states of the last
+successful take; `page_inspect` reusing a previous inspection's state when the steps before `until` did not change.
+
+### BL-89 — A render and a capture at the same time
+*M · field feedback 1 (chantier E)*
+
+The worker runs one job at a time (a capture is CPU / GPU heavy), so a 5-minute render blocks the next take. Allow one
+render next to one capture, once L5.7 has brought a take's cost down and measured the overlap.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
