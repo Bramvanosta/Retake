@@ -102,6 +102,8 @@ export function sandboxAuth(manifest: SandboxManifest): { auth?: AuthConfig; sec
   for (const [name, account] of Object.entries(manifest.accounts ?? {})) {
     const { username, password, ...persona } = account;
     if (persona.login) persona.login = substituteAccount(persona.login, { username, password }) as PersonaConfig['login'];
+    // An account signed in by its mail address receives its mail there (wait_for_email {to: persona:<name>}, L5.6).
+    if (persona.email === undefined && username !== undefined && /^[^\s@{}]+@[^\s@{}]+\.[^\s@{}]+$/.test(username)) persona.email = username;
     personas[name] = persona;
     if (password !== undefined && !SECRET_REF.test(password.trim())) secrets[name] = [password];
   }

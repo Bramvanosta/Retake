@@ -5,7 +5,7 @@
  * frame (R-ISS-07); every box and point crossing the boundary, both ways, is in top-level viewport CSS px (an element
  * in a frame is offset by the frames' positions).
  */
-import type { BBox, PointSpec, SecretFieldKind, TargetObject } from '@demo-studio/core';
+import type { BBox, NearElement, PointSpec, SecretFieldKind, TargetObject } from '@demo-studio/core';
 
 export type CursorStyle = 'arrow-dark' | 'arrow-light' | 'debug';
 export type CursorKind = 'arrow' | 'hand' | 'ibeam';
@@ -359,6 +359,9 @@ export interface KitTargetCheck {
   near: string[];
 }
 
+/** A visible element close to a target the kit did not find (role, accessible name, text). */
+export type { NearElement } from '@demo-studio/core';
+
 /** `checkTargets`' answer, with the document's `location.origin` (the runner checks it). */
 export interface KitTargetChecks {
   origin: string;
@@ -381,7 +384,8 @@ export interface KitApi {
   alive(ref: string): boolean;
   visible(ref: string): boolean;
   point(ref: string, offset?: PointSpec | null): PointInfo | null;
-  scrollPlan(ref: string, margin: number): ScrollOp | null;
+  /** The next scroll that brings `ref` into view; `centre`: also when in view, towards the middle (a covered element). */
+  scrollPlan(ref: string, margin: number, centre?: boolean): ScrollOp | null;
   scrollContainerFor(ref: string | null, fromParent?: boolean): string;
   scrollInfo(container: string, of?: string | null): ScrollInfo;
   scrollAnimate(container: string, top: number, left: number, ms: number): Promise<{ top: number; left: number }>;
@@ -461,6 +465,17 @@ export interface KitApi {
    * `target` — the element a person acted on, or a ref — or null when nothing interactive holds it.
    */
   suggestFor(target: Element | string, opts?: { budget_ms?: number }): InventoryElement | null;
+  /** `find` for each target, without acting (L5.6): its visible count and, when none, the closest visible elements. */
+  closest(targets: TargetObject[]): Array<{ count: number; near: NearElement[] }>;
+  /** Whether the focused element is `ref` (or inside it, or the control of a label `ref`), and what has the focus. */
+  focusCheck(ref: string): { ok: boolean; desc: string | null; field: string | null };
+  /** An input's or textarea's value, a contenteditable's text (`ref`, else the focused element); null for any other element (L5.6). */
+  fieldValue(ref: string | null): string | null;
+  /** Start counting what changes on the page (DOM in every tree, input / change / submit / scroll… events): R-FLD-12. */
+  effectWatch(): void;
+  /** What changed since effectWatch (watching false: a new document, or not started). */
+  effectSeen(): { watching: boolean; dom: number; first: string; events: string[] };
+  effectStop(): void;
   /** Recorder (L3.4): the kind of secret a field holds (null: not a secret-class field). Never reads a value. */
   secretField(target: Element | string): SecretFieldKind | null;
 }

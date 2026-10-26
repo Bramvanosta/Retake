@@ -101,6 +101,41 @@ export class Store {
     this.signups = [];
     this.clockStart = Date.now();
     this.resets = (this.resets ?? 0) + 1;
+    /** Pro forma invoices (the L5.6 page): two sent ones, then drafts PF-2043, PF-2044… */
+    this.proformas = [
+      { reference: 'PF-2041', customer: 'Café Lumen', delivery: '05/11/2026', quantity_kg: 120, unit_price_eur: 21.4, total_eur: 2568, status: 'sent' },
+      { reference: 'PF-2042', customer: 'Demo Café', delivery: '19/11/2026', quantity_kg: 60, unit_price_eur: 23.1, total_eur: 1386, status: 'sent' },
+    ];
+    this.proformaSeq = 2042;
+    /** Transfers of each pro forma PDF since the reset (the flaky download drops the first one). */
+    this.proformaTransfers = new Map();
+  }
+
+  listProForma() {
+    return [...this.proformas].reverse();
+  }
+
+  /** The next pro forma reference (a draft: listed once it is sent). */
+  draftProForma() {
+    return { reference: `PF-${++this.proformaSeq}` };
+  }
+
+  sendProForma(b) {
+    const quantity = Number(b?.quantity_kg);
+    const unit = Number(b?.unit_price_eur);
+    if (!(quantity > 0) || !(unit > 0)) throw new ApiError(422, 'invalid', 'quantity_kg and unit_price_eur must be positive numbers');
+    const reference = typeof b?.reference === 'string' && /^PF-\d+$/.test(b.reference) ? b.reference : `PF-${++this.proformaSeq}`;
+    const pf = {
+      reference,
+      customer: String(b?.customer ?? 'Demo Café') || 'Demo Café',
+      delivery: String(b?.delivery ?? ''),
+      quantity_kg: quantity,
+      unit_price_eur: unit,
+      total_eur: round2(quantity * unit),
+      status: 'sent',
+    };
+    this.proformas = this.proformas.filter((p) => p.reference !== reference).concat(pf);
+    return pf;
   }
 
   /** Demo wall clock: starts at DEMO_DATE DEMO_START_TIME on every reset and runs in real time. */

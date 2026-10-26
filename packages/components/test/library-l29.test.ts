@@ -206,3 +206,14 @@ describe('media and scenario values', () => {
     }
   });
 });
+
+describe('mail-view mailbox label (L5.6, R-FLD-15)', () => {
+  it('a mail waited for in a persona\'s mailbox labels the mailbox after it; the `mailbox` slot wins; else "Inbox"', () => {
+    expect(render('studio/mail-view', { media: { email: { ...EMAIL, persona: 'buyer' } }, at: 40 })).toContain('Inbox · Buyer');
+    expect(render('studio/mail-view', { media: { email: { ...EMAIL, persona: 'head-roaster' } }, at: 40 })).toContain('Inbox · Head roaster');
+    expect(render('studio/mail-view', { media: { email: { ...EMAIL, persona: 'buyer' } }, slots: { mailbox: 'Orders' }, at: 40 })).toContain('Orders');
+    const plain = render('studio/mail-view', { media: { email: EMAIL }, at: 40 });
+    expect(plain).toContain('Inbox');
+    expect(plain).not.toContain('Inbox ·');
+  });
+});

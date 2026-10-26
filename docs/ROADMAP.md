@@ -74,7 +74,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
-| L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **next** (with L5.5, in parallel) |
+| L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | todo |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
@@ -721,6 +721,14 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   (`--lot L5.6`): R-FLD-10 – R-FLD-16. Acceptance: fixture cases for each (a field below the fold in a scrolling
   dialog, a dead button, a flaky download, a mail to another address, two renamed labels in one scene). Packages:
   runner-web, core, hooks, components (mail-view label), mcp / cli result output.
+  **Done (2026-10-26):** the field's silent wrong `type` reproduced on a new fixture page (Pro forma invoices) with the
+  old runner — the target resolved to a field behind the modal dialog — and fixed (matches behind a modal dropped;
+  `type` scrolls the field in its own container, waits for its box to settle, checks the focus before typing and the
+  value after); every missing target of a scene in one error; dead clicks warned at once with a screenshot and
+  `retry_click`; download retries; `defaults.timeout_s`; persona `email`, `to: persona:<name>`, mailbox diagnostics
+  and the mail-view label; `optional_failures` and `capture.step_shots`. Fixture cases in
+  `packages/cli/test/reliability-fixture.test.ts`; capture + render of the fixture `proforma` scenario looked at.
+  Follow-ups BL-92 – BL-94.
 - **L5.7 — Capture performance and disk (M).** Goal: a take costs under a core with the limiter on, ends without a
   long encode and weighs tens of MB. Scope (`--lot L5.7`): R-FLD-20 – R-FLD-28, starting from the measurements in
   `docs/FIELD-FEEDBACK-1.md`. Acceptance: the same sampler on fixture `quote` before / after, frames looked at, the

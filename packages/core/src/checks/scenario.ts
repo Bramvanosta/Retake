@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { PERSONA_NONE, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
+import { PERSONA_NONE, authFor, mailPersona, personaEmail, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -365,6 +365,24 @@ class ScenarioChecker {
     return entries[0]?.id;
   }
 
+  /** `wait_for_email {to: persona:<name>}` (L5.6): a persona of the scenario's environment that has an `email`. */
+  private mailPersona(step: NormalizedStep, sp: IssuePath): void {
+    const to = (step.args as { to?: string }).to;
+    const name = mailPersona(to);
+    const path: IssuePath = [...sp, 'wait_for_email', 'to'];
+    if (name === null || !this.opts.project || this.ctx.broken(path)) {
+      if (typeof to === 'string' && /^persona:/.test(to) && name === null) this.ctx.error(path, '`persona:` needs a persona name, e.g. persona:buyer');
+      return;
+    }
+    const env = this.envName;
+    const names = env ? Object.keys(authFor(this.opts.project.config, env)?.personas ?? {}) : projectPersonaNames(this.opts.project.config);
+    if (!names.includes(name)) {
+      this.ctx.error(path, names.length ? `unknown persona "${name}"${suggestion(name, names)} (personas${env ? ` of ${env}` : ''}: ${names.join(', ')})` : `unknown persona "${name}": no personas${env ? ` on environment ${env}` : ''}`);
+    } else if (env && personaEmail(this.opts.project.config, env, name) === undefined) {
+      this.ctx.error(path, `persona "${name}" has no \`email\`${env ? ` on environment ${env}` : ''}: add email: <address> to auth.personas.${name} in project.yaml (or to its sandbox account)`);
+    }
+  }
+
   /** A scene's or a page's `persona`: one the project declares (in any environment), or `none`. */
   private personaName(v: unknown, path: IssuePath): void {
     if (typeof v !== 'string' || v === PERSONA_NONE || !this.opts.project || this.ctx.broken(path)) return;
@@ -653,6 +671,10 @@ class ScenarioChecker {
     } else if (typeof step.park === 'number' && step.hold !== undefined) {
       this.ctx.warning([...sp, 'hold'], '`park: <seconds>` sets the hold after the park: `hold` is ignored');
     }
+    if (step.retry_click !== undefined && step.action !== 'click' && step.action !== 'double_click') {
+      this.ctx.warning([...sp, 'retry_click'], `\`retry_click\` applies to click and double_click steps: ignored on a ${step.action} step`);
+    }
+    if (step.action === 'wait_for_email') this.mailPersona(step, sp);
     const facts = checkActionArgs(step, sp, this.ctx);
     if (facts.artefact) {
       const known = this.artefacts[facts.artefact.kind];

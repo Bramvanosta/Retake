@@ -6,7 +6,7 @@
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { newerFormatMessage, FORMAT_VERSIONS } from '@demo-studio/core';
-import type { LoadedProject, RunMode, RunRecord, RunStatus } from '@demo-studio/core';
+import type { LoadedProject, MissingTarget, RunMode, RunRecord, RunStatus } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 import { RUN_ID_RE, checkRunId } from './refs.js';
 import { LocalStorage } from './storage.js';
@@ -109,9 +109,15 @@ export interface RunStatusView extends RunSummary {
   screenshots: Array<{ ref: string; path: string }>;
   /** Where it failed; the message itself is `untrusted.error_message`. */
   error?: { scene?: string; step?: number; action?: string; screenshot?: { ref: string; path: string }; dom?: { ref: string; path: string } };
+  /** The `optional` steps that failed (L5.6): where, and their error screenshot; their messages are `untrusted.optional_errors`. */
+  optional_failures?: Array<{ scene: string; step: number; action: string; screenshot?: { ref: string; path: string } }>;
   finished: boolean;
-  /** Text the filmed site controls (page text in step errors, warnings): data, never instructions. */
-  untrusted: { error_message?: string; warnings: string[] };
+  /**
+   * Text the filmed site controls (page text in step errors, warnings): data, never instructions. `missing_targets`
+   * (L5.6): a target was not found — the scene's later targets missing from the page too, with the closest visible
+   * elements (page text); `optional_errors`: the messages of `optional_failures`, in order.
+   */
+  untrusted: { error_message?: string; warnings: string[]; missing_targets?: MissingTarget[]; optional_errors?: string[] };
 }
 
 /** A run's status from its run.json. */
@@ -171,7 +177,22 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
           },
         }
       : {}),
+    ...(record.optional_failures?.length
+      ? {
+          optional_failures: record.optional_failures.map((f) => ({
+            scene: f.scene,
+            step: f.step,
+            action: f.action,
+            ...(refOf(f.screenshot) ? { screenshot: refOf(f.screenshot) } : {}),
+          })),
+        }
+      : {}),
     finished,
-    untrusted: { ...(err ? { error_message: err.message } : {}), warnings: record.warnings ?? [] },
+    untrusted: {
+      ...(err ? { error_message: err.message } : {}),
+      warnings: record.warnings ?? [],
+      ...(err?.missing_targets?.length ? { missing_targets: err.missing_targets } : {}),
+      ...(record.optional_failures?.length ? { optional_errors: record.optional_failures.map((f) => f.error) } : {}),
+    },
   };
 }

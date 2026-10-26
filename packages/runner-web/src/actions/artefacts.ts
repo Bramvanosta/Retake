@@ -5,13 +5,13 @@
  */
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import type { Download, Page } from 'playwright-core';
-import { mailboxFor, sandboxOf } from '@demo-studio/core';
+import type { APIResponse, Download, Page } from 'playwright-core';
+import { mailPersona, mailboxFor, personaEmail, sandboxOf } from '@demo-studio/core';
 import type { DocumentArtefact, NormalizedArgsMap, WaitForEmailArgs } from '@demo-studio/core';
 import { MailboxClient, formatAddress, mailMatches } from '../artefacts/mailbox.js';
 import type { MailSummary } from '../artefacts/mailbox.js';
 import { imageSize, sniffMime } from '../artefacts/store.js';
-import { StepError, errorMessage } from '../errors.js';
+import { StepError, errorMessage, isCancelled } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
@@ -58,41 +58,139 @@ function describeFilter(a: WaitForEmailArgs): string {
   return parts.length ? parts.join(', ') : 'any new message';
 }
 
+/** `"Subject" from a@x to b@y, c@z` — a message as the diagnostics name it (R-FLD-15). */
+export function describeMail(m: MailSummary): string {
+  const to = m.to.map((a) => a.address).join(', ') || '(no recipient)';
+  return `${JSON.stringify(m.subject.length > 70 ? `${m.subject.slice(0, 67)}…` : m.subject)} from ${m.from.address || '(no sender)'} to ${to}`;
+}
+
+/** At most this many messages are named in an error or a warning. */
+const MAIL_LIST_MAX = 8;
+function mailList(list: MailSummary[]): string {
+  const shown = list.slice(0, MAIL_LIST_MAX).map(describeMail).join('; ');
+  return list.length > MAIL_LIST_MAX ? `${shown}; … ${list.length - MAIL_LIST_MAX} more` : shown;
+}
+
+/**
+ * The recipient filter of a wait (R-FLD-15): `to: persona:<name>` is that persona's `email` on the run's environment,
+ * matched as the whole address; any other `to` matches a substring of an address or a name.
+ */
+function recipientFilter(rt: Runtime, args: WaitForEmailArgs): { persona?: string; address?: string; matches: (m: MailSummary) => boolean } {
+  const persona = mailPersona(args.to);
+  if (persona === null) return { matches: (m) => mailMatches(m, args) };
+  const address = personaEmail(rt.project.config, rt.env.name, persona);
+  if (!address) {
+    throw new StepError(`wait_for_email: persona "${persona}" has no \`email\` on environment ${rt.env.name} (auth.personas.${persona}.email in project.yaml, or its sandbox account)`);
+  }
+  const rest = { ...args, to: undefined };
+  const want = address.toLowerCase();
+  return { persona, address, matches: (m) => m.to.some((a) => a.address.toLowerCase() === want) && mailMatches(m, rest) };
+}
+
 export async function waitForEmail(ctx: StepContext, args: WaitForEmailArgs): Promise<ActionResult> {
   const { rt } = ctx;
   const mb = mailboxOf(rt);
   if (rt.artefacts.has('email', args.as)) throw new StepError(`wait_for_email: an email named "${args.as}" was already captured in this run`);
-  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? ARTEFACT_TIMEOUT_S) * 1000;
+  const filter = recipientFilter(rt, args);
+  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? rt.defaultTimeoutS ?? ARTEFACT_TIMEOUT_S) * 1000;
   const deadline = wallNow() + timeoutMs;
   const baseline = rt.artefacts.baseline;
   let seen = 0;
   let found: MailSummary | undefined;
+  let fresh: MailSummary[] = [];
+  let atStart: Set<string> | null = null;
   for (;;) {
     const list = await mb.list(rt.signal);
     seen = list.length;
+    atStart ??= new Set(list.map((m) => m.id));
     // Oldest first: the first message that arrived for this filter, not one captured already.
-    const fresh = list.filter((m) => !rt.artefacts.claimed.has(m.id) && !(baseline?.has(m.id) ?? false)).reverse();
-    found = fresh.find((m) => mailMatches(m, args));
-    if (found) break;
+    fresh = list.filter((m) => !rt.artefacts.claimed.has(m.id) && !(baseline?.has(m.id) ?? false)).reverse();
+    const matching = fresh.filter(filter.matches);
+    found = matching[0];
+    if (found) {
+      // Several messages fit (the same subject sent to several people): the oldest is taken, the others named.
+      if (matching.length > 1) {
+        rt.warn(
+          `${ctx.scene.id}.${ctx.step.index}: wait_for_email: ${matching.length} new messages match (${describeFilter(args)}): ${mailList(matching)} — took the first one; ` +
+            'narrow the filter (to: persona:<name>, the exact address, the subject)',
+        );
+      }
+      break;
+    }
     if (wallNow() >= deadline) {
-      throw new StepError(`wait_for_email: no new message (${describeFilter(args)}) within ${Math.round(timeoutMs / 100) / 10} s (${seen} messages in the mailbox)`);
+      const during = fresh.filter((m) => !atStart!.has(m.id));
+      const before = fresh.filter((m) => atStart!.has(m.id));
+      const parts = [
+        `wait_for_email: no new message (${describeFilter(args)}${filter.address ? ` = ${filter.address}` : ''}) within ${Math.round(timeoutMs / 100) / 10} s (${seen} messages in the mailbox)`,
+        during.length ? `received during the wait: ${mailList(during)}` : 'no message arrived during the wait',
+      ];
+      if (before.length) parts.push(`received earlier in the run, not captured: ${mailList(before)}`);
+      if (!during.length && !before.length) parts.push('check that the product sends this mail (notification settings of the account, the mail queue) and that it goes to this mailbox');
+      throw new StepError(parts.join('; '));
     }
     await rt.sleep(Math.min(mb.pollMs, Math.max(50, deadline - wallNow())));
   }
   rt.artefacts.claimed.add(found.id);
   const message = await mb.get(found.id, rt.signal);
   const where = rt.current ? { scene: rt.current.scene, step: rt.current.step } : {};
-  const a = await rt.artefacts.addEmail(args.as, message, rt.now(), where);
+  const a = await rt.artefacts.addEmail(args.as, message, rt.now(), where, filter.persona);
   rt.log('info', `wait_for_email: captured "${message.subject}" from ${formatAddress(message.from)} as ${args.as}`);
-  return { data: { artefact: 'email', name: args.as, file: a.file, subject: a.subject, from: formatAddress(message.from), to: a.to } };
+  return {
+    data: { artefact: 'email', name: args.as, file: a.file, subject: a.subject, from: formatAddress(message.from), to: a.to, ...(filter.persona ? { persona: filter.persona } : {}) },
+  };
 }
 
 type Captured = { via: 'download'; download: Download } | { via: 'tab'; page: Page };
 
+/** How many times `download` fetches a file whose transfer failed on a transient network error (R-FLD-13). */
+export const DOWNLOAD_ATTEMPTS = 3;
+/** Pause before each new attempt (ms): 1 s, then 2 s. */
+export const DOWNLOAD_RETRY_MS = [1000, 2000];
+/**
+ * A network failure that a new attempt may not meet: a dropped, cut ("aborted": the body stopped short) or refused
+ * connection, a timeout, a busy gateway.
+ */
+const TRANSIENT =
+  /socket hang up|\baborted\b|premature close|other side closed|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EPIPE|EAI_AGAIN|ENETUNREACH|ERR_CONNECTION|ERR_NETWORK|ERR_EMPTY_RESPONSE|ERR_TIMED_OUT|ERR_INTERNET_DISCONNECTED|network error|NETWORK_FAILED|timed? ?out|Timeout \d+ms exceeded/i;
+/** HTTP statuses worth another attempt: too many requests, bad gateway, unavailable, gateway timeout. */
+const TRANSIENT_STATUS = new Set([408, 429, 502, 503, 504]);
+
+export function isTransientNetworkError(message: string): boolean {
+  return TRANSIENT.test(message);
+}
+
+/**
+ * Fetch a document with the session's cookies (R-FLD-13): a transient failure (socket hang up, reset, timeout, 502 /
+ * 503 / 504) is retried DOWNLOAD_ATTEMPTS times in all with a pause; a real error (another 4xx / 5xx) fails at once.
+ */
+async function fetchDocument(ctx: StepContext, url: string, timeoutMs: number, as: string): Promise<{ res: APIResponse; attempts: number }> {
+  const { rt } = ctx;
+  const request = rt.page.context().request;
+  for (let attempt = 1; ; attempt++) {
+    let why: string;
+    try {
+      const res = await request.get(url, { timeout: timeoutMs });
+      if (res.ok()) return { res, attempts: attempt };
+      if (!TRANSIENT_STATUS.has(res.status())) throw new StepError(`download: the document at ${url} answered HTTP ${res.status()}`);
+      why = `HTTP ${res.status()}`;
+    } catch (e) {
+      if (e instanceof StepError || isCancelled(e)) throw e;
+      why = errorMessage(e).split('\n')[0].replace(/^apiRequestContext\.\w+:\s*/, '');
+      if (!isTransientNetworkError(why)) throw new StepError(`download: the document at ${url} could not be fetched with the session (${why})`);
+    }
+    if (attempt >= DOWNLOAD_ATTEMPTS) {
+      throw new StepError(`download: the document at ${url} could not be fetched after ${attempt} attempts (${why}: a network error each time)`);
+    }
+    const wait = DOWNLOAD_RETRY_MS[Math.min(attempt - 1, DOWNLOAD_RETRY_MS.length - 1)];
+    rt.warn(`${ctx.scene.id}.${ctx.step.index}: download "${as}": ${why} — trying again in ${wait / 1000} s (attempt ${attempt + 1} of ${DOWNLOAD_ATTEMPTS})`);
+    await rt.sleep(wait);
+  }
+}
+
 export async function download(ctx: StepContext, args: NormalizedArgsMap['download']): Promise<ActionResult> {
   const { rt } = ctx;
   if (rt.artefacts.has('document', args.as)) throw new StepError(`download: a document named "${args.as}" was already captured in this run`);
-  const timeoutMs = (args.timeout ?? ARTEFACT_TIMEOUT_S) * 1000;
+  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? rt.defaultTimeoutS ?? ARTEFACT_TIMEOUT_S) * 1000;
   const page = rt.page;
   const context = page.context();
   const r = await resolveTarget(ctx, args.click);
@@ -142,24 +240,40 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
   let fileName: string;
   let contentType = '';
   let url: string | undefined;
+  let attempts = 1;
   try {
     if (captured.via === 'download') {
       const d = captured.download;
       url = d.url();
       signIn(url);
       fileName = d.suggestedFilename();
+      let failed: string | null = null;
       const path = await d.path().catch((e: unknown) => {
-        throw new StepError(`download: the file could not be downloaded (${errorMessage(e)})`);
+        failed = errorMessage(e);
+        return null;
       });
-      bytes = await readFile(path);
+      // The browser's own reason ("network error", "canceled") says more than path()'s.
+      if (failed || !path) failed = [await d.failure().catch(() => null), failed].filter(Boolean).join(': ') || 'the download did not finish';
+      if (path && !failed) {
+        bytes = await readFile(path);
+      } else if (failed && /^https?:/.test(url)) {
+        // The browser's transfer broke (R-FLD-13; Chromium reports a network failure as "canceled", after its own new
+        // attempt): the same URL again with the session, not a new click — a real error shows there as its HTTP status.
+        rt.warn(`${ctx.scene.id}.${ctx.step.index}: download "${args.as}": the browser's transfer failed (${failed}) — fetching ${url} again with the session`);
+        const got = await fetchDocument(ctx, url, timeoutMs, args.as);
+        signIn(got.res.url());
+        attempts = got.attempts + 1;
+        bytes = await got.res.body();
+      } else {
+        throw new StepError(`download: the file could not be downloaded (${failed})`);
+      }
     } else {
       url = captured.page.url();
       signIn(url);
-      const res = await context.request.get(url, { timeout: timeoutMs }).catch((e: unknown) => {
-        throw new StepError(`download: the document at ${url} could not be fetched with the session (${errorMessage(e)})`);
-      });
+      const got = await fetchDocument(ctx, url, timeoutMs, args.as);
+      const res = got.res;
+      attempts = got.attempts;
       signIn(res.url());
-      if (!res.ok()) throw new StepError(`download: the document at ${url} answered HTTP ${res.status()}`);
       bytes = await res.body();
       contentType = res.headers()['content-type'] ?? '';
       const disposition = res.headers()['content-disposition'] ?? '';
@@ -201,7 +315,7 @@ export async function download(ctx: StepContext, args: NormalizedArgsMap['downlo
     point: run.point,
     t_click: run.t_click,
     strategy: run.strategy,
-    data: { artefact: 'document', name: args.as, file: a.file, file_name: fileName, mime, via: captured.via, bytes: bytes.length },
+    data: { artefact: 'document', name: args.as, file: a.file, file_name: fileName, mime, via: captured.via, bytes: bytes.length, ...(attempts > 1 ? { attempts } : {}) },
   };
 }
 

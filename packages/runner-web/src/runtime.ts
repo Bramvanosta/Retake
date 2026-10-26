@@ -68,6 +68,8 @@ export interface RuntimeInit {
    * pauses (`hold`, `wait`, a step's `hold:`, a scene's still) last at most INSPECT_PAUSE_CAP_S.
    */
   inspecting?: boolean;
+  /** `defaults.timeout_s` of the scenario, else the project's (L5.6): the timeout of every step that sets none. */
+  defaultTimeoutS?: number;
 }
 
 /** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
@@ -128,6 +130,10 @@ export class Runtime {
   readonly agentTrust: boolean;
   /** An inspection's replay: see RuntimeInit.inspecting. */
   readonly inspecting: boolean;
+  /** See RuntimeInit.defaultTimeoutS. */
+  readonly defaultTimeoutS: number | undefined;
+  /** Clicks still watched for an effect (R-FLD-12, actions/effects.ts): the next acting step closes them. */
+  readonly effectChecks = new Set<{ close: () => Promise<void> }>();
   /** The scene and step being executed (notifications are attributed to them). */
   current: { scene: string; scene_index: number; step: number } | null = null;
   /** The last plain click of the scene, while the popup it may open late is not ruled out (settleLatePopup). */
@@ -176,6 +182,7 @@ export class Runtime {
     this.cursorHidden = init.cursorHidden === true;
     this.agentTrust = init.agentTrust === true;
     this.inspecting = init.inspecting === true;
+    this.defaultTimeoutS = init.defaultTimeoutS;
     this.log = init.log;
     this.guard = init.guard ?? null;
     this.plannedPersonas = init.plannedPersonas;
@@ -641,7 +648,7 @@ export interface StepContext {
   rt: Runtime;
   scene: { id: string; index: number };
   step: NormalizedStep;
-  /** Step timeout in ms (step.timeout or 15 s). */
+  /** Step timeout in ms (step.timeout, else defaults.timeout_s, else 15 s). */
   timeoutMs: number;
   jitter: Jitter;
   /** Pointer interactions performed by the step, in order. */

@@ -14,6 +14,10 @@ export const CaptureSettingsSchema = z
     quality: z.number().int().min(1).max(100).describe('JPEG quality (1-100).'),
     keep_frames: z.boolean().describe('Keep runs/<id>/frames after encoding.'),
     crf: z.number().int().min(0).max(51).describe('libx264 CRF of capture.mp4.'),
+    step_shots: z
+      .boolean()
+      .describe('Keep one picture per step of a capture in runs/<id>/screenshots (the captured frame at the end of each step), as a dry run does. Default false.')
+      .optional(),
   })
   .meta({ id: 'CaptureSettings' }) satisfies z.ZodType<CaptureSettings>;
 
@@ -54,6 +58,16 @@ export const PacingSchema = z
     park_scroll_hold: seconds().describe("Seconds a scroll's `park: true` holds the cursor next to the target (3–3.5)."),
   })
   .meta({ id: 'Pacing' }) satisfies z.ZodType<Pacing>;
+
+export const RunDefaultsSchema = z
+  .strictObject({
+    timeout_s: positiveSeconds()
+      .describe(
+        'Seconds every wait and action waits when it has no `timeout` of its own: targets, wait_for, wait_for_email, download… (built-in: 15; 30 for wait_for_email and download).',
+      )
+      .optional(),
+  })
+  .meta({ id: 'RunDefaults', description: 'Defaults of every step (a scenario\'s win over the project\'s).' });
 
 export const PacingPartialSchema = PacingSchema.partial().meta({
   id: 'PacingOverrides',
@@ -115,6 +129,10 @@ export const LoginStepSchema = keyedUnion(
 
 /** The fields of a persona (also of a sandbox account, which adds username and password). */
 export const personaShape = {
+  email: z
+    .email({ error: 'email is a mail address (name@example.com)' })
+    .describe('The persona\'s mail address: wait_for_email {to: persona:<name>} matches it, mail cards label the mailbox after the persona.')
+    .optional(),
   pages: z.array(keyString('page')).describe('Environment pages this persona is signed into by default (a page belongs to at most one persona).').optional(),
   session: z
     .enum(['profile', 'storage_state'])

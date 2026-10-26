@@ -23,6 +23,10 @@ Northfield connects coffee roasters with the cafés they supply.
   inside a web component and an iframe on the product page).
 - Roasters following their sales (video: `reports` — the console's server-rendered Sales reports: every move between
   them and the app is a full page load, a slow report paints an empty skeleton first).
+- Roasters sending a pro forma before a large order (video: `proforma`, `--env signed-in` as the supplier — the
+  console's Pro forma invoices page is made of traps a real take met: a dialog whose body scrolls over a page with a
+  field of the same label, a calendar over the fields, a PDF whose second transfer breaks, a mail sent to two
+  addresses with one subject; Demo Studio L5.6).
 
 ## Goals
 

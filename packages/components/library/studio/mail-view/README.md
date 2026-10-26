@@ -19,7 +19,7 @@ A mail client card showing a captured email — subject, sender, date and its re
 | `subject` | text |  | 120 | Subject (default — the email's). |
 | `date` | text |  | 40 | Date as shown (default — the email's date). |
 | `body` | text |  | 800 | Body text when there is no captured email image. |
-| `mailbox` | text |  | 24 | Mailbox name in the toolbar (default "Inbox"). |
+| `mailbox` | text |  | 24 | Mailbox name in the toolbar (default "Inbox", or "Inbox · Buyer" for a mail waited for with to: persona:buyer). |
 
 ## Params
 

@@ -55,8 +55,12 @@ describe('resolver', () => {
   });
 
   it('prefers exact text, then case-insensitive, then substring', async () => {
-    expect(await idOf({ text: 'Save' })).toBe('b-save');
-    expect((await kit.find({ text: 'Save' })).count).toBe(2); // + the dialog's Save
+    // The page's open aria-modal dialog holds a Save too: behind a modal dialog, only its own (R-FLD-11) — `in: page`
+    // searches the whole page.
+    expect(await idOf({ text: 'Save' })).toBe('dlg-save');
+    expect((await kit.find({ text: 'Save' })).count).toBe(1);
+    expect(await idOf({ text: 'Save', in: 'page' })).toBe('b-save');
+    expect((await kit.find({ text: 'Save', in: 'page' })).count).toBe(2);
     expect(await idOf({ text: 'save changes' })).toBe('b-save-changes');
     expect(await idOf({ text: 'changes' })).toBe('b-save-changes');
     expect((await kit.find({ text: 'chang', exact: true })).count).toBe(0);

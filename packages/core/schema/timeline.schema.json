@@ -1219,6 +1219,10 @@
                   "height"
                 ],
                 "additionalProperties": false
+              },
+              "persona": {
+                "type": "string",
+                "description": "The persona whose mailbox it was waited for in (to: persona:<name>)."
               }
             },
             "required": [

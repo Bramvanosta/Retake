@@ -49,7 +49,7 @@ export async function hold(ctx: StepContext, args: { seconds: number }): Promise
 }
 
 export async function waitFor(ctx: StepContext, args: WaitForArgs): Promise<ActionResult> {
-  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? DEFAULT_WAIT_FOR_S) * 1000;
+  const timeoutMs = (args.timeout ?? ctx.step.timeout ?? ctx.rt.defaultTimeoutS ?? DEFAULT_WAIT_FOR_S) * 1000;
   const deadline = wallNow() + timeoutMs;
   if (args.network_idle) {
     // Re-armed on every call (network.ts): Playwright's networkidle fires once per document, then never waits again.

@@ -264,6 +264,8 @@ export interface EmailMedia {
   preview: string;
   /** The HTML rendered at 600 px layout width (2×), full height. */
   image?: MediaImage;
+  /** The persona whose mailbox it arrived in (`wait_for_email {to: persona:<name>}`): a mail card's mailbox label. */
+  persona?: string;
 }
 
 /** A captured document (download, or a project file), as components receive it: one image per page. */

@@ -6,12 +6,13 @@
  * the write mocks, the vars that a filmed part uses, the capture scenes (their ids, order and `skip`), each scene's
  * page (inherited included), `open`, `pages` (page labels left out), `persona`, `still` and `cursor`, and each step's
  * action and arguments (core stepFingerprint: shorthands and object forms agree) with the modifiers that act on the
- * page — `hold`, `park`, `on`.
+ * page — `hold`, `park`, `on`, `retry_click` (L5.6).
  *
  * Everything else is edit: title, intro / outro, frame, template, music, tutorial switches, target length; cards and
  * interstitials (their text, duration, place between scenes); a scene's caption, speed, transition, frame, tutorial and
  * page labels; a step's caption, speed, camera, mark, overlay, tutorial and id. `timeout`, `optional` and
- * `irreversible` change nothing a successful take filmed and are left out; `note`s are ignored.
+ * `irreversible` change nothing a successful take filmed and are left out, as are `defaults` (L5.6: a default timeout)
+ * and `capture.step_shots` (pictures copied after the take); `note`s are ignored.
  *
  * The comparison reads both texts as data (core parseYaml: comments, quoting, key order are no change) and tolerates
  * malformed parts (a step without a single action is compared by its data). Messages name only keys, scene ids (slugs)
@@ -44,7 +45,7 @@ const FILMED_TOP: ReadonlyArray<[string, string]> = [
 const FILMED_SCENE_KEYS = ['page', 'open', 'pages', 'persona', 'still', 'cursor'] as const;
 
 /** Step modifiers that act on the page (the action and its arguments are compared by fingerprint). */
-const FILMED_STEP_MODIFIERS = ['hold', 'park', 'on'] as const;
+const FILMED_STEP_MODIFIERS = ['hold', 'park', 'on', 'retry_click'] as const;
 
 /** Step keys that are edit or change nothing filmed: a step without a single action is compared without them. */
 const EDIT_STEP_KEYS = new Set(['id', 'caption', 'speed', 'camera', 'mark', 'overlay', 'tutorial', 'note', 'timeout', 'optional', 'irreversible']);
@@ -110,7 +111,9 @@ export function filmedPartsOf(value: unknown): FilmedParts {
   const top: Record<string, string> = {};
   const topStrings: string[] = [];
   for (const [k] of FILMED_TOP) {
-    top[k] = canonicalJson(doc[k] ?? null);
+    // capture.step_shots (L5.6) keeps pictures copied after the take: it changes no frame.
+    const v = k === 'capture' && isPlainObject(doc[k]) ? Object.fromEntries(Object.entries(doc[k]).filter(([ck]) => ck !== 'step_shots')) : doc[k];
+    top[k] = canonicalJson((k === 'capture' && isPlainObject(v) && Object.keys(v).length === 0 ? undefined : v) ?? null);
     collectStrings(doc[k], topStrings);
   }
   const scenes: FilmedScene[] = [];

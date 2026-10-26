@@ -106,6 +106,30 @@ function appHandler(appKey, ctx) {
     if (path === '/app-icon.svg') return sendText(res, 200, 'image/svg+xml', FAVICON);
     if (ctx.signIn && !signedIn(req, ctx.sessions, appKey)) return redirectToSignIn(res, url);
     if (appKey === 'console') {
+      // A pro forma's PDF, inline (Demo Studio L5.6). `?flaky=1`: the second transfer of each one since the reset (after
+      // the new tab's own) breaks after its headers and half its bytes — a server busy for a moment: a transient
+      // network failure the runner must try again, not lose a take on.
+      const proforma = /^\/proforma\/(PF-\d+)\.pdf$/.exec(path);
+      if (proforma) {
+        const ref = proforma[1];
+        const n = (ctx.store.proformaTransfers.get(ref) ?? 0) + 1;
+        ctx.store.proformaTransfers.set(ref, n);
+        let pdf;
+        try {
+          pdf = await proformaPdf(ref);
+        } catch (err) {
+          return sendError(res, 500, 'pdf_failed', `The PDF could not be printed: ${err instanceof Error ? err.message : err}`);
+        }
+        const headers = { 'content-type': 'application/pdf', 'content-length': String(pdf.length), 'content-disposition': `inline; filename="${ref}.pdf"`, 'cache-control': 'no-store' };
+        if (url.searchParams.get('flaky') === '1' && n === 2) {
+          res.writeHead(200, headers);
+          res.write(pdf.subarray(0, Math.floor(pdf.length / 2)));
+          setTimeout(() => res.socket?.destroy(), 50);
+          return;
+        }
+        res.writeHead(200, headers);
+        return res.end(pdf);
+      }
       // "Sales reports": server-rendered pages, every link a full page load (R-ISS-08).
       if (path === '/reports' || path === '/reports/') return sendText(res, 200, 'text/html; charset=utf-8', renderReportList(), { 'cache-control': 'no-store' });
       const month = /^\/reports\/([^/]+)(\/data)?\/?$/.exec(path);
@@ -167,6 +191,18 @@ function appHandler(appKey, ctx) {
     // SPA fallback: every other path renders the app shell (deep links work on full page loads).
     sendText(res, 200, 'text/html; charset=utf-8', shellHtml(appKey, ctx, ctx.version), { 'cache-control': 'no-store' });
   };
+}
+
+/** A pro forma's PDF (printed once per reference, then kept). */
+const proformaPdfs = new Map();
+function proformaPdf(ref) {
+  if (!proformaPdfs.has(ref)) {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font:15px Helvetica,Arial,sans-serif;color:#2b1d1a;margin:56px}h1{color:#6e1f2b;font-size:30px}td{padding:6px 18px 6px 0}</style></head><body><h1>Pro forma ${ref}</h1><p>Northfield Roasters · Stockholm</p><table><tr><td>Customer</td><td>Demo Café</td></tr><tr><td>Terms</td><td>30 days net, DAP Stockholm</td></tr></table><p style="margin-top:40px">This pro forma is not a tax invoice.</p></body></html>`;
+    const p = htmlToPdf(html);
+    proformaPdfs.set(ref, p);
+    p.catch(() => proformaPdfs.delete(ref));
+  }
+  return proformaPdfs.get(ref);
 }
 
 function listen(server, port, host) {

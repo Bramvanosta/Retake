@@ -350,6 +350,7 @@ databases:
   main: {url: "postgres://demo@db.staging.example.com/app?password={{keychain:acme/db}}"}
 vars: {customer: Northfield Roasters}
 pacing: {type_cps: 12}                                    # override field-tested pacing defaults
+defaults: {timeout_s: 30}                                 # every step's timeout when it sets none (a scenario's `defaults` win)
 browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`; frame_rate_limit: false, see Requirements
 reset:                         # run by `studio env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
@@ -358,7 +359,9 @@ mailbox: {provider: mailpit, url: "http://localhost:8025"}   # test mailbox read
 sandboxes: {sandbox: sandbox/sandbox.yaml}                  # sandbox environments (see Sandbox mode)
 ```
 
-`capture` also accepts `format` (`jpeg`/`png`), `quality`, `crf` and `keep_frames`. The browser locale is
+`capture` also accepts `format` (`jpeg`/`png`), `quality`, `crf`, `keep_frames` and `step_shots` (`true`: a capture
+keeps one picture per step in `runs/<id>/screenshots/`, as a dry run does — the captured frame at the end of each step,
+named `<scene>-<nn>-<action>.jpg`; nothing is taken during the take). The browser locale is
 `browser.locale` when set, else the project `locale`, else the `studio.yaml` `browser.locale` default.
 Run `studio schema project` for the full schema (also in `packages/core/schema/` for editor autocompletion).
 
@@ -469,11 +472,11 @@ Every step has exactly one action; shorthand forms are shown first.
 | Action | Example | What it does |
 |---|---|---|
 | `open` | `open: /settings` · `{url, page, wait_until}` | Navigate the current (or given) page |
-| `click` | `click: Save` · `{text: Save, in: dialog}` | Cursor travels, hovers, presses; popup-aware fallbacks |
+| `click` | `click: Save` · `{text: Save, in: dialog}` | Cursor travels, hovers, presses; popup-aware fallbacks. A click that changes nothing within about a second — no request, DOM change, navigation, dialog, new tab, download, nor a field taking the focus — is reported at once with a screenshot (see [When a take goes wrong](#when-a-take-goes-wrong)); `retry_click: true` clicks once more |
 | `click` (outside) | `click: {outside: true}` | Close the open popover by clicking the dialog title or a blank area; with a listbox open over a floating popover, the listbox closes first (a click on the popover's title), the popover on the next one |
 | `double_click` | `double_click: {text: Report.pdf}` | Double click |
 | `hover` | `hover: {text: Pricing, ms: 900}` | Move onto an element and rest |
-| `type` | `type: {into: {label: Email}, text: hi@example.com, cps: 12, clear: true, enter: true}` | Type character by character; without `cps` the rate adapts to the field (search ≤ 10, long text up to 24; `data.rate`); `clear` selects all + deletes, and when the field still holds text (select-all blocked, a React input that restored its value) uses the native value setter + an `input` event (`data.clear`); an editor the runner cannot read (in a frame from another origin, or typing into a hidden input: CodeMirror 5, Monaco) gets the keys only, unchecked |
+| `type` | `type: {into: {label: Email}, text: hi@example.com, cps: 12, clear: true, enter: true}` | Type character by character; without `cps` the rate adapts to the field (search ≤ 10, long text up to 24; `data.rate`); `clear` selects all + deletes, and when the field still holds text (select-all blocked, a React input that restored its value) uses the native value setter + an `input` event (`data.clear`); an editor the runner cannot read (in a frame from another origin, or typing into a hidden input: CodeMirror 5, Monaco) gets the keys only, unchecked. With `into`, the field is brought into view inside its own scrolling containers (a scrolling dialog included) and clicked once its box stopped moving; the step fails before typing anything when the focus did not land in the field (the error names what got it), and warns when the field's value does not hold the text typed afterwards |
 | `press` | `press: Enter` · `{key: ArrowDown, times: 3}` | Press a key (Playwright key names) |
 | `select` | `select: {field: Country, option: Sweden, search: Swe}` · `{combobox: "#country", option: …}` | Native select or combobox listbox |
 | `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg, close: outside}` | Multi-select popover, closed without Escape; only what the step opened is closed (a popover holding the field stays open) |
@@ -493,16 +496,19 @@ Every step has exactly one action; shorthand forms are shown first.
 | `notify` | `notify: Capture finished` · `{title, message}` | Desktop notification |
 | `emit` | `emit: {name: chapter, data: {n: 2}}` | Custom event in the timeline |
 | `cursor` | `cursor: hide` · `{move: {x: 1500, y: 540}, duration: 0.8}` · `{set: {x: 0, y: 0}}` | Show, hide, move or teleport the cursor |
-| `wait_for_email` | `wait_for_email: {to: noa@cafe.example, subject: Confirm, timeout: 20, as: welcome}` | Wait for a new message in the project's test mailbox and capture it (artefact `email: welcome`) — see [Mails, documents and notifications](#mails-documents-and-notifications) |
-| `download` | `download: {click: {text: Download quote PDF}, as: quote, timeout: 30}` | Real click, then capture the file it produces — a download, or a document opened in a new tab (fetched with the session) — as artefact `document: quote`; PDFs are rasterised page by page |
+| `wait_for_email` | `wait_for_email: {to: noa@cafe.example, subject: Confirm, timeout: 20, as: welcome}` · `{to: persona:buyer, …}` | Wait for a new message in the project's test mailbox and capture it (artefact `email: welcome`); `persona:<name>` is that persona's `email` — see [Mails, documents and notifications](#mails-documents-and-notifications) |
+| `download` | `download: {click: {text: Download quote PDF}, as: quote, timeout: 30}` | Real click, then capture the file it produces — a download, or a document opened in a new tab (fetched with the session) — as artefact `document: quote`; PDFs are rasterised page by page. A transfer that breaks on the network (socket hang up, reset, timeout, 502 / 503 / 504) is fetched again, 3 attempts in all; a real error (another HTTP error) fails at once |
 | `capture_text` | `capture_text: {target: {testid: proposal-total}, as: total, pattern: "/(€\\s?[\\d.,]+)/"}` | Read the element's visible text (a field's value) — or the part the pattern's first group selects — as artefact `capture: total` for a key-figure card; polled until the pattern matches (up to the step timeout); no cursor move — see [Tutorial overlays and story cards](#tutorial-overlays-and-story-cards) |
 
 **Step modifiers** (on any step): `id` (for `--until` and references), `caption`, `speed` (edit-time),
 `hold` (seconds still after the step), `mark` (named marker), `camera` (zoom hint:
 `{zoom: 1.3, target: {text: Awards}, ease: slow, duration: 1.2, until: scene_end}`), `overlay` (an overlay component
 over the clip: `{component, slots, params, duration, target}`, see below), `tutorial` (this step's tutorial overlays,
-e.g. `{spotlight: false}` or `false`, see [Tutorial overlays](#tutorial-overlays-and-story-cards)), `timeout` (seconds, default 15),
-`optional` (a failure does not abort), `irreversible` (never executed in dry runs), `park`, `note`. The runner
+e.g. `{spotlight: false}` or `false`, see [Tutorial overlays](#tutorial-overlays-and-story-cards)), `timeout` (seconds;
+default: the scenario's `defaults.timeout_s`, else the project's, else 15 — 30 for `wait_for_email` and `download`),
+`optional` (a failure does not abort; it is listed in run.json `optional_failures`), `retry_click` (`click` /
+`double_click`: a click that did nothing is made once more, and a second dead click fails the step), `irreversible`
+(never executed in dry runs), `park`, `note`. The runner
 measures the `camera` and `overlay` targets at the **end** of the step — after a `scroll`, the box is where the
 element ended up.
 
@@ -519,6 +525,41 @@ field to type into.
 **Click options:** `strategy` (`auto` · `real` · `dom` · `pointer`), `expect_popup`, `outside`, `hover_ms`,
 `after_ms` (also replaces the `after_navigation_ms` minimum), `move_ms`, `button`, `modifiers` (`[Shift]`), `offset`
 (`{x, y}` from the element's top-left).
+
+**Step defaults:** `defaults: {timeout_s: 30}` in project.yaml or a scenario (the scenario's win) sets the timeout of
+every step that has none of its own — the targets of every action, `wait_for`, `wait_for_email`, `download`, the
+commit of a navigation a click starts (at least 15 s) — for a product whose actions take long (a PDF generated on the
+server). `assert` keeps its 2 s grace unless the step sets `timeout`.
+
+### When a take goes wrong
+
+A take fails early, loudly and completely rather than "succeeding" with a wrong video:
+
+- **Every missing target of the scene at once.** When a step's target is not found, the error also lists the targets
+  of the scene's later steps (up to the first step that opens another page) that are not on the page either — looked
+  up without acting — each with the closest visible elements (role, name, text): five renamed labels show in one
+  failed take. In run.json: `error.missing_targets[]` (`{scene, step, action, target, near: [{role, name, text}]}`);
+  some may only appear after the steps before them (a dialog the next click opens).
+- **Targets behind a modal dialog are not used.** While a modal dialog is open (`:modal`, `aria-modal`, or the rest of
+  the page `aria-hidden` / `inert` as dialog libraries leave it), a target that also matches inside the dialog — or in a
+  listbox or menu above it — is never taken from the page behind it (`in: page` searches the whole page).
+- **`type` into the right field, or not at all.** `type {into}` scrolls the field into view inside its own scrolling
+  container, waits until its box stops moving (a smooth scroll, a dialog still opening, a layout shift), scrolls a field
+  a sticky header or footer covers towards the middle, then clicks; when the focus did not land in the field, the step
+  fails before typing, with a screenshot, naming the element that got the focus. After typing, a field whose value
+  does not hold the typed text warns (`after typing "300" into spinbutton "Quantity", the field holds "3"`); a value
+  that only differs by the page's formatting (thousands separators, a phone mask) passes, a password field's value is
+  never shown (lengths only), native date / time inputs are not compared.
+- **Dead clicks are reported at once.** A plain `click` / `double_click` is watched from its press: a request, a DOM
+  change (in every frame and shadow root; the cursor overlay ignored), a navigation, a dialog, a new tab, a download, an
+  `input` / `change` / `submit` / `scroll` / `toggle` event or a field taking the focus counts as an effect. Nothing
+  within 1 s: a warning right away (the next steps go on — a `wait_for` that follows is not the one that reports it)
+  with `screenshots/dead-click-<scene>-<step>.png`. `retry_click: true` on the step clicks once more instead and fails
+  the step when the second click did nothing either. A click that opened a popup or changed the page is never dead;
+  the next acting step starts once the check of the previous click is over (at most 1 s after its press).
+- **Transient download failures are retried** (above); a mail that never came lists what did come (below).
+- **Failed `optional` steps are listed** in run.json `optional_failures` (`{scene, step, action, error, screenshot}`),
+  by `studio run` under the summary and by `run_status` over MCP — not only among the warnings.
 
 ### Components in scenarios
 
@@ -1170,7 +1211,13 @@ Mailpit-compatible mailbox at `http://localhost:4401/mailbox` (the fixture proje
 **new** message matches — one that was not there when the run started (the runner lists the mailbox before the setup
 hooks) and that no earlier `wait_for_email` of the run took; the oldest match wins. `to` / `from` match a substring of
 the address or the display name (case-insensitive), `subject` a substring or a `/regex/flags`; `timeout` defaults to 30
-s. The message is written to `runs/<id>/artefacts/emails/<as>.json` (`{from, to, cc, subject, date, text, html}`,
+s (or `defaults.timeout_s`). `to: persona:<name>` is that persona's `email` (`auth.personas.<name>.email`; a sandbox
+account signed in with its mail address as `username` has it already), matched as the whole address — validation
+fails on a persona without one — and the captured mail remembers the persona: `studio/mail-view` labels its mailbox
+after it ("Inbox · Buyer"). When no message matches in time, the error lists the messages that came during the wait
+and the earlier ones not captured (subject, sender, recipients) — the mail that went to another address shows there —
+or says that nothing came at all. When several new messages match (the same subject sent to several people), a
+warning names them and the oldest is taken: narrow the filter. The message is written to `runs/<id>/artefacts/emails/<as>.json` (`{from, to, cc, subject, date, text, html}`,
 inline images as data: URLs) and, after the capture, its HTML is rendered in a clean browser — JavaScript off,
 offline, a CSP blocking scripts and remote loads — at 600 px layout width, full height, 2× (`<as>.png`).
 
@@ -1893,7 +1940,7 @@ auth:                                  # global, or keyed by environment name (a
         check: {url: "shop:/", expect_text: Demo Café}
 ```
 
-A persona's keys: `pages`, `session` (`profile`, the default: a Chromium profile; `storage_state`: cookies and
+A persona's keys: `email` (its mail address: `wait_for_email {to: persona:<name>}`), `pages`, `session` (`profile`, the default: a Chromium profile; `storage_state`: cookies and
 localStorage only), `check` (`url`: `"<page>:/path"`, a path or a URL, default its first page's `/`; `expect_text`: a
 text only shown when signed in — without it, signed in means "loads off the sign-in pages"; `expect_not_url`: more
 sign-in pages; `timeout`, default 10 s), `login_url` (its own sign-in pages, with `auth.login_url`) and `login` (steps
@@ -3302,13 +3349,13 @@ running: the MCP server keeps working without it.
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
-| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Demo Studio, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
+| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Demo Studio, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
 | `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
 | `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
 | `timeline.json` `cursor_effects` | what the in-page cursor showed besides its position: icon changes, presses, click ripples (L2.13; per page in `tracks[]`); `capture.cursor: hidden` when captured without the cursor (`run --raw --cursor none\|layer`) |
 | `capture-<page>.mp4`, `frames-<page>/`, `frames-<page>.jsonl` | multi-page scenes: one recording per page on the same frame grid as `capture.mp4` (listed in `timeline.json` `tracks`) |
-| `screenshots/` | dry-run screenshots, `screenshot` steps, error screenshots and DOM snippets |
+| `screenshots/` | dry-run screenshots (a capture's with `capture.step_shots`), `screenshot` steps, error screenshots and DOM snippets, `dead-click-<scene>-<step>.png` |
 | `hooks-journal.json` | executed hooks and their rollbacks |
 | `scenario.yaml` | snapshot of the scenario that ran (L5.5: a render re-plans the edit of today's file while its filmed part matches this snapshot; `studio render` / `plan` warn when the filmed part differs) |
 | `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |

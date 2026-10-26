@@ -120,7 +120,13 @@ Console: `/imports` (New import dialog: organisation select, drag & drop zone wi
 `<input type=file>`, progress, "921 offers created"), `/products` (catalogue, "Add a coffee" registry
 search → `/products/<slug>` with ~4 s "Enrichment in progress" then a staggered reveal down to
 **Awards**), `/availability/products/<slug>` (delivery-window overview + table by market, row menu
-Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"), **Sales reports** (`/reports`, a plain link in
+Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"), `/proforma` (**Pro forma invoices**, Demo Studio L5.6 — capture
+reliability: a "Quantity (kg)" filter above the table; "New pro forma" opens a modal dialog whose body scrolls (its
+"Quantity (kg)" field below the fold) and whose "Delivery date" opens a calendar that keeps the focus in the field and
+covers the fields under it until a click outside; "Preview" is wired to nothing; "Download PDF" opens
+`/proforma/<ref>.pdf?flaky=1` in a new tab — the second transfer of each PDF since the reset breaks after half its
+bytes; "Send to customer" mails `accounts@demo-cafe.example` and a copy to `maja@northfield.example`, one subject;
+`GET /api/proforma`, `POST /api/proforma/draft`, `POST /api/proforma`), **Sales reports** (`/reports`, a plain link in
 the sidebar: classic server-rendered pages outside the app, so every move between them and the app is a full page load
 — R-ISS-08; `/reports` lists October and September 2026 and links "Back to the console" → `/products`, the app's empty
 shell first; `/reports/<yyyy-mm>` answers after `NORTHFIELD_REPORT_MS` and paints only an animated skeleton — no text —

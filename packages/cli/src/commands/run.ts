@@ -165,6 +165,11 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
     if (r.error.screenshot) ui.line(`  ${c.dim('screenshot')} ${ui.path(r.error.screenshot)}`);
     if (r.error.dom) ui.line(`  ${c.dim('dom')}       ${ui.path(r.error.dom)}`);
   }
+  // The optional steps that failed (R-FLD-16): the run went on, but the video may miss what they did.
+  for (const f of r.optional_failures ?? []) {
+    ui.line(`  ${c.yellow('optional')}  ${f.scene}.${f.step} ${f.action} failed: ${f.error.split('\n')[0]}`);
+    if (f.screenshot) ui.line(`  ${c.dim('screenshot')} ${ui.path(f.screenshot)}`);
+  }
   if (r.stopped_at) {
     const why = r.stopped_at.reason === 'until' ? '--until' : 'irreversible step (dry run)';
     ui.line(`  ${c.dim('stopped')}   ${r.stopped_at.scene}.${r.stopped_at.step} (${why})`);

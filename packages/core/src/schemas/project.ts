@@ -13,6 +13,7 @@ import {
   CapturePartialSchema,
   CaptureSettingsSchema,
   PacingPartialSchema,
+  RunDefaultsSchema,
 } from './settings.js';
 
 export const httpUrl = () =>
@@ -172,6 +173,7 @@ const projectShape = {
     .optional(),
   databases: DatabasesSchema.optional(),
   pacing: PacingPartialSchema.optional(),
+  defaults: RunDefaultsSchema.describe("Step defaults of every scenario (a scenario's `defaults` win), e.g. {timeout_s: 30}.").optional(),
   browser: BrowserConfigSchema.optional(),
   reset: z.array(HookStepSchema).describe('Hooks run by env_reset.').optional(),
   vars: z.record(z.string(), z.string()).describe('Variables shared by every scenario ({{vars.x}}).').optional(),

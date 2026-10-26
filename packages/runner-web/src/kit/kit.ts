@@ -26,6 +26,7 @@ import type {
   KitTargetCheck,
   KitTargetChecks,
   KitConfig,
+  NearElement,
   OutsidePlan,
   PointInfo,
   PopupEntry,
@@ -1170,6 +1171,26 @@ export function demoKit(config: KitConfig): void {
     return explicitRole(el) === 'combobox';
   }
 
+  /**
+   * Matches behind an open modal dialog cannot be used (R-FLD-11: a field "found" behind the dialog had its point on
+   * another field of the dialog): when some matches are inside the topmost modal dialog — `:modal`, aria-modal, or the
+   * rest of the page aria-hidden / inert, as dialog libraries leave it — or in a floating layer above it (a listbox, a
+   * menu portaled to the body), the others are dropped. With none there, every match stays (a toast outside the dialog).
+   */
+  function unblocked(els: Element[]): Element[] {
+    const modal = topDialog(false);
+    if (!modal) return els;
+    let isModal = modal.getAttribute('aria-modal') === 'true';
+    try {
+      isModal ||= modal.matches(':modal');
+    } catch {
+      /* no :modal support */
+    }
+    const free = (e: Element) => deepContains(modal, e) || deepClosest(e, FLOATING_SEL) !== null;
+    const blocked = (e: Element) => !free(e) && (isModal || deepClosest(e, '[aria-hidden=true],[inert]') !== null);
+    const keep = els.filter((e) => !blocked(e));
+    return keep.length > 0 && keep.length < els.length ? keep : els;
+  }
   function find(t: TargetObject, opts: FindOptions = {}): ResolveResult {
     const root = resolveScope(t.in);
     const query = t.text ?? t.name ?? t.aria ?? t.label ?? t.placeholder ?? (Array.isArray(t.contains) ? t.contains.join(' ') : t.contains) ?? '';
@@ -1177,6 +1198,7 @@ export function demoKit(config: KitConfig): void {
       return { count: 0, desc: '', hidden: 0, scope_found: false, near: nearTexts(query, document.body ?? document.documentElement) };
     }
     const m = match(t, root, opts);
+    if (t.in === undefined && m.visible.length > 1) m.visible = unblocked(m.visible);
     const n = m.visible.length;
     let index = 0;
     if (t.last_visible) index = n - 1;
@@ -1247,7 +1269,7 @@ export function demoKit(config: KitConfig): void {
    * document, then that document's scroller; then the same from its frame element in the parent document. The
    * container is '' only for the top document's scroller (a frame document's scroller is a ref).
    */
-  function scrollPlan(id: string, margin: number): ScrollOp | null {
+  function scrollPlan(id: string, margin: number, centre = false): ScrollOp | null {
     const el = deref(id);
     if (!el) return null;
     let from = el;
@@ -1285,6 +1307,10 @@ export function demoKit(config: KitConfig): void {
         let dy = 0;
         if (r.top < vt + m || r.bottom > vb - m) {
           dy = r.height > viewH - 2 * m ? r.top - (vt + m) : r.top + r.height / 2 - (vt + viewH * 0.42);
+        } else if (centre && r.height <= viewH - 2 * m) {
+          // In view but covered (a sticky footer or header of the container): towards the middle of the container.
+          dy = r.top + r.height / 2 - (vt + viewH * 0.42);
+          if (Math.abs(dy) < 24) dy = 0;
         }
         let dx = 0;
         if (r.left < vl || r.right > vr) {
@@ -3167,6 +3193,147 @@ export function demoKit(config: KitConfig): void {
     }));
   }
 
+  // ───────────────────────────── reliability checks (L5.6) ─────────────────────────────
+  /** The visible elements closest to a query (R-FLD-10): role, accessible name and text, most similar first. */
+  function nearElements(query: string, root: Element, max = 3): NearElement[] {
+    if (!query) return [];
+    const sel = `${INTERACTIVE},h1,h2,h3,h4,h5,h6,[role=heading],th,legend,[aria-label]`;
+    const seen = new Set<string>();
+    const scored: Array<{ e: NearElement; s: number }> = [];
+    let n = 0;
+    for (const el of deepQsa(root, sel)) {
+      if (++n > 800) break;
+      // A label names its control: the control is listed, not the label.
+      if (el === host || isA(el, 'label') || !isVisible(el)) continue;
+      const name = short(accessibleName(el), 60);
+      const text = short(textOf(el), 60);
+      const key = `${roleOf(el) ?? el.tagName}|${name}|${text}`;
+      if ((!name && !text) || seen.has(key)) continue;
+      seen.add(key);
+      const s = Math.max(name ? similarity(query, name) : 0, text ? similarity(query, text) : 0);
+      if (s < 0.25) continue;
+      const e: NearElement = { role: roleOf(el) ?? el.tagName.toLowerCase() };
+      if (name) e.name = name;
+      if (text && text !== name) e.text = text;
+      scored.push({ e, s });
+    }
+    scored.sort((a, b) => b.s - a.s);
+    return scored.slice(0, max).map((x) => x.e);
+  }
+  /** `find` for each target, without acting (R-FLD-10): its visible count and, when it has none, the closest elements. */
+  function closest(list: TargetObject[]): Array<{ count: number; near: NearElement[] }> {
+    return withMemo(() =>
+      list.map((t) => {
+        let count = 0;
+        try {
+          count = find(t, {}).count;
+        } catch {
+          count = 0;
+        }
+        if (count > 0) return { count, near: [] };
+        const query = t.text ?? t.name ?? t.aria ?? t.label ?? t.placeholder ?? (Array.isArray(t.contains) ? t.contains.join(' ') : t.contains) ?? '';
+        const root = resolveScope(t.in) ?? document.body ?? document.documentElement;
+        return { count: 0, near: nearElements(query, root) };
+      }),
+    );
+  }
+  /**
+   * After the click of a `type` step (R-FLD-11): is the focused element the field (or inside it, or the control of the
+   * label clicked)? `desc` names what has the focus (null: nothing, the page itself), `field` is its ref.
+   */
+  function focusCheck(id: string): { ok: boolean; desc: string | null; field: string | null } {
+    const el = deref(id);
+    let act = deepActive();
+    if (act && (act === act.ownerDocument.body || act === act.ownerDocument.documentElement) && !editableBody(act)) act = null;
+    if (!el) return { ok: false, desc: act ? describeEl(act) : null, field: act ? ref(act) : null };
+    if (!act) return { ok: false, desc: null, field: null };
+    const label = isA(el, 'label') ? el.control : null;
+    const ok = act === el || deepContains(el, act) || act === label || (act.ownerDocument !== el.ownerDocument && deepContains(el, frameElOf(act.ownerDocument)));
+    // A field inside the target's own widget (a wrapper the target named): still the target.
+    const inWidget = !ok && deepContains(act, el) && (isA(act, 'input') || isA(act, 'textarea') || (act as HTMLElement).isContentEditable === true);
+    return { ok: ok || inWidget, desc: describeEl(act), field: ref(act) };
+  }
+  /** A field's text (R-FLD-11): an input's or textarea's value, a contenteditable's text; null for anything else. */
+  function fieldValue(id: string | null): string | null {
+    const el = id ? deref(id) : deepActive();
+    if (!el) return null;
+    if (isA(el, 'input') || isA(el, 'textarea')) return el.value;
+    if ((el as HTMLElement).isContentEditable === true || editableBody(el)) {
+      const t = (el as HTMLElement).innerText;
+      return typeof t === 'string' ? t.replace(/\n$/, '') : (el.textContent ?? '');
+    }
+    return null;
+  }
+  // What a click caused (R-FLD-12): DOM changes in every tree (the cursor overlay ignored) and the events of a page that
+  // reacts (input, change, submit, scroll, toggle, media). Counted from the press on.
+  const EFFECT_EVENTS = ['input', 'change', 'submit', 'reset', 'scroll', 'toggle', 'beforetoggle', 'play', 'pause', 'copy', 'cut', 'hashchange', 'popstate'];
+  let effects: { obs: MutationObserver[]; dom: number; first: string; events: Set<string>; take: (list: MutationRecord[]) => void; off: () => void } | null = null;
+  cleanups.push(() => effects?.off());
+  function effectWatch(): void {
+    effects?.off();
+    const obs: MutationObserver[] = [];
+    const events = new Set<string>();
+    // The kit's own cursor overlay (raised to the top of the page now and then) is never an effect.
+    const own = (n: Node) => n === host;
+    // A screenshot hides the text caret with an inline `caret-color` (Playwright's caret: hide): not the page's doing.
+    const caretOnly = (m: MutationRecord) => {
+      if (m.attributeName !== 'style') return false;
+      const bare = (v: string | null) => (v ?? '').replace(/caret-color\s*:[^;]*;?/gi, '').replace(/[\s;]+/g, '');
+      return bare(m.oldValue) === bare((m.target as Element).getAttribute('style'));
+    };
+    const take = (list: MutationRecord[]) => {
+      for (const m of list) {
+        if (m.target === host || caretOnly(m)) continue;
+        if (m.type === 'childList' && [...m.addedNodes, ...m.removedNodes].every(own) && m.addedNodes.length + m.removedNodes.length > 0) continue;
+        if (state.dom++ === 0) {
+          const t = m.target.nodeType === 1 ? (m.target as Element) : m.target.parentElement;
+          state.first = `${m.type}${m.attributeName ? ` ${m.attributeName}` : ''} on ${t ? `${t.localName}${t.id ? `#${t.id}` : ''}` : 'text'}`;
+        }
+      }
+    };
+    const docs = new Set<Document>([document]);
+    for (const tree of trees(document.documentElement).list) {
+      const o = new MutationObserver(take);
+      o.observe(tree, { childList: true, subtree: true, characterData: true, attributes: true, attributeOldValue: true });
+      obs.push(o);
+      if (tree.nodeType === 1) docs.add((tree as Element).ownerDocument);
+    }
+    const onEvent = (e: Event) => {
+      // A text field fires `change` when it loses the focus (the field typed into before this click): not the click's doing.
+      const t = e.composedPath()[0] as Element | undefined;
+      if (e.type === 'change' && t && t.nodeType === 1 && textField(t)) return;
+      events.add(e.type);
+    };
+    // A field taking the focus is what clicking it does (a button taking it is not).
+    const onFocus = (e: Event) => {
+      const t = e.composedPath()[0] as Element | undefined;
+      if (t && t.nodeType === 1 && (isA(t, 'input') || isA(t, 'textarea') || isA(t, 'select') || (t as HTMLElement).isContentEditable === true || editableBody(t))) events.add('focus');
+    };
+    const wins = [...docs].map((d) => d.defaultView).filter((w): w is Window & typeof globalThis => w !== null);
+    for (const w of wins) {
+      for (const type of EFFECT_EVENTS) w.addEventListener(type, onEvent, true);
+      w.addEventListener('focusin', onFocus, true);
+    }
+    const off = () => {
+      for (const o of obs) o.disconnect();
+      for (const w of wins) {
+        for (const type of EFFECT_EVENTS) w.removeEventListener(type, onEvent, true);
+        w.removeEventListener('focusin', onFocus, true);
+      }
+    };
+    const state = { obs, dom: 0, first: '', events, take, off };
+    effects = state;
+  }
+  function effectSeen(): { watching: boolean; dom: number; first: string; events: string[] } {
+    if (!effects) return { watching: false, dom: 0, first: '', events: [] };
+    for (const o of effects.obs) effects.take(o.takeRecords());
+    return { watching: true, dom: effects.dom, first: effects.first, events: [...effects.events] };
+  }
+  function effectStop(): void {
+    effects?.off();
+    effects = null;
+  }
+
   const api: KitApi = {
     version: VERSION,
     healthy: () => {
@@ -3302,6 +3469,12 @@ export function demoKit(config: KitConfig): void {
     },
     inventory,
     checkTargets,
+    closest,
+    focusCheck,
+    fieldValue,
+    effectWatch,
+    effectSeen,
+    effectStop,
     suggestFor,
     secretField: (target) => {
       const el = typeof target === 'string' ? deref(target) : target;

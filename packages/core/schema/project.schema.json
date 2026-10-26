@@ -92,6 +92,10 @@
     "pacing": {
       "$ref": "#/$defs/PacingOverrides"
     },
+    "defaults": {
+      "description": "Step defaults of every scenario (a scenario's `defaults` win), e.g. {timeout_s: 30}.",
+      "$ref": "#/$defs/RunDefaults"
+    },
     "browser": {
       "$ref": "#/$defs/BrowserConfig"
     },
@@ -519,6 +523,12 @@
     "Persona": {
       "type": "object",
       "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+          "description": "The persona's mail address: wait_for_email {to: persona:<name>} matches it, mail cards label the mailbox after the persona."
+        },
         "pages": {
           "type": "array",
           "items": {
@@ -1021,6 +1031,10 @@
           "minimum": 0,
           "maximum": 51,
           "description": "libx264 CRF of capture.mp4."
+        },
+        "step_shots": {
+          "type": "boolean",
+          "description": "Keep one picture per step of a capture in runs/<id>/screenshots (the captured frame at the end of each step), as a dry run does. Default false."
         }
       },
       "additionalProperties": false,
@@ -1177,6 +1191,18 @@
       },
       "additionalProperties": false,
       "description": "Deterministic pacing overrides (merged over the field-tested defaults)."
+    },
+    "RunDefaults": {
+      "type": "object",
+      "properties": {
+        "timeout_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds every wait and action waits when it has no `timeout` of its own: targets, wait_for, wait_for_email, download… (built-in: 15; 30 for wait_for_email and download)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Defaults of every step (a scenario's win over the project's)."
     },
     "BrowserConfig": {
       "type": "object",

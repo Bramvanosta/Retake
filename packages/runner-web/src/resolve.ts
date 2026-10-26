@@ -71,13 +71,14 @@ export function notFoundError(target: TargetObject, last: ResolveMissing | null,
 
 /**
  * Scroll every container of `ref` (innermost first) with eased in-page animations until it is in view. Up to six
- * layers: a container in a frame, the frame's document, a container around the frame, the page (R-ISS-07).
+ * layers: a container in a frame, the frame's document, a container around the frame, the page (R-ISS-07). `centre`:
+ * also when in view, towards the middle of each container (an element covered by a sticky header or footer).
  */
-export async function ensureInView(ctx: StepContext, ref: string): Promise<boolean> {
+export async function ensureInView(ctx: StepContext, ref: string, centre = false): Promise<boolean> {
   const { kit, pacing } = ctx.rt;
   let scrolled = false;
   for (let i = 0; i < 6; i++) {
-    const op = await kit.scrollPlan(ref, VIEW_MARGIN);
+    const op = await kit.scrollPlan(ref, VIEW_MARGIN, centre);
     if (!op) break;
     const dist = Math.hypot(op.top - op.from_top, op.left - op.from_left);
     const ms = ctx.jitter.ms(clamp(350 + dist * 0.6, 450, pacing.scroll_duration * 1000));
@@ -116,6 +117,32 @@ async function finish(ctx: StepContext, found: Exclude<ResolveResult, ResolveMis
     role: found.role,
     text: found.text,
   };
+}
+
+/** How long an element's box may keep moving (a scroll, an opening dialog, a layout shift) before its point is taken. */
+const SETTLE_MAX_MS = 1500;
+const SETTLE_SAMPLE_MS = 50;
+
+/**
+ * The element's point once its box stopped moving (R-FLD-11): three samples in a row, SETTLE_SAMPLE_MS apart, within
+ * half a pixel — the end of a smooth scroll the page runs itself, a dialog's opening animation, a section that grew
+ * above it. After SETTLE_MAX_MS the last sample is taken. Null when the element is gone.
+ */
+export async function settledPoint(ctx: StepContext, ref: string, offset: PointSpec | null = null): Promise<{ x: number; y: number; bbox: BBox; hit: boolean } | null> {
+  const { kit } = ctx.rt;
+  const deadline = wallNow() + SETTLE_MAX_MS;
+  let last = await kit.point(ref, offset);
+  let same = 0;
+  while (last && same < 2 && wallNow() < deadline) {
+    await ctx.rt.sleep(SETTLE_SAMPLE_MS);
+    const pt = await kit.point(ref, offset);
+    if (!pt) return null;
+    const b = pt.bbox;
+    const a = last.bbox;
+    same = Math.abs(a.x - b.x) <= 0.5 && Math.abs(a.y - b.y) <= 0.5 && Math.abs(a.w - b.w) <= 0.5 && Math.abs(a.h - b.h) <= 0.5 ? same + 1 : 0;
+    last = pt;
+  }
+  return last;
 }
 
 /** Resolve a target with polling until the step timeout; scrolls it into view; throws a rich StepError. */

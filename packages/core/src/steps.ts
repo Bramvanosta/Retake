@@ -34,6 +34,7 @@ const COMMON_KEYS: ReadonlyArray<keyof StepCommon> = [
   'mark',
   'timeout',
   'optional',
+  'retry_click',
   'irreversible',
   'park',
   'note',

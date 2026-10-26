@@ -82,7 +82,10 @@ describe('capture through web components and iframes (R-ISS-07)', () => {
     // A freeze during a click ripple only is the known stall with the frame rate limiter on (R-ISS-12); low capture
     // rates depend on the machine's load.
     const rippleOnly = (w: string): boolean => w.startsWith('the capture froze') && !w.includes('cursor moving');
-    expect(warnings.filter((w) => !w.includes('captured below') && !rippleOnly(w))).toEqual([]);
+    // The three frame buttons have no handler: dead clicks, seen through the frames (R-FLD-12) — and only those.
+    const dead = (w: string): boolean => w.includes('produced nothing within 1 s');
+    expect(warnings.filter(dead).map((w) => w.split(':')[0])).toEqual(['deep.8', 'deep.9', 'deep.10']);
+    expect(warnings.filter((w) => !w.includes('captured below') && !rippleOnly(w) && !dead(w))).toEqual([]);
   });
 
   it('the drawn hotspot is within 3 px of every click point and inside the target', async () => {

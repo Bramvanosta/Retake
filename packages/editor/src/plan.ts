@@ -442,6 +442,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
         date: a.date,
         preview: a.preview,
         ...(a.image ? { image: img(`artefact-email-${slugOf(a.name)}`, a.image) } : {}),
+        ...(a.persona ? { persona: a.persona } : {}),
       };
     }
     if (a.kind === 'document') {

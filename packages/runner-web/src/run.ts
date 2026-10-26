@@ -1,5 +1,5 @@
 import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
   ARTEFACTS_DIR,
@@ -32,6 +32,7 @@ import {
 } from '@demo-studio/core';
 import type {
   AgentChannel,
+  TimelineEvent,
   BrowserConfig,
   HookStep,
   HookTrust,
@@ -75,11 +76,12 @@ import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { LogLevel } from './runtime.js';
 import { StepFailure, runScenes, templated, untilSteps } from './scenes.js';
+import { settleEffectChecks } from './actions/effects.js';
 import { RunSecrets } from './secrets.js';
 import { BrowserSession } from './session.js';
 import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
 import type { MotionCapture } from './timeline.js';
-import { throwIfAborted, wallNow } from './util.js';
+import { fileSlug, pad, throwIfAborted, wallNow } from './util.js';
 import type { GuardedWrite, WriteGuardOptions } from './write-guard.js';
 
 export interface RunOptions {
@@ -495,6 +497,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       cursorHidden: opts.hideCursor === true,
       ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
       ...(opts.inspect ? { inspecting: true } : {}),
+      // Step defaults (L5.6): the scenario's win over the project's.
+      ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),
       log,
       guard,
       ...(prepared.length ? { plannedPersonas: plan.pages } : {}),
@@ -590,6 +594,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       }
     }
   } finally {
+    // The last click's effect check (R-FLD-12) ends before the capture does (--until, a failed step included).
+    if (rt) await settleEffectChecks({ rt }).catch(() => undefined);
     endT = clock.now();
     if (failure === null && guard?.error) failure = guard.error;
     if (rt) {
@@ -699,6 +705,17 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     const why = timeline.warnings.find((w) => w.startsWith('screencast frames stay'));
     failure = new EncodeError(`the capture recorded no frame${why ? ` (${why}: every frame was dropped)` : ''}`);
   }
+  // One picture per step of a capture (R-FLD-16, capture.step_shots): its frame at the end of the step, copied before the
+  // frames go — nothing is taken during the take.
+  if (rt && mode === 'capture' && capture.step_shots && !cancelled && !discard) {
+    const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
+    record.screenshots = await stepShots(timeline.events, screenshotsDir, { dir: framesDir, frames }, (ev) => {
+      const page = multi.has(ev.scene) ? ev.page : undefined;
+      const t = page ? rt!.tracks.get(page) : undefined;
+      const list = page ? trackFrames.get(page) : undefined;
+      return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
+    }, log);
+  }
   if (mode === 'capture' && !cancelled && !discard && frames.length > 0) {
     const out = join(dir, 'capture.mp4');
     emit({ type: 'encode', status: 'start', message: `${frames.length} frames → ${out}` });
@@ -788,12 +805,46 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       err.action = failure.action;
       if (failure.screenshot) err.screenshot = failure.screenshot;
       if (failure.dom) err.dom = failure.dom;
+      if (failure.missing) err.missing_targets = failure.missing;
     }
     record.error = err;
   }
   emit({ type: 'run_end', run: { ...record } });
   await files.close().catch(() => undefined);
   return secrets.redactRecord(record);
+}
+
+/**
+ * capture.step_shots (R-FLD-16): for every step that ran, the last captured frame at or before its end (its page's track
+ * in a multi-page scene), copied to screenshots/<scene>-<nn>-<action>.<ext> — the names a dry run gives its pictures.
+ */
+async function stepShots(
+  events: readonly TimelineEvent[],
+  screenshotsDir: string,
+  main: { dir: string; frames: FrameIndexEntry[] },
+  track: (ev: TimelineEvent) => { dir: string; frames: FrameIndexEntry[] } | null,
+  log: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void,
+): Promise<string[]> {
+  const out: string[] = [];
+  for (const ev of events) {
+    if (ev.step < 0 || ev.status === 'skipped') continue;
+    const src = track(ev) ?? main;
+    let pick: FrameIndexEntry | undefined;
+    for (const f of src.frames) {
+      if (f.t > ev.t_end + 1e-6) break;
+      pick = f;
+    }
+    if (!pick) continue;
+    const ext = extname(pick.file) || '.jpg';
+    const file = join(screenshotsDir, `${fileSlug(ev.scene)}-${pad(ev.step, 2)}-${ev.action}${ext}`);
+    try {
+      await copyFile(join(src.dir, pick.file), file);
+      out.push(file);
+    } catch (e) {
+      log('warn', `step picture of ${ev.scene}.${ev.step} not kept: ${errorMessage(e)}`);
+    }
+  }
+  return out;
 }
 
 /** Inspect the page the run shows and hand the report over (inspect.ts). */
@@ -1129,7 +1180,7 @@ async function diagnoseSession(
   if (!r || r.status !== 'expired') return failure;
   expire(p.persona.name, r.at ?? '', `${r.detail} (checked after step ${failure.scene}.${failure.step} failed)`);
   const message = `${failure.message} — the session of persona ${p.persona.name} is no longer valid (${secrets.redactText(r.detail)}): sign in again: ${command(p.persona.name)}`;
-  return new StepFailure(message, failure.scene, failure.step, failure.action, failure.screenshot, failure.dom);
+  return new StepFailure(message, failure.scene, failure.step, failure.action, failure.screenshot, failure.dom, failure.missing);
 }
 
 /** Remove what a run filmed: frames (main and per page), their indexes, the screenshots and the artefacts. */

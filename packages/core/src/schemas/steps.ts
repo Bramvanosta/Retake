@@ -89,8 +89,12 @@ export const stepCommonShape = {
     .describe("Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page).")
     .optional(),
   mark: slugString('mark').describe('Named marker (editor: speed 1 around it; review: key frame).').optional(),
-  timeout: positiveSeconds().describe('Seconds before the step fails (default 15).').optional(),
-  optional: z.boolean().describe('A failure is logged but does not abort the run.').optional(),
+  timeout: positiveSeconds().describe("Seconds before the step fails (default: the scenario's or project's defaults.timeout_s, else 15).").optional(),
+  optional: z.boolean().describe('A failure is logged (run.json optional_failures) but does not abort the run.').optional(),
+  retry_click: z
+    .boolean()
+    .describe('click / double_click: a click that produced nothing within about a second (no request, DOM change, navigation, dialog) is made once more; a second dead click fails the step.')
+    .optional(),
   irreversible: z.boolean().describe('Not executed in dry-run: the runner hovers the target, screenshots and stops the scene.').optional(),
   park: z
     .union([z.boolean(), seconds()])
@@ -322,7 +326,7 @@ const CursorArgsSchema = z.union([
 ]);
 
 const WaitForEmailArgsSchema = z.strictObject({
-  to: nonEmpty().describe('Recipient: a substring of the address or the name (case-insensitive).').optional(),
+  to: nonEmpty().describe("Recipient: a substring of the address or the name (case-insensitive), or persona:<name> (that persona's `email`, the whole address).").optional(),
   from: nonEmpty().describe('Sender: a substring of the address or the name (case-insensitive).').optional(),
   subject: nonEmpty().describe('Subject: a substring (case-insensitive) or a /regex/.').optional(),
   timeout: positiveSeconds().describe('Seconds to wait for the message (default 30).').optional(),

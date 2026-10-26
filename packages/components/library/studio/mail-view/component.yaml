@@ -19,7 +19,7 @@ slots:
   subject: {type: text, max_chars: 120, description: Subject (default — the email's).}
   date: {type: text, max_chars: 40, description: Date as shown (default — the email's date).}
   body: {type: text, max_chars: 800, description: Body text when there is no captured email image.}
-  mailbox: {type: text, max_chars: 24, description: 'Mailbox name in the toolbar (default "Inbox").'}
+  mailbox: {type: text, max_chars: 24, description: 'Mailbox name in the toolbar (default "Inbox", or "Inbox · Buyer" for a mail waited for with to: persona:buyer).'}
 params:
   type: object
   properties:

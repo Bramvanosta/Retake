@@ -15,6 +15,20 @@ function signup(ctx, body) {
   return { id: s.id, cafe: s.cafe, email: s.email, status: s.status };
 }
 
+/** A pro forma goes to the café's accounts address — not the buyer's order address — and a copy to the supplier. */
+function sendProForma(ctx, body) {
+  const pf = ctx.store.sendProForma(body);
+  const subject = `Pro forma ${pf.reference} — Northfield Roasters`;
+  const text = `Pro forma ${pf.reference} for ${pf.customer}: ${pf.quantity_kg} kg at EUR ${pf.unit_price_eur.toFixed(2)}/kg, total EUR ${pf.total_eur.toFixed(2)} excl. VAT. Delivery ${pf.delivery || 'to be agreed'}.`;
+  const html = `<html><body style="font-family:Helvetica,Arial,sans-serif;color:#2b1d1a"><h2 style="color:#6e1f2b">Pro forma ${pf.reference}</h2><p>${text}</p></body></html>`;
+  const from = { name: 'Northfield Roasters', address: 'maja@northfield.example' };
+  setTimeout(() => {
+    ctx.mailbox?.send({ from, to: [{ name: `${pf.customer} accounts`, address: 'accounts@demo-cafe.example' }], subject, text, html });
+    ctx.mailbox?.send({ from, to: [{ name: 'Maja Lindqvist', address: 'maja@northfield.example' }], subject, text: `Copy: ${text}`, html });
+  }, 400);
+  return pf;
+}
+
 /** @typedef {{ store: import('./store.mjs').Store, urls: { console: string, shop: string }, mailbox?: import('./mailbox.mjs').Mailbox, sessions?: import('./auth.mjs').Sessions }} ApiContext */
 
 class Created {
@@ -54,6 +68,9 @@ const ROUTES = [
   ['POST', '/api/quotes/:id/accept', 'Buyer accepts the proposal', (p, _b, _q, ctx) => ctx.store.setQuoteStatus(p.id, 'accepted')],
   ['POST', '/api/quotes/:id/decline', 'Buyer declines the proposal', (p, _b, _q, ctx) => ctx.store.setQuoteStatus(p.id, 'declined')],
   ['GET', '/api/notifications', 'Buyer notifications {unread, items}', (_p, _b, _q, ctx) => ctx.store.listNotifications()],
+  ['GET', '/api/proforma', 'Pro forma invoices (newest first)', (_p, _b, _q, ctx) => ctx.store.listProForma()],
+  ['POST', '/api/proforma/draft', 'The reference of a new pro forma {reference} (its PDF: /proforma/<reference>.pdf on the console)', (_p, _b, _q, ctx) => ctx.store.draftProForma()],
+  ['POST', '/api/proforma', 'Send a pro forma {reference?, customer, delivery, quantity_kg, unit_price_eur, …} → mails the café\'s accounts address and a copy to the supplier (same subject)', (_p, b, _q, ctx) => created(sendProForma(ctx, b))],
   ['POST', '/api/notifications/read', 'Mark read: {ids?: [...]} (default: all)', (_p, b, _q, ctx) => ctx.store.markNotificationsRead(b?.ids)],
 ].map(([method, path, doc, handler]) => [method, path, doc, handler, compilePath(path)]);
 

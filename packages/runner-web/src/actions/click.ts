@@ -8,6 +8,8 @@ import { poll, resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';
 import type { ClickRole, StepContext } from '../runtime.js';
 import { wallNow } from '../util.js';
+import { DEAD_CLICK_MS, awaitEffect, checkInBackground, watchEffects } from './effects.js';
+import type { EffectWatch } from './effects.js';
 import type { ActionResult } from './types.js';
 
 export type UsedStrategy = Exclude<ClickStrategy, 'auto'>;
@@ -28,12 +30,16 @@ export interface ClickRun {
   page_changed: boolean;
   /** No popup was announced nor seen: the popups open at the press, for a late popup check (settleLatePopup). */
   pending_popup?: { before: number[]; wall: number };
+  /** What the click caused, watched from its press (ClickRunOptions.watch_effects; the caller stops it). */
+  effects?: EffectWatch;
 }
 
 export interface ClickRunOptions extends ClickOptions {
   count?: 1 | 2;
   /** Role of the click inside a composite step (recorded in data.clicks). Default 'trigger'. */
   click_role?: ClickRole;
+  /** Watch what the click causes from its press (dead clicks, R-FLD-12): ClickRun.effects. */
+  watch_effects?: boolean;
 }
 
 /** URL without its hash: a hash change is an in-page jump, not a new page. */
@@ -101,8 +107,10 @@ export function watchNavigation(page: Page) {
     async settle(ctx: StepContext): Promise<void> {
       if (!started) return;
       if (!committed) {
-        const nav = page.waitForEvent('framenavigated', { predicate: (f) => f === page.mainFrame(), timeout: 15_000 }).then(() => 'nav' as const);
-        const dl = page.waitForEvent('download', { timeout: 15_000 }).then(() => 'download' as const);
+        // At least 15 s; a longer step timeout (`timeout`, defaults.timeout_s) gives a slow page longer (R-FLD-14).
+        const commitMs = Math.max(15_000, ctx.timeoutMs);
+        const nav = page.waitForEvent('framenavigated', { predicate: (f) => f === page.mainFrame(), timeout: commitMs }).then(() => 'nav' as const);
+        const dl = page.waitForEvent('download', { timeout: commitMs }).then(() => 'download' as const);
         const gone = new Promise<'dropped'>((resolve) => (wake = () => resolve('dropped')));
         const first = await Promise.race([nav, dl, gone]).catch(() => 'timeout' as const);
         wake = () => undefined;
@@ -113,7 +121,7 @@ export function watchNavigation(page: Page) {
           return;
         }
         if (first === 'dropped' || (!started && !committed)) return;
-        if (first === 'timeout') ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: a navigation started but did not commit within 15 s`);
+        if (first === 'timeout') ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: a navigation started but did not commit within ${Math.round(commitMs / 1000)} s`);
       }
       await ctx.rt.settle(page);
       await ctx.rt.pointer.syncPage();
@@ -190,6 +198,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
   let opened = false;
   let popupMs: number | undefined;
   let clickWall = 0;
+  const effects = opts.watch_effects ? await watchEffects(ctx) : undefined;
   try {
     clickWall = wallNow();
     if (requested === 'dom' || requested === 'pointer') {
@@ -203,6 +212,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
       clickWall = wallNow() - (rt.now() - t_click) * 1000;
       strategy = 'real';
     }
+    if (effects) effects.wall = clickWall;
     const afterStart = wallNow();
     if (expected && !nav.started()) {
       const auto = requested === 'auto';
@@ -240,6 +250,9 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
     await nav.settle(ctx);
     // The new document painted (R-ISS-08): until then the capture holds the previous frame.
     if (nav.started()) await rt.awaitLoaded(page);
+  } catch (e) {
+    effects?.stop();
+    throw e;
   } finally {
     nav.stop();
   }
@@ -261,6 +274,7 @@ export async function clickResolved(ctx: StepContext, r: Resolved, opts: ClickRu
     page_changed: pageChanged,
   };
   if (popupMs !== undefined) run.popup_ms = popupMs;
+  if (effects) run.effects = effects;
   if (!expected && !opened && !pageChanged) run.pending_popup = { before: [...before], wall: clickWall };
   ctx.clicks.push({
     role: opts.click_role ?? 'trigger',
@@ -382,7 +396,7 @@ export function clickData(ctx: StepContext): Array<Record<string, unknown>> {
   });
 }
 
-function clickResult(run: ClickRun, ctx: StepContext): ActionResult {
+function clickResult(run: ClickRun & { retried?: true }, ctx: StepContext): ActionResult {
   const out: ActionResult = {
     ref: run.resolved.ref,
     target: { desc: run.resolved.desc, bbox: run.resolved.bbox },
@@ -393,6 +407,7 @@ function clickResult(run: ClickRun, ctx: StepContext): ActionResult {
   if (run.expected || run.popup_opened) out.popup_opened = run.popup_opened;
   if (run.pending_popup) out.pending_popup = run.pending_popup;
   if (run.page_changed) out.data = { navigation: { kind: run.navigated ? 'document' : 'url', url: ctx.rt.page.url() } };
+  if (run.retried) out.data = { ...((out.data as Record<string, unknown> | undefined) ?? {}), retried: true };
   return out;
 }
 
@@ -416,16 +431,55 @@ export async function click(ctx: StepContext, args: TargetObject & ClickOptions)
     return { ...clickResult(run, ctx), data: { closed } };
   }
   if (!hasLocator(target)) throw new StepError('click: no target given (use text, role, label, css… or outside: true)');
-  const run = await clickTarget(ctx, target, args);
+  const run = await liveClick(ctx, target, args);
   if (run.page_changed) ctx.rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: click changed the page to ${ctx.rt.page.url()}`);
   return clickResult(run, ctx);
+}
+
+/**
+ * A plain click watched for its effect (R-FLD-12). A click that showed none by the time it returns (a popup opened, the
+ * page changed, or anything else seen ends the watch) is checked until DEAD_CLICK_MS after its press: in the background
+ * (a dead click warns with a screenshot), or — `retry_click: true` — right here, clicking once more when it did nothing,
+ * and failing the step when the second click did nothing either.
+ */
+async function liveClick(ctx: StepContext, target: TargetSpec, opts: ClickRunOptions): Promise<ClickRun & { retried?: true }> {
+  const r = await resolveTarget(ctx, target, { offset: opts.offset });
+  const run = await clickResolved(ctx, r, { ...opts, watch_effects: true });
+  const fx = run.effects;
+  if (!fx) return run;
+  const first = run.popup_opened || run.page_changed ? 'page' : await fx.seen();
+  if (first !== null) {
+    fx.stop();
+    ctx.rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: the click's first effect: ${first}`);
+    return run;
+  }
+  if (ctx.step.retry_click !== true) {
+    checkInBackground(ctx, fx, run.resolved.desc);
+    return run;
+  }
+  const seen = await awaitEffect(ctx, fx);
+  fx.stop();
+  if (seen !== null) return run;
+  ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: clicking ${run.resolved.desc} produced nothing within ${DEAD_CLICK_MS / 1000} s: clicking once more (retry_click)`);
+  const again = await clickResolved(ctx, r, { ...opts, watch_effects: true });
+  const fx2 = again.effects!;
+  const seen2 = again.popup_opened || again.page_changed ? 'page' : await awaitEffect(ctx, fx2);
+  fx2.stop();
+  if (seen2 === null) {
+    throw new StepError(
+      `clicking ${again.resolved.desc} twice produced nothing within ${DEAD_CLICK_MS / 1000} s each time (no request, DOM change, navigation, dialog or new tab): the control looks disabled or dead`,
+      { target: again.resolved.spec },
+      again.resolved.ref,
+    );
+  }
+  return { ...again, retried: true };
 }
 
 export async function doubleClick(ctx: StepContext, args: TargetObject & ClickOptions): Promise<ActionResult> {
   if (args.strategy && args.strategy !== 'real' && args.strategy !== 'auto') {
     ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: double_click always uses real input (strategy ${args.strategy} ignored)`);
   }
-  const run = await clickTarget(ctx, pickTarget(args), { ...args, strategy: 'real', count: 2 });
+  const run = await liveClick(ctx, pickTarget(args), { ...args, strategy: 'real', count: 2 });
   return clickResult(run, ctx);
 }
 

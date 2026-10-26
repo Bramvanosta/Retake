@@ -42,6 +42,7 @@ auth:
     login_url: /sign-in
     personas:
       supplier:
+        email: maja@northfield.example     # wait_for_email {to: persona:supplier} (proforma scenario)
         pages: [console]
         check: {url: "console:/products", expect_text: Maja Lindqvist}
         login:
@@ -51,6 +52,7 @@ auth:
           - click: {role: button, name: Sign in}
           - wait_for: {text: Maja Lindqvist}
       buyer:
+        email: orders@demo-cafe.example
         pages: [shop]
         check: {url: "shop:/", expect_text: Demo Café}
         login:

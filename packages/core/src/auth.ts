@@ -15,7 +15,7 @@ import type { IssuePath } from './issues.js';
 import { isAbsoluteUrl, scenePageEntries, splitPageOpen } from './pages.js';
 import { resolvePageUrl } from './templating.js';
 import { isCaptureScene } from './types.js';
-import type { AuthConfig, LoadedProject, LoginPattern, LoginStep, PersonaCheck, ProjectConfig, Scenario, Scene } from './types.js';
+import type { AuthConfig, LoadedProject, LoginPattern, LoginStep, PersonaCheck, PersonaConfig, ProjectConfig, Scenario, Scene } from './types.js';
 import { expandHome } from './util.js';
 
 /** `persona: none` — a page filmed without any persona (a fresh browser, never guarded). */
@@ -50,6 +50,18 @@ export function authFor(config: Pick<ProjectConfig, 'auth'>, env: string): AuthC
   if (isGlobalAuth(a)) return a;
   const v = Object.hasOwn(a, env) ? (a as Record<string, AuthConfig>)[env] : undefined;
   return isObject(v) ? v : undefined;
+}
+
+/** `wait_for_email {to: persona:<name>}` (L5.6): the persona a recipient names, else null. */
+export function mailPersona(to: string | undefined): string | null {
+  const m = /^persona:\s*(\S+)\s*$/.exec(to ?? '');
+  return m ? m[1] : null;
+}
+
+/** A persona's mail address on an environment (`auth.personas.<name>.email`; a sandbox account's username when it is one). */
+export function personaEmail(config: Pick<ProjectConfig, 'auth'>, env: string, name: string): string | undefined {
+  const p = authFor(config, env)?.personas;
+  return isObject(p) && isObject(p[name]) ? (p[name] as PersonaConfig).email : undefined;
 }
 
 /** Every persona name the project declares, in any environment (the legacy form counts as `default`). */

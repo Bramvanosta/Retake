@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Supplier side, signed in (`--env signed-in`: the supplier persona): write a pro forma invoice in a dialog whose body
+# scrolls, download its PDF, send it and show the copy that lands in the supplier's mailbox.
+#
+# The page is made of the traps a real take met (Demo Studio L5.6, docs/FIELD-FEEDBACK-1.md): the filters above the
+# table have a "Quantity (kg)" field too, hidden behind the dialog — the runner types into the dialog's, below the
+# fold of its body; the calendar under "Delivery date" covers the fields below it until a click outside closes it; the
+# PDF link drops its second transfer (?flaky=1) — the runner fetches it again; the pro forma is mailed to the café's
+# accounts address and a copy to the supplier with the same subject — `persona:supplier` takes the copy by address.
+version: 1
+video: proforma
+title: {kicker: For roasters, text: A pro forma before a large order}
+outro: {tagline: "Quote, pro forma, proposal: one console."}
+env: signed-in
+# Every step without a timeout of its own waits up to 30 s (the PDF is printed on the server).
+defaults: {timeout_s: 30}
+# One picture per step of the capture in runs/<id>/screenshots (from the captured frames).
+capture: {step_shots: true}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+scenes:
+  - id: write
+    caption: {kicker: Pro forma, text: "Quantity, price, delivery date and terms, in one dialog."}
+    page: console
+    open: /proforma
+    steps:
+      - click: New pro forma
+      - type: {into: {label: Delivery date}, text: 12/11/2026, cps: 12}
+      # The calendar under the field covers the fields below it: close it first (a click on the dialog's title).
+      - click: {outside: true}
+      - type: {into: {label: Quantity (kg)}, text: "300", cps: 9}
+      - type: {into: {label: Unit price (EUR/kg)}, text: "21.80", cps: 9}
+      - hold: 1.2
+
+  - id: send
+    caption: {kicker: Send, text: "Download the PDF, then send it to the café's accounts team."}
+    steps:
+      - download: {click: {text: Download PDF}, as: proforma}
+      - click: Send to customer
+      - wait_for: {text: Pro forma sent}
+      # The copy in the supplier's own mailbox (persona supplier's `email`): the café's message has the same subject.
+      - wait_for_email: {to: "persona:supplier", subject: Pro forma, as: copy}
+      - hold: 2.4
+
+  - card: {component: studio/document-pdf, slots: {document: proforma, title: "The pro forma, as sent"}, duration: 4}
+    id: pdf
+  - card: {component: studio/mail-view, slots: {email: copy}, duration: 5}
+    id: copy

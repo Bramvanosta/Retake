@@ -46,6 +46,14 @@ describe('artefact slots → media', () => {
     expect(p.warnings).toEqual([]);
   });
 
+  it('the persona a mail was waited for in (to: persona:<name>, L5.6) reaches the mail card', async () => {
+    const tl = load('signup');
+    for (const a of tl.artefacts ?? []) if (a.kind === 'email') a.persona = 'buyer';
+    const e = card(await plan(tl), 'inbox').component.media?.email as EmailMedia;
+    expect(e.persona).toBe('buyer');
+    expect((card(await plan(load('signup')), 'inbox').component.media?.email as EmailMedia).persona).toBeUndefined();
+  });
+
   it('a downloaded PDF feeds the document card page by page', async () => {
     const p = await plan(load('quote-artefacts'));
     const d = card(p, 'quote-pdf').component.media?.document as DocumentMedia;

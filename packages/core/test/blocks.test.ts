@@ -151,8 +151,8 @@ describe('scenarioBlocks on the fixture scenarios (goldens)', async () => {
   const template = (await loadProjectTemplate(project)).template;
   const names = project.scenarios;
 
-  it('the fixture has its 12 scenarios', () => {
-    expect(names.length).toBe(12);
+  it('the fixture has its 13 scenarios', () => {
+    expect(names.length).toBe(13);
   });
 
   it.each(names)('%s: blocks match the golden; no unknown block, no issue; steps as listSteps counts them; every block has its lines', (name) => {

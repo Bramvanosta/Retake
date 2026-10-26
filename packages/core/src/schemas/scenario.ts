@@ -20,7 +20,7 @@ import {
   seconds,
   slugString,
 } from './primitives.js';
-import { CapturePartialSchema, PacingPartialSchema } from './settings.js';
+import { CapturePartialSchema, PacingPartialSchema, RunDefaultsSchema } from './settings.js';
 import { StepSchema, speedSchema } from './steps.js';
 
 export const SceneCursorSchema = z
@@ -222,6 +222,7 @@ export const ScenarioSchema = z
     ).optional(),
     template: nonEmpty().describe('Template name (default: the project template).').optional(),
     pacing: PacingPartialSchema.optional(),
+    defaults: RunDefaultsSchema.describe("Step defaults (win over the project's), e.g. {timeout_s: 30} for a product whose actions take long.").optional(),
     music: z
       .strictObject({
         file: nonEmpty().describe('Audio file relative to the project dir.'),

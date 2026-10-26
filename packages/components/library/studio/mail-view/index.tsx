@@ -31,6 +31,13 @@ export function mailDate(iso: string | undefined): string {
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1] ?? m[2]} ${m[1]}${m[4] ? `, ${m[4]}:${m[5]}` : ''}`;
 }
 
+/** The toolbar's mailbox: "Inbox", or the inbox of the persona the mail was waited for in ("buyer" → "Inbox · Buyer"). */
+export function mailboxLabel(persona: string | undefined): string {
+  if (!persona) return 'Inbox';
+  const name = persona.replace(/[_-]+/g, ' ').trim();
+  return `Inbox · ${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+}
+
 /** Initials of a sender ("Northfield Roasters" → "NR", "hello@x.com" → "H"). */
 export function initials(name: string): string {
   const words = name.replace(/@.*$/, '').split(/[\s._-]+/).filter(Boolean);
@@ -121,7 +128,7 @@ export default function MailView({ theme, slots, params, unit, width, height, fp
             <div key={c} style={{ position: 'absolute', left: (22 + i * 22) * u, top: toolbar / 2 - 6.5 * u, width: 13 * u, height: 13 * u, borderRadius: 7 * u, background: c }} />
           ))}
           <div style={{ position: 'absolute', left: (sidebar || 110 * u) + pad, top: 0, height: toolbar, lineHeight: `${roundTo(toolbar, 2)}px`, fontSize: 16 * u, fontWeight: 600, color: muted }}>
-            {slots.mailbox ?? 'Inbox'}
+            {slots.mailbox ?? mailboxLabel(e?.persona)}
           </div>
           {[0, 1, 2].map((i) => (
             <svg key={i} width={20 * u} height={20 * u} viewBox="0 0 20 20" style={{ position: 'absolute', right: (28 + i * 40) * u, top: toolbar / 2 - 10 * u }}>

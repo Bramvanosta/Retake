@@ -219,6 +219,7 @@ const TimelineArtefactSchema = z
       date: z.string(),
       preview: z.string(),
       image: ArtefactImageSchema.optional(),
+      persona: z.string().describe('The persona whose mailbox it was waited for in (to: persona:<name>).').optional(),
     }),
     z.strictObject({
       kind: z.literal('document'),
@@ -407,7 +408,31 @@ export const RunRecordSchema = z
         action: z.string().optional(),
         screenshot: z.string().optional(),
         dom: z.string().optional(),
+        missing_targets: z
+          .array(
+            z.strictObject({
+              scene: z.string(),
+              step: z.number().int(),
+              action: z.string(),
+              target: z.string(),
+              near: z.array(z.strictObject({ role: z.string().optional(), name: z.string().optional(), text: z.string().optional() })),
+            }),
+          )
+          .describe('A target was not found: the targets of the scene\'s later steps missing from the page too, with the closest visible elements.')
+          .optional(),
       })
+      .optional(),
+    optional_failures: z
+      .array(
+        z.strictObject({
+          scene: z.string(),
+          step: z.number().int(),
+          action: z.string(),
+          error: z.string(),
+          screenshot: z.string().optional(),
+        }),
+      )
+      .describe('The optional steps that failed (the run went on).')
       .optional(),
     stopped_at: z
       .strictObject({ scene: z.string(), step: z.number().int(), reason: z.enum(['irreversible', 'until']) })

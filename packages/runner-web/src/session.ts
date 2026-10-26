@@ -36,7 +36,7 @@ import type {
   ScrollInfo,
   ScrollOp,
 } from './kit/types.js';
-import type { BBox, PointSpec, TargetObject } from '@demo-studio/core';
+import type { BBox, NearElement, PointSpec, TargetObject } from '@demo-studio/core';
 
 export interface SessionOptions {
   width: number;
@@ -247,8 +247,8 @@ export class KitClient {
   visible(ref: string): Promise<boolean> {
     return this.call('visible', ref);
   }
-  scrollPlan(ref: string, margin: number): Promise<ScrollOp | null> {
-    return this.call('scrollPlan', ref, margin);
+  scrollPlan(ref: string, margin: number, centre = false): Promise<ScrollOp | null> {
+    return centre ? this.call('scrollPlan', ref, margin, true) : this.call('scrollPlan', ref, margin);
   }
   scrollContainerFor(ref: string | null, fromParent = false): Promise<string> {
     return this.call('scrollContainerFor', ref, fromParent);
@@ -350,6 +350,28 @@ export class KitClient {
   /** Inspection (L3.3): `find` for each (normalised) target. */
   checkTargets(targets: TargetObject[]): Promise<KitTargetChecks> {
     return this.callOnce('checkTargets', targets);
+  }
+  /** L5.6: `find` for each target without acting, with the closest visible elements of those not found. */
+  closest(targets: TargetObject[]): Promise<Array<{ count: number; near: NearElement[] }>> {
+    return this.call('closest', targets);
+  }
+  /** L5.6: whether the focus is on `ref` (a `type` step's field) and what has it. */
+  focusCheck(ref: string): Promise<{ ok: boolean; desc: string | null; field: string | null }> {
+    return this.call('focusCheck', ref);
+  }
+  /** L5.6: a field's value (input, textarea) or text (contenteditable); null for other elements. */
+  fieldValue(ref: string | null): Promise<string | null> {
+    return this.call('fieldValue', ref);
+  }
+  /** L5.6: start counting what a click changes on the page (dead-click detection). */
+  effectWatch(): Promise<void> {
+    return this.call('effectWatch');
+  }
+  effectSeen(): Promise<{ watching: boolean; dom: number; first: string; events: string[] }> {
+    return this.call('effectSeen');
+  }
+  effectStop(): Promise<void> {
+    return this.call('effectStop');
   }
   cursorSet(x: number, y: number, show?: boolean): Promise<void> {
     return this.call('cursor.set', x, y, show);

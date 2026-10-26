@@ -1,0 +1,25 @@
+# Supplier side, signed in (`--env signed-in`: the supplier persona): write a pro forma invoice in a dialog whose body scrolls, download its PDF, send it and show the copy that lands in the supplier's mailbox.
+# 
+# The page is made of the traps a real take met (Demo Studio L5.6, docs/FIELD-FEEDBACK-1.md): the filters above the table have a "Quantity (kg)" field too, hidden behind the dialog — the runner types into the dialog's, below the fold of its body; the calendar under "Delivery date" covers the fields below it until a click outside closes it; the PDF link drops its second transfer (?flaky=1) — the runner fetches it again; the pro forma is mailed to the café's accounts address and a copy to the supplier with the same subject — `persona:supplier` takes the copy by address.
+video proforma · title “For roasters” / “A pro forma before a large order” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Quote, pro forma, proposal: one console."}
+  env signed-in
+  setup 1 L21-22 http reset: POST {{console}}/api/reset
+  teardown 1 L25-26 http reset: POST {{console}}/api/reset
+scene write L29-40 · page console · open /proforma · caption “Pro forma” / “Quantity, price, delivery date and terms, in one dialog.”
+    write.0 L34 [click] click · “New pro forma”
+    write.1 L35 [type] type · field “Delivery date” · “12/11/2026”
+    # The calendar under the field covers the fields below it: close it first (a click on the dialog's title).
+    write.2 L37 [click] click · any element
+    write.3 L38 [type] type · field “Quantity (kg)” · “300”
+    write.4 L39 [type] type · field “Unit price (EUR/kg)” · “21.80”
+    write.5 L40 [hold] hold · 1.2 s
+scene send L42-50 · page console (inherited) · continues · caption “Send” / “Download the PDF, then send it to the café's accounts team.”
+    send.0 L45 [download] download · “Download PDF” · as proforma
+    send.1 L46 [click] click · “Send to customer”
+    send.2 L47 [wait] wait for · text “Pro forma sent”
+    # The copy in the supplier's own mailbox (persona supplier's `email`): the café's message has the same subject.
+    send.3 L49 [wait] wait for email · to “persona:supplier”, subject “Pro forma”, as copy
+    send.4 L50 [hold] hold · 2.4 s
+card pdf L52-53 · studio/document-pdf · slots document=“proforma”, title=“The pro forma, as sent” · 4 s
+card copy L54-55 · studio/mail-view · slots email=“copy” · 5 s
+11 steps

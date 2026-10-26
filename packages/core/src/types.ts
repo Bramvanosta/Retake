@@ -328,6 +328,10 @@ export interface EmitArgs {
  * substring or a /regex/.
  */
 export interface WaitForEmailArgs {
+  /**
+   * Recipient: a substring of the address or the name, or `persona:<name>` — that persona's `email` on the run's
+   * environment, matched as the whole address (L5.6).
+   */
   to?: string;
   from?: string;
   subject?: string;
@@ -395,10 +399,16 @@ export interface StepCommon {
   camera?: CameraHint;
   /** Named marker (editor: speed 1 around it; review: key frame). */
   mark?: string;
-  /** Seconds before the step fails (default 15). */
+  /** Seconds before the step fails (default: the scenario's or project's `defaults.timeout_s`, else 15). */
   timeout?: number;
-  /** A failure is logged but does not abort the run. */
+  /** A failure is logged (and listed in run.json `optional_failures`) but does not abort the run. */
   optional?: boolean;
+  /**
+   * `click` / `double_click` (L5.6): a click that produced nothing within about a second (no request, DOM change,
+   * navigation, dialog, new tab or download) is made once more; when the second one does nothing either, the step fails.
+   * Without it such a click is only reported (a warning with a screenshot).
+   */
+  retry_click?: boolean;
   /** Not executed in dry-run (the runner hovers the target, screenshots, and stops the scene). */
   irreversible?: boolean;
   /** Edit-time overlay (callout, lower third, badge…) shown over this step; the runner records its target bbox. */
@@ -986,6 +996,8 @@ export interface Scenario {
   frame?: FrameSpec;
   template?: string;
   pacing?: Partial<Pacing>;
+  /** Step defaults (L5.6): win over the project's. */
+  defaults?: RunDefaults;
   music?: MusicSpec;
   /** Automatic tutorial overlays fed by the timeline (shortcuts, spotlight, numbered steps, loupe, progress bar). */
   tutorial?: TutorialSwitch;
@@ -1027,6 +1039,20 @@ export interface CaptureSettings {
   keep_frames: boolean;
   /** libx264 CRF of capture.mp4. */
   crf: number;
+  /**
+   * Keep one picture per step of a capture in runs/<id>/screenshots, as a dry run does (L5.6): the captured frame at
+   * the end of each step (no screenshot taken during the take). Default false.
+   */
+  step_shots?: boolean;
+}
+
+/** `defaults` of a project or a scenario (L5.6; the scenario's win): values every step uses when it sets none. */
+export interface RunDefaults {
+  /**
+   * Seconds every wait and action waits when it has no `timeout` of its own: targets, `wait_for`, `wait_for_email`,
+   * `download` and the other actions (built-in defaults: 15, and 30 for wait_for_email / download).
+   */
+  timeout_s?: number;
 }
 
 export const DEFAULT_CAPTURE: CaptureSettings = {
@@ -1163,6 +1189,8 @@ export type LoginStep = (
  * ~/.demo-studio/profiles|sessions/<project>/<env>/<persona> (DEMO_STUDIO_HOME moves it) — never a path here.
  */
 export interface PersonaConfig {
+  /** The persona's mail address (L5.6): `wait_for_email {to: persona:<name>}`, the mailbox label of a mail card. */
+  email?: string;
   /** Environment pages this persona is signed into by default (a page is in at most one persona's list). */
   pages?: string[];
   /** profile (default): a Chromium profile kept by `studio login`, copied for each run; storage_state: cookies + localStorage only. */
@@ -1492,6 +1520,8 @@ export interface ProjectConfig {
   allow_hosts?: string[];
   databases?: Record<string, DatabaseConfig>;
   pacing?: Partial<Pacing>;
+  /** Step defaults of every scenario (L5.6; a scenario's `defaults` win). */
+  defaults?: RunDefaults;
   browser?: BrowserConfig;
   /** Hooks run by `env_reset`. */
   reset?: HookStep[];
@@ -1894,6 +1924,8 @@ export interface EmailArtefact extends ArtefactBase {
   preview: string;
   /** The HTML rendered at 600 px width, full height (absent when the message has no HTML part or rendering failed). */
   image?: ArtefactImage;
+  /** The persona whose mailbox it was waited for in (`to: persona:<name>`, L5.6): mail cards label the mailbox after it. */
+  persona?: string;
 }
 
 export interface DocumentPage extends ArtefactImage {
@@ -2075,6 +2107,37 @@ export interface RunError {
   action?: string;
   screenshot?: string;
   dom?: string;
+  /**
+   * A target was not found (L5.6): the targets of the scene's later steps that do not resolve on the page either,
+   * looked up without acting, with the visible elements closest to each — every renamed label of a scene in one take.
+   */
+  missing_targets?: MissingTarget[];
+}
+
+/** A visible element close to a target that was not found (role, accessible name, text). */
+export interface NearElement {
+  role?: string;
+  name?: string;
+  text?: string;
+}
+
+/** A step target that does not resolve on the page a run failed on (RunError.missing_targets). */
+export interface MissingTarget {
+  scene: string;
+  step: number;
+  action: string;
+  /** Description of the target (`label="Quantity"`). */
+  target: string;
+  near: NearElement[];
+}
+
+/** An `optional` step that failed (run.json `optional_failures`, L5.6): the run went on. */
+export interface OptionalFailure {
+  scene: string;
+  step: number;
+  action: string;
+  error: string;
+  screenshot?: string;
 }
 
 /** What ran a capture (run.json `engine`, R-PRIN-13): explains a difference between two machines' takes. */
@@ -2117,11 +2180,13 @@ export interface RunRecord {
   current?: { scene: string; step: number; action: string };
   capture?: string;
   timeline?: string;
-  /** Dry-run: one screenshot per step. */
+  /** One screenshot per step: a dry run's, or a capture's with `capture.step_shots` (L5.6). */
   screenshots: string[];
   hooks: { setup: 'ok' | 'failed' | 'skipped' | 'none'; teardown: 'ok' | 'failed' | 'skipped' | 'none' };
   warnings: string[];
   error?: RunError;
+  /** The `optional` steps that failed, in order (L5.6; absent when none did). */
+  optional_failures?: OptionalFailure[];
   /** Dry-run: reason the run stopped early (irreversible step, --until). */
   stopped_at?: { scene: string; step: number; reason: 'irreversible' | 'until' };
   /** What ran it (absent in runs made before L1.4). */

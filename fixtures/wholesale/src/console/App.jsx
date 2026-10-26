@@ -8,6 +8,7 @@ import { Toaster } from '../shared/toast.jsx';
 import { Avatar, EmptyState } from '../shared/ui.jsx';
 import { AvailabilityIndexPage, AvailabilityPage } from './pages/Availability.jsx';
 import { ImportsPage } from './pages/Imports.jsx';
+import { ProFormaPage } from './pages/ProForma.jsx';
 import { ProductPage } from './pages/Product.jsx';
 import { ProductsPage } from './pages/Products.jsx';
 import { QuoteRequestsPage } from './pages/QuoteRequests.jsx';
@@ -37,6 +38,7 @@ const ROUTES = [
   ['/availability/products/:slug', AvailabilityPage],
   ['/imports', ImportsPage],
   ['/quotes', QuoteRequestsPage],
+  ['/proforma', ProFormaPage],
 ];
 
 function NavLink({ to, icon, children, count, match }) {
@@ -148,6 +150,9 @@ function Sidebar() {
         <div className="nav-section">Sales</div>
         <NavLink to="/quotes" icon="inbox" match="/quotes" count={awaiting}>
           Quote requests
+        </NavLink>
+        <NavLink to="/proforma" icon="file" match="/proforma">
+          Pro forma invoices
         </NavLink>
         {/* A plain link, not the router's: the server-rendered reports are a full page load (R-ISS-08). */}
         <a href="/reports">

@@ -145,7 +145,7 @@ export class ArtefactStore {
   }
 
   /** A captured email: artefacts/emails/<name>.json now, its image at finalize(). */
-  async addEmail(name: string, m: MailMessage, t: number, where: Where): Promise<EmailArtefact> {
+  async addEmail(name: string, m: MailMessage, t: number, where: Where, persona?: string): Promise<EmailArtefact> {
     const dir = await this.ensure('emails');
     const file = join(dir, `${artefactSlug(name)}.json`);
     const html = inlineCids(m.html, m.inline);
@@ -172,6 +172,7 @@ export class ArtefactStore {
       subject: m.subject,
       date: new Date(m.date).toString() === 'Invalid Date' ? m.date : new Date(m.date).toISOString(),
       preview: previewText(text),
+      ...(persona ? { persona } : {}),
     };
     this.items.push(a);
     if (html.trim()) this.emails.push({ artefact: a, html });

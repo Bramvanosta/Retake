@@ -1190,6 +1190,29 @@ element's box per step cheaply (or the elements the scenario names anywhere) so 
 The Studio's scenario screen says "only the edit changed since this run" but offers no render: a Render button on that
 notice (and a list of the edit changes, as plan_preview gives them) would close the loop without the terminal or MCP.
 
+### BL-92 — A field still covered after the scrolls
+*S · L5.6 follow-up*
+
+`type {into}` scrolls a covered field towards the middle of its container twice, then clicks anyway and fails on the
+focus check: the click may act on what covers it (on the fixture it picks a day of the calendar left open). Options:
+fail before clicking and name the covering element; or close what covers it when it is a popover the previous step
+opened (a click on the dialog's title, as `click: {outside: true}` does), with a warning. Decide on real products.
+
+### BL-93 — Dead clicks the page cannot see
+*S · L5.6 follow-up*
+
+A click whose only effect is a clipboard write without feedback or a websocket message is reported dead; a page that
+keeps changing by itself (a clock in the DOM, attribute-driven animations) hides a dead click. Options: count websocket
+frames sent and clipboard writes; ignore DOM changes the page made in the second before the click; a step option
+`expect_effect: false` for a click that is meant to do nothing visible.
+
+### BL-94 — Missing targets beyond the page change
+*M · L5.6 follow-up · builds on: L3.3*
+
+When a target is missing, R-FLD-10 looks up the scene's later targets on the current page only, up to the first step
+that opens another page. An off-camera inspection of the pages the later steps open (as `page_inspect {until}` does)
+would check every remaining target of the scenario in the same failed take.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

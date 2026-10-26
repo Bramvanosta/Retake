@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-24, end of lot **L4.2 (scenario as blocks with run thumbnails)** — phases 1–3 are done (phase 3
-pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the field-feedback lots L5.5 and L5.6
-(in parallel), then L5.7 and L5.8 — decided 2026-10-26 after the first real use (`docs/FIELD-FEEDBACK-1.md`); L4.3
+Last updated: 2026-10-26, end of lot **L5.6 (capture reliability)**, after L5.5 (edit without re-capture) — phases 1–3
+are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the
+field-feedback lots L5.7 then L5.8 — decided 2026-10-26 after the first real use (`docs/FIELD-FEEDBACK-1.md`); L4.3
 resumes after them (its part 1 is parked on `wip/l4.3-part1`).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
@@ -25,12 +25,40 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-90); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-95); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
 ## State (after L4.2)
+- **L5.6 done (2026-10-26)** — capture reliability (R-FLD-10 – R-FLD-16, all done): a take fails early, loudly and
+  completely. The field's silent wrong `type` was reproduced on a new fixture page (console `/proforma`, "Pro forma
+  invoices") with the old runner: `{label: Quantity (kg)}` resolved to the page's filter field **behind the modal
+  dialog**, warned "covered", clicked the overlay, closed the dialog and the take succeeded. Now: the kit drops matches
+  behind an open modal dialog (`:modal`, aria-modal, or the rest of the page aria-hidden / inert) when some are inside
+  it or in a floating layer (`in: page` searches the whole page); `type {into}` scrolls the field in its own containers,
+  takes its point once its box stopped moving (resolve.ts `settledPoint`), scrolls a covered field towards the middle,
+  checks after the click that the focus is in the field (else the step fails before typing, naming what got it) and
+  after typing that the value holds the text (warning). A missing target lists the scene's later targets missing too,
+  with their closest elements (`missing.ts`, run.json `error.missing_targets`). Plain clicks are watched for an effect
+  from the press (`actions/effects.ts`, kit `effectWatch`: requests except the page's polling, DOM in every tree,
+  navigation, dialog, tab, download, input / change / submit / scroll / toggle, a field taking the focus): nothing
+  within 1 s → a warning at once with `screenshots/dead-click-<scene>-<step>.png`; `retry_click: true` clicks once more
+  and fails on a second dead click. `download` retries transient failures (3 attempts, 1 s / 2 s; a broken browser
+  download is fetched again with the session) and fails at once on a real HTTP error. `defaults: {timeout_s}` in
+  project.yaml / a scenario. Personas take `email` (a sandbox account's mail `username` too); `wait_for_email {to:
+  persona:<name>}`; no match lists the messages that came, several matches warn; mail-view labels the mailbox
+  "Inbox · <Persona>". run.json `optional_failures` (CLI summary, MCP run_status); `capture.step_shots` copies the
+  captured frame at the end of each step (no screenshot during the take). Fixture: the Pro forma page and its API, the
+  `proforma` scenario (`--env signed-in`, persona emails in project.yaml), variants in
+  `packages/cli/test/reliability-fixture.test.ts`. Acceptance on the Mac (own fixture on 5401–5404, scratch workspace):
+  capture 20261026-101402-proforma (the PDF's broken second transfer fetched again) and render proforma-v1 looked at —
+  the dialog's fields typed below the fold, "Inbox · Supplier" on the copy card; dead-click and covered-field
+  screenshots looked at. Tests on the Mac (on top of L5.5): **2836 — 2786 pass, 50 skipped (≈ 15 min)**; one test failed under another
+  project's load (1-min load 21) and passes alone (the kit's debug-cursor style); `pnpm test:slow` 58/58 (≈ 18 min). The
+  filmed-part fingerprint of L5.5 counts `retry_click` and leaves out `defaults` and `capture.step_shots`.
+  Requirements: 646 tracked — 567 done, 26 partial, 45 todo, 8 n/a-here. Follow-ups BL-92 – BL-94 (next free id BL-95). For L5.7: step pictures come from `frames/` (copied before
+  `keep_frames: false` removes them).
 - **Field feedback 1 (2026-10-26)**: the first real use of the tool (three internal videos of a real two-sided B2B
   product, about four minutes each, filmed in two languages) was triaged in `docs/FIELD-FEEDBACK-1.md`: four lots
   L5.5 – L5.8 (edit without re-capture; capture reliability; capture performance and disk; sandboxes, off-camera hook

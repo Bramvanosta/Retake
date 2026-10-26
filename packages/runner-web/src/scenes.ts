@@ -19,6 +19,7 @@ import type {
   CameraHint,
   CaptionSpec,
   MenuArgs,
+  MissingTarget,
   NormalizedStep,
   OverlaySpec,
   RunProgress,
@@ -33,6 +34,8 @@ import type {
 import { ACTIONS, primaryTarget } from './actions/index.js';
 import type { ActionResult } from './actions/types.js';
 import { approach, settleLatePopup } from './actions/click.js';
+import { settleEffectChecks } from './actions/effects.js';
+import { formatMissing, isNotFound, missingTargets } from './missing.js';
 import { menuTriggerFor } from './actions/widgets.js';
 import { navigate } from './actions/pages.js';
 import { RunnerError, StepError, errorMessage, isCancelled } from './errors.js';
@@ -64,6 +67,8 @@ export class StepFailure extends Error {
     readonly action: string,
     readonly screenshot?: string,
     readonly dom?: string,
+    /** The target was not found: the scene's later targets missing from the page too (R-FLD-10). */
+    readonly missing?: MissingTarget[],
   ) {
     super(message);
     this.name = 'StepFailure';
@@ -308,7 +313,7 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     rt,
     scene: { id: scene.id, index: sceneIndex },
     step,
-    timeoutMs: (step.timeout ?? DEFAULT_STEP_TIMEOUT_S) * 1000,
+    timeoutMs: (step.timeout ?? rt.defaultTimeoutS ?? DEFAULT_STEP_TIMEOUT_S) * 1000,
     jitter: new Jitter(`${opts.scenarioName}:${scene.id}:${step.index}`, rt.pacing.jitter),
     clicks: [],
   };
@@ -377,6 +382,8 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
       await rt.kit.watchChanges().catch(() => undefined);
       popupsBefore = await rt.kit.popupState().then((ps) => ps.map((p) => p.id), () => undefined);
     }
+    // A click before this step may still be watched for its effect (R-FLD-12): its check ends before this step acts.
+    if (ACTING_ACTIONS.has(step.action)) await settleEffectChecks(ctx);
     const handler = ACTIONS[step.action] as (c: StepContext, a: unknown) => Promise<ActionResult>;
     const res = await handler(ctx, step.args);
     // A navigation the step started (an `open` up to its commit, an Enter, a new tab, a click) ends with the new page
@@ -433,9 +440,27 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
     const art = await errorArtifacts(rt, scene.id, step.index, e);
     if (step.optional) {
       rt.warn(`${scene.id}.${step.index} (${step.action}) failed but is optional: ${ev.error}`);
+      // Listed in the run result (R-FLD-16): an optional step that failed is not lost among the warnings.
+      (opts.record.optional_failures ??= []).push({
+        scene: scene.id,
+        step: step.index,
+        action: step.action,
+        error: ev.error,
+        ...(art.screenshot ? { screenshot: art.screenshot } : {}),
+      });
       return (outcome = 'failed-optional');
     }
-    throw new StepFailure(`scene ${scene.id}, step ${step.index} (${step.action} ${desc}): ${ev.error}`, scene.id, step.index, step.action, art.screenshot, art.dom);
+    // A missing target: the scene's other targets missing from this page too, in the same error (R-FLD-10).
+    const missing = isNotFound(e) ? await missingTargets(rt, scene, step) : [];
+    throw new StepFailure(
+      `scene ${scene.id}, step ${step.index} (${step.action} ${desc}): ${ev.error}${rt.secrets.redactText(formatMissing(missing))}`,
+      scene.id,
+      step.index,
+      step.action,
+      art.screenshot,
+      art.dom,
+      missing.length ? missing : undefined,
+    );
   } finally {
     try {
       ev.page = rt.activeId ?? undefined;

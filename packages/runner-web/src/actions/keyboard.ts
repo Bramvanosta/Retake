@@ -2,7 +2,10 @@ import type { PressArgs, TypeArgs } from '@demo-studio/core';
 import type { FieldKind } from '../kit/types.js';
 import type { StepContext } from '../runtime.js';
 import { sleepUntil, wallNow } from '../util.js';
-import { clickTarget, watchNavigation } from './click.js';
+import { StepError } from '../errors.js';
+import { ensureInView, poll, resolveTarget, settledPoint } from '../resolve.js';
+import type { Resolved } from '../resolve.js';
+import { clickResolved, watchNavigation } from './click.js';
 import type { ClickRun } from './click.js';
 import type { ActionResult } from './types.js';
 
@@ -73,16 +76,106 @@ async function clearField(ctx: StepContext): Promise<ClearHow> {
   return 'failed';
 }
 
+/**
+ * Bring a field into view inside its own scrolling containers (a scrolling dialog included) and take its click point
+ * once its box stopped moving (R-FLD-11). A field still covered at its point (a sticky footer of the dialog) is scrolled
+ * towards the middle of its container, up to twice.
+ */
+async function fieldIntoView(ctx: StepContext, r: Resolved): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await ensureInView(ctx, r.ref, attempt > 0);
+    const pt = await settledPoint(ctx, r.ref);
+    if (!pt) throw new StepError(`type: ${r.spec} disappeared before it could be clicked`, { target: r.spec });
+    r.point = { x: pt.x, y: pt.y };
+    r.bbox = pt.bbox;
+    r.hit = pt.hit;
+    if (pt.hit) return;
+  }
+  ctx.rt.warn(`${ctx.scene.id}.${ctx.step.index}: ${r.spec} is covered by another element at (${r.point.x}, ${r.point.y})`);
+}
+
+/** How long the focus may take to land in the field after the click (a widget that focuses its input itself). */
+const FOCUS_GRACE_MS = 500;
+
+/**
+ * After the click of `type {into}` (R-FLD-11): the focused element must be the field (or inside it): else the step
+ * fails before typing anything, naming what got the focus — never text typed into another field. Returns the ref of
+ * the focused element (the field whose value is checked after typing).
+ */
+async function checkFocus(ctx: StepContext, r: Resolved): Promise<string | null> {
+  const { kit } = ctx.rt;
+  let last: { ok: boolean; desc: string | null; field: string | null } | null = null;
+  const ok = await poll(
+    ctx,
+    async () => {
+      last = await kit.focusCheck(r.ref).catch(() => null);
+      return last === null || last.ok;
+    },
+    FOCUS_GRACE_MS,
+    50,
+  );
+  const got = last as { ok: boolean; desc: string | null; field: string | null } | null;
+  if (ok || got === null) return got?.field ?? null;
+  throw new StepError(
+    `type: clicking ${r.desc} at (${r.point.x}, ${r.point.y}) put the focus on ${got.desc ?? 'nothing (the page itself)'} instead: nothing was typed — ` +
+      'the field may be covered, below the fold of a container the runner could not scroll, or behind a dialog',
+    { target: r.spec },
+    r.ref,
+  );
+}
+
+/** Input types whose value the browser keeps in its own format (a typed "10/01/2027" reads "2027-01-10"). */
+const NATIVE_FORMAT_TYPES = new Set(['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range', 'file', 'checkbox', 'radio']);
+const loose = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/**
+ * After typing (R-FLD-11): the field's value holds the text typed — equal to it after a clear (or into an empty
+ * field), containing it otherwise. A value that only differs by its formatting (thousands separators, a phone mask,
+ * spaces) passes; any other difference — a field that lost the focus turned "300" into "3" — is a warning. Fields the
+ * kit cannot read (a frame of another origin, a custom widget, a native date input) are not checked. A password
+ * field's value is never shown: only lengths are.
+ */
+async function checkValue(ctx: StepContext, field: string | null, text: string, wasEmpty: boolean, desc: string): Promise<void> {
+  const { rt } = ctx;
+  if (text.includes('\n')) return;
+  const info = field ? await rt.kit.info(field).catch(() => null) : null;
+  if (info?.input_type && NATIVE_FORMAT_TYPES.has(info.input_type)) return;
+  const raw = await rt.kit.fieldValue(field).catch(() => null);
+  if (raw === null) return;
+  const value = info?.input_type ? raw : raw.replace(/\s+/g, ' ').trim();
+  const want = info?.input_type ? text : text.replace(/\s+/g, ' ').trim();
+  const exact = wasEmpty ? value === want : value.includes(want);
+  if (exact) return;
+  const formatted = wasEmpty ? loose(value) === loose(want) : loose(value).includes(loose(want));
+  if (formatted && loose(want) !== '') {
+    rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: ${desc} shows the typed text formatted by the page`);
+    return;
+  }
+  const where = `${ctx.scene.id}.${ctx.step.index}`;
+  if (info?.input_type === 'password' || rt.secrets.contains(text)) {
+    rt.warn(`${where}: after typing ${[...text].length} characters into ${desc}, the field holds ${[...raw].length}: some keys went elsewhere (focus lost?)`);
+    return;
+  }
+  const show = (v: string) => JSON.stringify(rt.secrets.redactText(v.length > 80 ? `${v.slice(0, 77)}…` : v));
+  rt.warn(`${where}: after typing ${show(text)} into ${desc}, the field holds ${show(raw)}: some keys went elsewhere (focus lost?) or the page changed the value`);
+}
+
 export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResult> {
   const { rt } = ctx;
   let run: ClickRun | null = null;
+  let field: string | null = null;
   if (args.into !== undefined) {
-    run = await clickTarget(ctx, args.into, { expect_popup: false, after_ms: FOCUS_PAUSE_MS });
+    // Found without scrolling, then brought into view and clicked once it stopped moving (R-FLD-11).
+    const r = await resolveTarget(ctx, args.into, { scroll: false });
+    await fieldIntoView(ctx, r);
+    run = await clickResolved(ctx, r, { expect_popup: false, after_ms: FOCUS_PAUSE_MS });
+    field = await checkFocus(ctx, run.resolved);
   } else if (!(await rt.kit.isTextInput(null))) {
     rt.warn(`${ctx.scene.id}.${ctx.step.index}: type without \`into\` and the focused element is not a text field`);
   }
   const kb = rt.page.keyboard;
   const cleared = args.clear ? await clearField(ctx) : undefined;
+  const wasEmpty = cleared !== undefined ? cleared !== 'failed' && cleared !== 'none' : ((await rt.kit.fieldState(field).catch(() => null))?.empty ?? false);
   // Without `into`: the focused field, measured before typing (the tutorial loupe and spotlight follow it).
   const focused = run ? null : await rt.kit.focused().catch(() => null);
   if (rt.secrets.contains(args.text)) {
@@ -103,6 +196,8 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
   const t_type = rt.now();
   await typeText(ctx, args.text, cps);
   const t_typed = rt.now();
+  // Before Enter (a search box or a chat field empties when it sends).
+  await checkValue(ctx, field, args.text, wasEmpty, run?.resolved.desc ?? focused?.desc ?? 'the focused field');
   let t_enter: number | undefined;
   if (args.enter) {
     await rt.sleep(ctx.jitter.ms(250));
