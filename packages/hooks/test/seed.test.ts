@@ -68,7 +68,7 @@ describe('runHooks: seed (L1.8)', () => {
     expect(api.requests.map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/replies', 'GET /status/500']);
     expect(existsSync(join(tmp.dir, 'sandbox', 'c.txt'))).toBe(false);
     expect(logText()).toContain('warn seed stopped: 1 remaining hook(s) not run');
-    expect(logText()).toContain('debug rollback of a seed hook is ignored (only setup hooks are rolled back)');
+    expect(logText()).toContain('debug rollback of a seed hook is ignored (only setup and step hooks are rolled back)');
     const again = await Journal.open(journalFile());
     expect(again.entries.map((e) => [e.name, e.phase, e.status, e.env, e.rollback])).toEqual([
       ['a', 'seed', 'ok', 'sandbox', undefined],

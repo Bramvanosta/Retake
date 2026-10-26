@@ -6,6 +6,7 @@ import { describeHttp } from '../describe.js';
 import { HookError, errorMessage } from '../errors.js';
 import { redactText } from '../secrets.js';
 import { checkTokens, hookTemplateContext, render, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { journalsRollback } from '../types.js';
 import type { HookContext, HttpRequestSpec, RollbackAction, SavedHttpResponse } from '../types.js';
 import { oneLine } from '../util.js';
 import { ignoreRollback } from './common.js';
@@ -178,7 +179,7 @@ export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<Prepa
   const call = toCall(renderDeep(request, tpl), ctx);
   checkHostAllowed(call.url, ctx.project);
   ignoreRollback(k, rollback !== undefined);
-  const rollbackTemplate = k.phase === 'setup' ? rollback : undefined;
+  const rollbackTemplate = journalsRollback(k.phase) ? rollback : undefined;
   if (rollbackTemplate) checkTokens(rollbackTemplate, await hookTemplateContext(ctx, rollbackTemplate), ['response']);
   const rollbackWrites = rollbackTemplate ? httpWriteReason(rollbackTemplate) : null;
   // Its URL as an approval shows it: templated, the response's values (known once the hook ran) as <response.…>.

@@ -9,6 +9,7 @@ import { shellDestructiveReason } from '../destructive.js';
 import { HookError } from '../errors.js';
 import { redactText } from '../secrets.js';
 import { hookTemplateContext, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { journalsRollback } from '../types.js';
 import type { HookContext, HookLogLevel, RollbackAction } from '../types.js';
 import { tail } from '../util.js';
 import { baseDirOf, ignoreRollback } from './common.js';
@@ -236,7 +237,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
   ignoreRollback(k, s.rollback !== undefined);
   const hosts = hostsOf(ctx, cmd);
   let rollback: RollbackAction | undefined;
-  if (s.rollback !== undefined && k.phase === 'setup') {
+  if (s.rollback !== undefined && journalsRollback(k.phase)) {
     const template: ShellCommand = { run: s.rollback, cwd: s.cwd, env: s.env };
     const tpl = await hookTemplateContext(ctx, template);
     const rb = renderDeep(template, tpl);
@@ -263,7 +264,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
         ? 'a shell command — add `writes: false` to a shell hook that only reads'
         : destructive
           ? `${destructive}, although it declares writes: false`
-          : s.rollback !== undefined && k.phase === 'setup'
+          : s.rollback !== undefined && journalsRollback(k.phase)
             ? 'its rollback: a shell command'
             : null,
     hosts,

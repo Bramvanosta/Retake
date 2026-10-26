@@ -43,7 +43,8 @@ export class ProgressPrinter {
       case 'hook': {
         if (e.status === 'start') {
           this.hookPhase = e.phase;
-          ui.line(`${c.bold(e.phase)} ${c.dim(e.message ?? '')}`);
+          // A `hook:` step (L5.8) during a scene: its hook's name.
+          ui.line(`${e.phase === 'step' ? `  ${c.bold(`hook ${e.name}`)}` : c.bold(e.phase)} ${c.dim(e.message ?? '')}`);
           break;
         }
         if (this.hookPhase !== e.phase) {

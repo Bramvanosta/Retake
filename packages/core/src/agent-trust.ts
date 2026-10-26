@@ -146,6 +146,12 @@ export function scenarioFileRefs(sc: Scenario): ScenarioFileRef[] {
       for (const f of hookFileRefs(hook)) out.push({ ref: f.ref, where: `${phase} hook ${i + 1}${hook?.name ? ` "${hook.name}"` : ''} (${f.what})`, code: true });
     });
   }
+  // Named hooks (L5.8): what `hook:` steps run during the take.
+  for (const [name, v] of Object.entries(sc.hooks && typeof sc.hooks === 'object' ? sc.hooks : {})) {
+    (Array.isArray(v) ? v : [v]).forEach((hook, i, all) => {
+      for (const f of hookFileRefs(hook)) out.push({ ref: f.ref, where: `hook "${name}"${all.length > 1 ? ` entry ${i + 1}` : ''} (${f.what})`, code: true });
+    });
+  }
   return out;
 }
 
@@ -155,7 +161,7 @@ export function secretRefsProblem(refs: Iterable<string>, where: string, via?: A
   if (!list.length) return null;
   return (
     `${where} uses ${list.map((r) => `{{${r}}}`).join(', ')}: ${channelWords(via)} a scenario never resolves a secret — ` +
-    "only project.yaml (personas' login steps, databases, mailbox, reset hooks) and the project's hooks files do; a human runs it in a terminal"
+    "only project.yaml (personas' login steps, databases, mailbox, reset and named hooks) and the project's hooks files do; a human runs it in a terminal"
   );
 }
 

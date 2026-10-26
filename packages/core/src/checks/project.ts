@@ -9,7 +9,7 @@ import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
 import { CheckContext, isObj } from './context.js';
 import { checkAuth, checkPersonaPaths } from './auth.js';
-import { checkHooks } from './hooks.js';
+import { checkHooks, checkNamedHooks } from './hooks.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
 
 /** Template roots that a page key would shadow. */
@@ -199,6 +199,7 @@ export function checkProject(
 
   const saved = new Set<string>();
   checkHooks(value.reset, ['reset'], ctx, { pages: [...pageKeys], saved, project: { config: config as never } });
+  checkNamedHooks(value.hooks, ['hooks'], ctx, { pages: [...pageKeys], saved: new Set<string>(), project: { config: config as never } });
   const vars = new Set(isObj(value.vars) ? Object.keys(value.vars) : []);
   if (value.vars !== undefined && !ctx.broken(['vars'])) checkVarsValues(value.vars, ['vars'], ctx);
   const scope = { pages: [...pageKeys], vars, varsComplete: true, saved };

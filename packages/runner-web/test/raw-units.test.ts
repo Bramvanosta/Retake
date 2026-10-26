@@ -262,6 +262,41 @@ describe('held page loads (R-ISS-08)', () => {
   });
 });
 
+describe('off camera in the raw export (L5.8, R-FLD-31)', () => {
+  it('a hook step is cut from its clip (with or without the loading cuts), an offscreen scene has no clip', () => {
+    const tl = {
+      run_id: 'r',
+      mode: 'capture',
+      scenario: 'x',
+      capture: { file: 'capture.mp4', width: 1920, height: 1080, scale: 1, fps: 30, duration: 16, frames: 480 },
+      scenes: [
+        { id: 'prep', index: 0, kind: 'scene', t_start: 0, t_end: 4, offscreen: true, status: 'ok' },
+        { id: 's', index: 1, kind: 'scene', t_start: 4, t_end: 16, status: 'ok' },
+      ],
+      events: [
+        ev({ scene: 'prep', scene_index: 0, step: -1, action: 'scene_still', t_start: 0.5, t_end: 1 }),
+        ev({ scene: 's', scene_index: 1, step: -1, action: 'scene_still', t_start: 4, t_end: 5 }),
+        ev({ scene: 's', scene_index: 1, step: 0, action: 'hold', t_start: 5, t_end: 6 }),
+        ev({ scene: 's', scene_index: 1, step: 1, action: 'hook', t_start: 6, t_end: 8.5, data: { hook: 'request', results: ['request: 201 Created'] } }),
+        ev({ scene: 's', scene_index: 1, step: 2, action: 'hold', t_start: 8.5, t_end: 16 }),
+      ],
+      pages: [{ id: 'main', t_start: 0, t_end: 16 }],
+      cursor: [],
+      markers: [],
+      idle: [],
+      warnings: [],
+    } as unknown as Timeline;
+    for (const cuts of [true, false]) {
+      const plan = planRawExport(tl, { fps: 30, cuts });
+      expect(plan.clips.map((c) => c.scene)).toEqual(['s']);
+      expect(plan.clips[0].name).toBe('01-s');
+      expect(plan.clips[0].cuts).toEqual([{ from: 6, to: 8.5, reason: 'hook', after_step: 1, n0: 180, n1: 255, at: 60 }]);
+      expect(plan.notes).toContain('scene "prep" was played off camera (offscreen): no clip');
+      expect(plan.notes).toContain('"s": 2.50 s of hook step s.1 cut (6.00–8.50 s of the capture: it ran off camera)');
+    }
+  });
+});
+
 describe('clip plan on real timelines (R-RAW-01)', () => {
   it('quote: one clip per scene from its still (the page load out), contiguous on the sequence, real time', () => {
     const tl = fixture('quote');

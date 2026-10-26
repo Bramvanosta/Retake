@@ -222,6 +222,28 @@
       },
       "description": "Hooks run after capture, even after a failure."
     },
+    "hooks": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/HookStep"
+          },
+          {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/HookStep"
+            }
+          }
+        ]
+      },
+      "description": "Named hooks a `hook: <name>` step runs during the take (a name here wins over project.yaml's)."
+    },
     "capture": {
       "$ref": "#/$defs/CaptureOverrides"
     },
@@ -1303,6 +1325,10 @@
         "skip": {
           "type": "boolean",
           "description": "Skip this scene entirely."
+        },
+        "offscreen": {
+          "type": "boolean",
+          "description": "Played during the take but left out of the video (a scene that prepares what the next ones film)."
         },
         "note": {
           "type": "string"
@@ -4855,9 +4881,116 @@
           "additionalProperties": false,
           "title": "capture_text",
           "description": "Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "hook": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                      "description": "A hook of the scenario's `hooks:`, else of project.yaml's."
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Run a named hook (the scenario's `hooks:`, else project.yaml's) during the take, off camera: the edit cuts its span. Approved like setup / teardown hooks."
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Step id, used in refs (\"scene.step\") and by --until."
+            },
+            "caption": {
+              "description": "Caption shown from this step's start until the next caption or scene end.",
+              "$ref": "#/$defs/Caption"
+            },
+            "speed": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 8,
+              "description": "Edit-time playback speed for this step's span (overrides the scene speed)."
+            },
+            "hold": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Seconds of stillness AFTER the step; never trimmed by the editor."
+            },
+            "camera": {
+              "$ref": "#/$defs/CameraHint"
+            },
+            "overlay": {
+              "$ref": "#/$defs/Overlay"
+            },
+            "tutorial": {
+              "description": "Tutorial overlays of this step, over the scene's and the scenario's, e.g. {spotlight: false}; false = none on this step.",
+              "$ref": "#/$defs/Tutorial"
+            },
+            "on": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+              "description": "Multi-page scenes: the page this step acts on, a key of the scene's `pages` (default: its first page)."
+            },
+            "mark": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "description": "Named marker (editor: speed 1 around it; review: key frame)."
+            },
+            "timeout": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Seconds before the step fails (default: the scenario's or project's defaults.timeout_s, else 15)."
+            },
+            "optional": {
+              "type": "boolean",
+              "description": "A failure is logged (run.json optional_failures) but does not abort the run."
+            },
+            "retry_click": {
+              "type": "boolean",
+              "description": "click / double_click: a click that produced nothing within about a second (no request, DOM change, navigation, dialog) is made once more; a second dead click fails the step."
+            },
+            "irreversible": {
+              "type": "boolean",
+              "description": "Not executed in dry-run: the runner hovers the target, screenshots and stops the scene."
+            },
+            "park": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0
+                }
+              ],
+              "description": "Park the cursor after the step: next to a scroll target (clear of its text), else away from what changed since the last action; true holds pacing.park_scroll_hold / park_hold (or `hold`), a number holds that many seconds."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-form note (ignored)."
+            }
+          },
+          "required": [
+            "hook"
+          ],
+          "additionalProperties": false,
+          "title": "hook",
+          "description": "Run a named hook (the scenario's `hooks:`, else project.yaml's) during the take, off camera: the edit cuts its span. Approved like setup / teardown hooks."
         }
       ],
-      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, date, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, on, mark, timeout, optional, retry_click, irreversible, park, note)."
+      "description": "Exactly one action (open, click, double_click, hover, type, press, select, pick, menu, date, scroll, drag, drop_file, wait, wait_for, hold, assert, screenshot, new_tab, switch_page, eval, notify, emit, cursor, wait_for_email, download, capture_text, hook) plus optional modifiers (id, caption, speed, hold, camera, overlay, tutorial, on, mark, timeout, optional, retry_click, irreversible, park, note)."
     },
     "CameraHint": {
       "type": "object",

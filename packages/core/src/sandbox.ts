@@ -7,12 +7,15 @@
  * read-write; its URLs are loopback only. Starting, seeding and resetting it is @demo-studio/sandbox's job.
  */
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMap, isScalar, parseDocument } from 'yaml';
-import { checkSandbox } from './checks/sandbox.js';
+import { DEFAULT_COMPOSE_FILES, checkSandbox } from './checks/sandbox.js';
+export { envFileKeys } from './checks/sandbox.js';
 import { normalizeDisplay } from './display.js';
+import { isLoopbackHost } from './hosts.js';
 import { isGlobalAuth } from './auth.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { sqlSource } from './destructive.js';
@@ -352,4 +355,63 @@ export function addSandboxEntry(text: string, env: string, file: string): string
   const written = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
   if (!ok(written)) throw new Error('project.yaml could not be updated');
   return written;
+}
+
+/**
+ * The env file of a docker-compose sandbox (L5.8, R-FLD-32), absolute: `compose.env_file` (relative to sandbox.yaml),
+ * else `.env` next to the first compose file when it exists; undefined for none (`env_file: false`, no such file, a
+ * process sandbox). Demo Studio passes it to every compose command (`--env-file`), and leaves the names it sets out of
+ * the environment docker runs with — a shell's value would win over the file's.
+ */
+export function composeEnvFile(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>): string | undefined {
+  const c = sandbox.manifest.compose;
+  if (sandbox.manifest.provider !== 'docker-compose' || c?.env_file === false) return undefined;
+  if (typeof c?.env_file === 'string') return resolve(sandbox.dir, c.env_file);
+  const first = resolve(sandbox.dir, (c?.files ?? DEFAULT_COMPOSE_FILES)[0]);
+  const guess = join(dirname(first), '.env');
+  return existsSync(guess) ? guess : undefined;
+}
+
+/**
+ * Why a project would want a sandbox (L5.8, R-FLD-30): it has none, one of its environments films only this machine
+ * (every page on a loopback host, not production) and the project holds state a take changes — a database, a mailbox,
+ * reset hooks. Null otherwise. `studio doctor` and MCP `project_get` point to `studio sandbox init` with it.
+ */
+export interface SandboxAdvice {
+  /** The local environment. */
+  env: string;
+  /** "database main", "the mailbox", "reset hooks". */
+  holds: string[];
+}
+
+export function sandboxAdvice(project: Pick<LoadedProject, 'config'>): SandboxAdvice | null {
+  if (sandboxNames(project).length) return null;
+  const settings = project.config.environment_settings ?? {};
+  const loopback = (url: string) => {
+    try {
+      return isLoopbackHost(new URL(url).hostname);
+    } catch {
+      return false;
+    }
+  };
+  const local = Object.entries(project.config.environments ?? {}).find(([name, pages]) => {
+    const urls = Object.values(pages);
+    return settings[name]?.production !== true && urls.length > 0 && urls.every(loopback);
+  });
+  if (!local) return null;
+  const holds = [
+    ...Object.keys(project.config.databases ?? {}).map((k) => `database ${k}`),
+    ...(project.config.mailbox ? ['the mailbox'] : []),
+    ...(project.config.reset?.length ? ['reset hooks'] : []),
+  ];
+  return holds.length ? { env: local[0], holds } : null;
+}
+
+/** The advice in words: what the environment holds, what a sandbox does about it, the command that writes one. */
+export function sandboxAdviceText(a: SandboxAdvice, slug: string, studio = 'studio'): { detail: string; hint: string } {
+  const holds = a.holds.length > 1 ? `${a.holds.slice(0, -1).join(', ')} and ${a.holds[a.holds.length - 1]}` : a.holds[0];
+  return {
+    detail: `none — environment ${a.env} films this machine with ${holds}: each take starts from whatever the last one (or a hand-made reset) left`,
+    hint: `a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts): ${studio} sandbox init ${slug} writes a sandbox.yaml to fill in (README "Sandbox mode"), then ${studio} run ${slug} <scenario> --env sandbox --sandbox`,
+  };
 }

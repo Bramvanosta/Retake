@@ -322,6 +322,15 @@ export interface EmitArgs {
 }
 
 /**
+ * `hook: <name>` (L5.8, R-FLD-31): run a named hook of the scenario's `hooks:` (else project.yaml's) during the take —
+ * an action on the product that must happen at that moment without being filmed (mark a payment through its API, move a
+ * period into the past in SQL, push a queue job). Approved like setup / teardown hooks; the edit cuts its span.
+ */
+export interface HookArgs {
+  name: string;
+}
+
+/**
  * `wait_for_email`: poll the project's test mailbox (`project.mailbox`) until a NEW message matches (one that was not
  * in the mailbox when the run started), then capture it as the run artefact `as` (artefacts/emails/<as>.json + an
  * image of its HTML). `to` / `from` match a substring of the address or the name (case-insensitive), `subject` a
@@ -605,6 +614,7 @@ export interface ActionArgsMap {
   wait_for_email: WaitForEmailArgs;
   download: DownloadArgs;
   capture_text: CaptureTextArgs;
+  hook: string | HookArgs;
 }
 
 export type ActionName = keyof ActionArgsMap;
@@ -637,6 +647,7 @@ export const ACTION_NAMES: readonly ActionName[] = [
   'wait_for_email',
   'download',
   'capture_text',
+  'hook',
 ] as const;
 
 /** A step = exactly one action key + optional common modifiers. */
@@ -682,6 +693,7 @@ export interface NormalizedArgsMap {
   wait_for_email: WaitForEmailArgs;
   download: Omit<DownloadArgs, 'click'> & { click: TargetObject & ClickOptions };
   capture_text: CaptureTextArgs;
+  hook: HookArgs;
 }
 export type NormalizedArgs = NormalizedArgsMap;
 
@@ -824,6 +836,11 @@ export interface Scene {
   irreversible?: boolean;
   /** Skip this scene entirely. */
   skip?: boolean;
+  /**
+   * Played during the take but left out of the video (L5.8, R-FLD-31): a scene that prepares what the next ones film
+   * (a page reached, a form filled off camera). An edit value: a render on an existing take can toggle it.
+   */
+  offscreen?: boolean;
   note?: string;
 }
 
@@ -975,6 +992,9 @@ export type HookStep = HookCommon &
 
 export type HookKind = 'http' | 'sql' | 'shell' | 'js';
 
+/** `hooks:` of a scenario or project.yaml (L5.8): name → one hook entry, or a list run in order. */
+export type NamedHooks = Record<string, HookStep | HookStep[]>;
+
 export interface Scenario {
   /** Format version (optional: a file without it is version 1). */
   version?: 1;
@@ -991,6 +1011,11 @@ export interface Scenario {
   vars?: Record<string, string>;
   setup?: HookStep[];
   teardown?: HookStep[];
+  /**
+   * Named hooks a `hook: <name>` step runs during the take (L5.8): one hook entry or a list of them, run in order. A
+   * name here wins over project.yaml's `hooks:`.
+   */
+  hooks?: NamedHooks;
   capture?: Partial<CaptureSettings>;
   /** Frame of every scene (default: the project frame). */
   frame?: FrameSpec;
@@ -1403,8 +1428,12 @@ export interface SandboxDatabase extends DatabaseConfig {
 export interface SandboxManifest {
   version: typeof SANDBOX_VERSION;
   provider: SandboxProvider;
-  /** docker-compose only: the compose files (relative to sandbox.yaml; default [compose.yaml]) and the project name. */
-  compose?: { files?: string[]; project?: string };
+  /**
+   * docker-compose only: the compose files (relative to sandbox.yaml; default [compose.yaml]), the project name, and the
+   * env file docker compose reads its `${VAR}` values from (L5.8: default `.env` next to the first compose file when there
+   * is one; `false`: none).
+   */
+  compose?: { files?: string[]; project?: string; env_file?: string | false };
   services: Record<string, SandboxService>;
   /** The steps that build the demo data (paths relative to sandbox.yaml). */
   seed?: SeedStep[];
@@ -1541,6 +1570,8 @@ export interface ProjectConfig {
   browser?: BrowserConfig;
   /** Hooks run by `env_reset`. */
   reset?: HookStep[];
+  /** Named hooks of every scenario (L5.8): what a `hook: <name>` step runs when the scenario has no hook of that name. */
+  hooks?: NamedHooks;
   vars?: Record<string, string>;
   /** Test mailbox read by `wait_for_email`. */
   mailbox?: MailboxConfig;
@@ -1688,6 +1719,8 @@ export interface TimelineScene {
    * own track (`Timeline.tracks`). Absent for a single-page scene (recorded in `capture`).
    */
   pages?: TimelineScenePage[];
+  /** Played during the take but left out of the video (scene `offscreen: true`, L5.8): the edit shows nothing of it. */
+  offscreen?: true;
   status: 'ok' | 'failed' | 'skipped' | 'partial';
 }
 
@@ -2222,7 +2255,12 @@ export interface RunRecord {
   timeline?: string;
   /** One screenshot per step: a dry run's, or a capture's with `capture.step_shots` (L5.6). */
   screenshots: string[];
-  hooks: { setup: 'ok' | 'failed' | 'skipped' | 'none'; teardown: 'ok' | 'failed' | 'skipped' | 'none' };
+  hooks: {
+    setup: 'ok' | 'failed' | 'skipped' | 'none';
+    teardown: 'ok' | 'failed' | 'skipped' | 'none';
+    /** `hook:` steps (L5.8; absent when the scenario has none): ok, a step's hook failed, or skipped with the hooks. */
+    steps?: 'ok' | 'failed' | 'skipped';
+  };
   warnings: string[];
   error?: RunError;
   /** The `optional` steps that failed, in order (L5.6; absent when none did). */
@@ -2299,7 +2337,7 @@ export interface PerfTransition {
 /** Progress events streamed by runners (CLI prints them, MCP stores them). */
 export type RunProgress =
   | { type: 'run_start'; run: RunRecord }
-  | { type: 'hook'; phase: 'setup' | 'teardown' | 'rollback'; name: string; status: 'start' | 'ok' | 'failed' | 'skipped'; message?: string }
+  | { type: 'hook'; phase: 'setup' | 'teardown' | 'rollback' | 'step'; name: string; status: 'start' | 'ok' | 'failed' | 'skipped'; message?: string }
   | { type: 'scene_start'; scene: string; index: number }
   | { type: 'step_start'; scene: string; step: number; action: string; desc: string }
   | { type: 'step_end'; scene: string; step: number; action: string; status: TimelineEvent['status']; ms: number; message?: string }

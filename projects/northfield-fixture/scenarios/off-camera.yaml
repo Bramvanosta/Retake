@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Supplier side, with what the product needs done off camera during the take (L5.8): a café's quote request arrives
+# through the product's API at the right moment — a `hook:` step mid-take, cut from the video — and a scene that only
+# brings the console to its quote list (`offscreen: true`) is played but not shown.
+#
+# The console's Quote requests page reloads its list every second: the request the hook sends shows up there by
+# itself, highlighted "New", as if a café had just sent it.
+version: 1
+video: off-camera
+title: {kicker: For roasters, text: Answer a quote request in seconds}
+outro: {tagline: "Every request, answered while it is fresh."}
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+# Named hooks: what a `hook: <name>` step runs during the take (project.yaml may declare shared ones). One entry, or a
+# list run in order — here the request, then a pause standing in for a real product's job queue picking it up.
+hooks:
+  cafe-requests-a-quote:
+    - name: request
+      http:
+        method: POST
+        url: "{{console}}/api/quotes"
+        json:
+          product_slug: selowa-ridge
+          bags: 4
+          bag_size: 5 kg
+          grind: Filter
+          label_language: English
+          window_start: "2027-01-10"
+          window_end: "2027-01-24"
+          message: "Light roast for filter, please."
+    - name: queue
+      writes: false
+      shell: "sleep 1.5"
+
+scenes:
+  # Played, not shown: the video opens on the quote list.
+  - id: to-the-list
+    offscreen: true
+    page: console
+    open: /products
+    steps:
+      - click: {role: link, name: Quote requests}
+      - wait_for: {text: Send proposal}
+
+  - id: requests
+    caption: {kicker: Quote requests, text: "Requests from cafés land here, live."}
+    steps:
+      - hover: {text: Awaiting proposal, ms: 600}
+      - hold: 0.8
+      # Off camera: the café sends its request now (the edit cuts this step).
+      - hook: cafe-requests-a-quote
+      - wait_for: {text: New}
+        mark: arrived
+      - hold: 1.4
+
+  - id: answer
+    caption: {kicker: Answer, text: "Send a proposal: the café is notified at once."}
+    steps:
+      - click: {text: Send proposal, in: {row: New}}
+      - click: {text: Send proposal, in: dialog}
+      - wait_for: {text: Proposal sent}
+      - hold: 1.6

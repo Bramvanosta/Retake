@@ -47,9 +47,9 @@ afterAll(async () => {
 });
 
 describe('scenarios.check: own issues and run blockers (B2)', () => {
-  it('the fixture from the Studio: every scenario valid; dry runs unblocked; captures of catalogue and quote need the terminal — worded for the Studio', async () => {
+  it('the fixture from the Studio: every scenario valid; dry runs unblocked; captures of catalogue, off-camera and quote need the terminal — worded for the Studio', async () => {
     const names = (await ui.projects.get(P)).scenarios;
-    expect(names.length).toBe(14);
+    expect(names.length).toBe(15);
     const blocked: Record<string, string[]> = {};
     for (const name of names) {
       const c = await ui.scenarios.check(P, name);
@@ -63,7 +63,8 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
         expect(b.fix, name).toMatch(new RegExp(`^studio -C .* run ${P} ${name}$`));
       }
     }
-    expect(blocked).toEqual({ catalogue: ['needs_approval'], quote: ['needs_approval'] });
+    // off-camera (L5.8): its named hook's shell entry needs a person, like a setup hook's.
+    expect(blocked).toEqual({ catalogue: ['needs_approval'], 'off-camera': ['needs_approval'], quote: ['needs_approval'] });
     const quote = await ui.scenarios.check(P, 'quote');
     expect(quote.run_blockers.capture[0].message).toBe(
       'the capture of scenario quote has hooks a human must approve before they run: setup hook 2 "prepare-proposal" (its rollback: HTTP DELETE). The Studio cannot approve hooks yet: run it in a terminal',

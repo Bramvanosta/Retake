@@ -499,7 +499,9 @@ export function planPersonas(sc: Scenario, opts: PlanPersonasOptions): PersonaPl
   }
 
   if (opts.hooks) {
-    for (const list of [sc.setup ?? [], sc.teardown ?? []]) {
+    // Named hooks (L5.8) too: a js one runs in the same kind of tab (a project.yaml hook's page takes its default).
+    const named = Object.values(isObject(sc.hooks) ? sc.hooks : {}).flatMap((v) => (Array.isArray(v) ? v : [v]));
+    for (const list of [sc.setup ?? [], sc.teardown ?? [], named]) {
       for (const h of list) {
         if (!isObject(h) || h.js === undefined) continue;
         const spec = h.js as unknown;

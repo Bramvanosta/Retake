@@ -65,7 +65,7 @@ export interface StepForms {
 }
 
 /** The actions of the palette (critique C3): those whose required values fit the form fields. */
-export const PALETTE_ACTIONS: readonly ActionName[] = ['open', 'click', 'double_click', 'hover', 'type', 'press', 'select', 'wait', 'wait_for', 'hold', 'screenshot', 'scroll', 'menu', 'date', 'notify'];
+export const PALETTE_ACTIONS: readonly ActionName[] = ['open', 'click', 'double_click', 'hover', 'type', 'press', 'select', 'wait', 'wait_for', 'hold', 'screenshot', 'scroll', 'menu', 'date', 'notify', 'hook'];
 
 /** Actions without a form: code, custom events, cursor points (the YAML tab). */
 const NO_FORM: ReadonlySet<ActionName> = new Set<ActionName>(['eval', 'emit', 'cursor']);

@@ -41,7 +41,7 @@ export function journalId(file: string): string {
 }
 
 const KINDS = new Set(['http', 'sql', 'shell', 'js']);
-const PHASES = new Set(['setup', 'teardown', 'reset', 'seed']);
+const PHASES = new Set(['setup', 'teardown', 'reset', 'seed', 'step']);
 const STATUSES = new Set(['ok', 'failed', 'rolled_back']);
 
 /** Executed, with a rollback action that has not succeeded yet (and was not superseded by a sandbox reset). */

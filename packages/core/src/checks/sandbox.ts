@@ -6,7 +6,7 @@
  * of a production or read-only environment is an error.
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { parse as parseYamlText } from 'yaml';
 import { sqlSource } from '../destructive.js';
 import { environmentAccess } from '../env.js';
@@ -123,6 +123,51 @@ function checkRelative(p: unknown, path: IssuePath, what: string, ctx: CheckCont
     return false;
   }
   return true;
+}
+
+/** The names an env file sets (`NAME=value`, `export NAME=value`; comments and blank lines skipped). */
+export function envFileKeys(text: string): string[] {
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=/.exec(line);
+    if (m && !out.includes(m[1])) out.push(m[1]);
+  }
+  return out;
+}
+
+/**
+ * The env file of a docker-compose sandbox (L5.8): a written `env_file` must exist; a `COMPOSE_PROFILES` in it (or in the
+ * default `.env` next to the first compose file) is refused — docker compose would read it and start other services
+ * than sandbox.yaml says (the shell's COMPOSE_* are left out for the same reason).
+ */
+function checkEnvFile(c: Record<string, unknown>, files: readonly string[], ctx: CheckContext): void {
+  if (!ctx.projectDir || c.env_file === false) return;
+  let file: string;
+  let at: IssuePath;
+  if (typeof c.env_file === 'string') {
+    if (!checkRelative(c.env_file, ['compose', 'env_file'], 'env file', ctx)) return;
+    file = resolve(ctx.projectDir, c.env_file);
+    at = ['compose', 'env_file'];
+    if (!existsSync(file)) {
+      ctx.error(at, `env file "${c.env_file}" not found in ${DIR_LABEL}`);
+      return;
+    }
+  } else {
+    if (!files.length || machinePath(files[0])) return;
+    file = resolve(dirname(resolve(ctx.projectDir, files[0])), '.env');
+    at = Array.isArray(c.files) ? ['compose', 'files', 0] : ['provider'];
+    if (!existsSync(file)) return;
+  }
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    ctx.error(at, `env file ${file} cannot be read`);
+    return;
+  }
+  if (envFileKeys(text).includes('COMPOSE_PROFILES')) {
+    ctx.error(at, `the env file ${typeof c.env_file === 'string' ? `"${c.env_file}"` : 'next to the compose file (.env)'} sets COMPOSE_PROFILES: docker compose would start other services than sandbox.yaml says — remove it (or give \`env_file\` another file)`);
+  }
 }
 
 /** A directory relative to the sandbox folder must exist. */
@@ -281,6 +326,7 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
     const written = Array.isArray(c.files);
     const files = written ? (c.files as unknown[]).filter((f): f is string => typeof f === 'string') : [...DEFAULT_COMPOSE_FILES];
     composeNames = composeServices(files, written ? ['compose', 'files'] : ['provider'], written, ctx, profiled);
+    checkEnvFile(c, files, ctx);
   }
 
   // ── Services and their pages ──

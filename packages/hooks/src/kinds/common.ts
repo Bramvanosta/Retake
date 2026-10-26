@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@demo-studio/core';
 import { HookError, HookSecurityError } from '../errors.js';
+import { journalsRollback } from '../types.js';
 import type { HookContext, HookLogLevel, HookPhase, RollbackAction } from '../types.js';
 
 export interface KindEnv {
@@ -88,7 +89,7 @@ export async function readHookFile(ctx: HookContext, baseDir: string, rel: strin
 
 /** Logs that a rollback declared on a teardown/reset hook is ignored. */
 export function ignoreRollback(k: KindEnv, declared: boolean): void {
-  if (declared && k.phase !== 'setup') {
-    k.log('debug', `rollback of a ${k.phase} hook is ignored (only setup hooks are rolled back)`);
+  if (declared && !journalsRollback(k.phase)) {
+    k.log('debug', `rollback of a ${k.phase} hook is ignored (only setup and step hooks are rolled back)`);
   }
 }

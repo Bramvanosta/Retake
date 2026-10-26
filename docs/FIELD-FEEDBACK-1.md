@@ -105,9 +105,33 @@ Findings:
 5. What a take costs now is mostly Chromium's browser process reading back and JPEG-encoding ≈ 55 – 60 frames a second
    while the cursor moves (BL-98: half of them would do for a 30 fps video).
 
+## After L5.8 — MCP result sizes (2026-10-26, fixture)
+
+What a client receives (the summary and the JSON text blocks), measured through `studio mcp` over stdio on the fixture
+(`quote` take and render of L5.8's acceptance), before (main e74fc2e: JSON pretty-printed, every field) and after
+(compact by default, one-line JSON). Tokens ≈ characters / 4 (the estimate Claude Code's size limit uses); images
+(`images: "none"` here) are not counted.
+
+| Call | Before (chars / ≈ tokens) | After, compact | After, `detail: "full"` |
+|---|---|---|---|
+| `page_inspect` console `/products` (40 elements) | 53,039 / 13,260 | 8,694 / 2,174 | 30,470 / 7,618 |
+| `page_inspect` shop `/` | 33,797 / 8,449 | 4,732 / 1,183 | 20,248 / 5,062 |
+| `page_inspect {scenario: quote, until: request.0}` (the dialog) | 40,522 / 10,131 | 6,002 / 1,501 | 22,788 / 5,697 |
+| `run_status` of a dry run (20 screenshots, a failure) | 10,860 / 2,715 | 3,731 / 933 | 9,627 / 2,407 |
+| `run_status` of a capture | 3,567 / 892 | 1,440 / 360 | 2,923 / 731 |
+| `review_get` of a clean 61 s render | 8,620 / 2,155 | 1,632 / 408 | 7,280 / 1,820 |
+
+Of the page_inspect saving, the indentation of pretty-printed JSON is ≈ 43 % of the text (the `full` column); the rest is the
+elements out of view (9 of 31 on the dialog replay) and each element's box, null fields, duplicated text and target
+(the step hint already holds the target). The field's 25,000-token review came from a 4-minute video with many
+findings: compact keeps every error and at most 30 warnings with their messages (BL-104: measure a long one).
+
 ## Quick wins on a field project (no code)
 - Remove `browser: {frame_rate_limit: false}` (since L5.7 the dialog-close freeze is handled with the limiter on) and
   drop `capture: {keep_frames: …}` (L5.7: no frames by default). `studio prune <project>` frees what older takes and
   renders hold.
 - Write a `sandbox.yaml` (docker-compose or process provider) for the Postgres snapshot, the mailbox and the seed,
-  and film with `studio run … --sandbox`.
+  and film with `studio run … --sandbox` (since L5.8 `studio doctor --project` says when one is missing; README "A
+  stage sandbox" for a product shipped as images).
+- Replace the side script that polled the database with named hooks and `hook:` steps (L5.8, README "Hooks during
+  the take").

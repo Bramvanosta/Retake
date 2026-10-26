@@ -78,6 +78,15 @@ export interface RuntimeInit {
   encoderFor?: (o: { out: string; width: number; height: number; horizon: () => number }) => StreamEncoder | null;
 }
 
+/** What a `hook:` step reports (its timeline event's `data`). */
+export interface HookStepOutcome {
+  hook: string;
+  /** Not run: the run's hooks are skipped (a dry run without `hooks: run`, `--hooks skip`). */
+  skipped?: true;
+  /** One line per entry: its name and outcome ("ok: 201 Created"), secrets redacted. */
+  results?: string[];
+}
+
 /** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
 export const FRESH_FRAME_TIMEOUT_MS = 900;
 /** Frames count as flowing after this many probes in a row answered within FRESH_FRAME_QUICK_MS. */
@@ -151,6 +160,11 @@ export class Runtime {
   parkWatch = false;
   /** The element the last acting step used (parking keeps clear of it). */
   lastActed: Acted | null = null;
+  /**
+   * Runs a named hook for a `hook:` step (L5.8, run.ts stepHookRunner): the hooks of the run's context, journaled with
+   * the setup's. Null when the run has no hook step.
+   */
+  runHook: ((name: string) => Promise<HookStepOutcome>) | null = null;
   private tabSeq = 1;
   private readonly tracked = new WeakSet<Page>();
   /** Per-page tracks of multi-page scenes, by page id (kept for the whole run). */

@@ -18,6 +18,7 @@ import {
   reserveRunId,
   resolveEnvironment,
   resolveStepRef,
+  usedNamedHooks,
   writeJson,
 } from '@demo-studio/core';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@demo-studio/core';
@@ -140,7 +141,9 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
   const what = `${req.mode === 'dry' ? 'the dry run' : 'the capture'} of scenario ${prepared.scenario.name}`;
   // The hooks this run executes, checked with trust `mcp` (R-MCP-35): what a safety rule refuses fails the submit; what
   // needs a human is asked through the client's approver, else refused with the `studio` command a human runs.
-  const hasHooks = hooksMode === 'run' && ((sc.setup?.length ?? 0) > 0 || (sc.teardown?.length ?? 0) > 0);
+  // `hook:` steps (L5.8): each named hook they run is asked about once, wherever its steps are.
+  const named = usedNamedHooks(sc, project);
+  const hasHooks = hooksMode === 'run' && ((sc.setup?.length ?? 0) > 0 || (sc.teardown?.length ?? 0) > 0 || named.length > 0);
   let pre: Promise<Preflight | undefined> | undefined;
   const preflight = (): Promise<Preflight | undefined> =>
     (pre ??= hasHooks
@@ -149,6 +152,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
           [
             { phase: 'setup', hooks: sc.setup ?? [] },
             { phase: 'teardown', hooks: sc.teardown ?? [] },
+            ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks })),
           ],
           { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
         ).catch((e: unknown) => {

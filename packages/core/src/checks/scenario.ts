@@ -6,6 +6,7 @@ import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
 import { environmentAccess } from '../env.js';
 import { hookWriteReason } from '../hook-writes.js';
+import { hookStepName } from '../named-hooks.js';
 import { normalizeStep, resolveStepRef } from '../steps.js';
 import { isDesktopViewport, resolveViewport, scenePageEntries, splitPageOpen } from '../pages.js';
 import type { ResolvedViewport } from '../pages.js';
@@ -20,7 +21,7 @@ import type { LocatedIssue } from '../validation/located.js';
 import { suggestion } from '../validation/suggest.js';
 import { checkActionArgs, checkTarget } from './actions.js';
 import { CheckContext, isObj } from './context.js';
-import { checkHooks } from './hooks.js';
+import { checkHooks, checkNamedHooks } from './hooks.js';
 import { checkMediaFields } from './media.js';
 import { checkWriteRules } from './project.js';
 import { checkTokens, checkVarsValues } from './tokens.js';
@@ -112,6 +113,8 @@ class ScenarioChecker {
     const project = this.opts.project;
     checkHooks(this.s.setup, ['setup'], this.ctx, { pages: pageKeys, saved, project });
     checkHooks(this.s.teardown, ['teardown'], this.ctx, { pages: pageKeys, saved, project });
+    checkNamedHooks(this.s.hooks, ['hooks'], this.ctx, { pages: pageKeys, saved, project });
+    this.hookSteps();
     this.readOnly();
     this.tokens(saved);
     this.misc();
@@ -163,18 +166,61 @@ class ScenarioChecker {
       return;
     }
     const how = `environment ${this.envName} is ${production ? 'production, ' : ''}read-only${configured === 'read-write' ? ' without --allow-writes' : ''}`;
-    for (const phase of ['setup', 'teardown'] as const) {
-      const list = this.s[phase];
-      if (!Array.isArray(list)) continue;
-      list.forEach((hook, i) => {
-        if (!isObj(hook) || this.ctx.broken([phase, i])) return;
-        const reason = hookWriteReason(hook as never, { projectDir: this.ctx.projectDir, rollback: phase === 'setup' });
-        if (!reason) return;
-        this.ctx.warning(
-          [phase, i],
-          `this hook writes (${reason}) and ${how}: such a run refuses it before anything runs — run with --hooks skip${configured === 'read-write' ? ', or with --allow-writes' : ', or on a read-write environment'}`,
-        );
+    // Named hooks (L5.8): each entry of each name, journaled like a setup hook (its rollback runs later).
+    const named = isObj(this.s.hooks)
+      ? Object.entries(this.s.hooks).flatMap(([name, v]) => (Array.isArray(v) ? v.map((h, i) => ({ path: ['hooks', name, i] as IssuePath, hook: h as unknown })) : [{ path: ['hooks', name] as IssuePath, hook: v as unknown }]))
+      : [];
+    const lists = [
+      ...(['setup', 'teardown'] as const).flatMap((phase) => (Array.isArray(this.s[phase]) ? (this.s[phase] as unknown[]).map((hook, i) => ({ path: [phase, i] as IssuePath, hook, rollback: phase === 'setup' })) : [])),
+      ...named.map((n) => ({ ...n, rollback: true })),
+    ];
+    lists.forEach(({ path, hook, rollback }) => {
+      if (!isObj(hook) || this.ctx.broken(path)) return;
+      const reason = hookWriteReason(hook as never, { projectDir: this.ctx.projectDir, rollback });
+      if (!reason) return;
+      this.ctx.warning(
+        path,
+        `this hook writes (${reason}) and ${how}: such a run refuses it before anything runs — run with --hooks skip${configured === 'read-write' ? ', or with --allow-writes' : ', or on a read-write environment'}`,
+      );
+    });
+  }
+
+  /**
+   * `hook: <name>` steps (L5.8): the name is a hook of the scenario's `hooks:` or of project.yaml's (unknown names are an
+   * error once the project is known); edit values on such a step are never shown (the edit cuts its span); a named hook
+   * no step runs is a warning.
+   */
+  private hookSteps(): void {
+    const own = isObj(this.s.hooks) ? Object.keys(this.s.hooks) : [];
+    const shared = this.opts.project?.config.hooks ? Object.keys(this.opts.project.config.hooks) : [];
+    const used = new Set<string>();
+    const scenes = Array.isArray(this.s.scenes) ? this.s.scenes : [];
+    scenes.forEach((entry, si) => {
+      if (!isObj(entry) || !Array.isArray(entry.steps)) return;
+      entry.steps.forEach((raw, i) => {
+        const sp: IssuePath = ['scenes', si, 'steps', i];
+        if (!isObj(raw) || raw.hook === undefined || this.ctx.broken(sp)) return;
+        const name = hookStepName(raw);
+        if (name === undefined) return;
+        used.add(name);
+        if (!own.includes(name) && !shared.includes(name) && (this.opts.project || own.length)) {
+          const names = [...new Set([...own, ...shared])];
+          this.ctx.error(
+            [...sp, 'hook'],
+            `unknown hook "${name}"${suggestion(name, names)}: declare it under \`hooks:\` in the scenario or in project.yaml${names.length ? ` (hooks: ${names.join(', ')})` : ''}`,
+          );
+        }
+        const shown = ['caption', 'overlay', 'camera', 'mark', 'speed', 'tutorial'].filter((k) => raw[k] !== undefined);
+        if (shown.length) {
+          this.ctx.warning(sp, `a hook step runs off camera and the edit cuts it: its ${shown.join(', ')} ${shown.length === 1 ? 'is' : 'are'} never shown — put ${shown.length === 1 ? 'it' : 'them'} on the next step`, {
+            path: [...sp, shown[0]],
+            key: true,
+          });
+        }
       });
+    });
+    for (const name of own) {
+      if (!used.has(name)) this.ctx.warning(['hooks', name], `hook "${name}" is run by no \`hook: ${name}\` step`, { path: ['hooks', name], key: true });
     }
   }
 
@@ -743,6 +789,11 @@ class ScenarioChecker {
       list.forEach((v, i) => {
         if (!this.ctx.broken([key, i])) checkTokens(v, [key, i], scope, this.ctx, false, key === 'scenes' ? sceneRules : undefined);
       });
+    }
+    if (isObj(this.s.hooks)) {
+      for (const [name, v] of Object.entries(this.s.hooks)) {
+        if (!this.ctx.broken(['hooks', name])) checkTokens(v, ['hooks', name], scope, this.ctx, false);
+      }
     }
     if (this.s.vars !== undefined && !this.ctx.broken(['vars'])) checkVarsValues(this.s.vars, ['vars'], this.ctx);
     // The video's title, intro, outro and tutorial switches are templated too (shown in the video: no secrets).

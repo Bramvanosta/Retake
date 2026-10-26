@@ -140,6 +140,8 @@ export function describeStep(step: NormalizedStep): string {
       return JSON.stringify(a).slice(0, 100);
     case 'screenshot':
       return String(a.name);
+    case 'hook':
+      return `${a.name} (off camera)`;
     case 'switch_page':
       return String(a.to);
     case 'emit':
@@ -541,6 +543,7 @@ export async function runScenes(rt: Runtime, opts: SceneLoopOptions): Promise<vo
     if (scene.transition !== undefined) ts.transition = scene.transition;
     if (scene.frame !== undefined) ts.frame = scene.frame;
     if (scene.tutorial !== undefined) ts.tutorial = structuredClone(scene.tutorial);
+    if (scene.offscreen === true) ts.offscreen = true;
     rt.timeline.addScene(ts);
     try {
       if (scene.open !== undefined) {
@@ -650,6 +653,7 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
   if (scene.transition !== undefined) ts.transition = scene.transition;
   if (scene.frame !== undefined) ts.frame = scene.frame;
   if (scene.tutorial !== undefined) ts.tutorial = structuredClone(scene.tutorial);
+  if (scene.offscreen === true) ts.offscreen = true;
   rt.timeline.addScene(ts);
   try {
     await rt.enterPages(pages);

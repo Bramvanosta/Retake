@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACTION_NAMES, loadProject } from '@demo-studio/core';
+import { ACTION_NAMES, loadProject, parseSandboxYaml } from '@demo-studio/core';
 import type { LoadedProject } from '@demo-studio/core';
 import { validateScenarioText } from '@demo-studio/engine';
 import { checkComponentEntry, parseManifest } from '@demo-studio/components';
@@ -91,7 +91,7 @@ beforeAll(async () => {
   );
   const vocabulary = new Set<string>([...ACTION_NAMES, ...RESULT_FIELDS]);
   for (const t of tools.values()) schemaWords(t.schema, vocabulary);
-  for (const s of [['core', 'schema', 'scenario.schema.json'], ['core', 'schema', 'project.schema.json'], ['core', 'schema', 'template.schema.json'], ['components', 'schema', 'component.schema.json']]) {
+  for (const s of [['core', 'schema', 'scenario.schema.json'], ['core', 'schema', 'project.schema.json'], ['core', 'schema', 'template.schema.json'], ['core', 'schema', 'sandbox.schema.json'], ['components', 'schema', 'component.schema.json']]) {
     schemaWords(schemaFile(...s), vocabulary);
   }
   ctx = {
@@ -107,6 +107,7 @@ beforeAll(async () => {
     validateScenario: async (yaml) =>
       (await validateScenarioText(project, yaml, { agent: true })).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
     validateManifest: (yaml) => parseManifest(yaml).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
+    validateSandbox: (yaml) => parseSandboxYaml(yaml).issues.filter((i) => i.severity === 'error').map((i) => `${i.line ?? '?'}:${i.col ?? '?'} ${i.message}`),
     checkComponent: async (tsx) => {
       // compiled like a component of the workspace: imports, kit exports, forbidden APIs (nothing runs)
       const dir = join(ws, 'components', 'acme', `lint-example-${++examples}`);
@@ -185,11 +186,12 @@ describe('the Claude skills in skills/', () => {
     expect(spec).toContain('a scenario change captured again (`run_capture`), then rendered; a theme or an override only rendered');
   });
 
-  it('three skills, each a SKILL.md, with the two references kept (scenario language, kit)', () => {
+  it('three skills, each a SKILL.md, with the three references kept (scenario language, sandboxes, kit)', () => {
     expect(shipped.map((f) => f.path)).toEqual([
       'demo-studio-component/SKILL.md',
       'demo-studio-component/reference/kit.md',
       'demo-studio-scenario/SKILL.md',
+      'demo-studio-scenario/reference/sandbox.md',
       'demo-studio-scenario/reference/scenario-language.md',
       'demo-studio-theme/SKILL.md',
     ]);
@@ -202,7 +204,7 @@ describe('the Claude skills in skills/', () => {
     // The lint really looked: the tool calls written `tool {args}`, the `studio` commands, the YAML examples.
     expect(stats.calls).toBeGreaterThanOrEqual(50);
     expect(stats.commands).toBeGreaterThanOrEqual(6);
-    expect(stats.examples).toBe(3);
+    expect(stats.examples).toBe(6); // L5.8: the hook step example and the two sandbox.yaml examples
     expect(stats.components).toBe(1); // kit.md's index.tsx, compiled
     expect(stats.words).toBeGreaterThan(100);
   });
@@ -234,7 +236,7 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['an unknown argument', 'tool', S, edit(S, '`run_dry {project, scenario}`', '`run_dry {project, scenario, headed: true}`')],
   ['an unknown nested argument (colors.background: background is top-level)', 'tool', T, edit(T, 'colors: {accent: "#1f6feb"}, logo: brand', 'colors: {accent: "#1f6feb", background: "#ffffff"}, logo: brand')],
   ['an unknown key inside a record value (overrides.components.intro.paramz)', 'tool', C, edit(C, '`render {project, scenario, overrides: {components: {intro: acme/intro-split}}}`', '`render {project, scenario, overrides: {components: {intro: {id: acme/intro-split, paramz: {}}}}}`')],
-  ['a literal value the tool refuses', 'tool', S, edit(S, '`job_status {job_id, wait_s: 25}`', '`job_status {job_id, wait_s: 90}`')],
+  ['a literal value the tool refuses', 'tool', S, edit(S, '`job_status {job_id, wait_s: 25}`', '`job_status {job_id, wait_s: 900}`')],
   ['a tool-shaped word in prose', 'vocabulary', S, append(S, 'Then call run_capture_all.')],
   ['an unknown snake_case word', 'vocabulary', LANG, append(LANG, 'Use `wait_until_idle` for that.')],
   ['an unknown CLI command', 'cli', T, edit(T, '`studio theme create <name>', '`studio theme make <name>')],

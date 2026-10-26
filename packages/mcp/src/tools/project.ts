@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
+import { sandboxAdvice, sandboxAdviceText } from '@demo-studio/core';
 import { README_MAX_CHARS, formatBytes } from '@demo-studio/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
@@ -67,6 +68,8 @@ export const projectGet = defineTool({
   annotations: READ,
   async run({ project }, { engine }) {
     const p = await engine.projects.get(project);
+    const found = sandboxAdvice(p);
+    const advice = found ? sandboxAdviceText(found, p.slug) : null;
     const envs = p.environments.map((e) => `${e.name}${e.production ? ' (production' + (e.access === 'read-only' ? ', read-only)' : ')') : e.access === 'read-only' ? ' (read-only)' : ''}${e.sandbox ? ' (sandbox)' : ''}: pages ${Object.keys(e.pages).join(', ') || 'none'}${e.personas.length ? `; personas ${e.personas.map((x) => x.name).join(', ')}` : ''}`);
     return {
       summary: [
@@ -75,8 +78,14 @@ export const projectGet = defineTool({
         `environments:${envs.length ? `\n${envs.map((l) => `- ${l}`).join('\n')}` : ' none'}`,
         p.readme_error ? `README.md: ${p.readme_error}` : p.readme === null ? 'README.md: missing (project_update_readme writes it)' : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
         ...(p.warnings.length ? [`project.yaml: ${plural(p.warnings.length, 'warning')}`] : []),
+        // L5.8 (R-FLD-30): a local environment holding state and no sandbox — never reset it by hand between takes.
+        ...(advice
+          ? [
+              `sandbox: ${advice.detail}. Instead of resetting it by hand (SQL, the mailbox's API), ask the user for a sandbox — ${advice.hint}; then run_capture {sandbox: true} resets it before every take. sandbox.yaml is the user's file (never written through this server).`,
+            ]
+          : []),
       ].join('\n'),
-      data: p as unknown as Record<string, unknown>,
+      data: { ...(p as unknown as Record<string, unknown>), ...(advice ? { sandbox_advice: advice } : {}) },
     };
   },
 });

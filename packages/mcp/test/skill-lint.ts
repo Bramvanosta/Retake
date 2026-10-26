@@ -60,6 +60,8 @@ export interface LintContext {
   validateScenario: (yaml: string) => Promise<string[]>;
   /** Error messages of a component manifest. */
   validateManifest: (yaml: string) => string[];
+  /** A sandbox.yaml example (L5.8: the skill's sandbox reference), validated without its folder. */
+  validateSandbox: (yaml: string) => string[];
   /** Error messages of a component's index.tsx compiled in a component folder (imports, kit names, forbidden APIs). */
   checkComponent: (tsx: string) => Promise<string[]>;
   /** Whether a path relative to the plugin root exists. */
@@ -499,7 +501,8 @@ export async function lintSkills(files: readonly SkillFile[], ctx: LintContext, 
       let errors: string[];
       if (v && typeof v === 'object' && 'scenes' in v) errors = await ctx.validateScenario(fence.body);
       else if (v && typeof v === 'object' && 'kind' in v && 'id' in v) errors = ctx.validateManifest(fence.body);
-      else errors = ['a YAML example must be a whole scenario (scenes:) or a component manifest (id:, kind:)'];
+      else if (v && typeof v === 'object' && 'provider' in v && 'version' in v) errors = ctx.validateSandbox(fence.body);
+      else errors = ['a YAML example must be a whole scenario (scenes:), a component manifest (id:, kind:) or a sandbox.yaml (version:, provider:)'];
       for (const e of errors) add(file, text, fence.start, 'yaml', e);
     }
 

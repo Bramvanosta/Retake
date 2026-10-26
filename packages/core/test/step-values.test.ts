@@ -95,11 +95,11 @@ function newValue(f: FormField, cur: FormValue | undefined, n: number): FormValu
 
 describe('forms derived from the schemas', () => {
   const forms = stepForms();
-  it('every action has a form (eval, emit and cursor: none — the YAML tab); the palette holds 15 actions', () => {
+  it('every action has a form (eval, emit and cursor: none — the YAML tab); the palette holds 16 actions (hook since L5.8)', () => {
     expect(forms.actions.map((a) => a.action)).toEqual([...ACTION_NAMES]);
     for (const a of ['eval', 'emit', 'cursor'] as const) expect(forms.actions.find((f) => f.action === a)!.fields).toEqual([]);
     expect(forms.palette).toEqual([...PALETTE_ACTIONS]);
-    expect(forms.palette).toHaveLength(15);
+    expect(forms.palette).toHaveLength(16);
     expect(forms.modifiers.map((m) => m.key)).toEqual(['caption.text', 'caption.kicker', 'hold', 'speed', 'mark']);
     // A flat target: its keys only, a target inside a target and lists stay in the YAML tab.
     const type = forms.actions.find((a) => a.action === 'type')!;
@@ -129,7 +129,7 @@ describe('forms derived from the schemas', () => {
 
 describe('value edits on every step of the fixture scenarios (goldens)', () => {
   const names = readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'));
-  it('the fixture has its 14 scenarios', () => expect(names).toHaveLength(14));
+  it('the fixture has its 15 scenarios', () => expect(names).toHaveLength(15));
 
   it.each(names)('%s: every field holding a value takes a new one (exactly its own line changes); on each step an optional value is removed and an absent modifier added (one line, or the same line); each re-parses to the intended value', (name) => {
     const text = readFileSync(join(SCENARIOS, name), 'utf8');

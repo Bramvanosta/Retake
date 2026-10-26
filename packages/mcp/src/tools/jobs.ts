@@ -7,7 +7,8 @@ import { projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import { CANCEL, READ, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
-import { waitJob, waitS } from './run.js';
+import { JOB_WAIT_MAX_S, waitJob, waitS } from './run.js';
+import { detail } from '../compact.js';
 
 const jobId = z.string().regex(JOB_ID_RE, 'a job id: j_ followed by 26 characters (job_list names them)').describe('Job id (from run_dry, run_capture, render, review, export, component_preview, template_preview, template_from_site, page_inspect, scenario_record, hooks_run, env_reset or job_list).');
 
@@ -135,10 +136,14 @@ export const jobStatus = defineTool({
   name: 'job_status',
   title: 'Status of a job',
   description:
-    'One job: its input, state, progress, place in the queue, result (for a run: the run id and its status — run_status has the details; for hooks and resets: each hook\'s outcome; for a preview: its stills as images; for an inspection: the page_inspect result with its marked screenshot; for a recording: the draft scenario; for a site extraction: the template_from_site result with its screenshot and logo candidates) or why it failed. wait_s long-polls until it finishes. A job is "interrupted" when its worker died while it ran: its run stopped where it was and the fix names the environment reset a human runs.',
-  input: z.strictObject({ job_id: jobId, wait_s: waitS(0, 'the job to finish') }),
+    'One job: its input, state, progress, place in the queue, result (for a run: the run id and its status — run_status has the details; for hooks and resets: each hook\'s outcome; for a preview: its stills as images; for an inspection: the page_inspect result with its marked screenshot; for a recording: the draft scenario; for a site extraction: the template_from_site result with its screenshot and logo candidates) or why it failed. wait_s long-polls until it finishes — up to 600 s here (a capture, a render, a review followed in one call), with a progress notification at least every 15 s. A job is "interrupted" when its worker died while it ran: its run stopped where it was and the fix names the environment reset a human runs.',
+  input: z.strictObject({
+    job_id: jobId,
+    detail: detail.describe('For an inspection: "compact" (default) or "full", as page_inspect.'),
+    wait_s: waitS(0, 'the job to finish (up to 10 minutes: a capture or a render followed in one call)', JOB_WAIT_MAX_S),
+  }),
   annotations: READ,
-  async run({ job_id, wait_s }, ctx) {
+  async run({ job_id, detail: level, wait_s }, ctx) {
     const { engine } = ctx;
     let job = await engine.jobs.get(job_id);
     if (wait_s > 0) {
@@ -166,7 +171,7 @@ export const jobStatus = defineTool({
     if (job.input.kind === 'inspect') {
       // An inspection that outlived page_inspect's wait: the same result (marked screenshot included), with the job.
       const { inspectOutput } = await import('./inspect.js');
-      const out = await inspectOutput(engine, job);
+      const out = await inspectOutput(engine, job, [], level);
       const ahead = position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : [];
       return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...jobData(job), ...(position ? { queue: position } : {}) } }, ...(out.images ? { images: out.images } : {}) };
     }

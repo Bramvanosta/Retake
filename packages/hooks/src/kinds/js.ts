@@ -4,6 +4,7 @@ import { describeJs } from '../describe.js';
 import { HookError, HookSecurityError } from '../errors.js';
 import { redactText } from '../secrets.js';
 import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { journalsRollback } from '../types.js';
 import type { HookContext, RollbackAction } from '../types.js';
 import { oneLine } from '../util.js';
 import { ignoreRollback, readHookFile } from './common.js';
@@ -57,7 +58,7 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
 
   ignoreRollback(k, s.rollback !== undefined);
   let rollback: RollbackAction | undefined;
-  if (s.rollback !== undefined && k.phase === 'setup') {
+  if (s.rollback !== undefined && journalsRollback(k.phase)) {
     const tpl = await hookTemplateContext(ctx, s.rollback);
     const rbCode = render(s.rollback, tpl);
     rollback = {

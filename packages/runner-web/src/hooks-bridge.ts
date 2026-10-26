@@ -59,7 +59,7 @@ export interface HooksModule {
   runHooks(
     hooks: HookStep[],
     ctx: HookContextLike,
-    opts: { phase: 'setup' | 'teardown' | 'reset'; journal: JournalLike },
+    opts: { phase: 'setup' | 'teardown' | 'reset' | 'step'; journal: JournalLike },
   ): Promise<{ ok: boolean; results: HookResultLike[] }>;
   Journal: { open(file: string): Promise<JournalLike> };
 }
@@ -74,7 +74,7 @@ export async function loadHooksModule(): Promise<HooksModule> {
     }
     return mod as HooksModule;
   } catch (e) {
-    throw new RunnerError(`this scenario has setup/teardown hooks but @demo-studio/hooks could not be loaded: ${errorMessage(e)}`);
+    throw new RunnerError(`this scenario has hooks (setup, teardown or hook steps) but @demo-studio/hooks could not be loaded: ${errorMessage(e)}`);
   }
 }
 

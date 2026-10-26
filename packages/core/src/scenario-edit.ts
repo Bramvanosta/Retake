@@ -176,7 +176,7 @@ export function editValueProblem(value: string, o: { field: IssuePath | string; 
 }
 
 /** The sections of a scenario that run on this Mac: a save from the Studio leaves them unchanged. */
-export const HOOK_SECTIONS = ['setup', 'teardown', 'mocks'] as const;
+export const HOOK_SECTIONS = ['setup', 'teardown', 'hooks', 'mocks'] as const;
 
 /**
  * The hook sections (HOOK_SECTIONS) of `next` that differ from `base`'s (parsed YAML values; a section absent and one

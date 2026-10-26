@@ -24,6 +24,8 @@ export type { ActivityClick, ActivityInput, ActivityResult } from './activity.js
 export { PERF_SAMPLE_MS, PerfSampler, UNFILMED_WARN_CORES, chromiumGroup, listeningPids, localPorts, parseCpuTime } from './perf.js';
 export type { ChromiumProcess, PerfSamplerOptions } from './perf.js';
 export { prewarmPages, prewarmTargets } from './prewarm.js';
+export { PAGE_PREFLIGHT_TIMEOUT_MS, preflightRefusal, probePages } from './page-preflight.js';
+export type { PageProbe } from './page-preflight.js';
 export type { PrewarmTarget } from './prewarm.js';
 export type { EncodeOptions } from './encode.js';
 export type { FrameIndexEntry, RecorderOptions } from './recorder.js';

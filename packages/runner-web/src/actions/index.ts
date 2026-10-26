@@ -5,7 +5,7 @@ import { captureText, download, waitForEmail } from './artefacts.js';
 import { date } from './calendar.js';
 import { drag, dropFile } from './drag.js';
 import { press, type } from './keyboard.js';
-import { cursor, emit, evalStep, notify, screenshot } from './misc.js';
+import { cursor, emit, evalStep, hook, notify, screenshot } from './misc.js';
 import { newTab, open, switchPage } from './pages.js';
 import { scroll } from './scroll.js';
 import type { ActionTable } from './types.js';
@@ -43,6 +43,7 @@ export const ACTIONS: ActionTable = {
   wait_for_email: waitForEmail,
   download,
   capture_text: captureText,
+  hook,
 };
 
 /** The element a step acts on first (hovered instead of executed for irreversible steps in dry-run). */

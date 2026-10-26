@@ -53,7 +53,7 @@ function stepLine(s: StepBlock): string[] {
 }
 
 function hookLine(h: HookBlock): string[] {
-  const parts = [`${h.phase} ${h.index + 1} ${rangeText(h.range)} ${h.kind ?? '?'}${h.name ? ` ${h.name}` : ''}: ${h.summary}`];
+  const parts = [`${h.phase}${h.hook ? ` ${h.hook}` : ''} ${h.index + 1} ${rangeText(h.range)} ${h.kind ?? '?'}${h.name ? ` ${h.name}` : ''}: ${h.summary}`];
   if (h.rollback) parts.push(`rollback ${h.rollback}`);
   if (h.needs_person) parts.push(`needs a person: ${h.needs_person}`);
   if (h.flags.length) parts.push(`[${h.flags.map((f) => f.label).join('; ')}]`);
@@ -80,6 +80,7 @@ function entryLines(e: EntryBlock): string[] {
         s.tutorial ? `tutorial ${s.tutorial}` : undefined,
         s.irreversible ? 'irreversible' : undefined,
         s.skip ? 'skip' : undefined,
+        s.offscreen ? 'offscreen' : undefined,
       ].filter(Boolean);
       return [...head(`scene ${s.id} ${rangeText(s.range)} · ${facts.join(' · ')}`), ...issuesText(s.issues, '  '), ...s.steps.flatMap(stepLine)];
     }
@@ -132,6 +133,7 @@ function outline(b: ScenarioBlocks): string {
     ...issuesText(b.issues, '  '),
     ...b.hooks.setup.flatMap(hookLine),
     ...b.hooks.teardown.flatMap(hookLine),
+    ...b.hooks.named.flatMap(hookLine),
     ...b.entries.flatMap(entryLines),
     `${b.step_count} steps`,
   ];
@@ -151,8 +153,8 @@ describe('scenarioBlocks on the fixture scenarios (goldens)', async () => {
   const template = (await loadProjectTemplate(project)).template;
   const names = project.scenarios;
 
-  it('the fixture has its 14 scenarios', () => {
-    expect(names.length).toBe(14);
+  it('the fixture has its 15 scenarios', () => {
+    expect(names.length).toBe(15);
   });
 
   it.each(names)('%s: blocks match the golden; no unknown block, no issue; steps as listSteps counts them; every block has its lines', (name) => {
@@ -244,6 +246,7 @@ describe('words: badges, chips, plain targets', () => {
       ['wait_for_email', 'wait'],
       ['download', 'download'],
       ['capture_text', 'check'],
+      ['hook', 'hook'],
     ]);
   });
 

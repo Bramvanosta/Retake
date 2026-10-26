@@ -55,10 +55,13 @@ export function findDocker(env: NodeJS.ProcessEnv = process.env, exists: (p: str
   return dockerCandidates(env, home).find(exists) ?? null;
 }
 
-/** The environment docker runs with: this process's, without `COMPOSE_*` (sandbox.yaml alone says what is started). */
-export function dockerEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+/**
+ * The environment docker runs with: this process's, without `COMPOSE_*` (sandbox.yaml alone says what is started) nor
+ * the names of `unset` (L5.8: those a sandbox's env file sets — a shell's value would win over the file's).
+ */
+export function dockerEnv(base: NodeJS.ProcessEnv = process.env, unset: readonly string[] = []): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(base)) if (v !== undefined && !/^COMPOSE_/i.test(k)) out[k] = v;
+  for (const [k, v] of Object.entries(base)) if (v !== undefined && !/^COMPOSE_/i.test(k) && !unset.includes(k)) out[k] = v;
   return out;
 }
 
@@ -98,6 +101,8 @@ export interface DockerRunOptions {
   cwd?: string;
   /** Variables added to dockerEnv() (an exec step's `-e NAME` values). */
   env?: Record<string, string>;
+  /** Names left out of this process's environment (the ones the sandbox's env file sets, L5.8). */
+  unset?: readonly string[];
   /** Each line of output as it comes (stdout and stderr). */
   onLine?: (line: string) => void;
   /** The child, once spawned (a second Ctrl-C kills it synchronously). */
@@ -114,7 +119,7 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions = 
     if (opts.signal?.aborted) return resolve({ code: null, stdout: '', stderr: '', ms: 0, aborted: true });
     let child: ChildProcess;
     try {
-      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(process.env, opts.unset), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: (e as Error).message });
     }

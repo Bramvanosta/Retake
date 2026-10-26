@@ -106,6 +106,28 @@
       },
       "description": "Hooks run by env_reset."
     },
+    "hooks": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/HookStep"
+          },
+          {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/HookStep"
+            }
+          }
+        ]
+      },
+      "description": "Named hooks of every scenario: what a `hook: <name>` step runs when its scenario has no hook of that name."
+    },
     "vars": {
       "type": "object",
       "propertyNames": {

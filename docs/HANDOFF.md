@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-26, end of lot **L5.7 (capture performance and disk)**, after L4.3, L5.5 and L5.6 — phases 1–3
-are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the
-field-feedback lot L5.8 (decided 2026-10-26, `docs/FIELD-FEEDBACK-1.md`); L4.3 was finished in a worktree at the user's
-request meanwhile.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-26, end of lot **L5.8 (environment, off-camera actions, MCP ergonomics)**, which closes the
+field-feedback group L5.5 – L5.8 (`docs/FIELD-FEEDBACK-1.md`) — phases 1–3 are done (phase 3 pending the user's live
+runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.3 done). **Next: the user's choice — L4.4 per the
+roadmap (a session has its worktree `../Video-l4.4`).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -25,12 +25,46 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-101); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-105); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.3)
+## State (after L5.8)
+- **L5.8 done (2026-10-26)** — environment, off-camera actions, MCP ergonomics (R-FLD-30 – R-FLD-34, all done): no
+  hand-made reset script, no side script polling the database. **Off camera** (R-FLD-31): named hooks — `hooks: {<name>:
+  hook | [hooks]}` in a scenario or project.yaml (core `named-hooks.ts`; the scenario's name wins; each entry named
+  after the hook unless it has its own) — run by a `hook: <name>` step during the take (runner `stepHookRunner`: the
+  setup's context, journal and saved results, the run's cancel). Hooks phase **`step`**: stops at its first failure,
+  journals rollbacks like setup (undone after the teardown), rolls nothing back itself; approvals bound to phase `step`
+  and the entry's position, asked once per named hook at submit (engine run gates; checked end to end through the
+  worker). Read-only runs refuse writing named hooks up front; agent trust covers their files and secrets; run.json
+  `hooks.steps`; a dry run skips them unless `--hooks run`. Scene **`offscreen: true`**: played, not shown (timeline
+  scene `offscreen`). The edit cuts a hook step's span whole (timing `offcamera`, reason `hook`, trimming on or off;
+  its `hold` stays); the raw export too, and gives an offscreen scene no clip. L5.5: `hooks` is filmed, a hook step is
+  a step, `offscreen` is edit (replanEdit). L4.3: badge `hook`, palette 16 actions, named hooks read-only in the hooks
+  strip (`hooks` joins HOOK_SECTIONS), the offscreen badge; scene options stay in the YAML tab (BL-101). **Pre-flight**
+  (R-FLD-33, runner `page-preflight.ts`): one GET per page of the environment before anything opens; a refused
+  connection, a timeout or a 502/503/504 stops the run naming the page and URL. **Sandboxes** (R-FLD-30, R-FLD-32):
+  core `sandboxAdvice` → `doctor --project` WARN `Sandbox`, `project_get`, the MCP instructions, the scenario skill
+  (step 4 + `reference/sandbox.md`, process and docker-compose examples; the skill lint validates sandbox.yaml); a
+  docker-compose sandbox's env file (`compose.env_file`, default `.env` next to the first compose file) passed as
+  `--env-file` to every compose command, its names left out of docker's environment (a shell's value would win), its
+  hash in the seed inputs, COMPOSE_PROFILES in it refused — checked on the real `docker compose config`; README "A
+  stage sandbox". **MCP** (R-FLD-34, `packages/mcp/src/compact.ts`): `run_status`, `review` / `review_get`,
+  `page_inspect` (and job_status of an inspection) compact by default, `detail: "full"` as before; one-line JSON in
+  every result; `job_status {wait_s}` up to 600 s with a progress heartbeat every 15 s. Measured through `studio mcp`
+  on the fixture (characters / 4): page_inspect 13,260 → 2,174 tokens, a dry run's run_status 2,715 → 933, review_get
+  2,155 → 408 (FIELD-FEEDBACK-1 "After L5.8"). Fixture scenario **`off-camera`** (15 fixture scenarios). Acceptance on
+  the Mac (final build): capture 20261026-211008-off-camera (the café's request posted by the hook during the take,
+  its 1.53 s span cut, the new row "Q-1043 New" appearing across the cut), render off-camera-v2 and review (one
+  warning: the 17 s video is under the reference length), frames on both sides of the cut and the first clip (the
+  quote list, not the offscreen products page) looked at; the same
+  capture through the MCP worker with its shell entry approved at submit; `studio doctor --project` on a copy without
+  sandboxes. Tests on the Mac: **3093 — 3040 pass, 51 skipped, 2 failures that were label updates (the palette's 16
+  actions over HTTP, the seed's rollback wording), green alone (≈ 18 min under another session's load 6–11)**;
+  `pnpm test:slow` 58/58 (≈ 14 min, load up to 23). Requirements: 647 tracked — 583 done, 26 partial, 30 todo, 8 n/a-here. Follow-ups BL-101 – BL-104 (next free id BL-105). Live
+  checks for the user: MACOS-CHECKLIST 13d.
 - **L5.7 done (2026-10-26)** — capture performance and disk (R-FLD-20 – R-FLD-24, R-FLD-26 – R-FLD-28 done, R-FLD-25
   partial; R-ISS-12 done): a take costs under a core with the limiter on, ends without a long encode and weighs tens of
   MB. **Encode during the take** (runner-web `stream.ts`): `CfrStream` (the CFR schedule as frames arrive — exactly
@@ -299,12 +333,14 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**L4.3 — Blocks editing, two-way YAML, drag & drop** — only when the user asks. Pending
+The field-feedback group L5.5 – L5.8 is closed: **what comes next is the user's choice — L4.4 (the run screen) per the
+roadmap**, only when the user asks. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
 document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
 (L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
 into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
---persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox).
+--persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox), 13d (the field project with a
+sandbox, a hook step and compact results through Claude Code).
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
@@ -1377,6 +1413,20 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.8:
+- A `hook:` step runs while the recorder keeps filming (the encoder's clock goes on, the page holds still); only the
+  edit and the raw export leave its span out. What the hook changed shows when the page fetches it: add a `wait_for`
+  after the step (the fixture's quote list reloads every second; BL-102).
+- Named hooks never change from the Studio (`hooks` in HOOK_SECTIONS); the Studio may add, move or delete a `hook:`
+  step — what it runs is still gated by the approval rules (a shell or destructive entry needs a terminal).
+- The page pre-flight runs before every run (inspections and dry runs too) on every page of the environment; tests
+  with an unused dead page must give it a live URL (BL-103 would narrow it).
+- MCP results are compact by default: acceptance tests that read full fields pass `detail: "full"` (authoring,
+  phase-3 and fixture acceptances). Every result's JSON is now one line.
+- The gated L1.8 Docker suites (compose.test.ts, sandbox-docker.test.ts) need busybox:1.38.0 and postgres:17-alpine,
+  missing from this Mac's Docker cache on 2026-10-26 (not pulled: a download for the user to approve); the new
+  compose-env test needs only the docker CLI.
+
 Notes from L4.3:
 - `scenario_edit` is the only Studio write path; every kind (replace_text, restore, move / delete / duplicate, set_step,
   insert_step) is verified by re-parse (value equals the intended one) and refused otherwise. `restore` accepts only a

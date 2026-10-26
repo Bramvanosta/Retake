@@ -215,11 +215,13 @@ valid), and `mocks` on a read-write environment are a warning (ignored, the writ
 ## 2. @demo-studio/hooks
 
 ```ts
-runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown' | 'reset' | 'seed'; journal: Journal }):
+runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown' | 'reset' | 'seed' | 'step'; journal: Journal }):
   Promise<{ ok: boolean; results: HookResult[] }>
 //   setup: on the first failure (non-optional), rolls back the completed hooks of this call in reverse and returns ok=false
 //          (ctx.signal aborted: a running shell hook is stopped and fails; the rollbacks run without the signal)
 //   seed (L1.8, §3.8): stops at the first failure, rolls nothing back, never asks to confirm a destructive step, no js
+//   step (L5.8, a named hook a `hook:` step runs during the take): stops at the first failure, journals rollbacks like
+//          setup (undone after the teardown with the setup's), rolls nothing back itself; approvals bound to phase `step`
 //   teardown: runs every hook even if some fail (collects errors)
 class Journal {                      // rollback journal persisted as JSON: runs/<id>/hooks-journal.json (captures),
                                      // <project>/.demo-studio/journals/<id>.json (studio hooks run / env reset)

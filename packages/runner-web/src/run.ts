@@ -30,6 +30,9 @@ import {
   timelineVideo,
   writeJson,
   writingHooks,
+  hookStepNames,
+  resolveNamedHook,
+  stepHookList,
 } from '@demo-studio/core';
 import type {
   AgentChannel,
@@ -64,7 +67,7 @@ import { watchNotifications } from './notifications.js';
 import { mergeCapture, mergePacing, projectBrowser } from './config.js';
 import { runFfmpeg } from './encode.js';
 import { runEngine } from './engine.js';
-import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
+import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, StepError, errorMessage, isCancelled } from './errors.js';
 import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, signInMatchers, writeStatus } from './auth.js';
 import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
@@ -76,10 +79,12 @@ import type { InspectContext, InspectRequest } from './inspect.js';
 import { kitConfigFor } from './kit/source.js';
 import { ScreencastRecorder } from './recorder.js';
 import type { FrameIndexEntry } from './recorder.js';
+import { probePages, preflightRefusal } from './page-preflight.js';
 import { PerfSampler, UNFILMED_WARN_CORES, listeningPids, localPorts } from './perf.js';
 import { prewarmPages, prewarmTargets } from './prewarm.js';
 import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
+import type { HookStepOutcome } from './runtime.js';
 import type { LogLevel } from './runtime.js';
 import { StepFailure, runScenes, templated, untilSteps } from './scenes.js';
 import { settleEffectChecks } from './actions/effects.js';
@@ -485,9 +490,16 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
     if (access.mode === 'read-only' && hooksMode === 'run') {
-      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
+      const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
+    // L5.8 (R-FLD-33): every page of the environment answers before anything opens (a port that moved, a stopped server).
+    const probes = await probePages(env.pages, { signal });
+    const down = probes.filter((p) => !p.ok);
+    if (down.length) {
+      throw new RunnerError(preflightRefusal(env.name, down, env.sandbox ? { sandbox: `studio sandbox up ${project.slug} --env ${env.name}, or run with --sandbox` } : {}));
+    }
+    log('debug', `pages answer: ${probes.map((p) => `${p.keys.join('/')} HTTP ${p.status} (${p.ms} ms)`).join(', ')}`);
     // A read-only run stops the browser's writes (L1.7, write-guard.ts): armed in every browser at launch. Any run
     // stops writes to the hosts of the project's other read-only environments (none: a read-write run arms nothing).
     const policy = compileWritePolicy(env, { scenarioMocks: sc.mocks, access });
@@ -615,10 +627,17 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // wait_for_email takes only the messages that arrive during the run: remember those already there (before setup).
     if (readsMail) await snapshotMailbox(rt);
 
-    const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0;
+    // `hook:` steps (L5.8) run named hooks during the take, in the same context as the setup's (journal, saved results).
+    const hookSteps = hookStepNames(sc).length > 0;
+    if (hookSteps) record.hooks.steps = hooksMode === 'skip' ? 'skipped' : 'ok';
+    const hasHooks = (sc.setup?.length ?? 0) + (sc.teardown?.length ?? 0) > 0 || hookSteps;
     if (hasHooks && hooksMode === 'skip') {
       if (sc.setup?.length) record.hooks.setup = 'skipped';
       if (sc.teardown?.length) record.hooks.teardown = 'skipped';
+      if (hookSteps) rt.runHook = async (name) => {
+        log('info', `hook step "${name}" not run: the run's hooks are skipped`);
+        return { hook: name, skipped: true };
+      };
     } else if (hasHooks) {
       const deps: SetupDeps = {
         rt,
@@ -642,6 +661,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       };
       hooks = await openHooks(deps);
       await setupHooks(hooks, sc.setup ?? [], deps);
+      if (hookSteps) rt.runHook = stepHookRunner(hooks, sc, deps);
     }
     // The video's title, intro, outro and tutorial switches are templated once the setup hooks saved their results.
     const meta = timeline.meta;
@@ -1546,6 +1566,35 @@ async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promi
     const failed = res.results.find((r) => hookResultFailed(r) && r.optional !== true) ?? res.results.find(hookResultFailed);
     throw new RunnerError(`setup hooks failed${failed ? ` (${hookResultName(failed, res.results.indexOf(failed))}: ${failed.error ?? failed.message ?? 'error'})` : ''}; completed setup hooks were rolled back`);
   }
+}
+
+/**
+ * The runner of `hook:` steps (L5.8): the named hook (the scenario's, else project.yaml's) runs in the setup's context
+ * — the same journal (its rollbacks are undone with the setup's, after the teardown), the same saved results
+ * (`{{hooks.<save_as>…}}` in later steps) — with the run's cancel. A failed or refused entry fails the step.
+ */
+function stepHookRunner(h: HooksState, sc: Scenario, d: SetupDeps): (name: string) => Promise<HookStepOutcome> {
+  return async (name) => {
+    const named = resolveNamedHook(name, sc, d.project);
+    if (!named) throw new StepError(`unknown hook "${name}": declare it under \`hooks:\` in the scenario or in project.yaml`);
+    d.emit({ type: 'hook', phase: 'step', name, status: 'start', message: `${named.hooks.length} hook(s)` });
+    h.ctx.signal = d.signal;
+    let res: Awaited<ReturnType<HooksModule['runHooks']>>;
+    try {
+      res = await h.mod.runHooks(named.hooks, h.ctx, { phase: 'step', journal: h.journal });
+    } finally {
+      delete h.ctx.signal;
+    }
+    res.results.forEach((r, i) => d.emit({ type: 'hook', phase: 'step', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }));
+    const results = res.results.map((r, i) => `${hookResultName(r, i)}: ${hookResultFailed(r) ? `failed${r.optional ? ' (optional)' : ''}` : (r.message ?? 'ok')}`);
+    if (!res.ok) {
+      throwIfAborted(d.signal);
+      d.record.hooks.steps = 'failed';
+      const failed = res.results.find((r) => hookResultFailed(r) && r.optional !== true) ?? res.results.find(hookResultFailed);
+      throw new StepError(`hook "${name}" failed${failed ? ` (${hookResultName(failed, res.results.indexOf(failed))}: ${failed.error ?? failed.message ?? 'error'})` : ''}`);
+    }
+    return { hook: name, results };
+  };
 }
 
 /**

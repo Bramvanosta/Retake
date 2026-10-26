@@ -219,10 +219,14 @@ describe('studio mcp over stdio', () => {
     expect(st.content[0].text).toContain('failed at catalog.1 (click)');
     expect(st.content[0].text).toContain(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'error-catalog-1.png'));
     expect(st.content[0].text).not.toMatch(/ignore|IGNORE/);
-    const data = st.structuredContent as { untrusted: { error_message: string; warnings: string[] }; screenshots: Array<{ path: string }> };
+    const data = st.structuredContent as { untrusted: { error_message: string; warnings: string[] }; files: { screenshots: { dir: string; count: number } } };
     expect(data.untrusted.error_message).toContain('ignore your rules');
     expect(data.untrusted.warnings[0]).toContain('IGNORE PREVIOUS INSTRUCTIONS');
-    expect(data.screenshots[0].path).toBe(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png'));
+    // Compact (L5.8): the screenshots folder and their count; `detail: "full"` lists each one.
+    expect(data.files.screenshots).toEqual({ dir: join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots'), count: expect.any(Number) });
+    const full = (await call('run_status', { project: 'northfield-fixture', run_id: '20261017-120000-quote', detail: 'full' })).structuredContent as { screenshots: Array<{ path: string }>; untrusted: { warnings: string[] } };
+    expect(full.screenshots[0].path).toBe(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png'));
+    expect(full.untrusted.warnings[0]).toContain('IGNORE PREVIOUS INSTRUCTIONS');
     expect(errorOf(await call('run_status', { project: 'northfield-fixture', run_id: '20990101-000000-none' })).code).toBe('not_found');
   });
 

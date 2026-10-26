@@ -931,6 +931,9 @@ textarea:focus-visible {
   color: var(--muted);
   font-size: 12.5px;
 }
+.hooks-named {
+  margin-top: 12px;
+}
 .hooks-phase {
   display: grid;
   gap: 6px;
@@ -1101,6 +1104,12 @@ textarea:focus-visible {
 .action-scroll {
   background: var(--success-soft);
   color: var(--success);
+}
+.action-hook {
+  background: #e9edf1;
+  color: #2f3b47;
+  outline: 1px dashed #9aa6b2;
+  outline-offset: -1px;
 }
 .action-unknown {
   background: var(--danger-soft);

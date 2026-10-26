@@ -347,6 +347,11 @@ const DownloadArgsSchema = z.strictObject({
   timeout: positiveSeconds().describe('Seconds to wait for the file after the click (default 30).').optional(),
 });
 
+const HookArgsSchema = z.union([
+  slugString('hook name'),
+  z.strictObject({ name: slugString('hook name').describe("A hook of the scenario's `hooks:`, else of project.yaml's.") }),
+]);
+
 /** Argument schema of every action. */
 export const ACTION_ARG_SCHEMAS = {
   open: OpenArgsSchema,
@@ -376,6 +381,7 @@ export const ACTION_ARG_SCHEMAS = {
   wait_for_email: WaitForEmailArgsSchema,
   download: DownloadArgsSchema,
   capture_text: CaptureTextArgsSchema,
+  hook: HookArgsSchema,
 } satisfies { [K in ActionName]: z.ZodType<ActionArgsMap[K]> };
 
 export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
@@ -407,6 +413,7 @@ export const ACTION_DESCRIPTIONS: Record<ActionName, string> = {
   wait_for_email: "Wait for a new message in the project's test mailbox and capture it (from, to, subject, text, an image of its HTML) as an artefact.",
   download: 'Click a link or button and capture the file it produces (download, or a document opened in a new tab) as an artefact; PDFs are rasterised.',
   capture_text: 'Read the visible text of an element (optionally a part of it, by pattern) and keep it as an artefact for a card (`capture: <as>`).',
+  hook: "Run a named hook (the scenario's `hooks:`, else project.yaml's) during the take, off camera: the edit cuts its span. Approved like setup / teardown hooks.",
 };
 
 function stepBranch<K extends ActionName>(action: K) {

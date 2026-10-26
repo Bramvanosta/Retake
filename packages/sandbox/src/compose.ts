@@ -3,8 +3,10 @@
  * compose.yaml next to sandbox.yaml), run through the `docker compose` CLI under a project name of their own —
  * `compose.project`, else `demo-studio-<project>-<environment>-<hash of the folder>` (two checkouts of one project never
  * share containers or volumes). Every call names the project, its folder and its files (`-p`, `--project-directory`,
- * `-f`), with `COMPOSE_*` variables of the shell left out, and every command reads the project's containers first
- * (`ps`): containers of that name made from another folder (another checkout sharing a `compose.project`) refuse it.
+ * `-f`) and its env file (`--env-file`, L5.8: the image versions and settings of `${VAR}`s — the names it sets are left
+ * out of the shell's environment, which would win over it), with `COMPOSE_*` variables of the shell left out, and every
+ * command reads the project's containers first (`ps`): containers of that name made from another folder (another
+ * checkout sharing a `compose.project`) refuse it.
  *
  * up: the compose files read (`config --format json`); a name an earlier up used (compose.project changed since) still
  * running refused; no container of another project may publish one of the ports, on any address (`docker ps --filter
@@ -24,10 +26,10 @@
 import { spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { appendFileSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
-import { DEFAULT_COMPOSE_FILES, interpolateDeep, prefetchSecrets, resolveEnvironment, sandboxNames } from '@demo-studio/core';
+import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, prefetchSecrets, resolveEnvironment, sandboxNames } from '@demo-studio/core';
 import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@demo-studio/core';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
 import type { DockerExec, DockerInfo, DockerResult, DockerRunOptions } from './docker.js';
@@ -64,11 +66,15 @@ export const COMPOSE_LOG_TAIL = 30;
 /** Program names of the container runtimes' port forwarders (OrbStack Helper, com.docker.backend, vpnkit…). */
 export const DOCKER_HELPER = /orbstack|docker|vpnkit|rootlesskit|slirp4netns|limactl|colima|gvproxy|podman/i;
 
-/** The compose project of a sandbox: name, folder (real path), files (absolute). */
+/** The compose project of a sandbox: name, folder (real path), files (absolute), env file. */
 export interface ComposeProjectRef {
   name: string;
   dir: string;
   files: string[];
+  /** The env file every command reads (`--env-file`, L5.8: core composeEnvFile), absolute; absent: none. */
+  envFile?: string;
+  /** The names it sets: left out of the environment docker runs with (a shell's value would win over the file's). */
+  envKeys?: string[];
 }
 
 function realDir(dir: string): string {
@@ -120,12 +126,21 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
 export function composeProject(project: Pick<LoadedProject, 'slug'>, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
   const dir = realDir(sandbox.dir);
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(dir, f));
-  return { name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir), dir, files };
+  const envFile = composeEnvFile({ dir, manifest: sandbox.manifest });
+  let envKeys: string[] = [];
+  if (envFile) {
+    try {
+      envKeys = envFileKeys(readFileSync(envFile, 'utf8'));
+    } catch {
+      /* a missing file: docker compose says so */
+    }
+  }
+  return { name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir), dir, files, ...(envFile ? { envFile, envKeys } : {}) };
 }
 
-/** `compose --ansi never -p <name> --project-directory <dir> -f <file>…`: the start of every compose call. */
+/** `compose --ansi never -p <name> --project-directory <dir> -f <file>… [--env-file <file>]`: the start of every compose call. */
 export function composeArgs(ref: ComposeProjectRef): string[] {
-  return ['compose', '--ansi', 'never', '-p', ref.name, '--project-directory', ref.dir, ...ref.files.flatMap((f) => ['-f', f])];
+  return ['compose', '--ansi', 'never', '-p', ref.name, '--project-directory', ref.dir, ...ref.files.flatMap((f) => ['-f', f]), ...(ref.envFile ? ['--env-file', ref.envFile] : [])];
 }
 
 /** A port a compose service publishes on the host. */
@@ -393,6 +408,7 @@ export class ComposeProvider implements Provider {
   private compose(ref: ComposeProjectRef, args: string[], opts: DockerRunOptions = {}): Promise<DockerResult> {
     return this.run([...composeArgs(ref), ...args], {
       ...opts,
+      ...(ref.envKeys?.length ? { unset: ref.envKeys } : {}),
       onSpawn: (c) => {
         this.child = c;
         opts.onSpawn?.(c);
@@ -912,13 +928,13 @@ export class ComposeProvider implements Provider {
     const exec = this.running;
     this.running = null;
     if (exec && this.bin) {
-      spawnSync(this.bin, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(), timeout: 10_000, stdio: 'ignore' });
+      spawnSync(this.bin, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys), timeout: 10_000, stdio: 'ignore' });
     }
     const names = this.started;
     this.started = [];
     if (!names.length || !this.bin) return;
     const ref = this.lastRef ?? this.ref(ctx);
-    spawnSync(this.bin, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(), timeout: 10_000, stdio: 'ignore' });
+    spawnSync(this.bin, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys), timeout: 10_000, stdio: 'ignore' });
   }
 
   /** Docker keeps the logs: no files (logs() reads them through docker compose logs). */
@@ -1007,7 +1023,17 @@ export class ComposeProvider implements Provider {
         if (one.code === 0 && one.stdout.trim()) ids.set(n, one.stdout.trim());
       }
     }
-    return cfg.services.map((s) => `image ${s}=${ids.get(cfg.images[s]) ?? 'missing'}`).sort();
+    const out = cfg.services.map((s) => `image ${s}=${ids.get(cfg.images[s]) ?? 'missing'}`).sort();
+    // The env file's settings (L5.8): another value there is another product.
+    const ref = this.ref(ctx);
+    if (ref.envFile) {
+      try {
+        out.push(`env-file ${createHash('sha256').update(readFileSync(ref.envFile)).digest('hex')}`);
+      } catch {
+        out.push('env-file missing');
+      }
+    }
+    return out;
   }
 }
 

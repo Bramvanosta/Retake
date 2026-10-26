@@ -3,7 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { Page } from 'playwright-core';
 import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@demo-studio/core';
-import type { EmitArgs, EvalArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@demo-studio/core';
+import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@demo-studio/core';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
@@ -97,6 +97,16 @@ export async function notify(ctx: StepContext, args: NotifyArgs): Promise<Action
 
 export async function emit(_ctx: StepContext, args: EmitArgs): Promise<ActionResult> {
   return { data: { name: args.name, data: args.data ?? null } };
+}
+
+/**
+ * `hook: <name>` (L5.8, R-FLD-31): the named hook runs now, off camera — the page stays as it is (nothing moves) and the
+ * edit cuts the step's span. A failing entry fails the step (its message names the entry).
+ */
+export async function hook(ctx: StepContext, args: HookArgs): Promise<ActionResult> {
+  const run = ctx.rt.runHook;
+  if (!run) throw new StepError(`hook "${args.name}": this run cannot run hooks`);
+  return { data: await run(args.name) };
 }
 
 export async function cursor(ctx: StepContext, args: NormalizedArgsMap['cursor']): Promise<ActionResult> {

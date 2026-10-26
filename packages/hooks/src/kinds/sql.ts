@@ -9,6 +9,7 @@ import { HookError, HookSecurityError, errorMessage } from '../errors.js';
 import { addSecret, redactText } from '../secrets.js';
 import { lineAt, transactionControl } from '../sql-text.js';
 import { hookTemplateContext, render, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { journalsRollback } from '../types.js';
 import type { HookContext, HookLogLevel, RollbackAction, TemplateSnapshot } from '../types.js';
 import { baseDirOf, ignoreRollback, readHookFile } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
@@ -169,7 +170,7 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
   let rollback: RollbackAction | undefined;
   let rollbackWrites: string | null = null;
   let rollbackInfo: PreparedHook['rollback'];
-  if (rb !== undefined && k.phase === 'setup') {
+  if (rb !== undefined && journalsRollback(k.phase)) {
     const rbSource = typeof rb === 'string' ? sqlSource(rb) : rb;
     const rbText = await loadSource(ctx, rbSource, 'sql rollback');
     // The connection URL is re-templated at rollback time too: snapshot its tokens with the SQL's.

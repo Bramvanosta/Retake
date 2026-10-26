@@ -87,6 +87,7 @@ const TimelineSceneSchema = z.strictObject({
     )
     .describe('Multi-page scene: the pages filmed at the same time, each on its own track.')
     .optional(),
+  offscreen: z.literal(true).describe('Played during the take but left out of the video (scene `offscreen: true`).').optional(),
   status: z.enum(['ok', 'failed', 'skipped', 'partial']),
 });
 
@@ -460,6 +461,7 @@ export const RunRecordSchema = z
     hooks: z.strictObject({
       setup: z.enum(['ok', 'failed', 'skipped', 'none']),
       teardown: z.enum(['ok', 'failed', 'skipped', 'none']),
+      steps: z.enum(['ok', 'failed', 'skipped']).describe('`hook:` steps (absent when the scenario has none).').optional(),
     }),
     warnings: z.array(z.string()),
     error: z

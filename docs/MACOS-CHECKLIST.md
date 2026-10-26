@@ -910,6 +910,30 @@ file: `Q="$W/projects/northfield-fixture/scenarios/quote.yaml"; cp "$Q" "$H/quot
 
 **Send everything back in one message**, numbered like the steps above.
 
+## 13d. The field project again: a sandbox, a hook step, compact results through Claude Code (L5.8)
+
+What the fixture cannot show: your own product's database, mailbox and job queue, and the sizes Claude Code really
+counts. On the real project of the first field use (its own workspace), the product's dev servers stopped.
+
+1. **Doctor.** `studio doctor --project <slug>`: a `Sandbox` WARN names the local environment and what it holds (its
+   database, the mailbox, the reset hooks) and the command that scaffolds a sandbox.
+2. **A sandbox.** `studio sandbox init <slug>` and fill the sandbox.yaml (README "Sandbox mode": a dev-server recipe,
+   or "A stage sandbox" for the product's images with a `.env` of versions). `studio sandbox up <slug>`, then
+   `export APP_VERSION=not-this-one` (any name your `.env` sets) and `studio sandbox up <slug>` again: the containers
+   keep the `.env`'s version (`docker ps`). Two takes with `studio run <slug> <scenario> --sandbox` show the same data.
+3. **A hook step.** Replace the side script of the first use with a named hook (`hooks:` in the scenario: the API call
+   that marks a payment, the SQL that moves a period, the job pushed) and a `hook: <name>` step where it must happen;
+   `studio run <slug> <scenario> --sandbox`, then `studio render <slug> <scenario> --review`: the step's span is cut
+   (the plan's notes say "hook step … cut"), what the hook changed shows after the cut.
+4. **A page that moved.** Stop one dev server (or change a port in project.yaml) and run: the run stops at once with
+   "page <key> (<url>): connection refused …", nothing filmed.
+5. **Claude Code.** Ask Claude to inspect a dense page of the product, then the same with `detail: "full"`, and to
+   review a 4-minute render: no "response exceeds maximum allowed tokens" warning, and the compact answers give it
+   what it needs (or say what was missing). Ask it to follow a capture with `job_status {wait_s: 600}`: one call, no
+   timeout.
+
+- **Send back:** for each step, OK or what you saw instead; the sizes Claude Code reported if it showed them.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

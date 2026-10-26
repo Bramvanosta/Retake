@@ -11,6 +11,7 @@ import { baseDirOf } from './kinds/common.js';
 import { JS_NEEDS_PAGE } from './kinds/js.js';
 import { logger, redactText } from './secrets.js';
 import { addDrySaved } from './template.js';
+import { journalsRollback } from './types.js';
 import type { HookApprovalRequest, HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
 import { nowIso } from './util.js';
 
@@ -219,7 +220,7 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     return journalOutcome(opts.journal, entry('ok', { error }), result(kind, { ok: false, status: 'failed', message, error }), log);
   }
   log('info', `${label} ok: ${message} (${Date.now() - t0} ms)`);
-  const extra = done.rollback && opts.phase === 'setup' ? { rollback: done.rollback } : {};
+  const extra = done.rollback && journalsRollback(opts.phase) ? { rollback: done.rollback } : {};
   return journalOutcome(opts.journal, entry('ok', extra), result(kind, { ok: true, status: 'ok', message }), log);
 }
 
@@ -231,6 +232,9 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
  *   rollbacks run without the signal); refuses to start when a hook is malformed or a js hook has no page to run in.
  * - seed (L1.8): stops at the first failure like setup, rolls nothing back (the next reset rebuilds the data), never
  *   asks to confirm a destructive step and refuses to start on a js step.
+ * - step (L5.8, a `hook:` step during the take): stops at the first failure like setup and journals rollbacks like
+ *   setup, but rolls nothing back itself — the step fails, the take stops, and the teardown's rollback of every pending
+ *   entry undoes what it did; a cancel stops a running shell command (`ctx.signal`).
  * - teardown / reset: every hook runs; failures are collected.
  * With `ctx.dryRun`, hooks are templated and security-checked but not executed, nor journaled.
  */
@@ -239,7 +243,7 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
   const results: HookResult[] = [];
   if (!hooks.length) return { ok: true, results };
 
-  if ((opts.phase === 'setup' || opts.phase === 'seed') && !ctx.dryRun) {
+  if ((opts.phase === 'setup' || opts.phase === 'seed' || opts.phase === 'step') && !ctx.dryRun) {
     const failures = preflight(hooks, ctx, opts.phase);
     if (failures.length) {
       for (const f of failures) log('error', `${opts.phase} hook ${f.index + 1}/${hooks.length} cannot run: ${f.description}: ${f.error}`);
@@ -281,7 +285,7 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
       continue;
     }
     ok = false;
-    if (opts.phase !== 'setup' && opts.phase !== 'seed') continue;
+    if (opts.phase !== 'setup' && opts.phase !== 'seed' && opts.phase !== 'step') continue;
     const skipped = hooks.length - i - 1;
     if (skipped) log('warn', `${opts.phase} stopped: ${skipped} remaining hook(s) not run`);
     await rollBack();

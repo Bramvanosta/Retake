@@ -6,9 +6,9 @@
  * Kept from the take: every capture time (scenes, steps, holds, clicks), the cursor, the pages, the target boxes the
  * runner measured, the artefacts (mails, documents, notifications, texts), the tracks, the environment.
  * From today's file: title, intro / outro, frame, template, music, tutorial switches, target length; the cards and
- * interstitials and their place between the scenes; each scene's caption, speed, transition, frame, tutorial switches
- * and page labels; each step's caption, speed, tutorial switches, id, mark (the markers are rebuilt on the steps' start
- * times), overlay and camera hint.
+ * interstitials and their place between the scenes; each scene's caption, speed, transition, frame, tutorial switches,
+ * page labels and `offscreen` (L5.8); each step's caption, speed, tutorial switches, id, mark (the markers are rebuilt
+ * on the steps' start times), overlay and camera hint.
  *
  * A value equal to the run's snapshot keeps the timeline's (templated at capture: `{{hooks.…}}` resolved then). A
  * changed value is templated now with the edit context (display URLs, vars, run); a token only the take knew
@@ -162,6 +162,10 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
       if (entry[k] === undefined) delete out[k];
       else (out as unknown as Record<string, unknown>)[k] = k === 'speed' || k === 'frame' ? entry[k] : tpl(structuredClone(entry[k]), ['scenes', si, k], ts[k], `the ${k} of ${where}`);
     }
+    // Off camera (L5.8): the take played it either way; today's file says whether the video shows it.
+    if (!same(entry.offscreen === true, old?.offscreen === true)) changes.push(`offscreen of ${entry.id}`);
+    if (entry.offscreen === true) out.offscreen = true;
+    else delete out.offscreen;
     for (const p of scenePageEntries(entry.pages)) if (p.spec.label !== undefined) labels.set(p.id, p.spec.label);
     if (out.pages) {
       for (const pg of out.pages) {

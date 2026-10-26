@@ -186,7 +186,7 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
     expect(view.record.template).toBe('motion');
     expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
     await call('review', { project: 'northfield-fixture', render_id: ids.motion, wait_s: 0 });
-    const done = await follow('review_get', { project: 'northfield-fixture', render_id: ids.motion, images: 'all' }, (x) => data<{ finished: boolean }>(x).finished === true);
+    const done = await follow('review_get', { project: 'northfield-fixture', render_id: ids.motion, images: 'all', detail: 'full' }, (x) => data<{ finished: boolean }>(x).finished === true);
     const v = data<{ counts: Record<string, number>; diff?: { previous: string }; files: { sheets: string[]; keyframes: Record<string, string> } }>(done);
     expect(v.counts.error, done.content[0].text).toBe(0);
     expect(v.diff?.previous).toBe(ids.editorial);

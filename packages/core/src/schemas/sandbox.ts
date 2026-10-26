@@ -112,6 +112,10 @@ export const SandboxFileSchema = z
           .regex(/^[a-z0-9][a-z0-9_-]{0,62}$/, { error: 'a compose project name is lower-case letters, digits, "_" or "-" (at most 63)' })
           .describe('Compose project name (default demo-studio-<project>-<environment>-<hash of the folder>).')
           .optional(),
+        env_file: z
+          .union([nonEmpty(), z.literal(false)])
+          .describe('The env file docker compose reads `${VAR}` values from (image versions, settings), relative to sandbox.yaml; default .env next to the first compose file when there is one; false: none.')
+          .optional(),
       })
       .describe('docker-compose only.')
       .optional(),

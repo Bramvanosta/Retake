@@ -2,17 +2,18 @@
  * The filmed part of a scenario (L5.5, R-FLD-01 / R-FLD-02): what drives the browser during a take, as opposed to the
  * edit, which a render re-plans from today's file on an existing run.
  *
- * Filmed: the environment (`env`), the setup and teardown hooks, the capture settings, the pacing, the product clock,
- * the write mocks, the vars that a filmed part uses, the capture scenes (their ids, order and `skip`), each scene's
- * page (inherited included), `open`, `pages` (page labels left out), `persona`, `still` and `cursor`, and each step's
- * action and arguments (core stepFingerprint: shorthands and object forms agree) with the modifiers that act on the
- * page — `hold`, `park`, `on`, `retry_click` (L5.6).
+ * Filmed: the environment (`env`), the setup, teardown and named hooks (L5.8: a `hook:` step is a step like any other),
+ * the capture settings, the pacing, the product clock, the write mocks, the vars that a filmed part uses, the capture
+ * scenes (their ids, order and `skip`), each scene's page (inherited included), `open`, `pages` (page labels left out),
+ * `persona`, `still` and `cursor`, and each step's action and arguments (core stepFingerprint: shorthands and object
+ * forms agree) with the modifiers that act on the page — `hold`, `park`, `on`, `retry_click` (L5.6).
  *
  * Everything else is edit: title, intro / outro, frame, template, music, tutorial switches, target length; cards and
- * interstitials (their text, duration, place between scenes); a scene's caption, speed, transition, frame, tutorial and
- * page labels; a step's caption, speed, camera, mark, overlay, tutorial and id. `timeout`, `optional` and
- * `irreversible` change nothing a successful take filmed and are left out, as are `defaults` (L5.6: a default timeout)
- * and `capture.step_shots` (pictures copied after the take); `note`s are ignored.
+ * interstitials (their text, duration, place between scenes); a scene's caption, speed, transition, frame, tutorial,
+ * page labels and `offscreen` (L5.8: the take plays the scene either way); a step's caption, speed, camera, mark,
+ * overlay, tutorial and id. `timeout`, `optional` and `irreversible` change nothing a successful take filmed and are
+ * left out, as are `defaults` (L5.6: a default timeout) and `capture.step_shots` (pictures copied after the take);
+ * `note`s are ignored.
  *
  * The comparison reads both texts as data (core parseYaml: comments, quoting, key order are no change) and tolerates
  * malformed parts (a step without a single action is compared by its data). Messages name only keys, scene ids (slugs)
@@ -35,6 +36,7 @@ const FILMED_TOP: ReadonlyArray<[string, string]> = [
   ['env', 'the environment (env)'],
   ['setup', 'the setup hooks'],
   ['teardown', 'the teardown hooks'],
+  ['hooks', 'the named hooks (hooks)'],
   ['capture', 'the capture settings'],
   ['pacing', 'the pacing'],
   ['clock', 'the product clock (clock)'],

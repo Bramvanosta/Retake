@@ -1,7 +1,7 @@
 /**
  * L4.3 part 2, core step edits (step-edits.ts): move / delete / duplicate as text splices, checked with facts
  * independent of the splice code — the re-parsed value against the edit applied to the parsed value (verifyEditText),
- * the bytes outside the touched lines, moves reversible to the byte —, on every step of the fixture's 14 scenarios
+ * the bytes outside the touched lines, moves reversible to the byte —, on every step of the fixture's 15 scenarios
  * (goldens), then a hostile corpus (critique B6: comment ownership by the dash column; anchors, aliases, flow lists,
  * block scalars holding `#`, CR LF + BOM + no final line break, indentless lists, empty scenes), duplicates (critique
  * B8: id and mark dropped, a capture's `as` renamed), the guard (critique B2), the `moved` flags (LIS) and where a
@@ -50,7 +50,7 @@ const scene = (d: Doc, id: string) => d.scenes.find((s) => s.id === id)!.steps!;
 
 describe('step edits on every step of the fixture scenarios (goldens)', () => {
   const names = readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'));
-  it('the fixture has its 14 scenarios', () => expect(names).toHaveLength(14));
+  it('the fixture has its 15 scenarios', () => expect(names).toHaveLength(15));
 
   it.each(names)('%s: every move (in its scene, to the start / end of every other scene) re-parses to the moved value, keeps every line and comment, and moves back to the same bytes; every delete and duplicate re-parses to its value and touches one run of lines', (name) => {
     const text = readFileSync(join(SCENARIOS, name), 'utf8');

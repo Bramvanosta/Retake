@@ -76,7 +76,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
-| L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | todo |
+| L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -737,6 +737,16 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   polling the database. Scope (`--lot L5.8`): R-FLD-30 – R-FLD-34. Acceptance: a fixture scenario with a `hook:` step
   mid-take cut from the render; `doctor` pointing to a sandbox; compact MCP outputs measured in tokens. Packages:
   runner-web, hooks, sandbox, core, mcp, skills, cli.
+  **Done (2026-10-26):** named hooks (`hooks:` of a scenario or project.yaml) run by `hook: <name>` steps during the
+  take (hooks phase `step`: approved like setup hooks, rollbacks journaled, the step's span cut from the edit and the
+  raw export); scene `offscreen: true` (played, not shown; an edit value); both in the filmed part / edit re-plan and
+  the Studio blocks (palette, badge, named hooks read-only). A page pre-flight before every take; a docker-compose
+  sandbox's `.env` (`compose.env_file`) passed to every compose command with its names left out of the shell's
+  environment (checked on the real `docker compose`), a "stage" recipe; `doctor`, `project_get`, the MCP instructions
+  and the scenario skill point to sandboxes. Compact `page_inspect` / `run_status` / `review` (`detail: "full"`), one-line
+  JSON, `job_status` waits up to 600 s: page_inspect ≈ 13,300 → 2,200 tokens. Fixture scenario `off-camera`. Follow-ups
+  BL-101 – BL-104. This lot closes the field-feedback group; what comes next is the user's choice (L4.4 per the
+  roadmap).
 
 ### L4.3 — Blocks editing, two-way YAML, drag & drop (M)
 - **Goal:** edit a scenario in the Studio, in blocks or as YAML, without losing the file's comments or formatting.

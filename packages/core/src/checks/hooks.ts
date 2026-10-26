@@ -44,66 +44,77 @@ function checkShellHosts(spec: string | ShellHookSpec, kp: IssuePath, ctx: Check
 /** Semantic checks of a list of hooks (schema-valid entries only). */
 export function checkHooks(list: unknown, base: IssuePath, ctx: CheckContext, opts: HookCheckOptions): void {
   if (!Array.isArray(list)) return;
-  list.forEach((raw, i) => {
-    const p = [...base, i];
-    if (!isObj(raw) || ctx.broken(p)) return;
-    const hook = raw as unknown as HookStep;
-    const kind = hookKind(hook);
-    const kp = [...p, kind];
-    switch (kind) {
-      case 'sql': {
-        const spec = (hook as { sql: string | SqlHookSpec }).sql;
-        if (typeof spec === 'object' && !spec.file === !spec.query) {
-          ctx.error(kp, 'sql needs exactly one of `file` or `query`');
-        }
-        const { file } = sqlSource(spec);
-        if (file) ctx.file(file, typeof spec === 'string' ? kp : [...kp, 'file'], 'SQL file', 'error');
-        if (typeof spec === 'object' && spec.rollback !== undefined) {
-          const rb = spec.rollback;
-          if (typeof rb === 'object' && !rb.file === !rb.query) {
-            ctx.error([...kp, 'rollback'], 'rollback needs exactly one of `file` or `query`');
-          }
-          const rbFile = typeof rb === 'string' ? sqlSource(rb).file : rb.file;
-          if (rbFile) ctx.file(rbFile, [...kp, 'rollback'], 'rollback SQL file', 'error');
-        }
-        break;
+  list.forEach((raw, i) => checkHook(raw, [...base, i], ctx, opts));
+}
+
+/** Semantic checks of named hooks (L5.8, `hooks:` of a scenario or project.yaml): each name's entry, or each entry of its list. */
+export function checkNamedHooks(map: unknown, base: IssuePath, ctx: CheckContext, opts: HookCheckOptions): void {
+  if (!isObj(map)) return;
+  for (const [name, v] of Object.entries(map)) {
+    if (Array.isArray(v)) checkHooks(v, [...base, name], ctx, opts);
+    else checkHook(v, [...base, name], ctx, opts);
+  }
+}
+
+/** Semantic checks of one hook entry at path `p` (schema-valid entries only). */
+function checkHook(raw: unknown, p: IssuePath, ctx: CheckContext, opts: HookCheckOptions): void {
+  if (!isObj(raw) || ctx.broken(p)) return;
+  const hook = raw as unknown as HookStep;
+  const kind = hookKind(hook);
+  const kp = [...p, kind];
+  switch (kind) {
+    case 'sql': {
+      const spec = (hook as { sql: string | SqlHookSpec }).sql;
+      if (typeof spec === 'object' && !spec.file === !spec.query) {
+        ctx.error(kp, 'sql needs exactly one of `file` or `query`');
       }
-      case 'js': {
-        const spec = (hook as { js: string | JsHookSpec }).js;
-        if (typeof spec === 'object') {
-          if (!spec.code === !spec.file) ctx.error(kp, 'js needs exactly one of `code` or `file`');
-          if (spec.file) ctx.file(spec.file, [...kp, 'file'], 'JS file', 'error');
-          if (spec.page && opts.pages && !opts.pages.includes(spec.page)) {
-            ctx.error(
-              [...kp, 'page'],
-              `unknown page "${spec.page}"${suggestion(spec.page, opts.pages)} (available: ${opts.pages.join(', ') || 'none'})`,
-            );
-          }
+      const { file } = sqlSource(spec);
+      if (file) ctx.file(file, typeof spec === 'string' ? kp : [...kp, 'file'], 'SQL file', 'error');
+      if (typeof spec === 'object' && spec.rollback !== undefined) {
+        const rb = spec.rollback;
+        if (typeof rb === 'object' && !rb.file === !rb.query) {
+          ctx.error([...kp, 'rollback'], 'rollback needs exactly one of `file` or `query`');
         }
-        break;
+        const rbFile = typeof rb === 'string' ? sqlSource(rb).file : rb.file;
+        if (rbFile) ctx.file(rbFile, [...kp, 'rollback'], 'rollback SQL file', 'error');
       }
-      case 'http': {
-        const name = (hook as { http: { save_as?: string } }).http.save_as;
-        if (name !== undefined) {
-          if (opts.saved.has(name)) ctx.error([...kp, 'save_as'], `save_as "${name}" is already used by another hook`);
-          opts.saved.add(name);
+      break;
+    }
+    case 'js': {
+      const spec = (hook as { js: string | JsHookSpec }).js;
+      if (typeof spec === 'object') {
+        if (!spec.code === !spec.file) ctx.error(kp, 'js needs exactly one of `code` or `file`');
+        if (spec.file) ctx.file(spec.file, [...kp, 'file'], 'JS file', 'error');
+        if (spec.page && opts.pages && !opts.pages.includes(spec.page)) {
+          ctx.error(
+            [...kp, 'page'],
+            `unknown page "${spec.page}"${suggestion(spec.page, opts.pages)} (available: ${opts.pages.join(', ') || 'none'})`,
+          );
         }
-        break;
       }
-      case 'shell':
-        if (opts.project) checkShellHosts((hook as { shell: string | ShellHookSpec }).shell, kp, ctx, opts.project);
-        break;
+      break;
     }
-    if (hook.writes !== undefined && kind !== 'shell') {
-      ctx.error(
-        [...p, 'writes'],
-        `\`writes\` is for shell hooks: ${kind === 'js' ? 'a js hook is guarded in its tab (its writes are stopped on a read-only run)' : `the writes of ${kind === 'http' ? 'an http hook are seen in its method and body' : 'a sql hook are seen in its statements'}`}`,
-        { path: [...p, 'writes'], key: true },
-      );
+    case 'http': {
+      const name = (hook as { http: { save_as?: string } }).http.save_as;
+      if (name !== undefined) {
+        if (opts.saved.has(name)) ctx.error([...kp, 'save_as'], `save_as "${name}" is already used by another hook`);
+        opts.saved.add(name);
+      }
+      break;
     }
-    const reason = opts.destructiveOk ? null : destructiveReason(hook, { projectDir: ctx.projectDir });
-    if (reason && hook.confirm !== true) {
-      ctx.error(p, `destructive hook (${reason}) requires "confirm: true"`, { path: kp, key: true });
-    }
-  });
+    case 'shell':
+      if (opts.project) checkShellHosts((hook as { shell: string | ShellHookSpec }).shell, kp, ctx, opts.project);
+      break;
+  }
+  if (hook.writes !== undefined && kind !== 'shell') {
+    ctx.error(
+      [...p, 'writes'],
+      `\`writes\` is for shell hooks: ${kind === 'js' ? 'a js hook is guarded in its tab (its writes are stopped on a read-only run)' : `the writes of ${kind === 'http' ? 'an http hook are seen in its method and body' : 'a sql hook are seen in its statements'}`}`,
+      { path: [...p, 'writes'], key: true },
+    );
+  }
+  const reason = opts.destructiveOk ? null : destructiveReason(hook, { projectDir: ctx.projectDir });
+  if (reason && hook.confirm !== true) {
+    ctx.error(p, `destructive hook (${reason}) requires "confirm: true"`, { path: kp, key: true });
+  }
 }

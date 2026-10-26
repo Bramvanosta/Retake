@@ -191,8 +191,8 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
   if (r.perf) ui.line(`  ${c.dim('perf')}      ${perfSummary(r.perf)}`);
   if (r.screenshots.length) ui.line(`  ${c.dim('shots')}     ${ui.path(join(r.dir, 'screenshots'))} ${c.dim(`(${r.screenshots.length})`)}`);
   ui.line(`  ${c.dim('run')}       ${ui.path(join(r.dir, 'run.json'))}`);
-  if (r.hooks.setup !== 'none' || r.hooks.teardown !== 'none') {
-    ui.line(`  ${c.dim('hooks')}     setup ${r.hooks.setup}, teardown ${r.hooks.teardown}`);
+  if (r.hooks.setup !== 'none' || r.hooks.teardown !== 'none' || r.hooks.steps) {
+    ui.line(`  ${c.dim('hooks')}     setup ${r.hooks.setup}, teardown ${r.hooks.teardown}${r.hooks.steps ? `, hook steps ${r.hooks.steps}` : ''}`);
   }
   const sandbox = sandboxSummary(r);
   if (sandbox) ui.line(`  ${c.dim('sandbox')}   ${sandbox}`);

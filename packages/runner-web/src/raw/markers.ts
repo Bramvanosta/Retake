@@ -135,7 +135,7 @@ export function rawMarkers(plan: RawPlan): RawMarker[] {
       add({
         kind: 'cut',
         name: short(`cut ${(c.to - c.from).toFixed(1)} s ${c.reason}`),
-        comment: `${(c.to - c.from).toFixed(2)} s of ${c.reason === 'navigation' ? 'page loading' : c.reason === 'mail' ? 'waiting for the email' : 'loading'} cut here (capture ${c.from.toFixed(2)}–${c.to.toFixed(2)} s)`,
+        comment: `${(c.to - c.from).toFixed(2)} s of ${c.reason === 'navigation' ? 'page loading' : c.reason === 'mail' ? 'waiting for the email' : c.reason === 'hook' ? 'a hook step (off camera)' : 'loading'} cut here (capture ${c.from.toFixed(2)}–${c.to.toFixed(2)} s)`,
         frame: c.at,
         duration: 1,
         capture_t: c.to,

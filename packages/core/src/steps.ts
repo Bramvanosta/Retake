@@ -110,6 +110,8 @@ function normalizeArgs(action: ActionName, v: unknown): NormalizedArgsMap[Action
       return { ...(v as NormalizedArgsMap['wait_for_email']) };
     case 'capture_text':
       return { ...(v as NormalizedArgsMap['capture_text']) };
+    case 'hook':
+      return typeof v === 'string' ? { name: v } : { ...(v as NormalizedArgsMap['hook']) };
     case 'download': {
       const o = v as { click: TargetSpec; as: string; timeout?: number };
       return { ...o, click: targetOrObject(o.click) } as NormalizedArgsMap['download'];

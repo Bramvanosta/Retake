@@ -585,6 +585,11 @@
             },
             "description": "Multi-page scene: the pages filmed at the same time, each on its own track."
           },
+          "offscreen": {
+            "type": "boolean",
+            "const": true,
+            "description": "Played during the take but left out of the video (scene `offscreen: true`)."
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -655,6 +660,7 @@
               "wait_for_email",
               "download",
               "capture_text",
+              "hook",
               "scene_open",
               "scene_still",
               "notification"

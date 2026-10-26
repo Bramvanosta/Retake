@@ -229,12 +229,12 @@ describe('forms and the palette over HTTP (part 3)', () => {
   const guardOf = (step: unknown) => createHash('sha256').update(JSON.stringify(step)).digest('hex').slice(0, 16);
   const g0 = guardOf({ click: { aria: 'Increase', in: 'dialog' } });
 
-  it('scenario_forms is allowed and answers the forms (fields from the schemas, the 15 palette actions)', async () => {
+  it('scenario_forms is allowed and answers the forms (fields from the schemas, the 16 palette actions)', async () => {
     expect(UI_OPS).toContain('scenario_forms');
     const r = await call('scenario_forms', {});
     expect(r.status).toBe(200);
     const f = r.json<Answer<{ actions: Array<{ action: string; fields: Array<{ key: string }> }>; palette: string[]; modifiers: Array<{ key: string }> }>>().data;
-    expect(f.palette).toHaveLength(15);
+    expect(f.palette).toHaveLength(16);
     expect(f.palette).not.toContain('eval');
     expect(f.actions.find((a) => a.action === 'type')!.fields.map((x) => x.key)).toContain('type.into.label');
     expect(f.modifiers.map((m) => m.key)).toEqual(['caption.text', 'caption.kicker', 'hold', 'speed', 'mark']);

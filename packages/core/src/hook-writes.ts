@@ -166,13 +166,14 @@ export function rollbackWriteReason(action: { kind: string; request?: { method?:
 
 /** The hooks of a scenario that write, for the refusal of a read-only run (before anything runs). */
 export function writingHooks(
-  lists: { setup?: readonly HookStep[]; teardown?: readonly HookStep[] },
+  lists: { setup?: readonly HookStep[]; teardown?: readonly HookStep[]; step?: readonly HookStep[] },
   opts: DestructiveOptions & { trust?: HookTrust; via?: AgentChannel } = {},
-): Array<{ phase: 'setup' | 'teardown'; index: number; name?: string; reason: string }> {
-  const out: Array<{ phase: 'setup' | 'teardown'; index: number; name?: string; reason: string }> = [];
-  for (const phase of ['setup', 'teardown'] as const) {
+): Array<{ phase: 'setup' | 'teardown' | 'step'; index: number; name?: string; reason: string }> {
+  const out: Array<{ phase: 'setup' | 'teardown' | 'step'; index: number; name?: string; reason: string }> = [];
+  // `step`: the entries of the named hooks a scenario's `hook:` steps run (L5.8), journaled like setup hooks.
+  for (const phase of ['setup', 'teardown', 'step'] as const) {
     (lists[phase] ?? []).forEach((hook, index) => {
-      const reason = hookWriteReason(hook, { ...opts, rollback: phase === 'setup' });
+      const reason = hookWriteReason(hook, { ...opts, rollback: phase !== 'teardown' });
       if (reason) out.push({ phase, index, ...(hook.name ? { name: hook.name } : {}), reason });
     });
   }

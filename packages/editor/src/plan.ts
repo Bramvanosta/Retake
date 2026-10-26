@@ -57,7 +57,7 @@ import type {
 } from './plan-types.js';
 import { ComponentResolver, transitionKindOf } from './resolve.js';
 import type { Candidate } from './resolve.js';
-import { DEFAULT_IDLE_THRESHOLD_S, QUICK_RUN_SPEED, WAIT_SPEED, loadsBesideOtherPages, outFrameAt, planRunTiming, quickRunSpans, waitingSpans } from './timing.js';
+import { DEFAULT_IDLE_THRESHOLD_S, QUICK_RUN_SPEED, WAIT_SPEED, hookSpans, loadsBesideOtherPages, outFrameAt, planRunTiming, quickRunSpans, waitingSpans } from './timing.js';
 import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
 import { INSET_GROW, cornerOf, drawsUrl, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
@@ -665,6 +665,10 @@ export function planEdit(input: PlanEditInput): EditPlan {
       entries.push(scene.kind === 'card' ? { type: 'card', scene } : { type: 'interstitial', scene });
       continue;
     }
+    if (scene.offscreen) {
+      notes.add(`scene "${scene.id}" was played off camera (offscreen: true): not in the edit`);
+      continue;
+    }
     if (scene.status === 'failed' || scene.status === 'partial') warnings.add(`scene "${scene.id}" ${scene.status === 'failed' ? 'failed' : 'is partial'} in the run: its clip shows what was captured`);
     // Notification events (step -1, L2.9) belong to no step: they are artefacts, not provenance.
     const events = timeline.events
@@ -772,6 +776,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
       loading,
       // L5.7: the main capture's freezes and waits (a multi-page run shows its pages' tracks: none of them recorded).
       ...(runPages ? {} : { frozen: timeline.stalls ?? [], busy: timeline.busy ?? [] }),
+      offcamera: runEntries.flatMap((e) => hookSpans(e.events)),
     });
     for (const w of waits) {
       if (!sped(run, w, runEntries)) continue;
@@ -787,6 +792,11 @@ export function planEdit(input: PlanEditInput): EditPlan {
     for (const c of run.cuts) {
       if (c.reason === 'loading') {
         notes.add(`"${runEntries[c.clip].scene.id}": page load ${secs(c.a / srcFps)}–${secs(c.b / srcFps)} of the capture cut (the capture held the previous frame until the new page painted)`);
+        continue;
+      }
+      if (c.reason === 'hook') {
+        const ev = runEntries[c.clip].events.find((e) => e.action === 'hook' && e.t_start * srcFps <= c.a + 1e-6 && c.b <= e.t_end * srcFps + 1e-6);
+        notes.add(`"${runEntries[c.clip].scene.id}": hook step${ev ? ` ${ev.scene}.${ev.step}` : ''} ${secs(c.a / srcFps)}–${secs(c.b / srcFps)} of the capture cut (it ran off camera)`);
         continue;
       }
       if (c.reason === 'frozen') {

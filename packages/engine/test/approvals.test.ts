@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadScenario } from '@demo-studio/core';
-import type { HooksJobInput, EnvResetJobInput } from '@demo-studio/core';
+import type { HookStep, HooksJobInput, EnvResetJobInput } from '@demo-studio/core';
 import { hookFingerprint } from '@demo-studio/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace } from '../src/index.js';
@@ -108,6 +108,20 @@ describe('approvals at submit', () => {
     // Signed at enqueue with the studio home's key (the worker ignores an approval without a valid signature).
     expect(sub.job.input.approvals).toEqual([{ fingerprint: fp, by: 'human-elicitation', at: expect.any(String), sig: expect.stringMatching(/^[0-9a-f]{64}$/) }]);
     await engine.runs.cancel('northfield-fixture', sub.run_id);
+  });
+
+  it('a capture with a `hook:` step (L5.8): the named hook\'s shell entry is asked about once, bound to the step phase and its position; no approver: needs_approval', async () => {
+    const a = accept();
+    const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'off-camera', mode: 'capture' }, { approver: a });
+    expect(a.asked).toHaveLength(1);
+    expect(a.asked[0].items).toEqual([expect.objectContaining({ phase: 'step', index: 1, name: 'queue', kind: 'shell', reason: 'a shell command (runs local code)', description: 'queue: shell "sleep 1.5"' })]);
+    const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'off-camera')).scenario;
+    const entry = (sc.hooks!['cafe-requests-a-quote'] as HookStep[])[1];
+    expect(sub.job.input.approvals?.map((x) => x.fingerprint)).toEqual([hookFingerprint(entry, { phase: 'step', index: 1, env: 'local' })]);
+    await engine.runs.cancel('northfield-fixture', sub.run_id);
+    const none = await refusal(engine.runs.submit({ project: 'northfield-fixture', scenario: 'off-camera', mode: 'capture' }));
+    expect(none.code).toBe('needs_approval');
+    expect(none.message).toContain('step hook 2 "queue" (a shell command (runs local code))');
   });
 
   it('declined, dismissed, timed out, failed: refused with the CLI command, nothing queued; no approver: needs_approval', async () => {

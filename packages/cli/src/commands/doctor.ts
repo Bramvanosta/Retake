@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative } from 'node:path';
-import { UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxNames, studioHome, unsafeTestResolve } from '@demo-studio/core';
+import { UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, studioHome, unsafeTestResolve } from '@demo-studio/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ChromiumProbe } from '@demo-studio/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -433,6 +433,9 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
   }
 
   for (const env of sandboxes) out.push(await sandboxCheck(p, project, env, global));
+  // L5.8 (R-FLD-30): a local environment with a database, a mailbox or reset hooks and no sandbox: point to one.
+  const advice = sandboxAdvice(project);
+  if (advice) out.push({ status: 'warn', name: 'Sandbox', ...sandboxAdviceText(advice, slug, studioCommand(global)) });
   // Hosts of every environment page: HEAD with a 5 s timeout. An unreachable default environment is a failure.
   for (const env of envNames) {
     if (sandboxes.has(env)) continue;

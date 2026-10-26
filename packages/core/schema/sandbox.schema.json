@@ -32,6 +32,19 @@
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
           "description": "Compose project name (default demo-studio-<project>-<environment>-<hash of the folder>)."
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "boolean",
+              "const": false
+            }
+          ],
+          "description": "The env file docker compose reads `${VAR}` values from (image versions, settings), relative to sandbox.yaml; default .env next to the first compose file when there is one; false: none."
         }
       },
       "additionalProperties": false,

@@ -236,7 +236,8 @@ export function hookApprovalReason(hook: HookStep, phase: string, opts: Destruct
   }
   try {
     const own = hook.destructive === true ? 'declared destructive' : (destructiveReason(hook, opts) ?? (kind === 'shell' ? 'a shell command (runs local code)' : null));
-    const rollback = phase === 'setup' ? rollbackApprovalReason(hook, opts) : null;
+    // Setup and step hooks (L5.8) journal their rollback, run later without asking again.
+    const rollback = phase === 'setup' || phase === 'step' ? rollbackApprovalReason(hook, opts) : null;
     const reasons = [own, rollback].filter((r): r is string => r !== null);
     return reasons.length ? reasons.join('; ') : null;
   } catch {

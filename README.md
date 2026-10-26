@@ -362,6 +362,8 @@ defaults: {timeout_s: 30}                                 # every step's timeout
 browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`; frame_rate_limit: false, see Requirements
 reset:                         # run by `studio env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
+hooks:                         # named hooks a scenario's `hook: <name>` steps run during the take (see below)
+  mark-paid: {http: {method: POST, url: "{{admin}}/api/invoices/latest/paid"}}
 clock: 2026-11-02T10:24:00     # the product's browser clock when the capture starts (a scenario's `clock` wins)
 mailbox: {provider: mailpit, url: "http://localhost:8025"}   # test mailbox read by wait_for_email (see below)
 sandboxes: {sandbox: sandbox/sandbox.yaml}                  # sandbox environments (see Sandbox mode)
@@ -433,7 +435,8 @@ scenes:
 ```
 
 **Scenario keys:** `video`, `title`, `intro` (`false` or `{component, params, duration}`), `outro` (`false` or
-`{component, params, tagline, url, duration}`), `env`, `vars`, `setup`, `teardown`, `capture`, `frame` (default for
+`{component, params, tagline, url, duration}`), `env`, `vars`, `setup`, `teardown`, `hooks` (named hooks `hook:` steps run
+during the take, see [Hooks during the take](#hooks-during-the-take)), `capture`, `frame` (default for
 every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck, loop}`, see
 [the music bed](#music-bed)), `target_length` (`{min_s, max_s}`: the length this video aims at — the review's
 `video-length` rule uses it instead of the reference 60–120 s), `scenes`.
@@ -442,7 +445,8 @@ every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `mus
 signed in as, `none` for none: see [Signing in](#signing-in-personas-and-sessions)), `steps`, `speed` (edit-time),
 `still` (seconds still at the start, default 1.6), `cursor` (where the cursor rests at the start, see below),
 `transition` (`crossfade`, `cut`, `fade-black`), `frame` (a frame style or a layout component id), `irreversible`,
-`skip`, `note`. A scene without `page` continues on the previous scene's page; a scene without `open` continues from
+`skip`, `offscreen` (played during the take but left out of the video: a scene that only brings the product to the
+state the next one films — an edit value, a render on the same take can toggle it), `note`. A scene without `page` continues on the previous scene's page; a scene without `open` continues from
 the current state. Two other entries take no capture time (the editor shows them between the clips around them):
 `interstitial: {text, kicker, duration, component, params}` (a "time passes" card; `style` is the legacy template
 style override) and `card: {component, params, slots, duration}` (a full-screen title / chapter / quote card), each
@@ -513,6 +517,7 @@ Every step has exactly one action; shorthand forms are shown first.
 | `cursor` | `cursor: hide` · `{move: {x: 1500, y: 540}, duration: 0.8}` · `{set: {x: 0, y: 0}}` | Show, hide, move or teleport the cursor |
 | `wait_for_email` | `wait_for_email: {to: noa@cafe.example, subject: Confirm, timeout: 20, as: welcome}` · `{to: persona:buyer, …}` | Wait for a new message in the project's test mailbox and capture it (artefact `email: welcome`); `persona:<name>` is that persona's `email` — see [Mails, documents and notifications](#mails-documents-and-notifications) |
 | `download` | `download: {click: {text: Download quote PDF}, as: quote, timeout: 30}` | Real click, then capture the file it produces — a download, or a document opened in a new tab (fetched with the session) — as artefact `document: quote`; PDFs are rasterised page by page. A transfer that breaks on the network (socket hang up, reset, timeout, 502 / 503 / 504) is fetched again, 3 attempts in all; a real error (another HTTP error) fails at once |
+| `hook` | `hook: mark-paid` · `{name: mark-paid}` | Run a named hook of the scenario's `hooks:` (else project.yaml's) now, during the take and off camera: the page stays as it is and the edit cuts the step's span — see [Hooks during the take](#hooks-during-the-take) |
 | `capture_text` | `capture_text: {target: {testid: proposal-total}, as: total, pattern: "/(€\\s?[\\d.,]+)/"}` | Read the element's visible text (a field's value) — or the part the pattern's first group selects — as artefact `capture: total` for a key-figure card; polled until the pattern matches (up to the step timeout); no cursor move — see [Tutorial overlays and story cards](#tutorial-overlays-and-story-cards) |
 
 **Step modifiers** (on any step): `id` (for `--until` and references), `caption`, `speed` (edit-time),
@@ -707,6 +712,53 @@ it, and a teardown hook does not see the scenario's last page). The tab stays op
 hooks on the same page key reuse it: an app left running there keeps working in the background (the fixture's
 `quote` scenario keeps its console open that way, polling for the web notification the capture records). Every hook
 kind is held to the project's allow-list (see [Security](#security)).
+
+#### Hooks during the take
+
+What the product must do at a precise moment of the take without being filmed — a payment marked through its API, a
+period moved into the past in SQL, a queue job pushed — is a **named hook** run by a `hook:` step, instead of a side
+script polling the database (L5.8):
+
+```yaml
+hooks:                         # name → one hook entry, or a list run in order (project.yaml may declare shared ones)
+  cafe-requests-a-quote:
+    - name: request
+      http: {method: POST, url: "{{console}}/api/quotes", json: {product_slug: selowa-ridge, bags: 4}}
+    - name: queue
+      writes: false
+      shell: "sleep 1.5"       # stands for a job queue picking the request up
+scenes:
+  - id: to-the-list
+    offscreen: true            # played, not shown: the video opens on the quote list
+    page: console
+    open: /products
+    steps:
+      - click: {role: link, name: Quote requests}
+  - id: requests
+    steps:
+      - hold: 0.8
+      - hook: cafe-requests-a-quote    # runs now; the edit cuts this step
+      - wait_for: {text: New}
+```
+
+- **The same hooks as setup and teardown**: `http`, `sql`, `shell`, `js` entries with their keys, the allow-list, the
+  read-only refusals (a read-only run refuses a named hook that writes before anything runs), destructive entries need
+  `confirm: true`, and through MCP or the Studio every shell or destructive entry needs a person's approval — bound to
+  the entry, its phase (`step`) and its position, asked once whatever the number of steps that run it. A scenario's
+  name wins over project.yaml's; validation refuses a step naming a hook neither declares and warns about a named hook
+  no step runs, and about a `caption`, `mark`, `overlay`, `camera`, `speed` or `tutorial` on a hook step (the edit
+  cuts it).
+- **In the take**: the hook runs in the setup's context — `{{hooks.<save_as>…}}` of a setup hook works in it, and its
+  own `save_as` in the steps after it —, with the run's cancel (a running shell command is stopped). An entry that
+  fails fails the step (an `optional: true` entry is tolerated; the step's own `optional` tolerates the whole hook);
+  its rollbacks are journaled like a setup hook's and undone after the teardown. run.json `hooks.steps` says `ok`,
+  `failed` or `skipped`; the timeline event's `data` lists each entry's outcome. A dry run skips them unless
+  `--hooks run` (`data.skipped`).
+- **In the edit**: the step's span (not its `hold`) is cut whole — idle trimming on or off, a mark window included;
+  the page may change across the cut (what the hook did shows at once). The raw export cuts it too (reason `hook`)
+  and gives an offscreen scene no clip.
+- **The filmed part** (L5.5): a `hook:` step is a step like any other, and the named hooks are filmed: a change needs a
+  new capture. `offscreen` is edit.
 
 #### Secrets in steps
 
@@ -1487,7 +1539,9 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   renderer draws a stand-in.
 - **Clips** show a scene from the end of its page load (`scene_still` start, else `scene_open` end) to its end,
   trailing holds included: page loads are never shown. `srcFrames` gives the exact capture frame of every output
-  frame.
+  frame. A scene played with `offscreen: true` has no clip (noted).
+- **Off camera** (L5.8): a `hook:` step's span — the hook running, before its `hold` — is cut whole, whatever
+  `overrides.trim_idle` says, a mark window included (noted with the step).
 - **Transitions**: scenes that are not contiguous in the capture (a page load or any gap), cards, interstitials, the
   intro and the outro are joined with the theme transition (crossfade: the outgoing clip holds its last frame while
   the incoming one fades in; fade-black: fade out then in; cut). A scene that continues the previous one on the same
@@ -1756,7 +1810,8 @@ studio run northfield-fixture quote --raw --cursor none                         
   commit to the first frame of the painted page — also inside the opening still, and up to the scene end when the
   scene ends before the paint (as the edit does; noted); in a multi-page scene not while another page acts —; its
   manifest cut has no `wait_step` (`after_step`: the step during which the page changed); one that overlaps a
-  wait-based cut extends it. `--no-cuts` keeps the loading. Otherwise
+  wait-based cut extends it. `--no-cuts` keeps the loading. A `hook:` step's span (L5.8: it ran off camera) is cut
+  either way, reason `hook`, and a scene played with `offscreen: true` has no clip (both noted). Otherwise
   real time: speeds and shortened waits are the editor's job.
 - **Codecs** — `--format mp4` (default): H.264 high profile, CRF 14, yuv420p, 1-second GOP, faststart;
   `--format prores`: Apple ProRes 422 HQ (`prores_ks` profile 3), yuv422p10le, `.mov`. BT.709, limited range. Encoded
@@ -2330,7 +2385,7 @@ Every key of sandbox.yaml (version 1; `studio schema sandbox` prints the JSON Sc
 |---|---|
 | `version` | `1` (required) |
 | `provider` | `process` (programs of this machine) or `docker-compose` (required) |
-| `compose` | docker-compose: `files` (default `[compose.yaml]`), `project` (default `demo-studio-<project>-<env>-<hash>`) |
+| `compose` | docker-compose: `files` (default `[compose.yaml]`), `project` (default `demo-studio-<project>-<env>-<hash>`), `env_file` (default `.env` next to the first compose file when there is one; `false`: none — see [A "stage" sandbox](#a-stage-sandbox-images-of-a-production-build)) |
 | `services.<name>` | `url` (health base), `pages` (key → URL or `{url, display}`), `health`; process: `command`, `cwd`, `env`, `stop_timeout_s` |
 | `services.<name>.health` | a path, `false`, or `{path \| url, status, text, timeout_s, interval_ms, tcp}` (`tcp`: process only) |
 | `seed[]` | `http`, `sql`, `shell`, `exec` (`{service, command, env, timeout_s}`, docker-compose) + `name`, `optional` |
@@ -2410,6 +2465,13 @@ every service runs and is healthy, `--json` for scripts.
 - **`down`** stops every service. A process sandbox's data goes with its processes; a docker-compose sandbox keeps
   its volumes (the next `up` restores its snapshot, or reseeds) unless `--volumes`, which removes them — the database
   and its snapshot — too. Images are never removed.
+- **Every take checks its pages first** (L5.8, sandbox or not): one GET of each page of the environment, 5 s each.
+  A page that does not answer — nothing listens on its port (a dev server that stopped or moved to another port), a
+  gateway error (502, 503, 504) — stops the run before anything opens, naming the page and its URL; any other HTTP
+  answer (a 404 at the root, a redirect to a sign-in) counts.
+- **`studio doctor --project <slug>`** warns (`Sandbox`) when the project has no sandbox and one of its environments
+  films only this machine with a database, a mailbox or reset hooks — each take then starts from whatever the last
+  one left —, with the command that scaffolds one (`studio sandbox init`). MCP `project_get` says the same.
 - **`run --sandbox`** takes the sandbox's take lock, starts what is not running, checks every service's health,
   resets the sandbox to its seed, then films; the sandbox stays up afterwards. The environment is `--env` (it must be
   a sandbox), else the scenario's `env` when it is a sandbox, else `default_env` when it is one, else the first
@@ -2714,6 +2776,65 @@ reset:
 - **A sign-in that survives the reset**: none — a reset drops the sessions the app stored, so the accounts sign in
   again off camera before every take (`accounts`, above).
 
+### A "stage" sandbox: images of a production build
+
+A product shipped as images (a registry's builds) is filmed from the same build every take with a docker-compose
+sandbox whose versions and settings live in a `.env` next to its compose file — the stage of the product, on this
+machine, with demo data:
+
+```yaml
+# sandbox/stage/compose.yaml — the product's images, published on 127.0.0.1 only
+services:
+  app:
+    image: registry.example.com/acme/app:${APP_VERSION}
+    environment: {DATABASE_URL: "postgres://demo:stage-db-4932@db:5432/app", SMTP_URL: "smtp://mailpit:1025", FEATURE_FLAGS: "${FEATURE_FLAGS}"}
+    ports: ["127.0.0.1:4901:3000"]
+    depends_on: [db]
+  worker:
+    image: registry.example.com/acme/worker:${APP_VERSION}
+    environment: {DATABASE_URL: "postgres://demo:stage-db-4932@db:5432/app"}
+  db:
+    image: postgres:${POSTGRES_VERSION}
+    environment: {POSTGRES_USER: demo, POSTGRES_PASSWORD: stage-db-4932, POSTGRES_DB: app}
+    ports: ["127.0.0.1:4932:5432"]
+  mailpit:
+    image: axllent/mailpit:v1.29.4
+    ports: ["127.0.0.1:4925:8025"]
+```
+
+```sh
+# sandbox/stage/.env — what docker compose reads for the ${…} above
+APP_VERSION=2.14.0
+POSTGRES_VERSION=17-alpine
+FEATURE_FLAGS=new-invoices
+```
+
+```yaml
+# sandbox/stage/sandbox.yaml
+version: 1
+provider: docker-compose
+services:
+  app: {url: http://localhost:4901, health: /up, pages: {app: {url: http://localhost:4901, display: app.example.com}}}
+  mailpit: {url: http://localhost:4925, health: /api/v1/info}
+seed:
+  - exec: {service: app, command: "bin/setup-demo-data", timeout_s: 600}
+reset: {strategy: snapshot, restart: [app, worker]}
+databases:
+  main: {url: "postgres://demo:stage-db-4932@localhost:4932/app"}
+mailbox: {provider: mailpit, url: http://localhost:4925}
+```
+
+- **The env file reaches every compose command** (`--env-file`): `.env` next to the first compose file, or
+  `compose.env_file` (relative to sandbox.yaml; `false`: none). The names it sets are left out of the environment
+  docker runs with, like every `COMPOSE_*` variable of the shell: an `APP_VERSION` exported in your shell never
+  changes the build a take films. A `COMPOSE_PROFILES` in it is refused (it would start other services than
+  sandbox.yaml says). Checked against the real `docker compose config`: the file's tag wins over the shell's
+  (`packages/sandbox/test/compose-env.test.ts`).
+- **Another version** is another product: the env file's hash is part of the seed's inputs (with the images' ids), so
+  the next `up` seeds again and a snapshot taken with the previous one is stale.
+- `studio sandbox up <project> --env stage` pulls the images the first time (`docker login` to a private registry
+  first, in your terminal); `studio run <project> <scenario> --env stage --sandbox` resets it before each take.
+
 ### Limits
 
 - **Determinism.** A reset makes equal what the seed builds; not what the app does while it is filmed or between the
@@ -2844,10 +2965,10 @@ for what the server refuses.
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
-| `page_inspect` | what a page shows, for writing steps (see *Authoring* below): `page` (+ `path`) or `url` (an origin of the environment's pages only), or `scenario` + `until` (a dry replay up to that step; a failing step is inspected where it failed); `persona`, `within` (list only inside a target), `targets` (≤ 20 of your own, checked), `limit` (default 80, ≤ 300), `images` (`marked` default, or `none`); a job, waits up to `wait_s` (default 25). Returns counts, open popups, scroll containers and the marked screenshot as an image; every element (mark, box, state, context, verified target, matches, `fragile`, action hint as one line of YAML) and all page text under `untrusted` | `.demo-studio/inspect/<id>/` |
+| `page_inspect` | what a page shows, for writing steps (see *Authoring* below): `page` (+ `path`) or `url` (an origin of the environment's pages only), or `scenario` + `until` (a dry replay up to that step; a failing step is inspected where it failed); `persona`, `within` (list only inside a target), `targets` (≤ 20 of your own, checked), `limit` (default 80, ≤ 300), `images` (`marked` default, or `none`), `detail` (`compact` default, or `full`); a job, waits up to `wait_s` (default 25). Returns counts, open popups and the marked screenshot as an image; compact (L5.8): the elements in view or in a dialog, menu or popover, each as its mark, context, action and step hint as one line of YAML (`matches`, `fragile` and state flags only when set), page text under `untrusted`; `full`: every element with its box, state, texts, verified target, and the scroll containers | `.demo-studio/inspect/<id>/` |
 | `scenario_record` | a recording the **user** performs (see [Recording a scenario](#recording-a-scenario)): `page` (+ `path`) or `url` (an origin of the environment's pages only), `persona`, `scenario` (the draft's name; saved only when free), `check` (default true); a job returned at once — a browser window opens on the user's machine, the user performs the flow and closes it (Claude never drives it), the window holds the queue (≤ 30 min); `job_status` then returns counts, the saved file and hash, the check replay, issue counts, and the draft (`draft_lines`), its scene ids and issues under `untrusted`; `job_cancel` while the window is open discards it | `.demo-studio/records/<id>/`; `scenarios/<name>.yaml` when free; the environment, through what the user does in the window (read-write environments) |
 | `scenario_from_script` | an optional aid, only when the user hands a timecoded script table (see *Authoring*): an outline and a skeleton draft (one `hold` per beat, the action as its `note`) validated against the project, the script's issues with line / col, timing warnings; `env` (page keys of that environment), `name` (the draft's `video`) | — |
-| `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, outputs (paths + sha256 once finished), dry-run screenshots, and the state of its job (queued and its place, interrupted…); `wait_s` (≤ 25) waits for it to finish | — |
+| `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, the take's cost in one line, the paths of capture.mp4, timeline.json and the screenshots folder, and the state of its job (queued and its place, interrupted…); `detail: "full"` adds every output with its sha256, each dry-run screenshot and the take's measurements; `wait_s` (≤ 25) waits for it to finish | — |
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
 | `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
 | `run_cancel` | cancels a run started here: queued, it never starts; running, it stops at its next step and its teardown and rollbacks still run | — |
@@ -2855,7 +2976,7 @@ for what the server refuses.
 | `render` | the same arguments: planned and checked, then rendered as a job; returns the reserved `render_id` at once (`<scenario>-v<N>`, `-vertical` / `-square`), the `run_id` it renders (`latest`: the newest capture whose folder name is a run id, dated ids first) and `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as `plan_preview`'s; `wait_s` waits for it | `renders/<render_id>.mp4` + `.json` |
 | `render_status` | a render by id (or `latest`, of a scenario): its job first — queued (with the job it waits behind, its stage and time left), running (stage, percent, frames, time left), failed / cancelled / interrupted — then its record (paths, duration, size, fps, theme, variant, overrides, timings, ffprobe); warnings and a failure's message under `untrusted`; `wait_s` long-polls | — |
 | `review` | reviews a render (`render_id` or `latest` of a `scenario`; `fps` 1 or 2; `previous`: a render id or `false`) as a job and waits up to `wait_s` (default 20): finished in time, it answers as `review_get` | `review/<render_id>/` |
-| `review_get` | a render's review: its newest review job (state, stage, percent), then the review — clean or not, counts, findings (severity, code, time, segment, scene; their messages under `untrusted`), durations, the diff with the previous render, the paths of the sheets, key frames, `timeline.json`, `report.md` — and **images**: `images: "sheets"` (default: contact sheet pages and marker key frames), `"all"` or `"none"`; `wait_s` long-polls | — |
+| `review_get` | a render's review: its newest review job (state, stage, percent), then the review — clean or not, counts, the findings that are not notes (severity, code, time, segment, scene; their messages under `untrusted`; at most 30 warnings besides every error), the diff with the previous render, the paths of the sheets and `report.md` (`detail: "full"`: the notes, durations per segment, every key frame and scene sheet) — and **images**: `images: "sheets"` (default: contact sheet pages and marker key frames), `"all"` or `"none"`; `wait_s` long-polls | — |
 | `export` | exports a render as a job (`formats`, default `mp4_1080p`, `webm`, `gif_preview`; `vertical_9x16` / `square_1x1` / a 4K from a smaller master are re-rendered; `gif_start_s` / `gif_duration_s` ≤ 30 s) and returns at once; `job_status` follows it and lists the files | `exports/<render_id>/` + `manifest.json` |
 | `comments_list` | the frame comments of a project (see [Frame comments](#frame-comments)): `scenario`, `render` (an id or `latest`: threads made on that render as it is now), `status` (`open` default, `resolved`, `all`), `limit` (default 20, ≤ 100); each thread's render (and whether it is still on disk), frame, time, region, anchor (segment, component, scene, step, `step_ref`, step fingerprint, action, page, marker, overlays, transition), `step_now` (that step in today's file, by id else fingerprint; null when gone), its last 10 entries with their channel (`entries_total` counts them all), the resolution, newer renders and its `hash`; the stills (region outlined) as images; the comment, replies, notes and author names under `untrusted` (at most 60,000 characters per result: the next threads are left out, `left_out_for_size`) | — |
 | `comment_reply` | appends a reply to a thread (`comment_id`, `text` ≤ 2000 characters), written as `mcp`; returns the entry id and the new hash | `comments/<scenario>/<id>.json` (an entry) |
@@ -2869,7 +2990,7 @@ for what the server refuses.
 | `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
 | `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.demo-studio/previews/<id>/` |
 | `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's template (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
-| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included; a recording's draft), a cancel; a run, render, preview, review, export, inspect or record job's error message is under `untrusted.error` | — |
+| `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included; a recording's draft), a cancel; `job_status {wait_s}` waits up to 600 s (a capture or a render followed in one call, a progress notification at least every 15 s); a run, render, preview, review, export, inspect or record job's error message is under `untrusted.error` | — |
 | `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
 | `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
@@ -2940,8 +3061,10 @@ step that opens a dialog or a menu>}` to see what that step shows, and write the
 with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
 `.demo-studio/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
 exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
-`run_capture` returns at once, and `run_status {wait_s: 25}` (called again until the run is finished) follows it with
-progress notifications. A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
+`run_capture` returns at once, and `run_status {wait_s: 25}` (called again until the run is finished) or
+`job_status {job_id, wait_s: 600}` follows it with progress notifications. Results carry their JSON on one line, and
+`run_status`, `review` / `review_get` and `page_inspect` answer compactly unless `detail: "full"` (L5.8, measured on the
+fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2,700 → 900, a review ≈ 2,200 → 400). A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
 `failed` means it could not run (a scenario changed since it was submitted, a sandbox that would not start…).
 - The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
   teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
@@ -3287,8 +3410,8 @@ running: the MCP server keeps working without it.
   an invisible character, an overlay, code) is named and stays for the YAML tab, and so is removing a key from a
   `{…}` written over several lines or holding comments. If the step changes on disk while you type, the form shows its
   new values and lists what you had typed. **Add a step…** opens a palette of
-  15 actions (open, click, double click, hover, type, press, select, wait, wait for, hold, screenshot, scroll, menu,
-  date, notify): pick one, fill its form, choose where it goes (after the selected step, or the start or end of a
+  16 actions (open, click, double click, hover, type, press, select, wait, wait for, hold, screenshot, scroll, menu,
+  date, notify, hook — a named hook the file or project.yaml declares, run off camera: L5.8): pick one, fill its form, choose where it goes (after the selected step, or the start or end of a
   scene) and **Add** — one new line in the file. A secret reference typed into a field (`{{env:…}}`, `{{keychain:…}}`)
   is refused with the reason, as Claude's would be. After a save the Studio says what it means for your video: a
   changed argument or hold changes what the browser does (a dry run shows it, a capture films it); a caption, speed or
@@ -3297,6 +3420,10 @@ running: the MCP server keeps working without it.
   steps with the same arguments. It is refused when that step is gone, when its scene now has more or fewer steps with
   the same arguments, or when a field you changed no longer holds what your form showed (it was changed meanwhile: the
   form then shows the new value).
+- **Off camera (L5.8).** A `hook:` step has its own badge (*hook*, "off camera: cut from the video") and moves, edits
+  (its hook's name), duplicates and deletes like any step; the named hooks (`hooks:`) are listed in the hooks strip,
+  by name, read-only — like setup and teardown they never change from the Studio. A scene with `offscreen: true`
+  shows "off camera: played, not in the video"; scene options (that one included) are edited in the YAML tab.
 - **Dry run and Capture from the scenario screen.** *Runs from the Studio* has a **Dry run** button (no hooks, a
   screenshot per step) and a **Capture** button (the setup and teardown hooks, the video), on the environment the
   screen shows, and says before any click what would stop each one. One that cannot start from the Studio — a hook

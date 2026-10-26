@@ -36,9 +36,11 @@ scenes:
 
 - Scenario keys: `video`, `title` (`{kicker, text}`), `intro`, `outro` (`{tagline, url}` or `false`), `env`, `vars`,
   `frame`, `template`, `pacing`, `tutorial`, `scenes`. `setup` and `teardown` hooks exist, but hooks are the user's:
-  never add one the user did not ask for, and they need the user's approval to run.
+  never add one the user did not ask for, and they need the user's approval to run. `hooks: {<name>: <hook or list>}`
+  names hooks a `hook: <name>` step runs during the take (project.yaml may declare shared ones, under the same rules).
 - Scene keys: `id` (unique), `caption` (a string or `{kicker, text}`), `page`, `open`, `persona`, `steps`, `still`,
-  `cursor`, `transition`, `frame`, `irreversible`, `skip`, `note`.
+  `cursor`, `transition`, `frame`, `irreversible`, `skip`, `offscreen` (played but left out of the video: a scene that
+  only brings the product to the state the next one films), `note`.
 - Step modifiers, on any step: `id`, `caption`, `hold` (seconds still after it), `mark` (a named beat), `camera` (a
   zoom hint), `overlay`, `tutorial`, `timeout` (seconds, default 15), `optional`, `irreversible`, `park`, `note`.
 - A step reference for `until` is `<scene>.<step id or index>` (from 0), a unique step id, or a scene id.
@@ -76,6 +78,7 @@ Every step has exactly one action.
 | `wait_for_email` | `wait_for_email: {to: buyer@example.com, subject: Confirm}` | a message in the project's test mailbox |
 | `download` | `download: {click: {text: Download quote PDF}, as: quote}` | the file a click produces, as a document card |
 | `capture_text` | `capture_text: {target: {testid: total}, as: total}` | an element's text, for a key-figure card |
+| `hook` | `hook: mark-paid` | run a named hook now, off camera (an API call, SQL, a queue job): the edit cuts it |
 
 ## Targets
 

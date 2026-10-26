@@ -50,8 +50,8 @@ export const RAW_CUT = {
   contiguous_s: 0.1,
 } as const;
 
-/** Why frames were cut inside a scene. */
-export type RawCutReason = 'navigation' | 'loading' | 'mail';
+/** Why frames were cut inside a scene (`hook`: a `hook:` step, run off camera — L5.8 — always cut). */
+export type RawCutReason = 'navigation' | 'loading' | 'mail' | 'hook';
 
 /** A loading interval of a scene (capture seconds). */
 export interface RawLoading {
@@ -326,10 +326,41 @@ export function loadingCuts(
   return out.sort((a, b) => a.from - b.from);
 }
 
+/**
+ * The spans of a scene's `hook:` steps (L5.8: run off camera) added to its cuts — with or without the loading cuts — as
+ * cuts of their own, or merged into a loading cut they overlap (a hook right before a wait); sorted, never overlapping.
+ */
+function withHookCuts(loading: RawLoading[], events: readonly TimelineEvent[], s0: number, s1: number): RawLoading[] {
+  const out = loading.map((l) => ({ ...l }));
+  for (const e of events) {
+    if (e.action !== 'hook' || e.step < 0) continue;
+    const from = Math.max(e.t_start, s0);
+    const to = Math.min(e.t_end, s1);
+    if (to - from < EPS) continue;
+    const over = out.find((l) => l.from < to - EPS && from < l.to - EPS);
+    if (over) {
+      over.from = round3(Math.min(over.from, from));
+      over.to = Math.max(over.to, Math.ceil(to * 1000 - EPS) / 1000);
+      continue;
+    }
+    out.push({ from: round3(from), to: Math.ceil(to * 1000 - EPS) / 1000, reason: 'hook', after_step: e.step, ...(e.page !== undefined ? { page: e.page } : {}) });
+  }
+  out.sort((a, b) => a.from - b.from);
+  // Merging may have made two cuts meet: one cut.
+  const merged: RawLoading[] = [];
+  for (const l of out) {
+    const last = merged[merged.length - 1];
+    if (last && l.from < last.to - EPS) last.to = Math.max(last.to, l.to);
+    else merged.push(l);
+  }
+  return merged;
+}
+
 /** A cut's note: what was cut, where, and what ends it (`sceneEnd`: a held load cut up to it ended with the scene). */
 function cutNote(scene: string, l: RawLoading, verb: 'cut' | 'kept', sceneEnd = Infinity): string {
   const what = l.reason === 'navigation' ? 'page loading' : l.reason === 'mail' ? 'waiting for the email' : 'loading';
   const span = `${l.from.toFixed(2)}–${l.to.toFixed(2)} s of the capture`;
+  if (l.reason === 'hook') return `"${scene}": ${(l.to - l.from).toFixed(2)} s of hook step ${scene}.${l.after_step} cut (${span}: it ran off camera)`;
   if (l.wait_step === undefined) {
     const why = l.to >= sceneEnd - 1e-3 ? 'the scene ended before the new page painted' : 'the capture held the previous page until the new one painted';
     return `"${scene}": ${(l.to - l.from).toFixed(2)} s of ${what} ${verb} (${span}: ${why})`;
@@ -469,8 +500,11 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
   const end = cap.duration;
   const lastGrid = Math.max(1, Math.round(end * fps));
   const scenes = timeline.scenes.filter((s) => s.kind === 'scene');
-  const captured = scenes.filter((s) => s.status !== 'skipped');
+  const played = scenes.filter((s) => s.status !== 'skipped');
   for (const s of scenes) if (s.status === 'skipped') notes.push(`scene "${s.id}" was skipped by the run: no clip`);
+  // L5.8: a scene played off camera (`offscreen: true`) prepares the next ones: no clip of it either.
+  for (const s of played) if (s.offscreen) notes.push(`scene "${s.id}" was played off camera (offscreen): no clip`);
+  const captured = played.filter((s) => !s.offscreen);
   const clips: RawClipPlan[] = [];
   const total = captured.length;
   let number = 0;
@@ -502,7 +536,13 @@ export function planRawExport(timeline: Timeline, opts: PlanRawOptions): RawPlan
           events,
         )
       : (timeline.loading ?? []);
-    const loading = cutsOn ? loadingCuts(events, { stillEnd, sceneStart: s0, sceneEnd: s1, pageChanges: pageChangesOf(timeline, scene), frameInterval, nextFrame, kept, held }) : [];
+    const loading = withHookCuts(
+      cutsOn ? loadingCuts(events, { stillEnd, sceneStart: s0, sceneEnd: s1, pageChanges: pageChangesOf(timeline, scene), frameInterval, nextFrame, kept, held }) : [],
+      events,
+      s0,
+      s1,
+    );
+    for (const l of loading) if (l.reason === 'hook') notes.push(cutNote(scene.id, l, 'cut'));
     const removed = loading.map((l) => ({ n0: frameAtOrAfter(l.from, fps), n1: frameAtOrAfter(l.to, fps) }));
     const spans = keptSpans(n0, n1, removed);
     const frames = spans.reduce((n, s) => n + (s.n1 - s.n0), 0);

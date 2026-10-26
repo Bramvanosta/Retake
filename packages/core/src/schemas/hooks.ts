@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { HookKind } from '../types.js';
 import { keyedUnion } from './keyed.js';
-import { keyString, nonEmpty, positiveSeconds } from './primitives.js';
+import { keyString, nonEmpty, positiveSeconds, slugString } from './primitives.js';
 
 export const HOOK_KINDS: readonly HookKind[] = ['http', 'sql', 'shell', 'js'];
 
@@ -99,3 +99,8 @@ export const HookStepSchema = keyedUnion(
   },
   { id: 'HookStep', description: 'Exactly one of http, sql, shell, js, plus name / confirm / destructive / optional / writes.' },
 );
+
+/** `hooks:` of a scenario or project.yaml (L5.8): name → one hook entry or a list of them, run by a `hook: <name>` step. */
+export const NamedHooksSchema = z
+  .record(slugString('hook name'), z.union([HookStepSchema, z.array(HookStepSchema).min(1)]))
+  .describe('Named hooks a `hook: <name>` step runs during the take: name → one hook entry (http, sql, shell, js) or a list of them, run in order.');

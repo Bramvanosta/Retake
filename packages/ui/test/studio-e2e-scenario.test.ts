@@ -240,6 +240,21 @@ describe('the scenario screen in Chromium', () => {
     await shot('10-scenario-quote');
   });
 
+  it('off camera (L5.8): a hook step\'s badge and words, the named hooks in the strip by name, an offscreen scene said so', async () => {
+    await page.goto(`${studio.url}#/p/${P}/s/off-camera`);
+    await page.getByRole('heading', { level: 1, name: 'off-camera' }).waitFor();
+    const hook = row('requests.2');
+    expect(await hook.getByTestId('action-badge').innerText()).toMatch(/^hook$/i);
+    expect(await hook.innerText()).toContain('off camera: cut from the video');
+    const named = await page.getByTestId('named-hooks').innerText();
+    expect(named).toContain('run during the take by a hook step, off camera');
+    expect(named).toMatch(/request[\s\S]*queue/);
+    expect(named).toContain('Needs a person');
+    expect(await page.locator('[data-scene="to-the-list"]').innerText()).toContain('off camera: played, not in the video');
+    expect(await page.getByTestId('blockers-capture').innerText()).toContain('The Studio cannot approve hooks yet');
+    await shot('10b-scenario-off-camera');
+  });
+
   it('pictures: each step shows the frame at its end (pixel colours); the picker swaps them; a failed run says why', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/blocks`);
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();

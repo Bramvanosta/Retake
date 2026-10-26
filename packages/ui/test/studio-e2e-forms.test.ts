@@ -256,7 +256,7 @@ describe('the palette', () => {
     await page.getByTestId('palette-open').click();
     const pal = page.getByTestId('palette');
     await pal.waitFor(POLL);
-    expect(await pal.locator('[data-palette]').count()).toBe(15);
+    expect(await pal.locator('[data-palette]').count()).toBe(16); // hook since L5.8
     await pal.locator('[data-palette="click"]').click();
     const pf = page.getByTestId('palette-form');
     await pf.waitFor(POLL);

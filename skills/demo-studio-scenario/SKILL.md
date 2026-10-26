@@ -19,6 +19,37 @@ Demo Studio server's instructions; when those instructions or a tool's descripti
    with their page keys (production and read-only ones are filmed read-only), the personas and the scenarios that
    already exist. No project yet: offer `project_create` with what the user tells you.
 3. Agree on the video in a sentence or two: the one flow it shows, who watches it, about how long (1 to 2 minutes).
+4. **The environment between takes.** Every take must start from the same data. When `project_get` says the project
+   films a local copy of the product with a database or a mailbox and has no sandbox, propose one to the user before
+   the first take: a `sandbox.yaml` (theirs to write — `studio sandbox init <project>` in their terminal scaffolds it;
+   [examples](reference/sandbox.md)) that starts the product, seeds it and resets it before every take. Then
+   `run_capture {project, scenario, sandbox: true}`. Never reset data yourself between takes (SQL, a mailbox API, a
+   script): that is the sandbox's job.
+
+## Off camera during a take
+
+Something that must happen at a precise moment of the take without being filmed — a payment marked through the
+product's API, a period moved into the past in SQL, a queue job pushed — is a **named hook** run by a `hook:` step,
+never a side script that polls the database:
+
+```yaml
+video: proposal-sent
+hooks:                     # the user's hooks, approved like setup hooks (project.yaml may hold shared ones)
+  send-proposal:
+    http: {method: POST, url: "{{console}}/api/quotes/latest/proposal"}
+scenes:
+  - id: list
+    page: console
+    open: /quotes
+    steps:
+      - hold: 1
+      - hook: send-proposal    # runs now; the video cuts this step
+      - wait_for: {text: Proposal sent}
+```
+
+A scene that only brings the product to the state the next one films takes `offscreen: true`: it is played, not shown.
+A hook step, its hook and a scene's steps are the filmed part (a change needs a new capture); `offscreen` is edit (a
+render on the same take). Hooks are the user's: propose one, never add one they did not ask for.
 
 ## The loop
 
@@ -45,8 +76,9 @@ Demo Studio server's instructions; when those instructions or a tool's descripti
 7. **Dry run.** `run_dry {project, scenario}` waits up to 20 s; follow it with
    `run_status {project, run_id, wait_s: 25}`. Read the step screenshots. A failure names the scene, the step and an
    error screenshot: `page_inspect {project, scenario, until}` at that step, fix, save, dry-run again.
-8. **Capture.** `run_capture {project, scenario}` returns a run id at once; follow it with
-   `run_status {project, run_id, wait_s: 25}` until it is finished. When its hooks need a human, the user sees an
+8. **Capture.** `run_capture {project, scenario}` (`sandbox: true` on a sandbox) returns a run id and a job id at
+   once; follow it with `job_status {job_id, wait_s: 600}` (one call) or `run_status {project, run_id, wait_s: 25}`
+   until it is finished. When its hooks need a human, the user sees an
    approval form and decides (see Rules).
 9. **Edit and look.** `plan_preview {project, scenario}` (cheap: segments, timings, warnings), then
    `render {project, scenario}` and `render_status {project, render_id, wait_s: 25}` until it is finished, then
@@ -62,6 +94,10 @@ Demo Studio server's instructions; when those instructions or a tool's descripti
    files: it returns a job, follow it with `job_status {job_id, wait_s: 25}` until it is finished.
 
 One job runs at a time. While a window waits for the user (a sign-in, a recording), submit nothing else.
+
+Results are compact by default — `run_status` points to the screenshots folder instead of listing each file, `review`
+gives the findings that are not notes, `page_inspect` the elements in view or in a dialog or menu (scroll to the others
+in a step, or pass `within`). Ask for `detail: "full"` only when what you need is not there.
 
 ## What good looks like
 

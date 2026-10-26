@@ -1299,6 +1299,38 @@ analyse its clicks (`on:` steps), then cut its waits only where no other page of
 project.yaml, applied after each render) and a workspace-wide `studio prune --all` would keep a busy week under control
 without thinking about it.
 
+### BL-101 — Scene options and named hooks from the Studio
+*S · L5.8 follow-up (R-FLD-31)*
+
+L5.8's `hook:` step moves, edits and is added from the Studio's palette like any step, but a scene's options
+(`offscreen`, `skip`, `speed`, `still`…) are edited in the YAML tab only, and the named hooks (`hooks:`) are listed
+read-only — they run on this Mac, like setup and teardown. A scene inspector (toggles for `offscreen` / `skip`, a
+speed) is the cheap half; editing hooks waits for the Studio to approve hooks (a person's approval in the page, as MCP
+elicitation does).
+
+### BL-102 — A hook step that waits for its effect
+*S · L5.8 follow-up*
+
+A `hook:` step returns when its entries have run; what they changed reaches the filmed page when the page fetches it
+(the fixture's list reloads every second). A `then: {wait_for: …}` on the step — or the cut ending at the first frame
+that changed after the hook — would keep the cut tight without a `wait_for` step after it, and a page that never
+reloads could be refreshed off camera (`reload: true`).
+
+### BL-103 — Page pre-flight per page
+*S · L5.8 follow-up (R-FLD-33)*
+
+The pre-flight GETs every page of the environment and stops the take when one does not answer, used by the scenario
+or not. A page the product serves only on demand (an admin started separately, a page behind a VPN for another
+scenario) would want `preflight: false` on the page, or the check limited to the pages the scenario opens (core
+planPersonas already knows them), with a warning for the others.
+
+### BL-104 — Compact results for the other large tools
+*S · L5.8 follow-up (R-FLD-34)*
+
+L5.8 measured and cut `page_inspect`, `run_status` and `review` (and every result's JSON is one line now).
+`plan_preview` (segments, trims, notes of a long video), `render_status` (timings, ffprobe), `comments_list` and
+`job_list` were not measured on a 4-minute video: measure them on one and give the largest a `detail` too.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

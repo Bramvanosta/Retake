@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { keyedUnion } from './keyed.js';
-import { HookStepSchema } from './hooks.js';
+import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { ClockSpecSchema, WriteMockSchema } from './project.js';
 import {
   CaptionSpecSchema,
@@ -101,6 +101,7 @@ export const SceneSchema = z
     tutorial: TutorialSwitchSchema.describe("Tutorial overlays of this scene's steps, over the scenario's (progress is scenario-only).").optional(),
     irreversible: z.boolean().describe('Every step is irreversible (dry-run stops the scene at its first step).').optional(),
     skip: z.boolean().describe('Skip this scene entirely.').optional(),
+    offscreen: z.boolean().describe('Played during the take but left out of the video (a scene that prepares what the next ones film).').optional(),
     note: z.string().optional(),
   })
   .meta({ id: 'Scene', title: 'scene', description: 'A captured scene: optional page + open, then steps.' });
@@ -216,6 +217,7 @@ export const ScenarioSchema = z
       .optional(),
     setup: z.array(HookStepSchema).describe('Hooks run before capture (rolled back automatically).').optional(),
     teardown: z.array(HookStepSchema).describe('Hooks run after capture, even after a failure.').optional(),
+    hooks: NamedHooksSchema.describe("Named hooks a `hook: <name>` step runs during the take (a name here wins over project.yaml's).").optional(),
     capture: CapturePartialSchema.optional(),
     frame: FrameSpecSchema.describe(
       'Frame of every scene (default: the project frame): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',

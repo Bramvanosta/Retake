@@ -976,3 +976,58 @@ describe('raw captures (L2.13)', () => {
 
 /** Narrowing helper kept for type-checking ClipSegment imports. */
 export type _Clip = ClipSegment;
+
+describe('off camera: hook steps and offscreen scenes (L5.8, R-FLD-31)', () => {
+  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const run = (offcamera: Array<{ t_start: number; t_end: number }>, more: { trimIdle?: boolean; loading?: Array<{ t_start: number; t_end: number }> } = {}) =>
+    planRunTiming({
+      clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
+      srcFps: 30,
+      outFps: 30,
+      idle: [],
+      trimIdle: more.trimIdle ?? true,
+      idleThresholdS: 1.2,
+      ...(more.loading ? { loading: more.loading } : {}),
+      offcamera,
+    });
+
+  it('a hook step\'s span is cut whole, idle trimming on or off, inside a mark window too; a load inside it is one cut', () => {
+    const r = run([{ t_start: 6, t_end: 8 }]);
+    expect(r.cuts).toEqual([expect.objectContaining({ a: 180, b: 240, reason: 'hook', clip: 0 })]);
+    expect(r.length).toBeCloseTo(240, 6);
+    expect(run([{ t_start: 6, t_end: 8 }], { trimIdle: false }).cuts).toEqual([expect.objectContaining({ a: 180, b: 240, reason: 'hook' })]);
+    expect(run([{ t_start: 4.5, t_end: 5 }]).cuts).toEqual([expect.objectContaining({ a: 135, b: 150, reason: 'hook' })]);
+    // A held load inside the span is not cut twice; the part after it is a load cut of its own.
+    expect(run([{ t_start: 6, t_end: 8 }], { loading: [{ t_start: 7, t_end: 9 }] }).cuts.map((c) => [c.reason, c.a, c.b])).toEqual([
+      ['hook', 180, 240],
+      ['loading', 240, 270],
+    ]);
+  });
+
+  it('planEdit cuts a hook step from its clip and leaves an offscreen scene out, saying so', () => {
+    const entries: EntrySpec[] = [
+      { id: 'prepare', t_start: 0, t_end: 4, open_end: 0.5, still: [0.5, 1.5], steps: [{ action: 'click', t_start: 1.5, t_end: 3 }] },
+      {
+        id: 'w',
+        t_start: 4,
+        t_end: 14,
+        open_end: 4.5,
+        still: [4.5, 6],
+        steps: [
+          { action: 'hold', t_start: 6, t_end: 7 },
+          { action: 'hook', t_start: 7, t_end: 9.5 },
+          { action: 'hold', t_start: 9.5, t_end: 14 },
+        ],
+      },
+    ];
+    const tl = synthTimeline({ entries, duration: 14 });
+    tl.scenes[0].offscreen = true;
+    const p = plan(ctx, tl);
+    expect(p.segments.map((s) => s.id)).not.toContain('prepare');
+    expect(clip(p, 'w').trims.map((t) => [t.src_from_s, t.src_to_s])).toEqual([[7, 9.5]]);
+    expect(p.notes).toContain('scene "prepare" was played off camera (offscreen: true): not in the edit');
+    expect(p.notes).toContain('"w": hook step w.1 7.00 s–9.50 s of the capture cut (it ran off camera)');
+    // Without the flag the scene is a clip again (an edit value: a render on the same take).
+    expect(plan(ctx, { ...tl, scenes: tl.scenes.map((s) => ({ ...s, offscreen: undefined })) }).segments.map((s) => s.id)).toContain('prepare');
+  });
+});

@@ -61,6 +61,8 @@ describe('normalizeStep shorthands', () => {
     [{ wait_for_email: { to: 'buyer@', subject: 'Confirm', as: 'welcome' } }, 'wait_for_email', { to: 'buyer@', subject: 'Confirm', as: 'welcome' }],
     [{ download: { click: 'Download quote PDF', as: 'quote' } }, 'download', { click: { text: 'Download quote PDF' }, as: 'quote' }],
     [{ capture_text: { target: { testid: 'total' }, as: 'total', pattern: '[\\d.,]+' } }, 'capture_text', { target: { testid: 'total' }, as: 'total', pattern: '[\\d.,]+' }],
+    [{ hook: 'mark-paid' }, 'hook', { name: 'mark-paid' }],
+    [{ hook: { name: 'mark-paid' } }, 'hook', { name: 'mark-paid' }],
   ];
 
   it.each(cases)('%j', (step, action, args) => {

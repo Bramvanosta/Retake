@@ -108,7 +108,8 @@ export function okResult(out: ToolOutput): CallResult {
   return {
     content: [
       { type: 'text', text: out.summary },
-      { type: 'text', text: JSON.stringify(data, null, 2) },
+      // One line (L5.8): the indentation of pretty-printed JSON was ≈ 40 % of a large result.
+      { type: 'text', text: JSON.stringify(data) },
     ],
     structuredContent: data,
   };

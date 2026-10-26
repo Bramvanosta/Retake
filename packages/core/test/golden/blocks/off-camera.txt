@@ -1,0 +1,25 @@
+# Supplier side, with what the product needs done off camera during the take (L5.8): a café's quote request arrives through the product's API at the right moment — a `hook:` step mid-take, cut from the video — and a scene that only brings the console to its quote list (`offscreen: true`) is played but not shown.
+# 
+# The console's Quote requests page reloads its list every second: the request the hook sends shows up there by itself, highlighted "New", as if a café had just sent it.
+video off-camera · title “For roasters” / “Answer a quote request in seconds” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Every request, answered while it is fresh."}
+  setup 1 L14-15 http reset: POST {{console}}/api/reset
+  teardown 1 L18-19 http reset: POST {{console}}/api/reset
+  step cafe-requests-a-quote 1 L25-37 http request: POST {{console}}/api/quotes
+  step cafe-requests-a-quote 2 L38-40 shell queue: sleep 1.5 · needs a person: a shell command (runs local code) · [reads only (writes: false)]
+# Played, not shown: the video opens on the quote list.
+scene to-the-list L44-50 · page console · open /products · offscreen
+    to-the-list.0 L49 [click] click · link “Quote requests”
+    to-the-list.1 L50 [wait] wait for · text “Send proposal”
+scene requests L52-61 · page console (inherited) · continues · caption “Quote requests” / “Requests from cafés land here, live.”
+    requests.0 L55 [hover] hover · “Awaiting proposal” · 600 ms
+    requests.1 L56 [hold] hold · 0.8 s
+    # Off camera: the café sends its request now (the edit cuts this step).
+    requests.2 L58 [hook] hook · hook “cafe-requests-a-quote” · off camera: cut from the video
+    requests.3 L59-60 [wait] wait for · text “New” · {mark: mark arrived}
+    requests.4 L61 [hold] hold · 1.4 s
+scene answer L63-69 · page console (inherited) · continues · caption “Answer” / “Send a proposal: the café is notified at once.”
+    answer.0 L66 [click] click · “Send proposal” in the row containing “New”
+    answer.1 L67 [click] click · “Send proposal” in the dialog
+    answer.2 L68 [wait] wait for · text “Proposal sent”
+    answer.3 L69 [hold] hold · 1.6 s
+11 steps

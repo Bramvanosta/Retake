@@ -4,7 +4,7 @@ import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
 import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, SANDBOX_PROVIDERS } from '../types.js';
 import { requestPatternError } from '../writes.js';
-import { HookStepSchema } from './hooks.js';
+import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
 import { FrameSpecSchema, fileVersion, nonEmpty } from './primitives.js';
 import {
@@ -176,6 +176,7 @@ const projectShape = {
   defaults: RunDefaultsSchema.describe("Step defaults of every scenario (a scenario's `defaults` win), e.g. {timeout_s: 30}.").optional(),
   browser: BrowserConfigSchema.optional(),
   reset: z.array(HookStepSchema).describe('Hooks run by env_reset.').optional(),
+  hooks: NamedHooksSchema.describe('Named hooks of every scenario: what a `hook: <name>` step runs when its scenario has no hook of that name.').optional(),
   vars: z.record(z.string(), z.string()).describe('Variables shared by every scenario ({{vars.x}}).').optional(),
   mailbox: MailboxSchema.describe('Test mailbox read by wait_for_email (Mailpit or a generic HTTP JSON API).').optional(),
   clock: ClockSpecSchema.optional(),

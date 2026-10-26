@@ -100,6 +100,11 @@ export interface RunTimingInput {
    * BUSY_KEEP_AFTER_S before the content appears.
    */
   busy?: ReadonlyArray<{ t_start: number; t_end: number }>;
+  /**
+   * Spans the take played off camera (`hookSpans`: the `hook:` steps, L5.8): cut whole, always — idle trimming on or
+   * off, inside protected spans too.
+   */
+  offcamera?: ReadonlyArray<{ t_start: number; t_end: number }>;
 }
 
 /** Why a span is played at 1× whatever the speeds. */
@@ -135,9 +140,10 @@ export interface RunCut extends Interval {
   clip: number;
   /**
    * `idle`: a shortened idle gap; `loading`: a page load the capture held, cut whole; `frozen`: a freeze of the capture
-   * (its frozen frames but the first); `busy`: a wait after a click (a skeleton, a spinner) shortened.
+   * (its frozen frames but the first); `busy`: a wait after a click (a skeleton, a spinner) shortened; `hook`: a `hook:`
+   * step, run off camera (L5.8), cut whole.
    */
-  reason: 'idle' | 'loading' | 'frozen' | 'busy';
+  reason: 'idle' | 'loading' | 'frozen' | 'busy' | 'hook';
   /** The idle piece (outside protected spans) the cut was taken from (a held load: the load itself). */
   idle: Interval;
   /** First output frame (run) after the cut. */
@@ -236,18 +242,31 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
   }
 
   const cuts: Array<Interval & { clip: number; idle: Interval; reason: RunCut['reason'] }> = [];
+  // Hook steps (L5.8): what the take did off camera is cut whole, whatever the trimming.
+  const offcamera: Interval[] = [];
+  for (const h of mergeIntervals((input.offcamera ?? []).map((o) => ({ a: o.t_start * srcFps, b: o.t_end * srcFps })))) {
+    clips.forEach((c, ci) => {
+      const x = intersect(h, { a: c.A, b: c.B });
+      if (!x || x.b - x.a < EPS) return;
+      cuts.push({ ...x, clip: ci, idle: x, reason: 'hook' });
+      offcamera.push(x);
+    });
+  }
   if (input.trimIdle) {
     // Page loads the capture held (R-ISS-08): cut whole — inside protected spans too, a frozen frame is never what a mark
     // or a hold shows —, up to the first source frame showing the painted page (no frozen frame after the cut).
-    const held: Interval[] = [];
+    const held: Interval[] = [...offcamera];
     const loads = (input.loading ?? []).filter((l) => l.t_end - l.t_start >= LOADING_CUT_MIN_S - EPS);
     // Several pages' loads (a multi-page run) may overlap: one cut each.
     for (const h of mergeIntervals(loads.map((l) => ({ a: l.t_start * srcFps, b: Math.ceil(l.t_end * srcFps - EPS) })))) {
       clips.forEach((c, ci) => {
         const x = intersect(h, { a: c.A, b: c.B });
         if (!x || x.b - x.a < EPS) return;
-        cuts.push({ ...x, clip: ci, idle: x, reason: 'loading' });
-        held.push(x);
+        for (const piece of subtractIntervals(x, offcamera)) {
+          if (piece.b - piece.a < EPS) continue;
+          cuts.push({ ...piece, clip: ci, idle: piece, reason: 'loading' });
+          held.push(piece);
+        }
       });
     }
     // Freezes of the capture (L5.7): the frozen frames but the first, cut whole like a held load (never inside one).
@@ -292,8 +311,8 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
         }
       });
     }
-    cuts.sort((x, y) => x.a - y.a);
   }
+  cuts.sort((x, y) => x.a - y.a);
 
   // Elementary pieces between every boundary.
   const bounds = new Set<number>([P0, P1]);
@@ -432,6 +451,11 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
 
   const runCuts: RunCut[] = cuts.map((c) => ({ ...c, at: firstFrameAtOrAfter(p, c.b) }));
   return { srcFps, outFps, pieces: map, length, p, src, clipRanges, cuts: runCuts, protectedSpans: prot };
+}
+
+/** The spans of `hook:` steps (L5.8): the action ran off camera (its `hold`, after it, stays). Pure. */
+export function hookSpans(events: readonly TimelineEvent[]): Array<{ t_start: number; t_end: number }> {
+  return events.filter((e) => e.action === 'hook' && e.step >= 0 && e.t_end > e.t_start).map((e) => ({ t_start: e.t_start, t_end: e.t_end }));
 }
 
 /**

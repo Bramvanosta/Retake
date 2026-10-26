@@ -1,11 +1,18 @@
 import type { AgentChannel, HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
 
 /**
- * Which list of hooks is being run. Only `setup` hooks journal a rollback action. `seed` (L1.8): the steps that build a
- * sandbox's demo data — they stop at the first failure like setup, but nothing is rolled back (the next reset rebuilds
- * the data), no destructive hook asks for a confirmation (a sandbox is local and disposable) and js hooks cannot run.
+ * Which list of hooks is being run. Only `setup` and `step` hooks journal a rollback action. `seed` (L1.8): the steps
+ * that build a sandbox's demo data — they stop at the first failure like setup, but nothing is rolled back (the next
+ * reset rebuilds the data), no destructive hook asks for a confirmation (a sandbox is local and disposable) and js hooks
+ * cannot run. `step` (L5.8): a named hook a `hook:` step runs during the take — it stops at its first failure (the step
+ * fails), and the rollbacks of what it did run with the setup's, after the teardown.
  */
-export type HookPhase = 'setup' | 'teardown' | 'reset' | 'seed';
+export type HookPhase = 'setup' | 'teardown' | 'reset' | 'seed' | 'step';
+
+/** The phases whose hooks journal their rollback (undone after the teardown, or when the setup fails). */
+export function journalsRollback(phase: HookPhase): boolean {
+  return phase === 'setup' || phase === 'step';
+}
 
 export type HookLogLevel = 'debug' | 'info' | 'warn' | 'error';
 

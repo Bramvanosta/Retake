@@ -166,7 +166,7 @@ async function follow(name: string, args: Json, done: (r: Result) => boolean, ro
 const jobDone = (x: Result) => ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(data<{ job?: { state: string }; state?: string }>(x).job?.state ?? data<{ state?: string }>(x).state ?? '');
 /** A job tool's result, followed through job_status when it outlives its wait. */
 async function job(r: Result): Promise<Result> {
-  return jobDone(r) ? r : follow('job_status', { job_id: data<{ job: { id: string } }>(r).job.id }, jobDone);
+  return jobDone(r) ? r : follow('job_status', { job_id: data<{ job: { id: string } }>(r).job.id, detail: 'full' }, jobDone);
 }
 const runDone = (x: Result) => data<{ finished?: boolean }>(x).finished === true;
 
@@ -183,7 +183,8 @@ async function health(): Promise<number> {
 
 /** page_inspect, followed through job_status when it outlives its wait; the marked screenshot kept. */
 async function inspect(args: Json, keepAs: string): Promise<Inspection> {
-  const r = await job(await call('page_inspect', { project: PROJECT, wait_s: 25, ...args }));
+  // `detail: "full"` (L5.8): the acceptance reads each element's verified target and its hint's step object.
+  const r = await job(await call('page_inspect', { project: PROJECT, wait_s: 25, detail: 'full', ...args }));
   const d = r.structuredContent as unknown as Inspection;
   expect(d.status, r.content[0].text).toBe('ok');
   if (KEEP && d.files.marked) {
@@ -674,8 +675,8 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README â†’ project â†
     expect(view.status, rs.content[0].text).toBe('succeeded');
     expect(view.record).toMatchObject({ template: THEME, run_id: ids.run1 });
     expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
-    const rv = await call('review', { project: PROJECT, render_id: ids.render1, wait_s: 25 });
-    const done = data<{ finished: boolean }>(rv).finished ? rv : await follow('review_get', { project: PROJECT, render_id: ids.render1 }, runDone);
+    const rv = await call('review', { project: PROJECT, render_id: ids.render1, wait_s: 25, detail: 'full' });
+    const done = data<{ finished: boolean }>(rv).finished ? rv : await follow('review_get', { project: PROJECT, render_id: ids.render1, detail: 'full' }, runDone);
     const v = data<{ clean: boolean; counts: Record<string, number>; files: { sheets: string[]; keyframes: Record<string, string> } }>(done);
     expect(v.clean, done.content[0].text).toBe(true);
     expect(images(done).length).toBeGreaterThanOrEqual(1);
@@ -773,7 +774,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README â†’ project â†
     expect(view.record).toMatchObject({ template: THEME, run_id: ids.run2 });
     expect(view.untrusted.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
     await call('review', { project: PROJECT, render_id: ids.render2, wait_s: 0 });
-    const done = await follow('review_get', { project: PROJECT, render_id: ids.render2 }, runDone);
+    const done = await follow('review_get', { project: PROJECT, render_id: ids.render2, detail: 'full' }, runDone);
     const v = data<{ clean: boolean; diff?: { previous: string }; files: { sheets: string[]; keyframes: Record<string, string>; diff_sheet?: string } }>(done);
     expect(v.clean, done.content[0].text).toBe(true);
     expect(v.diff?.previous).toBe(ids.render1);

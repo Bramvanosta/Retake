@@ -72,9 +72,10 @@ function trustedPart(v: unknown): unknown {
 
 /** page_inspect, followed through job_status when it outlives its wait; summaries and trusted parts kept for the checks. */
 async function inspect(args: Record<string, unknown>, keepAs: string): Promise<Inspection> {
-  let r = await call('page_inspect', { project: PROJECT, wait_s: 25, ...args });
+  // `detail: "full"` (L5.8): this loop reads each element's verified target and box, not only its step hint.
+  let r = await call('page_inspect', { project: PROJECT, wait_s: 25, detail: 'full', ...args });
   const job = (r.structuredContent as { job: { id: string } }).job.id;
-  for (let i = 0; i < 10 && !(r.structuredContent as { status?: string }).status; i++) r = await call('job_status', { job_id: job, wait_s: 25 });
+  for (let i = 0; i < 10 && !(r.structuredContent as { status?: string }).status; i++) r = await call('job_status', { job_id: job, wait_s: 25, detail: 'full' });
   const d = r.structuredContent as unknown as Inspection;
   expect(d.status, r.content[0].text).toBe('ok');
   summaries.push(r.content.filter((b) => b.type === 'text' && !b.text!.startsWith('{')).map((b) => b.text).join('\n'));

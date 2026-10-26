@@ -24,6 +24,7 @@ export * from './display.js';
 export * from './writes.js';
 export * from './clock.js';
 export * from './hook-writes.js';
+export * from './named-hooks.js';
 export * from './agent-trust.js';
 export * from './inspect.js';
 export * from './script-draft.js';

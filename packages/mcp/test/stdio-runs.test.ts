@@ -116,12 +116,16 @@ describe.skipIf(!AVAILABLE)('studio mcp: dry runs and captures as jobs', () => {
     for (let i = 0; i < 3 && !(r.structuredContent?.finished as boolean); i++) {
       r = await call(client, 'run_status', { project: 'northfield-fixture', run_id: runId, wait_s: 25 }, (p) => progress.push(p));
     }
-    const st = r.structuredContent as { status: string; finished: boolean; steps_done: number; screenshots: Array<{ path: string }>; job: { id: string; state: string } };
+    const st = r.structuredContent as { status: string; finished: boolean; steps_done: number; files: { screenshots: { dir: string; count: number } }; job: { id: string; state: string } };
     expect(st.status, r.content[0].text).toBe('succeeded');
     expect(st.job.state).toBe('succeeded');
     expect(st.steps_done).toBe(2);
-    expect(st.screenshots).toHaveLength(2);
-    for (const s of st.screenshots) expect(existsSync(s.path), s.path).toBe(true);
+    // Compact (L5.8): the folder and the count; `detail: "full"` lists each screenshot.
+    expect(st.files.screenshots.count).toBe(2);
+    const full = (await call(client, 'run_status', { project: 'northfield-fixture', run_id: runId, detail: 'full' })).structuredContent as { screenshots: Array<{ path: string }> };
+    expect(full.screenshots).toHaveLength(2);
+    for (const s of full.screenshots) expect(existsSync(s.path), s.path).toBe(true);
+    for (const s of full.screenshots) expect(s.path.startsWith(st.files.screenshots.dir)).toBe(true);
     expect(r.content[0].text).toContain('2 screenshots in');
     // Progress notifications: increasing, out of the run's steps.
     expect(progress.length).toBeGreaterThan(0);

@@ -57,6 +57,7 @@ export const STEP_CATEGORIES = [
   'script',
   'cursor',
   'download',
+  'hook',
 ] as const;
 export type StepCategory = (typeof STEP_CATEGORIES)[number];
 
@@ -149,6 +150,8 @@ export interface SceneBlock {
   tutorial?: string;
   irreversible?: true;
   skip?: true;
+  /** Played during the take, left out of the video (L5.8). */
+  offscreen?: true;
   note?: string;
   /** Hash of the scene's page, open, pages and persona (core step-match). */
   context: string;
@@ -213,8 +216,11 @@ export interface HookFlag {
 }
 
 export interface HookBlock {
-  phase: 'setup' | 'teardown';
+  /** `step`: an entry of the named hooks (`hooks:`) a `hook: <name>` step runs during the take (L5.8). */
+  phase: 'setup' | 'teardown' | 'step';
   index: number;
+  /** A named hook's name (phase `step`). */
+  hook?: string;
   /** Absent: not a hook the file format knows. */
   kind?: HookKind;
   name?: string;
@@ -267,7 +273,7 @@ export interface ScenarioBlocks {
   /** false: the YAML does not parse — no blocks; `issues` say why and the text still shows. */
   parsed: boolean;
   video: VideoBlock;
-  hooks: { setup: HookBlock[]; teardown: HookBlock[] };
+  hooks: { setup: HookBlock[]; teardown: HookBlock[]; named: HookBlock[] };
   entries: EntryBlock[];
   /** Steps of the capture scenes (skipped ones included). */
   step_count: number;
@@ -333,6 +339,8 @@ export function actionCategory(action: ActionName): StepCategory {
       return 'cursor';
     case 'download':
       return 'download';
+    case 'hook':
+      return 'hook';
     default: {
       const unknown: never = action;
       return unknown;
@@ -544,6 +552,8 @@ function describeStep(action: ActionName, args: unknown): { target?: string; sum
       return { target: a.click !== undefined ? plainTarget(pickTarget(isObj(a.click) ? a.click : {})) : undefined, summary: str(a.as) && `as ${a.as}` };
     case 'capture_text':
       return { target: a.target !== undefined ? plainTarget(a.target) : undefined, summary: join(str(a.as) && `as ${a.as}`, str(a.pattern) && `pattern ${a.pattern}`) };
+    case 'hook':
+      return { target: str(a.name) !== undefined ? `hook ${q(a.name as string)}` : undefined, summary: 'off camera: cut from the video' };
     default: {
       const unknown: never = action;
       return unknown;
@@ -746,7 +756,19 @@ function videoBlock(sc: Record<string, unknown>, src: Src): VideoBlock {
   return v;
 }
 
-function hookBlocks(phase: 'setup' | 'teardown', list: unknown, seq: At, src: Src, o: ScenarioBlocksOptions): HookBlock[] {
+/** The named hooks (`hooks:`, L5.8): each entry of each name, in the file's order, as a block of phase `step`. */
+function namedHookBlocks(map: unknown, at: At, src: Src, o: ScenarioBlocksOptions): HookBlock[] {
+  if (!isObj(map)) return [];
+  return Object.entries(map).flatMap(([name, v]) => {
+    const one = childAt(at, name);
+    // One entry (not a list): its block has the range of the name's value.
+    const range = rangeOf(one, src);
+    const blocks = Array.isArray(v) ? hookBlocks('step', v, one, src, o) : hookBlocks('step', [v], { aliased: one.aliased }, src, o).map((b) => ({ ...b, ...(range ? { range } : {}) }));
+    return blocks.map((b) => ({ ...b, hook: name, name: b.name ?? name }));
+  });
+}
+
+function hookBlocks(phase: 'setup' | 'teardown' | 'step', list: unknown, seq: At, src: Src, o: ScenarioBlocksOptions): HookBlock[] {
   if (!Array.isArray(list)) return [];
   return list.map((hook, index) => {
     const at = childAt(seq, index);
@@ -934,6 +956,7 @@ function entryBlock(entry: unknown, index: number, scenes: At, src: Src, page: s
     ...(tutorial !== undefined ? { tutorial } : {}),
     ...(irreversible ? { irreversible: true as const } : {}),
     ...(entry.skip === true ? { skip: true as const } : {}),
+    ...(entry.offscreen === true ? { offscreen: true as const } : {}),
     ...(str(entry.note) !== undefined ? { note: entry.note as string } : {}),
     context: '',
     steps,
@@ -955,6 +978,14 @@ function attachIssues(b: ScenarioBlocks, issues: readonly ValidationIssue[]): vo
       b.hooks[p[0]][p[1]].issues.push(issue);
       continue;
     }
+    if (p[0] === 'hooks' && typeof p[1] === 'string') {
+      const named = b.hooks.named.filter((h) => h.hook === p[1]);
+      const h = named[typeof p[2] === 'number' ? p[2] : 0];
+      if (h) {
+        h.issues.push(issue);
+        continue;
+      }
+    }
     b.issues.push(issue);
   }
 }
@@ -964,7 +995,7 @@ function attachIssues(b: ScenarioBlocks, issues: readonly ValidationIssue[]): vo
  * issue saying so.
  */
 export function scenarioBlocks(text: string, o: ScenarioBlocksOptions = {}): ScenarioBlocks {
-  const empty = (issues: ValidationIssue[]): ScenarioBlocks => ({ parsed: false, video: emptyVideo(), hooks: { setup: [], teardown: [] }, entries: [], step_count: 0, issues });
+  const empty = (issues: ValidationIssue[]): ScenarioBlocks => ({ parsed: false, video: emptyVideo(), hooks: { setup: [], teardown: [], named: [] }, entries: [], step_count: 0, issues });
   try {
     const parsed = parseYaml(text);
     const issues = o.issues ? [...o.issues] : parseScenario(text).issues;
@@ -995,7 +1026,11 @@ export function scenarioBlocks(text: string, o: ScenarioBlocksOptions = {}): Sce
     const out: ScenarioBlocks = {
       parsed: true,
       video: videoBlock(sc, src),
-      hooks: { setup: hookBlocks('setup', sc.setup, childAt(root, 'setup'), src, o), teardown: hookBlocks('teardown', sc.teardown, childAt(root, 'teardown'), src, o) },
+      hooks: {
+        setup: hookBlocks('setup', sc.setup, childAt(root, 'setup'), src, o),
+        teardown: hookBlocks('teardown', sc.teardown, childAt(root, 'teardown'), src, o),
+        named: namedHookBlocks(sc.hooks, childAt(root, 'hooks'), src, o),
+      },
       entries,
       step_count: stepCount,
       issues: [],

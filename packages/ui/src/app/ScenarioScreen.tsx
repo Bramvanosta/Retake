@@ -92,7 +92,7 @@ function IssueList({ issues }: { issues: ValidationIssue[] }) {
 /** Every issue of the file, wherever its block is. */
 function allIssues(v: View): ValidationIssue[] {
   const out = [...v.blocks.issues];
-  for (const h of [...v.blocks.hooks.setup, ...v.blocks.hooks.teardown]) out.push(...h.issues);
+  for (const h of [...v.blocks.hooks.setup, ...v.blocks.hooks.teardown, ...v.blocks.hooks.named]) out.push(...h.issues);
   for (const e of v.blocks.entries) {
     out.push(...e.issues);
     if (e.type === 'scene') for (const s of e.steps) out.push(...s.issues);
@@ -492,7 +492,7 @@ function HookItem({ h }: { h: HookBlock }) {
 }
 
 function HooksStrip({ v }: { v: View }) {
-  const { setup, teardown } = v.blocks.hooks;
+  const { setup, teardown, named } = v.blocks.hooks;
   const outcome = v.source?.hooks;
   return (
     <section className="card hooks" aria-labelledby="hooks-h" data-testid="hooks">
@@ -516,6 +516,14 @@ function HooksStrip({ v }: { v: View }) {
           {teardown.length === 0 ? <p className="muted small">None.</p> : <ol className="hook-list">{teardown.map((h) => <HookItem key={h.index} h={h} />)}</ol>}
         </div>
       </div>
+      {named.length > 0 && (
+        <div className="hooks-phase hooks-named" data-testid="named-hooks">
+          <p className="label">
+            Named hooks <span className="muted">· run during the take by a hook step, off camera{outcome?.steps ? ` · in this run: ${outcome.steps}` : ''}</span>
+          </p>
+          <ol className="hook-list">{named.map((h) => <HookItem key={`${h.hook}-${h.index}`} h={h} />)}</ol>
+        </div>
+      )}
     </section>
   );
 }
@@ -792,6 +800,7 @@ function Entry({ e, v, sceneNo, selected, optIds, onPick, onKey, listRef, firstS
       <h2 id={headId} className="scene-title">
         <span className="muted">Scene {sceneNo}</span> <Txt className="mono" text={e.id} />
         {e.skip && <Badge tone="warning">skipped</Badge>}
+        {e.offscreen && <Badge tone="neutral">off camera: played, not in the video</Badge>}
         {e.irreversible && <Badge tone="danger">irreversible</Badge>}
       </h2>
       {e.caption && (
