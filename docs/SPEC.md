@@ -224,8 +224,9 @@ Built in L3.1 (`studio mcp`, stdio; L4.1: the same tools over Streamable HTTP to
 
 Built in L3.2 (renders, reviews, exports and previews are jobs of the same worker; a theme is a name, never a folder):
 - `plan_preview({project, scenario, run_id?, template?, overrides?})` → the plan without rendering (segments, timings,
-  warnings; `scenario_changed` when the scenario file differs from the run's snapshot — a render shows the run as
-  captured, a scenario change needs `run_capture` first, L3.8); `render({project, scenario, run_id?, template?,
+  warnings; L5.5: the edit comes from today's scenario file while its filmed part matches the run's snapshot,
+  `scenario_changed` and `filmed_changes` when the filmed part differs — a render then shows the run as captured and
+  `run_capture` films the change; L3.8 compared the whole file); `render({project, scenario, run_id?, template?,
   overrides?, wait_s?})` → render id at once;
   `render_status({project, render_id | "latest", scenario?, wait_s?})` (job first, then renders/<id>.json)
 - `review({project, render_id, fps: 1|2, previous?, images?, wait_s?})` and `review_get({project, render_id, images?,

@@ -606,7 +606,8 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
       expect(await changed(text.replace('video: Quote', 'video: "Quote"'))).toBe(false); // quoting
       expect(await changed(text.replace(/^ {2}/gm, '    '))).toBe(false); // indentation
       expect(await changed(text.replace('    page: shop\n    open: /\n', '    open: /\n    page: shop\n'))).toBe(false); // key order
-      expect(await changed(text.replace('video: Quote', 'video: Quote tour'))).toBe(true); // a value
+      expect(await changed(text.replace('video: Quote', 'video: Quote tour'))).toBe(false); // an edit value (L5.5)
+      expect(await changed(text.replace('open: /', 'open: /quote'))).toBe(true); // a filmed value
       expect(await changed(text.replace('      - hold: 1\n', '      - hold: 1\n      - hold: 1\n'))).toBe(true); // a step
       expect(await changed(`${text}  - [unclosed\n`)).toBe(true); // does not parse: the text differs
       await writeFiles(dir, { 'runs/20260101-120000-quote/scenario.yaml': 'video: [unclosed\n' });
@@ -650,9 +651,12 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
     }
   });
 
-  it('the message names the scenario, the run and what films the change', () => {
-    expect(scenarioChangedMessage('quote', '20260101-120000-quote', '`studio run demo quote`')).toBe(
-      'scenario quote changed since run 20260101-120000-quote was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `studio run demo quote`, then render',
+  it('the message names the scenario, the run, the filmed parts that changed and what films them (L5.5)', () => {
+    expect(scenarioChangedMessage('quote', '20260101-120000-quote', '`studio run demo quote`', ['scene a: step a.2 changed'])).toBe(
+      'the filmed part of scenario quote changed since run 20260101-120000-quote was captured (scene a: step a.2 changed): a render shows that take as it was captured, its edit included — a change to what the browser does (steps, pages, hooks, capture settings) shows only in a new capture: `studio run demo quote`, then render; a change to the edit alone (captions, cards, overlays, durations, title, intro/outro, template) renders on the existing take',
     );
+    expect(scenarioChangedMessage('quote', 'r', 'x')).toContain('(the file no longer reads as YAML)');
+    const many = Array.from({ length: 10 }, (_v, i) => `scene s${i} added`);
+    expect(scenarioChangedMessage('quote', 'r', 'x', many)).toContain('scene s7 added; and 2 more)');
   });
 });

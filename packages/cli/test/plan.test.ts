@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { scenarioChangedMessage } from '@demo-studio/core';
 import type { EditPlan } from '@demo-studio/editor';
 import { EXIT, main, memoryIo } from '../src/index.js';
 
@@ -121,11 +122,11 @@ describe('studio plan', () => {
     }
   });
 
-  it('warns when the scenario file changed since the run was captured: the plan is the run\'s (L3.8; stderr, --json too)', async () => {
+  it('warns when the filmed part of the scenario changed since the run was captured: the plan is the run\'s (L3.8, L5.5; stderr, --json too)', async () => {
     const run = '20261011-182706-quote';
     const snapshot = 'video: quote\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hold: 1\n';
     const file = join(ws, 'projects', 'demo', 'scenarios', 'quote.yaml');
-    const warning = `scenario quote changed since run ${run} was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: \`studio run demo quote\`, then render`;
+    const warning = scenarioChangedMessage('quote', run, '`studio run demo quote`', ['scene a: step a.0 changed']);
     await writeFile(join(runs, run, 'scenario.yaml'), snapshot);
     await mkdir(join(ws, 'projects', 'demo', 'scenarios'), { recursive: true });
     try {
@@ -133,6 +134,11 @@ describe('studio plan', () => {
       const same = await studio('plan', 'demo', run);
       expect(same.code, same.err).toBe(EXIT.ok);
       expect(same.err).not.toContain('changed since');
+      // L5.5: an edit-only change (a caption) is no filmed change.
+      await writeFile(file, snapshot.replace('    open: /\n', '    open: /\n    caption: Hello\n'));
+      const edited = await studio('plan', 'demo', run);
+      expect(edited.code, edited.err).toBe(EXIT.ok);
+      expect(edited.err).not.toContain('changed since');
       await writeFile(file, snapshot.replace('hold: 1', 'hold: 3'));
       const changed = await studio('plan', 'demo', run);
       expect(changed.code, changed.err).toBe(EXIT.ok);

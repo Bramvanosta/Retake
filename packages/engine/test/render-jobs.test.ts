@@ -199,19 +199,28 @@ describe.skipIf(!canRender)('render jobs', () => {
     for (const j of jobs) expect(j.input).not.toHaveProperty('approvals');
   });
 
-  it('plan_preview and submit say when the scenario file changed since the run was captured (L3.8; .yml too); unknown without both files', async () => {
+  it('plan_preview and submit say whether the filmed part changed since the run (L3.8, L5.5; .yml too); unknown without both files', async () => {
     const dir = join(root, 'projects', 'demo');
-    const snapshot = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
+    const snapshot = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n  - id: b\n    steps:\n      - hold: 1\n';
     expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).not.toHaveProperty('scenario_changed'); // no snapshot, no file
     await writeFile(join(dir, 'runs', RUN, 'scenario.yaml'), snapshot);
     expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).not.toHaveProperty('scenario_changed'); // no file
     await mkdir(join(dir, 'scenarios'), { recursive: true });
     await writeFile(join(dir, 'scenarios', `${SCENARIO}.yml`), snapshot);
-    expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ scenario_changed: false });
+    expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ edit: 'scenario', scenario_changed: false });
+    // L5.5: an edit-only change re-plans on this run; the submitted job carries the file's sha256.
+    await writeFile(join(dir, 'scenarios', `${SCENARIO}.yml`), snapshot.replace('    open: /\n', '    open: /\n    caption: Today\n'));
+    expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ edit: 'scenario', scenario_changed: false, edit_changes: ['caption of a'] });
+    const edited = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
+    expect(edited).toMatchObject({ edit: 'scenario', scenario_changed: false });
+    expect(edited.job.input).toMatchObject({ edit_sha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    await engine.jobs.cancel(edited.job.id);
+    await work();
     await writeFile(join(dir, 'scenarios', `${SCENARIO}.yml`), snapshot.replace('hold: 1', 'hold: 3'));
-    expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ run_id: RUN, scenario_changed: true });
+    expect(await engine.renders.plan({ project: 'demo', scenario: SCENARIO })).toMatchObject({ run_id: RUN, edit: 'run', scenario_changed: true, filmed_changes: ['scene a: step a.0 changed'] });
     const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO, overrides: { scale: 0.5 } });
     expect(sub).toMatchObject({ run_id: RUN, scenario_changed: true });
+    expect(sub.job.input).not.toHaveProperty('edit_sha256');
     await engine.jobs.cancel(sub.job.id);
     await work();
     expect((await rendersFiles()).filter((f) => f.endsWith('.lock'))).toEqual([]);

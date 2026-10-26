@@ -125,7 +125,7 @@ export {
   renderCommandLine,
   submitRenderJob,
 } from './jobs/render-job.js';
-export type { RecordedBrowser, RenderRequest } from './jobs/render-job.js';
+export type { RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
 export { planPreview, renderForWork, renderStatus } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';

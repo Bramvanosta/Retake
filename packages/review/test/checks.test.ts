@@ -4,6 +4,7 @@
  * view, no transition over a click, one zoom), caption widths with the theme's real font (measured against a
  * rendered frame), sampling helpers and the plan diff.
  */
+import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +19,7 @@ import {
   DEFAULT_RULES,
   buildOutputTimeline,
   captionRegion,
+  checkArtefactOrder,
   checkCamera,
   checkCaptions,
   checkCursor,
@@ -37,6 +39,7 @@ import {
   outputFrameOf,
   planFontFiles,
   reviewEnvironment,
+  reviewRules,
   safeName,
   sampleFrames,
   segmentDurations,
@@ -45,7 +48,7 @@ import {
   transitionSpans,
 } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
-import { realTimeline } from '../../editor/test/helpers.js';
+import { FIXTURES, realTimeline, synthTimeline } from '../../editor/test/helpers.js';
 import { REPO } from './helpers.js';
 
 let registry: ComponentRegistry;
@@ -473,6 +476,54 @@ describe('helpers', () => {
     expect(d.segments.filter((x) => x.status === 'changed').map((x) => [x.id, x.changes])).toEqual([
       ['discover', ['caption: studio/caption-below → studio/caption-overlay']],
       ['outro', ['component params of studio/outro-stack']],
+    ]);
+  });
+});
+
+describe('L5.5 review rules: target length, cards too short for their text, a mail or document before its step', () => {
+  it('the scenario\'s target_length replaces the reference 60–120 s unless the caller set the rule (R-FLD-05)', () => {
+    expect(reviewRules({})).toEqual({ ...DEFAULT_RULES });
+    expect(reviewRules({ target_length: { min_s: 30, max_s: 45 } })).toMatchObject({ video_min_s: 30, video_max_s: 45, video_target: 'scenario' });
+    expect(reviewRules({ target_length: { min_s: 30, max_s: 45 } }, { video_max_s: 200 })).toMatchObject({ video_min_s: 60, video_max_s: 200 });
+    const ctx = ctxOf('quote');
+    const length = (rules: CheckContext['rules']) => checkDurations({ ...ctx, rules }, segmentDurations(ctx)).filter((f) => f.code === 'video-length');
+    expect(length(reviewRules({ target_length: { min_s: 40, max_s: 70 } }))).toEqual([]);
+    const far = length(reviewRules({ target_length: { min_s: 20, max_s: 30 } }));
+    expect(far).toEqual([expect.objectContaining({ severity: 'warning', message: expect.stringMatching(/longer than the 20–30 s target of the scenario \(target_length\)$/) })]);
+    expect(length(reviewRules({}))[0].message).toContain('target of the reference look');
+  });
+
+  it('warns when a card is shorter than its text needs (R-FLD-03)', () => {
+    const words = Array.from({ length: 27 }, (_v, i) => `word${i}`).join(' ');
+    const entries = (duration?: number) => [
+      { card: { id: 'why', slots: { title: 'Quotes that follow', text: words }, ...(duration ? { duration } : {}) } },
+      { id: 'x', t_start: 0, t_end: 5, open_end: 0.5, still: [0.6, 2] as [number, number] },
+    ];
+    const short = ctxPlanned(synthTimeline({ entries: entries(2), duration: 5 }));
+    const found = checkDurations(short, segmentDurations(short)).filter((f) => f.code === 'card-too-short');
+    expect(found).toEqual([
+      expect.objectContaining({ severity: 'warning', message: 'card "why" is on screen 2.0 s: its 30 words need about 8.7 s (250 words a minute + 1.5 s) — remove its `duration` (the default follows the text) or make it longer, or shorten the text' }),
+    ]);
+    const auto = ctxPlanned(synthTimeline({ entries: entries(), duration: 5 }));
+    expect(checkDurations(auto, segmentDurations(auto)).filter((f) => f.code === 'card-too-short')).toEqual([]);
+  });
+
+  it('warns when a mail card shows before the scene whose step captures the mail (R-FLD-06)', () => {
+    const signup = JSON.parse(readFileSync(join(FIXTURES, 'signup.timeline.json'), 'utf8')) as Timeline;
+    expect(checkArtefactOrder(ctxPlanned(signup))).toEqual([]);
+    // The inbox card moved before the signup scene that receives the mail.
+    const moved = structuredClone(signup);
+    const inbox = moved.scenes.splice(1, 1)[0];
+    moved.scenes.unshift(inbox);
+    moved.scenes.forEach((x, i) => (x.index = i));
+    const found = checkArtefactOrder(ctxPlanned(moved));
+    expect(found).toEqual([
+      expect.objectContaining({
+        severity: 'warning',
+        code: 'artefact-before-step',
+        message: 'card "inbox" shows the mail "welcome" before scene "signup" (step signup.5) captures it: the viewer sees it before the action that sends it — move the card after that scene',
+        at: expect.objectContaining({ segment: 'inbox' }),
+      }),
     ]);
   });
 });

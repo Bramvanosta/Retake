@@ -51,6 +51,18 @@ export interface RenderRecord {
   /** Theme (template name) the plan was made with. */
   template: string;
   overrides: EditOverrides;
+  /**
+   * Where the edit came from (L5.5): today's scenario file re-planned on the run (`scenario`, with the file's sha256
+   * and what it changed against the run), or the run as captured (`run`). Absent in renders made before L5.5 (the run
+   * as captured).
+   */
+  edit?: {
+    from: 'scenario' | 'run';
+    sha256?: string;
+    changes?: string[];
+    /** From `scenario`: each scene's caption texts as planned (its own and its steps'), which the review checks. */
+    captions?: Record<string, string[]>;
+  };
   variant: PlanVariant;
   status: 'succeeded' | 'failed' | 'cancelled';
   /** Absolute path of the video, and of this record. */

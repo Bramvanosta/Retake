@@ -353,7 +353,9 @@ describe('the scenario screen in Chromium', () => {
     // changed since the run; the new step has no picture, every other step keeps its own colour (bound by identity).
     const t3 = Date.now();
     await writeFile(join(project(), 'scenarios', 'blocks.yaml'), BLOCKS_YAML.replace('    steps:\n      - click: First', '    steps:\n      - click: Zero\n      - click: First'));
-    await expect.poll(() => page.getByText('The scenario changed since this run').count(), POLL).toBe(1);
+    await expect.poll(() => page.getByText('What the browser does changed since this run').count(), POLL).toBe(1);
+    // L5.5: the notice names the filmed part that changed.
+    expect(await page.locator('.notice', { hasText: 'What the browser does changed since this run' }).innerText()).toContain('Changed: scene one: step one.0 added.');
     await sleep(500);
     expect(ops('scenario_blocks', t3)).toHaveLength(1);
     expect(await row('one.0').innerText()).toContain('New since this run');

@@ -40,7 +40,7 @@ scenes:
       - wait_for: {target: {role: button, name: Request a quote}}
       - hold: 1.2
 
-  - card: {slots: {kicker: On production, title: "A quote request, answered by a mock"}, duration: 2.2}
+  - card: {slots: {kicker: On production, title: "A quote request, answered by a mock"}}
     id: chapter-request
 
   - id: request

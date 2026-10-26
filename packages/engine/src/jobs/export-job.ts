@@ -68,7 +68,7 @@ export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): P
   if (rerendered.length) {
     // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
     try {
-      await ed.planRun({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: 'mcp', measureMusic: false });
+      await ed.planRun({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: 'mcp', measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);

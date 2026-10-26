@@ -136,6 +136,7 @@ const TimelineVideoSchema = z
     template: z.string().optional(),
     music: z.strictObject({ file: z.string(), volume: z.number().optional(), duck: z.number().optional(), loop: z.boolean().optional() }).optional(),
     tutorial: TutorialSwitchSchema.optional(),
+    target_length: z.strictObject({ min_s: z.number(), max_s: z.number() }).optional(),
   })
   .describe("The scenario's edit info: title, intro, outro, effective frame, template, music.");
 
@@ -151,6 +152,7 @@ const TimelineEventSchema = z.strictObject({
   t_click: t().optional(),
   target: z.strictObject({ desc: z.string(), bbox: BBoxSchema.optional() }).optional(),
   point: PointSchema.optional(),
+  end_point: PointSchema.describe('Cursor at the end of the step, before any park or hold (L5.5): anchors an overlay or a zoom added after the capture.').optional(),
   mark: z.string().optional(),
   caption: CaptionObject.optional(),
   speed: z.number().gt(0).optional(),

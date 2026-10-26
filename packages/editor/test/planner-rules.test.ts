@@ -186,6 +186,34 @@ describe('joins and transitions', () => {
     expect(w1.transition?.kind).toBe('crossfade');
     expect(clip(p, 'y').transition?.kind).toBe('crossfade');
   });
+
+  it('a card or an interstitial without a duration stays long enough to read its text (R-FLD-03: 250 words a minute + 1.5 s, within the component bounds)', () => {
+    const words = (n: number) => Array.from({ length: n }, (_v, i) => `word${i}`).join(' ');
+    const entries: EntrySpec[] = [
+      { card: { id: 'short', slots: { title: 'Chapter two' } } },
+      { card: { id: 'long', slots: { kicker: 'Why', title: 'Quotes that follow', text: words(27) } } },
+      { card: { id: 'set', slots: { title: 'Quotes that follow', text: words(27) }, duration: 2 } },
+      { card: { id: 'huge', slots: { title: words(60), text: words(140) } } },
+      { id: 'x', t_start: 0, t_end: 5, open_end: 0.5, still: [0.6, 2] },
+      { interstitial: { id: 'later', text: words(20) } },
+      { id: 'y', t_start: 5, t_end: 9, open_end: 5.5, still: [5.6, 7] },
+    ];
+    const p = plan(ctx, synthTimeline({ entries, duration: 9 }));
+    const card = (id: string) => seg(p, id) as CardSegment;
+    // Two words: the component's default (2.5 s) is already enough.
+    expect(card('short').durationInFrames).toBe(75);
+    expect(card('short').reading).toEqual({ words: 2, seconds: 2 });
+    // 1 + 3 + 27 = 31 words → 31 / 250 × 60 + 1.5 = 8.94 → 8.9 s.
+    expect(card('long').reading).toEqual({ words: 31, seconds: 8.9 });
+    expect(card('long').durationInFrames).toBe(267);
+    expect(p.notes).toContain('card "long": 8.9 s to read its 31 words (250 words a minute + 1.5 s)');
+    // A duration of its own wins (the review then warns).
+    expect(card('set').durationInFrames).toBe(60);
+    // Bounded by the component's maximum (studio/card-title: 10 s).
+    expect(card('huge').durationInFrames).toBe(300);
+    // Interstitial: 20 words → 6.3 s instead of the theme's 2.6 s.
+    expect(card('later').durationInFrames).toBe(189);
+  });
 });
 
 /** One scene at 2× with a 4× typing step, a hold and a marked step. */

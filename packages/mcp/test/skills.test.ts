@@ -25,7 +25,7 @@ const PLUGIN = join(REPO, 'skills');
 const SKILLS = ['demo-studio-component', 'demo-studio-scenario', 'demo-studio-theme'];
 
 /** Result fields a skill may name in snake_case (they are outputs, not in any input schema). */
-const RESULT_FIELDS = ['target_yaml', 'step_ref', 'dynamic_text', 'readme_hash', 'draft_lines'];
+const RESULT_FIELDS = ['target_yaml', 'step_ref', 'dynamic_text', 'readme_hash', 'draft_lines', 'scenario_changed', 'filmed_changes', 'edit_changes'];
 
 /** The tools each skill's loop must name. */
 const COVERAGE: Record<string, readonly string[]> = {
@@ -132,8 +132,8 @@ describe('the Claude skills in skills/', () => {
     expect(text).toContain('`comment_resolve {project, comment_id, note, render_id, if_match}` with the new render and the hash `comment_reply` returned');
   });
 
-  it('a scenario change is re-captured before a render: one sentence in the three skills, the scenario loop and comments, the server instructions (L3.8)', () => {
-    const recapture = 'A change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `run_capture`, then render.';
+  it('an edit renders on the same run, a filmed change is re-captured first: one sentence in the three skills, the scenario loop and comments, the server instructions (L3.8, L5.5)', () => {
+    const recapture = 'A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render.';
     const flat = (t: string) => t.replace(/\s+/g, ' ');
     const sectionOf = (t: string, heading: string) => flat(new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=^## )`, 'm').exec(t)?.[1] ?? '');
     for (const dir of SKILLS) expect(flat(shipped.find((f) => f.path === `${dir}/SKILL.md`)!.text), dir).toContain(recapture);
@@ -149,7 +149,7 @@ describe('the Claude skills in skills/', () => {
     const lines = INSTRUCTIONS.split('\n');
     for (const start of ['Then review', 'Frame comments:']) {
       const line = lines.find((l) => l.startsWith(start))!;
-      expect(line, start).toMatch(/[Aa] change to the scenario \(steps, captions, timing, title, intro\/outro, template\) shows only in a new capture: run_capture, then render/);
+      expect(line, start).toMatch(/[Aa] change to the edit \(captions, cards and their order, durations, overlays, title, intro\/outro, template\) needs only a render on the same run[^;]*; a change to the filmed part \(steps, pages, hooks, capture settings\) shows only in a new capture: run_capture, then render/);
       expect(line, start).toContain('a render override needs only a render');
       expect(line, start).not.toMatch(/render again|Make that change, render/);
     }

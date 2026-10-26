@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, scenarioChangedMessage, scenarioChangedSinceRun } from '@demo-studio/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun } from '@demo-studio/core';
 import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planRun, renderStill, renderVideo } from '@demo-studio/editor';
 import type { LoadedProject } from '@demo-studio/core';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
@@ -137,8 +137,9 @@ function summary(ui: Ui, r: RenderRecord): void {
 }
 
 /**
- * L3.8: before a render, say when the scenario file changed since the run was captured — the render shows the run as
- * captured. A run that cannot be found says nothing here: the render reports it.
+ * L5.5: before a render, say whether the scenario file changed since the run was captured — its filmed part (the render
+ * shows the take as captured: re-capture to film it), or its edit alone (re-planned on this take). A run that cannot be
+ * found says nothing here: the render reports it.
  */
 function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: string, scenario: string): void {
   let dir: string;
@@ -148,7 +149,10 @@ function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: string, sce
   } catch {
     return;
   }
-  if (scenarioChangedSinceRun(project, dir, scenario)) ui.warn(scenarioChangedMessage(scenario, id, `\`studio run ${project.slug} ${scenario}\``));
+  const since = scenarioSinceRun(project, dir, scenario);
+  if (!since?.changed) return;
+  if (since.filmed === undefined || since.filmed.length > 0) ui.warn(scenarioChangedMessage(scenario, id, `\`studio run ${project.slug} ${scenario}\``, since.filmed));
+  else ui.info(editReplannedMessage(scenario, id));
 }
 
 /**

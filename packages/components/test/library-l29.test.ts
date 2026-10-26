@@ -127,13 +127,16 @@ describe('media and scenario values', () => {
     for (const t of ['Northfield', 'Confirm your email', 'Welcome aboard.']) expect(html).toContain(t);
   });
 
-  it('mail-view: the rendered email scrolls when taller than the pane; text fallback without an image', () => {
-    const early = render('studio/mail-view', { media: { email: EMAIL }, at: 10 });
-    const late = render('studio/mail-view', { media: { email: EMAIL }, at: 150 });
+  it('mail-view: the rendered email shows its top by default, scrolls with scroll: auto; text fallback without an image', () => {
+    const early = render('studio/mail-view', { media: { email: EMAIL }, params: { scroll: 'auto' }, at: 10 });
+    const late = render('studio/mail-view', { media: { email: EMAIL }, params: { scroll: 'auto' }, at: 150 });
     expect(early).toContain('http://a/email.png');
     expect(early).toContain('Confirm your email');
     const top = (h: string) => Number(/src="http:\/\/a\/email.png"[^>]*top:(-?[\d.]+)px/.exec(h)?.[1] ?? /top:(-?[\d.]+)px[^>]*src="http:\/\/a\/email.png"/.exec(h)?.[1]);
     expect(top(late)).toBeLessThan(top(early));
+    // R-FLD-04 (L5.5): no scroll by default.
+    const byDefault = render('studio/mail-view', { media: { email: EMAIL }, at: 150 });
+    expect(top(byDefault)).toBe(top(early));
     const none = render('studio/mail-view', { media: { email: EMAIL }, params: { scroll: 'none' }, at: 150 });
     expect(top(none)).toBe(top(early));
     const text = render('studio/mail-view', { slots: { from: 'Ana', subject: 'Hi there', body: 'Plain words.' } });

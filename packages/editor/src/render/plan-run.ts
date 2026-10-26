@@ -11,10 +11,26 @@
  * 2. after planning: every file the plan serves (`plan.assets`) lies in the project folder, the run folder or the theme
  *    folder, symbolic links resolved — whatever named it (an image slot without an extension, a theme's logo or font).
  */
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { insideFolder, loadProjectTemplate, readJson, renderFileProblems, templateRefProblem, timelineVideo } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Scenario, Timeline } from '@demo-studio/core';
+import {
+  displayPages,
+  editReplannedMessage,
+  insideFolder,
+  isCaptureScene,
+  issuesMessage,
+  loadProjectTemplate,
+  parseScenario,
+  readJson,
+  renderFileProblems,
+  replanEdit,
+  resolveEnvironment,
+  scenarioSinceRun,
+  templateRefProblem,
+  timelineVideo,
+} from '@demo-studio/core';
+import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
@@ -53,6 +69,33 @@ export interface PlanRunOptions {
   trust?: PlanTrust;
   /** Measure the music bed with ffprobe so the plan loops or trims it (default true; a still does without). */
   measureMusic?: boolean;
+  /**
+   * Where the edit comes from (L5.5). `auto` (default): today's scenario file when its filmed part is unchanged since
+   * the run, else the run as captured. `run`: the run as captured.
+   */
+  edit?: 'auto' | 'run';
+}
+
+/**
+ * Where a plan's edit came from (L5.5): today's scenario file re-planned on the run (`scenario`: its filmed part is
+ * unchanged since the capture), or the run as captured (`run`: no snapshot or file, the filmed part changed, or today's
+ * file does not validate).
+ */
+export interface PlannedEdit {
+  from: 'scenario' | 'run';
+  /** sha256 of today's file the edit was planned from (from `scenario`). */
+  sha256?: string;
+  /** What today's edit changed against the run's (keys, scene ids, step keys; from `scenario`). */
+  changes?: string[];
+  /**
+   * Whether the filmed part changed since the run (true: re-capture to film it), absent when it cannot be told (no
+   * scenario file or no snapshot).
+   */
+  scenario_changed?: boolean;
+  /** What changed in the filmed part (keys, scene ids, step keys); absent when the file no longer reads as YAML. */
+  filmed_changes?: string[];
+  /** Why today's file was not used although its filmed part is unchanged. */
+  reason?: string;
 }
 
 export interface PlannedRun {
@@ -67,6 +110,8 @@ export interface PlannedRun {
   overrides: EditOverrides;
   /** The run's scenario snapshot (undefined when absent or invalid). */
   scenario?: Scenario;
+  /** Where the edit came from (L5.5). */
+  edit: PlannedEdit;
   plan: EditPlan;
   plan_ms: number;
 }
@@ -115,11 +160,13 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const run = findRun(project, o.run, o.scenario);
   const timelineFile = join(run.dir, 'timeline.json');
   if (!existsSync(timelineFile)) throw new RenderError(`run ${run.id} has no timeline.json (${run.dir})`);
-  const timeline = await readJson<Timeline>(timelineFile);
-  if (o.scenario && timeline.scenario !== o.scenario) throw new RenderError(`run ${run.id} is a run of scenario "${timeline.scenario}", not "${o.scenario}"`);
-  if (timeline.mode === 'dry') throw new RenderError(`run ${run.id} is a dry run: there is no capture to render`);
+  const captured = await readJson<Timeline>(timelineFile);
+  if (o.scenario && captured.scenario !== o.scenario) throw new RenderError(`run ${run.id} is a run of scenario "${captured.scenario}", not "${o.scenario}"`);
+  if (captured.mode === 'dry') throw new RenderError(`run ${run.id} is a dry run: there is no capture to render`);
   const overrides: EditOverrides = { ...(o.overrides ?? {}) };
   const scenarioSnapshot = await runScenario(run.dir);
+  const envName = await runEnv(run.dir);
+  const { timeline, edit, warnings: editWarnings } = editOfToday(project, run, captured, envName, o.edit ?? 'auto');
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
   if (trust === 'mcp') {
     const problems = preReadProblems(project, timeline, video, o);
@@ -141,7 +188,8 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
     if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
   }
   const files = await planInputFiles(timeline, project, template);
-  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, env: await runEnv(run.dir), overrides, musicDuration_s, files });
+  const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, env: envName, overrides, musicDuration_s, files });
+  noteEdit(plan, edit, editWarnings, run.id);
   if (trust === 'mcp') {
     const problems = servedFileProblems(plan, { project: project.dir, run: run.dir, theme: template.dir });
     if (problems.length) throw new PlanTrustError(problems);
@@ -156,7 +204,63 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
     captureFile,
     overrides,
     ...(scenarioSnapshot ? { scenario: scenarioSnapshot } : {}),
+    edit,
     plan,
     plan_ms: Math.round(performance.now() - t0),
   };
+}
+
+/** A plan's note on where its edit came from, and the warnings of the re-plan (L5.5). */
+export function noteEdit(plan: EditPlan, edit: PlannedEdit, warnings: readonly string[], runId: string): void {
+  if (edit.from === 'scenario' && edit.changes?.length) {
+    plan.notes.unshift(`${editReplannedMessage(plan.meta.scenario, runId)} (changed: ${edit.changes.slice(0, 12).join(', ')}${edit.changes.length > 12 ? ', …' : ''})`);
+  }
+  plan.warnings.push(...warnings);
+}
+
+/**
+ * The timeline a plan reads (L5.5): the run's, rewritten with today's edit when the scenario file's filmed part is
+ * unchanged since the capture (core scenarioSinceRun, replanEdit); else the run's as captured.
+ */
+export function editOfToday(
+  project: LoadedProject,
+  run: Pick<RunRef, 'id' | 'dir'>,
+  captured: Timeline,
+  envName: string | undefined,
+  mode: 'auto' | 'run' = 'auto',
+): { timeline: Timeline; edit: PlannedEdit; warnings: string[] } {
+  const asCaptured = (edit: PlannedEdit, warnings: string[] = []) => ({ timeline: captured, edit, warnings });
+  if (mode === 'run') return asCaptured({ from: 'run' });
+  const since = scenarioSinceRun(project, run.dir, captured.scenario);
+  if (!since) return asCaptured({ from: 'run' });
+  if (since.filmed === undefined) return asCaptured({ from: 'run', scenario_changed: true });
+  if (since.filmed.length > 0) return asCaptured({ from: 'run', scenario_changed: true, filmed_changes: since.filmed });
+  const sha256 = createHash('sha256').update(since.now).digest('hex');
+  const file = since.file;
+  const now = parseScenario(since.now, { file, project });
+  const then = parseScenario(since.then);
+  if (!now.scenario) {
+    const reason = `today's scenario ${captured.scenario} does not validate: the render shows the edit of run ${run.id} as captured — ${issuesMessage('scenario', now.issues, file).split('\n').slice(0, 4).join(' ')}`;
+    return asCaptured({ from: 'run', scenario_changed: false, filmed_changes: [], reason }, [reason]);
+  }
+  if (!then.scenario) {
+    const reason = `the snapshot of run ${run.id} does not validate any more: the render shows its edit as captured`;
+    return asCaptured({ from: 'run', scenario_changed: false, filmed_changes: [], reason }, [reason]);
+  }
+  // The snapshot must describe this take: every scene it filmed is a capture scene of the snapshot, in its order.
+  const thenIds = then.scenario.scenes.filter(isCaptureScene).map((e) => e.id);
+  const filmedIds = captured.scenes.filter((x) => x.kind === 'scene').map((x) => x.id);
+  if (filmedIds.some((id, i) => thenIds[i] !== id)) {
+    const reason = `the snapshot of run ${run.id} does not describe the scenes its timeline filmed: the render shows its edit as captured`;
+    return asCaptured({ from: 'run', scenario_changed: false, filmed_changes: [], reason }, [reason]);
+  }
+  let pages: Record<string, string> = {};
+  try {
+    pages = displayPages(resolveEnvironment(project, envName ?? captured.environment?.name));
+  } catch {
+    /* an environment since removed: {{page}} tokens of a changed text then say so */
+  }
+  const ctx: TemplateContext = { pages, vars: { ...(project.config.vars ?? {}), ...(now.scenario.vars ?? {}) }, run: { id: run.id, dir: run.dir }, hooks: {} };
+  const r = replanEdit({ timeline: captured, now: now.scenario, then: then.scenario, project: project.config, ctx });
+  return { timeline: r.timeline, edit: { from: 'scenario', sha256, changes: r.changes, scenario_changed: false, filmed_changes: [] }, warnings: r.warnings };
 }

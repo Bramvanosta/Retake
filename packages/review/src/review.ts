@@ -12,7 +12,8 @@ import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
-import { captionRegion, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
+import type { EditPlan } from '@demo-studio/editor';
+import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
@@ -29,7 +30,7 @@ import { isClip, round, segmentLabel, segmentSpans, spanAt, stepAt, timecode, tr
 import type { SegmentSpan } from './spans.js';
 import { buildOutputTimeline, outputClicks } from './timeline.js';
 import { DEFAULT_RULES, DEFAULT_SHEET } from './types.js';
-import type { DiffFrame, Finding, ReviewDiff, ReviewFiles, ReviewOptions, ReviewResult, ReviewThumbnail, Severity } from './types.js';
+import type { DiffFrame, Finding, ReviewDiff, ReviewFiles, ReviewOptions, ReviewResult, ReviewRules, ReviewThumbnail, Severity } from './types.js';
 import { ReviewCancelledError } from './types.js';
 import { summaryLine } from './report.js';
 
@@ -143,6 +144,17 @@ function inset(r: { x: number; y: number; w: number; h: number }, d: number) {
   return { x: r.x + d, y: r.y + d, w: Math.max(1, r.w - 2 * d), h: Math.max(1, r.h - 2 * d) };
 }
 
+/** The rules of a review: the defaults, the scenario's target length (R-FLD-05, L5.5), then the caller's. */
+export function reviewRules(plan: Pick<EditPlan, 'target_length'>, given: Partial<ReviewRules> = {}): ReviewRules {
+  const rules: ReviewRules = { ...DEFAULT_RULES, ...given };
+  if (plan.target_length && given.video_min_s === undefined && given.video_max_s === undefined) {
+    rules.video_min_s = plan.target_length.min_s;
+    rules.video_max_s = plan.target_length.max_s;
+    rules.video_target = 'scenario';
+  }
+  return rules;
+}
+
 export async function reviewRender(opts: ReviewOptions): Promise<ReviewResult> {
   try {
     return await reviewRenderOnce(opts);
@@ -168,7 +180,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   if (!existsSync(record.file)) throw new ReviewError(`the video of render ${record.id} is missing: ${record.file}`);
   const fps = opts.fps ?? 1;
   if (fps !== 1 && fps !== 2) throw new ReviewError(`fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
-  const rules = { ...DEFAULT_RULES, ...opts.rules };
+  const rules = reviewRules(plan, opts.rules);
   const layout = { ...DEFAULT_SHEET, ...opts.sheet };
   const thumbPx = Math.max(64, Math.min(1280, Math.round(opts.thumbnail_px ?? 1280)));
   const notes: Finding[] = [];
@@ -371,6 +383,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
       ...checkTutorial(ctx),
       ...checkOverlayCover(ctx),
       ...checkEnvironment(ctx),
+      ...checkArtefactOrder(ctx),
       ...checkPixels(ctx, { analyses, sources, sourceSigs, sceneSamples, sampleSpacing_s: 0.5 }),
       ...(diff ? diffFindings(diff) : []),
     ]);

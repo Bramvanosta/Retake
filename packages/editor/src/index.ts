@@ -50,8 +50,8 @@ export {
   renderVideo,
 } from './render/render.js';
 export type { RenderNetwork, RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
-export { PlanTrustError, planRun, preReadProblems, servedFileProblems } from './render/plan-run.js';
-export type { PlanRunOptions, PlanTrust, PlannedRun } from './render/plan-run.js';
+export { PlanTrustError, editOfToday, noteEdit, planRun, preReadProblems, servedFileProblems } from './render/plan-run.js';
+export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from './render/plan-run.js';
 export { allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, originOf, pickFreePort } from './render/network-guard.js';
 export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
 export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';

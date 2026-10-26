@@ -417,7 +417,8 @@ scenes:
 **Scenario keys:** `video`, `title`, `intro` (`false` or `{component, params, duration}`), `outro` (`false` or
 `{component, params, tagline, url, duration}`), `env`, `vars`, `setup`, `teardown`, `capture`, `frame` (default for
 every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck, loop}`, see
-[the music bed](#music-bed)), `scenes`.
+[the music bed](#music-bed)), `target_length` (`{min_s, max_s}`: the length this video aims at — the review's
+`video-length` rule uses it instead of the reference 60–120 s), `scenes`.
 
 **Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `persona` (the account the page is
 signed in as, `none` for none: see [Signing in](#signing-in-personas-and-sessions)), `steps`, `speed` (edit-time),
@@ -428,7 +429,10 @@ the current state. Two other entries take no capture time (the editor shows them
 `interstitial: {text, kicker, duration, component, params}` (a "time passes" card; `style` is the legacy template
 style override) and `card: {component, params, slots, duration}` (a full-screen title / chapter / quote card), each
 with an optional `id` (default `interstitial-<n>` / `card-<n>`, `n` = position in `scenes`). Ids are unique across
-scenes, cards and interstitials.
+scenes, cards and interstitials. A card or an interstitial without a `duration` stays long enough to read its text
+(L5.5): about 250 words a minute plus 1.5 s for its entry and exit, never less than its component's default and
+within its min / max (`studio/card-title` 2.5 s, 1–10 s); the review warns (`card-too-short`) when a card is shorter
+than its text needs.
 
 **Scene-start cursor** (`cursor:` on a scene):
 
@@ -1220,7 +1224,7 @@ stays on screen to the last frame (no exit animation), so a **tap-open** transit
 |---|---|---|
 | `studio/notification` | overlay | a system notification — `style: macos \| windows \| ios-banner \| android \| in-app` (the last in the theme's own look) — with icon, app, title, body, time; macOS / Windows in the frame corner, the others over the capture (`place: auto \| frame \| screen`), `appearance: auto \| light \| dark`; slides / rises / drops in like the real one. Slots `notification` (captured), `app`, `title`, `body`, `time`, `icon` |
 | `studio/mail-notification` | overlay | the same styles fed by an email: sender, subject, first line, a mail glyph on the accent. Slots `email`, `from`, `subject`, `preview`, `app`, `time`, `icon` |
-| `studio/mail-view` | card | a mail client window (toolbar, inbox column with the message selected, header with the sender's initials, date) over the rendered email, which scrolls slowly when tall (`scroll: auto \| none`, `width`, `sidebar`). Slots `email`, `from`, `address`, `subject`, `date`, `body`, `mailbox` |
+| `studio/mail-view` | card | a mail client window (toolbar, inbox column with the message selected, header with the sender's initials, date) over the rendered email, shown from its top (`scroll: none`, the default since L5.5; `auto` scrolls a tall one slowly), `width`, `sidebar`). Slots `email`, `from`, `address`, `subject`, `date`, `body`, `mailbox` |
 | `studio/document-pdf` | card | A4 page(s) with a paper shadow on the theme background — `motion: zoom` (slow push-in to `focus`), `scroll` (pages scroll by) or `static` (a page, or two side by side); `pages: auto \| 2 \| 1-3 \| 1,3 \| all`. Slots `document`, `kicker`, `title` (a column beside the page) |
 | `studio/phone-lockscreen` | card | a phone (wallpaper from the theme), date and big time, notifications arriving one by one — newest on top, grouped by app; `notifications: [{app, title, body, time?, icon?}]`, `time`, `date`, `start`, `interval`, `layout: center \| left`. Slots `email`, `notification` (arrive last), `kicker`, `title` |
 | `studio/phone-home-badge` | card | a phone home screen whose app icon gets a badge counting up (`from`, `to`, `interval`, `row`, `col`, `badge: system \| accent`). Slots `app`, `icon`, `kicker`, `title` |
@@ -1532,15 +1536,30 @@ $ studio render northfield-fixture catalogue
   (default `renders/stills/<scenario>-f<n>.png`) — the quick way to look at one moment of an edit.
 - **Review**: `--review` reviews the render right after it (see [Reviewing a render](#reviewing-a-render)); with
   `--json` the review result is added to the record under `review`.
-- **A render shows the run as captured.** It reads the run — `timeline.json` and the scenario snapshot
-  `scenario.yaml` the capture wrote —, never the current scenario file. A change to the scenario (steps, captions,
-  timing, title, intro/outro, template) shows only in a new capture: `studio run`, then render. A theme or a render
-  override (`--theme`, `--frame`, `--vertical`…) needs only a render. When `scenarios/<scenario>.yaml` (or `.yml`)
-  differs from the run's snapshot, `studio render` and `studio plan` warn first (`! scenario quote changed since run
-  … was captured: a render shows the run as captured — …`, naming the `studio run` that films the change); through
-  MCP, `plan_preview` and `render` say the same with `scenario_changed: true`, and `plan_preview`'s last line then
-  says to capture first (never "render it" on the old run). The files are compared by their data: a comment, blank
-  lines, quoting, indentation or key order is no change; a link, a non-regular file or one over 2 MB is not compared.
+- **Edit without re-capture (L5.5).** A render takes the capture from the run and the edit from today's scenario file,
+  as long as the **filmed part** of the scenario is unchanged since the capture. Filmed: `env`, the `setup` /
+  `teardown` hooks, `capture`, `pacing`, `clock`, `mocks`, the vars a filmed part uses, the capture scenes (ids,
+  order, `skip`), each scene's `page`, `open`, `pages` (labels left out), `persona`, `still`, `cursor`, and each
+  step's action and arguments with `hold`, `park` and `on`. Everything else is edit and renders on the same take:
+  title, intro / outro, frame, template, music, tutorial switches, `target_length`; cards and interstitials (text,
+  duration, place between the scenes); a scene's caption, speed, transition, frame, tutorial and page labels; a step's
+  caption, speed, camera, mark, overlay, tutorial and id (`timeout`, `optional` and `irreversible` change nothing a
+  take filmed). The capture times, the cursor, the target boxes and the captured mails and documents stay the take's:
+  an overlay or a zoom added since anchors to its step's target box (else the cursor at the end of the step); one that
+  names an element the take never measured falls back to the step's target with a plan warning. A changed text with
+  a token only the take knew (`{{hooks.…}}`) keeps the captured text, with a warning. The plan notes say `edit
+  re-planned from today's scenario … (changed: caption of open.0, cards and interstitials, …)`.
+- **A change to the filmed part needs a new capture.** When it changed since the run, the render shows that run as
+  captured, its edit included, and `studio render` and `studio plan` warn first (`! the filmed part of scenario quote
+  changed since run … was captured (scene send: step send.2 changed; the setup hooks): …`, naming the `studio run`
+  that films it); through MCP, `plan_preview` and `render` say the same with `scenario_changed: true` and
+  `filmed_changes`, and `plan_preview`'s last line then says to capture first (never "render it" on the old run); an
+  edit-only change says `edit: "scenario"` with `edit_changes`. The files are compared by their data: a comment, blank
+  lines, quoting, indentation or key order is no change; a link, a non-regular file or one over 2 MB is not compared;
+  a run without its snapshot, or a file that does not validate, renders as captured. A render records where its edit
+  came from (`edit` in `renders/<id>.json`); a queued render job and an export that re-renders a master refuse a
+  scenario file changed since they were planned (submit again). Project-level changes (project.yaml environments or
+  vars) are not compared.
 
 How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
 
@@ -1770,7 +1789,8 @@ not clean; `--json` prints the result. The checks:
 
 | Check | Codes |
 |---|---|
-| Durations of every segment and of the video (reference look: video 1–2 min, scenes 4–25 s) | `video-length` (info a little outside, warning beyond ±25 %), `scene-length` (info), `scene-too-short` (< 2 s: warning) |
+| Durations of every segment and of the video (reference look: video 1–2 min — or the scenario's `target_length` —, scenes 4–25 s), a card or an interstitial shorter than its text needs (250 words a minute + 1.5 s) | `video-length` (info a little outside, warning beyond ±25 %), `scene-length` (info), `scene-too-short` (< 2 s: warning), `card-too-short` (warning) |
+| A card showing a captured mail or document before the scene whose step captures it (the result before its cause) | `artefact-before-step` (warning) |
 | Scenes longer than 30 s at about 1× | `long-scene` (warning) |
 | Blank, near-uniform or loading screens inside the layout's screen rect (2 fps samples, transitions excluded), at scene starts (rendered frame and capture frame), a screen still changing during the opening still (compared on the capture frames when the view moves or something is drawn over the page: an overlay such as a spotlight, a caption over the screen), waiting on an unchanging screen for 3 s or more (wait steps and the time after an action until the next step; holds are deliberate) | `blank-screen` (error from 1 s), `near-uniform-screen`, `blank-scene-start` (error), `loading-scene-start`, `long-wait`, `empty-segment` (a card that draws nothing) |
 | Captions: shown on another scene, overlapping in time, too long for their area (the kit's `fitText` with the theme caption style and the theme's real font files: shrunk below 85 % of the theme size = warning, cut with "…" = error), under the brand mark, not visible in the caption area, missing | `caption-scene-mismatch`, `caption-overlap`, `caption-too-long`, `caption-truncated`, `caption-shrunk` (info), `caption-overlaps-brandmark`, `caption-not-visible`, `caption-missing` |
@@ -1787,8 +1807,9 @@ How it works (`@demo-studio/review`, `docs/DESIGN-phase2.md` §3): frames are de
 the sheets (labels drawn as SVG) and the key frames; the checks read the plan of the render record (segments, layout
 rects, captions, step spans, camera, time map) and the run's timeline (clicks, cursor track, captions as captured).
 The duration rule is a style target measured on two reference videos, not a defect: a video a few seconds outside 1–2
-minutes is an info note, a warning only beyond ±25 % (45 s – 150 s). Thresholds are `rules` of the API
-(`DEFAULT_RULES`).
+minutes is an info note, a warning only beyond ±25 % (45 s – 150 s); a scenario's `target_length` replaces that
+range (the plan carries it). Thresholds are `rules` of the API (`DEFAULT_RULES`, `reviewRules`); rules a caller passes
+win. With an edit re-planned from today's scenario, the caption checks compare with the captions it planned.
 
 API: `reviewRender({project, render, scenario?, fps?: 1|2, previous?: id|false, thumbnails?: false|'sheets'|'all',
 thumbnail_px?, rules?, out?})` → `ReviewResult` (the report plus `thumbnails`: JPEGs ≤ 1280 px as base64 for the MCP
@@ -1798,8 +1819,9 @@ one-minute 1080p render takes ≈ 10 s.
 ## Frame comments
 
 A comment points at one frame of a render — optionally a region of it — and says what to change. Claude reads it with
-the frame still and where the frame sits in the scenario, replies, changes the scenario (then captures it again: a
-render shows the run as captured) or the render overrides, renders again and resolves it with the new render (through
+the frame still and where the frame sits in the scenario, replies, changes the scenario (an edit — a caption, a card, a duration,
+an overlay — renders on the same take; a change to its filmed part — steps, pages, hooks — needs a new capture first) or
+the render overrides, renders again and resolves it with the new render (through
 MCP; the Studio app later writes the same files).
 
 ```
@@ -2758,8 +2780,8 @@ for what the server refuses.
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
 | `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
 | `run_cancel` | cancels a run started here: queued, it never starts; running, it stops at its next step and its teardown and rollbacks still run | — |
-| `plan_preview` | plans a render of a capture without rendering it (`run_id` default: the scenario's latest capture; `template`: a theme name; `overrides`: frame, variant, fps, scale, intro / outro / captions / camera / trim_idle, speeds, transition, components by kind or segment, music, tutorial): variant, size, duration, theme, segments with their component and timing, music, the id the next render would get, `scenario_changed` (the scenario file differs from the run's snapshot: a line in the summary names the `run_capture` that films the change, and the last line says to capture first instead of offering the render); captions, warnings and the text summary under `untrusted` | — |
-| `render` | the same arguments: planned and checked, then rendered as a job; returns the reserved `render_id` at once (`<scenario>-v<N>`, `-vertical` / `-square`), the `run_id` it renders (`latest`: the newest capture whose folder name is a run id, dated ids first) and `scenario_changed` as `plan_preview`'s; `wait_s` waits for it | `renders/<render_id>.mp4` + `.json` |
+| `plan_preview` | plans a render of a capture without rendering it (`run_id` default: the scenario's latest capture; `template`: a theme name; `overrides`: frame, variant, fps, scale, intro / outro / captions / camera / trim_idle, speeds, transition, components by kind or segment, music, tutorial): variant, size, duration, theme, segments with their component and timing, music, the id the next render would get, `edit` (`scenario`: today's scenario file re-planned on the run's take, with `edit_changes`; `run`: the run as captured), `scenario_changed` (the filmed part of the scenario changed since the run, listed in `filmed_changes`: a line in the summary names the `run_capture` that films the change, and the last line says to capture first instead of offering the render); captions, warnings and the text summary under `untrusted` | — |
+| `render` | the same arguments: planned and checked, then rendered as a job; returns the reserved `render_id` at once (`<scenario>-v<N>`, `-vertical` / `-square`), the `run_id` it renders (`latest`: the newest capture whose folder name is a run id, dated ids first) and `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as `plan_preview`'s; `wait_s` waits for it | `renders/<render_id>.mp4` + `.json` |
 | `render_status` | a render by id (or `latest`, of a scenario): its job first — queued (with the job it waits behind, its stage and time left), running (stage, percent, frames, time left), failed / cancelled / interrupted — then its record (paths, duration, size, fps, theme, variant, overrides, timings, ffprobe); warnings and a failure's message under `untrusted`; `wait_s` long-polls | — |
 | `review` | reviews a render (`render_id` or `latest` of a `scenario`; `fps` 1 or 2; `previous`: a render id or `false`) as a job and waits up to `wait_s` (default 20): finished in time, it answers as `review_get` | `review/<render_id>/` |
 | `review_get` | a render's review: its newest review job (state, stage, percent), then the review — clean or not, counts, findings (severity, code, time, segment, scene; their messages under `untrusted`), durations, the diff with the previous render, the paths of the sheets, key frames, `timeline.json`, `report.md` — and **images**: `images: "sheets"` (default: contact sheet pages and marker key frames), `"all"` or `"none"`; `wait_s` long-polls | — |
@@ -3288,7 +3310,7 @@ running: the MCP server keeps working without it.
 | `capture-<page>.mp4`, `frames-<page>/`, `frames-<page>.jsonl` | multi-page scenes: one recording per page on the same frame grid as `capture.mp4` (listed in `timeline.json` `tracks`) |
 | `screenshots/` | dry-run screenshots, `screenshot` steps, error screenshots and DOM snippets |
 | `hooks-journal.json` | executed hooks and their rollbacks |
-| `scenario.yaml` | snapshot of the scenario that ran (a render shows the run as captured: `studio render` / `plan` warn when the scenario file differs from it) |
+| `scenario.yaml` | snapshot of the scenario that ran (L5.5: a render re-plans the edit of today's file while its filmed part matches this snapshot; `studio render` / `plan` warn when the filmed part differs) |
 | `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
 
 Composite steps (`select`, `pick`, `menu`, `date`, `drop_file`) keep every click in `data.clicks`:

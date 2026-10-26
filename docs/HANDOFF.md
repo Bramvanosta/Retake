@@ -37,6 +37,21 @@ automatically with themeable components, and let Claude operate everything throu
   steps and compact MCP outputs), 27 requirements R-FLD-01 – R-FLD-34, and BL-81 – BL-89 for the rest. Performance
   measured on the fixture: GPU active, `frame_rate_limit: false` ×2.8 Chromium CPU, frames at JPEG 100 = 99 % of a
   run's size and read only by the raw export and the L4.2 pictures.
+- **L5.5 done (2026-10-26)**: edit without re-capture. A render re-plans the edit from today's scenario file on an
+  existing take while the scenario's **filmed part** is unchanged (core `filmedChanges`: env, hooks, capture, pacing,
+  clock, mocks, the vars the take uses, capture scenes, each scene's page / open / pages / persona / still / cursor,
+  each step's fingerprint with hold / park / on); everything else — cards and their order, durations, captions,
+  overlays, camera hints, marks, speeds, title, intro / outro, template, target length — comes from today's file
+  (core `replanEdit` rewrites the run's timeline on its measurements; the runner now records `end_point` on every
+  step). `scenario_changed` (CLI plan / render, MCP plan_preview / render, the Studio scenario view) only for a filmed
+  change, with `filmed_changes`; an edit-only change says `edit: "scenario"` and `edit_changes`; render records and
+  render jobs carry the edit's sha256 (a file changed while a job waited is refused; an export re-renders the
+  master's edit). Also: card and interstitial durations from their text (250 words a minute + 1.5 s) and review
+  `card-too-short`; `studio/mail-view` without scroll by default; scenario `target_length` for the review's length
+  rule; review `artefact-before-step`. Fixture acceptance on one take of `quote` (caption, card text / duration /
+  order, an overlay, target_length → render v2 on the same run, review clean, frames looked at; a step's hold → the
+  filmed change reported). Tests on the Mac: **2809 — 2757 pass, 50 skipped (≈ 17 min); 2 failed under another project's load (1-min load up to 17.8 on 10 cores) and pass alone** (a Studio e2e worker-death test, the kit's debug-cursor style); `pnpm test:slow` 58/58 (≈ 14 min). Requirements: 646 tracked — 560 done, 26 partial, 52 todo,
+  8 n/a-here. Follow-ups: BL-90 (project.yaml changes not compared; overlay targets the take never measured), BL-91.
 - **L4.2 done (2026-10-24)**: the Studio's scenario screen shows a scenario as blocks (scenes as cards with pages, URLs,
   caption, speed, layout, duration; steps as rows with an action badge, the target in plain words and chips; hooks strip;
   a read-only inspector and YAML tab) with each step's real picture from the last dry run or capture (from kept frames

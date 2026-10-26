@@ -8,7 +8,8 @@
  * (status succeeded) and has pictures, else the newest finished one with pictures; newer partial runs are named. A
  * queued or running run is `running`, never a source.
  *
- * Binding (critique B4): `changed` = the file's data against the run's snapshot (core scenarioTextChanged). false →
+ * Binding (critique B4): `changed` = the file's data against the run's snapshot (core scenarioTextChanged; L5.5: with
+ * the filmed part that changed, core filmedChanges — none: only the edit changed, notice `edit_changed`). false →
  * by position; true → core matchRunSteps (picture identity: fingerprint + `on:` + scene context); undefined (no
  * snapshot) → by position with notice `cannot_tell`. Each step of today's file → the run's own step key (`run_key`,
  * what run_thumbs takes) with its status, duration and picture source, or why it has none. Page text (the target as
@@ -22,7 +23,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, matchRunSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@demo-studio/core';
+import { SLUG_RE, environmentAccess, filmedChanges, matchRunSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@demo-studio/core';
 import type { LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
@@ -86,8 +87,17 @@ export interface ScenarioSource {
   changed: boolean | null;
   /** How steps are bound to the run: by position (unchanged / cannot tell) or by step identity (changed). */
   binding: 'position' | 'identity';
-  /** What the screen says over the blocks: the file changed since this run, or that cannot be told. */
-  notice?: 'changed' | 'cannot_tell';
+  /**
+   * The filmed part that changed since this run (L5.5: keys, scene ids, step keys), when it did; empty when the file
+   * changed but no longer reads as YAML is told by `notice` alone.
+   */
+  filmed_changes?: string[];
+  /**
+   * What the screen says over the blocks: the filmed part changed since this run (`changed`: a render shows the take as
+   * captured, a capture films the change), only its edit changed (`edit_changed`: a render re-plans it on this take,
+   * L5.5), or that cannot be told (`cannot_tell`).
+   */
+  notice?: 'changed' | 'edit_changed' | 'cannot_tell';
   /** The hooks' outcome in that run. */
   hooks?: RunRecord['hooks'];
   /** Finished runs newer than the default source that are partial or left no picture (the picker names them). */
@@ -183,6 +193,8 @@ interface TextLayer {
 
 interface BindLayer {
   changed: boolean | null;
+  /** What changed in the filmed part (L5.5; undefined: the file changed and does not read as YAML). */
+  filmed?: string[];
   steps: Record<string, StepBinding>;
   untrusted: ScenarioView['untrusted'];
   scenes: Record<string, Pick<SceneFacts, 'captured_s' | 'run_status'>>;
@@ -268,7 +280,13 @@ export class ScenarioViews {
         picked: o.run !== undefined,
         changed: bind.changed,
         binding: bind.changed === true ? 'identity' : 'position',
-        ...(bind.changed === true ? { notice: 'changed' as const } : bind.changed === null ? { notice: 'cannot_tell' as const } : {}),
+        ...(bind.changed === true
+          ? bind.filmed?.length === 0
+            ? { notice: 'edit_changed' as const }
+            : { notice: 'changed' as const, ...(bind.filmed?.length ? { filmed_changes: bind.filmed } : {}) }
+          : bind.changed === null
+            ? { notice: 'cannot_tell' as const }
+            : {}),
         ...(data.record?.hooks ? { hooks: data.record.hooks } : {}),
         newer_partial: o.run === undefined ? newer.map((r) => ({ id: r.id, mode: r.mode, partial: r.partial ?? 'no pictures', pictures: r.pictures })) : [],
       };
@@ -661,5 +679,6 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
       if (Object.keys(page).length) untrusted.steps[st.key] = page;
     }
   }
-  return { changed, steps, untrusted, scenes };
+  const filmed = changed === true ? filmedChanges(yaml, run.snapshot as string) : undefined;
+  return { changed, ...(filmed !== undefined ? { filmed } : {}), steps, untrusted, scenes };
 }

@@ -271,6 +271,29 @@
       "description": "Automatic tutorial overlays fed by the timeline: true, false or {shortcuts, spotlight, steps, loupe, progress}.",
       "$ref": "#/$defs/Tutorial"
     },
+    "target_length": {
+      "type": "object",
+      "properties": {
+        "min_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 7200,
+          "description": "Shortest length the video aims at, seconds."
+        },
+        "max_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 7200,
+          "description": "Longest length the video aims at, seconds."
+        }
+      },
+      "required": [
+        "min_s",
+        "max_s"
+      ],
+      "additionalProperties": false,
+      "description": "The length this video aims at (L5.5): the review's video-length rule uses it instead of the reference 60–120 s."
+    },
     "clock": {
       "anyOf": [
         {

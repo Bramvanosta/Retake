@@ -3,7 +3,7 @@
 
 `studio/mail-view` · card · v1.0.0
 
-A mail client card showing a captured email — subject, sender, date and its rendered HTML, scrolling slowly when long — or scenario values, in a window with an inbox column on the theme background.
+A mail client card showing a captured email — subject, sender, date and its rendered HTML from its top (scroll auto scrolls a long one slowly) — or scenario values, in a window with an inbox column on the theme background.
 
 ![Mail view preview — editorial theme, at 3 s](preview.png)
 
@@ -27,7 +27,7 @@ A mail client card showing a captured email — subject, sender, date and its re
 |---|---|---|---|
 | `width` | number (900–1700) | 1440 | Window width in design px (landscape). |
 | `sidebar` | boolean | true | Inbox column on the left (landscape and square). |
-| `scroll` | `auto` \| `none` | auto | auto: scroll a tall email slowly from top to bottom; none: show its top. |
+| `scroll` | `auto` \| `none` | none | none: show the email's top; auto: scroll a tall email slowly from top to bottom. |
 | `shadow` | `none` \| `soft` \| `strong` | soft | Shadow under the window. |
 
 - duration 5.5 s (2–20 s)

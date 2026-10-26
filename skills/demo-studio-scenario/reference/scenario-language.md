@@ -123,7 +123,14 @@ scenes:
 ```
 
 - `card: {component, slots, duration}` is a title or chapter card; `interstitial: {text, kicker, duration}` a "time
-  passes" card. Both take no capture time and accept an `id`.
+  passes" card. Both take no capture time and accept an `id`. Without `duration` they stay long enough to read their
+  text (about 250 words a minute + 1.5 s); a `duration` shorter than that gets a review warning (`card-too-short`). A
+  card showing a captured mail or document goes after the scene whose step captures it (else `artefact-before-step`).
+  `studio/mail-view` shows the mail from its top (`params: {scroll: auto}` scrolls a tall one).
+- `target_length: {min_s, max_s}` (scenario key) is the length this video aims at: the review's `video-length` rule
+  uses it instead of the reference 60–120 s.
+- Cards, captions, overlays, durations, the title, intro / outro and template are the edit: a change renders on the
+  same capture. Steps, pages, hooks and capture settings are filmed: a change needs `run_capture` first.
 - `overlay` on a step draws a component over the clip from the end of that step (at most 30 s); `component_list
   {kind: overlay}` names them.
 - `tutorial` switches (`shortcuts`, `spotlight`, `steps`, `loupe`, `progress`) draw key caps, a spotlight, numbered

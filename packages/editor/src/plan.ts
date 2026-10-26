@@ -3,7 +3,7 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join, relative } from 'node:path';
-import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, resolveEnvironment, timelineVideo, tutorialOff } from '@demo-studio/core';
+import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, READING_PACE, readingSeconds, resolveEnvironment, timelineVideo, tutorialOff, wordCount } from '@demo-studio/core';
 import type {
   ComponentKind,
   DisplayEntry,
@@ -1047,9 +1047,15 @@ export function planEdit(input: PlanEditInput): EditPlan {
     themeDefault: number | undefined,
     fallback: number,
     where: string,
+    reading?: { words: number; seconds: number },
   ): number => {
     const m = resolver.manifest(rc)?.duration;
     let s = explicit ?? themeDefault ?? m?.default ?? fallback;
+    // R-FLD-03: without a duration of its own, a card stays long enough to read its text.
+    if (explicit === undefined && reading && reading.seconds > s) {
+      notes.add(`${where}: ${reading.seconds} s to read its ${reading.words} words (${READING_PACE.words_per_minute} words a minute + ${READING_PACE.extra_s} s)`);
+      s = reading.seconds;
+    }
     if (m?.min !== undefined && s < m.min) {
       notes.add(`${where}: ${s} s raised to the ${rc.id} minimum ${m.min} s`);
       s = m.min;
@@ -1059,6 +1065,14 @@ export function planEdit(input: PlanEditInput): EditPlan {
       s = m.max;
     }
     return s;
+  };
+
+  /** The words of a use's text slots and the seconds they need to be read (R-FLD-03); undefined without text. */
+  const readingOf = (rc: ResolvedComponent): { words: number; seconds: number } | undefined => {
+    if (rc.media?.file) return undefined;
+    const slots = resolver.manifest(rc)?.slots ?? {};
+    const words = wordCount(Object.entries(rc.slots).filter(([k]) => slots[k]?.type === 'text').map(([, v]) => v));
+    return words > 0 ? { words, seconds: readingSeconds(words) } : undefined;
   };
 
   /** The natural length (s) of a use's file (L2.12): a video's part, a Lottie animation; undefined otherwise. */
@@ -1110,9 +1124,9 @@ export function planEdit(input: PlanEditInput): EditPlan {
    * Seconds of a full-frame use: the scenario's `duration`, else what the winning candidate sets (a theme's file), else
    * the file's own length (a video part, a Lottie animation), else the kind's default (theme, component, fallback).
    */
-  const useDuration = (rc: ResolvedComponent, explicit: number | undefined, themeDefault: number | undefined, fallback: number, where: string): number => {
+  const useDuration = (rc: ResolvedComponent, explicit: number | undefined, themeDefault: number | undefined, fallback: number, where: string, reading?: { words: number; seconds: number }): number => {
     const own = explicit ?? resolver.candidateOf(rc)?.duration ?? fileLength(rc);
-    const s = segDuration(rc, own, rc.media?.file ? (own === undefined ? themeDefault : undefined) : themeDefault, fallback, where);
+    const s = segDuration(rc, own, rc.media?.file ? (own === undefined ? themeDefault : undefined) : themeDefault, fallback, where, rc.media?.file ? undefined : reading);
     if (rc.media?.file) {
       const m = rc.media.file;
       const what = m.kind === 'video' ? `video ${secs(fileLength(rc) ?? m.duration_s)}${m.audio ? ', with sound' : ''}${m.alpha ? ', alpha' : ''}` : m.kind === 'lottie' ? `Lottie ${secs(m.duration_s)}` : 'image';
@@ -1274,8 +1288,9 @@ export function planEdit(input: PlanEditInput): EditPlan {
         warnings.add(`card "${id}": the theme has no card component and the scenario names none: left out`);
         continue;
       }
-      const frames = fr(useDuration(rc, spec.duration, undefined, 2.5, `card "${id}"`));
-      drafts.push({ seg: { ...base(id, frames, rc), kind: 'card' } as CardSegment, content: frames });
+      const reading = readingOf(rc);
+      const frames = fr(useDuration(rc, spec.duration, undefined, 2.5, `card "${id}"`, reading));
+      drafts.push({ seg: { ...base(id, frames, rc), kind: 'card', ...(reading ? { reading } : {}) } as CardSegment, content: frames });
       continue;
     }
     if (e.type === 'interstitial') {
@@ -1295,8 +1310,9 @@ export function planEdit(input: PlanEditInput): EditPlan {
         warnings.add(`interstitial "${id}": the theme has no interstitial component and the scenario names none: left out`);
         continue;
       }
-      const frames = fr(useDuration(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`));
-      drafts.push({ seg: { ...base(id, frames, rc), kind: 'interstitial' } as CardSegment, content: frames });
+      const reading = readingOf(rc);
+      const frames = fr(useDuration(rc, spec.duration, t.interstitial.duration, 2.6, `interstitial "${id}"`, reading));
+      drafts.push({ seg: { ...base(id, frames, rc), kind: 'interstitial', ...(reading ? { reading } : {}) } as CardSegment, content: frames });
       continue;
     }
     // Clip
@@ -1883,6 +1899,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     assets,
     ...(displayTable.length > 0 ? { display: displayTable } : {}),
     meta: { run_id: timeline.run_id, project: timeline.project, scenario: timeline.scenario, theme: template.name },
+    ...(video.target_length ? { target_length: { ...video.target_length } } : {}),
     notes: notes.items,
     warnings: warnings.items,
   };

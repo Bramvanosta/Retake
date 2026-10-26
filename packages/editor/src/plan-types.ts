@@ -286,6 +286,11 @@ export interface OutroSegment extends SegmentBase {
 /** Full-screen card: scenario `card:` entries and `interstitial:` entries. */
 export interface CardSegment extends SegmentBase {
   kind: 'card' | 'interstitial';
+  /**
+   * The words of its text slots and the seconds they need (R-FLD-03: 250 words a minute + 1.5 s); the review warns when
+   * the card is shorter. Absent without text (a file, a mail image) and in plans made before L5.5.
+   */
+  reading?: { words: number; seconds: number };
   /** Interstitials are drawn over the dimmed last frame of the previous clip (source frame index), if any. */
   backdropSrcFrame?: number;
 }
@@ -505,6 +510,8 @@ export interface EditPlan {
   display?: DisplayEntry[];
   /** Run, scenario, project and theme the plan was made from. */
   meta: { run_id: string; project: string; scenario: string; theme: string };
+  /** The scenario's `target_length` (R-FLD-05, L5.5): the review's video-length rule uses it. */
+  target_length?: { min_s: number; max_s: number };
   /** Planner decisions worth surfacing (trimmed idle gaps, clamped zooms…). */
   notes: string[];
   warnings: string[];

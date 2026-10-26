@@ -73,7 +73,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
-| L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **next** (with L5.6, in parallel) |
+| L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **next** (with L5.5, in parallel) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | todo |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | todo |
@@ -711,6 +711,12 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   fixture, change a caption, a card's text and duration, the card order and an overlay, render on the same run with no
   `scenario_changed`; change a step and see it reported. Packages: core, editor, engine, review, cli, mcp, components,
   skills.
+  - **Done (2026-10-26):** core `filmedChanges` / `scenarioSinceRun` (the filmed part) and `replanEdit` (today's edit on
+    the take's timeline; `end_point` recorded per step); planRun / CLI / engine / MCP / Studio report a filmed change
+    with its parts, an edit-only change re-plans on the run; edit sha256 on render records, jobs and exports;
+    text-based card durations + `card-too-short`; mail-view `scroll: none`; `target_length`; `artefact-before-step`.
+    Fixture acceptance on one `quote` take (renders v2 / v3 on the same run, a filmed change reported). Cuts: BL-90,
+    BL-91.
 - **L5.6 — Capture reliability (M).** Goal: a take fails early, loudly and completely, never silently wrong. Scope
   (`--lot L5.6`): R-FLD-10 – R-FLD-16. Acceptance: fixture cases for each (a field below the fold in a scrolling
   dialog, a dead button, a flaky download, a mail to another address, two renamed labels in one scene). Packages:

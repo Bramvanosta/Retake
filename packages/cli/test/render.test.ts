@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { scenarioChangedMessage } from '@demo-studio/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { hasTool, renderWorkspace } from '../../editor/test/render-helpers.js';
 import type { RenderWorkspace } from '../../editor/test/render-helpers.js';
@@ -39,7 +40,7 @@ describe.skipIf(!canRender)('studio render / still', () => {
     expect((await readdir(renders)).sort()).toEqual(['synthetic-v1.json', 'synthetic-v1.mp4']);
   }, LONG);
 
-  it('--json prints the record without the plan; the next render takes the next version; a scenario changed since the capture is warned about first (L3.8)', async () => {
+  it('--json prints the record without the plan; the next render takes the next version; a filmed part changed since the capture is warned about first (L3.8, L5.5)', async () => {
     // The run's snapshot and a scenario file edited since: the render shows the run as captured, and says so on stderr.
     const snapshot = 'video: Synthetic\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n';
     await writeFile(join(ws.runDir, 'scenario.yaml'), snapshot);
@@ -48,7 +49,7 @@ describe.skipIf(!canRender)('studio render / still', () => {
     const r = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--no-intro', '--json');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toContain(
-      '! scenario synthetic changed since run 20260101-120000-synthetic was captured: a render shows the run as captured — a change to the scenario (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `studio run demo synthetic`, then render',
+      `! ${scenarioChangedMessage('synthetic', '20260101-120000-synthetic', '`studio run demo synthetic`', ['scene a: step a.0 changed'])}`,
     );
     const rec = JSON.parse(r.out) as Record<string, unknown>;
     expect(rec).toMatchObject({ id: 'synthetic-v2', status: 'succeeded', frames: 57, width: 480, height: 270, overrides: { scale: 0.25, intro: false } });

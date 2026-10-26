@@ -15,7 +15,7 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, TEMPLATE_NAME_RE, scenarioChangedSinceRun } from '@demo-studio/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, TEMPLATE_NAME_RE } from '@demo-studio/core';
 import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@demo-studio/core';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@demo-studio/editor';
 import { EngineError, toEngineError } from '../errors.js';
@@ -67,16 +67,40 @@ export function checkRenderRequest(req: RenderRequest): EditOverridesInput {
 }
 
 /**
+ * Where a planned render's edit comes from (L5.5): `scenario` — today's scenario file re-planned on the run (its filmed
+ * part is unchanged since the capture); `run` — the run as captured. `scenario_changed`: the filmed part changed since
+ * the capture (re-capture to film it; absent when either file is missing), `filmed_changes` what changed in it,
+ * `edit_changes` what today's edit changed. Both lists hold keys, scene ids and step keys only (trusted words).
+ */
+export interface RenderEditSource {
+  edit: 'scenario' | 'run';
+  scenario_changed?: boolean;
+  filmed_changes?: string[];
+  edit_changes?: string[];
+}
+
+/** A planned run's edit source, as the engine reports it. */
+export function editSourceOf(planned: Pick<PlannedRun, 'edit'>): RenderEditSource {
+  const e = planned.edit;
+  return {
+    edit: e.from,
+    ...(e.scenario_changed !== undefined ? { scenario_changed: e.scenario_changed } : {}),
+    ...(e.filmed_changes?.length ? { filmed_changes: e.filmed_changes } : {}),
+    ...(e.changes?.length ? { edit_changes: e.changes } : {}),
+  };
+}
+
+/**
  * Plan a render request in this process (no browser), through the trust gates of work submitted through MCP. A
- * refusal is EngineError `refused` with the `studio render` command a human runs. `scenario_changed` (L3.8): the
- * project's scenario file differs from the run's snapshot — the render shows the run as captured, a re-capture films
- * the change (core scenarioChangedSinceRun; undefined when either file is missing).
+ * refusal is EngineError `refused` with the `studio render` command a human runs. The plan's edit comes from today's
+ * scenario file when its filmed part is unchanged since the run, else from the run as captured (L5.5, editor planRun):
+ * `source` says which and what changed.
  */
 export async function planRenderRequest(
   ws: WorkspaceConfig,
   cli: string,
   req: RenderRequest,
-): Promise<{ project: LoadedProject; planned: PlannedRun; overrides: EditOverridesInput; scenario_changed?: boolean }> {
+): Promise<{ project: LoadedProject; planned: PlannedRun; overrides: EditOverridesInput; source: RenderEditSource }> {
   const overrides = checkRenderRequest(req);
   const project = await openProjectBySlug(ws, req.project);
   const ed = await editor();
@@ -94,8 +118,7 @@ export async function planRenderRequest(
     if (!RUN_ID_RE.test(planned.run.id) || planned.run.id.length > 200) {
       throw new EngineError('invalid', 'the run picked is not a run id of runs/ (letters, digits, ".", "_", "-"): pass run_id (run_list names the runs)');
     }
-    const changed = scenarioChangedSinceRun(project, planned.run.dir, planned.timeline.scenario);
-    return { project, planned, overrides, ...(changed !== undefined ? { scenario_changed: changed } : {}) };
+    return { project, planned, overrides, source: editSourceOf(planned) };
   } catch (e) {
     if (e instanceof ed.PlanTrustError) {
       throw new EngineError('refused', e.message, { fix: renderCommandLine(cli, req), details: { problems: e.problems } });
@@ -115,8 +138,8 @@ export function parseRenderId(renderId: string, scenario: string): { version: nu
 export async function submitRenderJob(
   ctx: SubmitContext,
   req: RenderRequest,
-): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; scenario_changed?: boolean }> {
-  const { project, planned, overrides, scenario_changed } = await planRenderRequest(ctx.ws, ctx.cli, req);
+): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[] } & RenderEditSource> {
+  const { project, planned, overrides, source } = await planRenderRequest(ctx.ws, ctx.cli, req);
   const ed = await editor();
   const timelineSha = sha256Hex(await readFile(join(planned.run.dir, 'timeline.json')));
   const scenario = planned.timeline.scenario;
@@ -131,6 +154,7 @@ export async function submitRenderJob(
     scenario,
     run_id: planned.run.id,
     timeline_sha256: timelineSha,
+    ...(planned.edit.sha256 ? { edit_sha256: planned.edit.sha256 } : {}),
     render_id: renderId,
     ...(req.template !== undefined ? { template: req.template } : {}),
     overrides,
@@ -152,7 +176,7 @@ export async function submitRenderJob(
     variant: plan.variant,
     duration_s: Math.round((plan.durationInFrames / plan.fps) * 1000) / 1000,
     warnings: plan.warnings,
-    ...(scenario_changed !== undefined ? { scenario_changed } : {}),
+    ...source,
   };
 }
 
@@ -259,6 +283,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
     network: 'guard',
     signal: ctx.signal,
     reserved: { scenario: input.scenario, version, variant },
+    editSha256: input.edit_sha256 ?? null,
     onBrowser: (b) => ctx.browser(b),
     onProgress: (p: RenderProgress) => {
       const key = `${p.stage}:${p.renderedFrames ?? ''}:${Math.round(p.overall * 100)}`;

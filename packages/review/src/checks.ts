@@ -116,11 +116,27 @@ export function checkDurations(ctx: CheckContext, durations: SegmentDuration[]):
       finding(
         far ? 'warning' : 'info',
         'video-length',
-        `the video lasts ${fmtS(total)}: ${side} the ${lo}–${hi} s target of the reference look${far ? '' : ` (within the ${Math.round(r.video_tolerance * 100)} % tolerance)`}`,
+        `the video lasts ${fmtS(total)}: ${side} the ${lo}–${hi} s target ${r.video_target === 'scenario' ? "of the scenario (target_length)" : 'of the reference look'}${far ? '' : ` (within the ${Math.round(r.video_tolerance * 100)} % tolerance)`}`,
       ),
     );
   }
   for (const d of durations) {
+    if (d.kind === 'card' || d.kind === 'interstitial') {
+      // R-FLD-03: a card shorter than its text needs (the planner's reading time: 250 words a minute + 1.5 s).
+      const seg = ctx.plan.segments.find((s) => s.id === d.id);
+      const reading = seg && (seg.kind === 'card' || seg.kind === 'interstitial') ? seg.reading : undefined;
+      const shown = seg ? seg.durationInFrames / ctx.plan.fps : d.duration_s;
+      if (reading && shown + 0.05 < reading.seconds) {
+        out.push(
+          finding(
+            'warning',
+            'card-too-short',
+            `${d.kind} "${d.id}" is on screen ${fmtS(shown)}: its ${reading.words} words need about ${fmtS(reading.seconds)} (250 words a minute + 1.5 s) — remove its \`duration\` (the default follows the text) or make it longer, or shorten the text`,
+            locate(ctx, d.from, { segment: d.id }),
+          ),
+        );
+      }
+    }
     if (d.kind !== 'clip') continue;
     const at = locate(ctx, d.from, { segment: d.id, scene: d.scene });
     if (d.duration_s < r.scene_too_short_s) {
@@ -148,6 +164,44 @@ export function checkLongScenes(ctx: CheckContext, durations: SegmentDuration[])
         locate(ctx, d.from, { segment: d.id, scene: d.scene }),
       ),
     );
+  }
+  return out;
+}
+
+/**
+ * R-FLD-06: a card that shows a captured mail or document before the scene whose step captures it (a document card
+ * before the mail that attaches it, before the action that downloads it): the viewer sees the result before its cause.
+ * The card's place is the last clip before it; a project file (no capturing step) is not checked.
+ */
+export function checkArtefactOrder(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  const tl = ctx.timeline;
+  if (!tl?.artefacts?.length) return out;
+  const sceneIndex = new Map(tl.scenes.map((s) => [s.id, s.index]));
+  let lastClip: string | undefined;
+  for (const seg of ctx.plan.segments) {
+    if (isClip(seg)) {
+      lastClip = seg.scene;
+      continue;
+    }
+    if (seg.kind !== 'card') continue;
+    for (const m of Object.values(seg.component.media ?? {})) {
+      if (m.kind !== 'email' && m.kind !== 'document') continue;
+      const art = tl.artefacts.find((a) => a.kind === m.kind && a.name === m.name);
+      if (!art?.scene) continue;
+      const at = sceneIndex.get(art.scene);
+      const shownAfter = lastClip === undefined ? -1 : (sceneIndex.get(lastClip) ?? -1);
+      if (at === undefined || shownAfter >= at) continue;
+      const what = m.kind === 'email' ? 'mail' : 'document';
+      out.push(
+        finding(
+          'warning',
+          'artefact-before-step',
+          `card "${seg.id}" shows the ${what} "${m.name}" before scene "${art.scene}"${art.step !== undefined ? ` (step ${art.scene}.${art.step})` : ''} captures it: the viewer sees it before the action that ${m.kind === 'email' ? 'sends' : 'produces'} it — move the card after that scene`,
+          locate(ctx, seg.from, { segment: seg.id }),
+        ),
+      );
+    }
   }
   return out;
 }
@@ -289,10 +343,16 @@ export function checkCaptions(ctx: CheckContext): Finding[] {
       if (!clip.caption) continue;
       const scene = ctx.timeline.scenes.find((s) => s.id === clip.scene);
       const expected = new Set<string>();
-      if (scene?.caption?.text) expected.add(scene.caption.text);
-      for (const ev of ctx.timeline.events) if (ev.scene === clip.scene && ev.caption?.text) expected.add(ev.caption.text);
-      if (scene?.caption?.text && clip.cues.length === 0) {
-        out.push(finding('warning', 'caption-missing', `scene "${clip.scene}" has a caption ("${scene.caption.text}") but none is shown`, locate(ctx, clip.from)));
+      // An edit re-planned from today's scenario (L5.5) shows the captions it planned, not the take's.
+      const planned = ctx.record.edit?.from === 'scenario' ? ctx.record.edit.captions : undefined;
+      if (planned) for (const t of planned[clip.scene] ?? []) expected.add(t);
+      else {
+        if (scene?.caption?.text) expected.add(scene.caption.text);
+        for (const ev of ctx.timeline.events) if (ev.scene === clip.scene && ev.caption?.text) expected.add(ev.caption.text);
+      }
+      const sceneCaption = planned ? planned[clip.scene]?.[0] : scene?.caption?.text;
+      if (sceneCaption && clip.cues.length === 0) {
+        out.push(finding('warning', 'caption-missing', `scene "${clip.scene}" has a caption ("${sceneCaption}") but none is shown`, locate(ctx, clip.from)));
       }
       for (const cue of clip.cues) {
         if (expected.size > 0 && !expected.has(cue.text)) {

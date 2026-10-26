@@ -309,8 +309,14 @@ function SourceBar({ v, pick, onPick }: { v: View; pick: string | undefined; onP
         </Notice>
       )}
       {s?.notice === 'changed' && (
-        <Notice tone="warning" role="note" title="The scenario changed since this run">
-          <p>The pictures show the run as it was. Steps changed or added since have no picture.</p>
+        <Notice tone="warning" role="note" title="What the browser does changed since this run">
+          {s.filmed_changes && s.filmed_changes.length > 0 && <p>Changed: {s.filmed_changes.join('; ')}.</p>}
+          <p>A render of this run shows the take as it was captured: capture again to film the change. The pictures show the run as it was; steps changed or added since have no picture.</p>
+        </Notice>
+      )}
+      {s?.notice === 'edit_changed' && (
+        <Notice tone="info" role="note" title="Only the edit changed since this run">
+          <p>Captions, cards, durations, overlays or the title changed: a render re-plans them on this take, no new capture needed.</p>
         </Notice>
       )}
       {s?.notice === 'cannot_tell' && (

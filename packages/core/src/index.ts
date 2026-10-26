@@ -57,5 +57,7 @@ export * from './ids.js';
 export * from './comments.js';
 export * from './plain-file.js';
 export * from './step-match.js';
+export * from './filmed.js';
+export * from './edit-replan.js';
 export * from './blocks.js';
 export { clientPath, isUnder } from './client-path.js';

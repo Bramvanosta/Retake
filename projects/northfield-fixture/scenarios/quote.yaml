@@ -43,7 +43,7 @@ scenes:
       - hold: 1.2
 
   # A full-screen chapter card (takes no capture time): the theme's card component (studio/card-title) with slots.
-  - card: {slots: {kicker: Step two, title: Ask the roaster for a quote}, duration: 2.2}
+  - card: {slots: {kicker: Step two, title: Ask the roaster for a quote}}
     id: chapter-request
 
   - id: request

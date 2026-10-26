@@ -1174,6 +1174,22 @@ successful take; `page_inspect` reusing a previous inspection's state when the s
 The worker runs one job at a time (a capture is CPU / GPU heavy), so a 5-minute render blocks the next take. Allow one
 render next to one capture, once L5.7 has brought a take's cost down and measured the overlap.
 
+### BL-90 — Edit re-plan: project-level changes and unmeasured targets
+*S · L5.5 follow-up*
+
+L5.5 re-plans the edit of today's scenario on an existing take while the scenario's filmed part is unchanged. Two
+gaps: a change in project.yaml (an environment's URLs, personas, project vars) is neither compared nor reported — a
+take filmed against other data still renders as if nothing changed; and an overlay or a camera hint added after the
+take that names an element the take never measured falls back to its step's target box (a plan warning). Options:
+record a digest of the resolved environment and persona bindings in run.json and compare it; measure every visible
+element's box per step cheaply (or the elements the scenario names anywhere) so a later overlay finds its own target.
+
+### BL-91 — Edit-only renders in the Studio
+*S · L5.5 follow-up, for L4.4 / L4.5*
+
+The Studio's scenario screen says "only the edit changed since this run" but offers no render: a Render button on that
+notice (and a list of the edit changes, as plan_preview gives them) would close the loop without the terminal or MCP.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

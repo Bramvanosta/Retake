@@ -11,12 +11,11 @@ import {
   readJson,
   runIdMatchesScenario,
   scenarioChangedMessage,
-  scenarioChangedSinceRun,
   writeJson,
 } from '@demo-studio/core';
 import type { LoadedProject, Scenario, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
-import { planEdit, planInputFiles, runEnv, summarizePlan } from '@demo-studio/editor';
+import { editOfToday, noteEdit, planEdit, planInputFiles, runEnv, summarizePlan } from '@demo-studio/editor';
 import type { EditOverrides } from '@demo-studio/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import { variantOption } from './render.js';
@@ -112,11 +111,14 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   // A run.json a newer Demo Studio wrote (R-PRIN-13), as render and export-capture refuse it.
   const newer = newerRunMessage(run.dir);
   if (newer) throw new CliError(`run ${run.id}: ${newer}`);
-  const timeline = await readJson<Timeline>(join(run.dir, 'timeline.json'));
-  if (opts.scenario && timeline.scenario !== opts.scenario) {
-    throw new CliError(`run ${run.id} is a run of scenario "${timeline.scenario}", not "${opts.scenario}"`);
+  const captured = await readJson<Timeline>(join(run.dir, 'timeline.json'));
+  if (opts.scenario && captured.scenario !== opts.scenario) {
+    throw new CliError(`run ${run.id} is a run of scenario "${captured.scenario}", not "${opts.scenario}"`);
   }
-  if (timeline.mode === 'dry') throw new CliError(`run ${run.id} is a dry run: there is no capture to plan`);
+  if (captured.mode === 'dry') throw new CliError(`run ${run.id} is a dry run: there is no capture to plan`);
+  const env = await runEnv(run.dir);
+  // L5.5: the edit of today's scenario file when its filmed part is unchanged since the run, else the run's.
+  const { timeline, edit, warnings } = editOfToday(project, run, captured, env);
   const themeRef = opts.theme ?? timeline.video?.template ?? project.config.template;
   const template = await loadProjectTemplate(project, themeRef);
   const registry = await loadComponentRegistry({ root: ws.root });
@@ -132,7 +134,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     registry,
     captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
     scenario: await runScenario(run.dir),
-    env: await runEnv(run.dir),
+    env,
     overrides,
     files: await planInputFiles(timeline, project, template),
   });
@@ -141,10 +143,9 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     await writeJson(out, plan);
     if (!opts.json) ui.ok(`plan written to ${ui.path(out)}`);
   }
-  // L3.8: the plan is the run's, never the current scenario file's (stderr, so --json stays parseable).
-  if (scenarioChangedSinceRun(project, run.dir, timeline.scenario)) {
-    ui.warn(scenarioChangedMessage(timeline.scenario, run.id, `\`studio run ${project.slug} ${timeline.scenario}\``));
-  }
+  noteEdit(plan, edit, warnings, run.id);
+  // L5.5: the filmed part changed since the run (stderr, so --json stays parseable).
+  if (edit.scenario_changed) ui.warn(scenarioChangedMessage(timeline.scenario, run.id, `\`studio run ${project.slug} ${timeline.scenario}\``, edit.filmed_changes));
   if (opts.json) {
     ui.result(JSON.stringify(plan, null, 2));
     return EXIT.ok;

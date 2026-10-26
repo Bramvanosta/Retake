@@ -989,6 +989,8 @@ export interface Scenario {
   music?: MusicSpec;
   /** Automatic tutorial overlays fed by the timeline (shortcuts, spotlight, numbered steps, loupe, progress bar). */
   tutorial?: TutorialSwitch;
+  /** The length the video aims at (L5.5): the review's length rule uses it instead of the reference 60–120 s. */
+  target_length?: TargetLength;
   /** The product's clock at capture time 0 (L1.7; wins over the project's); `false` turns the project's clock off. */
   clock?: ClockSpec | false;
   /** Answers to writes stopped on read-only runs (L1.7), tried before the environment's `read_only.mocks`. */
@@ -1753,6 +1755,14 @@ export interface TimelineVideo {
   music?: MusicSpec;
   /** Scenario-level tutorial switches as written (L2.10). */
   tutorial?: TutorialSwitch;
+  /** The scenario's `target_length` (L5.5). */
+  target_length?: TargetLength;
+}
+
+/** The length a video aims at, seconds (scenario `target_length`, L5.5). */
+export interface TargetLength {
+  min_s: number;
+  max_s: number;
 }
 
 export interface TimelineEvent {
@@ -1778,6 +1788,11 @@ export interface TimelineEvent {
   target?: { desc: string; bbox?: BBox };
   /** Cursor position at the click/end of the action. */
   point?: PointSpec;
+  /**
+   * Cursor position at the end of the step, before any park or hold (L5.5): what an overlay or a camera hint added to
+   * the scenario after the capture anchors to when the step has no target box.
+   */
+  end_point?: PointSpec;
   mark?: string;
   caption?: { kicker?: string; text: string };
   speed?: number;

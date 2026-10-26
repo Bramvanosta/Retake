@@ -360,6 +360,9 @@ describe('phase-2 contracts: cards, overlays, camera at the end of the step, vid
     expect(tl.warnings.some((w) => w.includes('overlay target') && w.includes('No such element'))).toBe(true);
     // Events without the modifier carry no overlay.
     expect(ev[1].overlay).toBeUndefined();
+    // L5.5: every completed step records the cursor at its end, where an overlay added after the take anchors.
+    for (const e of ev) expect(e.end_point, `${e.scene}.${e.step}`).toEqual({ x: expect.any(Number), y: expect.any(Number) });
+    expect(ev[3].end_point).toEqual(ev[3].overlay?.point);
   });
 });
 

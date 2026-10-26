@@ -10,7 +10,7 @@ import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { availableParallelism, cpus } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { findWorkspaceRoot, loadProject } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate } from '@demo-studio/core';
+import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
@@ -349,6 +349,13 @@ export interface RenderVideoOptions {
    * scenario and variant (the id's suffix), else the render is refused.
    */
   reserved?: { scenario: string; version: number; variant: PlanVariant };
+  /** Where the edit comes from (L5.5, planRun `edit`): default `auto`. */
+  edit?: 'auto' | 'run';
+  /**
+   * The sha256 of the scenario file the edit must come from (null: the run as captured), as planned before (a render
+   * job at submit, an export of a master): a plan of another edit is refused. Undefined: no check.
+   */
+  editSha256?: string | null;
 }
 
 /**
@@ -356,6 +363,14 @@ export interface RenderVideoOptions {
  * renders/<scenario>-v<N>.json (plan, overrides, theme, run, duration, frames, size, status). N is the next free
  * version. Nothing is written under the final names when the render fails or is cancelled.
  */
+/** The caption texts of each scene of a timeline (its own and its steps'): what a review expects a clip to show. */
+function sceneCaptions(timeline: Timeline): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const s of timeline.scenes) if (s.kind === 'scene' && s.caption?.text) (out[s.id] ??= []).push(s.caption.text);
+  for (const ev of timeline.events) if (ev.step >= 0 && ev.caption?.text) (out[ev.scene] ??= []).push(ev.caption.text);
+  return out;
+}
+
 export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecord> {
   const t0 = performance.now();
   const createdAt = new Date().toISOString();
@@ -376,7 +391,13 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
       ...(opts.root !== undefined ? { root: opts.root } : {}),
       ...(opts.registry ? { registry: opts.registry } : {}),
       ...(opts.trust ? { trust: opts.trust } : {}),
+      ...(opts.edit ? { edit: opts.edit } : {}),
     });
+    if (opts.editSha256 !== undefined && (planned.edit.sha256 ?? null) !== opts.editSha256) {
+      throw new RenderError(
+        `the scenario ${planned.timeline.scenario} changed since this render was planned (its edit ${planned.edit.from === 'scenario' ? 'is now re-planned from another version of the file' : 'now comes from the run as captured'}): plan or submit the render again`,
+      );
+    }
     if (opts.reserved && (planned.timeline.scenario !== opts.reserved.scenario || planned.plan.variant !== opts.reserved.variant)) {
       throw new RenderError(
         `the plan changed since the render was submitted (now ${planned.timeline.scenario}, ${planned.plan.variant}; reserved ${opts.reserved.scenario}, ${opts.reserved.variant}): submit the render again`,
@@ -386,7 +407,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     await reservedRelease();
     throw e;
   }
-  const { root, run, timeline, template, registry, overrides, plan } = planned;
+  const { root, run, timeline, template, registry, overrides, plan, edit } = planned;
   const planMs = Math.round(performance.now() - t0);
   emit({ stage: 'planning', progress: 1, overall: 0 });
 
@@ -420,6 +441,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     run_dir: run.dir,
     template: template.name,
     overrides,
+    edit: { from: edit.from, ...(edit.sha256 ? { sha256: edit.sha256 } : {}), ...(edit.changes?.length ? { changes: edit.changes } : {}), ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}) },
     variant: plan.variant,
     status: 'succeeded',
     file,

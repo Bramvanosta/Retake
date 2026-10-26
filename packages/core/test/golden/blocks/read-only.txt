@@ -14,7 +14,7 @@ scene prices L31-41 · page shop · open /#as-of · caption “Production” / �
     prices.3 L39 [click] click · “Selowa Ridge”
     prices.4 L40 [wait] wait for · button “Request a quote”
     prices.5 L41 [hold] hold · 1.2 s
-card chapter-request L43-44 · slots kicker=“On production”, title=“A quote request, answered by a mock” · 2.2 s
+card chapter-request L43-44 · slots kicker=“On production”, title=“A quote request, answered by a mock”
 scene request L46-53 · page shop (inherited) · continues · caption “Request a quote” / “Choose the quantity, the bag size and the grind.”
     request.0 L49 [click] click · button “Request a quote”
     request.1 L50 [click] click · “Increase” (aria label) in the dialog

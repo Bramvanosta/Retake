@@ -15,7 +15,7 @@ scene discover L34-43 · page shop · open / · caption “Discover” / “Awar
     discover.3 L42 [wait] wait for · button “Request a quote”
     discover.4 L43 [hold] hold · 1.2 s
 # A full-screen chapter card (takes no capture time): the theme's card component (studio/card-title) with slots.
-card chapter-request L46-47 · slots kicker=“Step two”, title=“Ask the roaster for a quote” · 2.2 s
+card chapter-request L46-47 · slots kicker=“Step two”, title=“Ask the roaster for a quote”
 scene request L49-56 · page shop (inherited) · continues · caption “Request a quote” / “Choose the quantity, the bag size and the grind.”
     request.0 L52 [click] click · button “Request a quote”
     request.1 L53 [click] click · “Increase” (aria label) in the dialog

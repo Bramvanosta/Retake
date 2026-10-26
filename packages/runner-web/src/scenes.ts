@@ -400,6 +400,9 @@ async function runStep(rt: Runtime, opts: SceneLoopOptions, scene: Scene, sceneI
         page: rt.page,
       };
     }
+    // Where an overlay or a zoom added to the scenario after this take anchors (L5.5), as overlayFor reads it now.
+    const end = rt.pointer.pos();
+    ev.end_point = { x: end.x, y: end.y };
     if (step.camera) ev.camera = await cameraFor(ctx, step.camera, res);
     if (step.overlay) ev.overlay = await overlayFor(ctx, step.overlay, res);
     if (park?.when === 'after') {

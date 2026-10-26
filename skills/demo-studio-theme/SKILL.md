@@ -71,9 +71,9 @@ something else, they win.
    theme or a render override needs only a render, no new capture. `export {project, render_id}` when the user
    wants the files: it returns a job, follow it with `job_status {job_id, wait_s: 25}`.
 5. **Make it the default** (the user's call): a scenario takes `template: acme` (through the scenario skill and
-   `scenario_save`); the project's own theme is in project.yaml, which only the user edits. A change to the scenario
-   (steps, captions, timing, title, intro/outro, template) shows only in a new capture: `run_capture`, then render.
-   A capture records its theme, so runs filmed before either change keep theirs: pass `template` per render.
+   `scenario_save`); the project's own theme is in project.yaml, which only the user edits. 
+   A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render. Runs whose filmed part changed since render as captured, their theme
+   included: pass `template` per render.
 
 ## What good looks like
 

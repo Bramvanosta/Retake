@@ -472,7 +472,7 @@ describe('JSON Schemas carry the phase-2 keys with descriptions (R-SCN-08)', () 
     }
     expect(t.$defs.ComponentRef.anyOf[0].pattern).toBe(COMPONENT_ID_RE.source);
     const tl = timelineJsonSchema() as Json;
-    expect(Object.keys(tl.properties.video.properties)).toEqual(['title', 'intro', 'outro', 'frame', 'template', 'music', 'tutorial']);
+    expect(Object.keys(tl.properties.video.properties)).toEqual(['title', 'intro', 'outro', 'frame', 'template', 'music', 'tutorial', 'target_length']);
     expect(tl.properties.scenes.items.properties.kind.enum).toEqual(['scene', 'interstitial', 'card']);
     expect(Object.keys(tl.properties.events.items.properties.overlay.properties)).toEqual([
       'component',

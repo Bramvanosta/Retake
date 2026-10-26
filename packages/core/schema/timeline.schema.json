@@ -280,6 +280,22 @@
         },
         "tutorial": {
           "$ref": "#/$defs/Tutorial"
+        },
+        "target_length": {
+          "type": "object",
+          "properties": {
+            "min_s": {
+              "type": "number"
+            },
+            "max_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "min_s",
+            "max_s"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -695,6 +711,10 @@
             "additionalProperties": false
           },
           "point": {
+            "$ref": "#/$defs/Point"
+          },
+          "end_point": {
+            "description": "Cursor at the end of the step, before any park or hold (L5.5): anchors an overlay or a zoom added after the capture.",
             "$ref": "#/$defs/Point"
           },
           "mark": {

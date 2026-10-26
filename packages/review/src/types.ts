@@ -27,9 +27,9 @@ export interface FindingAt {
  * show as a code — anything else in a report.json was not written by a check.
  */
 export const FINDING_CODES: ReadonlySet<string> = new Set([
-  'blank-scene-start', 'blank-screen', 'camera-jump', 'caption-missing', 'caption-not-visible', 'caption-overlap',
+  'artefact-before-step', 'blank-scene-start', 'blank-screen', 'camera-jump', 'caption-missing', 'caption-not-visible', 'caption-overlap',
   'caption-overlaps-brandmark', 'caption-scene-mismatch', 'caption-shrunk', 'caption-too-long', 'caption-truncated',
-  'capture-missing', 'capture-unreadable', 'component-missing', 'cursor-hidden', 'cursor-offscreen',
+  'capture-missing', 'capture-unreadable', 'card-too-short', 'component-missing', 'cursor-hidden', 'cursor-offscreen',
   'cursor-outside-reframe', 'cursor-outside-view', 'diff-duration', 'diff-frames', 'diff-segment',
   'duration-mismatch', 'empty-segment', 'frames-missing', 'loading-scene-start', 'local-url-text', 'long-scene',
   'long-wait', 'media-missing', 'near-uniform-screen', 'overlay-covers-target', 'plan-warning',
@@ -55,6 +55,11 @@ export interface ReviewRules {
   video_max_s: number;
   /** Fraction of the target range a video may miss by before the length is a warning (0.25: 45 s – 150 s). */
   video_tolerance: number;
+  /**
+   * Where the target length comes from: the reference look (default) or the scenario's `target_length` (R-FLD-05,
+   * L5.5: the plan carries it; rules passed by the caller win).
+   */
+  video_target?: 'reference' | 'scenario';
   /** Target scene length, seconds (look.md: 4–25 s); outside: info. */
   scene_min_s: number;
   scene_max_s: number;

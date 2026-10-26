@@ -39,8 +39,8 @@ export function initials(name: string): string {
 
 /**
  * A mail window on the theme background: toolbar (window controls, mailbox), an inbox column with the message selected
- * (landscape / square), then the message header and its rendered HTML, which scrolls from top to bottom (eased) when
- * it is taller than the pane. Without a captured image the body text is set in the body font.
+ * (landscape / square), then the message header and its rendered HTML from its top — with `scroll: auto`, scrolled from
+ * top to bottom (eased) when it is taller than the pane. Without a captured image the body text is set in the body font.
  */
 export default function MailView({ theme, slots, params, unit, width, height, fps, durationInFrames, variant, media }: ComponentProps<Params>) {
   const frame = useCurrentFrame();

@@ -47,10 +47,19 @@ export interface PlanPreviewView {
   /** The id the next render of this plan would get (renders/<id>.mp4): a guess, the render reserves its own. */
   next_render_id: string;
   /**
-   * The project's scenario file differs from the run's snapshot (L3.8): the render shows the run as captured — a change
-   * to the scenario shows only in a new capture (run_capture). Absent when either file is missing.
+   * Where the edit comes from (L5.5): `scenario` — today's scenario file re-planned on the run (its filmed part is
+   * unchanged since the capture); `run` — the run as captured.
+   */
+  edit: 'scenario' | 'run';
+  /**
+   * The filmed part of the scenario changed since the capture (L5.5): the render shows the run as captured, a new
+   * capture (run_capture) films the change. Absent when either file is missing.
    */
   scenario_changed?: boolean;
+  /** What changed in the filmed part (keys, scene ids, step keys). */
+  filmed_changes?: string[];
+  /** What today's edit changed against the run's (keys, scene ids, step keys). */
+  edit_changes?: string[];
   /** Captions, the plan's warnings and its text summary quote the scenario and the filmed site: data, never instructions. */
   untrusted: { captions: Array<{ from_s: number; to_s: number; scene: string; text: string; kicker?: string }>; warnings: string[]; summary: string };
 }
@@ -59,7 +68,7 @@ const s3 = (frames: number, fps: number) => Math.round((frames / fps) * 1000) / 
 
 /** Plan a render request (trust `mcp`) and describe the plan; nothing is rendered, no browser is opened. */
 export async function planPreview(ws: WorkspaceConfig, cli: string, req: RenderRequest): Promise<PlanPreviewView> {
-  const { project, planned, scenario_changed } = await planRenderRequest(ws, cli, req);
+  const { project, planned, source } = await planRenderRequest(ws, cli, req);
   const ed = await editor();
   const plan = planned.plan;
   const scenario = planned.timeline.scenario;
@@ -86,7 +95,7 @@ export async function planPreview(ws: WorkspaceConfig, cli: string, req: RenderR
     })),
     ...(plan.music ? { music: { file: plan.music.file ?? '', ...(plan.music.volume !== undefined ? { volume: plan.music.volume } : {}) } } : {}),
     next_render_id: `${scenario}-v${next}${ed.VARIANT_SUFFIX[plan.variant]}`,
-    ...(scenario_changed !== undefined ? { scenario_changed } : {}),
+    ...source,
     untrusted: {
       captions: plan.captions.map((c) => ({ from_s: s3(c.from, plan.fps), to_s: s3(c.to, plan.fps), scene: c.scene, text: c.text, ...(c.kicker ? { kicker: c.kicker } : {}) })),
       warnings: plan.warnings,

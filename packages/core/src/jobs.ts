@@ -237,6 +237,8 @@ export const RenderJobInputSchema = z.strictObject({
   run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name, never a path'),
   /** sha256 of the run's timeline.json at submit. */
   timeline_sha256: sha256,
+  /** L5.5: sha256 of the scenario file the edit was planned from at submit (absent: the run as captured). */
+  edit_sha256: sha256.optional(),
   render_id: renderIdSchema,
   /** Theme for this render instead of the run's (a name, never a path). */
   template: templateNameSchema.optional(),

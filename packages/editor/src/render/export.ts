@@ -285,6 +285,8 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       scenario: record.scenario,
       template: record.template,
       overrides,
+      // The master's edit (L5.5): the same version of the scenario file, or the run as captured (renders before L5.5).
+      ...(record.edit?.from === 'scenario' ? { editSha256: record.edit.sha256 ?? null } : { edit: 'run' as const }),
       out: file,
       registry: opts.registry,
       concurrency: opts.concurrency,

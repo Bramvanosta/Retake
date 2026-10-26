@@ -5,10 +5,11 @@
  * still of a frame comment (L3.6).
  */
 export * from './types.js';
-export { recoverReviewDir, reviewImages, reviewRender, keyframePlan, sampleFrames, safeName } from './review.js';
+export { recoverReviewDir, reviewImages, reviewRender, reviewRules, keyframePlan, sampleFrames, safeName } from './review.js';
 export { ReviewError, findPrevious, findRender, renderTimeline, reviewsDir } from './load.js';
 export {
   captionRegion,
+  checkArtefactOrder,
   checkCamera,
   checkCaptions,
   checkCursor,

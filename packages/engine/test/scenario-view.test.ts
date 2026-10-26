@@ -136,7 +136,7 @@ describe('binding a changed file (B4)', () => {
       .replace('      - click: Second\n', '      - click: Second\n        caption: Now the second\n')
       .replace('click: Third', 'click: Third!');
     const v = await view(yaml);
-    expect(v.source).toMatchObject({ changed: true, binding: 'identity', notice: 'changed' });
+    expect(v.source).toMatchObject({ changed: true, binding: 'identity', notice: 'changed', filmed_changes: ['scene one: step one.0 added', 'scene two: step two.0 changed'] });
     expect(v.steps['one.0']).toEqual({ missing: 'new' });
     expect(bound(v.steps['one.1'])?.run_key).toBe('one.0');
     expect(bound(v.steps['one.2'])?.run_key).toBe('one.1');
@@ -153,6 +153,14 @@ describe('binding a changed file (B4)', () => {
     expect(bound(v.steps['one.0'])?.run_key).toBe('one.0');
     const w = await view(`# a comment\n${BLOCKS_YAML.replace('click: First', 'click: "First"')}`);
     expect(w.source).toMatchObject({ changed: false, binding: 'position' });
+  });
+
+  it('only the edit changed (a caption): notice edit_changed, every picture kept (L5.5)', async () => {
+    const v = await view(BLOCKS_YAML.replace('      - click: Second\n', '      - click: Second\n        caption: Now the second\n'));
+    expect(v.source).toMatchObject({ changed: true, notice: 'edit_changed' });
+    expect(v.source).not.toHaveProperty('filmed_changes');
+    expect(bound(v.steps['two.0'])?.run_key).toBe('two.0');
+    expect(bound(v.steps['two.1'])?.run_key).toBe('two.1');
   });
 
   it('no snapshot in the run: bound by position, "cannot tell"', async () => {
