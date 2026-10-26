@@ -334,7 +334,8 @@ RunOptions = {
 }
 openSession(opts): Promise<BrowserSession>     // lower-level: launch + kit injection (used by tests, MCP live preview later)
 evalHookInPage(session, { project, env, log }, pageKey, code): Promise<unknown>   // a js hook in its guarded tab (§2)
-encodeFrames(framesDir, index: FrameIndexEntry[], out: string, opts: { fps; crf; endT }): Promise<void>
+encodeFrames(framesDir, index: FrameIndexEntry[], out: string, opts: { fps; crf; endT }): Promise<void>   // after the fact (raw export, tests)
+new StreamEncoder({ out, fps, width, height, format, encoder, crf, horizon, onThumb? })   // fed during the take (L5.7): push / endAt / finish / abort
 kitSource(config: KitConfig): string           // the in-page script (for debugging / other runners)
 signIn({project, env, persona, mode: 'headed'|'auto', page?, url?, resolveSecret?, onOpen?, drive?, headless?, signal?})
   : Promise<{persona, check, profileDir?, snapshot?, cookies, origins, url, alreadySignedIn?, kept?}>   // `studio login` (§3.6)
@@ -585,18 +586,35 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 
 ### 3.4 Recording
 - CDP `Page.startScreencast({ format, quality, maxWidth: w·scale, maxHeight: h·scale, everyNthFrame: 1 })`
-  on the active page (stop/start on page switch). Every frame is acked immediately and written to
-  `runs/<id>/frames/NNNNNN.jpg` with `{ file, t }` appended to `frames.jsonl`
-  (t = metadata.timestamp·1000 − t0_wall, seconds). Frame timestamps and runner events share the wall clock.
-- t0 = the moment recording starts (before the first scene). Encoding: ffmpeg concat demuxer with per-frame
-  durations (VFR) → `-vf fps=<fps>,format=yuv420p -c:v libx264 -crf <crf> -preset medium -movflags +faststart`
-  → `capture.mp4` (CFR). The first frame is extended back to t=0; the last frame holds until the stop time.
+  on the active page (stop/start on page switch; JPEG quality 90 by default since L5.7). Every frame is acked
+  immediately, `{ file, t }` appended to `frames.jsonl` (t = metadata.timestamp·1000 − t0_wall, seconds), and the
+  frame itself written to `runs/<id>/frames/NNNNNN.jpg` only with `capture.keep_frames` (L5.7: default false). Frame
+  timestamps and runner events share the wall clock.
+- t0 = the moment recording starts (before the first scene). Encoding **during the take** (L5.7, `stream.ts`): every
+  kept frame is pushed to a `StreamEncoder` — ffmpeg reading JPEG/PNG frames from a pipe (`image2pipe`) at the output
+  rate; `CfrStream` emits tick n (time n/fps) with the latest frame stamped at or before it (the first frame also covers
+  the time before it, frames after the end are left out: exactly `cfrSchedule`), once nothing earlier can still arrive
+  — the capture clock less STREAM_LAG_S (0.5 s), never past the start of a page load the recorder holds (its frames are
+  released later with their own paint time). Codec: VideoToolbox H.264 `-q:v 85` on a Mac whose ffmpeg has it
+  (checked once per process), else libx264 preset veryfast at `crf`. The same ffmpeg writes a 96×54 grey copy of every
+  output frame to its stdout (`activity.ts`: changed cells per frame → slow transitions, `timeline.busy`). The take
+  ends with `finish(endT)` (the last ticks, ≈ 20–60 ms); a cancelled or discarded take aborts it and removes the file.
 - `idle` intervals: gaps between consecutive frames ≥ 0.5 s.
 - Chromium keeps its frame rate limiter by default. With it, frame production stops ≈ 0.26 s when an element with a
   `backdrop-filter` goes away after a hover and a press (a closing dialog's overlay), measured on macOS / Metal
-  whatever the raster path. `browser.frame_rate_limit: false` (L1.3) launches it with `--disable-frame-rate-limit`:
-  no such stall, but a page's `requestAnimationFrame` then runs at thousands of Hz while anything animates (an
-  animation stepping once per frame plays too fast; 2–6× the CPU) — an option, not the default; the motion check points to it when a click ripple froze.
+  whatever the raster path. L5.7 (R-FLD-20): after every press the recorder asks for a fresh frame (a screencast
+  restart sends the current picture) whenever none arrived for KICK_GAP_MS (90 ms) until KICK_WINDOW_MS (0.7 s) —
+  the frames asked for during a ripple all differ: the compositor still draws, only the screencast stopped sending; a
+  frame byte-identical to the last one kept (a still page asked again) is not indexed nor encoded, so idle gaps stay whole —
+  and the edit cuts what is left of a freeze (`timeline.stalls`, cut but its first frame). `browser.frame_rate_limit:
+  false` (L1.3) launches Chromium with `--disable-frame-rate-limit`: no such stall, but a page's
+  `requestAnimationFrame` then runs at thousands of Hz while anything animates (an animation stepping once per frame
+  plays too fast) and the take costs ×2.8 Chromium CPU (GPU and renderer processes ×7, FIELD-FEEDBACK-1): an option the
+  run warns about.
+- What a take costs (L5.7, `perf.ts`): every 2 s, Chromium's own process report (`SystemInfo.getProcessInfo` on each
+  persona's browser target: type, pid, CPU seconds), `ps -o pid=,time= -p` of the encoders and of the processes
+  listening on the environment's localhost ports, Node's `process.cpuUsage()`, the load average → run.json `perf`
+  (with the GPU report `SystemInfo.getInfo`, the frame rates, stalls, slow transitions, the encoder and the disk).
 - Motion check (`motionCapture`): per cursor move, the frame rate of the motion itself (first sample → last change
   of position) — a run warning below 0.6 × min(fps, 30); and the stalls — frame gaps ≥ 150 ms (`STALL_MIN_S`) while
   the cursor moves or a click ripple plays, except around a page change (the new page renders), over a held page load

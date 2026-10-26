@@ -7,7 +7,9 @@ import type {
   RunMode,
   Timeline,
   TimelineEvent,
+  TimelineBusy,
   TimelineLoading,
+  TimelineStall,
   TimelineMarker,
   TimelinePageSegment,
   TimelineArtefact,
@@ -61,6 +63,8 @@ const RIPPLE_S = 0.55;
 export interface CaptureStall {
   /** Capture time (s) of the last frame before the gap. */
   t: number;
+  /** Capture time (s) of the first frame after it. */
+  t_end: number;
   /** Length of the frozen part (ms) that overlaps the motion or the ripple. */
   ms: number;
   during: 'move' | 'ripple';
@@ -149,7 +153,7 @@ export function motionCapture(
     let best: CaptureStall | undefined;
     for (const [x, y, during] of busy) {
       const ov = Math.min(b, y) - Math.max(a, x);
-      if (ov >= STALL_MIN_S && (!best || ov * 1000 > best.ms)) best = { t: round3(a), ms: Math.round(ov * 1000), during };
+      if (ov >= STALL_MIN_S && (!best || ov * 1000 > best.ms)) best = { t: round3(a), t_end: round3(b), ms: Math.round(ov * 1000), during };
     }
     if (best) out.stalls.push(best);
   }
@@ -306,6 +310,10 @@ export class TimelineBuilder {
   readonly tracks: TrackBuilder[] = [];
   /** Page loads the main capture held (R-ISS-08), set when the run ends. */
   loading: TimelineLoading[] = [];
+  /** Where the main capture froze while the cursor moved or a ripple played (L5.7), set when the run ends. */
+  stalls: TimelineStall[] = [];
+  /** Waits the main capture showed after clicks (L5.7, R-FLD-26), set when the run ends. */
+  busy: TimelineBusy[] = [];
   /** The run's environment (L1.7): access, display table, clock; the read-only guard appends to `writes`. */
   environment?: TimelineEnvironment;
 
@@ -395,6 +403,8 @@ export class TimelineBuilder {
       ...(this.cursorEffects.length ? { cursor_effects: sortedEffects(this.cursorEffects) } : {}),
       idle: this.meta.mode === 'capture' ? computeIdle(capture.idleFrameTimes ?? capture.frameTimes, end) : [],
       ...(this.loading.length ? { loading: this.loading } : {}),
+      ...(this.stalls.length ? { stalls: this.stalls } : {}),
+      ...(this.busy.length ? { busy: this.busy } : {}),
       ...(this.artefacts.length ? { artefacts: this.artefacts } : {}),
       ...(this.tracks.length ? { tracks: this.tracks.map((t) => t.build(end)) } : {}),
       ...(this.environment ? { environment: this.environment } : {}),

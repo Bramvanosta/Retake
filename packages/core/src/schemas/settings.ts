@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CAPTURE_ENCODERS } from '../types.js';
 import type { AuthConfig, BrowserConfig, CaptureSettings, LoginPattern, LoginStep, Pacing, PersonaCheck, PersonaConfig } from '../types.js';
 import { keyedUnion } from './keyed.js';
 import { TargetSpecSchema, keyString, millis, nonEmpty, positiveSeconds, seconds, slugString } from './primitives.js';
@@ -11,9 +12,19 @@ export const CaptureSettingsSchema = z
     scale: z.number().gt(0).max(4).describe('deviceScaleFactor: 1, or 2 for 4K from a 1920×1080 viewport.'),
     fps: z.number().int().min(1).max(120).describe('Output frame rate of capture.mp4.'),
     format: z.enum(['jpeg', 'png']).describe('Screencast frame format.'),
-    quality: z.number().int().min(1).max(100).describe('JPEG quality (1-100).'),
-    keep_frames: z.boolean().describe('Keep runs/<id>/frames after encoding.'),
-    crf: z.number().int().min(0).max(51).describe('libx264 CRF of capture.mp4.'),
+    quality: z.number().int().min(1).max(100).describe('JPEG quality of the screencast frames (1-100, default 90).'),
+    keep_frames: z
+      .boolean()
+      .describe('Keep the screencast frames in runs/<id>/frames (real timing, for the raw export). Default false: capture.mp4 is encoded during the take.'),
+    crf: z.number().int().min(0).max(51).describe('libx264 CRF of capture.mp4 (when the encoder is libx264).'),
+    encoder: z
+      .enum(CAPTURE_ENCODERS)
+      .describe("Encoder of capture.mp4, fed during the take: auto (default: the Mac's hardware H.264 encoder when ffmpeg has it, else libx264), videotoolbox or libx264.")
+      .optional(),
+    prewarm: z
+      .boolean()
+      .describe('Visit each page of the scenario once off camera before the take, so the first visit is not filmed cold. Default false.')
+      .optional(),
     step_shots: z
       .boolean()
       .describe('Keep one picture per step of a capture in runs/<id>/screenshots (the captured frame at the end of each step), as a dry run does. Default false.')
@@ -23,7 +34,7 @@ export const CaptureSettingsSchema = z
 
 export const CapturePartialSchema = CaptureSettingsSchema.partial().meta({
   id: 'CaptureOverrides',
-  description: 'Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 100, crf 16).',
+  description: 'Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 90, frames not kept, encoder auto, crf 16).',
 });
 
 export const PacingSchema = z

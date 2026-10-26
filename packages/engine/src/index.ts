@@ -180,6 +180,8 @@ export {
   replyComment,
   resolveComment,
 } from './comments.js';
+export { DEFAULT_KEEP_RENDERS, formatBytes, pruneProject } from './prune.js';
+export type { PruneItem, PruneRequest, PruneResult } from './prune.js';
 export type { CommentAddRequest, CommentAdded, CommentEntryView, CommentListRequest, CommentListView, CommentResolveRequest, CommentView, CommentWritten } from './comments.js';
 export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders } from './http/gate.js';
 export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, readPrivateToken, stableToken } from './http/token-file.js';

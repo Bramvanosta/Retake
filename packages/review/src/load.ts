@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { loadProject } from '@demo-studio/core';
-import type { LoadedProject, Timeline } from '@demo-studio/core';
+import type { LoadedProject, RunRecord, Timeline } from '@demo-studio/core';
 import { listRenders, rendersDir } from '@demo-studio/editor';
 import type { RenderRecord } from '@demo-studio/editor';
 
@@ -99,6 +99,19 @@ export async function renderTimeline(project: LoadedProject, record: RenderRecor
     }
   }
   return {};
+}
+
+/** The run.json of a render's run (L5.7: what the take cost, its slow transitions), when it can be read. */
+export async function renderRun(project: LoadedProject, record: RenderRecord): Promise<RunRecord | undefined> {
+  for (const dir of [record.run_dir, join(project.dir, 'runs', record.run_id)]) {
+    if (!dir) continue;
+    try {
+      return JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
+    } catch {
+      // try the next place
+    }
+  }
+  return undefined;
 }
 
 /** `<project>/review` */

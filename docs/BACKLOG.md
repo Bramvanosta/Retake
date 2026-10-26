@@ -1265,6 +1265,40 @@ or routing those writes through the engine, would make every writer of a scenari
 - **Value:** No write of a project file can interleave with a Studio or MCP save, whoever makes it.
 - **Hard parts:** Core stays free of the sandbox package; the CLI's writes of new files have no version to match.
 
+### BL-97 — Throttle a persona's page nobody films
+*S · L5.7 follow-up (R-FLD-25)*
+
+L5.7 measured the two-persona fixture (`two-personas`: the console's quote list polls every second while the café is
+filmed): the unfilmed browser costs ≈ 0.02 core, so nothing is throttled. run.json `perf.cpu.browsers[].unfilmed`
+measures it on every take and the run warns above 0.25 core. When a real product's page costs that much off screen
+(animations, a heavy polling list), freeze it while no recorder films it (CDP `Page.setWebLifecycleState: frozen`,
+`active` before its scene or a step on it — its polling resumes, so it is fresh when filmed) — watching what a frozen
+page misses meanwhile (web notifications, a hook's `js` tab in that browser).
+
+### BL-98 — Fewer screencast frames during motion
+*S · L5.7 follow-up*
+
+With capture.mp4 encoded in hardware during the take, Chromium's browser process is the largest cost of a take (≈ 0.45
+core on the fixture: it reads every compositor frame back and encodes it as JPEG, ≈ 55–60 frames a second while the
+cursor moves, for a 30 fps video). `everyNthFrame: 2` while the output is 30 fps would halve it; measure the judder it
+may add (frames then land near the output ticks and their timing noise can pick one twice) and keep 60 Hz for the raw
+export (`keep_frames`).
+
+### BL-99 — Slow transitions and waits on page tracks
+*S · L5.7 follow-up*
+
+The screen activity behind slow transitions (R-FLD-23) and the waits the edit shortens (R-FLD-26) is computed on the
+main capture only; a multi-page scene's tracks have none. Feed each track's encoder the same grey thumbnails and
+analyse its clicks (`on:` steps), then cut its waits only where no other page of the run acts (like held loads).
+
+### BL-100 — Pruning beyond runs, renders and reviews
+*S · L5.7 follow-up (R-FLD-28)*
+
+`studio prune` / `project_prune` leave `exports/` (raw packages, exported formats), inspections and recordings
+(`.demo-studio/…`) and the job history alone. A size budget per project (`prune: {keep_renders, max_gb}` in
+project.yaml, applied after each render) and a workspace-wide `studio prune --all` would keep a busy week under control
+without thinking about it.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

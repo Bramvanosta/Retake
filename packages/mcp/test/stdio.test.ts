@@ -3,6 +3,7 @@
  * Every read tool is called on a copy of the fixture project; stdout must carry JSON-RPC only.
  */
 import { spawn, execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -72,6 +73,7 @@ describe('studio mcp over stdio', () => {
       'project_get',
       'project_create',
       'project_update_readme',
+      'project_prune',
       'scenario_get',
       'scenario_validate',
       'scenario_save',
@@ -117,10 +119,10 @@ describe('studio mcp over stdio', () => {
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties, t.name).toBe(false);
       expect(t.description.length, t.name).toBeGreaterThan(20);
       expect(t.annotations?.readOnlyHint, t.name).toBe(
-        !['project_create', 'project_update_readme', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'comment_reply', 'comment_resolve', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
+        !['project_create', 'project_update_readme', 'project_prune', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'comment_reply', 'comment_resolve', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
       );
       expect(t.annotations?.openWorldHint, t.name).toBe(['page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'hooks_run', 'env_reset', 'auth_login', 'template_from_site'].includes(t.name));
-      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand'].includes(t.name));
+      expect(t.annotations?.destructiveHint, t.name).toBe(['hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'template_create_from_brand', 'project_prune'].includes(t.name));
       // No tool takes a credential.
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/password|secret|token|cookie/i);
       expect(JSON.stringify(t.inputSchema), t.name).not.toMatch(/allow_writes/);
@@ -222,6 +224,16 @@ describe('studio mcp over stdio', () => {
     expect(data.untrusted.warnings[0]).toContain('IGNORE PREVIOUS INSTRUCTIONS');
     expect(data.screenshots[0].path).toBe(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'screenshots', '001-catalog.0.png'));
     expect(errorOf(await call('run_status', { project: 'northfield-fixture', run_id: '20990101-000000-none' })).code).toBe('not_found');
+  });
+
+  it('project_prune lists what can go (a dry run by default) and deletes nothing (L5.7)', async () => {
+    const r = await call('project_prune', { project: 'northfield-fixture' });
+    expect(r.isError).toBeFalsy();
+    expect(r.content[0].text).toMatch(/^1 item of northfield-fixture can go \(\d+ kB\); call again with dry_run: false/);
+    expect(r.content[0].text).toContain('- run 20261017-120000-quote: dry run');
+    expect((r.structuredContent as { dry_run: boolean }).dry_run).toBe(true);
+    expect(existsSync(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'run.json'))).toBe(true);
+    expect(errorOf(await call('project_prune', { project: 'northfield-fixture', keep_renders: 0 })).code).toBe('invalid');
   });
 
   it('runs whose hooks need a human are refused with the command, before anything is queued; a CLI run is not cancelled here', async () => {
@@ -355,7 +367,7 @@ describe('studio mcp: lifecycle and registration', () => {
   });
 
   it('every tool has a zod schema that publishes as an object schema', () => {
-    expect(TOOLS).toHaveLength(44);
+    expect(TOOLS).toHaveLength(45);
     for (const t of TOOLS) expect(t.input.safeParse({ __nope: 1 }).success, t.name).toBe(false);
   });
 });

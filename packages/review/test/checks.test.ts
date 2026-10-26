@@ -26,6 +26,7 @@ import {
   checkDurations,
   checkEnvironment,
   checkRender,
+  checkSlowTransitions,
   checkLongScenes,
   checkTextSlots,
   checkTransitionsOnClicks,
@@ -525,5 +526,28 @@ describe('L5.5 review rules: target length, cards too short for their text, a ma
         at: expect.objectContaining({ segment: 'inbox' }),
       }),
     ]);
+  });
+
+  it('lists the slow transitions of the take from run.json, at the output frame of the click (R-FLD-23)', () => {
+    const ctx = ctxOf('quote');
+    expect(checkSlowTransitions(ctx)).toEqual([]);
+    const click = ctx.clicks[2];
+    const run = {
+      perf: {
+        transitions: {
+          measured: 15,
+          slow: [
+            { t: 12.5, ms: 1875, scene: click.scene, step: click.step, target: 'link "October 2026"' },
+            { t: 999, ms: 900, scene: 'gone', step: 0 },
+          ],
+        },
+      },
+    } as unknown as CheckContext['run'];
+    const found = checkSlowTransitions({ ...ctx, run });
+    expect(found).toEqual([
+      expect.objectContaining({ severity: 'info', code: 'slow-transition', at: expect.objectContaining({ frame: click.frame }) }),
+      expect.objectContaining({ severity: 'info', code: 'slow-transition', message: expect.stringContaining('gone.0: the screen settled 0.9 s after the click (not in the video)') }),
+    ]);
+    expect(found[0].message).toMatch(new RegExp(`^${click.scene}\\.${click.step}: the screen settled 1\\.9 s after the click on link "October 2026" — the product is slow there`));
   });
 });

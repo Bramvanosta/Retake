@@ -1020,17 +1020,30 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 100,
-          "description": "JPEG quality (1-100)."
+          "description": "JPEG quality of the screencast frames (1-100, default 90)."
         },
         "keep_frames": {
           "type": "boolean",
-          "description": "Keep runs/<id>/frames after encoding."
+          "description": "Keep the screencast frames in runs/<id>/frames (real timing, for the raw export). Default false: capture.mp4 is encoded during the take."
         },
         "crf": {
           "type": "integer",
           "minimum": 0,
           "maximum": 51,
-          "description": "libx264 CRF of capture.mp4."
+          "description": "libx264 CRF of capture.mp4 (when the encoder is libx264)."
+        },
+        "encoder": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "videotoolbox",
+            "libx264"
+          ],
+          "description": "Encoder of capture.mp4, fed during the take: auto (default: the Mac's hardware H.264 encoder when ffmpeg has it, else libx264), videotoolbox or libx264."
+        },
+        "prewarm": {
+          "type": "boolean",
+          "description": "Visit each page of the scenario once off camera before the take, so the first visit is not filmed cold. Default false."
         },
         "step_shots": {
           "type": "boolean",
@@ -1038,7 +1051,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 100, crf 16)."
+      "description": "Capture settings (merged over the defaults: 1920×1080, scale 1, 30 fps, jpeg 90, frames not kept, encoder auto, crf 16)."
     },
     "Frame": {
       "anyOf": [

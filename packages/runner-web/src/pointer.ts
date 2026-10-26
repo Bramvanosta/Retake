@@ -18,6 +18,8 @@ export interface PointerHost {
   sample?: (s: { x: number; y: number; visible: boolean; down?: boolean }) => void;
   /** Called before a press (L1.3: the runtime lets the capture catch up with the cursor's last painted position). */
   beforePress?: () => Promise<void>;
+  /** Called once a press is dispatched (L5.7: the recorder keeps frames flowing while its ripple plays). */
+  afterPress?: () => void;
 }
 
 export type MouseButton = 'left' | 'right' | 'middle';
@@ -145,6 +147,7 @@ export class Pointer {
     throwIfAborted(this.host.signal);
     const t = this.host.timeline.now();
     await this.host.page().mouse.down({ button, clickCount });
+    if (clickCount === 1) this.host.afterPress?.();
     this.down = true;
     this.sample();
     return t;

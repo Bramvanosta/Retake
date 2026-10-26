@@ -178,8 +178,7 @@ function nodeCheck(p: DoctorProbes): DoctorCheck {
     : { status: 'fail', name: 'Node.js', detail: `${p.nodeVersion} (needs ${MIN_NODE_MAJOR}+)`, hint: `install Node.js ${MIN_NODE_MAJOR} or later (e.g. nvm install ${MIN_NODE_MAJOR})` };
 }
 
-async function chromiumCheck(p: DoctorProbes, browser: BrowserConfig | undefined): Promise<DoctorCheck> {
-  const c = await p.chromium(browser);
+function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): DoctorCheck {
   const src = c.source === 'playwright' ? 'Playwright' : c.source;
   if (!c.path || !c.exists) {
     return {
@@ -199,6 +198,40 @@ async function chromiumCheck(p: DoctorProbes, browser: BrowserConfig | undefined
   }
   const mode = browser?.channel === 'headless-shell' ? 'headless shell' : 'new headless';
   return { status: 'ok', name: 'Chromium', detail: `${c.version ?? '?'} · ${c.path} · ${mode} launch ${formatMs(c.ms ?? 0)}` };
+}
+
+/**
+ * Is the capture browser GPU-accelerated (L5.7, R-FLD-24)? Chromium's own report of the browser `studio doctor` just
+ * launched, as captures launch it: without the GPU, motion is filmed choppy and Chromium's CPU climbs.
+ */
+export function gpuCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): DoctorCheck | null {
+  if (!c.launched) return null;
+  if (!c.gpu) return { status: 'warn', name: 'GPU', detail: 'the capture browser did not report its GPU status', hint: 'open chrome://gpu in that Chromium to see it' };
+  if (c.gpu.accelerated) return { status: 'ok', name: 'GPU', detail: `hardware accelerated · ${c.gpu.renderer ?? 'GPU'}` };
+  return {
+    status: 'warn',
+    name: 'GPU',
+    detail: `the capture browser renders in software · ${c.gpu.renderer ?? '?'}${c.gpu.software?.length ? ` · in software: ${c.gpu.software.join(', ')}` : ''}`,
+    hint:
+      browser?.channel === 'headless-shell'
+        ? 'browser.channel: headless-shell has no GPU — remove it (new headless uses the GPU)'
+        : 'captures will look choppy and cost more CPU: check the machine has a GPU Chromium can use (a VM or a remote session often has none)',
+  };
+}
+
+/** The encoder captures feed during the take (L5.7): the Mac's hardware H.264 encoder through ffmpeg, else libx264. */
+export async function captureEncoderCheck(p: DoctorProbes, configured: string | undefined): Promise<DoctorCheck | null> {
+  if (p.platform !== 'darwin') return { status: 'ok', name: 'Capture encoder', detail: 'libx264 (preset veryfast) during the take' };
+  const cmd = configured ? expandHome(configured) : (p.which('ffmpeg') ?? null);
+  if (!cmd) return null;
+  const res = await p.exec(cmd, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=256x144:r=30', '-frames:v', '2', '-c:v', 'h264_videotoolbox', '-f', 'null', '-'], 15_000);
+  if (res && res.code === 0) return { status: 'ok', name: 'Capture encoder', detail: 'hardware H.264 (VideoToolbox) during the take' };
+  return {
+    status: 'warn',
+    name: 'Capture encoder',
+    detail: `ffmpeg cannot encode with VideoToolbox here${res ? ` (${firstLine(res.stderr) || `exit ${res.code}`})` : ''}: captures encode with libx264 during the take (more CPU)`,
+    hint: 'a Homebrew ffmpeg has VideoToolbox (brew install ffmpeg)',
+  };
 }
 
 function displayCheck(p: DoctorProbes): DoctorCheck {
@@ -526,9 +559,15 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
 /** Every doctor check, in display order. */
 export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
-  out.push(await chromiumCheck(probes, ws.browser));
-  out.push(await mediaTool(probes, 'ffmpeg', ws.ffmpeg));
+  const chromium = await probes.chromium(ws.browser);
+  out.push(chromiumCheck(chromium, ws.browser));
+  const gpu = gpuCheck(chromium, ws.browser);
+  if (gpu) out.push(gpu);
+  const ffmpeg = await mediaTool(probes, 'ffmpeg', ws.ffmpeg);
+  out.push(ffmpeg);
   out.push(await mediaTool(probes, 'ffprobe', ws.ffmpeg));
+  const encoder = ffmpeg.status === 'ok' ? await captureEncoderCheck(probes, ws.ffmpeg) : null;
+  if (encoder) out.push(encoder);
   out.push(displayCheck(probes), secretsCheck(probes), notifyCheck(probes));
   const resolve = unsafeTestResolveCheck(probes);
   if (resolve) out.push(resolve);

@@ -24,6 +24,13 @@ export const DEFAULT_IDLE_THRESHOLD_S = 1.2;
 /** What is left of a shortened idle gap (seconds of capture: half before the cut, half after). */
 export const IDLE_KEEP_S = 0.4;
 /**
+ * A wait after a click (L5.7, R-FLD-26) keeps this much of its start (the viewer sees that it loads) and this much before
+ * the content appears; waits whose middle is shorter than BUSY_CUT_MIN_S are left alone.
+ */
+export const BUSY_KEEP_BEFORE_S = 0.3;
+export const BUSY_KEEP_AFTER_S = 0.1;
+export const BUSY_CUT_MIN_S = 0.2;
+/**
  * Waiting (L2.12 — the root cause of the catalogue `long-wait`): a wait step (`wait_for`, `wait_for_email`) and the
  * post-navigation pause of the step right before it show a loading state (placeholders, spinners — they animate, so the
  * capture is never idle and idle trimming cannot shorten them). The planner plays such a span at `WAIT_SPEED` after its
@@ -82,6 +89,17 @@ export interface RunTimingInput {
    * page painted): with `trimIdle`, those of at least LOADING_CUT_MIN_S are cut whole.
    */
   loading?: ReadonlyArray<{ t_start: number; t_end: number }>;
+  /**
+   * Freezes of the capture (`timeline.stalls`, L5.7: no new frame while the cursor moved or a click ripple played —
+   * R-ISS-12's dialog close): with `trimIdle`, cut whole but their first frame, inside protected spans too.
+   */
+  frozen?: ReadonlyArray<{ t_start: number; t_end: number }>;
+  /**
+   * Waits the screen showed after a click (`timeline.busy`, L5.7, R-FLD-26: skeletons, spinners, blank panels): with
+   * `trimIdle`, shortened like idle gaps — outside protected spans, keeping BUSY_KEEP_BEFORE_S of the wait and
+   * BUSY_KEEP_AFTER_S before the content appears.
+   */
+  busy?: ReadonlyArray<{ t_start: number; t_end: number }>;
 }
 
 /** Why a span is played at 1× whatever the speeds. */
@@ -115,8 +133,11 @@ export interface MapPiece {
 
 export interface RunCut extends Interval {
   clip: number;
-  /** `idle`: a shortened idle gap; `loading`: a page load the capture held, cut whole. */
-  reason: 'idle' | 'loading';
+  /**
+   * `idle`: a shortened idle gap; `loading`: a page load the capture held, cut whole; `frozen`: a freeze of the capture
+   * (its frozen frames but the first); `busy`: a wait after a click (a skeleton, a spinner) shortened.
+   */
+  reason: 'idle' | 'loading' | 'frozen' | 'busy';
   /** The idle piece (outside protected spans) the cut was taken from (a held load: the load itself). */
   idle: Interval;
   /** First output frame (run) after the cut. */
@@ -229,6 +250,20 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
         held.push(x);
       });
     }
+    // Freezes of the capture (L5.7): the frozen frames but the first, cut whole like a held load (never inside one).
+    for (const f of input.frozen ?? []) {
+      const fz = { a: Math.ceil(f.t_start * srcFps - EPS) + 1, b: Math.ceil(f.t_end * srcFps - EPS) };
+      if (fz.b - fz.a < 1 - EPS) continue;
+      clips.forEach((c, ci) => {
+        const x = intersect(fz, { a: c.A, b: c.B });
+        if (!x || x.b - x.a < EPS) return;
+        for (const piece of subtractIntervals(x, held)) {
+          if (piece.b - piece.a < EPS) continue;
+          cuts.push({ ...piece, clip: ci, idle: piece, reason: 'frozen' });
+          held.push(piece);
+        }
+      });
+    }
     // Idle trims: the part of an idle interval outside protected spans and held loads, when longer than the threshold.
     const kept = mergeIntervals([...protMerged, ...held]);
     const minLen = input.idleThresholdS * srcFps;
@@ -240,6 +275,20 @@ export function planRunTiming(input: RunTimingInput): RunTiming {
         if (!x) return;
         for (const piece of subtractIntervals(x, kept)) {
           if (piece.b - piece.a > minLen + EPS) cuts.push({ a: piece.a + keepHalf, b: piece.b - keepHalf, clip: ci, idle: piece, reason: 'idle' });
+        }
+      });
+    }
+    // Waits after a click (L5.7, R-FLD-26): outside protected spans, held loads and the idle cuts just made.
+    const keptBusy = mergeIntervals([...kept, ...cuts.filter((c) => c.reason === 'idle')]);
+    for (const w of input.busy ?? []) {
+      const g = { a: w.t_start * srcFps, b: w.t_end * srcFps };
+      clips.forEach((c, ci) => {
+        const x = intersect(g, { a: c.A, b: c.B });
+        if (!x) return;
+        for (const piece of subtractIntervals(x, keptBusy)) {
+          const a = piece.a + BUSY_KEEP_BEFORE_S * srcFps;
+          const b = piece.b - BUSY_KEEP_AFTER_S * srcFps;
+          if (b - a >= BUSY_CUT_MIN_S * srcFps - EPS) cuts.push({ a, b, clip: ci, idle: piece, reason: 'busy' });
         }
       });
     }

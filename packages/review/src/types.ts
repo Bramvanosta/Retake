@@ -34,7 +34,7 @@ export const FINDING_CODES: ReadonlySet<string> = new Set([
   'duration-mismatch', 'empty-segment', 'frames-missing', 'loading-scene-start', 'local-url-text', 'long-scene',
   'long-wait', 'media-missing', 'near-uniform-screen', 'overlay-covers-target', 'plan-warning',
   'previous-unreadable', 'reframe-jump', 'registry-unavailable', 'render-failed', 'scene-length', 'scene-too-short',
-  'size-mismatch', 'target-cut', 'target-outside-view', 'text-slot-empty', 'text-slot-overflow', 'theme-zoom-count',
+  'size-mismatch', 'slow-transition', 'target-cut', 'target-outside-view', 'text-slot-empty', 'text-slot-overflow', 'theme-zoom-count',
   'theme-zoom-cut', 'theme-zoom-real', 'timeline-missing', 'transition-on-click', 'tutorial-skipped',
   'tutorial-stale-target', 'tutorial-target-cut', 'url-hidden', 'video-length', 'write-blocked', 'zoom-clamped',
   'zoom-count', 'zoom-not-slow', 'zoom-reset'

@@ -49,7 +49,7 @@ afterAll(async () => {
 describe('scenarios.check: own issues and run blockers (B2)', () => {
   it('the fixture from the Studio: every scenario valid; dry runs unblocked; captures of catalogue and quote need the terminal — worded for the Studio', async () => {
     const names = (await ui.projects.get(P)).scenarios;
-    expect(names.length).toBe(13);
+    expect(names.length).toBe(14);
     const blocked: Record<string, string[]> = {};
     for (const name of names) {
       const c = await ui.scenarios.check(P, name);

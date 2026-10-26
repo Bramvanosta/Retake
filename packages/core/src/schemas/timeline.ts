@@ -102,6 +102,14 @@ const LoadingSchema = z
     'A full-page load the capture did not show (R-ISS-08): the previous frame stayed on screen from the commit until the new page painted; no frame lies in [t_start, t_end), t_end is the first frame written after it (else the end of the hold).',
   );
 
+const StallSchema = z
+  .strictObject({ t_start: t(), t_end: t(), during: z.enum(['move', 'ripple']) })
+  .describe('The capture froze (no new frame from t_start to t_end) while the cursor moved or a click ripple played: the edit cuts the frozen part.');
+
+const BusySchema = z
+  .strictObject({ t_start: t(), t_end: t(), click: t().describe('Capture time of the click it followed.') })
+  .describe('A wait the screen showed after a click (near-identical frames: a skeleton, a spinner, a blank panel): the edit shortens it.');
+
 const TimelineTrackSchema = z
   .strictObject({
     id: nonEmpty(),
@@ -333,6 +341,8 @@ export const TimelineSchema = z
     cursor_effects: z.array(CursorEffectSchema).describe('Icon changes, presses and click ripples of the in-page cursor of `capture`.').optional(),
     idle: z.array(z.strictObject({ t_start: t(), t_end: t() })),
     loading: z.array(LoadingSchema).describe('Page loads `capture` did not show (the previous frame held until the new page painted).').optional(),
+    stalls: z.array(StallSchema).describe('Where `capture` froze while the cursor moved or a click ripple played.').optional(),
+    busy: z.array(BusySchema).describe('Waits the screen showed after a click (skeletons, spinners, blank panels).').optional(),
     artefacts: z.array(TimelineArtefactSchema).describe('Emails, documents, web notifications and texts captured by the run.').optional(),
     tracks: z.array(TimelineTrackSchema).describe('Multi-page scenes: one track per page, on the capture clock.').optional(),
     environment: TimelineEnvironmentSchema.optional(),
@@ -357,6 +367,58 @@ const RunEngineSchema = z
       .optional(),
   })
   .describe('What ran the capture: Demo Studio, Node.js, Chromium, the OS and its installed fonts.');
+
+const cpuSeconds = () => z.number().min(0);
+
+/** run.json `perf` (L5.7): what the take cost and how smoothly it was filmed. */
+const RunPerfSchema = z
+  .strictObject({
+    seconds: z.number().min(0).describe('Wall seconds of the take.'),
+    cpu: z
+      .strictObject({
+        browser: cpuSeconds(),
+        gpu: cpuSeconds(),
+        renderer: cpuSeconds(),
+        chromium_other: cpuSeconds(),
+        studio: cpuSeconds(),
+        encoder: cpuSeconds(),
+        product: cpuSeconds().optional(),
+        total: cpuSeconds(),
+        cores: z.number().min(0).describe('total / seconds: the cores the take kept busy on average.'),
+        browsers: z
+          .array(z.strictObject({ persona: z.string().optional(), cpu: cpuSeconds(), unfilmed: z.strictObject({ cpu: cpuSeconds(), seconds: z.number().min(0) }).optional() }))
+          .describe('Per browser (one per persona): its CPU seconds, and while no recorder filmed it.')
+          .optional(),
+      })
+      .describe('CPU seconds per process group over the take (Chromium browser / GPU / renderer / other, studio, encoder, product).')
+      .optional(),
+    machine: z.strictObject({ cpus: z.number().int().min(1), load_mean: z.number().min(0), load_max: z.number().min(0) }),
+    gpu: z
+      .strictObject({ accelerated: z.boolean(), renderer: z.string().optional(), software: z.array(z.string()).optional() })
+      .describe("Chromium's own GPU feature report.")
+      .optional(),
+    frame_rate_limit: z.boolean(),
+    frames: z.strictObject({
+      received: z.number().int().min(0),
+      fps: z.number().min(0),
+      motion_fps_min: z.number().min(0).optional(),
+      dropped: z.number().int().min(0),
+      kicked: z.number().int().min(0),
+    }),
+    stalls: z.array(z.strictObject({ t: t(), ms: z.number().min(0), during: z.enum(['move', 'ripple']) })),
+    transitions: z
+      .strictObject({
+        measured: z.number().int().min(0),
+        slow: z.array(z.strictObject({ t: t(), ms: z.number().min(0), scene: z.string(), step: z.number().int(), target: z.string().optional() })),
+      })
+      .describe('Click → stable content: the clicks measured and the slow ones (over 800 ms), slowest first.')
+      .optional(),
+    encode: z
+      .strictObject({ codec: nonEmpty(), quality: z.string(), finish_ms: z.number().min(0), late_frames: z.number().int().min(0) })
+      .optional(),
+    disk: z.strictObject({ run_mb: z.number().min(0), frames_kept: z.boolean(), free_gb: z.number().min(0).optional() }).optional(),
+  })
+  .describe('What the take cost (CPU per process group, the machine, the GPU) and how smoothly it was filmed (frame rate, stalls, slow transitions).');
 
 export const RunRecordSchema = z
   .strictObject({
@@ -438,5 +500,6 @@ export const RunRecordSchema = z
       .strictObject({ scene: z.string(), step: z.number().int(), reason: z.enum(['irreversible', 'until']) })
       .optional(),
     engine: RunEngineSchema.optional(),
+    perf: RunPerfSchema.optional(),
   })
   .meta({ id: 'RunRecord', title: 'Demo Studio run record', description: 'runs/<id>/run.json' }) satisfies z.ZodType<RunRecord>;

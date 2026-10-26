@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { formatIssues, isAccessError, readJson } from '@demo-studio/core';
+import { formatIssues, isAccessError, perfSummary, readJson } from '@demo-studio/core';
 import type { RunProgress, RunRecord, Timeline } from '@demo-studio/core';
 import { RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, writesSummary } from '@demo-studio/engine';
 import type { PreparedRun } from '@demo-studio/engine';
@@ -187,6 +187,8 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
     ui.line(`  ${c.dim('capture')}   ${ui.path(r.capture)}${detail}`);
   }
   if (r.timeline) ui.line(`  ${c.dim('timeline')}  ${ui.path(r.timeline)}`);
+  // L5.7: what the take cost and how smoothly it was filmed (run.json perf).
+  if (r.perf) ui.line(`  ${c.dim('perf')}      ${perfSummary(r.perf)}`);
   if (r.screenshots.length) ui.line(`  ${c.dim('shots')}     ${ui.path(join(r.dir, 'screenshots'))} ${c.dim(`(${r.screenshots.length})`)}`);
   ui.line(`  ${c.dim('run')}       ${ui.path(join(r.dir, 'run.json'))}`);
   if (r.hooks.setup !== 'none' || r.hooks.teardown !== 'none') {

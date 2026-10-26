@@ -6,7 +6,7 @@
  */
 export * from './types.js';
 export { recoverReviewDir, reviewImages, reviewRender, reviewRules, keyframePlan, sampleFrames, safeName } from './review.js';
-export { ReviewError, findPrevious, findRender, renderTimeline, reviewsDir } from './load.js';
+export { ReviewError, findPrevious, findRender, renderRun, renderTimeline, reviewsDir } from './load.js';
 export {
   captionRegion,
   checkArtefactOrder,
@@ -15,6 +15,7 @@ export {
   checkCursor,
   checkDurations,
   checkEnvironment,
+  checkSlowTransitions,
   checkLongScenes,
   checkRender,
   checkTextSlots,

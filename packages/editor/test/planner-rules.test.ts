@@ -490,6 +490,74 @@ describe('held page loads (R-ISS-08)', () => {
   });
 });
 
+describe('freezes of the capture and waits after a click (L5.7, R-FLD-20, R-FLD-26)', () => {
+  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const run = (more: { frozen?: Array<{ t_start: number; t_end: number }>; busy?: Array<{ t_start: number; t_end: number }>; idle?: Array<{ t_start: number; t_end: number }>; loading?: Array<{ t_start: number; t_end: number }>; trimIdle?: boolean }) =>
+    planRunTiming({
+      clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
+      srcFps: 30,
+      outFps: 30,
+      idle: more.idle ?? [],
+      trimIdle: more.trimIdle ?? true,
+      idleThresholdS: 1.2,
+      ...(more.loading ? { loading: more.loading } : {}),
+      ...(more.frozen ? { frozen: more.frozen } : {}),
+      ...(more.busy ? { busy: more.busy } : {}),
+    });
+
+  it('a freeze during a click ripple is cut but its first frame — inside a mark window too', () => {
+    // Frames 4.2 s (tick 126) to 4.46 s: ticks 126–133 show the frozen frame; 134 is the next one.
+    const r = run({ frozen: [{ t_start: 4.2, t_end: 4.46 }] });
+    expect(r.cuts).toEqual([expect.objectContaining({ a: 127, b: 134, reason: 'frozen', clip: 0 })]);
+    expect(r.src).toContain(126);
+    expect(r.src).toContain(134);
+    expect(r.src.some((f) => f > 126 && f < 134)).toBe(false);
+    expect(r.length).toBeCloseTo(300 - 7, 6);
+    // Inside a held load it is that load's cut; off with trim_idle: false.
+    expect(run({ frozen: [{ t_start: 4.2, t_end: 4.46 }], loading: [{ t_start: 4.1, t_end: 4.6 }] }).cuts.map((c) => c.reason)).toEqual(['loading']);
+    expect(run({ frozen: [{ t_start: 4.2, t_end: 4.46 }], trimIdle: false }).cuts).toEqual([]);
+  });
+
+  it('a wait after a click keeps its start and the moment before the content, outside protected spans', () => {
+    const r = run({ busy: [{ t_start: 6, t_end: 8 }] });
+    expect(r.cuts).toEqual([expect.objectContaining({ a: 189, b: 237, reason: 'busy' })]);
+    expect(r.length).toBeCloseTo(300 - 48, 6);
+    // A short wait is left alone; the marked step's window (3.4–5.6 s) is never cut.
+    expect(run({ busy: [{ t_start: 6, t_end: 6.55 }] }).cuts).toEqual([]);
+    expect(run({ busy: [{ t_start: 4.5, t_end: 6.4 }] }).cuts).toEqual([expect.objectContaining({ a: 177, b: 189, reason: 'busy' })]);
+    // An idle cut there already shortens it: no second cut.
+    expect(run({ busy: [{ t_start: 6, t_end: 8 }], idle: [{ t_start: 5.9, t_end: 9 }] }).cuts.map((c) => c.reason)).toEqual(['idle']);
+  });
+
+  it('planEdit cuts both from the timeline and says so', () => {
+    const entries: EntrySpec[] = [
+      {
+        id: 'w',
+        t_start: 0,
+        t_end: 12,
+        open_end: 0.5,
+        still: [0.5, 2],
+        steps: [
+          { action: 'click', t_start: 2, t_end: 3, t_click: 2.6 },
+          { action: 'click', t_start: 6, t_end: 7, t_click: 6.5 },
+          { action: 'hold', t_start: 9, t_end: 12 },
+        ],
+      },
+    ];
+    const tl = synthTimeline({ entries, duration: 12 });
+    tl.stalls = [{ t_start: 2.7, t_end: 2.96, during: 'ripple' }];
+    tl.busy = [{ t_start: 3.2, t_end: 5.4, click: 2.6 }];
+    const p = plan(ctx, tl);
+    expect(clip(p, 'w').trims.map((t) => [t.src_from_s, t.src_to_s])).toEqual([
+      [2.733, 2.967],
+      [3.5, 5.3],
+    ]);
+    expect(p.notes).toContain('"w": capture freeze 2.73 s–2.97 s cut (no new frame came while the cursor moved or a click ripple played)');
+    expect(p.notes).toContain('"w": wait after a click 2.20 s at 3.20 s of the capture shortened to 0.40 s (a skeleton, a spinner or a blank panel)');
+    expect(clip(plan(ctx, { ...tl, stalls: undefined, busy: undefined }), 'w').trims).toEqual([]);
+  });
+});
+
 /** Camera hints: a clamped zoom on a point until the step ends, then a cursor-focused zoom held 2 s with `fast`. */
 function cameraScene(): EntrySpec[] {
   return [

@@ -1033,12 +1033,25 @@ export interface CaptureSettings {
   fps: number;
   /** Screencast frame format. */
   format: 'jpeg' | 'png';
-  /** JPEG quality (1-100). */
+  /** JPEG quality of the screencast frames (1-100; default 90 since L5.7: small text measured indistinguishable from 100). */
   quality: number;
-  /** Keep runs/<id>/frames after encoding. */
+  /**
+   * Keep the screencast frames in runs/<id>/frames (their real timing, for the raw export at 60 fps). Default false
+   * since L5.7: capture.mp4 is encoded during the take and nothing else is written.
+   */
   keep_frames: boolean;
-  /** libx264 CRF of capture.mp4. */
+  /** libx264 CRF of capture.mp4 (when the encoder is libx264). */
   crf: number;
+  /**
+   * Encoder of capture.mp4, fed during the take (L5.7): `auto` (default) uses the Mac's hardware H.264 encoder
+   * (VideoToolbox) when ffmpeg has it, else libx264 (preset veryfast, `crf`).
+   */
+  encoder?: CaptureEncoder;
+  /**
+   * Visit each page of the scenario once off camera before the take (L5.7, R-FLD-27): its code, fonts and images are
+   * cached, so the first visit is not filmed cold. Default false.
+   */
+  prewarm?: boolean;
   /**
    * Keep one picture per step of a capture in runs/<id>/screenshots, as a dry run does (L5.6): the captured frame at
    * the end of each step (no screenshot taken during the take). Default false.
@@ -1055,14 +1068,17 @@ export interface RunDefaults {
   timeout_s?: number;
 }
 
+export const CAPTURE_ENCODERS = ['auto', 'videotoolbox', 'libx264'] as const;
+export type CaptureEncoder = (typeof CAPTURE_ENCODERS)[number];
+
 export const DEFAULT_CAPTURE: CaptureSettings = {
   width: 1920,
   height: 1080,
   scale: 1,
   fps: 30,
   format: 'jpeg',
-  quality: 100,
-  keep_frames: true,
+  quality: 90,
+  keep_frames: false,
   crf: 16,
 };
 
@@ -1746,6 +1762,20 @@ export interface TimelineLoading {
   held_frames: number;
 }
 
+/** A freeze of the capture (L5.7): no new frame from `t_start` (the last frame before the gap) to `t_end`. */
+export interface TimelineStall {
+  t_start: number;
+  t_end: number;
+  during: 'move' | 'ripple';
+}
+
+/** A wait the screen showed after the click at `click` (capture seconds): near-identical frames from `t_start` to `t_end`. */
+export interface TimelineBusy {
+  t_start: number;
+  t_end: number;
+  click: number;
+}
+
 /**
  * Held page loads (`TimelineLoading`) at least this long are cut by the edit and the raw export; a shorter freeze of
  * the previous frame is invisible (the same bound as the L1.3 capture stalls). The cut sits on the page change itself.
@@ -2034,6 +2064,16 @@ export interface Timeline {
   /** Page loads `capture` did not show (R-ISS-08, L1.2; absent when none — and in older runs). */
   loading?: TimelineLoading[];
   /**
+   * Where `capture` froze while the cursor moved or a click ripple played (L5.7; absent when it never did): the frame
+   * before the gap held from `t_start` to `t_end`. The edit cuts the frozen part (R-ISS-12, R-FLD-20).
+   */
+  stalls?: TimelineStall[];
+  /**
+   * Waits the screen showed after a click (L5.7, R-FLD-26; absent when none): near-identical frames — a skeleton, a
+   * spinner, a blank panel — before the content the click asked for appeared. The edit shortens them.
+   */
+  busy?: TimelineBusy[];
+  /**
    * Emails, documents and web notifications (L2.9) and texts (`capture_text`, L2.10) captured by the run; files are
    * relative to the run directory.
    */
@@ -2191,6 +2231,69 @@ export interface RunRecord {
   stopped_at?: { scene: string; step: number; reason: 'irreversible' | 'until' };
   /** What ran it (absent in runs made before L1.4). */
   engine?: RunEngine;
+  /** What the take cost and how smoothly it was filmed (L5.7; captures only). */
+  perf?: RunPerf;
+}
+
+/** run.json `perf` (L5.7, R-FLD-23): what a take cost and how smoothly it was filmed. */
+export interface RunPerf {
+  /** Wall seconds of the take (capture time 0 to its end). */
+  seconds: number;
+  /** CPU seconds per process group over the take, sampled from the system's process table (absent when it failed). */
+  cpu?: RunPerfCpu;
+  /** The machine during the take: logical CPUs and the 1-minute load average (mean and highest). */
+  machine: { cpus: number; load_mean: number; load_max: number };
+  /** Chromium's GPU status (its own feature report): hardware accelerated or not, and the features that fell back to software. */
+  gpu?: { accelerated: boolean; renderer?: string; software?: string[] };
+  /** Chromium's frame-rate limiter was on (browser.frame_rate_limit). */
+  frame_rate_limit: boolean;
+  /**
+   * Screencast frames received, their mean rate over the take, the lowest rate of a cursor move, the frames dropped by
+   * the size check, and the fresh frames asked for while a click ripple played (R-FLD-20).
+   */
+  frames: { received: number; fps: number; motion_fps_min?: number; dropped: number; kicked: number };
+  /** Freezes of the capture while the cursor moved or a click ripple played (≥ 150 ms). */
+  stalls: Array<{ t: number; ms: number; during: 'move' | 'ripple' }>;
+  /** Click → stable content: the clicks measured and the slow ones (over 800 ms), slowest first. */
+  transitions?: { measured: number; slow: PerfTransition[] };
+  /** The encoder fed during the take: codec, quality, the wait for its end after the take, frames that came too late for their tick. */
+  encode?: { codec: string; quality: string; finish_ms: number; late_frames: number };
+  /** The run folder (MB), whether its frames were kept, and the free space left on its disk (GB). */
+  disk?: { run_mb: number; frames_kept: boolean; free_gb?: number };
+}
+
+/** CPU seconds per process group of a take (`RunPerf.cpu`). */
+export interface RunPerfCpu {
+  /** Chromium: its browser processes (the screencast's JPEG encoding happens there), GPU processes, page renderers, other helpers. */
+  browser: number;
+  gpu: number;
+  renderer: number;
+  chromium_other: number;
+  /** The studio's own process (the runner). */
+  studio: number;
+  /** ffmpeg encoding capture.mp4. */
+  encoder: number;
+  /** The product's local servers (a sandbox's process services), when known. */
+  product?: number;
+  total: number;
+  /** total / seconds: the cores the take kept busy on average. */
+  cores: number;
+  /**
+   * Per browser (one per persona): CPU seconds of its processes, and of the time no recorder filmed it (R-FLD-25: what
+   * a page nobody watches costs — its polling, its animations).
+   */
+  browsers?: Array<{ persona?: string; cpu: number; unfilmed?: { cpu: number; seconds: number } }>;
+}
+
+/** A click whose result took long to settle on screen (`RunPerf.transitions`). */
+export interface PerfTransition {
+  /** Capture time of the press. */
+  t: number;
+  /** Press → the last change of the screen before it stood still. */
+  ms: number;
+  scene: string;
+  step: number;
+  target?: string;
 }
 
 /** Progress events streamed by runners (CLI prints them, MCP stores them). */

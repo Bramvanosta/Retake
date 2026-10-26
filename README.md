@@ -58,15 +58,19 @@ Because the browser is headless and offscreen, a capture does not take over your
 `studio doctor` checks all of this in one go (see [Command line](#command-line)).
 
 Smooth 30 fps captures need GPU-accelerated rendering, which desktop machines provide (an Apple M4 captures ≈ 60
-frames/s while the cursor moves, blurred dialogs included). In containers without a GPU the browser renders in
-software: pages with heavy effects (for example `backdrop-filter` blur behind dialogs) are then captured at a lower
-frame rate, and the run reports it as a warning. The run also warns when the capture froze 150 ms or more while the
-cursor moved or a click ripple played. A known one: closing a dialog whose overlay has a `backdrop-filter` (a blur)
-can freeze the picture ≈ 0.26 s during the click ripple; `browser: {frame_rate_limit: false}` runs Chromium without
-its frame rate limiter, which avoids it at a cost (2–6× the CPU, and `requestAnimationFrame` runs at thousands of Hz
-while anything animates: an animation that steps once per frame plays too fast), so it is not the default. After a scroll the cursor waits, still, until the new content
-is painted before it moves on. A capture is smoothest on a quiet machine: heavy background work (indexing,
-updates) shows up as slower, choppier motion.
+frames/s while the cursor moves, blurred dialogs included); `studio doctor` checks it (Chromium's own GPU report: the
+capture browser's new headless mode uses the GPU, `browser.channel: headless-shell` does not). Without a GPU the
+browser renders in software: pages with heavy effects (for example `backdrop-filter` blur behind dialogs) are then
+captured at a lower frame rate, and the run warns with the measured cause (no GPU, a busy machine, a page whose
+renderer stayed busy…). The run also warns when the capture froze 150 ms or more while the cursor moved or a click
+ripple played. A known one: closing a dialog whose overlay has a `backdrop-filter` (a blur) can freeze the picture
+≈ 0.26 s during the click ripple — the recorder asks for fresh frames while a ripple plays and the edit cuts what is
+left of a freeze, so Chromium's frame-rate limiter stays on. `browser: {frame_rate_limit: false}` still turns it off,
+at a measured cost (fixture `quote`: ×2.8 Chromium's CPU, its GPU and renderer processes ×7; `requestAnimationFrame`
+runs at thousands of Hz while anything animates, so an animation that steps once per frame plays too fast): a run
+with it warns. After a scroll the cursor waits, still, until the new content is painted before it moves on. A capture
+is smoothest on a quiet machine: heavy background work (indexing, updates, another project's tests) shows up as
+slower, choppier motion — every take reports what it cost (`perf` in run.json, see [Outputs of a run](#outputs-of-a-run)).
 
 ## Quick start (bundled fixture product)
 
@@ -178,6 +182,7 @@ studio schema [scenario|project|template|timeline|sandbox]    # JSON Schema on s
 studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
 studio auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
 studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
+studio prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, renders/, review/ hold that nothing needs (--yes deletes it)
 studio mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
 studio mcp --http [--port N] [--rotate-token] [--json] # the same MCP server over HTTP on 127.0.0.1 (--print-config --http: its registration)
 studio ui [--port N] [--no-open] [--json]             # the Studio web app on 127.0.0.1 until Ctrl-C (Studio app)
@@ -274,8 +279,11 @@ $ studio doctor --project northfield-fixture        # Linux container without a 
 studio doctor
   OK    Node.js                     22.22.0
   OK    Chromium                    141.0.7390.37 · /opt/pw-browsers/chromium-1194/chrome-linux/chrome · new headless launch 293 ms
+  WARN  GPU                         the capture browser renders in software · ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device …)) · in software: gpu_compositing, rasterization, …
+                                    → captures will look choppy and cost more CPU: check the machine has a GPU Chromium can use (a VM or a remote session often has none)
   OK    ffmpeg                      6.1.1-3ubuntu5 · /usr/bin/ffmpeg
   OK    ffprobe                     6.1.1-3ubuntu5 · /usr/bin/ffprobe
+  OK    Capture encoder             libx264 (preset veryfast) during the take
   WARN  Display                     none: DISPLAY / WAYLAND_DISPLAY are not set
                                     → headless captures work; --headed and studio login need a desktop session (or xvfb-run)
   WARN  Secrets                     secret-tool not found: {{keychain:service/account}} refs cannot be resolved
@@ -359,9 +367,16 @@ mailbox: {provider: mailpit, url: "http://localhost:8025"}   # test mailbox read
 sandboxes: {sandbox: sandbox/sandbox.yaml}                  # sandbox environments (see Sandbox mode)
 ```
 
-`capture` also accepts `format` (`jpeg`/`png`), `quality`, `crf`, `keep_frames` and `step_shots` (`true`: a capture
-keeps one picture per step in `runs/<id>/screenshots/`, as a dry run does — the captured frame at the end of each step,
-named `<scene>-<nn>-<action>.jpg`; nothing is taken during the take). The browser locale is
+`capture` also accepts `format` (`jpeg`/`png`), `quality` (the screencast's JPEG quality, default 90: small text
+measured indistinguishable from 100 at 0.4× the bytes), `encoder` (`auto`, the default: capture.mp4 is encoded
+**during the take** with the Mac's hardware H.264 encoder through ffmpeg — VideoToolbox, `-q:v 85` — else
+`libx264` preset veryfast at `crf`), `crf`, `keep_frames` (default `false`: no screencast frame is written; `true`
+keeps them in `runs/<id>/frames/` with their real timing, which the raw export uses for 60 fps), `prewarm` (`true`:
+every page the scenario opens is visited once off camera before the take, in the browser that films it, so its first
+visit is not filmed cold — a page that changes data when it loads does it then too) and `step_shots` (`true`: a
+capture keeps one picture per step in `runs/<id>/screenshots/`, as a dry run does — the frame of the video at the end
+of each step (of the kept frames with `keep_frames`), named `<scene>-<nn>-<action>.jpg`; nothing is taken during the
+take). The browser locale is
 `browser.locale` when set, else the project `locale`, else the `studio.yaml` `browser.locale` default.
 Run `studio schema project` for the full schema (also in `packages/core/schema/` for editor autocompletion).
 
@@ -1497,6 +1512,11 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
 - **Idle trims**: the part of a `timeline.idle` gap outside those protected spans and held page loads, when longer
   than 1.2 s (`idle_threshold`), is cut down to 0.4 s (0.2 s on each side of an invisible cut — nothing changes on
   screen).
+- **Freezes and waits** (L5.7): a freeze of the capture while the cursor moved or a click ripple played
+  (`timeline.stalls`: the dialog-close freeze of the frame-rate limiter, a loaded machine) is cut whole but its first
+  frame, like a held load; a wait the screen showed after a click (`timeline.busy`: near-identical frames — a
+  skeleton, a spinner, a blank panel — until the content appeared) keeps its first 0.3 s and the 0.1 s before the
+  content, outside protected spans. The plan notes each one; `overrides.trim_idle: false` keeps them.
 - **Camera**: static unless a step has a `camera` hint, or the theme has a **default zoom** (below). The zoom is clamped to the theme `max_zoom` (noted), focused on
   the target box measured at the end of the step (else the hint's point, else the cursor), eased with the hint's
   `ease` (else the theme `zoom_ease`) over `max(0.8 s, duration)` of output time — `duration` defaults to the step's
@@ -1743,7 +1763,8 @@ studio run northfield-fixture quote --raw --cursor none                         
   once from the run's own screencast frames (not from `capture.mp4`). `--fps 30|60`: constant frame rate on the
   capture's clock — frame n shows the screencast frame on screen at n / fps; 60 fps comes from the screencast's real
   timing (up to 60 frames a second when the page moves), never interpolated. A run that did not keep its frames
-  (`capture.keep_frames: false`) is cut from its CFR video (frames repeated for 60 fps; a note says so).
+  (`capture.keep_frames: false`, the default since L5.7) is cut from its CFR video (frames repeated for 60 fps; a note
+  says so): capture with `keep_frames: true` for a 60 fps raw export.
 - **Timecode** — every clip carries a start timecode equal to its place on the sequence (`00:00:00:00` = the first
   clip), so source and record timecodes agree in every tool (an EDL's source in = record in).
 - **Cursor** (`--cursor`) — `baked`: as captured. `none`: the run was captured **without** the in-page cursor
@@ -1845,6 +1866,7 @@ not clean; `--json` prints the result. The checks:
 | Cursor at every click of the capture: off screen, hidden, outside the zoomed view (at the click and 0.4 s later), target partly outside the view (info when a reframed target larger than the view shows its leading part and the click) | `cursor-offscreen`, `cursor-hidden`, `cursor-outside-view` (error), `target-outside-view` |
 | Camera: more zooms than the reference look's one very slow zoom per video, zooms faster / stronger than "very slow", clamped zooms, a zoom reset at a same-page join, camera jumps | `zoom-count` (warning), `zoom-not-slow`, `zoom-clamped` (info), `zoom-reset`, `camera-jump` |
 | A transition (or fade) over a click and its ripple | `transition-on-click` (warning) |
+| The take's slow transitions (run.json `perf`: a click whose result took over 0.8 s to settle on screen), at the click | `slow-transition` (info) |
 | The render itself: failed status, duration or size different from the plan, missing components (stand-ins), plan warnings | `render-failed`, `duration-mismatch`, `size-mismatch`, `component-missing`, `plan-warning` |
 | The environment (L1.7, see [Environments](#environments-display-urls-production-read-only-clock)): a write the read-only guard stopped (one per method and path, at its output frame; the app saw a network error), a browser bar left without its address (a local URL without a display URL, on a layout that draws the URL), a caption / card / overlay / page label / intro / outro text naming a local URL | `write-blocked`, `url-hidden`, `local-url-text` (warnings) |
 | Diff with the previous render of the same scenario (auto-detected; `--previous <id>` or `--no-previous`): total and per-segment durations, component / caption / transition / layout changes, sample frames compared at the same offset inside the same segment | `diff-duration`, `diff-segment`, `diff-frames` (info) |
@@ -2818,6 +2840,7 @@ for what the server refuses.
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `studio prune`), with the bytes it frees; `dry_run` (default true) only lists, `dry_run: false` deletes (annotated destructive) — only when the user asked to free space | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -3409,18 +3432,29 @@ running: the MCP server keeps working without it.
 
 | File | Content |
 |---|---|
-| `capture.mp4` | H.264, constant frame rate, exactly the capture duration |
+| `capture.mp4` | H.264, constant frame rate, exactly the capture duration — encoded during the take (L5.7): output frame n is the screencast frame on screen at n / fps, as before; a take ends without a long encode |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
 | `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Demo Studio, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
 | `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
-| `frames/`, `frames.jsonl` | raw screencast frames with their capture times (`capture.keep_frames`) |
+| `frames.jsonl` | the screencast frames' capture times (always) |
+| `frames/` | the raw screencast frames, only with `capture.keep_frames: true` (L5.7: off by default — a 6-minute take kept 1.6–2.4 GB of them) |
+| `run.json` `perf` | what a capture cost and how it was filmed (L5.7): `seconds`; `cpu` — CPU seconds per process group from Chromium's own process report and the system's process table: `browser` (it encodes the screencast's JPEG frames), `gpu`, `renderer`, `chromium_other`, `studio`, `encoder`, `product` (the processes listening on the environment's localhost ports), `total`, `cores` (total / seconds), `browsers` (per persona); `machine` (CPUs, load average mean / max); `gpu` (accelerated, renderer, features in software); `frame_rate_limit`; `frames` (received, mean fps, lowest fps of a cursor move, dropped, `kicked`: fresh frames asked for during a click ripple); `stalls`; `transitions` (clicks measured, the slow ones: press → stable screen over 0.8 s, slowest first, target); `encode` (codec, quality, `finish_ms` after the take, `late_frames`); `disk` (run folder MB, frames kept, free GB). `studio run` prints it on one line, MCP `run_status` too; the run warns when the disk has less than 10 GB (or 5 %) left |
+| `timeline.json` `stalls`, `busy` | where the capture froze while the cursor moved or a ripple played, and the waits the screen showed after a click (skeletons, spinners, blank panels) — the edit cuts the first and shortens the second |
 | `timeline.json` `cursor_effects` | what the in-page cursor showed besides its position: icon changes, presses, click ripples (L2.13; per page in `tracks[]`); `capture.cursor: hidden` when captured without the cursor (`run --raw --cursor none\|layer`) |
 | `capture-<page>.mp4`, `frames-<page>/`, `frames-<page>.jsonl` | multi-page scenes: one recording per page on the same frame grid as `capture.mp4` (listed in `timeline.json` `tracks`) |
 | `screenshots/` | dry-run screenshots (a capture's with `capture.step_shots`), `screenshot` steps, error screenshots and DOM snippets, `dead-click-<scene>-<step>.png` |
 | `hooks-journal.json` | executed hooks and their rollbacks |
 | `scenario.yaml` | snapshot of the scenario that ran (L5.5: a render re-plans the edit of today's file while its filmed part matches this snapshot; `studio render` / `plan` warn when the filmed part differs) |
 | `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
+
+**Disk** (L5.7): a capture weighs tens of MB (capture.mp4, ≈ 20 MB for a minute of the fixture), renders and reviews a
+few more. `studio prune <project>` lists what `runs/`, `renders/` and `review/` hold that nothing needs any more —
+failed, cancelled and interrupted takes, dry runs, older captures nothing uses, renders beyond the last 3 of each
+scenario and variant (`--keep-renders N`), failed renders, the reviews of renders that go — with how much deleting it
+frees; `--yes` deletes it. Always kept: the last good take of each scenario, every take a kept render or a comment
+thread uses, every render a thread was made or resolved on, whatever a queued or running job names; `exports/` is
+never touched. Claude has the same as the MCP tool `project_prune` (a dry run unless `dry_run: false`).
 
 Composite steps (`select`, `pick`, `menu`, `date`, `drop_file`) keep every click in `data.clicks`:
 `{role, strategy, popup_opened, point, bbox, t_click, desc, popup_ms?}` with `role` one of `trigger`, `option`,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { perfSummary } from '@demo-studio/core';
 import type { Engine, JobRecord, RunStatusWithJob } from '@demo-studio/engine';
 import { envName, projectSlug, runId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
@@ -55,6 +56,7 @@ export function runStatusSummary(r: RunStatusWithJob, project: string): string {
     ...(r.optional_failures?.length
       ? [`${plural(r.optional_failures.length, 'optional step')} failed (the run went on): ${r.optional_failures.map((f) => `${f.scene}.${f.step} ${f.action}`).join(', ')} — messages in "untrusted.optional_errors"`]
       : []),
+    ...(r.perf ? [`take: ${perfSummary(r.perf)}`] : []),
     ...(r.screenshots.length ? [`${plural(r.screenshots.length, 'screenshot')} in ${r.dir}/screenshots (one per step: read them to see the product)`] : []),
     ...r.outputs.filter((o) => o.ref.endsWith('.mp4') || o.ref.endsWith('timeline.json')).map((o) => `${o.ref.split('/').pop()}: ${o.path}`),
     ...(r.untrusted.error_message !== undefined || r.untrusted.warnings.length ? ['the error message and warnings are in "untrusted" (text from the filmed site)'] : []),

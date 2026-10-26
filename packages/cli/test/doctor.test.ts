@@ -65,6 +65,7 @@ function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
     env: {},
     which: (cmd) => bins[cmd] ?? null,
     exec: async (cmd, args): Promise<ExecResult | null> => {
+      if (cmd === '/opt/media/bin/ffmpeg' && args.includes('h264_videotoolbox')) return { code: 0, stdout: '', stderr: '' };
       if (cmd === '/opt/media/bin/ffmpeg') return { code: 0, stdout: FFMPEG_VERSION, stderr: '' };
       if (cmd === '/opt/media/bin/ffprobe') return { code: 0, stdout: FFPROBE_VERSION, stderr: '' };
       return dockerAnswers(cmd, args);
@@ -77,6 +78,7 @@ function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
       launched: true,
       version: '141.0.7390.37',
       ms: 640,
+      gpu: { accelerated: true, renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4)' },
     }),
     head: async () => ({ status: 200, ms: 42 }),
     execPath: '/opt/homebrew/bin/node',
@@ -105,10 +107,12 @@ describe('studio doctor (mocked environment)', () => {
     const r = await doctor(macProbes(), { project: 'acme' });
     await rm(prodProfile, { recursive: true });
     expect(r.code, r.err).toBe(EXIT.ok);
-    for (const name of ['Node.js', 'Chromium', 'ffmpeg', 'ffprobe', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', 'Template default', 'Project acme']) {
+    for (const name of ['Node.js', 'Chromium', 'GPU', 'ffmpeg', 'ffprobe', 'Capture encoder', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', 'Template default', 'Project acme']) {
       expect(r.err).toMatch(new RegExp(`OK +${name.replace('.', '\\.')} `));
     }
     expect(r.err).toContain('141.0.7390.37');
+    expect(r.err).toMatch(/OK +GPU +hardware accelerated · ANGLE \(Apple, ANGLE Metal Renderer: Apple M4\)/);
+    expect(r.err).toMatch(/OK +Capture encoder +hardware H\.264 \(VideoToolbox\) during the take/);
     expect(r.err).toContain('7.1 · /opt/media/bin/ffprobe'); // next to the configured ffmpeg
     expect(r.err).toContain('macOS Keychain via security');
     expect(r.err).toContain('osascript');
@@ -117,6 +121,29 @@ describe('studio doctor (mocked environment)', () => {
     expect(r.err).toMatch(/OK +Host staging·app +https:\/\/app\.staging\.example\.com → HTTP 200/);
     expect(r.err).toMatch(/0 failures/);
     expect(r.err).not.toMatch(/FAIL|WARN/);
+  });
+
+  it('a capture browser without its GPU, an ffmpeg without VideoToolbox: warnings with the fix (L5.7, R-FLD-24)', async () => {
+    const software = { accelerated: false, renderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device))', software: ['gpu_compositing', 'rasterization'] };
+    const probe = async (): Promise<ChromiumProbe> => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: true, version: '141', ms: 500, gpu: software });
+    const { code, checks: list } = await checks(
+      macProbes({
+        chromium: probe,
+        exec: async (cmd, args) => (cmd === '/opt/media/bin/ffmpeg' && args.includes('h264_videotoolbox') ? { code: 1, stdout: '', stderr: 'Unknown encoder h264_videotoolbox\n' } : macProbes().exec(cmd, args, 1000)),
+      }),
+    );
+    expect(code).toBe(EXIT.ok);
+    expect(byName(list, 'GPU')).toMatchObject({
+      status: 'warn',
+      detail: 'the capture browser renders in software · ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device)) · in software: gpu_compositing, rasterization',
+      hint: expect.stringContaining('choppy'),
+    });
+    expect(byName(list, 'Capture encoder')).toMatchObject({ status: 'warn', detail: expect.stringContaining('Unknown encoder h264_videotoolbox'), hint: expect.stringContaining('brew install ffmpeg') });
+    // A Chromium that did not launch has no GPU line; Linux encodes with libx264.
+    const down = await checks(macProbes({ chromium: async () => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: false, error: 'boom' }) }));
+    expect(down.checks.some((c) => c.name === 'GPU')).toBe(false);
+    const linux = await checks(macProbes({ platform: 'linux', which: () => null }));
+    expect(byName(linux.checks, 'Capture encoder')).toMatchObject({ status: 'ok', detail: 'libx264 (preset veryfast) during the take' });
   });
 
   it('Linux without display, secret-tool or notify-send: warnings with hints, still exit 0', async () => {

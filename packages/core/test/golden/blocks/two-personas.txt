@@ -1,0 +1,39 @@
+# Both sides, one persona each (`--env signed-in`: the supplier's console and the buyer's shop run in two browsers), one page filmed at a time: the roaster's quote list stays open in its own browser while the café asks for a quote, the request arrives there live, the roaster answers, the café gets the proposal.
+# 
+# Demo Studio L5.7 measures with it what the page nobody films costs during the take (R-FLD-25: the console's list keeps polling for new requests) and, with the fixture's NORTHFIELD_QUOTES_MS, the skeleton rows the edit shortens (R-FLD-26).
+video two-personas · title “Both sides” / “A quote between a café and its roaster” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Cafés and roasters, on the same page."}
+  env signed-in
+  setup 1 L16-17 http reset: POST {{console}}/api/reset
+  teardown 1 L20-21 http reset: POST {{console}}/api/reset
+scene roaster L24-34 · page console · open /products · caption “The roaster” / “Quote requests from cafés land here.”
+    # A client-side page: its rows are skeletons until the list comes (NORTHFIELD_QUOTES_MS makes that wait long, as
+    # a real product's can be — the edit shortens it, L5.7).
+    roaster.0 L31 [click] click · link “Quote requests”
+    roaster.1 L32 [wait] wait for · text “Send proposal”
+    roaster.2 L33 [hover] hover · “Awaiting proposal” · 600 ms
+    roaster.3 L34 [hold] hold · 0.8 s
+scene request L36-52 · page shop · open /products/selowa-ridge · caption “The café” / “Asks for a quote: quantity, bag size, grind and delivery window.”
+    request.0 L41 [click] click · button “Request a quote”
+    request.1 L42 [click] click · “Increase” (aria label) in the dialog
+    request.2 L43 [select] select · field “Bag size” · option “5 kg”
+    request.3 L44 [select] select · field “Grind” · option “Whole bean”
+    request.4 L45 [click] click · field “Delivery window”
+    request.5 L46 [click] click · “Next month” (aria label)
+    request.6 L47 [click] click · “10 January 2027” (aria label)
+    request.7 L48 [click] click · “24 January 2027” (aria label)
+    request.8 L49 [type] type · field “Message” · “Light roast for filter, please.”
+    request.9 L50 [click] click · “Send request” in the dialog
+    request.10 L51 [wait] wait for · text “Quote request sent”
+    request.11 L52 [hold] hold · 1.2 s
+scene answer L54-62 · page console · continues · caption “The roaster” / “Sees the request arrive and sends a proposal.”
+    answer.0 L58 [wait] wait for · text “New”
+    answer.1 L59 [click] click · “Send proposal” in the row containing “New”
+    answer.2 L60 [click] click · “Send proposal” in the dialog
+    answer.3 L61 [wait] wait for · text “Proposal sent”
+    answer.4 L62 [hold] hold · 1.2 s
+scene proposal L64-72 · page shop · continues · caption “The café” / “Gets the proposal a second later.”
+    proposal.0 L68 [click] click · “Notifications” (aria label)
+    proposal.1 L69 [click] click · “New proposal from Northfield Roasters”
+    proposal.2 L70-71 [wait] wait for · element with test id “proposal-total” · {mark: mark proposal}
+    proposal.3 L72 [hold] hold · 1.6 s
+25 steps

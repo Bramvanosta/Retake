@@ -241,8 +241,8 @@ describe('timeline helpers', () => {
     ];
     const m = motionCapture(frames, cursor, 18, effects);
     expect(m.stalls).toEqual([
-      { t: 1.2, ms: 265, during: 'move' },
-      { t: 3.183, ms: 277, during: 'ripple' },
+      { t: 1.2, t_end: 1.465, ms: 265, during: 'move' },
+      { t: 3.183, t_end: 3.46, ms: 277, during: 'ripple' },
     ]);
     // The motion is judged on its own (1.0–1.6 s: 22 frames), not with the rest and the click after it (to 1.84 s).
     expect(m.moves).toBe(1);
@@ -253,8 +253,8 @@ describe('timeline helpers', () => {
     const w = motionWarnings(m, 18, '');
     expect(w).toHaveLength(1);
     expect(w[0]).toMatch(/^the capture froze 2 times while the cursor moved or a click ripple played \(longest 277 ms\): 1\.2 s \(265 ms, cursor moving\), 3\.2 s \(277 ms, click ripple\)/);
-    expect(w[0]).toContain('browser.frame_rate_limit: false avoids it');
-    expect(motionWarnings(motionCapture(frames, cursor, 18), 18, '')[0]).not.toContain('frame_rate_limit');
+    expect(w[0]).toContain('the edit cuts the frozen part');
+    expect(motionWarnings(motionCapture(frames, cursor, 18), 18, '')[0]).not.toContain('the edit cuts');
     expect(motionWarnings(null, 18, '')).toEqual([]);
     // A gap while the page changes (navigation, new route) is the product's loading, not a stall.
     expect(motionCapture(frames, cursor, 18, effects, [1.3]).stalls.map((s) => s.during)).toEqual(['ripple']);
@@ -365,7 +365,7 @@ describe('configuration', () => {
   it('merges pacing and capture layers over the defaults', () => {
     const p = mergePacing({ hover_ms: 250 }, { type_cps: 20, hover_ms: undefined });
     expect(p).toEqual({ ...DEFAULT_PACING, hover_ms: 250, type_cps: 20 });
-    expect(mergeCapture({ width: 2560, height: 1440 }, { scale: 2 })).toMatchObject({ width: 2560, height: 1440, scale: 2, fps: 30, quality: 100 });
+    expect(mergeCapture({ width: 2560, height: 1440 }, { scale: 2 })).toMatchObject({ width: 2560, height: 1440, scale: 2, fps: 30, quality: 90, keep_frames: false });
   });
 
   it('resolves auth globally or per environment, relative to the project', () => {

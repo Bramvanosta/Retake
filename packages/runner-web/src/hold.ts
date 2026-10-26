@@ -116,6 +116,11 @@ export class LoadHold<F extends { wall: number }> {
     return this.cur?.kind ?? null;
   }
 
+  /** Wall ms (epoch) the current hold started (null when not holding): no frame before it can still be released. */
+  get since(): number | null {
+    return this.cur?.since ?? null;
+  }
+
   /**
    * A new document committed (or the recorder attached to a page that has not painted): hold. A commit during a hold
    * (a client redirect) continues it — the newer document must paint. `page`: the page id, kept in the record; `web`:

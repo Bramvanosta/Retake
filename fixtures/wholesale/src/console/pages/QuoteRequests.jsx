@@ -111,7 +111,8 @@ function ProposalDialog({ quote, onClose, onSent }) {
 }
 
 export function QuoteRequestsPage() {
-  const { data, error, reload } = useApi('/api/quotes');
+  // `view=list`: the request NORTHFIELD_QUOTES_MS slows down (the console's badge and notifications ask without it).
+  const { data, error, reload } = useApi('/api/quotes?view=list');
   const products = useApi('/api/products?status=all');
   const [filter, setFilter] = useState('requested');
   const [proposing, setProposing] = useState(null);

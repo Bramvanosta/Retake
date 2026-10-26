@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
+# Both sides, one persona each (`--env signed-in`: the supplier's console and the buyer's shop run in two browsers), one
+# page filmed at a time: the roaster's quote list stays open in its own browser while the café asks for a quote, the
+# request arrives there live, the roaster answers, the café gets the proposal.
+#
+# Demo Studio L5.7 measures with it what the page nobody films costs during the take (R-FLD-25: the console's list
+# keeps polling for new requests) and, with the fixture's NORTHFIELD_QUOTES_MS, the skeleton rows the edit shortens
+# (R-FLD-26).
+version: 1
+video: two-personas
+title: {kicker: Both sides, text: A quote between a café and its roaster}
+outro: {tagline: "Cafés and roasters, on the same page."}
+env: signed-in
+
+setup:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+teardown:
+  - name: reset
+    http: {method: POST, url: "{{console}}/api/reset"}
+
+scenes:
+  - id: roaster
+    caption: {kicker: The roaster, text: "Quote requests from cafés land here."}
+    page: console
+    open: /products
+    steps:
+      # A client-side page: its rows are skeletons until the list comes (NORTHFIELD_QUOTES_MS makes that wait long, as
+      # a real product's can be — the edit shortens it, L5.7).
+      - click: {role: link, name: Quote requests}
+      - wait_for: {text: Send proposal}
+      - hover: {text: Awaiting proposal, ms: 600}
+      - hold: 0.8
+
+  - id: request
+    caption: {kicker: The café, text: "Asks for a quote: quantity, bag size, grind and delivery window."}
+    page: shop
+    open: /products/selowa-ridge
+    steps:
+      - click: {role: button, name: Request a quote}
+      - click: {aria: Increase, in: dialog}
+      - select: {field: Bag size, option: 5 kg}
+      - select: {field: Grind, option: Whole bean}
+      - click: {label: Delivery window}
+      - click: {aria: Next month}
+      - click: {aria: "10 January 2027"}
+      - click: {aria: "24 January 2027"}
+      - type: {into: {label: Message}, text: "Light roast for filter, please.", cps: 18}
+      - click: {text: Send request, in: dialog}
+      - wait_for: {text: Quote request sent}
+      - hold: 1.2
+
+  - id: answer
+    caption: {kicker: The roaster, text: "Sees the request arrive and sends a proposal."}
+    page: console
+    steps:
+      - wait_for: {text: New}
+      - click: {text: Send proposal, in: {row: New}}
+      - click: {text: Send proposal, in: dialog}
+      - wait_for: {text: Proposal sent}
+      - hold: 1.2
+
+  - id: proposal
+    caption: {kicker: The café, text: "Gets the proposal a second later."}
+    page: shop
+    steps:
+      - click: {aria: Notifications}
+      - click: {text: New proposal from Northfield Roasters}
+      - wait_for: {target: {testid: proposal-total}}
+        mark: proposal
+      - hold: 1.6

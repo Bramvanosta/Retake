@@ -453,7 +453,7 @@ function VideoCard({ v }: { v: View }) {
         {b.music && <Fact label="Music"><Txt text={[b.music.file, b.music.volume !== undefined ? `volume ${b.music.volume}` : undefined].filter(Boolean).join(' · ')} /></Fact>}
         {b.tutorial !== undefined && <Fact label="Tutorial"><Txt text={b.tutorial} /></Fact>}
         {b.clock !== undefined && <Fact label="Clock"><Txt text={b.clock} /></Fact>}
-        {b.capture && <Fact label="Capture"><Txt text={[b.capture.width && b.capture.height ? `${b.capture.width} × ${b.capture.height}` : undefined, b.capture.fps ? `${b.capture.fps} fps` : undefined, b.capture.scale ? `scale ${b.capture.scale}` : undefined, b.capture.keep_frames === false ? 'frames not kept' : undefined].filter(Boolean).join(' · ')} /></Fact>}
+        {b.capture && <Fact label="Capture"><Txt text={[b.capture.width && b.capture.height ? `${b.capture.width} × ${b.capture.height}` : undefined, b.capture.fps ? `${b.capture.fps} fps` : undefined, b.capture.scale ? `scale ${b.capture.scale}` : undefined, b.capture.keep_frames === true ? 'frames kept' : undefined].filter(Boolean).join(' · ')} /></Fact>}
         {b.pacing && <Fact label="Pacing"><Txt text={b.pacing.join(', ')} /></Fact>}
         {b.vars && <Fact label="Variables"><Txt text={b.vars.join(', ')} /></Fact>}
         {b.mocks !== undefined && <Fact label="Mocks">{plural(b.mocks, 'mock')}</Fact>}

@@ -84,6 +84,8 @@ import { ensureWorker } from './jobs/spawn.js';
 import { cleanWorkerEnv } from './jobs/worker-env.js';
 import type { WorkerSpawnFn } from './jobs/spawn.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
+import { pruneProject } from './prune.js';
+import type { PruneRequest, PruneResult } from './prune.js';
 import type { JobEvent, JobRecord, SiteJobResult } from './jobs/types.js';
 
 export const ENGINE_API_VERSION = 1;
@@ -188,6 +190,11 @@ export interface Engine {
     get(project: string): Promise<ProjectView>;
     create(input: CreateProjectRequest): Promise<ProjectView>;
     updateReadme(project: string, markdown: string, ifMatch?: string | null): Promise<{ file: string; path: string; hash: string }>;
+    /**
+     * Delete failed takes, dry runs, older captures and renders nothing uses (L5.7, R-FLD-28; prune.ts): `dry_run`
+     * (default true) only reports what would go and how much it frees. Whatever a queued or running job names is kept.
+     */
+    prune(project: string, req?: Omit<PruneRequest, 'busy'>): Promise<PruneResult>;
   };
   scenarios: {
     get(project: string, name: string): Promise<ScenarioText>;
@@ -545,6 +552,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       get: async (slug) => projectView(await project(slug)),
       create: async (input) => projectView(await createProjectFromRequest(ws, input)),
       updateReadme: async (slug, markdown, ifMatch) => updateProjectReadme(await project(slug), markdown, ifMatch),
+      prune: async (slug, req = {}) => {
+        const p = await project(slug);
+        // What a queued or running job names (its run, its render) stays.
+        const active = await queue.list({ states: ['queued', 'running'] });
+        const named = active.map((j) => JSON.stringify(j.input)).join('\n');
+        return pruneProject(p, { ...req, busy: (id) => named.includes(`"${id}"`) });
+      },
     },
     scenarios: {
       get: async (slug, name) => getScenario(await project(slug), name),

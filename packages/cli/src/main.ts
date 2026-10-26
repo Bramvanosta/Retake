@@ -15,6 +15,8 @@ import type { AuthStatusOptions, LoginOptions } from './commands/auth.js';
 import { exportCommand } from './commands/export.js';
 import { mcpCommand } from './commands/mcp.js';
 import { jobsCancelCommand, jobsListCommand, jobsStatusCommand } from './commands/jobs.js';
+import { pruneCommand } from './commands/prune.js';
+import type { PruneOptions } from './commands/prune.js';
 import type { JobsListOptions, JobsStatusOptions } from './commands/jobs.js';
 import { workerCommand } from './commands/worker.js';
 import type { WorkerCommandOptions } from './commands/worker.js';
@@ -462,6 +464,15 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--author <name>', 'your name (default $DEMO_STUDIO_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
     .action(action((u, g, p: string, id: string, o: CommentWriteOptions) => commentReopenCommand(u, g, p, id, o)));
+
+  program
+    .command('prune')
+    .description("free disk space: list (and with --yes delete) failed takes, dry runs, older captures and renders nothing uses — the last good take of each scenario, the takes renders and comments use and the last renders of each scenario stay")
+    .argument('<project>', 'project slug or directory')
+    .option('--keep-renders <n>', 'renders kept per scenario and variant (default 3), with their reviews')
+    .option('--yes', 'delete (default: only list what would go and how much it frees)')
+    .option('--json', 'machine-readable output')
+    .action(action((u, g, p: string, o: PruneOptions) => pruneCommand(u, g, p, o)));
 
   program
     .command('doctor')

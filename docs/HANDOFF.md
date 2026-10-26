@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-26, end of lot **L4.3 (blocks editing, two-way YAML, drag & drop)**, after L5.5 and L5.6 —
-phases 1–3 are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the
-field-feedback lots L5.7 then L5.8 (decided 2026-10-26, `docs/FIELD-FEEDBACK-1.md`); L4.3 was finished in a worktree
-at the user's request meanwhile.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-26, end of lot **L5.7 (capture performance and disk)**, after L4.3, L5.5 and L5.6 — phases 1–3
+are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way. **Next: the
+field-feedback lot L5.8 (decided 2026-10-26, `docs/FIELD-FEEDBACK-1.md`); L4.3 was finished in a worktree at the user's
+request meanwhile.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -25,12 +25,38 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-97); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-101); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
 ## State (after L4.3)
+- **L5.7 done (2026-10-26)** — capture performance and disk (R-FLD-20 – R-FLD-24, R-FLD-26 – R-FLD-28 done, R-FLD-25
+  partial; R-ISS-12 done): a take costs under a core with the limiter on, ends without a long encode and weighs tens of
+  MB. **Encode during the take** (runner-web `stream.ts`): `CfrStream` (the CFR schedule as frames arrive — exactly
+  `cfrSchedule`; ticks 0.5 s behind the clock, never past a held load's start) feeds ffmpeg through a pipe —
+  VideoToolbox H.264 `-q:v 85` where ffmpeg has it, else libx264 veryfast; page tracks get their own encoders
+  (Runtime `encoderFor`). `capture.keep_frames` defaults to **false** (frames.jsonl still written; the raw export needs
+  `keep_frames: true` for 60 fps), `capture.quality` to **90** (small text checked), `capture.encoder`,
+  `capture.prewarm` (pages visited once off camera, `prewarm.ts`). `capture.step_shots` reads the video when no frame
+  is kept. **R-ISS-12 with the limiter on**: after a press the recorder restarts the screencast whenever no frame came
+  for 90 ms (`pressed()`, Pointer `afterPress`; a byte-identical frame is dropped, so idle gaps stay whole), the edit
+  cuts a freeze left (`timeline.stalls`, timing `frozen` — also a cursor-move freeze, more of them on a loaded machine:
+  the phase-3 acceptance now checks that no cut or speed-up touches the new take's 3 s hold instead of comparing two takes' clip lengths);
+  `frame_rate_limit: false` warns. **Perf report** (`perf.ts`, run.json `perf`): CPU per group from Chromium's
+  SystemInfo.getProcessInfo per persona + `ps -p` of encoders and of the localhost servers + Node, the machine load,
+  the GPU (SystemInfo.getInfo), frames, stalls, transitions (`activity.ts`: 96×54 grey thumbnails from the encoder,
+  changed cells outside the cursor; slow = click → stable over 0.8 s), encode, disk; printed by `studio run`, MCP
+  run_status, review `slow-transition` (info). **Waits after a click** (`timeline.busy`: near-identical frames ending
+  with the content) shortened by the edit (timing `busy`). `studio doctor`: `GPU` and `Capture encoder` lines.
+  **Disk**: engine `pruneProject` → `studio prune <project> [--keep-renders N] [--yes]` and MCP `project_prune` (45
+  tools); a capture warns under 10 GB / 5 % free. Fixture: `two-personas` scenario, `NORTHFIELD_QUOTES_MS` (skeleton rows
+  on the console's Quote requests). Measured before/after, alternated on a quiet Mac (FIELD-FEEDBACK-1 "After L5.7"):
+  `quote` 72 → 40 cpu-s (ffmpeg 29 → 7, node 12 → 7, Chromium 31 → 26), run folder 570 → 20 MB, ripple freezes 5 in 5
+  takes → 0 in 5; `two-personas` 55 → 37 cpu-s; the unfilmed persona's browser ≈ 0.02 core (not throttled: BL-97).
+  Acceptance: take 20261026-154105-quote rendered (quote-v1) and reviewed clean, frames looked at (marker, zoom,
+  cursor); a `two-personas` take's skeleton cut looked at. Tests on the Mac (rebased on L4.3): **3054 — 3004 pass, 50 skipped (≈ 15 min; the 2 L4.3 golden counts rerun alone)**; `pnpm test:slow` 57/58 then phase3-acceptance 20/20 alone (load 7–18) — the phase-3 acceptance compared two takes' delivery clips, which differ by everything else a take does (idle gaps near the threshold, the freezes a loaded machine adds and the edit now cuts) — it now checks the new hold whole in the plan; the catalogue acceptance read `frames/` (now off by default), the fixture-scenario counts were 13 (blocks, scenario-check, L4.3's step-edits / step-values goldens). Requirements: 647 tracked — 578 done, 26 partial, 35 todo, 8 n/a-here. Follow-ups BL-97 – BL-100 (next free id BL-101). Note for L5.8: a `hook:`
+  step mid-take must not break the encoder's clock (ticks follow the capture clock, a paused recorder holds the frame).
 - **L4.3 done (2026-10-26)**: the Studio's scenario screen edits a scenario. Blocks and YAML are two-way: every save is
   a minimal text splice (or a yaml CST scalar edit) that keeps comments, quoting, blank lines and line endings, and is
   verified by re-parsing (the new value must equal the intended one). Steps move (drag & drop or Alt+↑/↓, across

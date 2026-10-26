@@ -81,6 +81,9 @@ const ROUTES = [
  * @param {URL} url
  * @param {ApiContext} ctx
  */
+/** When each client (query + cookies) last asked for the quote list (NORTHFIELD_QUOTES_MS). */
+const quoteLoads = new Map();
+
 export async function handleApi(req, res, url, ctx) {
   if (req.method === 'OPTIONS') return sendPreflight(res);
   const method = req.method === 'HEAD' ? 'GET' : req.method;
@@ -94,6 +97,15 @@ export async function handleApi(req, res, url, ctx) {
   }
   try {
     const body = method === 'GET' || method === 'DELETE' ? undefined : await readJson(req);
+    // A slow quote list (NORTHFIELD_QUOTES_MS): the console's Quote requests page (`view=list`) shows its skeleton rows
+    // meanwhile. Only a first load is slow: the page's polling (every second, from the same browser) is answered at once,
+    // else no answer would ever be current.
+    if (method === 'GET' && url.pathname === '/api/quotes' && url.searchParams.get('view') === 'list' && ctx.quotesMs > 0) {
+      const key = `${url.search} ${req.headers.cookie ?? ''}`;
+      const polled = Date.now() - (quoteLoads.get(key) ?? 0) < 5000;
+      quoteLoads.set(key, Date.now());
+      if (!polled) await new Promise((r) => setTimeout(r, ctx.quotesMs));
+    }
     const out = hit.r[3](hit.params, body, url.searchParams, ctx);
     if (method !== 'GET') ctx.store.mutations++;
     if (out instanceof Created) sendJson(res, 201, out.value);

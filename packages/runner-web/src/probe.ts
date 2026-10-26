@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 import type { BrowserConfig } from '@demo-studio/core';
-import { DEFAULT_BROWSER_ARGS } from './session.js';
+import { DEFAULT_BROWSER_ARGS, gpuInfoOf } from './session.js';
+import type { GpuInfo, SystemInfoReply } from './session.js';
 import { wallNow } from './util.js';
 
 /** What `studio doctor` learns about the browser the runner would launch. */
@@ -19,6 +20,8 @@ export interface ChromiumProbe {
   ms?: number;
   /** First line of the launch error. */
   error?: string;
+  /** The launched browser's GPU status (L5.7, R-FLD-24: Chromium's own report, the one chrome://gpu shows). */
+  gpu?: GpuInfo;
 }
 
 /** The executable the runner would use, and where that choice comes from. */
@@ -54,6 +57,13 @@ export async function probeChromium(browser?: BrowserConfig, opts: { launch?: bo
     await page.setContent('<p id="ok">ok</p>');
     out.launched = (await page.textContent('#ok')) === 'ok';
     out.ms = Math.round(wallNow() - t0);
+    try {
+      const cdp = await b.newBrowserCDPSession();
+      out.gpu = gpuInfoOf((await cdp.send('SystemInfo.getInfo')) as SystemInfoReply);
+      await cdp.detach().catch(() => undefined);
+    } catch {
+      /* an older browser: no GPU line */
+    }
   } catch (e) {
     out.error = (e instanceof Error ? e.message : String(e)).split('\n')[0];
   } finally {

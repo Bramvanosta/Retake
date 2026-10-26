@@ -1,11 +1,12 @@
 import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
-import { README_MAX_CHARS } from '@demo-studio/engine';
+import { README_MAX_CHARS, formatBytes } from '@demo-studio/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
+import type { ToolAnnotations } from '../server.js';
 
 /** Whether `p` is `root` or inside it (real paths: macOS /tmp → /private/tmp). */
 function isInside(p: string, root: string): boolean {
@@ -121,4 +122,40 @@ export const projectUpdateReadme = defineTool({
   },
 });
 
-export const PROJECT_TOOLS: ToolDef[] = [engineInfo, projectList, projectGet, projectCreate, projectUpdateReadme];
+/** Annotations of `project_prune`: it deletes takes and renders (with dry_run: false). */
+const PRUNE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };
+
+export const projectPrune = defineTool({
+  name: 'project_prune',
+  title: 'Free disk space',
+  description:
+    "What a project's runs/, renders/ and review/ hold that nothing needs any more, and how much deleting it frees: failed, cancelled and interrupted takes, dry runs, older captures nothing uses, renders beyond the last keep_renders (default 3) of each scenario and variant, failed renders and the reviews of renders that go. Always kept: the last succeeded capture of each scenario, every take a kept render or a comment thread uses, every render a thread was made or resolved on, whatever a queued or running job names; exports/ is never touched. dry_run (default true) only lists; dry_run: false deletes — do it only when the user asked to free space, after showing them the list.",
+  input: z.strictObject({
+    project: projectSlug,
+    keep_renders: z.number().int().min(1).max(100).optional().describe('Renders kept per scenario and variant, with their reviews (default 3).'),
+    dry_run: z.boolean().optional().describe('Default true: delete nothing, list what would go. false deletes.'),
+  }),
+  annotations: PRUNE,
+  async run({ project, keep_renders, dry_run }, { engine }) {
+    const r = await engine.projects.prune(project, { ...(keep_renders !== undefined ? { keep_renders } : {}), dry_run: dry_run !== false });
+    const size = formatBytes(r.bytes);
+    const lines = r.items.slice(0, 40).map((i) => `- ${i.kind} ${i.id}: ${i.reason} (${formatBytes(i.bytes)})`);
+    const head = !r.items.length
+      ? `nothing to prune in ${r.project}`
+      : r.dry_run
+        ? `${plural(r.items.length, 'item')} of ${r.project} can go (${size}); call again with dry_run: false to delete them (only when the user asked to free space)`
+        : `${plural(r.items.length, 'item')} of ${r.project} deleted (${size} freed)`;
+    return {
+      summary: [
+        head,
+        ...lines,
+        ...(r.items.length > 40 ? [`… and ${r.items.length - 40} more (data.items)`] : []),
+        `kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')}, ${plural(r.kept.reviews, 'review')}`,
+        ...r.problems.map((p) => `could not delete ${p}`),
+      ].join('\n'),
+      data: r as unknown as Record<string, unknown>,
+    };
+  },
+});
+
+export const PROJECT_TOOLS: ToolDef[] = [engineInfo, projectList, projectGet, projectCreate, projectUpdateReadme, projectPrune];

@@ -13,12 +13,12 @@ import sharp from 'sharp';
 import { loadComponentRegistry } from '@demo-studio/components';
 import type { ComponentRegistry } from '@demo-studio/components';
 import type { EditPlan } from '@demo-studio/editor';
-import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
+import { captionRegion, checkArtefactOrder, checkCamera, checkCaptions, checkCursor, checkDurations, checkEnvironment, checkLongScenes, checkRender, checkSlowTransitions, checkTextSlots, checkOverlayCover, checkTransitionsOnClicks, checkTutorial, planFontFiles, reviewEnvironment, segmentDurations } from './checks.js';
 import type { CheckContext } from './checks.js';
 import { diffFindings, diffRecords, framePairs } from './diff.js';
 import { extractFrames, probeVideo } from './ffmpeg.js';
 import { fontFileMeasurer } from './fonts.js';
-import { ReviewError, findPrevious, findRender, openProject, renderTimeline, reviewsDir } from './load.js';
+import { ReviewError, findPrevious, findRender, openProject, renderRun, renderTimeline, reviewsDir } from './load.js';
 import { checkPixels, sourceFramesAtStarts, sourceKey, stillPair, stillSourceFrames } from './pixel-checks.js';
 import type { FrameAnalysis } from './pixel-checks.js';
 import type { RegionStats, RgbImage } from './pixels.js';
@@ -203,7 +203,8 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
   const spans = segmentSpans(plan);
   const transitions = transitionSpans(plan);
   const clicks = outputClicks(plan, timeline);
-  const ctx: CheckContext = { record, plan, timeline, rules, spans, transitions, clicks, registry, measure: fontFileMeasurer(planFontFiles(plan)) };
+  const run = await renderRun(project, record);
+  const ctx: CheckContext = { record, plan, timeline, rules, spans, transitions, clicks, registry, measure: fontFileMeasurer(planFontFiles(plan)), ...(run ? { run } : {}) };
 
   // ── Frames to look at ──
   const mainFrames = sampleFrames(0, D, F, fps);
@@ -384,6 +385,7 @@ async function reviewRenderOnce(opts: ReviewOptions): Promise<ReviewResult> {
       ...checkOverlayCover(ctx),
       ...checkEnvironment(ctx),
       ...checkArtefactOrder(ctx),
+      ...checkSlowTransitions(ctx),
       ...checkPixels(ctx, { analyses, sources, sourceSigs, sceneSamples, sampleSpacing_s: 0.5 }),
       ...(diff ? diffFindings(diff) : []),
     ]);

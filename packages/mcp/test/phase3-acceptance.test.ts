@@ -745,7 +745,25 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     const p2 = data<{ duration_s: number; scenario_changed?: boolean; segments: Array<{ scene?: string; kind: string; duration_s: number }> }>(plan);
     expect(p2.scenario_changed).toBe(false);
     const clip = (p: { segments: Array<{ scene?: string; kind: string; duration_s: number }> }) => p.segments.find((s) => s.kind === 'clip' && s.scene === 'delivery')!.duration_s;
-    expect(clip(p2) - clip(ids.plan1 as never), 'the delivery clip holds the confirmation longer').toBeGreaterThanOrEqual(1.5);
+    // The longer confirmation is in the edit whole, at 1×: no cut or speed-up of the plan touches the 3 s hold of the new
+    // take. (Comparing the two takes' clip lengths depended on everything else each take did: idle gaps around the
+    // threshold, and since L5.7 the freezes a loaded machine adds, which the edit cuts.)
+    const tl2 = JSON.parse(await readFile(join(projectDir(), 'runs', ids.run2, 'timeline.json'), 'utf8')) as { events: Array<{ mark?: string; hold?: { t_start: number; t_end: number } }> };
+    const hold = tl2.events.find((x) => x.mark === 'sent')!.hold!;
+    const summary = data<{ untrusted: { summary: string } }>(plan).untrusted.summary;
+    const touched = summary
+      .split('\n')
+      .filter((l) => l.includes('"delivery"'))
+      .flatMap((l) => {
+        const span = /(\d+\.\d+) s–(\d+\.\d+) s/.exec(l);
+        if (span) return [[Number(span[1]), Number(span[2]), l] as const];
+        const at = /(\d+\.\d+) s at (\d+\.\d+) s/.exec(l);
+        return at ? [[Number(at[2]), Number(at[2]) + Number(at[1]), l] as const] : [];
+      })
+      .filter(([a, b]) => a < hold.t_end - 0.05 && b > hold.t_start + 0.05)
+      .map(([, , l]) => l);
+    expect(touched, 'the delivery clip holds the confirmation longer: nothing of the 3 s hold is cut or sped up').toEqual([]);
+    expect(clip(p2), 'the delivery clip holds the confirmation longer').toBeGreaterThan(hold.t_end - hold.t_start);
     const r = await call('render', { ...args, run_id: ids.run2 });
     ids.render2 = data<{ render_id: string }>(r).render_id;
     expect(ids.render2).not.toBe(ids.render1);

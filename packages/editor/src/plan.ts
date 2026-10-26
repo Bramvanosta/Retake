@@ -770,6 +770,8 @@ export function planEdit(input: PlanEditInput): EditPlan {
       waits,
       quick,
       loading,
+      // L5.7: the main capture's freezes and waits (a multi-page run shows its pages' tracks: none of them recorded).
+      ...(runPages ? {} : { frozen: timeline.stalls ?? [], busy: timeline.busy ?? [] }),
     });
     for (const w of waits) {
       if (!sped(run, w, runEntries)) continue;
@@ -785,6 +787,15 @@ export function planEdit(input: PlanEditInput): EditPlan {
     for (const c of run.cuts) {
       if (c.reason === 'loading') {
         notes.add(`"${runEntries[c.clip].scene.id}": page load ${secs(c.a / srcFps)}–${secs(c.b / srcFps)} of the capture cut (the capture held the previous frame until the new page painted)`);
+        continue;
+      }
+      if (c.reason === 'frozen') {
+        notes.add(`"${runEntries[c.clip].scene.id}": capture freeze ${secs(c.a / srcFps)}–${secs(c.b / srcFps)} cut (no new frame came while the cursor moved or a click ripple played)`);
+        continue;
+      }
+      if (c.reason === 'busy') {
+        const kept = (c.idle.b - c.idle.a - (c.b - c.a)) / srcFps;
+        notes.add(`"${runEntries[c.clip].scene.id}": wait after a click ${secs((c.idle.b - c.idle.a) / srcFps)} at ${secs(c.idle.a / srcFps)} of the capture shortened to ${secs(kept)} (a skeleton, a spinner or a blank panel)`);
         continue;
       }
       const kept = (c.idle.b - c.idle.a - (c.b - c.a)) / srcFps;

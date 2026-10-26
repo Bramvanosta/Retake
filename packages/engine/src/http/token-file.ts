@@ -10,7 +10,7 @@
  * - Trusted only as a regular file of this user with no group or other permission bits, holding one token; anything
  *   else (a link, 0644, another owner, garbage) is refused, never followed or repaired silently.
  *
- * Whoever holds it reaches the 44 MCP tools of the workspace a server serves and answers its approval forms (as any
+ * Whoever holds it reaches the 45 MCP tools of the workspace a server serves and answers its approval forms (as any
  * MCP client of `studio mcp` over stdio does): it is a secret of the person, like their shell.
  */
 import { chmod, link, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';

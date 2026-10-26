@@ -85,7 +85,11 @@ export async function tempDir(prefix = 'rw-test-'): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-export function makeProject(dir: string, pages: Record<string, string>, opts: { width?: number; height?: number } = {}): LoadedProject {
+/**
+ * A project of the runner tests. Its captures keep their screencast frames (`keepFrames`, default true: most tests read
+ * them — the encoder fed during the take is checked against them); `keepFrames: false` is the default of real projects.
+ */
+export function makeProject(dir: string, pages: Record<string, string>, opts: { width?: number; height?: number; keepFrames?: boolean } = {}): LoadedProject {
   return {
     slug: 'northfield',
     dir,
@@ -93,7 +97,7 @@ export function makeProject(dir: string, pages: Record<string, string>, opts: { 
     config: {
       name: 'Northfield',
       environments: { test: pages },
-      capture: { ...DEFAULT_CAPTURE, width: opts.width ?? 800, height: opts.height ?? 600 },
+      capture: { ...DEFAULT_CAPTURE, width: opts.width ?? 800, height: opts.height ?? 600, keep_frames: opts.keepFrames ?? true },
       frame: 'raw',
       template: 'editorial',
     },

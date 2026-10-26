@@ -7,7 +7,9 @@
 //   env: NORTHFIELD_CONSOLE_PORT, NORTHFIELD_SHOP_PORT, NORTHFIELD_HOST,
 //        NORTHFIELD_AUTH_CONSOLE_PORT, NORTHFIELD_AUTH_SHOP_PORT, NORTHFIELD_SMTP (mails also delivered there),
 //        NORTHFIELD_ENRICH_MS (default 4000), NORTHFIELD_IMPORT_MS (default 2000),
-//        NORTHFIELD_REPORT_MS (default 400), NORTHFIELD_REPORT_DATA_MS (default 1200)
+//        NORTHFIELD_REPORT_MS (default 400), NORTHFIELD_REPORT_DATA_MS (default 1200),
+//        NORTHFIELD_QUOTES_MS (default 0: GET /api/quotes answered after it — the console's quote list shows its
+//        skeleton rows that long, Demo Studio L5.7)
 //
 // The same two apps also run on a signed-in side (:4403 / :4404 by default, same store): every page there needs an
 // account (server/auth.mjs). Also importable: `const fx = await startFixture({ consolePort: 0, shopPort: 0,
@@ -273,6 +275,7 @@ export async function startFixture(opts = {}) {
     urls: { console: '', shop: '' },
     version: await bundleVersion(),
     reports: { ms: opts.reportMs ?? REPORT_MS, dataMs: opts.reportDataMs ?? REPORT_DATA_MS },
+    quotesMs: opts.quotesMs ?? 0,
   };
   const consoleSide = await listenAll(appHandler('console', ctx), opts.consolePort ?? 4401, hosts, 'console');
   let shopSide;
@@ -376,6 +379,7 @@ async function main() {
     importMs: msOption(process.env.NORTHFIELD_IMPORT_MS, 'NORTHFIELD_IMPORT_MS'),
     reportMs: msOption(process.env.NORTHFIELD_REPORT_MS, 'NORTHFIELD_REPORT_MS'),
     reportDataMs: msOption(process.env.NORTHFIELD_REPORT_DATA_MS, 'NORTHFIELD_REPORT_DATA_MS'),
+    quotesMs: msOption(process.env.NORTHFIELD_QUOTES_MS, 'NORTHFIELD_QUOTES_MS'),
     // The signed-in side is on by default; a busy port only skips it (the open side keeps working).
     auth: values['no-auth']
       ? undefined

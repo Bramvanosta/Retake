@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
 import {
@@ -25,6 +25,7 @@ import {
   resolveRunAccess,
   resolveStepRef,
   sceneId,
+  templateSceneEntry,
   templateVideo,
   timelineVideo,
   writeJson,
@@ -48,6 +49,8 @@ import type {
   ResolvedPersona,
   ResolvedClock,
   RunAccess,
+  RunPerf,
+  RunPerfCpu,
   RunRecord,
   Scenario,
   TemplateContext,
@@ -56,9 +59,10 @@ import type {
   WritePolicy,
 } from '@demo-studio/core';
 import { snapshotMailbox } from './actions/artefacts.js';
+import { ActivityRecorder, analyzeActivity, clicksOf, slowTransitions } from './activity.js';
 import { watchNotifications } from './notifications.js';
 import { mergeCapture, mergePacing, projectBrowser } from './config.js';
-import { encodeFrames } from './encode.js';
+import { runFfmpeg } from './encode.js';
 import { runEngine } from './engine.js';
 import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopiesSync, signInMatchers, writeStatus } from './auth.js';
@@ -72,6 +76,8 @@ import type { InspectContext, InspectRequest } from './inspect.js';
 import { kitConfigFor } from './kit/source.js';
 import { ScreencastRecorder } from './recorder.js';
 import type { FrameIndexEntry } from './recorder.js';
+import { PerfSampler, UNFILMED_WARN_CORES, listeningPids, localPorts } from './perf.js';
+import { prewarmPages, prewarmTargets } from './prewarm.js';
 import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { LogLevel } from './runtime.js';
@@ -79,6 +85,9 @@ import { StepFailure, runScenes, templated, untilSteps } from './scenes.js';
 import { settleEffectChecks } from './actions/effects.js';
 import { RunSecrets } from './secrets.js';
 import { BrowserSession } from './session.js';
+import type { GpuInfo } from './session.js';
+import { StreamEncoder, encoderLabel, resolveEncoder } from './stream.js';
+import type { StreamEncoderOptions } from './stream.js';
 import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
 import type { MotionCapture } from './timeline.js';
 import { fileSlug, pad, throwIfAborted, wallNow } from './util.js';
@@ -213,14 +222,14 @@ function warnLimitedLoads(rec: ScreencastRecorder, timeline: TimelineBuilder, lo
  * ≥ STALL_MIN_S (150 ms) while the cursor moved or a click ripple played (L1.3). Null (cursor hidden): nothing can be
  * judged.
  */
-export function motionWarnings(motion: MotionCapture | null, minFps: number, prefix: string): string[] {
+export function motionWarnings(motion: MotionCapture | null, minFps: number, prefix: string, cause?: string): string[] {
   if (!motion) return [];
   const out: string[] = [];
   if (motion.slow > 0 && motion.worst) {
     out.push(
       `${prefix}${motion.slow} of ${motion.moves} cursor moves were captured below ${Math.round(minFps)} fps ` +
-        `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s): the browser renders this page slowly ` +
-        `(software rendering without a GPU, heavy effects such as backdrop-filter blur, or several pages at once), so motion will look choppy`,
+        `(lowest ${motion.worst.fps.toFixed(0)} fps at ${motion.worst.t.toFixed(1)} s), so motion will look choppy` +
+        (cause ? ` — ${cause}` : ''),
     );
   }
   if (motion.stalls.length) {
@@ -230,11 +239,66 @@ export function motionWarnings(motion: MotionCapture | null, minFps: number, pre
       `${prefix}the capture froze ${motion.stalls.length === 1 ? 'once' : `${motion.stalls.length} times`} while the cursor moved or a click ripple played ` +
         `(longest ${worst.ms} ms): ${where.join(', ')}${motion.stalls.length > 4 ? ', …' : ''} — the frames show a stop, then a jump` +
         (motion.stalls.some((s) => s.during === 'ripple')
-          ? '; a freeze during a click ripple is usually a closing dialog whose overlay has a backdrop-filter (Chromium stops drawing ≈ 0.26 s): browser.frame_rate_limit: false avoids it, see the README'
+          ? '; a freeze during a click ripple is usually a closing dialog whose overlay has a backdrop-filter (Chromium stops drawing ≈ 0.26 s): the edit cuts the frozen part'
           : ''),
     );
   }
   return out;
+}
+
+/**
+ * Why cursor moves were filmed below the frame rate (L5.7, R-FLD-24), from what the take measured: the GPU, the
+ * machine's load, Chromium's CPU, the frame-rate limiter, several browsers. The most likely cause first, then the
+ * figures it rests on.
+ */
+export function choppyCause(m: { gpu?: GpuInfo; cpu?: RunPerfCpu; machine: RunPerf['machine']; seconds: number; frameRateLimit: boolean }): string {
+  const figures: string[] = [];
+  if (m.gpu) figures.push(m.gpu.accelerated ? `GPU hardware accelerated${m.gpu.renderer ? ` (${m.gpu.renderer})` : ''}` : `no GPU acceleration (${m.gpu.renderer ?? 'software'})`);
+  figures.push(`machine load up to ${m.machine.load_max.toFixed(1)} on ${m.machine.cpus} cores`);
+  const cores = (x: number) => (x / Math.max(0.001, m.seconds)).toFixed(2);
+  if (m.cpu) figures.push(`Chromium ${cores(m.cpu.browser + m.cpu.gpu + m.cpu.renderer + m.cpu.chromium_other)} cores (renderer ${cores(m.cpu.renderer)}, GPU process ${cores(m.cpu.gpu)})`);
+  let why: string;
+  if (m.gpu && !m.gpu.accelerated) why = 'the browser renders in software: run `studio doctor` (browser.channel: headless-shell has no GPU)';
+  else if (m.machine.load_max > m.machine.cpus) why = 'the machine was busy with other work: film when it is quiet';
+  else if (m.cpu && m.cpu.renderer / Math.max(0.001, m.seconds) > 0.8) why = "the page's own rendering is heavy (large blurs or shadows, animations): its renderer stayed busy";
+  else if (m.cpu?.browsers && m.cpu.browsers.length > 1 && m.cpu.browsers.some((b) => b.cpu / Math.max(0.001, m.seconds) > 0.5)) why = 'several browsers (one per persona) rendered at once';
+  else if (!m.frameRateLimit) why = 'browser.frame_rate_limit: false makes Chromium draw back to back';
+  else why = 'no load measured: the page itself drew slowly at those moments';
+  return `measured: ${why} (${figures.join(', ')})`;
+}
+
+/** Size of a folder in MB (files only; never fails). */
+async function folderMB(dir: string): Promise<number> {
+  let bytes = 0;
+  const walk = async (d: string): Promise<void> => {
+    for (const e of await readdir(d, { withFileTypes: true }).catch(() => [])) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) await walk(p);
+      else if (e.isFile()) bytes += (await stat(p).catch(() => null))?.size ?? 0;
+    }
+  };
+  await walk(dir);
+  return Math.round((bytes / 1e6) * 10) / 10;
+}
+
+/** Free space below which a capture warns (R-FLD-28): this many GB, or this share of the disk. */
+export const DISK_FREE_MIN_GB = 10;
+export const DISK_FREE_MIN_SHARE = 0.05;
+
+/** Free GB on the disk of `dir` and the warning when it is low (undefined: not measurable). */
+export async function diskCheck(dir: string, project: string): Promise<{ free_gb?: number; warning?: string }> {
+  try {
+    const f = await statfs(dir);
+    const free = (f.bavail * f.bsize) / 1e9;
+    const total = (f.blocks * f.bsize) / 1e9;
+    const free_gb = Math.round(free * 10) / 10;
+    if (free < DISK_FREE_MIN_GB || free < total * DISK_FREE_MIN_SHARE) {
+      return { free_gb, warning: `only ${free_gb} GB left on this disk: \`studio prune ${project}\` removes failed takes, dry runs and old renders (it says how much first)` };
+    }
+    return { free_gb };
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -370,6 +434,30 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   let failure: unknown = null;
   let frames: FrameIndexEntry[] = [];
   let endT = 0;
+  // L5.7: capture.mp4 encoded during the take, what it showed after each click, what the take cost.
+  let encoderKind: StreamEncoderOptions['encoder'] | null = null;
+  let perfMotion: MotionCapture | null = null;
+  let mainEncoder: StreamEncoder | null = null;
+  const activity = new ActivityRecorder();
+  let sampler: PerfSampler | null = null;
+  let gpu: GpuInfo | undefined;
+  let perfCpu: RunPerfCpu | undefined;
+  let perfMachine: RunPerf['machine'] | undefined;
+  const browserConfig = projectBrowser(project, opts.browser);
+  const frameRateLimit = browserConfig.frame_rate_limit !== false;
+  const newEncoder = (o: { out: string; width: number; height: number; horizon: () => number; thumbs?: boolean }): StreamEncoder =>
+    new StreamEncoder({
+      out: o.out,
+      fps: capture.fps,
+      width: o.width,
+      height: o.height,
+      format: capture.format,
+      encoder: encoderKind ?? 'libx264',
+      crf: capture.crf,
+      ...(opts.ffmpeg ? { ffmpeg: opts.ffmpeg } : {}),
+      horizon: o.horizon,
+      ...(o.thumbs ? { onThumb: (n: number, g: Buffer) => activity.add(n, g) } : {}),
+    });
   /** Capture time 0 is set (writes and the like are stamped from then on). */
   let captureStarted = false;
   let writeGuard: WriteGuardOptions | null = null;
@@ -452,6 +540,23 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       record.engine = runEngine(chromium);
       void files.saveRecord();
     }
+    if (mode === 'capture') {
+      // L5.7: the encoder fed during the take, the GPU the capture renders with, a limiter turned off.
+      encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg);
+      gpu = await session.gpuInfo();
+      if (gpu && !gpu.accelerated) {
+        const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`studio doctor\`${browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
+        timeline.warn(m);
+        log('warn', m);
+      }
+      if (!frameRateLimit) {
+        const m =
+          'browser.frame_rate_limit: false makes Chromium draw back to back (measured on the fixture: ×2.8 its CPU, its GPU and renderer processes ×7) — ' +
+          'the dialog-close freeze it was set for is handled without it now (fresh frames during a click ripple, the edit cuts what is left): remove it';
+        timeline.warn(m);
+        log('warn', m);
+      }
+    }
     if (prepared.length) {
       await preflight(session, prepared, {
         project: project.slug,
@@ -502,6 +607,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       log,
       guard,
       ...(prepared.length ? { plannedPersonas: plan.pages } : {}),
+      ...(mode === 'capture' ? { encoderFor: (o: { out: string; width: number; height: number; horizon: () => number }) => newEncoder(o) } : {}),
     });
 
     if (opts.hideCursor) log('info', 'capturing without the in-page cursor (raw export): its track, icon, presses and ripples are recorded as data');
@@ -546,6 +652,25 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     const firstScene = captured[0];
     const firstPage = firstScene?.pages !== undefined ? undefined : (firstScene?.page ?? Object.keys(env.pages)[0]);
     if (firstScene?.pages === undefined && !firstPage) throw new RunnerError(`environment "${env.name}" declares no pages`);
+    // L5.7 (R-FLD-27): every page the scenario opens, visited once off camera, so the take does not film it cold.
+    if (mode === 'capture' && capture.prewarm) {
+      const r = rt;
+      const targets = prewarmTargets(sc, {
+        envPages: env.pages,
+        capture: { width: capture.width, height: capture.height },
+        template: (entry, si) => {
+          try {
+            return templateSceneEntry(untilSteps(entry, si, until), si, r.template, r.editTemplate);
+          } catch {
+            return null;
+          }
+        },
+        ...(until ? { lastScene: until.sceneIndex } : {}),
+      });
+      const done = await prewarmPages(r, targets);
+      log('info', `prewarm: ${done.visited} of ${targets.length} page${targets.length === 1 ? '' : 's'} visited off camera in ${(done.ms / 1000).toFixed(1)} s`);
+      for (const f of done.failed) log('warn', `prewarm: ${f}`);
+    }
     // Capture time 0: right before the first page is shown and the screencast starts. The product's clock reads its
     // time now (L1.7), in every browser.
     await session.anchorClock();
@@ -555,6 +680,14 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // first single-page scene, if any).
     if (firstPage) await rt.activate(firstPage);
     if (mode === 'capture' && captured.some((s) => s.pages === undefined)) {
+      mainEncoder = newEncoder({
+        out: join(dir, 'capture.mp4'),
+        width: capture.width * capture.scale,
+        height: capture.height * capture.scale,
+        horizon: () => recorder?.horizon() ?? 0,
+        thumbs: true,
+      });
+      mainEncoder.start();
       recorder = new ScreencastRecorder({
         framesDir,
         indexFile: join(dir, 'frames.jsonl'),
@@ -566,10 +699,27 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         clock,
         onError: (m) => timeline.warn(m),
         pageId: (p) => session?.idOf(p),
+        keepFrames: capture.keep_frames,
+        sink: mainEncoder,
       });
       if (firstPage) await recorder.start(rt.page);
       else await recorder.prepare();
       rt.recorder = recorder;
+    }
+    if (mode === 'capture') {
+      // What the take costs (R-FLD-23): Chromium's processes, the encoders, the product's local servers.
+      const s = new PerfSampler({
+        chromium: () => session?.processInfo() ?? Promise.resolve([]),
+        // The personas' browsers a recorder films now (the main capture's page, the pages of a multi-page scene).
+        filmed: () => {
+          const pages = [recorder?.recordingPage, ...[...(rt?.tracks.values() ?? [])].map((t) => t.recorder?.recordingPage)];
+          return new Set(pages.filter((p): p is Page => !!p).map((p) => session?.realmName(p) ?? ''));
+        },
+      });
+      s.addEncoder(mainEncoder?.pid);
+      s.addProduct(await listeningPids(localPorts(Object.values(env.pages))));
+      s.start();
+      sampler = s;
     }
     await runScenes(rt, {
       scenario: sc,
@@ -597,6 +747,12 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // The last click's effect check (R-FLD-12) ends before the capture does (--until, a failed step included).
     if (rt) await settleEffectChecks({ rt }).catch(() => undefined);
     endT = clock.now();
+    // The encoders write no tick past the end of the take.
+    mainEncoder?.endAt(endT);
+    for (const t of rt?.tracks.values() ?? []) {
+      t.encoder?.endAt(endT);
+      sampler?.addEncoder(t.encoder?.pid);
+    }
     if (failure === null && guard?.error) failure = guard.error;
     if (rt) {
       for (const [id, t] of rt.tracks) {
@@ -617,18 +773,34 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         warnLimitedLoads(recorder, timeline, log);
         const st = recorder.stats();
         if (st.write_errors) timeline.warn(`${st.write_errors} frames could not be written`);
-        const minFps = Math.min(capture.fps, 30) * 0.6;
-        // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
-        const motion = opts.hideCursor
-          ? null
-          : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps, timeline.cursorEffects, timeline.pages.map((p) => p.t_start), timeline.loading);
-        for (const message of motionWarnings(motion, minFps, '')) {
-          timeline.warn(message);
-          log('warn', message);
-        }
       } catch (e) {
         log('error', `stopping the recorder failed: ${errorMessage(e)}`);
       }
+    }
+    if (sampler) {
+      perfCpu = await sampler.stop().catch(() => undefined);
+      perfMachine = sampler.machine();
+      // R-FLD-25: a persona's page that costs CPU while nobody films it (measured on the fixture: ≈ 0.02 core).
+      for (const b of perfCpu?.browsers ?? []) {
+        if (!b.unfilmed || b.unfilmed.seconds < 4 || b.unfilmed.cpu / b.unfilmed.seconds <= UNFILMED_WARN_CORES) continue;
+        const m = `persona ${b.persona ?? '(none)'}: its browser kept ${(b.unfilmed.cpu / b.unfilmed.seconds).toFixed(2)} cores busy while not filmed (${b.unfilmed.seconds.toFixed(0)} s) — its page polls or animates off screen and slows the take: leave a quieter page open there between its scenes`;
+        timeline.warn(m);
+        log('warn', m);
+      }
+    }
+    if (recorder) {
+      const minFps = Math.min(capture.fps, 30) * 0.6;
+      // Without the drawn cursor a move changes nothing on screen: the frame rate during moves cannot be judged.
+      const motion = opts.hideCursor
+        ? null
+        : motionCapture(frames.map((f) => f.t), timeline.cursor, minFps, timeline.cursorEffects, timeline.pages.map((p) => p.t_start), timeline.loading);
+      timeline.stalls = (motion?.stalls ?? []).map((x) => ({ t_start: x.t, t_end: x.t_end, during: x.during }));
+      const cause = perfMachine ? choppyCause({ gpu, cpu: perfCpu, machine: perfMachine, seconds: endT, frameRateLimit }) : undefined;
+      for (const message of motionWarnings(motion, minFps, '', cause)) {
+        timeline.warn(message);
+        log('warn', message);
+      }
+      perfMotion = motion;
     }
     // A landing seen while the run was ending (after a step failed, or a cancel): nothing of the capture is kept either.
     if (guard?.error) failure = guard.error;
@@ -677,6 +849,12 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     await discardCapture(dir, screenshotsDir);
     record.screenshots = [];
   }
+  // The encoders fed during the take (L5.7): nothing of a cancelled or discarded take is kept.
+  const trackEncoders = [...(rt?.tracks.values() ?? [])].map((t) => t.encoder).filter((e): e is StreamEncoder => e !== null);
+  if (cancelled || discard) {
+    await Promise.all([mainEncoder, ...trackEncoders].map((e) => e?.abort()));
+    mainEncoder = null;
+  }
   // Per-page tracks of multi-page scenes (L2.11): their frames, encoded on the same CFR grid as capture.mp4.
   const trackFrames = new Map<string, FrameIndexEntry[]>();
   if (rt && mode === 'capture' && !discard) {
@@ -691,7 +869,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const motion = opts.hideCursor
         ? null
         : motionCapture(list.map((f) => f.t), t.builder.cursor, minFps, t.builder.cursorEffects, t.builder.pages.map((p) => p.t_start), t.builder.loading);
-      for (const message of motionWarnings(motion, minFps, `page ${id}: `)) {
+      const cause = perfMachine ? choppyCause({ gpu, cpu: perfCpu, machine: perfMachine, seconds: endT, frameRateLimit }) : undefined;
+      for (const message of motionWarnings(motion, minFps, `page ${id}: `, cause)) {
         timeline.warn(message);
         log('warn', message);
       }
@@ -705,33 +884,19 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     const why = timeline.warnings.find((w) => w.startsWith('screencast frames stay'));
     failure = new EncodeError(`the capture recorded no frame${why ? ` (${why}: every frame was dropped)` : ''}`);
   }
-  // One picture per step of a capture (R-FLD-16, capture.step_shots): its frame at the end of the step, copied before the
-  // frames go — nothing is taken during the take.
-  if (rt && mode === 'capture' && capture.step_shots && !cancelled && !discard) {
-    const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
-    record.screenshots = await stepShots(timeline.events, screenshotsDir, { dir: framesDir, frames }, (ev) => {
-      const page = multi.has(ev.scene) ? ev.page : undefined;
-      const t = page ? rt!.tracks.get(page) : undefined;
-      const list = page ? trackFrames.get(page) : undefined;
-      return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
-    }, log);
+  let encodeDone: { finish_ms: number; late_frames: number } | null = null;
+  if (mainEncoder && frames.length === 0) {
+    await mainEncoder.abort();
+    mainEncoder = null;
   }
-  if (mode === 'capture' && !cancelled && !discard && frames.length > 0) {
+  if (mainEncoder) {
     const out = join(dir, 'capture.mp4');
     emit({ type: 'encode', status: 'start', message: `${frames.length} frames → ${out}` });
     try {
-      await encodeFrames(framesDir, frames, out, {
-        fps: capture.fps,
-        crf: capture.crf,
-        endT,
-        width: capture.width * capture.scale,
-        height: capture.height * capture.scale,
-        jpeg: capture.format === 'jpeg',
-        ffmpeg: opts.ffmpeg,
-      });
+      await mainEncoder.finish(endT);
       record.capture = out;
+      encodeDone = { finish_ms: mainEncoder.finishMs, late_frames: mainEncoder.late };
       emit({ type: 'encode', status: 'done', message: out });
-      if (!capture.keep_frames) await rm(framesDir, { recursive: true, force: true });
     } catch (e) {
       emit({ type: 'encode', status: 'done', message: `failed: ${errorMessage(e)}` });
       failure ??= e;
@@ -742,23 +907,15 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const list = trackFrames.get(id) ?? [];
       if (list.length === 0) {
         timeline.warn(`page ${id}: its track recorded no frame`);
+        await t.encoder?.abort();
         continue;
       }
-      const tframes = join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, ''));
       const out = join(dir, t.builder.info.file);
+      if (!t.encoder) continue;
       emit({ type: 'encode', status: 'start', message: `page ${id}: ${list.length} frames → ${out}` });
       try {
-        await encodeFrames(tframes, list, out, {
-          fps: capture.fps,
-          crf: capture.crf,
-          endT,
-          width: t.viewport.width * capture.scale,
-          height: t.viewport.height * capture.scale,
-          jpeg: capture.format === 'jpeg',
-          ffmpeg: opts.ffmpeg,
-        });
+        await t.encoder.finish(endT);
         emit({ type: 'encode', status: 'done', message: out });
-        if (!capture.keep_frames) await rm(tframes, { recursive: true, force: true });
         if (mainFromTrack === id) {
           await copyFile(out, join(dir, 'capture.mp4'));
           record.capture = join(dir, 'capture.mp4');
@@ -770,6 +927,77 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         failure ??= e;
       }
     }
+  }
+  // One picture per step of a capture (R-FLD-16, capture.step_shots): its frame at the end of the step — copied from the
+  // kept frames, else read from the video (L5.7: no frame written during the take). Nothing is taken during the take.
+  if (rt && mode === 'capture' && capture.step_shots && !cancelled && !discard) {
+    const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
+    const trackOf = (ev: TimelineEvent) => {
+      const page = multi.has(ev.scene) ? ev.page : undefined;
+      return page ? rt!.tracks.get(page) : undefined;
+    };
+    record.screenshots = capture.keep_frames
+      ? await stepShots(timeline.events, screenshotsDir, { dir: framesDir, frames }, (ev) => {
+          const t = trackOf(ev);
+          const list = t ? trackFrames.get(t.builder.info.id) : undefined;
+          return t && list?.length ? { dir: join(dir, t.builder.info.frames_file.replace(/\.jsonl$/, '')), frames: list } : null;
+        }, log)
+      : await videoStepShots(timeline.events, screenshotsDir, (ev) => {
+          const t = trackOf(ev);
+          const file = t ? join(dir, t.builder.info.file) : record.capture;
+          return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
+        }, capture.fps, opts.ffmpeg ?? 'ffmpeg', log);
+  }
+  // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
+  let transitions: RunPerf['transitions'];
+  if (record.capture && !mainFromTrack && activity.masks.length) {
+    const multi = new Set(timeline.scenes.filter((x) => x.pages !== undefined).map((x) => x.id));
+    const events = timeline.events.filter((e) => !multi.has(e.scene));
+    if (process.env.DS_DEBUG_ACTIVITY) await writeFile(join(dir, 'activity.bin'), Buffer.concat(activity.masks)); // TEMP L5.7
+    const act = analyzeActivity({
+      masks: activity.masks,
+      fps: capture.fps,
+      width: capture.width,
+      height: capture.height,
+      cursor: opts.hideCursor ? [] : timeline.cursor,
+      effects: timeline.cursorEffects,
+      events,
+      loading: timeline.loading,
+    });
+    timeline.busy = act.busy;
+    log('debug', `transitions: ${act.transitions.map((x) => `${x.scene}.${x.step} ${x.ms} ms`).join(', ')}; waits: ${act.busy.map((b) => `${b.t_start}–${b.t_end} s`).join(', ') || 'none'}`);
+    const slow = slowTransitions(act.transitions);
+    transitions = { measured: clicksOf(events).length, slow: slow.slice(0, 10).map((x) => ({ t: x.t, ms: x.ms, scene: x.scene, step: x.step, ...(x.target ? { target: secrets.redactText(x.target) } : {}) })) };
+    if (slow.length) {
+      log('info', `slow transitions (click → stable screen over 0.8 s): ${slow.slice(0, 4).map((x) => `${x.scene}.${x.step} ${(x.ms / 1000).toFixed(1)} s`).join(', ')}${slow.length > 4 ? ', …' : ''}`);
+    }
+  }
+  if (mode === 'capture' && !cancelled && !discard && perfMachine) {
+    const disk = await diskCheck(dir, project.slug);
+    if (disk.warning) {
+      timeline.warn(disk.warning);
+      log('warn', disk.warning);
+    }
+    const st = recorder?.stats();
+    const perf: RunPerf = {
+      seconds: Math.round(endT * 100) / 100,
+      ...(perfCpu ? { cpu: perfCpu } : {}),
+      machine: perfMachine,
+      ...(gpu ? { gpu } : {}),
+      frame_rate_limit: frameRateLimit,
+      frames: {
+        received: frames.length,
+        fps: endT > 0 ? Math.round((frames.length / endT) * 10) / 10 : 0,
+        ...(perfMotion?.worst ? { motion_fps_min: Math.round(perfMotion.worst.fps * 10) / 10 } : {}),
+        dropped: st?.dropped ?? 0,
+        kicked: (st?.kicked ?? 0) + [...(rt?.tracks.values() ?? [])].reduce((n, t) => n + (t.recorder?.kicked ?? 0), 0),
+      },
+      stalls: (perfMotion?.stalls ?? []).map((x) => ({ t: x.t, ms: x.ms, during: x.during })),
+      ...(transitions ? { transitions } : {}),
+      ...(encodeDone && encoderKind ? { encode: { ...encoderLabel({ encoder: encoderKind, crf: capture.crf }), ...encodeDone } } : {}),
+      disk: { run_mb: await folderMB(dir), frames_kept: capture.keep_frames, ...(disk.free_gb !== undefined ? { free_gb: disk.free_gb } : {}) },
+    };
+    record.perf = perf;
   }
 
   const tl = timeline.build({
@@ -845,6 +1073,56 @@ async function stepShots(
     }
   }
   return out;
+}
+
+/**
+ * capture.step_shots without kept frames (L5.7): for every step that ran, the frame of its video (capture.mp4, or its
+ * page's track) shown at its end — output frame floor(t_end · fps), the CFR schedule's latest captured frame at or before
+ * it — read in one ffmpeg pass per video, saved as screenshots/<scene>-<nn>-<action>.jpg.
+ */
+async function videoStepShots(
+  events: readonly TimelineEvent[],
+  screenshotsDir: string,
+  videoOf: (ev: TimelineEvent) => { video: string; count: number } | null,
+  fps: number,
+  ffmpeg: string,
+  log: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void,
+): Promise<string[]> {
+  const byVideo = new Map<string, Array<{ ev: TimelineEvent; n: number }>>();
+  for (const ev of events) {
+    if (ev.step < 0 || ev.status === 'skipped') continue;
+    const src = videoOf(ev);
+    if (!src) continue;
+    const n = Math.min(src.count - 1, Math.max(0, Math.floor(ev.t_end * fps + 1e-6)));
+    let list = byVideo.get(src.video);
+    if (!list) byVideo.set(src.video, (list = []));
+    list.push({ ev, n });
+  }
+  const out: string[] = [];
+  for (const [video, list] of byVideo) {
+    const ns = [...new Set(list.map((x) => x.n))].sort((a, b) => a - b);
+    const tmp = join(screenshotsDir, `.step-shots-${process.pid}`);
+    try {
+      await rm(tmp, { recursive: true, force: true });
+      await mkdir(tmp, { recursive: true });
+      const select = ns.map((n) => `eq(n\\,${n})`).join('+');
+      await runFfmpeg(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', video, '-vf', `select='${select}'`, '-fps_mode', 'passthrough', '-q:v', '2', join(tmp, '%05d.jpg')]);
+      for (const { ev, n } of list) {
+        const file = join(screenshotsDir, `${fileSlug(ev.scene)}-${pad(ev.step, 2)}-${ev.action}.jpg`);
+        try {
+          await copyFile(join(tmp, `${pad(ns.indexOf(n) + 1, 5)}.jpg`), file);
+          out.push(file);
+        } catch (e) {
+          log('warn', `step picture of ${ev.scene}.${ev.step} not kept: ${errorMessage(e)}`);
+        }
+      }
+    } catch (e) {
+      log('warn', `step pictures not kept (${errorMessage(e)})`);
+    } finally {
+      await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+  return out.sort();
 }
 
 /** Inspect the page the run shows and hand the report over (inspect.ts). */

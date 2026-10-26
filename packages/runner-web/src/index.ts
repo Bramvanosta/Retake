@@ -2,7 +2,7 @@
  * @demo-studio/runner-web — drives a real web app headless with deterministic pacing, an in-page cursor driven by
  * real input, CDP screencast capture and a timeline of every step (docs/DESIGN.md §3).
  */
-export { motionWarnings, runScenario } from './run.js';
+export { DISK_FREE_MIN_GB, DISK_FREE_MIN_SHARE, choppyCause, diskCheck, motionWarnings, runScenario } from './run.js';
 export type { RunOptions } from './run.js';
 export { INSPECT_BUDGET_MS, INSPECT_LIMIT, INSPECT_LIMIT_MAX, INSPECT_PACING, INSPECT_PAUSE_CAP_S, INSPECT_TARGETS_MAX, inspectElement, inspectPage } from './inspect.js';
 export type { InspectContext, InspectElement, InspectReport, InspectRequest, InspectStepHint, InspectTargetCheck } from './inspect.js';
@@ -14,11 +14,20 @@ export { chroma, contrast, luminance, mergeSamples, sitePalette } from './site/p
 export type { SitePalette, SiteRoles, Swatch } from './site/palette.js';
 export type { ConfirmHook, HookApprovalRequestLike } from './hooks-bridge.js';
 export { openSession, BrowserSession, KitClient, DEFAULT_BROWSER_ARGS, frameRateArgs, scaleArgs } from './session.js';
-export type { RealmSpec, SessionOptions, StorageStateFile } from './session.js';
+export { gpuInfoOf } from './session.js';
+export type { GpuInfo, RealmSpec, SessionOptions, StorageStateFile, SystemInfoReply } from './session.js';
 export { encodeFrames, cfrSchedule } from './encode.js';
+export { CfrStream, STREAM_LAG_S, StreamEncoder, THUMB_H, THUMB_W, VIDEOTOOLBOX_QUALITY, encoderLabel, resolveEncoder, streamArgs, videotoolboxWorks } from './stream.js';
+export type { StreamEncoderOptions, StreamFrame } from './stream.js';
+export { ActivityRecorder, BIG_CELLS, BUSY_MIN_S, CELLS_X, CELLS_Y, QUIET_S, SLOW_TRANSITION_MS, analyzeActivity, cellMask, clicksOf, slowTransitions } from './activity.js';
+export type { ActivityClick, ActivityInput, ActivityResult } from './activity.js';
+export { PERF_SAMPLE_MS, PerfSampler, UNFILMED_WARN_CORES, chromiumGroup, listeningPids, localPorts, parseCpuTime } from './perf.js';
+export type { ChromiumProcess, PerfSamplerOptions } from './perf.js';
+export { prewarmPages, prewarmTargets } from './prewarm.js';
+export type { PrewarmTarget } from './prewarm.js';
 export type { EncodeOptions } from './encode.js';
 export type { FrameIndexEntry, RecorderOptions } from './recorder.js';
-export { ScreencastRecorder } from './recorder.js';
+export { KICK_GAP_MS, KICK_WINDOW_MS, ScreencastRecorder } from './recorder.js';
 export { kitSource, kitConfigFor, DEFAULT_CURSOR_SIZE, DEFAULT_RIPPLE_COLOR, CURSOR_STORAGE_KEY } from './kit/source.js';
 export type * from './kit/types.js';
 export { checkSavedSession, openLoginBrowser, seedProfilePreferences, signIn } from './login.js';

@@ -4,7 +4,7 @@
  * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
  */
 import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@demo-studio/core';
-import type { DisplayEntry, Timeline, TimelineWrite } from '@demo-studio/core';
+import type { DisplayEntry, RunRecord, Timeline, TimelineWrite } from '@demo-studio/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@demo-studio/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@demo-studio/components';
 import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@demo-studio/editor';
@@ -26,6 +26,8 @@ export interface CheckContext {
   clicks: OutputClick[];
   registry?: ComponentRegistry;
   measure: TextMeasurer;
+  /** The run's run.json (L5.7: its `perf`), when it can be read. */
+  run?: RunRecord;
 }
 
 /** Where a frame is: time, segment, scene and step (from the plan's provenance). */
@@ -955,6 +957,30 @@ function shownUrl(url: string, table: readonly DisplayEntry[]): string {
 }
 
 /** The first output frame showing capture time `t` or the moment after it (a trimmed moment: the next one shown). */
+/**
+ * The take's slow transitions (L5.7, R-FLD-23: run.json `perf.transitions`, a click whose result took over 0.8 s to
+ * settle on screen), slowest first: `slow-transition` (info) at the click's output frame when the video shows it. The
+ * product was slow there: the edit shortened what showed a wait (a skeleton, a spinner), prewarming the page
+ * (`capture.prewarm`) helps a first visit.
+ */
+export function checkSlowTransitions(ctx: CheckContext): Finding[] {
+  const out: Finding[] = [];
+  for (const x of ctx.run?.perf?.transitions?.slow ?? []) {
+    const click = ctx.clicks.find((c) => c.scene === x.scene && c.step === x.step);
+    const frame = click?.frame ?? outputFrameAtCapture(ctx, x.t);
+    out.push(
+      finding(
+        'info',
+        'slow-transition',
+        `${x.scene}.${x.step}: the screen settled ${fmtS(x.ms / 1000)} after the click${x.target ? ` on ${x.target}` : ''}${frame === undefined ? ' (not in the video)' : ''} — the product is slow there: ` +
+          'the edit shortens what showed a wait (a skeleton, a spinner); `capture.prewarm: true` helps a first visit',
+        frame !== undefined ? locate(ctx, frame) : undefined,
+      ),
+    );
+  }
+  return out;
+}
+
 function outputFrameAtCapture(ctx: Pick<CheckContext, 'plan'>, t: number): number | undefined {
   const src = Math.round(t * ctx.plan.source.fps);
   for (const s of ctx.plan.segments) {

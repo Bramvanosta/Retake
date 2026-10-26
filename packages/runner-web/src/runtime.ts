@@ -19,6 +19,7 @@ import type { BrowserSession, KitClient } from './session.js';
 import type { CursorEffectPayload } from './kit/types.js';
 import { HOLD_MAX_MS } from './hold.js';
 import { ScreencastRecorder } from './recorder.js';
+import type { StreamEncoder } from './stream.js';
 import { TrackBuilder } from './timeline.js';
 import type { TimelineBuilder } from './timeline.js';
 import { Pointer } from './pointer.js';
@@ -70,6 +71,11 @@ export interface RuntimeInit {
   inspecting?: boolean;
   /** `defaults.timeout_s` of the scenario, else the project's (L5.6): the timeout of every step that sets none. */
   defaultTimeoutS?: number;
+  /**
+   * The encoder a page track of a capture is fed to during the take (L5.7): `horizon` reads its recorder's. Absent (or
+   * null): the track keeps its frames only.
+   */
+  encoderFor?: (o: { out: string; width: number; height: number; horizon: () => number }) => StreamEncoder | null;
 }
 
 /** Longest wait for flowing frames after a scroll (Runtime.awaitFreshFrame). */
@@ -91,6 +97,8 @@ const STALL_GIVE_UP_MS = 450;
 export interface PageTrack {
   builder: TrackBuilder;
   recorder: ScreencastRecorder | null;
+  /** Its capture-<page>.mp4, encoded during the take (L5.7). */
+  encoder: StreamEncoder | null;
   started: boolean;
   viewport: ResolvedViewport;
 }
@@ -132,6 +140,7 @@ export class Runtime {
   readonly inspecting: boolean;
   /** See RuntimeInit.defaultTimeoutS. */
   readonly defaultTimeoutS: number | undefined;
+  private readonly encoderFor: RuntimeInit['encoderFor'];
   /** Clicks still watched for an effect (R-FLD-12, actions/effects.ts): the next acting step closes them. */
   readonly effectChecks = new Set<{ close: () => Promise<void> }>();
   /** The scene and step being executed (notifications are attributed to them). */
@@ -183,6 +192,7 @@ export class Runtime {
     this.agentTrust = init.agentTrust === true;
     this.inspecting = init.inspecting === true;
     this.defaultTimeoutS = init.defaultTimeoutS;
+    this.encoderFor = init.encoderFor;
     this.log = init.log;
     this.guard = init.guard ?? null;
     this.plannedPersonas = init.plannedPersonas;
@@ -197,6 +207,7 @@ export class Runtime {
       signal: this.signal,
       scale: this.capture.scale,
       beforePress: () => this.awaitCaughtUp(this.page, this.mainPointer),
+      afterPress: () => this.recorderFor(this.page)?.pressed(),
     });
   }
 
@@ -384,6 +395,7 @@ export class Runtime {
           scale: this.capture.scale,
           sample: (s) => this.tracks.get(id)?.builder.sampleCursor(s),
           beforePress: (): Promise<void> => this.awaitCaughtUp(page, pointer),
+          afterPress: () => this.recorderFor(page)?.pressed(),
         });
         pane = { id, page, viewport: pg.viewport, pointer };
         this.panes.set(id, pane);
@@ -407,7 +419,18 @@ export class Runtime {
           this.timeline.clock,
         );
         this.timeline.tracks.push(builder);
-        const recorder =
+        let recorder: ScreencastRecorder | null = null;
+        const encoder =
+          this.mode === 'capture'
+            ? (this.encoderFor?.({
+                out: join(this.runDir, `capture-${slug}.mp4`),
+                width: pg.viewport.width * this.capture.scale,
+                height: pg.viewport.height * this.capture.scale,
+                horizon: () => recorder?.horizon() ?? 0,
+              }) ?? null)
+            : null;
+        encoder?.start();
+        recorder =
           this.mode === 'capture'
             ? new ScreencastRecorder({
                 framesDir: join(this.runDir, `frames-${slug}`),
@@ -421,9 +444,11 @@ export class Runtime {
                 clock: this.timeline.clock,
                 onError: (m) => this.timeline.warn(`page ${pg.id}: ${m}`),
                 pageId: () => pg.id,
+                keepFrames: this.capture.keep_frames,
+                ...(encoder ? { sink: encoder } : {}),
               })
             : null;
-        track = { builder, recorder, started: false, viewport: pg.viewport };
+        track = { builder, recorder, encoder, started: false, viewport: pg.viewport };
         this.tracks.set(pg.id, track);
       }
       if (track.recorder) {

@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import type { CDPSession, Page } from 'playwright-core';
 import type { TimelineLoading } from '@demo-studio/core';
 import { LoadHold } from './hold.js';
+import { STREAM_LAG_S } from './stream.js';
+import type { StreamFrame } from './stream.js';
 import type { HoldKind } from './hold.js';
 import type { CaptureClock } from './timeline.js';
 import { pad, round3 } from './util.js';
@@ -33,6 +35,10 @@ export interface RecorderOptions {
   pageId?: (page: Page) => string | undefined;
   /** Hold the frames of a page that has not painted yet (R-ISS-08; default true — false only in tests, as a control). */
   holdLoads?: boolean;
+  /** Write every frame to `framesDir` (capture.keep_frames; default true). The index is written either way. */
+  keepFrames?: boolean;
+  /** Where each kept frame goes as well (L5.7: the encoder fed during the take). */
+  sink?: { push(f: StreamFrame): void };
 }
 
 interface ScreencastFrame {
@@ -68,10 +74,20 @@ const ATTACH_CHECK_MS = 300;
  */
 const HEAL_REFRESH_MS = 150;
 const HEAL_REFRESH_MAX = 5;
+/**
+ * R-ISS-12, R-FLD-20: with Chromium's frame-rate limiter on, the screencast can stop for ≈ 0.25 s right after a press
+ * (a dialog whose blurred overlay goes away): no frame comes while the click ripple plays. Restarting the screencast
+ * sends the current picture (measured on the fixture: the frames asked for during the ripple all differ, the ripple goes
+ * on). After a press, a fresh frame is asked for when none arrived for KICK_GAP_MS, until KICK_WINDOW_MS after it.
+ */
+export const KICK_GAP_MS = 90;
+export const KICK_WINDOW_MS = 700;
+const KICK_POLL_MS = 30;
 
 /**
- * CDP screencast of the active page. Frames are acked immediately and written asynchronously so capture never
- * blocks the action loop; timestamps come from the compositor (epoch seconds, same clock as the runner).
+ * CDP screencast of the active page. Frames are acked immediately and handed to the encoder fed during the take (L5.7)
+ * — and written asynchronously to `framesDir` when kept — so capture never blocks the action loop; timestamps come from
+ * the compositor (epoch seconds, same clock as the runner).
  */
 export class ScreencastRecorder {
   readonly frames: FrameIndexEntry[] = [];
@@ -98,6 +114,16 @@ export class ScreencastRecorder {
    * between an event's arrival and its stamp: the paint time on the frames' clock.
    */
   private monoOffset = Infinity;
+  /** Wall ms of the last screencast frame that arrived (kept, held or dropped), and of the last fresh frame asked for. */
+  private lastArrival = 0;
+  private lastKick = 0;
+  private kickUntil = 0;
+  private kickTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Fresh frames asked for after a press (R-FLD-20). */
+  kicked = 0;
+  /** Frames identical to the last one kept (not indexed), and that last frame's bytes. */
+  duplicates = 0;
+  private lastData: Buffer | null = null;
 
   constructor(private readonly opts: RecorderOptions) {
     this.ext = opts.format === 'png' ? 'png' : 'jpg';
@@ -140,6 +166,38 @@ export class ScreencastRecorder {
     return this.page;
   }
 
+  /**
+   * A press was dispatched on the recorded page: while its ripple plays, ask for a fresh frame whenever none arrived for
+   * KICK_GAP_MS (see KICK_GAP_MS). Not while a page load is held.
+   */
+  pressed(): void {
+    if (this.stopped || !this.session) return;
+    this.kickUntil = Date.now() + KICK_WINDOW_MS;
+    if (this.kickTimer) return;
+    const poll = (): void => {
+      this.kickTimer = null;
+      const now = Date.now();
+      if (this.stopped || !this.session || now > this.kickUntil) return;
+      if (!this.hold.holding && now - this.lastArrival >= KICK_GAP_MS && now - this.lastKick >= KICK_GAP_MS) {
+        this.lastKick = now;
+        this.kicked++;
+        this.refresh();
+      }
+      this.kickTimer = setTimeout(poll, KICK_POLL_MS);
+    };
+    this.kickTimer = setTimeout(poll, KICK_POLL_MS);
+  }
+
+  /**
+   * Capture time up to which no frame can still arrive (the encoder's ticks stop there): the clock less STREAM_LAG_S,
+   * and never past the start of a page load being held (its frames are released later with their own paint time).
+   */
+  horizon(): number {
+    const now = this.opts.clock.now() - STREAM_LAG_S;
+    const since = this.hold.since;
+    return since === null ? now : Math.min(now, this.opts.clock.at(since));
+  }
+
   /** Paint time (epoch ms) of the last frame kept (0 before the first). */
   get lastFrameAt(): number {
     return this.lastFrameWall;
@@ -168,7 +226,7 @@ export class ScreencastRecorder {
   /** Create the frame folder and index without recording yet (the first `switchTo` starts). */
   async prepare(): Promise<void> {
     if (this.index) return;
-    await mkdir(this.opts.framesDir, { recursive: true });
+    if (this.opts.keepFrames !== false) await mkdir(this.opts.framesDir, { recursive: true });
     this.index = createWriteStream(this.opts.indexFile, { flags: 'a' });
   }
 
@@ -197,6 +255,7 @@ export class ScreencastRecorder {
     session.on('Page.screencastFrame', (f: ScreencastFrame) => {
       session.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => undefined);
       if (this.session !== session || this.stopped) return;
+      this.lastArrival = Date.now();
       // A cropped view would distort the video: drop the frame (the previous one holds) and heal. The metadata can
       // claim the full viewport while the image itself is cropped (e.g. 1920×941 right after a navigation), so the
       // real pixel size is checked too.
@@ -335,7 +394,20 @@ export class ScreencastRecorder {
       for (const w of this.waiters.filter((x) => f.wall > x.after)) w.done(true);
       this.waiters = this.waiters.filter((x) => f.wall <= x.after);
     }
+    // The same picture again (a fresh frame asked for on a page that did not change, R-FLD-20): nothing to index, encode
+    // or write — the encoder holds the previous one, and the idle gaps the edit trims stay whole.
+    if (this.lastData && this.lastData.length === f.data.length && this.lastData.equals(f.data)) {
+      this.duplicates++;
+      return;
+    }
+    this.lastData = f.data;
     const entry: FrameIndexEntry = { file: `${pad(++this.seq, 6)}.${this.ext}`, t: this.opts.clock.at(f.wall) };
+    this.opts.sink?.push({ t: entry.t, data: f.data });
+    if (this.opts.keepFrames === false) {
+      this.frames.push(entry);
+      this.index?.write(JSON.stringify(entry) + '\n');
+      return;
+    }
     const write = writeFile(join(this.opts.framesDir, entry.file), f.data)
       .then(() => {
         this.frames.push(entry);
@@ -350,6 +422,8 @@ export class ScreencastRecorder {
   }
 
   private async detach(): Promise<void> {
+    if (this.kickTimer) clearTimeout(this.kickTimer);
+    this.kickTimer = null;
     this.hold.leave('left', this.keptAny);
     for (const w of this.waiters.splice(0)) w.done(false);
     const s = this.session;
@@ -447,8 +521,8 @@ export class ScreencastRecorder {
     return this.frames;
   }
 
-  stats(): { frames: number; write_errors: number; dropped: number; held: number } {
-    return { frames: this.frames.length, write_errors: this.writeErrors, dropped: this.dropped, held: this.hold.records.reduce((n, r) => n + r.held, 0) };
+  stats(): { frames: number; write_errors: number; dropped: number; held: number; kicked: number } {
+    return { frames: this.frames.length, write_errors: this.writeErrors, dropped: this.dropped, held: this.hold.records.reduce((n, r) => n + r.held, 0), kicked: this.kicked };
   }
 }
 

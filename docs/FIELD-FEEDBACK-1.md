@@ -66,8 +66,48 @@ default, frames only on request for the raw export); a lower default JPEG qualit
 report per take; a GPU check in `doctor`; the two-persona measurement; slow-transition detection and compression in
 the edit; page pre-warming; pruning of runs and renders.
 
+## After L5.7 — measurements (2026-10-26, Apple M4, same sampler)
+
+The same per-process sampler (cumulative CPU time from `ps` every 500 ms, Chromium browser / GPU / renderer / other,
+studio node, ffmpeg, fixture), on the code before L5.7 (commit 2f1813a, built in a scratch worktree) and after it,
+**alternated** take by take on a quiet machine (1-minute load 2.3 – 5.2): fixture `quote` three times each (46.6 s of
+video), and the new two-persona fixture scenario `two-personas` (`--env signed-in`: the supplier's console and the
+buyer's shop in two browsers, `NORTHFIELD_QUOTES_MS=1500`) twice each (42 s of video). Means:
+
+| Take | Chromium (browser + GPU + renderer) | studio node | ffmpeg | Total | Wall (command) | Run folder | Freezes in a ripple |
+|---|---|---|---|---|---|---|---|
+| `quote` before (limiter on, JPEG 100, frames kept, x264 medium at the end) | 31.4 cpu-s (24.3 + 4.6 + 2.0) | 11.8 | 29.1 | **72.3 cpu-s** | 55.0 s | 570 MB (frames 566 MB) | 2 in 3 takes |
+| `quote` after (limiter on, JPEG 90, no frames, VideoToolbox during the take) | 26.1 cpu-s (18.2 + 4.6 + 2.9) | 6.8 | 6.8 | **39.7 cpu-s (−45 %)** | 49.0 s | **20 MB** | 0 in 3 takes (8 – 10 fresh frames asked a take) |
+| `two-personas` before | 21.9 cpu-s | 8.9 | 24.6 | **55.4 cpu-s** | 49.2 s | 356 MB | 3 in 2 takes |
+| `two-personas` after | 24.5 cpu-s | 6.1 | 5.9 | **36.6 cpu-s (−34 %)** | 45.0 s | **13 MB** | 0 in 2 takes |
+
+The take's own report (run.json `perf`) agrees: 0.76 – 0.82 cores for `quote` over the take (Chromium 0.53 –
+0.56, encoder 0.14, studio 0.12 – 0.15), the limiter on and the GPU accelerated (ANGLE Metal). capture.mp4 grows from
+4 MB (x264 medium CRF 16) to 20 MB (VideoToolbox `-q:v 85`, SSIM 0.9985 against the frames vs 0.9989), and the take
+ends 6 s sooner (no end encode: the encoder finishes 20 – 30 ms after the take). One `two-personas` "before" take
+lost a GPU process to the sampler (17.6 Chromium cpu-s): the mean of the two is shown.
+
+Findings:
+1. **Encoding during the take** removes the end encode (21 – 32 cpu-s per take of the fixture) and nearly all of the
+   node process's frame writing; the hardware encoder costs 0.14 core, mostly JPEG decoding. The video is frame for
+   frame the CFR schedule of the screencast frames (tested on a real capture with the frames kept).
+2. **JPEG quality 90** instead of 100: small grey table text compared at 6× zoom on three fixture pages is
+   indistinguishable (luma SSIM of the text crop vs quality 100: 0.994 – 0.996; whole frame 0.996 – 0.998; quality 85:
+   0.992 – 0.993, quality 80 shows ringing), at 0.39 – 0.46× the bytes; Chromium's browser process −25 %.
+3. **R-ISS-12 with the limiter on**: asking for a fresh frame (a screencast restart) whenever none came for 90 ms while
+   a ripple plays keeps the frames flowing — the frames it brings all differ (the ripple goes on: the compositor still
+   draws, only the screencast stopped sending); in the alternated series, 5 freezes in 5 takes before, none in 5 after.
+   A freeze left (seen once in an earlier take, during a download click under load) is cut by the edit
+   (`timeline.stalls`). `frame_rate_limit: false` is no longer needed; a run with it warns with the measured ×2.8.
+4. **Two personas**: the browser nobody films costs ≈ 0.02 core (`perf.cpu.browsers[].unfilmed`: the supplier's 0.59
+   cpu-s over 30 s while the café was filmed, the console's list polling every second; the buyer's 0.32 cpu-s over
+   14 s): nothing is throttled (BL-97 if a real product's does; the run warns above 0.25 core).
+5. What a take costs now is mostly Chromium's browser process reading back and JPEG-encoding ≈ 55 – 60 frames a second
+   while the cursor moves (BL-98: half of them would do for a 30 fps video).
+
 ## Quick wins on a field project (no code)
-- Remove `browser: {frame_rate_limit: false}` (the dialog-close freeze comes back until L5.7) and set
-  `capture: {keep_frames: false}`.
+- Remove `browser: {frame_rate_limit: false}` (since L5.7 the dialog-close freeze is handled with the limiter on) and
+  drop `capture: {keep_frames: …}` (L5.7: no frames by default). `studio prune <project>` frees what older takes and
+  renders hold.
 - Write a `sandbox.yaml` (docker-compose or process provider) for the Postgres snapshot, the mailbox and the seed,
   and film with `studio run … --sandbox`.

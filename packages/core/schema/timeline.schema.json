@@ -1144,6 +1144,70 @@
       },
       "description": "Page loads `capture` did not show (the previous frame held until the new page painted)."
     },
+    "stalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "during": {
+            "type": "string",
+            "enum": [
+              "move",
+              "ripple"
+            ]
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end",
+          "during"
+        ],
+        "additionalProperties": false,
+        "description": "The capture froze (no new frame from t_start to t_end) while the cursor moved or a click ripple played: the edit cuts the frozen part."
+      },
+      "description": "Where `capture` froze while the cursor moved or a click ripple played."
+    },
+    "busy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "t_start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "t_end": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time in seconds."
+          },
+          "click": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Capture time of the click it followed."
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end",
+          "click"
+        ],
+        "additionalProperties": false,
+        "description": "A wait the screen showed after a click (near-identical frames: a skeleton, a spinner, a blank panel): the edit shortens it."
+      },
+      "description": "Waits the screen showed after a click (skeletons, spinners, blank panels)."
+    },
     "artefacts": {
       "type": "array",
       "items": {

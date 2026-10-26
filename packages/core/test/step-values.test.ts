@@ -129,7 +129,7 @@ describe('forms derived from the schemas', () => {
 
 describe('value edits on every step of the fixture scenarios (goldens)', () => {
   const names = readdirSync(SCENARIOS).filter((f) => f.endsWith('.yaml'));
-  it('the fixture has its 13 scenarios', () => expect(names).toHaveLength(13));
+  it('the fixture has its 14 scenarios', () => expect(names).toHaveLength(14));
 
   it.each(names)('%s: every field holding a value takes a new one (exactly its own line changes); on each step an optional value is removed and an absent modifier added (one line, or the same line); each re-parses to the intended value', (name) => {
     const text = readFileSync(join(SCENARIOS, name), 'utf8');

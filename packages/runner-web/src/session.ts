@@ -519,6 +519,57 @@ export class BrowserSession {
     }
   }
 
+  /** A browser-level CDP session per realm (L5.7: Chromium's process and GPU reports), opened once. */
+  private readonly browserCdp = new Map<Realm, Promise<CDPSession | null>>();
+
+  private browserTarget(realm: Realm): Promise<CDPSession | null> {
+    let p = this.browserCdp.get(realm);
+    if (!p) {
+      const browser = realm.context.browser();
+      p = browser ? browser.newBrowserCDPSession().catch(() => null) : Promise.resolve(null);
+      this.browserCdp.set(realm, p);
+    }
+    return p;
+  }
+
+  /**
+   * Chromium's own report of its processes (L5.7, run.json `perf`): per realm (persona; "" = none), each process's
+   * kind ("browser", "GPU", "renderer", a utility's service name), pid and CPU seconds so far. Realms that cannot answer
+   * are left out.
+   */
+  async processInfo(): Promise<Array<{ realm: string; type: string; pid: number; cpu: number }>> {
+    const out: Array<{ realm: string; type: string; pid: number; cpu: number }> = [];
+    await Promise.all(
+      this.realms.map(async (realm) => {
+        const cdp = await this.browserTarget(realm);
+        if (!cdp) return;
+        try {
+          const r = (await cdp.send('SystemInfo.getProcessInfo')) as { processInfo: Array<{ type: string; id: number; cpuTime: number }> };
+          for (const p of r.processInfo) out.push({ realm: realm.name, type: p.type, pid: p.id, cpu: p.cpuTime });
+        } catch {
+          /* closing, or an older browser */
+        }
+      }),
+    );
+    return out;
+  }
+
+  /**
+   * Is the capture browser GPU-accelerated (L5.7, R-FLD-24)? Chromium's own feature report (the one chrome://gpu shows):
+   * compositing and rasterization in hardware, the GL renderer (ANGLE Metal, SwiftShader…), the features that fell back
+   * to software. Undefined when it cannot be read.
+   */
+  async gpuInfo(): Promise<GpuInfo | undefined> {
+    const realm = this.realms[0];
+    const cdp = realm ? await this.browserTarget(realm) : null;
+    if (!cdp) return undefined;
+    try {
+      return gpuInfoOf((await cdp.send('SystemInfo.getInfo')) as SystemInfoReply);
+    } catch {
+      return undefined;
+    }
+  }
+
   /** The realm (persona; "" = none) a page belongs to; undefined for a page of another browser. */
   realmName(page: Page): string | undefined {
     const ctx = page.context();
@@ -664,6 +715,15 @@ export class BrowserSession {
     return page;
   }
 
+  /**
+   * A tab nobody films in the realm of page `id` (L5.7, `capture.prewarm`): not registered, never active; the caller
+   * closes it.
+   */
+  async scratchPage(id: string): Promise<Page> {
+    const realm = await this.realm(this.options.realmOf?.(id) ?? '');
+    return realm.context.newPage();
+  }
+
   register(id: string, page: Page): void {
     this.pages.set(id, page);
     page.on('close', () => {
@@ -779,6 +839,41 @@ export class BrowserSession {
     })();
     return this.closing;
   }
+}
+
+/** What `gpuInfo` reads of SystemInfo.getInfo. */
+export interface SystemInfoReply {
+  gpu?: {
+    featureStatus?: Record<string, string>;
+    devices?: Array<{ deviceString?: string }>;
+    auxAttributes?: Record<string, unknown>;
+  };
+}
+
+/** The capture browser's GPU status (run.json `perf.gpu`, `studio doctor`). */
+export interface GpuInfo {
+  accelerated: boolean;
+  renderer?: string;
+  /** Features that run in software (e.g. "gpu_compositing", "rasterization"). */
+  software?: string[];
+}
+
+/**
+ * Hardware accelerated when compositing and rasterization are ("enabled…"); a SwiftShader renderer is software whatever
+ * the statuses say. Pure.
+ */
+export function gpuInfoOf(info: SystemInfoReply): GpuInfo | undefined {
+  const status = info.gpu?.featureStatus;
+  if (!status) return undefined;
+  const gl = info.gpu?.auxAttributes?.glRenderer;
+  const renderer = typeof gl === 'string' && gl ? gl : info.gpu?.devices?.[0]?.deviceString || undefined;
+  const on = (k: string) => typeof status[k] === 'string' && status[k].startsWith('enabled');
+  const software = Object.entries(status)
+    .filter(([, v]) => /software/.test(v))
+    .map(([k]) => k)
+    .sort();
+  const accelerated = on('gpu_compositing') && on('rasterization') && !/swiftshader|llvmpipe|software/i.test(renderer ?? '');
+  return { accelerated, ...(renderer ? { renderer } : {}), ...(software.length ? { software } : {}) };
 }
 
 /** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */

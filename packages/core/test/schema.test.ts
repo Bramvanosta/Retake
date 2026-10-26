@@ -6,7 +6,10 @@ import {
   ACTION_NAMES,
   DEFAULT_TEMPLATE,
   JSON_SCHEMAS,
+  CapturePartialSchema,
+  DEFAULT_CAPTURE,
   RunRecordSchema,
+  perfSummary,
   ScenarioSchema,
   TimelineSchema,
   parseScenario,
@@ -167,5 +170,64 @@ describe('zod schemas', () => {
     expect(TimelineSchema.safeParse({ ...base, loading: [{ ...loading[0], url: 'https://x.test' }] }).success).toBe(false);
     expect(TimelineSchema.safeParse({ ...base, loading: [{ ...loading[0], until: 'later' }] }).success).toBe(false);
     expect(TimelineSchema.safeParse({ ...base, tracks: [{ ...track, loading: [{ t_start: 1, t_end: 2, until: 'paint', held_frames: -1 }] }] }).success).toBe(false);
+  });
+
+  it('L5.7: timeline stalls and busy spans, run.json perf, the capture encoder and prewarm', () => {
+    const base = {
+      version: 1 as const,
+      run_id: 'r',
+      project: 'p',
+      scenario: 's',
+      created_at: '2026-10-26T14:00:00.000Z',
+      mode: 'capture' as const,
+      capture: { file: 'capture.mp4', width: 800, height: 600, scale: 1, fps: 30, duration: 9, t0_wall: 1, frames: 10 },
+      scenes: [],
+      events: [],
+      markers: [],
+      pages: [],
+      cursor: [],
+      idle: [],
+      warnings: [],
+    };
+    const timeline: Timeline = { ...base, stalls: [{ t_start: 2.1, t_end: 2.37, during: 'ripple' }], busy: [{ t_start: 3.4, t_end: 4.8, click: 3.2 }] };
+    expect(TimelineSchema.safeParse(timeline).success).toBe(true);
+    expect(TimelineSchema.safeParse({ ...base, stalls: [{ t_start: 1, t_end: 2, during: 'scroll' }] }).success).toBe(false);
+    const run: RunRecord = {
+      id: 'r',
+      project: 'p',
+      scenario: 's',
+      mode: 'capture',
+      status: 'succeeded',
+      started_at: base.created_at,
+      dir: '/tmp/runs/r',
+      env: 'local',
+      options: { hooks: 'run', headed: false },
+      steps_total: 2,
+      steps_done: 2,
+      screenshots: [],
+      hooks: { setup: 'ok', teardown: 'ok' },
+      warnings: [],
+      perf: {
+        seconds: 47.2,
+        cpu: { browser: 21.6, gpu: 5.5, renderer: 3, chromium_other: 0.2, studio: 7, encoder: 7.4, product: 0.1, total: 44.8, cores: 0.95, browsers: [{ persona: 'buyer', cpu: 20 }, { cpu: 1 }] },
+        machine: { cpus: 10, load_mean: 2.1, load_max: 3 },
+        gpu: { accelerated: true, renderer: 'ANGLE Metal' },
+        frame_rate_limit: true,
+        frames: { received: 1624, fps: 34.4, motion_fps_min: 55, dropped: 8, kicked: 9 },
+        stalls: [],
+        transitions: { measured: 15, slow: [{ t: 6.1, ms: 1875, scene: 'reports', step: 1, target: 'link "October 2026"' }] },
+        encode: { codec: 'h264_videotoolbox', quality: 'q:v 85', finish_ms: 28, late_frames: 0 },
+        disk: { run_mb: 20.3, frames_kept: false, free_gb: 107 },
+      },
+    };
+    expect(RunRecordSchema.safeParse(run).success).toBe(true);
+    expect(RunRecordSchema.safeParse({ ...run, perf: { ...run.perf, frames: { ...run.perf!.frames, extra: 1 } } }).success).toBe(false);
+    expect(perfSummary(run.perf!)).toBe('0.95 cores (Chromium 0.64, encoder 0.16, studio 0.15, product 0.00) · 34.4 fps (moves ≥ 55) · no freeze · 1 slow transition: reports.1 1.9 s · 20 MB');
+    expect(perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false })).toBe(
+      'no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off',
+    );
+    expect(DEFAULT_CAPTURE).toMatchObject({ quality: 90, keep_frames: false });
+    expect(CapturePartialSchema.safeParse({ encoder: 'videotoolbox', prewarm: true, keep_frames: true }).success).toBe(true);
+    expect(CapturePartialSchema.safeParse({ encoder: 'nvenc' }).success).toBe(false);
   });
 });

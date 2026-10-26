@@ -25,7 +25,9 @@ node scripts/smoke.mjs [--out DIR]    # end-to-end check with real mouse input +
 
 Environment: `NORTHFIELD_CONSOLE_PORT`, `NORTHFIELD_SHOP_PORT`, `NORTHFIELD_AUTH_CONSOLE_PORT`, `NORTHFIELD_AUTH_SHOP_PORT`, `NORTHFIELD_HOST`, `NORTHFIELD_SMTP`,
 `NORTHFIELD_ENRICH_MS` (default 4000), `NORTHFIELD_IMPORT_MS` (default 2000), `NORTHFIELD_REPORT_MS` (default 400) and
-`NORTHFIELD_REPORT_DATA_MS` (default 1200: the Sales reports, below). The server prints its
+`NORTHFIELD_REPORT_DATA_MS` (default 1200: the Sales reports, below), `NORTHFIELD_QUOTES_MS` (default 0: the console's Quote requests
+page loads its list after it — its polling within 5 s is not slowed — and shows skeleton rows that long; option
+`quotesMs`). The server prints its
 URLs and exits cleanly on SIGTERM/SIGINT. It listens on 127.0.0.1 and ::1 by default so `localhost`
 works whichever address a client resolves first. Programmatic use:
 `const fx = await startFixture({ consolePort: 0, shopPort: 0 }); … await fx.close();` (add

@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema, loadProject, loadScenario } from '@demo-studio/core';
 import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@demo-studio/core';
 import { runScenario } from '@demo-studio/runner-web';
-import { debugTemplate, ffprobeDuration, frameAt, jpegSize, magentaCentroid } from '../../runner-web/test/helpers.js';
+import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '../../runner-web/test/helpers.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const W = 1920;
@@ -142,11 +142,15 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
     expect(fixture.store.products.find((p) => p.slug === 'finca-quenaro')?.registry_refs.length).toBeGreaterThan(0);
   });
 
-  it('the run folder holds the capture, its frames, the timeline, the record, the log, the journal and the scenario', async () => {
+  it('the run folder holds the capture, its frame index, the timeline, the record (with what the take cost), the log, the journal and the scenario', async () => {
     const files = await readdir(rec.dir);
-    for (const f of ['capture.mp4', 'frames', 'frames.jsonl', 'timeline.json', 'run.json', 'log.jsonl', 'hooks-journal.json', 'scenario.yaml']) {
+    for (const f of ['capture.mp4', 'frames.jsonl', 'timeline.json', 'run.json', 'log.jsonl', 'hooks-journal.json', 'scenario.yaml']) {
       expect(files, f).toContain(f);
     }
+    // L5.7: capture.mp4 was encoded during the take; no frame is kept by default.
+    expect(files).not.toContain('frames');
+    expect(rec.perf).toMatchObject({ frame_rate_limit: true, disk: { frames_kept: false } });
+    expect(rec.perf!.cpu!.cores).toBeGreaterThan(0);
     const log = (await readFile(join(rec.dir, 'log.jsonl'), 'utf8')).trim().split('\n');
     expect(JSON.parse(log.at(-1)!)).toMatchObject({ type: 'run_end' });
   });
@@ -168,9 +172,9 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
 
   it('1920×1080 at 30 fps: every frame, the video, a duration in range that matches the timeline', async () => {
     expect(tl.capture).toMatchObject({ file: 'capture.mp4', width: W, height: H, fps: 30 });
-    const frames = (await readdir(join(rec.dir, 'frames'))).filter((f) => f.endsWith('.jpg'));
-    expect(frames.length).toBeGreaterThan(1000);
-    for (const f of frames) expect(jpegSize(await readFile(join(rec.dir, 'frames', f))), f).toEqual([W, H]);
+    expect(tl.capture.frames).toBeGreaterThan(1000);
+    const { stdout } = await execFileP('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', rec.capture!]);
+    expect(stdout.trim()).toBe(`${W},${H}`);
     // About 64 s on the Mac (L1.3); the range catches a stuck wait or a skipped scene, not pacing tweaks.
     expect(tl.capture.duration).toBeGreaterThan(55);
     expect(tl.capture.duration).toBeLessThan(80);
