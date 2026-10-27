@@ -115,13 +115,13 @@ export function editSourceOf(planned: Pick<PlannedRun, 'edit'>): RenderEditSourc
  * Plan a render request in this process (no browser), through the trust gates of work submitted through MCP. A
  * refusal is EngineError `refused` with the `studio render` command a human runs. The plan's edit comes from today's
  * scenario file when its filmed part is unchanged since the run, else from the run as captured (L5.5, editor planRun):
- * `source` says which and what changed.
+ * `source` says which and what changed. `editText` (L4.6): a text read instead of today's file (a proposal's preview).
  */
 export async function planRenderRequest(
   ws: WorkspaceConfig,
   cli: string,
   req: RenderRequest,
-  o: { registry?: ComponentRegistry; musicLength?: (file: string) => Promise<number | undefined> } = {},
+  o: { registry?: ComponentRegistry; musicLength?: (file: string) => Promise<number | undefined>; editText?: string } = {},
 ): Promise<{ project: LoadedProject; planned: PlannedRun; overrides: EditOverridesInput; source: RenderEditSource }> {
   const overrides = checkRenderRequest(req);
   const project = await openProjectBySlug(ws, req.project);
@@ -137,6 +137,8 @@ export async function planRenderRequest(
       trust: 'mcp',
       ...(o.registry ? { registry: o.registry } : {}),
       ...(o.musicLength ? { musicLength: o.musicLength } : {}),
+      // L4.6 (critique B9): a proposal previewed in the timeline is planned from its text in memory, never written.
+      ...(o.editText !== undefined ? { editText: o.editText } : {}),
     });
     // The run id reaches trusted summaries: `latest` picks only run ids (editor findRun); never one of another shape.
     if (!RUN_ID_RE.test(planned.run.id) || planned.run.id.length > 200) {

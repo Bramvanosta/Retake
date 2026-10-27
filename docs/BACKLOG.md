@@ -903,8 +903,8 @@ draft from one public page; the model chooses the values):
 
 Cut to keep L3.6 an S (people comment frames with `studio comment add`; Claude lists, replies and resolves through
 MCP):
-- Claude creating threads (`comment_create`, labelled agent) and a reopen tool for the agent: only `studio comment`
-  creates and reopens.
+- Claude creating threads (`comment_create`, labelled agent) and a reopen tool for the agent: people create and reopen
+  (`studio comment` or, since L4.6, the Studio's Comments screen).
 - `step_now` (where the commented step is in today's scenario): `step_id`, `step_fp` / `step_fp_n` and `step_ref` let
   Claude find it in the scenario it reads anyway. Mapping a thread onto the matching frame of a newer render, or across
   variants.
@@ -912,7 +912,7 @@ MCP):
   returned pattern-checked, `render_present` is a boolean instead of present / replaced / missing.
 - A second image per thread (a crop of the region) and committed stills (opt-in, never for production environments):
   one still, machine-local; stills for a thread made when ffmpeg failed, or regenerated lazily from the render.
-- The JSON Schema file of a thread and `studio schema comment` (the zod schema is the contract L4.6 imports);
+- The JSON Schema file of a thread and `studio schema comment` (the zod schema is the contract; L4.6 imports it);
   `--at 12.4s` / `0:12.4` forms (seconds, `--frame` and `--marker` only).
 - Overlay / pane hit-testing for `component` (the overlays on screen are listed instead); interstitial backdrops traced
   to their clip; several regions or drawings per comment; attachments.
@@ -1010,7 +1010,9 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
   from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `studio ui` terminal or the Tauri shell's
-  OS dialog, BL-106), comments (L4.6), block edits (L4.3: decided — agent trust kept, hooks unchanged from the Studio, a file
+  OS dialog, BL-106), comments (L4.6: decided — the Studio writes as the channel `studio`, named by the `studio ui`
+  process, a channel and not proof of presence; it creates, resolves, reopens and applies Claude's proposals on the
+  thread version shown), block edits (L4.3: decided — agent trust kept, hooks unchanged from the Studio, a file
   holding a secret reference or an outside file read-only with why; presence for those is BL-95 / BL-106). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
   hooks need a person is refused from the Studio with the `studio run …` command (shown before the click); approving
   from the UI is BL-106 (L4.4 kept it cut).
@@ -1375,6 +1377,10 @@ Residue documented in L4.4: the capture's session confirmation (`sessions_ack`) 
 presence — a page script can send it; the run's own preflight stays the authority and stops before filming a persona
 it can check (a `check`, or never signed in); one without a `check` is used as saved and fails only when a page lands on
 the sign-in page, after its setup hooks (the confirmation says so).
+L4.6: a Studio thread's channel `studio` is not presence either — any program of this user that reads the Studio's
+token file writes the same entries (Claude Code's shell included; its rule against that is an instruction, not a
+barrier), as that shell can write `cli` entries with `studio comment`; Apply of a proposal from the Studio runs the
+Studio's agent-trust write rules, never more.
 
 ### BL-107 — Timeline editing extras cut from L4.5
 *M · cut in L4.5 · builds on: L4.5, L4.7, BL-95*
@@ -1446,6 +1452,38 @@ The preview frame is a cross-origin `sandbox="allow-scripts"` iframe on a second
   limits; an optional bytes budget if it ever matters.
 - The render path's webpack bundle has no import allow-list (the preview bundle's checks real paths; BL-42).
 
+### BL-111 — Frame comments UI extras cut from L4.6
+*M · cut in L4.6 · builds on: L4.6, BL-76, BL-106, BL-109*
+
+Cut to keep L4.6 an M (the Studio's Comments screen, a render's exact frames, Claude's edit-only proposals previewed,
+applied and re-rendered from the Studio):
+- **Filmed proposals** (critique C1): a proposal that changes the filmed part (steps, pages, waits) — an "Apply, then
+  Capture again" branch and a filmed preview banner. Today a proposal is edit-only (refused otherwise, with the filmed
+  keys named) and Claude takes the direct loop for such a thread. Also proposals for anything but the thread's own
+  scenario file (a theme, render overrides, project.yaml — never hooks) or for several files at once.
+- **Project-page counts** (C2): open comments per scenario on the project page with links (today "Comments (N open)"
+  beside a scenario's tabs only; `comments.counts` already answers per project), and a project-wide Comments screen.
+- **A keyboard-movable region box** (C3): arrows moving / resizing the drawn box. The four % fields are the WCAG 2.5.7
+  single-pointer and keyboard alternative today.
+- **The timeline's "Selected comment" strip** (C4): a panel under the tracks for the comment under the playhead (a
+  pin's tooltip has Open thread and the other-take card's items are links instead).
+- Playing a render in the Comments viewer (BL-109's media mode) and a segment / step strip under its slider;
+  commenting the timeline's preview of a version not yet rendered (a comment needs a render's frame).
+- A three-way merge of a stale proposal (today: "ask Claude to propose again"); a person editing a proposal before
+  applying it, or proposing to Claude; `studio comment apply` and a proposal view in the CLI; Undo apply after a reload
+  (the last apply lives in the tab; the YAML tab's history does not hold it either).
+- Thread paging past the newest 100 entries in the Studio; comments in the index and its search; notifications when
+  Claude answers (live only while a page is open); editing or deleting entries, several regions, attachments (BL-76).
+- Safari, Firefox and a real drag in the automated suite (MACOS-CHECKLIST 13g by hand; the suite drives Chromium and,
+  gated, the installed Chrome).
+
+### BL-112 — Lazy-loaded Studio screens
+*S–M · cut in L4.6 · builds on: L4.1, L4.6*
+
+The Studio app is one esbuild bundle that grows with each screen (L4.6: the Comments screen and the proposal view;
+the test budget is raised each time, never a reason to cut). Code splitting with a chunk route under the same gate and
+CSP (a hash-named chunk per screen, loaded on its route) would keep the first load small.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -1470,7 +1508,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `demo-studio-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it. *Applied in L4.4:* the worker's live channel records carry `{v, kind}` (`kind: 'frame'` today) so an input channel can be added as a separate authenticated route beside `GET /v1/frames` (DESIGN §4f); nothing of it is built (BL-105).
-- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110).
+- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110). *L4.6:* the Comments screen the same way — Chromium, a gated installed-Chrome acceptance on the fixture, Safari and Firefox by hand (MACOS-CHECKLIST 13g); its frames are server-made JPEGs, so every browser shows the same exact frame.
 - **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI.
 
 ## Recorder precisions (L3.4 / L4.8)

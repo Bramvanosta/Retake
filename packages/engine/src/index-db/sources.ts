@@ -9,13 +9,23 @@
  * change to re-read. Each scenario file is signed on its own (L4.2): an in-place save changes no folder, and the
  * scenario screen re-reads only its own file's changes (critique B1). The index reads nothing for a scenario key (the
  * project key covers the list of names).
+ *
+ * Comments (L4.6, plan D9): `comments:<slug>/<scenario>` per real scenario folder of comments/ (at most
+ * COMMENT_SOURCE_MAX_FOLDERS per project), signed by the folder's own stat — the store writes a thread or an entry by a
+ * temp file renamed into that folder, which moves its mtime (probe E4); an in-place edit by hand does not. Nothing is
+ * read for it either: the Studio re-reads its own scenario's threads.
  */
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { WorkspaceConfig } from '@demo-studio/core';
 import { historyFile } from '../history.js';
 
-export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'history';
+export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';
+
+/** Scenario folders of comments/ watched per project, at most. */
+export const COMMENT_SOURCE_MAX_FOLDERS = 200;
+/** A scenario folder name of comments/ (core SLUG_RE). */
+const COMMENT_FOLDER_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 /** A scenario file name (scenarios/<name>.yaml or .yml). */
 const SCENARIO_FILE_RE = /^([A-Za-z0-9][A-Za-z0-9_-]*)\.ya?ml$/;
@@ -60,6 +70,20 @@ async function scenarioFiles(dir: string): Promise<Map<string, string[]>> {
   return out;
 }
 
+/** The real scenario folders of a comments/ folder (no links, names of scenarios), sorted, at most COMMENT_SOURCE_MAX_FOLDERS. */
+async function commentFolders(dir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isDirectory() && COMMENT_FOLDER_RE.test(e.name))
+      .map((e) => e.name)
+      .sort()
+      .slice(0, COMMENT_SOURCE_MAX_FOLDERS);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Signatures of every source of the workspace. `unfinished` names, per project, the runs whose run.json is still being
  * written (the runner rewrites it in place while it runs: the runs/ folder alone would not change).
@@ -79,6 +103,7 @@ export async function scanSources(ws: WorkspaceConfig, unfinished: ReadonlyMap<s
     for (const [name, files] of await scenarioFiles(join(dir, 'scenarios'))) {
       out.set(`scenario:${slug}/${name}`, (await Promise.all(files.map((f) => sig(join(dir, 'scenarios', f))))).join('|'));
     }
+    for (const name of await commentFolders(join(dir, 'comments'))) out.set(`comments:${slug}/${name}`, await sig(join(dir, 'comments', name)));
   }
   out.set('history', await sig(historyFile(ws.root)));
   return out;
@@ -92,25 +117,27 @@ export function diffSources(before: ReadonlyMap<string, string>, after: Readonly
   return [...changed].sort();
 }
 
-/** The kind and project of a source key (and the scenario name of a `scenario:` key). */
+/** The kind and project of a source key (and the scenario name of a `scenario:` or `comments:` key). */
 export function sourceKey(key: string): { kind: SourceKind; project?: string; scenario?: string } {
   const i = key.indexOf(':');
   if (i < 0) return { kind: key as SourceKind };
   const kind = key.slice(0, i) as SourceKind;
   const rest = key.slice(i + 1);
-  if (kind !== 'scenario') return { kind, project: rest };
+  if (kind !== 'scenario' && kind !== 'comments') return { kind, project: rest };
   const j = rest.indexOf('/');
   return { kind, project: rest.slice(0, j), scenario: rest.slice(j + 1) };
 }
 
 /**
- * What changed, as the event stream says it: projects touched (any key of theirs), READMEs changed and scenario files
- * changed, added or removed (`<slug>/<name>`).
+ * What changed, as the event stream says it: projects touched (any key of theirs), READMEs changed, scenario files
+ * changed, added or removed (`<slug>/<name>`) and — only when there are any — scenarios whose comment threads changed
+ * (`comments`, `<slug>/<scenario>`: a thread created, an entry appended, a folder added or removed).
  */
-export function workspaceChanges(keys: readonly string[]): { projects: string[]; readme: string[]; scenarios: string[]; history: boolean } {
+export function workspaceChanges(keys: readonly string[]): { projects: string[]; readme: string[]; scenarios: string[]; comments?: string[]; history: boolean } {
   const projects = new Set<string>();
   const readme = new Set<string>();
   const scenarios = new Set<string>();
+  const comments = new Set<string>();
   let history = false;
   for (const k of keys) {
     const { kind, project, scenario } = sourceKey(k);
@@ -119,8 +146,9 @@ export function workspaceChanges(keys: readonly string[]): { projects: string[];
     projects.add(project);
     if (kind === 'readme') readme.add(project);
     if (kind === 'scenario' && scenario !== undefined) scenarios.add(`${project}/${scenario}`);
+    if (kind === 'comments' && scenario !== undefined) comments.add(`${project}/${scenario}`);
   }
-  return { projects: [...projects].sort(), readme: [...readme].sort(), scenarios: [...scenarios].sort(), history };
+  return { projects: [...projects].sort(), readme: [...readme].sort(), scenarios: [...scenarios].sort(), ...(comments.size ? { comments: [...comments].sort() } : {}), history };
 }
 
 /** A run of a project as the index holds it (what a run change is told from). */

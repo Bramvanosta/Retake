@@ -59,7 +59,7 @@ function NavLink({ to, current, children }: { to: Route; current: boolean; child
 }
 
 function ProjectNav({ p, route }: { p: ProjectSummary; route: Route }) {
-  const open = (route.name === 'project' || route.name === 'readme' || route.name === 'scenario' || route.name === 'run' || route.name === 'timeline') && route.slug === p.slug;
+  const open = (route.name === 'project' || route.name === 'readme' || route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal') && route.slug === p.slug;
   const dirty = useDirty(readmeKey(p.slug));
   return (
     <li>

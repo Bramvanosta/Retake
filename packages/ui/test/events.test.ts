@@ -3,10 +3,13 @@
  * pages refused, GET only), hello, an outside README edit → `workspace` within 2 s, a job written to the queue →
  * `jobs`, at most 4 streams (a 5th 503, a closed one frees its slot), a stream never counts as an op; `activity_list`
  * and `search` through /v1/call; a Node.js without node:sqlite → those two `unavailable`, events still flow.
+ * L4.6 (T12): ⚑ a thread written or an entry appended (a temp file renamed into its scenario's comments folder, as the
+ * store writes) → `workspace {comments: ['<slug>/<scenario>']}` naming that scenario only; the comments screen's filter
+ * (app events.ts commentsEventAction) re-reads for its own scenario only.
  */
 import { request } from 'node:http';
 import type { ClientRequest } from 'node:http';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -15,6 +18,8 @@ import { EVENT_STREAMS_MAX, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
+import { commentsEventAction } from '../src/app/events.js';
+import type { StudioEvent } from '../src/app/events.js';
 
 interface Stream {
   status: number;
@@ -171,6 +176,51 @@ describe('/v1/events', () => {
       for (const s of open) s.close();
     }
     expect(await until(() => studio.streams === 0)).toBe(true);
+  });
+});
+
+describe('comment events (L4.6, T12)', () => {
+  /** A thread file written as the store writes it: a temp file in the folder, renamed over its name. */
+  const writeThread = async (scenario: string, id: string, body: string) => {
+    const folder = join(ws, 'projects', P, 'comments', scenario);
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, `${id}.tmp`), body);
+    await rename(join(folder, `${id}.tmp`), join(folder, `${id}.json`));
+  };
+
+  it('⚑ a thread written, an entry appended → workspace {comments} naming <slug>/<scenario> only', async () => {
+    const s = await stream(studio.port, auth());
+    try {
+      await s.next('hello');
+      const id = 'c_01JQ4000000000000000000001';
+      let changed = s.next('workspace');
+      await writeThread('quote', id, '{"version":1}\n');
+      expect(await changed).toEqual({ projects: [P], readme: [], comments: [`${P}/quote`] });
+      // An entry appended (the same name renamed over): the folder's mtime moves, the event names it again.
+      await new Promise((r) => setTimeout(r, 30));
+      changed = s.next('workspace');
+      await writeThread('quote', id, '{"version":1,"entries":[]}\n');
+      expect(await changed).toEqual({ projects: [P], readme: [], comments: [`${P}/quote`] });
+      // Another scenario's thread: that scenario only.
+      changed = s.next('workspace');
+      await writeThread('catalogue', 'c_01JQ4000000000000000000002', '{}\n');
+      expect(await changed).toEqual({ projects: [P], readme: [], comments: [`${P}/catalogue`] });
+    } finally {
+      s.close();
+    }
+    expect(await until(() => studio.streams === 0)).toBe(true);
+  });
+
+  it("the comments screen's filter re-reads for its own scenario only (commentsEventAction)", () => {
+    const act = (e: StudioEvent) => commentsEventAction(e, 'p', 'quote');
+    const none = { threads: false, scenario: false, renders: false };
+    expect(act({ type: 'workspace', projects: ['p'], readme: [], comments: ['p/quote'] })).toEqual({ threads: true, scenario: false, renders: false });
+    expect(act({ type: 'workspace', projects: ['p'], readme: [], comments: ['p/other', 'q/quote'] })).toEqual(none);
+    expect(act({ type: 'workspace', projects: ['p'], readme: [], scenarios: ['p/quote'] })).toEqual({ threads: false, scenario: true, renders: false });
+    expect(act({ type: 'workspace', projects: ['p'], readme: [], renders: ['p'] })).toEqual({ threads: false, scenario: false, renders: true });
+    expect(act({ type: 'workspace', projects: ['p'], readme: ['p'] })).toEqual(none);
+    expect(act({ type: 'jobs', changed: ['j_1'] })).toEqual(none);
+    expect(act({ type: 'resync' })).toEqual({ threads: true, scenario: true, renders: true });
   });
 });
 

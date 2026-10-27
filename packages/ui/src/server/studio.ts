@@ -38,7 +38,7 @@ import {
   readBody,
   securityHeaders,
 } from '@demo-studio/engine';
-import type { Engine, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@demo-studio/engine';
+import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@demo-studio/engine';
 import { TOOLS, callTool, capUntrusted } from '@demo-studio/mcp';
 import type { ToolDef } from '@demo-studio/mcp';
 import { buildUi } from '../bundle.js';
@@ -49,6 +49,8 @@ import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
 import { OWN_OPS, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { commentOps, pathFree } from './comment-ops.js';
+import { opChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { z } from 'zod';
@@ -68,6 +70,10 @@ import { z } from 'zod';
  * workspace component to run in the preview, this session only: PreviewAllowList); part E: Render with
  * pinned arguments (`scenario_render`), the render queue and list (`scenario_renders`), Cancel of a render or review of
  * the project (`render_cancel`), the review without paths (`render_review`) and its contact sheets (`review_image`).
+ * L4.6: the comment ops (comment-ops.ts — threads_list, threads_counts, thread_get, thread_still, render_outline,
+ * render_frame, frame_anchor; thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply: the channel
+ * `studio`, never a proposal) and `timeline_view {proposal}` (the preview of Claude's proposal). The MCP's comment tools
+ * (comments_list, comment_reply, comment_resolve) stay out: a page is never Claude.
  * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
@@ -90,6 +96,21 @@ const NARROWED: Partial<Record<UiOp, (t: ToolDef) => ToolDef>> = {
     }),
   }),
 };
+
+/**
+ * An op's own HTTP status for an engine error code (L4.6, critique B7): a frame request past the server's queue is 429
+ * with Retry-After — the page backs off and asks for its newest frame again. Its timeout is `unavailable` (503, reason
+ * `timeout`: review B L3), which the page says after one more try.
+ */
+const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = { render_frame: { busy: 429 } };
+
+/** Every string of an error's details made path-free (pathFree), at most 8 levels deep (deeper values are dropped). */
+export function withoutPathsDeep(v: unknown, root: string, depth = 0): unknown {
+  if (typeof v === 'string') return pathFree(v, root);
+  if (depth >= 8 || v === null || typeof v !== 'object') return depth >= 8 && v !== null && typeof v === 'object' ? undefined : v;
+  if (Array.isArray(v)) return v.map((x) => withoutPathsDeep(x, root, depth + 1));
+  return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, withoutPathsDeep(x, root, depth + 1)]));
+}
 
 /** A call's body cap: above the worst case of an accepted README (200,000 characters, control characters escaped). */
 export const CALL_BODY_MAX = 2 * 1024 * 1024;
@@ -209,15 +230,18 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
+  // One chain for the writes of a scenario (critique B5): scenario_edit, scenario_render and thread_apply.
+  const chain = opChain();
   const tools = uiTools([
     ...indexOps(live),
     overviewOp(),
     ...scenarioOps(),
     ...runOps(),
-    ...editOps(),
+    ...editOps(chain),
     ...liveOps(),
     ...timelineOps({ player: playerNow, forbid: () => [engine.workspace.root, homedir()], allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry }),
-    ...renderOps(),
+    ...renderOps(chain),
+    ...commentOps({ chain }),
   ]);
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
@@ -328,7 +352,14 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     const r = await callTool(tool, getEngine, args, { signal: ac.signal });
     if (!r.ok) {
       const e = r.error;
-      send(res, ERROR_STATUS[e.code], { ok: false, error: { code: e.code, message: e.message, ...(e.fix ? { fix: e.fix } : {}), ...(e.details ? { details: e.details } : {}) } });
+      const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
+      // Every error's words are path-free (review A L1): the workspace's part cut off, any other absolute path shortened —
+      // in the message and every string of the details (an engine or scenario error may quote a file's absolute path).
+      // The `fix` is kept as it is: a command the person copies into a terminal (`studio -C <workspace> …`), the same
+      // one the screen already shows before the click.
+      const root = engine.workspace.root;
+      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
+      send(res, status, { ok: false, error }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
       return;
     }
     send(res, 200, { ok: true, summary: r.output.summary, data: capUntrusted(r.output.data), ...(r.output.images?.length ? { images: r.output.images } : {}) });

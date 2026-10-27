@@ -1,12 +1,15 @@
 /**
  * `studio comment add | list | reply | resolve | reopen` (L3.6) on synthetic renders (the review tests' helpers): frames
  * by marker, time and number, the region, the author (`--author`, else $DEMO_STUDIO_AUTHOR), `--json`, the threads
- * printed with their entries, and the usage / lookup errors. The first test reads the still (renders drawn with ffmpeg,
+ * printed with their entries (L4.6: a reply holding a proposal with its state, an apply by its proposal), and the usage /
+ * lookup errors. The first test reads the still (renders drawn with ffmpeg,
  * ffprobe); without them the renders are empty files and the others run.
  */
-import { writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createEngine } from '@demo-studio/engine';
 import type { CommentListView, CommentView, CommentWritten } from '@demo-studio/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
@@ -113,5 +116,39 @@ describe('studio comment', () => {
     expect((await studio('comment', 'reply', 'demo', '../x', 'text')).code).toBe(EXIT.usage);
     const none = await studio('comment', 'list', 'demo', '--status', 'resolved', '--scenario', 'quote');
     expect(none.err).toContain('no resolved comment in demo · quote');
+  }, LONG);
+
+  it('prints the studio channel of a thread and an entry written from the Studio (L4.6)', async () => {
+    process.env.DEMO_STUDIO_AUTHOR = 'Studio Person';
+    const home = process.env.DEMO_STUDIO_HOME;
+    process.env.DEMO_STUDIO_HOME = join(ws.root, '.home');
+    const ui = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false }).finally(() => {
+      if (home === undefined) delete process.env.DEMO_STUDIO_HOME;
+      else process.env.DEMO_STUDIO_HOME = home;
+    });
+    const record = JSON.parse(await readFile(join(ws.project.dir, 'renders', 'quote-v1.json'), 'utf8')) as { created_at: string };
+    const { thread } = await ui.comments.add('demo', { render: 'quote-v1', render_created_at: record.created_at, frame: 120, text: 'Made in the Studio' });
+    await ui.comments.reply('demo', thread.id, 'And answered there.');
+    const all = await studio('comment', 'list', 'demo', '--status', 'all', '--render', 'quote-v1');
+    expect(all.code, all.err).toBe(EXIT.ok);
+    expect(all.err).toContain(`${thread.id} open · quote-v1 frame 120`);
+    expect(all.err).toMatch(/Studio Person \(studio\), .*:\n {4}Made in the Studio/);
+    expect(all.err).toMatch(/Studio Person \(studio\) replied, .*:\n {4}And answered there\./);
+
+    // An MCP proposal and its apply in the Studio are printed as such (review B L2), with the proposal's state.
+    const tour = 'video: Quote\nintro: false\noutro: false\nscenes:\n  - id: s1\n    page: app\n    open: /\n    caption: The intro caption says far too much\n    steps:\n      - click: Go\n      - hold: 2.4\n';
+    await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
+    await writeFile(join(ws.project.dir, 'scenarios', 'quote.yaml'), tour);
+    const mcp = await createEngine({ root: ws.root, client: 'mcp', autoStartWorker: false });
+    const proposed = await mcp.comments.reply('demo', thread.id, 'Proposed a shorter caption.', {
+      proposal: { scenario_yaml: tour.replace('The intro caption says far too much', 'A short intro'), scenario_hash: createHash('sha256').update(tour).digest('hex') },
+    });
+    const pending = await studio('comment', 'list', 'demo', '--status', 'all', '--render', 'quote-v1');
+    expect(pending.err).toMatch(/agent \(mcp\) replied with a proposal \(pending, \+1 −1\), .*:\n {4}Proposed a shorter caption\./);
+    await ui.comments.apply('demo', thread.id, { entry_id: proposed.entry, if_match: proposed.hash });
+    const applied = await studio('comment', 'list', 'demo', '--status', 'all', '--render', 'quote-v1');
+    expect(applied.err).toContain('agent (mcp) replied with a proposal (applied, +1 −1)');
+    expect(applied.err).toContain(`Studio Person (studio) applied the proposal of ${proposed.entry}, `);
+    expect(applied.err.match(/\(studio\) replied, /g)).toHaveLength(1);
   }, LONG);
 });

@@ -778,7 +778,9 @@ the workspace). After step 13c: as after 13b (the copy `quote.orig.yaml` is in `
 fixture left with an armed proposal is reset by `curl -X POST localhost:4402/api/reset` or by stopping it. After step
 13e: as after 13b; the supplier's session saved in step 6 lives in `~/ds-studio-home` and goes with it. After step
 13f: as after 13b (the copy `highlights.orig.yaml` is in `~/ds-studio-home`; the renders and reviews it made go with
-the workspace).
+the workspace). After step 13g: as after 13f (the copy `highlights.orig.yaml` and the `frame-N.png` of
+step 2 are in `~/ds-studio-home`; the threads, renders and stills go with the workspace); restart or remove the MCP
+registration as after 13a.
 
 ## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
 
@@ -1040,6 +1042,77 @@ fixture running (terminal 3), `studio ui` as in 13b (terminal 1). First keep a c
 - **Send back:** for each step, OK or what you saw instead (a screenshot of the timeline while it plays and of the
   review), anything that stalled in Safari (step 3), what each console line of step 3b did in each browser, the
   browsers' versions.
+
+## 13g. Frame comments in your browsers; Claude's proposals through Claude Code (L4.6)
+
+What the automated tests cannot reach: Safari (WebKit) and Firefox (the tests drive Playwright's Chromium and, gated,
+the installed Chrome), your own pointer on the frame, your own reading of the diff's marks, and a live Claude Code
+session following the proposal rule. The workspace of 13a, the fixture running (terminal 3), `pnpm build` first, and
+`studio ui` started with a name for the Studio's entries: `DEMO_STUDIO_AUTHOR=Reviewer DEMO_STUDIO_HOME="$H" node
+packages/cli/dist/bin.js --root "$W" ui --no-open` (terminal 1). *highlights* needs a capture and a render made from
+the timeline (13f steps 1 and 6: `highlights-v1`). First keep a copy of the scenario:
+`cp "$W/projects/northfield-fixture/scenarios/highlights.yaml" "$H/highlights.orig.yaml"`.
+
+1. **Comment a frame (Safari).** On the timeline of *highlights*, click the ◆ marker *proposal-open*, then Shift + →:
+   **Comment** (or C) opens the Comments screen at that frame of v1 (the address ends `…/comments/at/highlights-v1/<frame>`).
+   The time field's example is a time inside this render. ← / → step one frame (the frame number under the slider moves
+   by one each time, never two), Shift + ← / → one second, a time typed as `12.4` lands on the frame on screen then.
+2. **Frame exactness (Safari, Firefox, Chrome).** Note a frame number N where the cursor moves. In a terminal:
+   `ffmpeg -v error -i "$W/projects/northfield-fixture/renders/highlights-v1.mp4" -vf "select=eq(n\,N)" -frames:v 1
+   "$H/frame-N.png"` and open it: the viewer shows the same picture at N in each of the three browsers (the frames are
+   JPEGs made by the Studio server: no video plays in the page), and N − 1 / N + 1 differ from it where the cursor moves.
+3. **Draw a region (Safari, your trackpad or mouse).** Drag a rectangle over the proposal's total: the box follows the
+   pointer, the four % fields (left, top, width, height) follow it; a drag past the frame's edge stops at the edge
+   (left + width = 100); Esc during a drag keeps the region before; a click alone makes none; a value typed in a field
+   moves the box. *Where it points* names the frame, the segment, the step (*quotes.…*) and the component. Write
+   "Make the quotes caption shorter." and **Post the comment**: the thread opens with your region drawn on the frame,
+   *Reviewer (Studio)*, the same chips; the list on the left has it; *Comments (1 open)* beside the tabs.
+4. **Claude proposes on a Studio thread (Claude Code).** Claude Code registered on this workspace as in 13a step 5
+   (HTTP) or 12c (stdio). **An MCP server started on a build older than L4.6 must be restarted** (Ctrl-C the `studio mcp
+   --http` terminal and start it again; a stdio server: `/mcp` → reconnect, or a new `claude` session): before that,
+   Claude's `comments_list` skips the Studio thread as *not a valid thread*. Ask: "Handle the open comments of
+   highlights in northfield-fixture." Expected: Claude reads the thread (the still shows in Claude Code), calls
+   `scenario_get`, then `comment_reply` with a **proposal** — not `scenario_save`: `cmp "$H/highlights.orig.yaml"
+   "$W/projects/northfield-fixture/scenarios/highlights.yaml"` prints nothing. Within a few seconds the Studio's thread
+   shows Claude's reply (*Agent · MCP*), *Proposal pending* in the list, and **Claude's proposal**: the caption line
+   removed and added, line numbers, *Apply*, *Preview change*, *Apply and re-render*. Claude never reads
+   `.demo-studio/ui.json` nor calls the Studio's `/v1` routes (Claude Code's tool log shows neither).
+5. **The diff's marks and right-to-left isolation (Safari, then Firefox).** Ask Claude: "On that thread, propose instead
+   the same caption change plus a YAML comment line at the end of the file: `# note: שלום`, a tab, `end`, a no-break
+   space, `end`, and two spaces at the end of the line." The newer proposal replaces the first (which now reads
+   *superseded*). Its added comment line shows a `→` for the tab, `[U+00A0]` for the no-break space and `··` at its end;
+   the line is marked *right-to-left text* and drawn in byte order: the Hebrew letters left to right as typed (so the
+   word looks mirrored), the `#` first, `end` last, the line numbers not moved; no other line of the table reorders. The
+   whole diff is on the page (no scroll box inside the thread) and the buttons sit under its last row. Then ask Claude for the caption change only again: the
+   newest proposal is that one.
+6. **Apply, then Undo (Safari).** **Apply**: *Applied*; the YAML tab shows the new caption; **Undo apply**: `cmp` as in
+   step 4 prints nothing, the proposal reads *Applied, then undone* and offers its buttons again.
+7. **The Preview banner (Safari).** **Preview change**: the timeline under a banner naming the comment (timecode, v1,
+   frame), the summary and *Back to the comment* only (no Apply there); the inspector's chips are greyed; the caption
+   track shows the proposed
+   caption; the playhead sits on the comment's pin; switches, the run picker and **Render** are off with why; the
+   preview plays the proposed caption; `cmp` still prints nothing.
+8. **Apply and re-render, then Resolve.** **Back to the comment**: the thread opens scrolled to the proposal; its
+   **Apply and re-render**: the file holds the proposal, *v2 · queued*, then rendering, reviewing, *v2 is rendered from the applied file* and **Resolve with v2**
+   (about a minute); click it: *Resolved*, the Resolved filter lists it, *Comments (0 open)*, no Undo any more.
+   **Reopen** (an optional note): the applied proposal offers nothing and says why.
+9. **Claude saves directly on a terminal thread (Claude Code).** In terminal 2: `DEMO_STUDIO_HOME="$H" node
+   packages/cli/dist/bin.js --root "$W" comment add northfield-fixture latest --scenario highlights --marker
+   proposal-open "Keep the figure card a second longer."` Ask Claude: "Handle the open comments of highlights." Expected:
+   for this thread (by `cli`) Claude takes the direct loop — `scenario_save` itself (no proposal), render, review,
+   `comment_reply` and `comment_resolve` with the new render; for the reopened Studio thread of step 8 it proposes
+   again (or replies, if nothing is left to change). The Studio shows the terminal thread with Claude's entries and no
+   proposal card.
+10. **Firefox and Chrome.** Steps 1, 3, 5 and 7 again in Firefox (a new link from `studio ui` in terminal 2), step 2's
+    comparison in Chrome; VoiceOver (optional): the slider says the frame and its time, the region box is described by
+    the % fields, the diff's rows say *added* / *removed* / *unchanged*.
+
+- **Expected:** every step as written; the file back to its exact bytes after Undo and until Apply; the thread files
+  name `"via": "studio"` with `Reviewer` for your entries and `"via": "mcp"` for Claude's
+  (`$W/projects/northfield-fixture/comments/highlights/`).
+- **Send back:** for each step, OK or what you saw instead (a screenshot of the proposal table of step 5 in Safari and
+  Firefox, and of the banner), whether Claude proposed (step 4) and saved directly (step 9) as written, the browsers'
+  versions and `claude --version`.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

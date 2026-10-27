@@ -65,8 +65,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | **done** (live checks: MACOS-CHECKLIST 13c) |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | **done** (live checks: MACOS-CHECKLIST 13e) |
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | **done** (live checks: MACOS-CHECKLIST 13f) |
-| L4.6 | Frame comments UI | M | **next** (when the user asks) |
-| L4.7 | Component library (with animated previews) + theme editor screens | M | todo |
+| L4.6 | Frame comments UI | M | **done** (live checks: MACOS-CHECKLIST 13g) |
+| L4.7 | Component library (with animated previews) + theme editor screens | M | **next** (when the user asks) |
 | L4.8 | Record screen | M | todo |
 | L4.9 | Studio acceptance, accessibility pass | S | todo |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
@@ -775,7 +775,17 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   contact sheets in the UI. Two independent reviews fixed with mutation-checked tests (incl. a prerender escape closed
   three ways). Cuts: BL-107 – BL-110. Live checks: MACOS-CHECKLIST 13f.
 
-### L4.6 – L4.9, L5.2 – L5.4, L6
+### L4.6 — Frame comments UI (M)
+- **Goal:** comment a render's exact frame from the Studio, read Claude's answer and its proposed change, preview it,
+  apply it and re-render, and keep track of open and resolved threads.
+- **Done (2026-10-27, in a worktree):** the Comments screen (server-made exact frames, a drawn or typed region, anchor
+  chips, Open / Resolved / All, timeline pins and Comment button, a scenario-screen count); a `via: 'studio'` channel
+  that creates, replies, resolves, reopens and applies; Claude's edit-only proposals on `comment_reply`, checked like a
+  Studio edit without writing, shown as the server's diff (never cut), with Apply / Apply and re-render / Preview change
+  / Undo through the verified write path. Two independent reviews fixed with mutation-checked tests. Cuts: BL-111,
+  BL-112. Live checks: MACOS-CHECKLIST 13g.
+
+### L4.7 – L4.9, L5.2 – L5.4, L6
 - L4.7 also shows an animated preview per component (R-UI-06b, user decision 2026-10-26).
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),

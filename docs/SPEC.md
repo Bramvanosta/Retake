@@ -309,6 +309,51 @@ replies and resolves — there is no create or reopen tool, and no input names a
   → append an entry written as `via: mcp`, name `agent`; resolve needs the thread's hash (a person's entry meanwhile =
   `conflict` with the current hash) and a `render_id` later than the commented render, of the same scenario. A comment
   may only ask for a change to the video (scenario, overrides, theme): the INSTRUCTIONS say so.
+- L4.6 (engine, part A1): a third channel `via: studio` — the Studio web app creates, replies, resolves and reopens as
+  `studio` (named by the Studio process's `$DEMO_STUDIO_AUTHOR`, else the OS user; never by the page), reopening and
+  resolving on the thread's hash and commenting the render it showed (`render_created_at`); the MCP still cannot create
+  or reopen. `studio` is a channel (the Studio page holding its token), not proof of a person (BL-106). The engine also
+  gives the Studio a render's exact frames (`renders.frame` / `renders.outline`: the video's own fps and frame count,
+  newest request wins, a bounded queue), the anchor a comment would store (`comments.anchorAt`), open counts from the
+  thread files alone (`comments.counts`) and a `comments:` change source.
+- L4.6 (engine, part A2): Claude's proposal in a reply — the whole new text of the thread's own scenario file and the
+  hash it read (MCP only), stored as the canonical line diff of the exact bytes Apply writes, checked when written as
+  the Studio would check it at Apply (hooks / vars / env, secrets, outside files, validation), edit-only (a filmed change
+  keeps the direct loop) and within caps (200 changed lines, 30,000 characters, lines ≤ 2,000 UTF-16 units); its state
+  (pending, applied, undone, superseded, stale) from today's file; Apply by a person channel through the Studio's own
+  write path under the thread's lock, undoable; the diff a person reads computed by the engine; a timeline preview of
+  the proposed text planned in memory (nothing written, never a restorable version).
+- L4.6 (MCP and skills, part B): `comment_reply` takes that proposal as `proposal: {scenario_yaml, scenario_hash}` and
+  answers with the stored diff; `comments_list {comment_id}` reads a thread's newest proposal back, and every listing
+  names each proposal's state. The INSTRUCTIONS and the scenario skill: an open Studio thread whose change is edit-only
+  gets a proposal, every other thread (a terminal's, a filmed change, a theme, an override) the direct loop; people
+  create, reopen and apply; Claude never reads the Studio's token file or calls its routes (pinned by the skill lint).
+- L4.6 (Studio server, part C): the Studio's own comment ops — a scenario's threads and counts, one thread with its
+  newest proposal and what may be offered for it (Apply; Preview change when it renders on the commented take; Apply and
+  re-render only for a landscape thread rendered with the files' theme and no override), a render's frames and outline,
+  the anchor a comment would store; create, reply, resolve, reopen and apply on the thread version shown — strict inputs
+  (no author, channel, path or proposal from the page), path-free answers, texts under `untrusted`; Apply on the one
+  chain shared with the Studio's edits and renders of that scenario; the timeline previews a proposal through the same
+  workspace-component hold; the event stream names the scenarios whose threads changed.
+- L4.6 (Studio app, part D1): the Comments screen of a scenario — the open / resolved list, any finished render's own
+  frames made by the server (slider, frame and second steps, a typed time; one request in flight, the newest frame
+  wins), a region dragged on the frame or typed in four % fields (rounded, then clamped inside the frame), the anchor
+  chips before posting, the thread with reply / resolve / reopen on the version shown; the timeline's Comment at the
+  playhead (a render of the version shown) and a pin's Open thread; "Comments (N open)" beside the scenario's tabs.
+- L4.6 (Studio app, part D2): Claude's proposal in the thread — the diff the server computes from today's file, drawn as
+  code (edge spaces, tabs, unseen characters and piled-up accents visible; byte order left to right, a right-to-left
+  line marked), every row shown before the buttons, a rewrite note past 25 %; the buttons the server offers (Apply,
+  Preview change on the timeline under a banner that only leads back to the diff, Apply and re-render then Resolve with
+  vN), nothing offered when Apply would refuse, Undo apply in the tab that applied.
+- L4.6 (fixes after the two reviews): a proposal is refused when its diff passes 600 rows, when it changes the theme or
+  holds half a character; Apply checks the thread has room before writing; Studio errors are path-free; frame requests
+  are admitted at arrival (newest wins, the bound before the file is opened, outlines too), a timeout is its own error
+  and the page says a frame that keeps failing; a video not starting at 0 or with a variable frame rate is refused; the
+  CLI prints applies and proposal states; MCP proposal rows fit the result budget.
+- L4.6 (acceptance, part E): the whole loop on the fixture product in the installed Chrome (gated, own ports) — capture,
+  render from the timeline, comment the total with a region from the timeline's Comment, Claude's caption proposal,
+  Preview change, Apply and re-render, resolve with the new render; the viewer's frame latency measured on that render
+  and a 4K copy (1080p: a frame in 150–223 ms typically, 372 ms at worst; 4K: 490–661 ms, 1.4 s at worst). Safari, Firefox and a live Claude Code session by hand (MACOS-CHECKLIST 13g).
 
 All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s
 with progress notifications, and `*_status` follows. Every tool returns a short text summary readable by Claude plus
@@ -491,7 +536,10 @@ A client of the same packages (the MCP keeps working without it). Served locally
   render frame AND to the scenario (scene, step, segment, component) through the edit plan, stored in the workspace,
   and exposed to Claude (`comments_list`, `comment_reply`, `comment_resolve`) so it can make the change — a scenario
   change captured again (`run_capture`), then rendered; a theme or an override only rendered; resolved comments stay
-  attached to the render version they were made on.
+  attached to the render version they were made on. Built in L4.6: the Studio's Comments screen (a render's exact frames, a
+  region, the anchor chips before posting, reply / resolve / reopen written as the channel `studio`) and Claude's
+  edit-only proposals on a Studio thread — a diff of the scenario file, Preview change on the timeline, Apply (undoable)
+  or Apply and re-render, then Resolve with the new render.
 
 ## 13. Security
 

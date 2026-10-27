@@ -302,8 +302,8 @@ export class WorkspaceIndex {
     let summaries: Map<string, ProjectSummary> | undefined;
     for (const key of keys) {
       const { kind, project } = sourceKey(key);
-      // A scenario file's own key: nothing to read (the project key re-reads the names).
-      if (project === undefined || kind === 'scenario') continue;
+      // A scenario file's own key, a scenario's comment folder: nothing to read (the project key re-reads the names).
+      if (project === undefined || kind === 'scenario' || kind === 'comments') continue;
       const r = readOf(project);
       if (r.gone) continue;
       const dir = join(this.ws.projectsDir, project);

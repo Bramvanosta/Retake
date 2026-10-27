@@ -6,7 +6,7 @@ import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 
 /** "7:9 error scenes.0.steps.0: unknown action…" */
-function issueLine(i: ValidationIssue): string {
+export function issueLine(i: ValidationIssue): string {
   const at = i.line !== undefined ? `${i.line}:${i.col ?? 1} ` : '';
   return `${at}${i.severity}${i.path.length ? ` ${i.path.join('.')}` : ''}: ${i.message}`;
 }

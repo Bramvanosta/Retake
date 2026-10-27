@@ -4,7 +4,7 @@
  * zoomed level are one layout at two widths). Every item carries its words (kind, label, times) — colour and pattern
  * only repeat them — and activating one seeks there. Text the scenario or the filmed product wrote (captions, step
  * labels, marker names, comment text) comes from the view's `untrusted` part and is only ever a text node or a title.
- * Comment pins are read-only (replying and resolving are L4.6). A segment is also selected by its click (part D: the
+ * A comment pin seeks to its frame; its tooltip opens its thread on the Comments screen (L4.6). A segment is also selected by its click (part D: the
  * inspector shows its switches; `aria-pressed` says which). Memoised: the playhead is drawn by the screen, so a playing
  * preview re-renders none of this.
  */
@@ -12,6 +12,7 @@ import { memo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { TimelineView } from '@demo-studio/engine';
 import { Txt, plural } from './bits.js';
+import { hrefTo } from './route.js';
 import { cutWords, landingOf, segmentWords, timecode } from './timeline-words.js';
 
 type Model = TimelineView['model'];
@@ -48,9 +49,11 @@ export interface TracksProps {
   selected: string | null;
   /** A segment clicked: select it and seek to its first frame. */
   onSelect(id: string, from: number): void;
+  /** The project and scenario (L4.6: a pin's tooltip opens its thread on the Comments screen). */
+  at?: { slug: string; scenario: string };
 }
 
-function TracksImpl({ view, onSeek, selected, onSelect }: TracksProps) {
+function TracksImpl({ view, onSeek, selected, onSelect, at: where }: TracksProps) {
   const m: Model = view.model;
   const u = view.untrusted;
   const fps = m.fps;
@@ -163,13 +166,22 @@ function TracksImpl({ view, onSeek, selected, onSelect }: TracksProps) {
               <button type="button" data-testid="tl-pin" data-id={p.id} data-frame={p.frame} data-status={p.status} aria-label={words} onClick={() => onSeek(p.frame)}>
                 <span aria-hidden="true">{p.status === 'open' ? '●' : '○'}</span>
               </button>
-              <span className="tl-tip" aria-hidden="true">
-                <span className="tl-tip-head">
+              <span className="tl-tip">
+                <span className="tl-tip-head" aria-hidden="true">
                   {p.status} · {timecode(p.frame, fps)}
                   {t ? ' · ' : ''}
                   {t && <Txt text={t.author} />}
                 </span>
-                {t && <Txt text={t.text} />}
+                {t && (
+                  <span aria-hidden="true">
+                    <Txt text={t.text} />
+                  </span>
+                )}
+                {where && (
+                  <a className="tl-tip-link" href={hrefTo({ name: 'comments', slug: where.slug, scenario: where.scenario, thread: p.id })} data-testid="pin-open-thread" aria-label={`Open the thread of the comment at ${timecode(p.frame, fps)}`}>
+                    Open thread
+                  </a>
+                )}
               </span>
             </li>
           );

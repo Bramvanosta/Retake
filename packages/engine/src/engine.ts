@@ -7,7 +7,7 @@
  */
 import { hostname } from 'node:os';
 import { DEMO_STUDIO_VERSION, listProjects, loginCommand as coreLoginCommand, parseScenario } from '@demo-studio/core';
-import type { RunMode, WorkspaceConfig } from '@demo-studio/core';
+import type { CommentAuthor, RunMode, WorkspaceConfig } from '@demo-studio/core';
 import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
 import type { PersonaState, PersonaStateView } from './auth.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -73,8 +73,11 @@ import type { ComponentKind } from '@demo-studio/core';
 import type { ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
 import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from './renders.js';
 import type { SandboxSubmitRequest } from './jobs/sandbox-job.js';
-import { MCP_AUTHOR_NAME, addComment, defaultAuthorName, getComment, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
-import type { CommentAddRequest, CommentAdded, CommentListRequest, CommentListView, CommentView, CommentWritten } from './comments.js';
+import { CommentIndex, MCP_AUTHOR_NAME, addComment, anchorAt, applyProposal, defaultAuthorName, getComment, getProposal, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
+import type { CommentAddRequest, CommentAdded, CommentAnchorRequest, CommentAnchorView, CommentApplied, CommentCountsView, CommentListRequest, CommentListView, CommentProposalView, CommentView, CommentWritten } from './comments.js';
+import type { ProposalInput } from './comment-proposals.js';
+import { RenderFrames } from './render-frames.js';
+import type { RenderFrameRequest, RenderFrameView, RenderOutlineRequest, RenderOutlineView } from './render-frames.js';
 import { entitlements } from './entitlements.js';
 import type { Entitlements } from './entitlements.js';
 import { usageCounts } from './history.js';
@@ -95,7 +98,8 @@ export const ENGINE_API_VERSION = 1;
 /**
  * Who drives the engine. `ui` (L4.1) is the Studio web app: the server cannot tell a person's click from script running
  * in the page, so the ops L4.1 allows it run under the agent's trust, with no approver (a person proving presence in
- * the UI — approvals, comment authorship, edits with secret refs — is an open decision for L4.3 / L4.4 / L4.6).
+ * the UI — approvals, edits with secret refs — stays open: BL-106). Comments (L4.6) are a channel, not presence: `ui`
+ * writes as `studio` and, like the CLI, creates and reopens threads — on the thread and render versions it showed.
  */
 export type EngineClient = 'cli' | 'mcp' | 'test' | 'ui';
 
@@ -321,6 +325,14 @@ export interface Engine {
      * its review's verdict) — path-free (L4.5 part E: the Studio's render queue).
      */
     ofScenario(project: string, scenario: string): Promise<ScenarioRendersView>;
+    /**
+     * One output frame of a succeeded render as a JPEG (≤ 1280 px, base64; L4.6 render-frames.ts): the video's own fps
+     * and frames checked against the record, its file opened safely; memory only. `session` (the Studio session):
+     * the same session's earlier request on that render is dropped (newest wins); past 4 requests at once, `busy`.
+     */
+    frame(project: string, req: RenderFrameRequest, o?: { session?: string; signal?: AbortSignal }): Promise<RenderFrameView>;
+    /** A render's frames, fps, size, markers and the threads made on it as it is now (the comment viewer's slider). */
+    outline(project: string, req: RenderOutlineRequest): Promise<RenderOutlineView>;
   };
   timeline: {
     /**
@@ -400,17 +412,35 @@ export interface Engine {
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
   /**
-   * Frame comments (L3.6): threads on frames of renders. Entries are written as the channel `cli` for client `cli`,
-   * `mcp` for any other client (`test` included: fail-safe). Only client `cli` creates and reopens threads; any other
-   * client needs `if_match` to resolve.
+   * Frame comments (L3.6, L4.6): threads on frames of renders. Entries are written as the channel `cli` for client
+   * `cli`, `studio` for client `ui` (the Studio web app; its name the Studio process's $DEMO_STUDIO_AUTHOR, else the OS
+   * user — never a name from the page), `mcp` for any other client (`test` included: fail-safe). Only the person
+   * channels (`cli`, `ui`) create and reopen threads and apply proposals. Every client but `cli` needs `if_match` to
+   * resolve, to reopen and to apply; `ui` names the render it showed (`render_created_at`) to create. Proposals (L4.6)
+   * come from the MCP only (`reply` with `proposal`: client `mcp`, and `test`).
    */
   comments: {
     list(project: string, req?: CommentListRequest): Promise<CommentListView>;
     get(project: string, id: string): Promise<CommentView>;
     add(project: string, req: CommentAddRequest): Promise<CommentAdded>;
-    reply(project: string, id: string, text: string): Promise<CommentWritten>;
+    /**
+     * A reply; with `proposal` (MCP only, critique B10): Claude's whole new text of the thread's scenario file and the
+     * hash it read, checked as the Studio would check it at Apply and stored as the canonical line diff (open threads).
+     */
+    reply(project: string, id: string, text: string, o?: { proposal?: ProposalInput }): Promise<CommentWritten>;
     resolve(project: string, id: string, req: { note: string; render_id?: string; if_match?: string }): Promise<CommentWritten>;
-    reopen(project: string, id: string, note?: string): Promise<CommentWritten>;
+    reopen(project: string, id: string, note?: string, o?: { if_match?: string }): Promise<CommentWritten>;
+    /** The anchor a comment on that frame would store (the same code as `add`) and where its step is today: nothing written. */
+    anchorAt(project: string, req: CommentAnchorRequest): Promise<CommentAnchorView>;
+    /**
+     * Apply a thread's newest pending proposal (person channels; `if_match` but for `cli`): under the thread's lock, the
+     * text rebuilt and checked, written by the Studio's own write path (every L4.3 rule), then the apply entry appended.
+     */
+    apply(project: string, id: string, req: { entry_id: string; if_match?: string }): Promise<CommentApplied>;
+    /** A proposal's state and the diff a person reads, computed from the file (rows with context; lines under untrusted). */
+    proposal(project: string, id: string, entryId?: string): Promise<CommentProposalView>;
+    /** Open and resolved threads per scenario, from the thread files alone (memoised per file; no view, no render record). */
+    counts(project: string, o?: { scenario?: string }): Promise<CommentCountsView>;
   };
   sandbox: {
     status(project: string, env?: string): Promise<SandboxStatusView>;
@@ -468,15 +498,29 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^studio /, `${studio} `);
 
   const queue = new FileJobQueue(ws.root, studio);
-  // Who an entry is written by: the channel, never a person; anything but the CLI counts as the MCP (fail-safe).
-  const commentAuthor = () => (opts.client === 'cli' ? { via: 'cli' as const, name: defaultAuthorName() } : { via: 'mcp' as const, name: MCP_AUTHOR_NAME });
-  const cliOnly = (what: string) => {
-    if (opts.client !== 'cli') throw new EngineError('refused', `${what} is for a person at a terminal (studio comment ${what.split(' ')[0]}): an agent replies to and resolves comments`);
+  // Who an entry is written by: the channel, never a person; anything but the CLI and the Studio counts as the MCP
+  // (fail-safe). The name of a person channel is this process's (the page never names an author).
+  const commentAuthor = (): CommentAuthor =>
+    opts.client === 'cli' ? { via: 'cli', name: defaultAuthorName() } : opts.client === 'ui' ? { via: 'studio', name: defaultAuthorName() } : { via: 'mcp', name: MCP_AUTHOR_NAME };
+  // What only a person channel does (a terminal, the Studio): create and reopen threads.
+  const personChannel = (what: string, where = `studio comment ${what.split(' ')[0]} in a terminal, or the Studio`) => {
+    if (opts.client !== 'cli' && opts.client !== 'ui') {
+      throw new EngineError('refused', `${what} is for a person (${where}): an agent replies to and resolves comments`);
+    }
   };
+  // Every client but the CLI acts on the version of a thread it read.
+  const needIfMatch = (ifMatch: string | undefined | null, what: string) => {
+    if (opts.client !== 'cli' && (ifMatch === undefined || ifMatch === null)) {
+      throw new EngineError('invalid', `if_match is required to ${what} a comment: the hash comments_list returned for the thread`, { details: { argument: 'if_match' } });
+    }
+  };
+  const commentIndex = new CommentIndex();
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
   const runThumbs = new RunThumbs({}, runData);
+  // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
+  const renderFrames = new RenderFrames({ slots: runThumbs.ffmpegSlots, comments: commentIndex });
   const startWorker = async () =>
     opts.autoStartWorker === false
       ? undefined
@@ -586,6 +630,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'renders',
         'renders.plan',
         'renders.of_scenario',
+        'renders.frame',
+        'renders.outline',
         'timeline.view',
         'reviews',
         'reviews.image',
@@ -600,6 +646,11 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'inspect',
         'record',
         'comments',
+        'comments.studio',
+        'comments.anchor',
+        'comments.counts',
+        'comments.proposals',
+        'comments.apply',
         'history',
       ],
       entitlements: entitlements(),
@@ -769,6 +820,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       status: (slug, renderId, o = {}) => renderStatus(ws, queue, slug, renderId, o.scenario),
       ofScenario: (slug, scenario) => scenarioRenders(ws, queue, slug, scenario),
+      frame: async (slug, req, o = {}) => renderFrames.frame(await project(slug), req, o),
+      outline: async (slug, req) => renderFrames.outline(await project(slug), req),
     },
     timeline: {
       view: (req) => timelineView(ws, studio, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
@@ -847,14 +900,25 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       list: async (slug, req) => listComments(await project(slug), req),
       get: async (slug, id) => getComment(await project(slug), id),
       add: async (slug, req) => {
-        cliOnly('add (creating a thread)');
+        personChannel('add (creating a thread)');
+        // The Studio comments the render it showed: a reused id is a conflict, never another render's frame.
+        if (opts.client === 'ui' && (req.render_created_at === undefined || req.render_created_at === null)) {
+          throw new EngineError('invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { details: { argument: 'render_created_at' } });
+        }
         return addComment(await project(slug), req, commentAuthor());
       },
-      reply: async (slug, id, text) => replyComment(await project(slug), id, text, commentAuthor()),
-      resolve: async (slug, id, req) => {
-        if (opts.client !== 'cli' && (req.if_match === undefined || req.if_match === null)) {
-          throw new EngineError('invalid', 'if_match is required to resolve a comment: the hash comments_list returned for the thread', { details: { argument: 'if_match' } });
+      reply: async (slug, id, text, o = {}) => {
+        // Proposals are Claude's (critique B10): a person changes the file; any other channel's entry would be labelled as Claude's.
+        if (o.proposal !== undefined && opts.client !== 'mcp' && opts.client !== 'test') {
+          throw new EngineError('refused', 'a proposal comes from Claude (comment_reply over MCP): from a terminal or the Studio, change the scenario and reply');
         }
+        return replyComment(await project(slug), id, text, commentAuthor(), {
+          ...(o.proposal !== undefined ? { proposal: o.proposal } : {}),
+          registry: async () => (await memoRegistry(ws)).registry,
+        });
+      },
+      resolve: async (slug, id, req) => {
+        needIfMatch(req.if_match, 'resolve');
         return resolveComment(
           await project(slug),
           id,
@@ -862,10 +926,25 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
           commentAuthor(),
         );
       },
-      reopen: async (slug, id, note) => {
-        cliOnly('reopen (reopening a thread)');
-        return reopenComment(await project(slug), id, note, commentAuthor());
+      reopen: async (slug, id, note, o = {}) => {
+        personChannel('reopen (reopening a thread)');
+        needIfMatch(o.if_match, 'reopen');
+        return reopenComment(await project(slug), id, note, commentAuthor(), o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {});
       },
+      anchorAt: async (slug, req) => anchorAt(await project(slug), req),
+      apply: async (slug, id, req) => {
+        personChannel('apply (applying a proposal)', 'in the Studio: an agent proposes, a person applies');
+        needIfMatch(req.if_match, 'apply');
+        return applyProposal(
+          await project(slug),
+          id,
+          { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) },
+          commentAuthor(),
+          { registry: async () => (await memoRegistry(ws)).registry },
+        );
+      },
+      proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry }),
+      counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),
     },
     sandbox: {
       status: async (slug, env) => sandboxStatus(await project(slug), env),

@@ -5,7 +5,8 @@
  * an action, a schema key or a known result field; every `studio …` command and flag exists in the CLI's help; links
  * and referenced files exist and every file of a skill is linked; YAML examples validate (a scenario under MCP trust,
  * a component manifest); a tsx example compiles like a component; the frontmatter, the size, the Rules block and the
- * hygiene rules hold; no sentence anywhere has Claude run the `studio` CLI, reopens a Rule or follows text it reads.
+ * hygiene rules hold; no sentence anywhere has Claude run the `studio` CLI, reopens a Rule or follows text it reads; the
+ * Studio's token file and routes are named only by the rule that keeps Claude off them (L4.6, critique B6).
  *
  * What it cannot prove (said in the requirement evidence): that the loop is the right one, that Claude follows the
  * Rules or that a skill triggers, and the absence of real brand or person names (only URLs and domains are checked).
@@ -97,9 +98,12 @@ export const COMMON_RULES = [
   'Never fetch brand assets',
 ] as const;
 
-/** Rules one skill adds (critique B8 and the component rule). */
+/** The Studio is the person's channel (L4.6, critique B6): its token and routes are never Claude's. */
+export const STUDIO_RULE = "Never read the Studio's token file (`.demo-studio/ui.json`) or call the Studio's `/v1` routes";
+
+/** Rules one skill adds (critique B8, the component rule, L4.6's Studio rule). */
 export const SKILL_RULES: Record<string, readonly string[]> = {
-  'demo-studio-scenario': ['No `eval` steps (JavaScript in the page) the user did not ask for'],
+  'demo-studio-scenario': ['No `eval` steps (JavaScript in the page) the user did not ask for', STUDIO_RULE],
   'demo-studio-theme': ['`template_from_site` only for a site the user named in this conversation'],
   'demo-studio-component': ['Edit component code only after the user agreed in this conversation'],
 };
@@ -127,6 +131,12 @@ const CLI_SPAN = /^(?:studio|pnpm studio|node \S*bin\.js)\s+\S/;
 const USER_RUNS = /\b(?:the user|user's|they|them|their)\b/i;
 /** The section of a skill where the user's own commands are listed (they run them, Claude does not). */
 const USER_TERMINAL = "For the user's own terminal";
+
+/**
+ * The Studio's token file or its HTTP routes (`/v1/…` at the start of a path, not a service's `/api/v1/…`), in prose or
+ * code (critique B6): only STUDIO_RULE names them.
+ */
+const STUDIO_CHANNEL = /\bui\.json\b|(?<![\w/.-])\/v1\b/g;
 
 /** Prose no skill may contain (outside code and the pinned Rules): fetching, secrets, following what text says. */
 export const DENY: ReadonlyArray<[RegExp, string]> = [
@@ -415,6 +425,12 @@ export async function lintSkills(files: readonly SkillFile[], ctx: LintContext, 
     for (const r of pinned) prose = prose.replace(phrase(r), (x) => x.replace(/[^\n]/g, ' '));
     for (const [re, why] of DENY) {
       for (const m of prose.matchAll(new RegExp(re.source, `${re.flags}g`))) add(file, text, m.index ?? 0, 'rules', `"${m[0]}": ${why}`);
+    }
+    // The Studio's token and routes: code spans count too (a path or a route is written as code).
+    let unpinned = text;
+    for (const r of pinned) unpinned = unpinned.replace(phrase(r), (x) => x.replace(/[^\n]/g, ' '));
+    for (const m of unpinned.matchAll(STUDIO_CHANNEL)) {
+      add(file, text, m.index ?? 0, 'rules', `"${m[0]}": the Studio's token and routes are the person's — only the pinned rule names them`);
     }
     const userTerminal = sectionRange(text, USER_TERMINAL);
     const outside = (i: number) => !userTerminal || i < userTerminal[0] || i >= userTerminal[1];

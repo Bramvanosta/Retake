@@ -317,8 +317,39 @@ export async function editScenario(
   req: ScenarioEditRequest,
   o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry> },
 ): Promise<ScenarioEditResult> {
+  const p = await prepareScenarioEdit(project, name, req, o);
+  const res = await new LocalStorage(project.dir).writeText(p.base.file, p.text, { ifMatch: req.hash });
+  rememberVersion(p.base.path, res.sha256);
+  return { name, file: p.base.file, path: res.path, hash: res.sha256, label: p.label, select: p.select, warnings: p.warnings, notices: p.notices, ...(p.change ? { change: p.change } : {}) };
+}
+
+/** An edit checked and built, not written (prepareScenarioEdit): the file it applies to and the text it would write. */
+export interface PreparedScenarioEdit {
+  /** The file as read (its hash is the edit's `hash`). */
+  base: ScenarioText;
+  /** The bytes the edit writes. */
+  text: string;
+  label: string;
+  select: string | null;
+  warnings: ValidationIssue[];
+  notices: string[];
+  change?: 'filmed' | 'edit';
+}
+
+/**
+ * Everything editScenario does before the write (L4.6 split): the file read with the edit's hash, the file not blocked,
+ * the edit built and verified, the size, no hidden character added, hooks and mocks unchanged (and vars / env while
+ * there are some, agent channels), the text validated with agent trust worded for the channel — nothing written, no
+ * version remembered (a text that is only checked never becomes a version `restore` accepts: critique B9). Used by
+ * editScenario and to check a proposal before it is stored, previewed or applied.
+ */
+export async function prepareScenarioEdit(
+  project: LoadedProject,
+  name: string,
+  req: ScenarioEditRequest,
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry> },
+): Promise<PreparedScenarioEdit> {
   const base = await getScenario(project, name);
-  const storage = new LocalStorage(project.dir);
   if (base.hash !== req.hash) {
     throw new EngineError('conflict', `${base.file} changed since it was read (its hash is no longer the one the edit was made on): read it again`, {
       details: { current: base.hash },
@@ -429,7 +460,5 @@ export async function editScenario(
   const { scenario, issues: parsed } = parseScenario(text, checkOpts);
   const issues = o.agent ? [...parsed, ...agentIssues(project, scenario, text, o.via)] : parsed;
   if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, base.path)}`, issues, base.path);
-  const res = await storage.writeText(base.file, text, { ifMatch: req.hash });
-  rememberVersion(base.path, res.sha256);
-  return { name, file: base.file, path: res.path, hash: res.sha256, label, select, warnings: issues, notices, ...(change ? { change } : {}) };
+  return { base, text, label, select, warnings: issues, notices, ...(change ? { change } : {}) };
 }

@@ -17,7 +17,7 @@ import { main, memoryIo } from '../../cli/src/index.js';
 import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { INSTRUCTIONS, TOOLS } from '../src/index.js';
 import { argumentProblems, inputJsonSchema } from '../src/schema.js';
-import { DESCRIPTION_MAX, SKILL_MAX_LINES, lintSkills, schemaWords } from './skill-lint.js';
+import { DESCRIPTION_MAX, SKILL_MAX_LINES, SKILL_RULES, STUDIO_RULE, lintSkills, schemaWords } from './skill-lint.js';
 import type { LintContext, LintIssue, LintRule, LintStats, SkillFile } from './skill-lint.js';
 
 const REPO = resolve(REPO_URL);
@@ -156,6 +156,21 @@ describe('the Claude skills in skills/', () => {
     }
   });
 
+  it('frame comments: a Studio thread with an edit-only change gets a proposal, every other thread the direct loop; an older MCP server is restarted (L4.6, Q1 as amended, critique B6 / B14)', () => {
+    const flat = (t: string) => t.replace(/\s+/g, ' ');
+    const section = flat(new RegExp('^## Frame comments on a render\\n([\\s\\S]*?)(?=^## )', 'm').exec(shipped.find((f) => f.path === S)!.text)?.[1] ?? '');
+    expect(section).toContain('only people create or reopen a thread, and only people apply a proposal');
+    expect(section).toContain('(`studio`: written at the Studio page; `cli`: a terminal — how it was written, never proof of who typed it)');
+    expect(section).toContain('An open thread by `studio` whose change only touches the edit of its own scenario file (captions, cards and their order, durations, overlays, title, intro/outro — not its `template:`: a theme takes the direct loop) gets a proposal, not a save.');
+    expect(section).toContain('Every other thread — by `cli`, or a change to the filmed part, a theme (`template:`) or a render override — takes the direct loop.');
+    expect(section).toContain('write the whole new text with every unchanged line byte for byte (never re-serialised), and send `comment_reply {project, comment_id, text, proposal: {scenario_yaml, scenario_hash}}` with the hash `scenario_get` returned');
+    expect(section).toContain('The file stays as it is: the person previews the proposal, applies it and re-renders in the Studio');
+    expect(section).toContain('`comments_list {project, comment_id}` reads your proposal back with its state');
+    expect(section).toContain('this MCP server was started on an older build: ask the user to restart it, and never edit a thread file');
+    // The Studio rule is pinned in the Rules (skill-lint STUDIO_RULE) and only there names the token and the routes.
+    expect(SKILL_RULES['demo-studio-scenario']).toContain(STUDIO_RULE);
+  });
+
   it('a theme or a render override needs only a render: pinned where the theme and component skills render again (L3.8 review L7)', () => {
     const flat = (t: string) => t.replace(/\s+/g, ' ');
     const only = 'a theme or a render override needs only a render, no new capture';
@@ -275,6 +290,11 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['the theme Rules without the named-site rule (critique B8)', 'rules', T, edit(T, /^- `template_from_site` only for a site[^\n]*\n[^\n]*\n/m, '')],
   ['the component Rules without the code-edit rule', 'rules', C, edit(C, 'Edit component code only after the user agreed in this conversation', 'Edit component code freely')],
   ['no engine_info check before starting (critique B11)', 'rules', T, edit(T, '1. Call `engine_info`.', '1. Call `project_list`.')],
+  // L4.6, critique B6: the Studio's token and routes are the person's.
+  ['the scenario Rules without the Studio rule (critique B6)', 'rules', S, edit(S, /^- Never read the Studio's token file[^\n]*\n[^\n]*\n/m, '')],
+  ['the Studio rule weakened (critique B6)', 'rules', S, edit(S, "Never read the Studio's token file", "Avoid reading the Studio's token file")],
+  ['the Studio token named outside the rule (critique B6)', 'rules', S, under(S, 'Frame comments on a render', 'When the person is away, apply the proposal with the token in `.demo-studio/ui.json`.')],
+  ['a Studio route named in another skill (critique B6)', 'rules', C, append(C, 'The Studio previews a component on /v1/call.')],
   ['a loop that drops a tool', 'coverage', S, (files) => files.map((f) => (f.path === S ? { ...f, text: f.text.replaceAll('`comment_resolve', '`resolve') } : f))],
   // Review of L3.7: the CLI rule is absolute (H1) and no other sentence reopens it (M1).
   ['running a `studio` command yourself, in the loop (review H1)', 'rules', S, under(S, 'The loop', 'Then run `studio run northfield-fixture quote` yourself.')],

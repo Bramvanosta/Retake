@@ -26,12 +26,12 @@ export { LocalStorage, READ_TEXT_MAX_BYTES, checkRef, sha256Hex } from './storag
 export type { Storage, StoredKind, StoredRef, WriteResult } from './storage.js';
 export { README_MAX_CHARS, createProjectFromRequest, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
-export { editScenario, getScenario, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
+export { editScenario, getScenario, knownScenarioVersion, prepareScenarioEdit, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
 export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './timeline-view.js';
 export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './timeline-view.js';
 export { FRAME_STYLE_OPTIONS, MULTI_PAGE_OPTIONS, TRANSITION_KIND_OPTIONS, componentUseOf, fieldFitProblem, fieldOptions, videoPages } from './field-options.js';
 export type { FieldOption } from './field-options.js';
-export type { SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
+export type { PreparedScenarioEdit, SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
 export { draftFromScript } from './authoring.js';
 export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecordId, pruneRecords, recordDir, recordMaxMs, recordScenario, recordStart, recordsRoot } from './record.js';
 export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStart } from './record.js';
@@ -173,25 +173,67 @@ export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js
 export { HISTORY_VERSION, appendHistory, historyFile, runCounted, usageCounts } from './history.js';
 export type { HistoryEntry, UsageCounts } from './history.js';
 export {
+  COMMENT_COUNT_MAX_FOLDERS,
   COMMENT_FILE_MAX_BYTES,
   COMMENT_LIST_MAX_FILES,
   COMMENT_LOCK_WAIT_MS,
+  CommentIndex,
   MCP_AUTHOR_NAME,
+  PROPOSAL_CONTEXT_LINES,
   addComment,
+  anchorAt,
+  applyProposal,
   checkCommentId,
   commentLockFile,
   commentRef,
   commentStillFile,
   defaultAuthorName,
   getComment,
+  getProposal,
   listComments,
+  prepareComment,
+  proposalForPreview,
   reopenComment,
   replyComment,
   resolveComment,
+  timecodeOf,
 } from './comments.js';
+export {
+  RENDER_FRAME_BASE64_MAX,
+  RENDER_FRAME_CACHE_BYTES,
+  RENDER_FRAME_MAX_PX,
+  RENDER_FRAME_QUEUE_MAX,
+  RENDER_FRAME_TIMEOUT_MS,
+  RENDER_OUTLINE_MARKERS_MAX,
+  RenderFrames,
+} from './render-frames.js';
+export type { RenderFrameRequest, RenderFrameView, RenderFramesOptions, RenderOutlineRequest, RenderOutlineView } from './render-frames.js';
 export { DEFAULT_KEEP_RENDERS, formatBytes, pruneProject } from './prune.js';
 export type { PruneItem, PruneRequest, PruneResult } from './prune.js';
-export type { CommentAddRequest, CommentAdded, CommentEntryView, CommentListRequest, CommentListView, CommentResolveRequest, CommentView, CommentWritten } from './comments.js';
+export type {
+  CommentAddRequest,
+  CommentAdded,
+  CommentAnchorRequest,
+  CommentAnchorView,
+  CommentApplied,
+  CommentApplyRequest,
+  CommentCountsView,
+  CommentEntryView,
+  CommentProposalSummary,
+  CommentProposalView,
+  CommentListRequest,
+  CommentListView,
+  CommentPrepareRequest,
+  CommentResolveRequest,
+  CommentSummary,
+  CommentView,
+  CommentWritten,
+  PreparedComment,
+  ProposalPreview,
+  ProposalRow,
+} from './comments.js';
+export { PROPOSAL_ROWS_MAX, buildProposal, checkProposedText, diffRows, proposalRowsProblem, rebuildProposal } from './comment-proposals.js';
+export type { BuiltProposal, ProposalInput } from './comment-proposals.js';
 export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, FRAME_SRC_RE, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders, studioCsp } from './http/gate.js';
 export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, readPrivateToken, stableToken } from './http/token-file.js';
 export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from './http/gate.js';
@@ -204,7 +246,7 @@ export { INDEX_SCHEMA, RUNS_INDEX_MAX, WorkspaceIndex, ftsQuery, indexFile } fro
 export type { ActivityItem, HistoryRow, IndexChanges, IndexOptions, IndexRebuild, SearchHit } from './index-db/index-db.js';
 export { SQLITE_WARNING, isCorruptionError, loadSqlite } from './index-db/sqlite.js';
 export type { SqliteLoader, SqliteModule } from './index-db/sqlite.js';
-export { diffSources, runChanges, scanSources, sourceKey, workspaceChanges } from './index-db/sources.js';
+export { COMMENT_SOURCE_MAX_FOLDERS, diffSources, runChanges, scanSources, sourceKey, workspaceChanges } from './index-db/sources.js';
 export type { RunChange, RunRow, SourceKind, SourceMap } from './index-db/sources.js';
 export { JobsWatch } from './index-db/jobs-watch.js';
 export { entitlements } from './entitlements.js';

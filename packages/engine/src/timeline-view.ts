@@ -25,11 +25,12 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { RENDER_ID_RE, canonicalJson, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@demo-studio/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@demo-studio/core';
 import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ComponentRegistry } from '@demo-studio/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@demo-studio/editor';
-import { listComments } from './comments.js';
+import { listComments, proposalForPreview } from './comments.js';
+import type { ProposalPreview } from './comments.js';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { entryOf, fieldOptions } from './field-options.js';
@@ -47,6 +48,12 @@ export interface TimelineViewRequest {
   scenario: string;
   /** A capture run of the scenario (default: its latest capture). */
   run_id?: string;
+  /**
+   * Preview a thread's proposal (L4.6, critique B9): the take planned from the proposed text in memory, on the
+   * commented run — checked on every call (open thread, newest pending proposal, today's file its base, the Studio's
+   * full write checks), nothing written, the text never a version the Studio may restore; switches off.
+   */
+  proposal?: { comment_id: string; entry_id: string };
 }
 
 /** One field the inspector switches: where, what the file says now, the values offered (field-options.ts). */
@@ -96,6 +103,11 @@ export interface TimelineView {
   theme_sha256: string;
   /** Milliseconds: planning the take, and the whole view. */
   ms: { planning: number; total: number };
+  /**
+   * A proposal previewed (L4.6): which, the sha256 of its text, and whether the plan shows it (`shown` false: the take
+   * came out as captured — the change cannot be previewed on this take).
+   */
+  proposal?: { comment_id: string; entry_id: string; result_sha256: string; shown: boolean };
   untrusted: TimelineModel['untrusted'] & { warnings: string[]; notes: string[]; threads: Record<string, { text: string; author: string }> };
 }
 
@@ -399,12 +411,25 @@ function stepLabels(text: string | undefined): Record<string, string> {
   return out;
 }
 
-async function buildView(ws: WorkspaceConfig, cli: string, project: LoadedProject, req: TimelineViewRequest, file: { hash?: string; yaml?: string; blocked?: string }, t0: number): Promise<TimelineViewResult> {
+async function buildView(
+  ws: WorkspaceConfig,
+  cli: string,
+  project: LoadedProject,
+  req: TimelineViewRequest,
+  file: { hash?: string; yaml?: string; blocked?: string },
+  t0: number,
+  proposal?: ProposalPreview,
+): Promise<TimelineViewResult> {
   const { registry } = await memoRegistry(ws);
   let planned;
   let source: RenderEditSource;
   try {
-    ({ planned, source } = await planRenderRequest(ws, cli, { project: req.project, scenario: req.scenario, ...(req.run_id ? { run_id: req.run_id } : {}) }, { registry, musicLength }));
+    ({ planned, source } = await planRenderRequest(
+      ws,
+      cli,
+      { project: req.project, scenario: req.scenario, ...(req.run_id ? { run_id: req.run_id } : {}) },
+      { registry, musicLength, ...(proposal ? { editText: proposal.text } : {}) },
+    ));
   } catch (e) {
     if (e instanceof EngineError && e.code === 'refused') {
       const problems = Array.isArray((e.details as { problems?: unknown } | undefined)?.problems) ? ((e.details as { problems: string[] }).problems) : [e.message];
@@ -433,12 +458,18 @@ async function buildView(ws: WorkspaceConfig, cli: string, project: LoadedProjec
     run_id: t.run_id,
     anchor: { segment: t.anchor.segment, ...(t.anchor.scene !== undefined ? { scene: t.anchor.scene } : {}), ...(t.anchor.step !== undefined ? { step: t.anchor.step } : {}) },
     ...(t.marker !== undefined ? { marker: t.marker } : {}),
-    ...(t.step_now !== undefined ? { step_now: t.step_now } : {}),
+    // A proposal previewed: each step where it is in the proposed text (the pin of its thread at its step there).
+    ...(proposal && t.anchor.scene !== undefined && t.anchor.step !== undefined
+      ? { step_now: locateAnchorStep(proposal.text, t.anchor) ?? null }
+      : t.step_now !== undefined
+        ? { step_now: t.step_now }
+        : {}),
     ...(t.run_id === planned.run.id && sameRender(t.render_id, t.render_created_at) ? { frame: t.frame } : {}),
   }));
   const pins = ed.placePins(model, pinThreads, { run_id: planned.run.id, edit: planned.edit.from });
   let editable: true | { why: string } = true;
-  if (file.hash === undefined) editable = { why: `scenarios/${req.scenario}.yaml is not there: nothing to switch` };
+  if (proposal) editable = { why: 'Previewing a proposal: apply it to edit' };
+  else if (file.hash === undefined) editable = { why: `scenarios/${req.scenario}.yaml is not there: nothing to switch` };
   else if (file.blocked) editable = { why: file.blocked };
   else if (planned.edit.scenario_changed) {
     editable = {
@@ -446,7 +477,8 @@ async function buildView(ws: WorkspaceConfig, cli: string, project: LoadedProjec
     };
   } else if (!fromScenario) editable = { why: planned.edit.reason ?? 'the preview shows the take as captured: there is no scenario snapshot to re-plan the edit on' };
   // The choices read the file as it is now (the same text the plan came from when the edit is today's).
-  const root = file.yaml !== undefined ? parseYaml(file.yaml).value : undefined;
+  const shownText = proposal ? proposal.text : file.yaml;
+  const root = shownText !== undefined ? parseYaml(shownText).value : undefined;
   const choices = await choicesOf(registry, root, plan, editable);
   const capture = await memoCapture(planned.captureFile);
   const runs = (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
@@ -468,6 +500,9 @@ async function buildView(ws: WorkspaceConfig, cli: string, project: LoadedProjec
     plan_sha256: planSha,
     theme_sha256: themeSha,
     ms: { planning: planMs, total: Math.round(performance.now() - t0) },
+    ...(proposal
+      ? { proposal: { comment_id: proposal.comment_id, entry_id: proposal.entry, result_sha256: proposal.result_sha256, shown: fromScenario && planned.edit.sha256 === proposal.result_sha256 } }
+      : {}),
     untrusted: {
       ...untrusted,
       warnings: plan.warnings,
@@ -475,7 +510,8 @@ async function buildView(ws: WorkspaceConfig, cli: string, project: LoadedProjec
       threads: Object.fromEntries((threads?.threads ?? []).map((t) => [t.id, { text: t.untrusted.text.slice(0, 300), author: t.untrusted.author.slice(0, 80) }])),
     },
   };
-  return { view, plan, folders: { project: project.dir, run: planned.run.dir, theme: planned.template.dir }, ...(editable === true && file.yaml !== undefined ? { text: file.yaml } : {}) };
+  // The file's text for undo, never a proposal's (critique B9 b: a proposed text is not a version the Studio restores).
+  return { view, plan, folders: { project: project.dir, run: planned.run.dir, theme: planned.template.dir }, ...(!proposal && editable === true && file.yaml !== undefined ? { text: file.yaml } : {}) };
 }
 
 /** What a planned view read beyond its memo key: the theme folder's files and every file the plan serves (signature). */
@@ -505,13 +541,39 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   } catch (e) {
     if (!(e instanceof EngineError && e.code === 'not_found')) throw e;
   }
+  // A proposal (critique B9 d): its state and every write check run on each call, before the memo — a proposal applied,
+  // superseded or gone stale since the last view is refused, never served from the memo.
+  let proposal: ProposalPreview | undefined;
+  if (req.proposal !== undefined) {
+    const pr = req.proposal;
+    if (!pr || typeof pr !== 'object' || typeof pr.comment_id !== 'string' || !COMMENT_ID_RE.test(pr.comment_id) || typeof pr.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(pr.entry_id)) {
+      throw new EngineError('invalid', 'proposal is {comment_id: c_…, entry_id: r_…}: the thread and the reply holding the proposal', { details: { argument: 'proposal' } });
+    }
+    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry });
+    if (req.run_id !== undefined && req.run_id !== proposal.run_id) {
+      throw new EngineError('invalid', `a proposal is previewed on the take its comment was made on (run ${proposal.run_id})`, { details: { argument: 'run_id' } });
+    }
+  }
   // The run the view shows: asked, else the latest capture (its timeline.json's size and mtime are in the key).
-  const runId = req.run_id ?? (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 1 }))[0]?.id;
+  const runId = proposal?.run_id ?? req.run_id ?? (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 1 }))[0]?.id;
   const timelineStat = runId ? statKey(join(project.dir, 'runs', runId, 'timeline.json')) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(join(project.dir, 'comments', req.scenario));
   const projectStat = statKey(join(project.dir, 'project.yaml'));
-  const key = sha256Hex(canonicalJson([project.dir, req.scenario, file.hash ?? null, file.blocked ?? null, runId ?? null, timelineStat, commentsStat, projectStat, componentsSignature(ws.componentsDir)])).slice(0, 24);
+  const key = sha256Hex(
+    canonicalJson([
+      project.dir,
+      req.scenario,
+      file.hash ?? null,
+      file.blocked ?? null,
+      runId ?? null,
+      timelineStat,
+      commentsStat,
+      projectStat,
+      componentsSignature(ws.componentsDir),
+      proposal ? [proposal.comment_id, proposal.entry, proposal.result_sha256] : null,
+    ]),
+  ).slice(0, 24);
   let p = viewMemo.get(key);
   // A hit whose theme files or served files changed since its planning plans again (review B H3).
   const deps = viewDeps.get(key);
@@ -522,7 +584,7 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0);
+    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, proposal);
     p = built;
     viewMemo.set(key, built);
     if (viewMemo.size > VIEW_MEMO_MAX) {

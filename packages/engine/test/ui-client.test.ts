@@ -1,8 +1,9 @@
 /**
  * L4.1 (critique B5): the engine client `ui` (the Studio web app) runs under the agent's trust, with no approver — the
- * same refusals as `mcp`: a scenario naming a secret is refused at validate / save, a thread is never created or
- * reopened, resolving needs if_match, work that needs a human is `needs_approval`; what it submits is recorded as
- * `submitted_by: ui`. The predicate is fail-safe: only `cli` and `test` are not agents.
+ * same refusals as `mcp`: a scenario naming a secret is refused at validate / save, work that needs a human is
+ * `needs_approval`; what it submits is recorded as `submitted_by: ui`. The predicate is fail-safe: only `cli` and `test`
+ * are not agents. Comments (L4.6): the Studio is a person channel (`studio`) that creates and reopens threads — on the
+ * render and the thread version it showed (render_created_at, if_match); resolving needs if_match.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -52,9 +53,9 @@ describe('client ui: agent trust, no approver', () => {
     expect(e?.message).toContain('the scenario uses {{env:HOME}}');
   });
 
-  it('comments: no create, no reopen; resolve needs if_match', async () => {
-    expect((await refusal(ui.comments.add('northfield-fixture', { scenario: 'quote', text: 'x' } as never))).code).toBe('refused');
-    expect((await refusal(ui.comments.reopen('northfield-fixture', 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', 'x'))).code).toBe('refused');
+  it('comments: create needs the render shown, reopen and resolve need if_match (L4.6: the studio channel)', async () => {
+    expect((await refusal(ui.comments.add('northfield-fixture', { scenario: 'quote', text: 'x' } as never))).details?.argument).toBe('render_created_at');
+    expect((await refusal(ui.comments.reopen('northfield-fixture', 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', 'x'))).details?.argument).toBe('if_match');
     expect((await refusal(ui.comments.resolve('northfield-fixture', 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', { note: 'done' }))).code).toBe('invalid');
   });
 

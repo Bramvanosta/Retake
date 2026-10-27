@@ -61,14 +61,15 @@ describe('static app from memory', () => {
     expect(Object.keys(index.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
   });
 
-  it('the bundle: no eval, no node built-in, under 430 KB; the document has no inline script or style', async () => {
+  it('the bundle: no eval, no node built-in, under 490 KB; the document has no inline script or style', async () => {
     const t = Date.now();
     const assets = await buildUi();
     expect(Date.now() - t).toBeLessThan(5000);
     const js = assets.get('/app.js')!.bytes.toString('utf8');
     // L4.5 part E: the render queue and review (≈ 15 KB minified) took the app past 400 KB (413 KB then).
     // L4.5 review: tightened to 430 KB (≈ 415 KB after the fixes).
-    expect(js.length).toBeLessThan(430_000);
+    // L4.6 part D1: the Comments screen (list, frame viewer, region, composer, thread) — 455.5 KB; room for the proposal view.
+    expect(js.length).toBeLessThan(490_000);
     expect(js).not.toMatch(/\beval\(|new Function\(/);
     expect(js).not.toMatch(/(?:from|import)\s*\(?\s*["']node:/);
     expect(INDEX_HTML).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i);
@@ -122,7 +123,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     const names = new Set(TOOLS.map((t) => t.name));
     for (const op of UI_OPS) expect(names.has(op) !== (OWN_OPS as readonly string[]).includes(op), op).toBe(true);
     expect([...INDEX_OPS]).toEqual(['activity_list', 'search']);
-    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'scenario_blocks', 'run_thumbs', 'scenario_forms', 'scenario_run', 'scenario_edit', 'run_pause', 'scenario_sessions', 'sign_in_cancel', 'timeline_view', 'timeline_leave', 'preview_allow', 'scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image']);
+    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'scenario_blocks', 'run_thumbs', 'scenario_forms', 'scenario_run', 'scenario_edit', 'run_pause', 'scenario_sessions', 'sign_in_cancel', 'timeline_view', 'timeline_leave', 'preview_allow', 'scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image', 'threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply']);
     expect(() => uiTools([{ ...TOOLS.find((t) => t.name === 'run_capture')! }])).toThrow(/shadow/);
     const before = studio.calls;
     for (const op of ['run_capture', 'run_dry', 'hooks_run', 'job_cancel', 'project_create', 'scenario_save', 'sandbox_reset', 'template_from_site', 'comment_reply']) {

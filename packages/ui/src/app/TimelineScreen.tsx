@@ -23,6 +23,13 @@
  *   since is refused and the view read again) and says what the newest render is doing; the Renders card under the
  *   tracks holds the queue (Cancel), the renders with their review's verdict, and a render's review — its findings seek
  *   the preview only when the render is of the version shown (the same plan signature and theme files), its images.
+ * - L4.6: Comment (key C) opens the Comments screen at the playhead's frame of the newest render of the version shown
+ *   (its frame f is the preview's frame f); a pin's tooltip and the other-take card open the thread; the pins are read
+ *   again when the scenario's threads change.
+ * - L4.6 part D2: Preview change (`#/p/<slug>/s/<name>/proposal/<comment>/<entry>`) shows the take planned from the
+ *   text Claude proposed on a thread (`timeline_view {proposal}`: in memory, nothing written, switches and Render off),
+ *   under a banner (ProposalBanner: which comment, whether the plan shows the change, Back to the comment — the thread,
+ *   scrolled to its proposal: Apply is offered only there, under the whole diff) and seeks to that comment's pin.
  * - Review A (fixes): the page holds a lease on its project's preview capability (timeline_view `lease`) and gives it
  *   back when it leaves (`timeline_leave`): the project's preview URLs are revoked once no page holds one. A workspace
  *   component the take uses is not run in the preview until the person allows it here (`preview_allow`, by id and
@@ -35,9 +42,13 @@ import type { PreviewConnection } from '../player/parent.js';
 import type { FrameMessage } from '../player/protocol.js';
 import { call, errorText, useCall } from './api.js';
 import { Badge, Loading, Notice, Txt, plural } from './bits.js';
-import { useScenarioEvents } from './events.js';
+import { commentsEventAction, useEvents, useScenarioEvents } from './events.js';
+import { commentKey } from './comment-words.js';
+import { CommentsTab } from './CommentsTab.js';
 import { PreviewFrame } from './PreviewFrame.js';
+import { ProposalBanner } from './ProposalPanel.js';
 import { RenderBar, RendersPanel, useRenders } from './Renders.js';
+import { versionNote } from './render-words.js';
 import type { RenderTarget } from './Renders.js';
 import { hrefTo } from './route.js';
 import { Commands } from './ScenarioScreen.js';
@@ -95,7 +106,13 @@ function newLease(): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function TimelineScreen({ slug, name, run, step }: { slug: string; name: string; run?: string; step?: string }) {
+/** The proposal a timeline previews (the thread and the reply holding it). */
+export interface PreviewedProposal {
+  comment_id: string;
+  entry_id: string;
+}
+
+export function TimelineScreen({ slug, name, run, step, proposal }: { slug: string; name: string; run?: string; step?: string; proposal?: PreviewedProposal }) {
   // The page's lease on its project's preview URLs: given back when it leaves the project or the screen.
   const [lease] = useState(newLease);
   useEffect(
@@ -104,9 +121,18 @@ export function TimelineScreen({ slug, name, run, step }: { slug: string; name: 
     },
     [slug, lease],
   );
-  const args = useMemo(() => ({ project: slug, name, lease, ...(run ? { run } : {}) }), [slug, name, run, lease]);
-  const [loaded, reload] = useCall<TimelineViewAnswer>('timeline_view', args, `${slug}\0${name}\0${run ?? ''}`);
+  const pc = proposal?.comment_id;
+  const pe = proposal?.entry_id;
+  const args = useMemo(
+    () => ({ project: slug, name, lease, ...(run ? { run } : {}), ...(pc !== undefined && pe !== undefined ? { proposal: { comment_id: pc, entry_id: pe } } : {}) }),
+    [slug, name, run, lease, pc, pe],
+  );
+  const [loaded, reload] = useCall<TimelineViewAnswer>('timeline_view', args, `${slug}\0${name}\0${run ?? ''}\0${pc ?? ''}\0${pe ?? ''}`);
   useScenarioEvents(slug, name, { reread: reload, progress: () => undefined });
+  // L4.6: this scenario's threads changed (a comment posted, resolved): the pins are read again.
+  useEvents((e) => {
+    if (e.type !== 'resync' && commentsEventAction(e, slug, name).threads) reload();
+  });
 
   if (loaded.state === 'loading') {
     return (
@@ -127,6 +153,14 @@ export function TimelineScreen({ slug, name, run, step }: { slug: string; name: 
           <p>
             <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })}>Back to the scenario</a>: a capture there films the take this screen shows.
           </p>
+          {proposal && (
+            <p>
+              <a href={hrefTo({ name: 'comments', slug, scenario: name, thread: proposal.comment_id })} data-testid="banner-back">
+                Back to the comment
+              </a>
+              : a proposal is previewed while it is the thread's newest, not yet applied, and the scenario is still the file it was proposed on.
+            </p>
+          )}
         </Notice>
       </div>
     );
@@ -154,10 +188,10 @@ export function TimelineScreen({ slug, name, run, step }: { slug: string; name: 
       </div>
     );
   }
-  return <Timeline key={d.run_id} slug={slug} name={name} v={d as Ready} step={step} reload={reload} />;
+  return <Timeline key={d.run_id} slug={slug} name={name} v={d as Ready} step={step} reload={reload} {...(proposal ? { proposal } : {})} />;
 }
 
-function Timeline({ slug, name, v, step, reload }: { slug: string; name: string; v: Ready; step?: string; reload: () => void }) {
+function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; name: string; v: Ready; step?: string; reload: () => void; proposal?: PreviewedProposal }) {
   const m = v.model;
   const last = Math.max(0, m.frames - 1);
   const urls = 'frame_url' in v ? previewUrls(v.frame_url, v.plan_url) : null;
@@ -214,7 +248,15 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
       )
       .finally(() => setAllowing(null));
   };
-  const renderTarget: RenderTarget = v.hash === undefined ? { why: `scenarios/${name}.yaml is not there: nothing to render` } : { run: v.run_id, hash: v.hash, asCaptured: v.source.edit === 'run' };
+  // L4.6: Comment at the playhead — a render of the version shown (the same plan and theme files: its frame f is the
+  // preview's frame f), the newest; without one the button is off, with why.
+  const commentOn = renders.loaded.state === 'ready' ? renders.loaded.data.renders.find((x) => x.status === 'succeeded' && versionNote(x, shownVersion).same) : undefined;
+  const tracksAt = useMemo(() => ({ slug, scenario: name }), [slug, name]);
+  const renderTarget: RenderTarget = proposal
+    ? { why: 'Previewing a proposal: apply it (Apply and re-render renders it)' }
+    : v.hash === undefined
+      ? { why: `scenarios/${name}.yaml is not there: nothing to render` }
+      : { run: v.run_id, hash: v.hash, asCaptured: v.source.edit === 'run' };
 
   const wait = (w: number | 'any' | null) => {
     waitingRef.current = w;
@@ -352,9 +394,28 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
     if (first) seek(first.from);
   }, [step, m.steps, seek]);
 
+  // Preview change: the proposal's comment pin, once (where the change was asked).
+  const pinned = useRef(false);
+  useEffect(() => {
+    if (!proposal || pinned.current) return;
+    const pin = v.pins.placed.find((p) => p.id === proposal.comment_id);
+    if (!pin) return;
+    pinned.current = true;
+    seek(pin.frame);
+  }, [proposal, v.pins.placed, seek]);
+
   // Keys.
+  const commentRef = useRef<string | null>(null);
+  commentRef.current = commentOn ? commentOn.render_id : null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // C: comment the frame at the playhead on the render of this version (when there is one).
+      if (commentKey(e, keyTarget(e.target))) {
+        if (commentRef.current === null) return;
+        e.preventDefault();
+        location.hash = hrefTo({ name: 'comments', slug, scenario: name, at: { render: commentRef.current, frame: frameRef.current } });
+        return;
+      }
       const a = keyAction(e, keyTarget(e.target));
       if (!a) return;
       e.preventDefault();
@@ -369,7 +430,7 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggle, seek, m]);
+  }, [toggle, seek, m, slug, name]);
 
   // The zoomed level: the playhead stays on screen while playing.
   useEffect(() => {
@@ -426,11 +487,13 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
           <a href={hrefTo({ name: 'timeline', slug, scenario: name })} aria-current="page" className="tab current">
             Timeline
           </a>
+          <CommentsTab slug={slug} name={name} />
         </nav>
       </header>
 
+      {proposal && <ProposalBanner slug={slug} name={name} proposal={proposal} shown={v.proposal?.shown} />}
       <div className="tl-top">
-        {v.runs.length > 1 && (
+        {v.runs.length > 1 && !proposal && (
           <label className="tl-run-pick">
             <span className="label">Capture</span>
             <select data-testid="timeline-run-picker" value={v.run_id} onChange={(e) => (location.hash = hrefTo({ name: 'timeline', slug, scenario: name, run: e.target.value }))}>
@@ -443,7 +506,11 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
           </label>
         )}
         <p className="small" data-testid="timeline-source">
-          {v.source.edit === 'scenario' ? (
+          {proposal ? (
+            <>
+              <Badge tone="warning">proposed edit</Badge> The edit Claude proposed, on the take its comment was made on — not written.
+            </>
+          ) : v.source.edit === 'scenario' ? (
             <>
               <Badge tone="info">today's edit</Badge> The edit of today's file on this take
               {v.source.edit_changes?.length ? (
@@ -462,7 +529,7 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
         </p>
         <RenderBar r={renders} target={renderTarget} shown={shownVersion} />
       </div>
-      {v.editable !== true && (
+      {v.editable !== true && !proposal && (
         <Notice tone={v.source.scenario_changed ? 'warning' : 'info'} role="note" title={notEditableTitle(v)}>
           <p className="pre-line" data-testid="timeline-not-editable">
             <Txt text={v.editable.why} />
@@ -602,6 +669,26 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
                 <option value={2}>2×</option>
               </select>
             </label>
+            {commentOn ? (
+              <a
+                className="button small"
+                data-testid="comment-here"
+                data-render={commentOn.render_id}
+                href={hrefTo({ name: 'comments', slug, scenario: name, at: { render: commentOn.render_id, frame } })}
+                aria-label={`Comment frame ${frame.toLocaleString('en')} of render ${commentOn.render_id}`}
+              >
+                Comment
+              </a>
+            ) : (
+              <>
+                <button type="button" className="button small" disabled data-testid="comment-here-off" aria-describedby="comment-why">
+                  Comment
+                </button>
+                <span id="comment-why" className="sr-only">
+                  No render of this version yet: render it, or comment on an earlier render from Comments
+                </span>
+              </>
+            )}
             <span className="tl-zoomer" role="group" aria-label="Zoom">
               <button type="button" className="button quiet small" aria-pressed={zoom === 'fit'} data-testid="zoom-fit" onClick={() => setZoom('fit')}>
                 Fit
@@ -611,7 +698,10 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
               </button>
             </span>
           </div>
-          <p className="muted small tl-keys">Space plays or pauses · ← → one frame · Shift + ← → one second · Home / End · [ ] the previous / next segment · ⌘Z undoes a switch</p>
+          <p className="muted small tl-keys">
+            Space plays or pauses · ← → one frame · Shift + ← → one second · Home / End · [ ] the previous / next segment · ⌘Z undoes a switch · C comments the frame
+            {commentOn ? ` on ${commentOn.render_id}` : ' (no render of this version yet: render it, or comment an earlier render from Comments)'}
+          </p>
         </section>
         <TimelineInspector v={v} segment={segment} ed={ed} />
       </div>
@@ -637,7 +727,7 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
               />
             </div>
           </div>
-          <Tracks view={v as TimelineView} onSeek={seek} selected={selected} onSelect={onSelect} />
+          <Tracks view={v as TimelineView} onSeek={seek} selected={selected} onSelect={onSelect} at={tracksAt} />
           <div className="tl-overlay" aria-hidden="true">
             <div className="tl-playhead" data-testid="playhead" style={{ left: `${(frame / Math.max(1, m.frames)) * 100}%` }} />
           </div>
@@ -657,7 +747,9 @@ function Timeline({ slug, name, v, step, reload }: { slug: string; name: string;
           <ul>
             {v.pins.elsewhere.map((id) => (
               <li key={id}>
-                <Txt text={v.untrusted.threads[id]?.text ?? id} />
+                <a href={hrefTo({ name: 'comments', slug, scenario: name, thread: id })} data-testid="pin-elsewhere">
+                  <Txt text={v.untrusted.threads[id]?.text ?? id} />
+                </a>
               </li>
             ))}
           </ul>

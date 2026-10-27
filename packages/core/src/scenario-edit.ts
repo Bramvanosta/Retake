@@ -22,7 +22,7 @@
  *   alias checks included: a bare parseDocument misses an alias before its anchor), has exactly the intended value.
  */
 import { isDeepStrictEqual } from 'node:util';
-import { canonicalJson } from './comments.js';
+import { canonicalJson } from './canonical-json.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
 import type { FieldEdit } from './field-edits.js';

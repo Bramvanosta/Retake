@@ -4,7 +4,11 @@
  * its YAML (L4.2), `#/p/<slug>/s/<name>/run` its Run screen (the preflight, then Start) and
  * `#/p/<slug>/s/<name>/run/<run_id>` one run of it watched live (L4.4), `#/p/<slug>/s/<name>/timeline` the timeline of
  * its latest capture and `#/p/<slug>/s/<name>/timeline/<run_id>[/<step key>]` of one capture, at one of its steps
- * (L4.5). A slug, a scenario name or a run id is whatever
+ * (L4.5), `#/p/<slug>/s/<name>/comments` its frame comments (L4.6: the list and a render's frames),
+ * `…/comments/<comment id>` one thread open and `…/comments/at/<render id>/<frame>` a render's frame, ready to comment,
+ * `#/p/<slug>/s/<name>/proposal/<comment id>/<entry id>` the timeline previewing the change Claude proposed on a thread
+ * (L4.6 part D2: planned in memory, nothing written).
+ * A slug, a scenario name, a run id, a comment or render id is whatever
  * the address bar holds, percent-decoded and capped — the server checks it (`project_get` / `scenario_blocks` refuse anything but a slug); here it is only ever a text node or an
  * argument. `hrefTo` is the only way the app builds an `href` (the source lint test enforces it).
  */
@@ -17,9 +21,13 @@ export type Route =
   | { name: 'scenario'; slug: string; scenario: string; tab: ScenarioTab }
   | { name: 'run'; slug: string; scenario: string; run?: string }
   | { name: 'timeline'; slug: string; scenario: string; run?: string; step?: string }
+  | { name: 'comments'; slug: string; scenario: string; thread?: string; at?: { render: string; frame: number } }
+  | { name: 'proposal'; slug: string; scenario: string; thread: string; entry: string }
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
+/** A frame in an address: a whole number, at most this (the server checks it against the render). */
+const FRAME_MAX = 10_000_000;
 
 function decode(s: string): string | null {
   try {
@@ -53,6 +61,27 @@ export function parseRoute(hash: string): Route {
   if (t && tSlug !== null && tScenario !== null && tRun !== null && tStep !== null) {
     return { name: 'timeline', slug: tSlug, scenario: tScenario, ...(tRun !== undefined ? { run: tRun } : {}), ...(tStep !== undefined ? { step: tStep } : {}) };
   }
+  const c = /^\/p\/([^/]+)\/s\/([^/]+)\/comments(?:\/at\/([^/]+)\/(\d{1,8})|\/([^/]+))?\/?$/.exec(path);
+  const cSlug = c ? decode(c[1]) : null;
+  const cScenario = c ? decode(c[2]) : null;
+  const cRender = c?.[3] !== undefined ? decode(c[3]) : undefined;
+  const cFrame = c?.[4] !== undefined ? Number(c[4]) : undefined;
+  const cThread = c?.[5] !== undefined ? decode(c[5]) : undefined;
+  if (c && cSlug !== null && cScenario !== null && cRender !== null && cThread !== null && (cFrame === undefined || cFrame <= FRAME_MAX) && cThread !== 'at') {
+    return {
+      name: 'comments',
+      slug: cSlug,
+      scenario: cScenario,
+      ...(cThread !== undefined ? { thread: cThread } : {}),
+      ...(cRender !== undefined && cFrame !== undefined ? { at: { render: cRender, frame: cFrame } } : {}),
+    };
+  }
+  const pr = /^\/p\/([^/]+)\/s\/([^/]+)\/proposal\/([^/]+)\/([^/]+)\/?$/.exec(path);
+  const prParts = pr ? [pr[1], pr[2], pr[3], pr[4]].map(decode) : null;
+  if (prParts && prParts.every((x) => x !== null)) {
+    const [pSlug, pScenario, pThread, pEntry] = prParts as string[];
+    return { name: 'proposal', slug: pSlug, scenario: pScenario, thread: pThread, entry: pEntry };
+  }
   return { name: 'not-found', path: path.slice(0, SLUG_MAX) };
 }
 
@@ -74,5 +103,13 @@ export function hrefTo(r: Route): string {
       const run = r.run !== undefined ? `/${encodeURIComponent(r.run)}${r.step !== undefined ? `/${encodeURIComponent(r.step)}` : ''}` : '';
       return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/timeline${run}`;
     }
+    case 'comments': {
+      // A thread, or a render's frame (a whole number within the address's range), or the list.
+      const frame = r.at && Number.isInteger(r.at.frame) && r.at.frame >= 0 && r.at.frame <= FRAME_MAX ? r.at.frame : undefined;
+      const rest = r.thread !== undefined ? `/${encodeURIComponent(r.thread)}` : r.at && frame !== undefined ? `/at/${encodeURIComponent(r.at.render)}/${frame}` : '';
+      return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/comments${rest}`;
+    }
+    case 'proposal':
+      return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/proposal/${encodeURIComponent(r.thread)}/${encodeURIComponent(r.entry)}`;
   }
 }

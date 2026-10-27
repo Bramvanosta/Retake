@@ -12,6 +12,10 @@ export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexErro
 export type { LiveOptions } from './server/live.js';
 export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RENDER_OPS, REVIEW_IMAGES_MAX, RUN_OPS, SCENARIO_OPS, TIMELINE_LEASE_TTL_MS, TIMELINE_OPS, confirmWhy, editOps, indexOps, liveOps, overviewOp, renderOps, reviewAnswer, runOps, scenarioOps, sessionsToConfirm, timelineOps } from './server/ops.js';
 export type { ProjectOverview, RenderReviewAnswer, ScenarioRenderAnswer, ScenarioRunAnswer, PreviewHeld, SessionToConfirm, TimelineViewAnswer } from './server/ops.js';
+export { COMMENT_OPS, THREADS_LIST_MAX, THREAD_ENTRIES_SHOWN, THREAD_ITEM_TEXT_MAX, commentOps, pathFree, proposalOffer, threadAnswer, threadItem } from './server/comment-ops.js';
+export type { OfferFacts, ProposalAnswer, ProposalOffer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } from './server/comment-ops.js';
+export { opChain, scenarioKey } from './server/op-chain.js';
+export type { OpChain } from './server/op-chain.js';
 export {
   JsonlTail,
   LIVE_LINE_MAX,

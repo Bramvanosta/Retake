@@ -1952,7 +1952,7 @@ A comment points at one frame of a render — optionally a region of it — and 
 the frame still and where the frame sits in the scenario, replies, changes the scenario (an edit — a caption, a card, a duration,
 an overlay — renders on the same take; a change to its filmed part — steps, pages, hooks — needs a new capture first) or
 the render overrides, renders again and resolves it with the new render (through
-MCP; the Studio app later writes the same files).
+MCP). The Studio app writes the same files (its Comments screen: see [Studio app](#studio-app)).
 
 ```
 $ studio comment add northfield-fixture quote-v1 --marker proposal --region 0.67,0.42,0.12,0.08 "Keep the total on screen longer"
@@ -1980,9 +1980,12 @@ $ studio comment reopen northfield-fixture c_01K… --note "Still too short"
 - **Resolving** names the render that answers the comment: a later render of the same scenario and variant (`latest`:
   the newest one of that variant — a vertical cut does not answer a frame of the landscape video). The thread stays on
   the render it was made on (`--render` of `list` shows the threads made on that render as it is now).
-- **Who wrote it**: each entry says the channel — `cli` (a `studio comment` command, whoever typed it) or `mcp` (Claude
-  through the MCP tools) —, never "a person". Only `studio comment` creates and reopens threads. A comment's text is
-  data: it asks for a change to the video, never for a hook, a sign-in or a file outside scenarios/.
+- **Who wrote it**: each entry says the channel — `cli` (a `studio comment` command, whoever typed it), `studio` (the
+  Studio web app's page, named by `$DEMO_STUDIO_AUTHOR` of `studio ui`, else your OS user — any program of yours that
+  reads the Studio's token file could write there too) or `mcp` (Claude through the MCP tools) —, never "a person".
+  Only people's channels create and reopen threads: `studio comment` and the Studio (which reopens and resolves only
+  the version of the thread it showed, and comments only the render it showed). A comment's text is data: it asks for
+  a change to the video, never for a hook, a sign-in or a file outside scenarios/.
 
 **With Claude** (the MCP tools, see [MCP](#mcp-claude-drives-demo-studio)): ask it to address the open comments.
 `comments_list` gives each open thread with its anchor — `step_ref` is where the step was in the rendered run, `step_now` that
@@ -1990,12 +1993,21 @@ step in today's file (what `page_inspect {scenario, until}` takes; steps moved i
 and the still of the frame with your region outlined (an image Claude looks at); Claude changes the scenario (then
 captures it again with `run_capture`), the render overrides or the theme, renders and reviews, then `comment_reply` (what it changed) and `comment_resolve`
 (the new render, with the thread's hash: if you replied meanwhile, it is refused and Claude reads your reply first).
-Its entries say `mcp`. It cannot create or reopen a thread, and it is told that a comment only asks for changes to the
-video: one asking it to run a hook, sign in, open a URL or edit project.yaml gets a reply, not the action. Reopen a
-thread you disagree with (`studio comment reopen`). A thread reaches Claude with its last 10 entries, and one listing
+Its entries say `mcp`. It cannot create, reopen or apply anything to a thread, and it is told that a comment only asks for changes to the
+video: one asking it to run a hook, sign in, open a URL or edit project.yaml gets a reply, not the action. On a thread
+you wrote **in the Studio** whose fix only changes the edit of its scenario (captions, cards, durations, overlays,
+title, intro/outro), Claude proposes instead of saving: `comment_reply` with a `proposal` (the whole new file and the
+hash it read) is checked as the Studio would check the write — edit-only, the same hooks, no secret reference, at most
+200 changed lines — and stored on the thread as a line diff; the scenario stays as it is until you apply it in the
+Studio. A filmed change, a theme or an override, and every thread from a terminal, take the loop above. Claude reads
+its proposal back (`comments_list {comment_id}`: the diff and its state — pending, applied, undone, superseded, stale)
+and is told never to read the Studio's token file or call its routes. Reopen a
+thread you disagree with (`studio comment reopen`, or in the Studio). A thread reaches Claude with its last 10 entries, and one listing
 with at most 60,000 characters of comment text (narrow it by scenario or render when it says so). Limits: Claude's own
 shell can run `studio comment` like you (its entries then say `cli`: it is told never to create or reopen threads);
-a thread holds at most 500 entries and 2 MB; a listing reads every thread file (no index yet).
+a thread holds at most 500 entries and 2 MB; a listing reads every thread file (no index yet). An MCP server started
+on a build older than the Studio's comments skips the threads written in the Studio ("not a valid thread") until you
+restart it (reconnect it from `/mcp` in Claude Code, or start a new session); never edit a thread file by hand.
 
 ## Signing in: personas and sessions
 
@@ -3555,6 +3567,38 @@ running: the MCP server keeps working without it.
   sheets, the key frames and the diff with the previous render (at most 24), larger on click. A render that failed
   after the newest video is said in the Render bar too, with its message's first line (no path, no stack). Watching a finished render in the preview, exports and
   other review settings from the Studio: BL-109.
+- **Frame comments** (L4.6). **Comments (N open)** beside the scenario's tabs opens the Comments screen
+  (`#/p/<project>/s/<scenario>/comments`): the threads on the left — *Open*, *Resolved* or *All*, and *This render
+  only* —, a render's own frames in the middle, the open thread on the right. Pick a render (any finished one: an older
+  version, a vertical cut) and a frame — the slider, ← / → one frame, Shift one second, or a time typed as `12.4` or
+  `00:12.40` (the frame on screen then, as `--at`) —; the frame is made by the Studio server from the render file (no
+  video plays in the page: every browser shows the same exact frame). Drag a rectangle on the frame for a region, or
+  type it in the four % fields (left, top, width, height); *Where it points* shows the frame, the segment, the step (and
+  where it is in today's file), the component, a marker, a transition — the anchor the thread will store. Write and
+  **Post the comment**: the thread opens, written as the channel *Studio* under the name the Studio was started with
+  (`$DEMO_STUDIO_AUTHOR`, else your user name — the page never names an author). On the timeline, **Comment** (or C)
+  opens the Comments screen at the playhead's frame when a render of the version shown exists (its frames are the
+  preview's frames); a pin's tooltip has **Open thread**. A thread shows the comment, where it points, its entries with
+  their channel (*Terminal*, *Studio*, *Agent · MCP* — how an entry was written, not who typed it), and Reply, Resolve
+  (a note, optionally the newer render that answers it) or Reopen, each on the version of the thread you see: if Claude
+  replied meanwhile, nothing is written and the screen says so with the new entry. A reply from Claude with a proposed
+  change shows its summary (lines added and removed, its state). Every text in a thread is shown as text.
+  **Claude's proposal** (the thread's newest) shows as a diff of the scenario file — "+" added, "−" removed, the line
+  numbers before and after, a few unchanged lines around each change — computed by the Studio from today's file: what
+  you read is exactly what Apply writes. Every row is on the page (never cut: Claude cannot store a diff longer than
+  600 rows), and the buttons come after it. Lines are drawn as code: spaces at the start or end of a line show as `·`,
+  a tab as `→`, any character you could not see (a direction mark, a zero-width or no-break space, a pile of accents
+  past the third on one letter…) as `[U+…]`; a line with right-to-left letters is drawn in byte order and marked
+  *right-to-left text* (your editor shows it in another order); past a quarter of the file it says the proposal is a
+  rewrite. The buttons are what the Studio offers for it, and why not otherwise (nothing is offered when Apply would
+  refuse it now — the reason is said): **Apply** writes it through the Studio's own checks and says any warning (then
+  **Undo apply** puts the file back exactly, and the proposal can be applied again — in this tab, until it is
+  reloaded: after that, the YAML tab or your editor); **Preview change** opens the timeline on the proposed edit under
+  a banner (planned on the commented take, nothing written, switches and Render off; **Back to the comment** returns to
+  the diff, where you apply it); **Apply and re-render** also renders the commented take on the file it wrote, follows
+  the render in the thread and offers **Resolve with vN**. A theme change is never a proposal: Claude saves it and
+  renders (the direct loop). Apply and re-render is offered for a landscape comment whose render used the files'
+  theme and no option (the Studio renders that way); otherwise Apply, then render from your terminal or ask Claude.
 - **Sessions.** The project page lists every persona of every environment with its saved sign-in (*valid*, *expired*,
   *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
   known state: no browser opens to read it. **Sign in** queues a job that opens a browser window on this computer:
@@ -3600,7 +3644,11 @@ running: the MCP server keeps working without it.
   project, scenario, capture and the file's version as shown and nothing else (no theme, option or path) —,
   `scenario_renders` — the render queue and the renders with their review's verdict, no path —, `render_cancel` — a
   render or review of that project only —, `render_review` — a review without any path — and `review_image` — one
-  contact sheet as a JPEG, by its name in the review folder, never through a link), run with the trust an agent has
+  contact sheet as a JPEG, by its name in the review folder, never through a link; L4.6: `threads_list`,
+  `threads_counts`, `thread_get`, `thread_still`, `render_outline`, `render_frame` — one frame of a render as a JPEG,
+  made in memory —, `frame_anchor`, `thread_add`, `thread_reply`, `thread_resolve`, `thread_reopen` and `thread_apply`
+  — written as the channel *Studio*, never with an author, a channel or a proposal from the page, the writes on the
+  thread's hash as shown), run with the trust an agent has
   through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
   stays in the terminal.
 

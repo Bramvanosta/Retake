@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-27, end of lot **L4.5 (edit / verify timeline, Remotion Player)** — phases 1–3 are done (phase 3
-pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.5 done). **Next: L4.6 (frame
-comments UI), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-27, end of lot **L4.6 (frame comments UI)** — phases 1–3 are done (phase 3
+pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.6 done). **Next: L4.7 (component
+library with animated previews + theme editor screens), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,32 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-111); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-113); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.5)
+## State (after L4.6)
+- **L4.6 done (2026-10-27)**: frame comments in the Studio (`#/p/<slug>/s/<name>/comments[/<id>]`): the Comments
+  screen shows a render's exact frames as server-made JPEGs (an input seek to (F − 0.5)/fps, checked equal to an exact
+  frame select on real renders with B-frames and audio; fps / start time / frame rate probed from the video, never the
+  record; ≈ 150 ms per frame in 1080p, ≈ 0.25–0.7 s in 4K), a region drawn by dragging or typed in four % fields,
+  anchor chips (frame / segment / step / component) from the engine, Open / Resolved / All lists, a count on the
+  scenario screen, pins on the timeline linking to their threads and a Comment button there. A new `via: 'studio'`
+  channel creates, replies, resolves, reopens and applies (author from the Studio process: `$DEMO_STUDIO_AUTHOR`, else
+  the OS user; a channel, not proof of a person — BL-106). Claude answers a Studio thread with a **proposal** on
+  `comment_reply` (the whole new scenario text + its base hash; edit-only changes to the thread's own scenario, never a
+  filmed / theme / override change; ≤ 200 changed lines, 600 diff rows; every L4.3 write check run without writing),
+  stored as a canonical line diff with states pending / stale / superseded / applied / undone. The Studio shows the
+  server's diff as code (whitespace, hidden and right-to-left characters made visible, byte order kept, never cut);
+  Apply / Apply and re-render sit under the whole diff and go through the verified scenario_edit path (thread lock held
+  across the write; Undo per tab); Preview change plans the timeline in memory (never a restorable version, workspace
+  components still held). Tests on the Mac: **3404 — 3342 pass, 59 skipped, 3 failures in the one full run**
+  (two captures and the CLI e2e failing only on the low-disk warning — 16 GB free, below 5 % of the disk; multipage
+  timing under load, green alone); `pnpm test:slow` 56/58 (the catalogue on the same disk warning; the phase-3 Claude CLI
+  acceptance once, green alone 20/20); the gated installed-Chrome acceptance 3/3. Requirements: 647 tracked — 596 done, 25 partial, 18 todo, 8
+  n/a-here. Live checks for the user: MACOS-CHECKLIST 13g (Safari / Firefox / Chrome by hand, a live Claude Code
+  proposal loop; an MCP server started before L4.6 must be restarted).
 - **L4.5 done (2026-10-27)**: the Studio's timeline (`#/p/<slug>/s/<name>/timeline[/<run>[/<step>]]`): the segment
   track and the caption / steps / camera / speed / marker / comment tracks from the EditPlan, a playhead and scrubber
   driving a live preview — the Remotion Player in a sandboxed iframe on a second loopback origin (session capability per
@@ -1208,6 +1228,19 @@ sandbox, a hook step and compact results through Claude Code).
   mutation-checked tests (99 mutations over the lot). Files: runner-web `live-preview.ts`, `pause.ts`, timeline
   CaptureClock; engine `jobs/live-channel.ts`, `runs.pause`, `auth.forScenario`; ui `server/run-live.ts`,
   `RunScreen.tsx`, `LiveView.tsx`, `Sessions.tsx`, `run-live.ts`, `sse.ts`. Cuts: BL-105, BL-106. No new dependency.
+- **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
+  frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
+  differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
+  Undo leaving "applied"; Apply failing after its write), built in seven parts in a worktree (A1 channel and frames, A2
+  proposals, B MCP and skills, C Studio server ops on one shared op chain, D1 Comments screen, D2 proposal UI, E gated
+  installed-Chrome acceptance on the fixture and docs), reviewed by two reviewers (Apply offered while a change sat below
+  a 300-row cut; RTL letters reordering digits in the diff; thread caps checked after the scenario write; theme changes
+  accepted as proposals; newest-wins decided after the file opened; the frame shrinking at 1280 px…) and fixed with
+  mutation-checked tests (≈ 150 mutations over the lot, all killed but one redundant CSS line). Files: core
+  `line-diff.ts`, `canonical-json.ts`, comments proposal schema; engine `render-frames.ts`, `comment-proposals.ts`,
+  comments apply / proposal / counts; mcp `comment_reply.proposal`, `comments_list {comment_id}`; ui
+  `server/comment-ops.ts`, `server/op-chain.ts`, `CommentsScreen.tsx`, `CommentsTab.tsx`, `ProposalPanel.tsx`,
+  `comment-words.ts`. No new dependency. Cuts: BL-111, BL-112.
 - **L4.5 done** (timeline; R-UI-15, R-UI-23/24/25/26 done). Planned with probes (esbuild bundles the Player and every
   component in ≈ 0.5 s; a `sandbox="allow-scripts"` frame on a second origin blocks a hostile component's network),
   criticised (a postMessage flood froze the Studio tab; one throwing component killed the preview; a switch killed a
@@ -1462,6 +1495,26 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.6:
+- `via: 'studio'` exists only through the Studio's HTTP routes (only studio.ts makes a `ui` engine client); its comment
+  ops pin their inputs (no author, via, path or proposal from a page). MCP still cannot create, reopen or apply; the
+  rule keeping Claude off the Studio token (`.demo-studio/ui.json`) and `/v1` routes is an instruction (skill lint), not
+  a barrier (BL-106) — Apply through it would still run under agent trust.
+- A proposal is edit-only (a `template:` / theme, filmed or override change is the direct loop), joined with the file's
+  own line breaks (a file mixing LF and CR LF is refused), rebuilt strictly from canonical hunks; Apply always runs the
+  agent-trust write checks (cli included), holds the thread lock (then the storage write lock) and checks the thread's
+  room before writing. A previewed proposal is never a restorable version. Undo apply lives in the tab that applied.
+- The Studio never cuts a diff; Apply sits after it; the timeline's Preview banner only leads back to the thread.
+- render_frame: one ffmpeg per frame on descriptors (links refused), two shared slots with run thumbnails, ≤ 4 pending,
+  newest wins per tab session before the file opens; busy is 429, a timeout 503 (the only ops not on 423). The
+  scenario_edit answer no longer carries `path`; Studio errors are path-free except the copyable `fix` command.
+- An MCP server started before L4.6 reads Studio threads and proposal entries as invalid until restarted (the skill
+  says so). The gated installed-Chrome acceptance: `DEMO_STUDIO_TEST_CHROME=1 npx vitest run
+  packages/ui/test/studio-e2e-comments-chrome.test.ts` (fixture on free ports, ≈ 2–6 min). The app bundle budget is
+  490 KB.
+- Capture tests assert no warnings: below 23 GB free on this Mac's 460 GB disk (5 %, R-FLD-28) the low-disk warning
+  fails cli e2e, runner-web deep and the catalogue acceptance — free the disk before the full suite.
+
 Notes from L4.5:
 - The preview runs agent-writable code (workspace components): it lives in a `sandbox="allow-scripts"` iframe on the
   player origin (a second loopback port, one capability per project leased by the page and revoked when the last tab

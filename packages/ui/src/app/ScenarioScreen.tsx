@@ -22,6 +22,7 @@ import type { RunBlocker, ScenarioRunChoice, StepBinding } from '@demo-studio/en
 import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, EnvFlags, Loading, Notice, plural, RunState, Txt, visibleControls, When } from './bits.js';
 import { useScenarioEvents } from './events.js';
+import { CommentsTab } from './CommentsTab.js';
 import { Inspector } from './Inspector.js';
 import { RenderBar, RendersPanel, useRenders } from './Renders.js';
 import type { RenderTarget } from './Renders.js';
@@ -130,6 +131,7 @@ function Tabs({ slug, name, tab }: { slug: string; name: string; tab: ScenarioTa
       <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })} aria-current={tab === 'yaml' ? 'page' : undefined} className={tab === 'yaml' ? 'tab current' : 'tab'}>
         YAML
       </a>
+      <CommentsTab slug={slug} name={name} />
     </nav>
   );
 }

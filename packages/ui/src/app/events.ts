@@ -28,7 +28,7 @@ export interface RunEvent {
 }
 
 export type StudioEvent =
-  | { type: 'workspace'; projects: string[]; readme: string[]; scenarios?: string[]; renders?: string[]; runs?: RunEvent[] }
+  | { type: 'workspace'; projects: string[]; readme: string[]; scenarios?: string[]; renders?: string[]; runs?: RunEvent[]; comments?: string[] }
   | { type: 'jobs'; changed: string[] }
   | { type: 'index'; generation: number }
   | { type: 'resync' };
@@ -215,6 +215,23 @@ export function scenarioEventAction(e: StudioEvent, slug: string, name: string):
     else reread = true;
   }
   return { reread, progress };
+}
+
+/**
+ * What a screen showing one scenario's comments does with an event (L4.6, plan D9): `threads` — re-read its list and
+ * the open thread — when that scenario's threads changed (`comments` names `<slug>/<name>`) or after a reconnection;
+ * `scenario` when its file changed (a proposal's state, step_now); `renders` when the project's renders/ changed (newer
+ * renders, a render gone). Never for another scenario's comments, another project, a README or a job.
+ */
+export function commentsEventAction(e: StudioEvent, slug: string, name: string): { threads: boolean; scenario: boolean; renders: boolean } {
+  if (e.type === 'resync') return { threads: true, scenario: true, renders: true };
+  if (e.type !== 'workspace') return { threads: false, scenario: false, renders: false };
+  const key = `${slug}/${name}`;
+  return {
+    threads: Array.isArray(e.comments) && e.comments.includes(key),
+    scenario: Array.isArray(e.scenarios) && e.scenarios.includes(key),
+    renders: Array.isArray(e.renders) && e.renders.includes(slug),
+  };
 }
 
 /** Call `reread` / `progress(runIds)` for the events a scenario screen acts on (scenarioEventAction). */

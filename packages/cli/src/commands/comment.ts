@@ -89,6 +89,15 @@ function anchorLine(t: CommentView): string {
   return parts.join(' · ');
 }
 
+/** A proposal's state as `comment list` prints it (L4.6; the Studio's and the MCP's words). */
+const PROPOSAL_STATE_WORDS: Record<NonNullable<CommentView['entries'][number]['proposal']>['state'], string> = {
+  pending: 'pending',
+  applied: 'applied',
+  undone: 'applied, then undone',
+  superseded: 'superseded',
+  stale: 'stale',
+};
+
 function printThread(ui: Ui, t: CommentView): void {
   const k = ui.c;
   const status = t.status === 'open' ? k.yellow('open') : k.green('resolved');
@@ -98,7 +107,16 @@ function printThread(ui: Ui, t: CommentView): void {
   for (const l of textLines(t.untrusted.text, '    ')) ui.line(l);
   t.entries.forEach((e, i) => {
     const u = t.untrusted.entries[i];
-    const what = e.kind === 'resolve' ? `resolved${e.render_id ? ` with ${e.render_id}` : ''}` : e.kind === 'reopen' ? 'reopened' : 'replied';
+    const what =
+      e.kind === 'resolve'
+        ? `resolved${e.render_id ? ` with ${e.render_id}` : ''}`
+        : e.kind === 'reopen'
+          ? 'reopened'
+          : e.kind === 'apply'
+            ? `applied the proposal of ${e.applies ?? '?'}`
+            : e.proposal
+              ? `replied with a proposal (${PROPOSAL_STATE_WORDS[e.proposal.state]}, +${e.proposal.added} −${e.proposal.removed})`
+              : 'replied';
     ui.line(`  ${k.dim(e.id)} ${printableText(u?.author ?? '?')} (${e.via}) ${what}, ${e.created_at}${u?.text ? ':' : ''}`);
     if (u?.text) for (const l of textLines(u.text, '    ')) ui.line(l);
   });

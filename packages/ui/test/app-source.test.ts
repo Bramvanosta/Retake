@@ -259,6 +259,70 @@ describe('the app builds no HTML from data (source lint)', () => {
   });
 });
 
+/**
+ * L4.6 part D1: the page never names who writes — every comment write (`thread_*` call) of the app carries no author,
+ * channel (`via`) or proposal key: the Studio writes the channel `studio` under the name it was started with, and
+ * proposals are Claude's (the server refuses all three: a 400).
+ */
+const THREAD_CALL = /\b(?:call|useCall)(?:<[^>]*>)?\(\s*'(thread_[a-z_]+)'/g;
+const NAMED = /\b(author|via|proposal|name)\s*:/;
+
+/** The argument text of each `call('thread_…', …)` in a source (to its closing parenthesis). */
+function threadCalls(src: string): Array<{ op: string; args: string }> {
+  const out: Array<{ op: string; args: string }> = [];
+  for (const m of src.matchAll(THREAD_CALL)) {
+    let depth = 0;
+    let i = src.indexOf('(', m.index);
+    const start = i;
+    for (; i < src.length; i++) {
+      if (src[i] === '(') depth++;
+      else if (src[i] === ')' && --depth === 0) break;
+    }
+    out.push({ op: m[1], args: src.slice(start, i + 1) });
+  }
+  return out;
+}
+
+describe('the comment writes name nobody (L4.6 part D1)', () => {
+  it('⚑ no thread_* call of the app sends an author, a via, a proposal or a name', async () => {
+    const calls = (await appSources()).flatMap(([f, text]) => threadCalls(code(text)).map((c) => ({ f, ...c })));
+    const ops = new Set(calls.map((c) => c.op));
+    // Part D2: Apply and Resolve with vN call their ops directly (ProposalPanel.tsx).
+    for (const op of ['thread_add', 'thread_get', 'thread_still', 'thread_apply', 'thread_resolve']) expect(ops, op).toContain(op);
+    // Reply, resolve and reopen go through one helper (ThreadActions' send): its op names are arguments.
+    const screen = code((await appSources()).find(([f]) => f === 'CommentsScreen.tsx')![1]);
+    for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
+    expect(screen).toMatch(/call\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \}\)/);
+    for (const c of calls) expect(NAMED.test(c.args), `${c.f}: ${c.op} sends ${c.args}`).toBe(false);
+    // Every send(...) of the thread's writes: its argument object names nobody either.
+    for (const m of screen.matchAll(/\bsend\('[A-Za-z]+', '(thread_[a-z_]+)', (\{[^}]*\})/g)) expect(NAMED.test(m[2]), `${m[1]}: ${m[2]}`).toBe(false);
+    expect([...screen.matchAll(/\bsend\('[A-Za-z]+', '(thread_[a-z_]+)'/g)].map((m) => m[1]).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
+    // The lint catches a planted author (or via, proposal) in a write.
+    for (const planted of ["call('thread_add', { project, author: { via: 'cli', name: 'x' }, text })", "call<X>('thread_reply', { project, via: 'cli' })", "call('thread_reply', { proposal: p })"]) {
+      expect(threadCalls(planted).some((c) => NAMED.test(c.args)), planted).toBe(true);
+    }
+  });
+});
+
+describe('the page makes no proposal (L4.6 part D2)', () => {
+  it("⚑ no source sends a scenario text as a proposal: the app's one `proposal` argument is timeline_view's {comment_id, entry_id}", async () => {
+    const files = await appSources();
+    let args = 0;
+    for (const [f, text] of files) {
+      const src = code(text);
+      expect(/\bscenario_yaml\b|\bscenario_hash\b/.test(src), `${f}: names a proposal's input`).toBe(false);
+      args += (src.match(/\{ proposal: \{ comment_id: pc, entry_id: pe \} \}/g) ?? []).length;
+    }
+    expect(args).toBe(1);
+    const timeline = code(files.find(([f]) => f === 'TimelineScreen.tsx')![1]);
+    expect(timeline).toMatch(/useCall<TimelineViewAnswer>\('timeline_view', args,/);
+    // thread_apply sends the reply and the thread's hash shown, nothing else.
+    const panel = code(files.find(([f]) => f === 'ProposalPanel.tsx')![1]);
+    const applies = threadCalls(panel).filter((c) => c.op === 'thread_apply');
+    expect(applies.map((c) => c.args)).toEqual(["('thread_apply', { project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })"]);
+  });
+});
+
 describe('hash routes', () => {
   it('parses the three screens; anything else is not-found; slugs are decoded strings, never paths', () => {
     expect(parseRoute('')).toEqual({ name: 'projects' });

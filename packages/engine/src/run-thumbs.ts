@@ -174,6 +174,11 @@ export class RunThumbs {
     return this.cache.size;
   }
 
+  /** The engine's ffmpeg slots (L4.6: the render frames of the comment viewer wait for the same slots). */
+  get ffmpegSlots(): Semaphore {
+    return this.ffmpeg;
+  }
+
   async thumbs(projectDir: string, project: string, runId: string, keys: readonly string[], o: { signal?: AbortSignal } = {}): Promise<RunThumbsView> {
     const wanted = [...new Set(keys)];
     if (wanted.length === 0 || wanted.length > RUN_THUMBS_MAX_KEYS) throw new EngineError('invalid', `ask for 1 to ${RUN_THUMBS_MAX_KEYS} step keys at a time (asked ${wanted.length})`);

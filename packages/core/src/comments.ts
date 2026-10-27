@@ -5,15 +5,20 @@
  * each with its own id: the file is its own audit trail and two writers (git branches, a later sync) only ever add
  * entries. The status is derived from the entries (`deriveStatus`), never stored.
  *
- * Who wrote an entry is the channel it came through (`author.via`: `cli` — a `studio` command —, `mcp` — the MCP tools),
- * never a claim of being a person: a command can be typed by anyone, Claude included. Every free text of a thread
- * (comment, entries, author names) is data for its readers.
+ * Who wrote an entry is the channel it came through (`author.via`: `cli` — a `studio` command —, `studio` — the Studio
+ * web app's page (L4.6) —, `mcp` — the MCP tools), never a claim of being a person: a command can be typed by anyone,
+ * Claude included, and any program of the user that reads the Studio's token file can call the Studio's routes. Every
+ * free text of a thread (comment, entries, author names) is data for its readers.
  */
 import { createHash } from 'node:crypto';
 import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
 import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './brand.js';
+import { canonicalJson } from './canonical-json.js';
 import { ulid } from './ids.js';
+import { hunkOrderProblem, hunkStats } from './line-diff.js';
+import type { LineHunk } from './line-diff.js';
+import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
 import { RENDER_ID_RE, RUN_FOLDER_RE } from './jobs.js';
 import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
 import { normalizeStep } from './steps.js';
@@ -101,19 +106,7 @@ export function regionProblem(r: CommentRegion): string | null {
 
 // ── Step fingerprints ───────────────────────────────────────────────────────
 
-/** JSON with object keys sorted at every level, undefined values left out (a value's canonical text). */
-export function canonicalJson(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return `{${Object.keys(o)
-      .filter((k) => o[k] !== undefined)
-      .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(v) ?? 'null';
-}
+export { canonicalJson } from './canonical-json.js';
 
 /**
  * The fingerprint of a raw scenario step: the first 12 hex characters of the sha256 of its action and normalised
@@ -224,9 +217,17 @@ const storedText = (max: number) =>
     .refine((s) => !FORBIDDEN_TEXT.test(s), 'control, bidi or invisible characters (only line breaks are kept)');
 const anchorString = z.string().min(1).max(200);
 
+/** The channels an entry is written through (CommentAuthorSchema.via). */
+export const COMMENT_VIAS = ['cli', 'studio', 'mcp'] as const;
+export type CommentVia = (typeof COMMENT_VIAS)[number];
+
 export const CommentAuthorSchema = z.strictObject({
-  /** The channel that wrote it: `cli` (a `studio` command), `mcp` (the MCP tools). Never a claim of who typed it. */
-  via: z.enum(['cli', 'mcp']),
+  /**
+   * The channel that wrote it: `cli` (a `studio` command), `studio` (the Studio web app, L4.6: written through its page,
+   * which holds the session token `studio ui` handed to the browser), `mcp` (the MCP tools). Never a claim of who typed
+   * it (BL-106: person presence).
+   */
+  via: z.enum(COMMENT_VIAS),
   name: z
     .string()
     .min(1)
@@ -284,7 +285,95 @@ export const CommentRenderSchema = z.strictObject({
 });
 export type CommentRender = z.output<typeof CommentRenderSchema>;
 
-export const COMMENT_ENTRY_KINDS = ['reply', 'resolve', 'reopen'] as const;
+// ── Proposals (L4.6, R-UI-28; critique B1 / B2 / B10 / B13) ─────────────────
+
+/** Changed lines (removed + added) of one proposal, at most (critique B13: a frame comment asks for a small change). */
+export const PROPOSAL_CHANGED_LINES_MAX = 200;
+/** Characters (UTF-16 units) of a proposal's removed and added lines together, at most. */
+export const PROPOSAL_CHARS_MAX = 30_000;
+/**
+ * Longest line of a proposal, in UTF-16 units (= COMMENT_TEXT_MAX: the MCP's and the Studio's cap on one untrusted
+ * string, which would cut a longer line — and the person would read something else than what Apply writes).
+ */
+export const PROPOSAL_LINE_MAX = COMMENT_TEXT_MAX;
+/** Past this share of the file's lines a proposal says how much of the file it rewrites (critique B13). */
+export const PROPOSAL_REWRITE_NOTE_PCT = 25;
+
+/**
+ * Why one line of a proposal is refused, or null: longer than PROPOSAL_LINE_MAX UTF-16 units, a line break inside it,
+ * half of a character (a lone surrogate: its UTF-8 bytes would be U+FFFD), or a character that reads as nothing or as a
+ * line break (scenario-edit's input rules: controls but the tab, direction controls, invisible and default-ignorable
+ * characters, a byte-order mark anywhere — an emoji's joiner and variation selector are fine). A person reads every line
+ * of a proposal: none may hide anything.
+ */
+export function proposalLineProblem(line: string): string | null {
+  if (typeof line !== 'string') return 'a line is a text';
+  if (line.length > PROPOSAL_LINE_MAX) return `a line of ${line.length} characters (UTF-16 units): at most ${PROPOSAL_LINE_MAX}`;
+  if (/[\r\n]/.test(line)) return 'a line break inside a line';
+  // A lone surrogate is no character: written as UTF-8 it becomes U+FFFD — Apply would write another line than the one shown.
+  if (/\p{Cs}/u.test(line)) return 'half of a character (a lone UTF-16 surrogate)';
+  const hidden = line.includes('\ufeff') ? '\ufeff' : firstHiddenChar(line);
+  return hidden ? `it holds ${hiddenCharName(hidden)}` : null;
+}
+
+/**
+ * Why a proposal's hunks are refused, or null (line-diff.ts): sorted and separated by an unchanged line, none empty;
+ * at most PROPOSAL_CHANGED_LINES_MAX changed lines and PROPOSAL_CHARS_MAX characters; every line passing
+ * proposalLineProblem. Whether they are the canonical diff of the exact bytes is checked against the file (engine).
+ */
+export function proposalHunksProblem(hunks: readonly LineHunk[]): string | null {
+  if (hunks.length === 0) return 'a proposal changes at least one line';
+  const order = hunkOrderProblem(hunks);
+  if (order) return order;
+  const st = hunkStats(hunks);
+  if (st.changed > PROPOSAL_CHANGED_LINES_MAX) return `${st.changed} changed lines (removed + added): a proposal changes at most ${PROPOSAL_CHANGED_LINES_MAX}`;
+  if (st.chars > PROPOSAL_CHARS_MAX) return `${st.chars.toLocaleString('en')} characters of changed lines: a proposal holds at most ${PROPOSAL_CHARS_MAX.toLocaleString('en')}`;
+  for (const [i, h] of hunks.entries()) {
+    for (const [side, lines] of [['removed', h.del], ['added', h.add]] as const) {
+      for (const [j, l] of lines.entries()) {
+        const p = proposalLineProblem(l);
+        if (p) return `hunk ${i + 1}, ${side} line ${j + 1}: ${p}`;
+      }
+    }
+  }
+  return null;
+}
+
+const sha256Hex = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
+/** A line of a proposal as stored (proposalLineProblem). */
+const proposalLine = z.string().superRefine((l, ctx) => {
+  const p = proposalLineProblem(l);
+  if (p) ctx.addIssue({ code: 'custom', message: p });
+});
+
+export const ProposalHunkSchema = z.strictObject({
+  at: z.number().int().min(1).max(10_000_000),
+  del: z.array(proposalLine).max(PROPOSAL_CHANGED_LINES_MAX),
+  add: z.array(proposalLine).max(PROPOSAL_CHANGED_LINES_MAX),
+});
+
+/**
+ * Claude's proposed change of the thread's own scenario file (L4.6), stored in its reply: the sha256 of the file it was
+ * made on and of the exact bytes Apply writes, the file's line break, and the canonical line diff between them
+ * (line-diff.ts). `delta: 'edit'`: an edit-only change (critique B2 — a change of what a capture films is never a
+ * proposal: it is saved and captured, the direct loop).
+ */
+export const CommentProposalSchema = z
+  .strictObject({
+    base_sha256: sha256Hex,
+    result_sha256: sha256Hex,
+    eol: z.enum(['lf', 'crlf']),
+    delta: z.enum(['edit']),
+    hunks: z.array(ProposalHunkSchema).min(1).max(PROPOSAL_CHANGED_LINES_MAX),
+  })
+  .superRefine((p, ctx) => {
+    const problem = proposalHunksProblem(p.hunks);
+    if (problem) ctx.addIssue({ code: 'custom', path: ['hunks'], message: problem });
+    if (p.base_sha256 === p.result_sha256) ctx.addIssue({ code: 'custom', path: ['result_sha256'], message: 'a proposal changes the file' });
+  });
+export type CommentProposal = z.output<typeof CommentProposalSchema>;
+
+export const COMMENT_ENTRY_KINDS = ['reply', 'resolve', 'reopen', 'apply'] as const;
 export type CommentEntryKind = (typeof COMMENT_ENTRY_KINDS)[number];
 
 export const CommentEntrySchema = z
@@ -292,20 +381,31 @@ export const CommentEntrySchema = z
     id: z.string().regex(COMMENT_ENTRY_ID_RE, 'an entry id (r_ + a ULID)'),
     kind: z.enum(COMMENT_ENTRY_KINDS),
     author: CommentAuthorSchema,
-    /** The reply, the resolution note (required), the reopening note (may be empty). */
+    /** The reply, the resolution note (required), the reopening note and the apply's (may be empty). */
     text: storedText(COMMENT_TEXT_MAX),
     created_at: isoDate,
     /** A resolution: the render that answers the comment, with its record's `created_at` (render ids can be reused). */
     render_id: z.string().max(200).regex(RENDER_ID_RE, 'a render id').optional(),
     render_created_at: isoDate.optional(),
+    /** A reply's proposed change of the thread's scenario file (L4.6). */
+    proposal: CommentProposalSchema.optional(),
+    /** An apply (L4.6): the reply whose proposal was applied, and the sha256 of the scenario file written. */
+    applies: z.string().regex(COMMENT_ENTRY_ID_RE, 'an entry id (r_ + a ULID)').optional(),
+    scenario_sha256: sha256Hex.optional(),
   })
   .superRefine((e, ctx) => {
-    if (e.kind !== 'reopen' && e.text.trim() === '') ctx.addIssue({ code: 'custom', path: ['text'], message: `a ${e.kind} has a text` });
+    if (e.kind !== 'reopen' && e.kind !== 'apply' && e.text.trim() === '') ctx.addIssue({ code: 'custom', path: ['text'], message: `a ${e.kind} has a text` });
     if (e.kind !== 'resolve' && (e.render_id !== undefined || e.render_created_at !== undefined)) {
       ctx.addIssue({ code: 'custom', path: ['render_id'], message: 'only a resolution names a render' });
     }
     if ((e.render_id === undefined) !== (e.render_created_at === undefined)) {
       ctx.addIssue({ code: 'custom', path: ['render_created_at'], message: 'render_id and render_created_at go together' });
+    }
+    if (e.proposal !== undefined && e.kind !== 'reply') ctx.addIssue({ code: 'custom', path: ['proposal'], message: 'only a reply holds a proposal' });
+    if (e.kind === 'apply') {
+      if (e.applies === undefined || e.scenario_sha256 === undefined) ctx.addIssue({ code: 'custom', path: ['applies'], message: 'an apply names the reply it applied (applies) and the file written (scenario_sha256)' });
+    } else if (e.applies !== undefined || e.scenario_sha256 !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['applies'], message: 'only an apply names a proposal applied' });
     }
   });
 export type CommentEntry = z.output<typeof CommentEntrySchema>;
@@ -339,9 +439,14 @@ export const CommentThreadSchema = z
       ctx.addIssue({ code: 'custom', path: ['render', 'id'], message: `render ${t.render.id} is not a render of scenario ${t.scenario}` });
     }
     const seen = new Set<string>();
+    const proposals = new Set<string>();
     t.entries.forEach((e, i) => {
       if (seen.has(e.id)) ctx.addIssue({ code: 'custom', path: ['entries', i, 'id'], message: `entry ${e.id} appears twice` });
       seen.add(e.id);
+      if (e.proposal) proposals.add(e.id);
+      if (e.kind === 'apply' && e.applies !== undefined && !proposals.has(e.applies)) {
+        ctx.addIssue({ code: 'custom', path: ['entries', i, 'applies'], message: 'an apply names an earlier reply of the thread holding a proposal' });
+      }
     });
   });
 export type CommentThread = z.output<typeof CommentThreadSchema>;
@@ -371,6 +476,49 @@ export function deriveStatus(entries: readonly CommentEntry[]): CommentStatus {
     }
   }
   return { status: 'open' };
+}
+
+/**
+ * Where a proposal stands (critique B4), from today's file first: `applied` (the file is its result — for an older
+ * proposal, only when an apply entry names it), `undone` (it was
+ * applied — an apply entry names it — and the file is its base again: Undo apply), `superseded` (a later proposal
+ * exists), `stale` (the file is no longer its base, or cannot be read), else `pending`.
+ */
+export type ProposalState = 'pending' | 'applied' | 'undone' | 'superseded' | 'stale';
+
+export interface ProposalStateOf {
+  /** The reply holding the proposal. */
+  entry: string;
+  state: ProposalState;
+  /** Only the newest proposal, pending or undone, can be applied (or previewed). */
+  actionable: boolean;
+  /** The apply entries that name it, in order. */
+  applied_by: string[];
+}
+
+/** Each proposal of a thread's entries, in order, with its state against today's file hash (null: no readable file). */
+export function proposalStates(entries: readonly CommentEntry[], todayHash: string | null | undefined): ProposalStateOf[] {
+  const withProposal = entries.filter((e): e is CommentEntry & { proposal: CommentProposal } => e.proposal !== undefined);
+  const applies = new Map<string, string[]>();
+  for (const e of entries) if (e.kind === 'apply' && e.applies !== undefined) applies.set(e.applies, [...(applies.get(e.applies) ?? []), e.id]);
+  const today = todayHash ?? null;
+  return withProposal.map((e, i) => {
+    const p = e.proposal;
+    const appliedBy = applies.get(e.id) ?? [];
+    const newest = i === withProposal.length - 1;
+    // An older proposal is `applied` only when an apply names it (a newer one with the same result may have been applied).
+    const state: ProposalState =
+      today !== null && today === p.result_sha256 && (newest || appliedBy.length > 0)
+        ? 'applied'
+        : appliedBy.length && today !== null && today === p.base_sha256
+          ? 'undone'
+          : !newest
+            ? 'superseded'
+            : today === null || today !== p.base_sha256
+              ? 'stale'
+              : 'pending';
+    return { entry: e.id, state, actionable: newest && (state === 'pending' || state === 'undone'), applied_by: appliedBy };
+  });
 }
 
 // ── Reading a stored anchor ─────────────────────────────────────────────────

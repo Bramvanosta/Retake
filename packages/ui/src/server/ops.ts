@@ -42,15 +42,21 @@
  * - `scenario_render`, `scenario_renders`, `render_cancel`, `render_review`, `review_image` (L4.5 part E): Render from
  *   the timeline or the scenario screen, the render queue and list, Cancel, the review's report and its contact sheets
  *   (renderOps).
+ * - L4.6: `timeline_view {proposal}` (the preview of Claude's proposal, through the same workspace-component hold); the
+ *   comment ops live in comment-ops.ts; scenario_edit, scenario_render and thread_apply share one op chain (op-chain.ts,
+ *   critique B5); the scenario_edit answer no longer carries the file's absolute path.
  */
 import { z } from 'zod';
 import { basename, dirname } from 'node:path';
-import { ACTION_DESCRIPTIONS, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
+import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
 import type { ActionName } from '@demo-studio/core';
 import { EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
 import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@demo-studio/engine';
 import type { ToolDef } from '@demo-studio/mcp';
 import type { Live } from './live.js';
+import { COMMENT_OPS } from './comment-ops.js';
+import { opChain, scenarioKey } from './op-chain.js';
+import type { OpChain } from './op-chain.js';
 import type { PlayerServer } from './player.js';
 import { COMPONENT_HASH_RE } from './preview-allow.js';
 import type { PreviewAllowList } from './preview-allow.js';
@@ -338,16 +344,7 @@ export interface ScenarioRunAnswer {
 export function runOps(): ToolDef[] {
   // One submit of a scenario at a time in this Studio (two tabs, a double click), and none while a run of it waits or
   // runs (review B L2: two dry runs queued, or a capture's hooks run twice).
-  const chains = new Map<string, Promise<unknown>>();
-  const oneAtATime = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
-    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
-    const tail = next.catch(() => undefined);
-    chains.set(key, tail);
-    void tail.then(() => {
-      if (chains.get(key) === tail) chains.delete(key);
-    });
-    return next;
-  };
+  const oneAtATime = opChain();
   const run: ToolDef<typeof RunInput> = {
     name: 'scenario_run',
     title: 'Run a scenario from the Studio',
@@ -482,17 +479,8 @@ async function scenarioSessions(engine: Engine, a: z.infer<typeof SessionsInput>
  * timeline inspector's `set_field` (SetFieldInput: strict, a field of core FIELD_PATHS that the entry takes, checked
  * before any read). Not an MCP tool: Claude edits a scenario with scenario_save.
  */
-export function editOps(): ToolDef[] {
-  const chains = new Map<string, Promise<unknown>>();
-  const oneAtATime = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
-    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
-    const tail = next.catch(() => undefined);
-    chains.set(key, tail);
-    void tail.then(() => {
-      if (chains.get(key) === tail) chains.delete(key);
-    });
-    return next;
-  };
+export function editOps(oneAtATime: OpChain = opChain()): ToolDef[] {
+  // L4.6: the Studio passes the chain thread_apply and scenario_render share (critique B5).
   const edit: ToolDef<typeof EditInput> = {
     name: 'scenario_edit',
     title: 'Edit a scenario from the Studio',
@@ -500,10 +488,12 @@ export function editOps(): ToolDef[] {
     input: EditInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a, { engine }) {
-      const r = await oneAtATime(`${a.project}\0${a.name}`, () => engine.scenarios.edit(a.project, a.name, { hash: a.hash, edit: a.edit }));
+      const r = await oneAtATime(scenarioKey(a.project, a.name), () => engine.scenarios.edit(a.project, a.name, { hash: a.hash, edit: a.edit }));
+      // Path-free (L4.6, the L4.5 rule for Studio answers): the file's project-relative name, never its absolute path.
+      const { path: _path, ...data } = r as typeof r & { path?: string };
       return {
         summary: `${r.label}: ${r.file} (hash ${r.hash})${r.warnings.length ? ` with ${plural(r.warnings.length, 'warning')}` : ''}`,
-        data: r as unknown as Record<string, unknown>,
+        data: data as unknown as Record<string, unknown>,
       };
     },
   };
@@ -517,6 +507,13 @@ const TimelineInput = z.strictObject({
   name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
   run: run.optional().describe('A capture of the scenario (default: its latest capture; the view lists them in `runs`).'),
   lease: lease.optional().describe("The page's lease (timeline_leave ends it): the project's preview URLs are revoked once no page holds one."),
+  proposal: z
+    .strictObject({
+      comment_id: z.string().max(40).regex(COMMENT_ID_RE, 'a comment id (c_…), never a path'),
+      entry_id: z.string().max(40).regex(COMMENT_ENTRY_ID_RE, 'the reply holding the proposal (r_…)'),
+    })
+    .optional()
+    .describe("L4.6: preview Claude's proposal on that thread (its newest pending or undone one) instead of the file: planned on the commented take in memory, nothing written; switches off."),
 });
 const TimelineLeaveInput = z.strictObject({ project, lease: lease.describe('The lease the page gave timeline_view.') });
 const PreviewAllowInput = z.strictObject({
@@ -595,7 +592,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       if (!a.run && (await engine.runs.list(a.project, { scenario: a.name, mode: 'capture', limit: 1 })).length === 0) {
         throw new EngineError('not_found', `${a.name} has no capture yet: a capture films the take its timeline shows (Capture on the scenario screen)`);
       }
-      const r = await engine.timeline.view({ project: a.project, scenario: a.name, ...(a.run ? { run_id: a.run } : {}) });
+      const r = await engine.timeline.view({ project: a.project, scenario: a.name, ...(a.run ? { run_id: a.run } : {}), ...(a.proposal ? { proposal: a.proposal } : {}) });
       if (!('view' in r)) {
         const data: TimelineViewAnswer = { blocked: r.blocked, ...(r.run_id ? { run_id: r.run_id } : {}) };
         return { summary: `${a.name}: the take cannot be previewed from the Studio (${plural(r.blocked.problems.length, 'problem')})`, data: data as unknown as Record<string, unknown> };
@@ -603,7 +600,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       const v = r.view;
       // The file's text, for undo (L4.5 part D: L4.3's `restore` of the exact bytes) — as scenario_blocks gives it.
       const text = r.text !== undefined ? { text: r.text } : {};
-      const head = `${a.name}: ${v.run_id}, ${plural(v.model.segments.length, 'segment')}, ${plural(v.model.frames, 'frame')}`;
+      const head = `${a.name}: ${v.run_id}, ${plural(v.model.segments.length, 'segment')}, ${plural(v.model.frames, 'frame')}${v.proposal ? `, previewing the proposal of ${v.proposal.comment_id}` : ''}`;
       const now = Date.now();
       prune(now);
       if (a.lease) {
@@ -611,6 +608,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
         m.set(a.lease, now);
         leases.set(a.project, m);
       }
+      // The proposal's plan too (critique B9 c): a workspace component a proposal adds is held until the person allows it.
       const held = await heldOf(r.plan);
       const heldPart: PreviewHeld = held.length ? { preview_held: held } : {};
       try {
@@ -762,17 +760,8 @@ export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
  * - `review_image`: one contact sheet as a base64 JPEG (≤ 1600 px, ≤ 2,000,000 characters), by its file name in the
  *   review folder, read without following a link (engine reviews.image).
  */
-export function renderOps(): ToolDef[] {
-  const chains = new Map<string, Promise<unknown>>();
-  const oneAtATime = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
-    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
-    const tail = next.catch(() => undefined);
-    chains.set(key, tail);
-    void tail.then(() => {
-      if (chains.get(key) === tail) chains.delete(key);
-    });
-    return next;
-  };
+export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
+  // L4.6: the Studio passes the chain thread_apply and scenario_edit share (critique B5).
   const render: ToolDef<typeof RenderInput> = {
     name: 'scenario_render',
     title: 'Render a scenario from the Studio',
@@ -780,7 +769,7 @@ export function renderOps(): ToolDef[] {
     input: RenderInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a, { engine }) {
-      const sub = await oneAtATime(`${a.project}\0${a.name}`, async () => {
+      const sub = await oneAtATime(scenarioKey(a.project, a.name), async () => {
         const open = await engine.jobs.list({ project: a.project, kinds: ['render'], states: ['queued', 'running'] });
         const busy = open.find((j) => j.input.kind === 'render' && j.input.scenario === a.name);
         if (busy && busy.input.kind === 'render') {
@@ -873,4 +862,4 @@ export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] 
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS] as const;
