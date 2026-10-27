@@ -6,9 +6,9 @@ description: Make a new Demo Studio theme (the brand's logo, colours and fonts o
 # Demo Studio: themes
 
 A theme is a folder `templates/<name>/` of the workspace: `template.yaml` over a base theme, the logo, the fonts and
-their licences. Through MCP you create **new** themes only; existing themes and project.yaml are the user's. This skill
-is the long form of the Demo Studio server's instructions; when those instructions or a tool's description say
-something else, they win.
+their licences. Through MCP you create **new** themes only; existing themes and project.yaml are the user's (they edit a
+theme in the Studio's theme editor or by hand). This skill is the long form of the Demo Studio server's instructions;
+when those instructions or a tool's description say something else, they win.
 
 ## Before you start
 
@@ -61,7 +61,9 @@ something else, they win.
    an interstitial, the outro). Look at each: is the logo legible and not too big, does the text read on the paper,
    are the fonts the brand's, does the accent show on the rules and the kicker?
 2. **Adjust.** Call `template_create_from_brand` again with the changes and `replace: true`. That replaces only a
-   theme this tool made that nobody edited since; once the user edited it, use a new name.
+   theme this tool made that nobody edited since; once the user edited it, use a new name. For small changes to an
+   existing theme (a colour, the background, a component per kind) point the user to the Studio's theme editor
+   (Themes in a project's pages): they change it there with a live preview and undo; you do not edit it.
 3. **Render with it.** A theme is switched per render, by name: `render {project, scenario, template: acme}` (it
    needs a capture of the scenario: `run_list {project, scenario}`; none yet, film one first, see the
    demo-studio-scenario skill). Follow `render_status {project, render_id, wait_s: 25}` until it is finished.
@@ -71,7 +73,8 @@ something else, they win.
    theme or a render override needs only a render, no new capture. `export {project, render_id}` when the user
    wants the files: it returns a job, follow it with `job_status {job_id, wait_s: 25}`.
 5. **Make it the default** (the user's call): a scenario takes `template: acme` (through the scenario skill and
-   `scenario_save`); the project's own theme is in project.yaml, which only the user edits. 
+   `scenario_save`, or the user's own click on *Use in this scenario* in the Studio's theme editor — the same field);
+   the project's own theme is in project.yaml, which only the user edits. 
    A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render. Runs whose filmed part changed since render as captured, their theme
    included: pass `template` per render.
 

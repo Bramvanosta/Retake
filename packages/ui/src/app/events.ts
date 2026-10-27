@@ -28,7 +28,21 @@ export interface RunEvent {
 }
 
 export type StudioEvent =
-  | { type: 'workspace'; projects: string[]; readme: string[]; scenarios?: string[]; renders?: string[]; runs?: RunEvent[]; comments?: string[] }
+  | {
+      type: 'workspace';
+      projects: string[];
+      readme: string[];
+      scenarios?: string[];
+      renders?: string[];
+      runs?: RunEvent[];
+      comments?: string[];
+      /** L4.7: theme folders whose files changed (names). */
+      themes?: string[];
+      /** L4.7: component namespaces whose component files changed. */
+      components?: string[];
+      /** L4.7: a site extraction was written or removed. */
+      site?: true;
+    }
   | { type: 'jobs'; changed: string[] }
   | { type: 'index'; generation: number }
   | { type: 'resync' };

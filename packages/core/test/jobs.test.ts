@@ -4,7 +4,7 @@
  * and `project` is required (as for every kind).
  */
 import { describe, expect, it } from 'vitest';
-import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, INSPECT_ID_RE, InspectJobInputSchema, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RECORD_ID_RE, RENDER_ID_RE, RecordJobInputSchema, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
+import { EXPORT_FORMAT_NAMES, EditOverridesInputSchema, ExportJobInputSchema, INSPECT_ID_RE, InspectJobInputSchema, JOB_INPUT_VERSION, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, JOB_KINDS, JobInputSchema, PREVIEW_ID_RE, PreviewJobInputSchema, RECORD_ID_RE, RENDER_ID_RE, RecordJobInputSchema, RenderJobInputSchema, ReviewJobInputSchema, SLUG_RE } from '../src/index.js';
 
 const SHA = 'a'.repeat(64);
 const input = (extra: Record<string, unknown> = {}) => ({
@@ -164,6 +164,23 @@ describe('preview job input', () => {
     expect(ok({ params: { big: 'x'.repeat(9000) } })).toBe(false);
     expect(ok({ at_s: -1 })).toBe(false);
     expect(ok({ at_s: 601 })).toBe(false);
+  });
+
+  it('a library target (L4.7): 1–12 registry ids once each, each with the keys it asks for (32 hex), never a path or a slot', () => {
+    const k = 'a'.repeat(32);
+    const ok = (t: Record<string, unknown>) => PreviewJobInputSchema.safeParse(preview({ target: { kind: 'library', ...t } })).success;
+    expect(ok({ items: [{ component: 'studio/card-title', poster: k }, { component: 'acme/card', loop: k, poster: k }], retry: true })).toBe(true);
+    expect(ok({ items: Array.from({ length: LIBRARY_JOB_MAX }, (_, i) => ({ component: `acme/c${i}`, poster: k })) })).toBe(true);
+    expect(ok({ items: Array.from({ length: LIBRARY_JOB_MAX + 1 }, (_, i) => ({ component: `acme/c${i}`, poster: k })) })).toBe(false);
+    expect(ok({ items: [] })).toBe(false);
+    expect(ok({ items: [{ component: 'studio/card-title' }] })).toBe(false);
+    expect(ok({ items: [{ component: 'studio/card-title', poster: k }, { component: 'studio/card-title', loop: k }] })).toBe(false);
+    expect(ok({ items: [{ component: '../x', poster: k }] })).toBe(false);
+    expect(ok({ items: [{ component: 'studio/card-title', poster: '../../etc' }] })).toBe(false);
+    expect(ok({ items: [{ component: 'studio/card-title', poster: k.toUpperCase() }] })).toBe(false);
+    expect(ok({ items: [{ component: 'studio/card-title', poster: k, slots: { title: 'x' } }] })).toBe(false);
+    expect(ok({ items: [{ component: 'studio/card-title', poster: k }], out: '/tmp' })).toBe(false);
+    expect(LIBRARY_PREVIEW_KEY_RE.test(k)).toBe(true);
   });
 });
 

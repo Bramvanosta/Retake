@@ -14,6 +14,9 @@
  * - Preview mode (PreviewContext): a theme font that fails is a warning, never a blank preview.
  * - A workspace component the person has not allowed in this Studio session is not in the bundle at all (`held`, review
  *   A H1 c): its uses draw their kind's stand-in, and the warning says it was not run.
+ * - L4.7: a served `{format: 'component-preview', spec}` (the theme editor's live previews) plays the ComponentPreview
+ *   composition instead, looping: the same checks (every URL of the spec one of this frame's), the same lazy component
+ *   loads (held / missing → the kind's stand-in, said in `loaded.warnings`), the same messages.
  * - It starts only in the frame document (review A L2): its own capability path (boot.js runs first there), framed
  *   directly by the Studio page — never in a child frame or another page that loads it.
  */
@@ -22,9 +25,9 @@ import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player } from '@remotion/player';
 import type { PlayerRef } from '@remotion/player';
-import { DemoVideo, ModulesContext, PreviewContext, usedComponentIds } from 'ds:composition';
+import { ComponentPreview, DemoVideo, ModulesContext, PreviewContext, usedComponentIds } from 'ds:composition';
 import { bundle, defaults, held, loaders, scaffolds } from 'ds:modules';
-import { LIST_MAX, PROTOCOL_VERSION, clip, parseParentMessage } from './protocol.js';
+import { LIST_MAX, PROTOCOL_VERSION, clip, isPreviewDisplayText, parseParentMessage } from './protocol.js';
 import type { FrameMessage, ParentMessage } from './protocol.js';
 
 type Out = FrameMessage extends infer M ? (M extends { v: 1 } ? Omit<M, 'v'> : never) : never;
@@ -41,10 +44,32 @@ interface PlanShape {
 
 interface Mounted {
   gen: number;
+  /** The size and length of what plays (a plan, or a component preview's spec). */
   plan: PlanShape;
   Video: ComponentType<Record<string, unknown>>;
+  /** The composition's props: `{plan}` or `{preview}`. */
+  props: Record<string, unknown>;
+  /** A component preview loops. */
+  loop: boolean;
   frame: number;
 }
+
+/** A component preview spec as the frame checks it (editor ComponentPreviewSpec). */
+interface PreviewShape {
+  width: number;
+  height: number;
+  fps: number;
+  durationInFrames: number;
+  frame: number;
+  main?: { id?: unknown };
+  scene?: { layout?: { id?: unknown }; caption?: { id?: unknown } };
+  incoming?: { id?: unknown };
+}
+
+/** The `format` of a served component preview (server player.ts COMPONENT_PREVIEW_FORMAT). */
+const COMPONENT_PREVIEW = 'component-preview';
+/** A string naming a resource by a scheme (or scheme-relative): in a component preview, one of this frame's URLs only. */
+const URL_LIKE = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:file|blob|data|javascript|about|filesystem|mailto):)/i;
 
 const here = new URL(location.href);
 const capMatch = /^\/s\/([A-Za-z0-9_-]{43})\/frame$/.exec(here.pathname);
@@ -128,22 +153,63 @@ function planProblem(plan: unknown): string | undefined {
   return undefined;
 }
 
+/** A component preview's spec has a size and length, and every URL in it is one of this frame's. */
+function previewProblem(spec: unknown): string | undefined {
+  const p = spec as PreviewShape | null;
+  if (!p || typeof p !== 'object') return 'the preview is not an object';
+  if (!Number.isInteger(p.durationInFrames) || p.durationInFrames < 1 || !(p.fps > 0) || !(p.width > 0) || !(p.height > 0) || !Number.isInteger(p.frame)) return 'the preview has no video size';
+  let bad = false;
+  const scan = (v: unknown, path: string, depth: number): void => {
+    if (bad || depth > 32) return;
+    if (typeof v === 'string') {
+      // Display text (drawn, never loaded): the same fixed paths as the server's scan, array indices included.
+      if (URL_LIKE.test(v) && (!MEDIA || !v.startsWith(MEDIA)) && !isPreviewDisplayText(path, v, spec)) bad = true;
+    } else if (Array.isArray(v)) v.forEach((x, i) => scan(x, `${path}[${i}]`, depth + 1));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) scan(x, `${path}.${k}`, depth + 1);
+  };
+  scan(spec, 'spec', 0);
+  return bad ? 'the preview names media this frame does not serve' : undefined;
+}
+
+/** The component ids a preview spec renders (the component, its scene's layout and caption, the incoming card). */
+function previewComponentIds(spec: PreviewShape): string[] {
+  const ids = [spec.main?.id, spec.scene?.layout?.id, spec.scene?.caption?.id, spec.incoming?.id].filter((x): x is string => typeof x === 'string');
+  return [...new Set(ids)].sort();
+}
+
 async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> {
   const gen = ++generation;
   reports = 0;
   if (!PLAN_PREFIX || !m.plan_url.startsWith(PLAN_PREFIX)) return report('error', 'the plan URL is not one of this preview');
-  let plan: PlanShape;
+  let doc: unknown;
   try {
     const r = await fetch(m.plan_url, { credentials: 'omit', cache: 'force-cache' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    plan = (await r.json()) as PlanShape;
+    doc = await r.json();
   } catch (e) {
     if (gen === generation) report('error', `the preview plan could not be loaded (${e instanceof Error ? e.message : 'error'})`);
     return;
   }
-  const problem = planProblem(plan);
-  if (problem) return report('error', problem);
-  const ids = usedComponentIds(plan);
+  // L4.7: a component preview (the theme editor), played by ComponentPreview, looping.
+  const isPreview = !!doc && typeof doc === 'object' && (doc as { format?: unknown }).format === COMPONENT_PREVIEW;
+  let plan: PlanShape;
+  let ids: string[];
+  let props: Record<string, unknown>;
+  if (isPreview) {
+    const spec = (doc as { spec?: unknown }).spec;
+    const problem = previewProblem(spec);
+    if (problem) return report('error', problem);
+    const p = spec as PreviewShape;
+    plan = { durationInFrames: p.durationInFrames, fps: p.fps, width: p.width, height: p.height, segments: [] };
+    ids = previewComponentIds(p);
+    props = { preview: spec };
+  } else {
+    plan = doc as PlanShape;
+    const problem = planProblem(plan);
+    if (problem) return report('error', problem);
+    ids = usedComponentIds(plan);
+    props = { plan };
+  }
   const components: Record<string, Module> = {};
   const missing: string[] = [];
   await Promise.all(
@@ -162,9 +228,10 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
   if (gen !== generation) return;
   missing.sort();
   const modules = { components, scaffolds: scaffoldsLoaded };
-  const Video = (props: Record<string, unknown>) => h(ModulesContext.Provider, { value: modules }, h(PreviewContext.Provider, { value: previewMode }, h(DemoVideo, props)));
+  const Composition = isPreview ? ComponentPreview : DemoVideo;
+  const Video = (vp: Record<string, unknown>) => h(ModulesContext.Provider, { value: modules }, h(PreviewContext.Provider, { value: previewMode }, h(Composition, vp)));
   const frame = Math.min(m.frame, plan.durationInFrames - 1);
-  mounted = { gen, plan, Video, frame };
+  mounted = { gen, plan, Video, props, loop: isPreview, frame };
   mount?.(mounted);
   send({
     type: 'loaded',
@@ -303,7 +370,7 @@ function App() {
     key: m.gen,
     ref: attach,
     component: m.Video,
-    inputProps: { plan: m.plan },
+    inputProps: m.props,
     durationInFrames: m.plan.durationInFrames,
     fps: m.plan.fps,
     compositionWidth: m.plan.width,
@@ -316,6 +383,7 @@ function App() {
     doubleClickToFullscreen: false,
     spaceKeyToPlayOrPause: false,
     moveToBeginningWhenEnded: false,
+    loop: m.loop,
     acknowledgeRemotionLicense: true,
     style: { width: '100%', height: '100%' },
   });

@@ -59,7 +59,7 @@ function NavLink({ to, current, children }: { to: Route; current: boolean; child
 }
 
 function ProjectNav({ p, route }: { p: ProjectSummary; route: Route }) {
-  const open = (route.name === 'project' || route.name === 'readme' || route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal') && route.slug === p.slug;
+  const open = (route.name === 'project' || route.name === 'readme' || route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' || route.name === 'library' || route.name === 'themes') && route.slug === p.slug;
   const dirty = useDirty(readmeKey(p.slug));
   return (
     <li>
@@ -78,6 +78,16 @@ function ProjectNav({ p, route }: { p: ProjectSummary; route: Route }) {
             <NavLink to={{ name: 'readme', slug: p.slug }} current={route.name === 'readme'}>
               README
               {dirty && <span className="nav-flag">unsaved</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to={{ name: 'library', slug: p.slug }} current={route.name === 'library'}>
+              Components
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to={{ name: 'themes', slug: p.slug }} current={route.name === 'themes'}>
+              Themes
             </NavLink>
           </li>
         </ul>

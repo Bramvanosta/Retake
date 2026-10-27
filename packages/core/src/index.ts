@@ -67,4 +67,6 @@ export { clientPath, isUnder } from './client-path.js';
 export * from './scenario-edit.js';
 export * from './step-edits.js';
 export * from './field-edits.js';
+export * from './map-edits.js';
+export * from './theme-edits.js';
 export * from './step-forms.js';

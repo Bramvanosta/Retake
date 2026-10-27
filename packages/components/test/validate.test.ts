@@ -130,6 +130,42 @@ export default function X() {
     expect(ALLOWED_IMPORTS).toEqual(['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'remotion', KIT_MODULE]);
   });
 
+  it('⚑ L4.7 review A H1: an import through a dot folder, node_modules, previews or dist inside the folder is refused', async () => {
+    // The folder's content hash skips them (editor componentHashedFiles): an import there would change what renders
+    // under an unchanged hash. Caught by the words of the import, and by the file actually loaded (a package.json).
+    const tsx = `import { a } from './.impl/code';
+import { b } from './node_modules/lib/index';
+import { c } from './previews/p';
+import { d } from './dist/x';
+import { e } from './lib';
+import { f } from './parts/ok';
+
+export default function X() {
+  return <div>{a}{b}{c}{d}{e}{f}</div>;
+}
+`;
+    const code = (n: string) => `export const ${n} = '${n}';\n`;
+    const r = await check('acme/hidden', tsx, {
+      '.impl/code.ts': code('a'),
+      'node_modules/lib/index.ts': code('b'),
+      'previews/p.ts': code('c'),
+      'dist/x.ts': code('d'),
+      'lib/package.json': '{"main": "../.impl/e.ts"}',
+      '.impl/e.ts': code('e'),
+      'parts/ok.ts': code('f'),
+    });
+    const skip = "a component's content hash skips dot folders, node_modules, previews and dist, so a change there would go unseen — keep imported code in the component folder or a plain subfolder";
+    expect(r.text).toBe(
+      [
+        `index.tsx:1:19 error: import "./.impl/code" reaches ".impl" (a dot entry): ${skip}`,
+        `index.tsx:2:19 error: import "./node_modules/lib/index" reaches node_modules/: ${skip}`,
+        `index.tsx:3:19 error: import "./previews/p" reaches previews/: ${skip}`,
+        `index.tsx:4:19 error: import "./dist/x" reaches dist/: ${skip}`,
+        `index.tsx:5:19 error: import ".impl/e.ts" reaches ".impl" (a dot entry): ${skip}`,
+      ].join('\n'),
+    );
+  });
+
   it('names a misspelt import of remotion, react or the kit with a suggestion', async () => {
     const tsx = `import { useCurrentFrme } from 'remotion';
 import { useMemmo } from 'react';

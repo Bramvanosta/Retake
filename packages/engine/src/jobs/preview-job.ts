@@ -9,21 +9,49 @@
  * and again by the worker: the theme is a name (or the project's own), its files lie in its folder; the component is
  * one of the registry; slot values only for text slots (text, url, color — file and media slots keep their samples);
  * params valid against the component's schema. A preview counts nothing in the history. The editor is imported lazily.
+ *
+ * L4.7 `library` targets (the Studio library): posters and / or loops of up to 12 registry components in the job's theme
+ * into the content-keyed cache of ../library.ts — refused under 1 GB free (at submit and in the worker), the worker's
+ * own keys (a difference from the client's is reported, never trusted), cached keys skipped, failed keys left alone
+ * unless `retry`, one whole-registry bundle (`bundle: 'registry'`: every library job shares it), items isolated (a
+ * component that fails gets failed.json and the others go on), a full disk stops the job ("the disk has N MB free"),
+ * the cache pruned at the end.
  */
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION } from '@demo-studio/core';
+import { JOB_INPUT_VERSION, PreviewJobInputSchema } from '@demo-studio/core';
 import type { ComponentKind, LoadedTemplate, PreviewJobInput, WorkspaceConfig } from '@demo-studio/core';
 import type { ComponentRegistry } from '@demo-studio/components';
-import type { BrowserProcessInfo, PreviewComponentTarget } from '@demo-studio/editor';
+import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@demo-studio/editor';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
+import {
+  LIBRARY_FILES,
+  LIBRARY_PREVIEW_FORMAT,
+  checkLibraryDisk,
+  commitLibraryEntry,
+  diskSentence,
+  dropLibraryEntry,
+  ensureLibraryCacheDir,
+  failureIsCurrent,
+  freeBytesOf,
+  libraryCacheDir,
+  libraryKeyContext,
+  libraryPreviewKey,
+  libraryReason,
+  libraryStates,
+  pruneLibraryCache,
+  readLibraryEntry,
+  stageLibraryEntry,
+} from '../library.js';
+import type { LibraryKeyContext, LibraryPreviewKind, LibraryStatesView } from '../library.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
 import { newJobId } from './ids.js';
 import { editor } from './render-job.js';
 import type { SubmitContext } from './run-job.js';
-import type { JobEventBody, JobProgress, JobRecord, PreviewJobResult } from './types.js';
+import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];
@@ -56,14 +84,35 @@ interface PreparedPreview {
   skipped: ComponentKind[];
 }
 
-/** Check a preview's input and build its targets (submit, and again in the worker). EngineError invalid / refused / not_found. */
-async function preparePreview(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'project' | 'template' | 'target'>): Promise<PreparedPreview> {
+/** The theme and registry of a preview: the project, the theme (a name or the project's own) serving only its own files. */
+async function previewTheme(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'project' | 'template'>): Promise<{ template: LoadedTemplate; registry: ComponentRegistry }> {
   checkProjectSlug(req.project);
   const project = await openProjectBySlug(ws, req.project);
   const template = await themeForWork(project, req.template);
   const assets = themeAssetProblems(template);
   if (assets.length) throw new EngineError('refused', `${assets.join('; ')}: through MCP a theme serves only its own files`, { details: { problems: assets } });
-  const registry = await workspaceRegistry(ws);
+  return { template, registry: await workspaceRegistry(ws) };
+}
+
+/**
+ * The library states of a theme (engine `components.library`): keys and cache states of `components` (each one of the
+ * registry; default all of it), computed with the worker's own key builder.
+ */
+export async function libraryStatesOf(ws: WorkspaceConfig, req: { project: string; template?: string; components?: readonly string[] }): Promise<LibraryStatesView> {
+  const { template, registry } = await previewTheme(ws, req);
+  if (req.components) {
+    if (req.components.length > 500) throw new EngineError('invalid', 'at most 500 components at once');
+    for (const id of req.components) {
+      checkComponentId(id);
+      if (!registry.has(id)) throw new EngineError('not_found', `component ${id} is not in the registry (component_list names them)`);
+    }
+  }
+  return libraryStates(ws, await libraryKeyContext(template, registry), req.components);
+}
+
+/** Check a preview's input and build its targets (submit, and again in the worker). EngineError invalid / refused / not_found. */
+async function preparePreview(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'project' | 'template' | 'target'>): Promise<PreparedPreview> {
+  const { template, registry } = await previewTheme(ws, req);
   const lib = await components();
   const targets: PreviewComponentTarget[] = [];
   const skipped: ComponentKind[] = [];
@@ -100,7 +149,7 @@ async function preparePreview(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'p
       ...(t.at_s !== undefined ? { at: t.at_s } : {}),
       file: `${m.id.replace('/', '__')}.png`,
     });
-  } else {
+  } else if (t.kind === 'theme') {
     let theme;
     try {
       theme = registry.resolveTheme(template.template);
@@ -116,13 +165,24 @@ async function preparePreview(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'p
       const info = registry.get(rc.id);
       targets.push({ id: rc.id, dir: info.dir, entry: info.entry, manifest: rc.manifest, params: rc.params, file: `${kind}.png` });
     }
+  } else {
+    // A library target: every component one of the registry (a scaffold or a folder never is).
+    for (const item of t.items) {
+      checkComponentId(item.component);
+      let info;
+      try {
+        info = registry.get(item.component);
+      } catch (e) {
+        throw toEngineError(e);
+      }
+      targets.push({ id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest });
+    }
   }
   return { template, registry, targets, skipped };
 }
 
 /** Check and queue a `preview` job (images in .demo-studio/previews/<preview_id>/). */
 export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest): Promise<{ job: JobRecord; preview_id: string; theme: string; targets: string[]; skipped: ComponentKind[] }> {
-  const prepared = await preparePreview(ctx.ws, req);
   const previewId = `p_${newJobId().slice(2)}`;
   const input: PreviewJobInput = {
     version: JOB_INPUT_VERSION,
@@ -133,6 +193,13 @@ export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest):
     ...(req.template !== undefined ? { template: req.template } : {}),
     submitted_by: ctx.client,
   };
+  if (req.target.kind === 'library') {
+    // The shape first (at most 12 ids, keys of their form), before the registry is read.
+    const parsed = PreviewJobInputSchema.safeParse(input);
+    if (!parsed.success) throw new EngineError('invalid', `invalid library preview: ${parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}`);
+  }
+  const prepared = await preparePreview(ctx.ws, req);
+  if (req.target.kind === 'library') await checkLibraryDisk(ctx.ws.root);
   return { job: await ctx.queue.enqueue(input), preview_id: previewId, theme: prepared.template.name, targets: prepared.targets.map((t) => t.id), skipped: prepared.skipped };
 }
 
@@ -145,11 +212,20 @@ export interface PreviewJobContext {
   progress(p: JobProgress): void;
   /** The preview browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
+  /** In-process tests only (WorkerOptions.previewTest). */
+  test?: PreviewJobTestHooks;
+}
+
+/** In-process tests of library jobs: a stand-in for Remotion, and the free space the disk gate sees. */
+export interface PreviewJobTestHooks {
+  backend?: PreviewBackend;
+  freeBytes?: (dir: string) => Promise<number | undefined>;
 }
 
 /** Execute a `preview` job: the checks again, then `renderComponentPreviews` into the preview's folder, guarded. */
 export async function executePreviewJob(ctx: PreviewJobContext): Promise<PreviewJobResult> {
   const { input } = ctx;
+  if (input.target.kind === 'library') return executeLibraryPreview(ctx, input.target);
   const prepared = await preparePreview(ctx.ws, input);
   const ed = await editor();
   const dir = previewDir(ctx.ws, input.preview_id);
@@ -183,5 +259,153 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
     }),
     ...(prepared.skipped.length ? { skipped: prepared.skipped } : {}),
     untrusted: { warnings },
+  };
+}
+
+type LibraryTarget = Extract<PreviewJobInput['target'], { kind: 'library' }>;
+
+/** One asked key of a library job, as the worker sees it. */
+interface LibraryWant {
+  component: string;
+  kind: LibraryPreviewKind;
+  key: string | null;
+  expected: string;
+  state?: LibraryEntryView['state'];
+  /** Its temporary entry folder while it renders. */
+  tmp?: string;
+}
+
+/** Execute a library job (see the module comment). */
+async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarget): Promise<PreviewJobResult> {
+  const { input, ws } = ctx;
+  const freeBytes = ctx.test?.freeBytes ?? freeBytesOf;
+  await checkLibraryDisk(ws.root, freeBytes);
+  const { template, registry } = await previewTheme(ws, input);
+  const keys: LibraryKeyContext = await libraryKeyContext(template, registry);
+  const theme = { name: template.name, hash: keys.themeHash };
+  const cacheDir = await ensureLibraryCacheDir(ws);
+  const wants: LibraryWant[] = [];
+  const failures: Array<{ component: string; reason: string }> = [];
+  for (const item of target.items) {
+    for (const kind of ['poster', 'loop'] as const) {
+      const expected = item[kind];
+      if (expected === undefined) continue;
+      let key: string | null = null;
+      if (registry.has(item.component)) key = await libraryPreviewKey(keys, item.component, kind);
+      wants.push({ component: item.component, kind, key, expected, ...(key === null ? { state: 'not_found' as const } : {}) });
+    }
+  }
+  for (const c of new Set(wants.filter((w) => w.key === null).map((w) => w.component))) failures.push({ component: c, reason: `${c} is not a component of the registry any more` });
+  for (const w of wants) {
+    if (w.key === null) continue;
+    const have = await readLibraryEntry(cacheDir, w.key);
+    if (have.state === 'cached') w.state = 'cached';
+    else if (have.state === 'too_large') w.state = 'too_large';
+    // A failure under the registry as it is now waits for a Retry; one under another registry state is stale (review
+    // A M3 / B H1: maybe another component's) and is rendered again.
+    else if (have.state === 'failed' && !target.retry && failureIsCurrent(have.failure, await keys.registryHash())) w.state = 'kept_failed';
+    else if (have.state === 'failed') await dropLibraryEntry(cacheDir, w.key);
+  }
+  const todo = wants.filter((w) => w.state === undefined);
+  const ed = await editor();
+  const at = () => new Date().toISOString();
+  let bundle: { hash: string; cached: boolean } | null = null;
+  let warnings: string[] = [];
+  const cleanup = async () => {
+    for (const w of todo) if (w.tmp) await rm(w.tmp, { recursive: true, force: true }).catch(() => undefined);
+  };
+  try {
+    const items: LoopItem[] = [];
+    const byComponent = new Map<string, { poster?: LibraryWant; loop?: LibraryWant }>();
+    for (const w of todo) {
+      w.tmp = await stageLibraryEntry(cacheDir, w.key!);
+      const slot = byComponent.get(w.component) ?? {};
+      slot[w.kind] = w;
+      byComponent.set(w.component, slot);
+    }
+    for (const [component, slot] of byComponent) {
+      const info = registry.get(component);
+      items.push({
+        target: { id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest },
+        ...(slot.poster ? { poster: join(slot.poster.tmp!, LIBRARY_FILES.poster) } : {}),
+        ...(slot.loop ? { loop: join(slot.loop.tmp!, LIBRARY_FILES.loop) } : {}),
+      });
+    }
+    const total = items.length;
+    ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: at() });
+    if (items.length) {
+      const commit = async (r: RenderedLoopItem) => {
+        const slot = byComponent.get(r.id)!;
+        if (slot.poster && r.poster) {
+          await commitLibraryEntry(cacheDir, slot.poster.key!, slot.poster.tmp!, {
+            meta: { format: LIBRARY_PREVIEW_FORMAT, key: slot.poster.key!, kind: 'poster', component: r.id, theme, at: at(), state: 'ok', bytes: r.poster.bytes, width: r.poster.width, height: r.poster.height },
+          });
+          slot.poster.state = 'written';
+        }
+        if (slot.loop && r.loop) {
+          const l = r.loop;
+          const meta =
+            'too_large' in l
+              ? ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'too_large', bytes: l.bytes } as const)
+              : ({ format: LIBRARY_PREVIEW_FORMAT, key: slot.loop.key!, kind: 'loop', component: r.id, theme, at: at(), state: 'ok', bytes: l.bytes, width: l.width, height: l.height, fps: l.fps, frames: l.frames, duration_s: l.duration_s } as const);
+          await commitLibraryEntry(cacheDir, slot.loop.key!, slot.loop.tmp!, { meta });
+          slot.loop.state = 'too_large' in l ? 'too_large' : 'written';
+        }
+      };
+      const done = await ed.renderComponentLoops({
+        root: ws.root,
+        registry,
+        template,
+        items,
+        bundle: 'registry',
+        network: 'guard',
+        signal: ctx.signal,
+        onBrowser: (b) => ctx.browser(b),
+        onItem: commit,
+        onProgress: (n, of) =>
+          ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: at() }),
+        ...(ctx.test?.backend ? { backend: ctx.test.backend } : {}),
+      });
+      bundle = done.bundle;
+      warnings = done.warnings;
+      for (const f of done.failed) {
+        // Untrusted words (B16), the workspace's part of any path cut off (review A L2; the Studio shortens the rest).
+        const reason = libraryReason(f.reason.split(`${ws.root}/`).join('').split(ws.root).join('.'));
+        failures.push({ component: f.id, reason });
+        const slot = byComponent.get(f.id);
+        for (const w of [slot?.poster, slot?.loop]) {
+          // A key already written (the poster, when the loop failed after it) stays as it is.
+          if (!w || w.state) continue;
+          // A fresh temporary folder becomes its failed.json entry (the editor removed the item's files).
+          await rm(w.tmp!, { recursive: true, force: true });
+          w.tmp = await stageLibraryEntry(cacheDir, w.key!);
+          await commitLibraryEntry(cacheDir, w.key!, w.tmp, { failure: { format: LIBRARY_PREVIEW_FORMAT, key: w.key!, kind: w.kind, component: f.id, theme, at: at(), reason, bundle: await keys.registryHash() } });
+          w.state = 'failed';
+        }
+      }
+    }
+  } catch (e) {
+    await cleanup();
+    if (ed.isDiskFullError(e)) throw new EngineError('refused', diskSentence(await freeBytes(ws.root)), { details: { disk_full: true } });
+    throw e;
+  } finally {
+    await cleanup();
+    await pruneLibraryCache(cacheDir, { theme }).catch(() => undefined);
+  }
+  const changed = wants.filter((w) => w.key !== null && w.key !== w.expected).length;
+  return {
+    kind: 'preview',
+    preview_id: input.preview_id,
+    dir: libraryCacheDir(ws),
+    theme: template.name,
+    target: { kind: 'library' },
+    images: [],
+    library: {
+      theme,
+      entries: wants.map((w) => ({ component: w.component, kind: w.kind, key: w.key, state: w.state ?? 'failed', ...(w.key !== w.expected ? { expected: w.expected } : {}) })),
+      changed,
+      bundle,
+    },
+    untrusted: { warnings, ...(failures.length ? { failures } : {}) },
   };
 }

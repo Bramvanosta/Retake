@@ -166,6 +166,41 @@ export function scanSource(src: string, file: string): ComponentIssue[] {
   return out.sort((a, b) => a.line! - b.line! || a.col! - b.col!);
 }
 
+/**
+ * What a component folder's content hash (editor `bundleHash` / `componentFolderHash`: the render bundle cache, the
+ * Studio's preview allow-list, library preview keys) skips: dot entries, these folders, the generated preview files and
+ * files of other types. No import may reach one of them — a change there would change what the component renders under
+ * an unchanged hash (L4.7 review fix). One definition, used by the hash and by every import check.
+ */
+export const UNHASHED_DIRS: ReadonlySet<string> = new Set(['node_modules', 'previews', '.git', 'dist']);
+/** Files of a component folder its content hash reads (by extension). */
+export const HASHED_FILE = /\.(tsx?|jsx?|mjs|cjs|json|css|ya?ml|svg|png|jpe?g|webp|woff2?|ttf|otf)$/i;
+/** Generated files of a component folder that never change what it renders (regenerating them keeps the hash). */
+export const PREVIEW_ARTIFACTS: ReadonlySet<string> = new Set(['preview.png', 'preview.json']);
+
+const UNHASHED_WORDS = 'dot folders, node_modules, previews and dist';
+
+/**
+ * Why the file at `rel` (relative to its component folder) is not read by the folder's content hash, or undefined.
+ * `lexical`: `rel` is an import's target before resolution (no extension yet, maybe a folder): only its segments count.
+ */
+export function unhashedFileProblem(rel: string, lexical = false): string | undefined {
+  const parts = rel.split(/[\\/]/).filter((p) => p !== '' && p !== '.');
+  for (const [i, part] of parts.entries()) {
+    if (part.startsWith('.')) return `"${part}" (a dot entry)`;
+    if ((lexical || i < parts.length - 1) && UNHASHED_DIRS.has(part)) return `${part}/`;
+  }
+  const name = parts.at(-1) ?? '';
+  if (PREVIEW_ARTIFACTS.has(name)) return `${name} (a generated preview file)`;
+  if (!lexical && !HASHED_FILE.test(name)) return `${name} (a file type the component's content hash does not read)`;
+  return undefined;
+}
+
+/** The sentence for a file an import reaches that the content hash skips (`what` from unhashedFileProblem). */
+export function unhashedImportMessage(spec: string, what: string): string {
+  return `import "${spec}" reaches ${what}: a component's content hash skips ${UNHASHED_WORDS}, so a change there would go unseen — keep imported code in the component folder or a plain subfolder`;
+}
+
 /** Why a component may not import `spec` (from a file in `resolveDir`), or undefined when it may. */
 export function importProblem(spec: string, resolveDir: string, componentDir: string): string | undefined {
   if (spec.startsWith('.') || isAbsolute(spec)) {
@@ -173,6 +208,8 @@ export function importProblem(spec: string, resolveDir: string, componentDir: st
     if (!isInside(target, componentDir)) {
       return `import "${spec}" leaves the component folder: a component may only import its own files, react, remotion and ${KIT_MODULE}`;
     }
+    const hidden = unhashedFileProblem(relative(componentDir, target), true);
+    if (hidden) return unhashedImportMessage(spec, hidden);
     const ext = extname(target);
     if (ext && !CODE_EXTENSIONS.has(ext)) {
       return `import "${spec}": only code files can be imported (pass images and fonts through slots and the theme)`;
@@ -351,6 +388,18 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
         contents: stubSource(exportsOf.get(args.path) ?? []),
         loader: 'js',
       }));
+      // Every file actually loaded (an import resolved through a folder's package.json, or without an extension, is
+      // only known here): the kit's own files, or a file of the component folder its content hash reads.
+      b.onLoad({ filter: /.*/, namespace: 'file' }, (args) => {
+        const real = realPath(args.path);
+        if (kitDir !== undefined && isInside(real, kitDir)) return undefined;
+        if (!isInside(real, absDir)) {
+          return { errors: [{ text: `${basename(real)} lies outside the component folder (reached through a package.json or a link): a component may only import its own files, react, remotion and ${KIT_MODULE}` }] };
+        }
+        const rel = relative(absDir, real).split(sep).join('/');
+        const hidden = unhashedFileProblem(rel);
+        return hidden ? { errors: [{ text: unhashedImportMessage(rel, hidden) }] } : undefined;
+      });
     },
   };
 

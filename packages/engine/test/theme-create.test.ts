@@ -11,7 +11,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -372,5 +372,19 @@ describe('template_create_from_brand (engine)', () => {
   it('an unknown base is not found; a base cannot be the theme itself', async () => {
     expect(await refusal(engine.templates.create(input({ name: 'nob', base: 'nope' })))).toMatchObject({ code: 'not_found' });
     expect(await refusal(engine.templates.create(input({ name: 'self', base: 'self' })))).toMatchObject({ code: 'invalid' });
+  });
+
+  it('⚑ L4.7 review A M1: a base theme font held by a hard link is refused (never copied into the new theme)', async () => {
+    const base = join(root, 'templates', 'hard-base');
+    await cp(join(T, 'motion'), base, { recursive: true });
+    await writeFile(join(base, 'template.yaml'), (await readFile(join(T, 'motion', 'template.yaml'), 'utf8')).replace('name: motion', 'name: hard-base'));
+    await mkdir(join(root, 'outside'), { recursive: true });
+    await cp(join(T, 'default', 'fonts', 'Inter-Regular.ttf'), join(root, 'outside', 'font.ttf'));
+    await rm(join(base, 'fonts', 'Inter-Regular.ttf'));
+    await link(join(root, 'outside', 'font.ttf'), join(base, 'fonts', 'Inter-Regular.ttf'));
+    const e = await refusal(engine.templates.create(input({ name: 'from-hard', base: 'hard-base' })));
+    expect(e).toMatchObject({ code: 'refused', message: "base theme hard-base: Inter-Regular.ttf has another name (a hard link): a new theme copies only the base's own files" });
+    expect(existsSync(join(root, 'templates', 'from-hard'))).toBe(false);
+    await rm(base, { recursive: true, force: true });
   });
 });

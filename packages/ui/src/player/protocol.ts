@@ -31,6 +31,25 @@ export const FRAMES_MAX = 432_000;
  */
 export const FLOOD_MESSAGES_PER_S = 240;
 
+/**
+ * Strings of a component preview spec (L4.7) that are text drawn, never loaded — exempt from the "every URL is one this
+ * preview serves" scan on both sides (the server's checkPreviewSpec, the frame's own check). A fixed list of paths
+ * (root `spec`, array indices written `[*]`): the sample address a browser layout draws in its bar, each pane's, the
+ * theme's brand address. Plus a slot value of a component use (`spec.….slots.<name>`) equal to that brand address: a
+ * slot filled from `default_from: theme.brand.url`. Nothing else, so no free-form path widens it (L4.7 review A M2).
+ */
+export const PREVIEW_DISPLAY_PATHS: readonly string[] = ['spec.scene.url', 'spec.scene.rects.panes[*].url', 'spec.theme.brand.url'];
+const PREVIEW_SLOT_PATH = /^spec(?:\.[A-Za-z_]+)+\.slots\.[A-Za-z0-9_-]+$/;
+
+/** Whether `value` at `path` (as the scans write it: `spec.a.b[0].c`) is display text of `spec` (see PREVIEW_DISPLAY_PATHS). */
+export function isPreviewDisplayText(path: string, value: string, spec: unknown): boolean {
+  const norm = path.replace(/\[\d+\]/g, '[*]');
+  if (PREVIEW_DISPLAY_PATHS.includes(norm)) return true;
+  const theme = spec && typeof spec === 'object' ? (spec as { theme?: { brand?: { url?: unknown } } }).theme : undefined;
+  const brandUrl = theme && typeof theme === 'object' ? theme.brand?.url : undefined;
+  return typeof brandUrl === 'string' && value === brandUrl && PREVIEW_SLOT_PATH.test(norm);
+}
+
 export type ParentMessage =
   | { v: 1; type: 'load'; plan_url: string; frame: number }
   | { v: 1; type: 'seek'; frame: number }

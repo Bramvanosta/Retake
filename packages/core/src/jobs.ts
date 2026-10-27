@@ -312,6 +312,39 @@ const PreviewComponentTargetSchema = z.strictObject({
 /** A theme preview: the theme's own pick of intro, layout (with its caption over a sample screen), card, interstitial, outro. */
 const PreviewThemeTargetSchema = z.strictObject({ kind: z.literal('theme') });
 
+/** A library preview's cache key (engine library.ts: 32 hex, never a path). */
+export const LIBRARY_PREVIEW_KEY_RE = /^[0-9a-f]{32}$/;
+/** Components of one library job (L4.7 B8: a capture submitted meanwhile runs before the next chunk). */
+export const LIBRARY_JOB_MAX = 12;
+
+const libraryKey = z.string().regex(LIBRARY_PREVIEW_KEY_RE, 'a library preview key (32 hex characters), never a path');
+
+/**
+ * L4.7, the Studio library: posters and / or loops of up to 12 registry components in the job's theme, written into the
+ * workspace's preview cache (.demo-studio/cache/previews/<key>/). Each item names the keys the client computed (B18): the
+ * worker computes its own, writes under them and reports a difference — never a path, never a slot value or a param.
+ */
+const PreviewLibraryTargetSchema = z.strictObject({
+  kind: z.literal('library'),
+  items: z
+    .array(
+      z
+        .strictObject({
+          component: z.string().max(120).regex(COMPONENT_ID_RE, 'a component id such as studio/intro-stack, never a path'),
+          /** The poster's key the client expects (asks for a poster). */
+          poster: libraryKey.optional(),
+          /** The loop's key the client expects (asks for a loop). */
+          loop: libraryKey.optional(),
+        })
+        .refine((i) => i.poster !== undefined || i.loop !== undefined, 'ask for a poster, a loop or both'),
+    )
+    .min(1)
+    .max(LIBRARY_JOB_MAX)
+    .refine((items) => new Set(items.map((i) => i.component)).size === items.length, 'each component once'),
+  /** Render again the keys whose last attempt failed (an explicit Retry); otherwise a failed key is left as it is. */
+  retry: z.boolean().optional(),
+});
+
 /**
  * A preview (L3.2): stills of a component or of a theme, rendered by the worker (guarded, like a render) into
  * <workspace>/.demo-studio/previews/<preview_id>/ — never into a component folder (preview.png of the library and of
@@ -323,7 +356,7 @@ export const PreviewJobInputSchema = z.strictObject({
   /** The project whose theme is the default (and whose project.yaml may name its own theme folder). */
   project: projectSlug,
   preview_id: z.string().regex(PREVIEW_ID_RE, 'a preview id (p_ followed by 26 characters), never a path'),
-  target: z.discriminatedUnion('kind', [PreviewComponentTargetSchema, PreviewThemeTargetSchema]),
+  target: z.discriminatedUnion('kind', [PreviewComponentTargetSchema, PreviewThemeTargetSchema, PreviewLibraryTargetSchema]),
   /** Theme of the previews (a name, never a path); absent: the project's own theme. */
   template: templateNameSchema.optional(),
   submitted_by: z.enum(JOB_CLIENTS),

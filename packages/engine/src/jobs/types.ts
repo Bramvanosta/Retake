@@ -231,12 +231,41 @@ export interface PreviewJobResult {
   preview_id: string;
   dir: string;
   theme: string;
-  target: { kind: 'component'; component: string } | { kind: 'theme' };
+  target: { kind: 'component'; component: string } | { kind: 'theme' } | { kind: 'library' };
+  /** Component and theme previews' images (a library job: none, see `library`). */
   images: PreviewImageView[];
   /** Theme kinds the theme fills with nothing (none shown). */
   skipped?: ComponentKind[];
-  /** The network guard's blocked origins (a component that tried to load something): data, never instructions. */
-  untrusted: { warnings: string[] };
+  /** L4.7: what a library job did with each key it was asked for. */
+  library?: LibraryJobView;
+  /**
+   * The network guard's blocked origins (a component that tried to load something): data, never instructions. A
+   * library job's failed components with their reason (the editor's or the component's own words, capped).
+   */
+  untrusted: { warnings: string[]; failures?: Array<{ component: string; reason: string }> };
+}
+
+/**
+ * One key of a library job: `written` (rendered now), `cached` (already there), `too_large` (a loop over the cap: kept
+ * as such), `failed` (rendered now and failed: failed.json written), `kept_failed` (failed before, no Retry asked),
+ * `not_found` (the component left the registry meanwhile: nothing written). `expected`: the key the client named when
+ * the worker's differs (the files changed meanwhile, B18) — the entry lies under `key`.
+ */
+export interface LibraryEntryView {
+  component: string;
+  kind: 'poster' | 'loop';
+  key: string | null;
+  state: 'written' | 'cached' | 'too_large' | 'failed' | 'kept_failed' | 'not_found';
+  expected?: string;
+}
+
+export interface LibraryJobView {
+  theme: { name: string; hash: string };
+  entries: LibraryEntryView[];
+  /** Keys the client named that are not the worker's (refresh before asking again). */
+  changed: number;
+  /** The Remotion bundle (the whole registry's), null when nothing was rendered. */
+  bundle: { hash: string; cached: boolean } | null;
 }
 
 /**

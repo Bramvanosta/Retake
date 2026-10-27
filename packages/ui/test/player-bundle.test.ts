@@ -8,6 +8,8 @@
  * - the memo: the same components → one build; an edited component file → a new hash and a new build;
  * - ⚑ review A H1 c: a workspace component the Studio session did not allow (by id and folder content hash) is held —
  *   absent from the bundle, its bytes too; allowed, it is bundled; changed since, held again;
+ * - ⚑ L4.7 review A H1: an import reaching a dot folder, node_modules, previews or dist inside the folder (by its words,
+ *   or through a folder's package.json) is excluded even when the component is allowed — the content hash skips them;
  * - ⚑ lint: no sandbox token that loosens the frame (`allow-same-origin`, `allow-top-navigation`, …) in src/app or
  *   src/player.
  */
@@ -128,6 +130,51 @@ describe('the preview bundle', () => {
     expect(changed.js.toString('utf8')).not.toContain(MARK_GOOD);
     expect(modulesSource('0123456789abcdef', [], ['acme/x'])).toContain('export const held = ["acme/x"];');
   }, 180_000);
+
+  it('⚑ L4.7 review A H1: an import through a dot folder, node_modules, previews or dist (words or package.json) is excluded, even allowed', async () => {
+    // The folder content hash (allow-list, library keys, render bundle cache) skips those folders: code there must never
+    // run, or an edit of it would run under a hash the person allowed for other code.
+    const ws2 = await mkdtemp(join(tmpdir(), 'ds-player-hidden-'));
+    try {
+      await writeFile(join(ws2, 'studio.yaml'), 'version: 1\nprojects_dir: projects\n');
+      const hidden = (n: number) => `export const v = 'HIDDEN-CODE-${n}-e51a';\n`;
+      const cases: Record<string, { imports: string; files: Record<string, string> }> = {
+        'hid-dot': { imports: "import { v } from './.impl/code';", files: { '.impl/code.ts': hidden(1) } },
+        'hid-nm': { imports: "import { v } from './node_modules/lib/index';", files: { 'node_modules/lib/index.ts': hidden(2) } },
+        'hid-prev': { imports: "import { v } from './previews/p';", files: { 'previews/p.ts': hidden(3) } },
+        'hid-dist': { imports: "import { v } from './dist/x';", files: { 'dist/x.ts': hidden(4) } },
+        'hid-pkg': { imports: "import { v } from './lib';", files: { 'lib/package.json': '{"main": "../.impl/code.ts"}', '.impl/code.ts': hidden(5) } },
+      };
+      for (const [name, c] of Object.entries(cases)) {
+        const dir = join(ws2, 'components', 'acme', name);
+        await mkdir(dir, { recursive: true });
+        await cp(scaffoldDir('card'), dir, { recursive: true });
+        const manifest = (await readFile(join(dir, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, `id: acme/${name}`);
+        await writeFile(join(dir, 'component.yaml'), manifest);
+        await writeFile(join(dir, 'index.tsx'), card('return <AbsoluteFill>{v}</AbsoluteFill>;', c.imports));
+        for (const [f, text] of Object.entries(c.files)) {
+          await mkdir(join(dir, f, '..'), { recursive: true });
+          await writeFile(join(dir, f), text);
+        }
+      }
+      const registry = await loadComponentRegistry({ root: ws2 });
+      const listed = await workspaceComponents(registry);
+      expect(listed.map((c) => c.id).sort()).toEqual(Object.keys(cases).map((n) => `acme/${n}`).sort());
+      // Every one allowed at its current hash: still never bundled.
+      const b = await new PlayerBundles().get(registry, (id, hash) => listed.some((c) => c.id === id && c.hash === hash));
+      expect(b.held).toEqual([]);
+      expect(b.excluded.map((e) => e.id).sort()).toEqual(listed.map((c) => c.id).sort());
+      for (const e of b.excluded) {
+        expect(e.why, e.id).toMatch(/content hash skips dot folders, node_modules, previews and dist/);
+        expect(e.why).not.toContain(ws2);
+      }
+      expect(b.excluded.find((e) => e.id === 'acme/hid-pkg')?.why).toMatch(/"\.impl\/code\.ts" reaches "\.impl"/);
+      const js = b.js.toString('utf8');
+      for (let n = 1; n <= 5; n++) expect(js).not.toContain(`HIDDEN-CODE-${n}-e51a`);
+    } finally {
+      await rm(ws2, { recursive: true, force: true });
+    }
+  }, 120_000);
 
   it('⚑ lint: nothing in src/app or src/player loosens the frame sandbox', async () => {
     const SRC = join(import.meta.dirname, '..', 'src');

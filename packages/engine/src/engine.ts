@@ -53,7 +53,7 @@ import type { ReviewRequest } from './jobs/review-job.js';
 import { submitExportJob } from './jobs/export-job.js';
 import type { ExportRequest } from './jobs/export-job.js';
 import { reviewGet, reviewImage, thumbnail } from './reviews.js';
-import { submitPreviewJob } from './jobs/preview-job.js';
+import { libraryStatesOf, submitPreviewJob } from './jobs/preview-job.js';
 import { readInspection, submitInspectJob } from './jobs/inspect-job.js';
 import type { InspectSubmitRequest } from './jobs/inspect-job.js';
 import { readRecording, submitRecordJob } from './jobs/record-job.js';
@@ -61,9 +61,18 @@ import type { RecordSubmitRequest } from './jobs/record-job.js';
 import type { InspectJobInput } from '@demo-studio/core';
 import type { InspectReport } from '@demo-studio/runner-web';
 import type { PreviewRequest } from './jobs/preview-job.js';
+import type { LibraryStatesView } from './library.js';
 import { componentCreate, componentGet, componentList, componentValidate } from './components.js';
 import type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentValidationView, ComponentView } from './components.js';
 import { templateGet, templateList } from './templates.js';
+import { editTemplate, templateView } from './theme-edit.js';
+import type { ThemeEditRequest, ThemeEditResult, ThemeEditView } from './theme-edit.js';
+import { copyTheme } from './brand/copy.js';
+import type { ThemeCopied } from './brand/copy.js';
+import { brandFileList } from './brand/file-list.js';
+import type { BrandFileList } from './brand/file-list.js';
+import { siteList } from './site-list.js';
+import type { SiteList } from './site-list.js';
 import { createThemeFromBrand } from './brand/create.js';
 import { readSite, submitSiteJob } from './jobs/site-job.js';
 import type { SiteSubmitted } from './jobs/site-job.js';
@@ -378,6 +387,22 @@ export interface Engine {
     fromSite(req: { url: string }, o?: { approver?: Approver }): Promise<SiteSubmitted & { worker?: { pid?: number; spawned: boolean } }>;
     /** A site extraction read back (site.json as a file of the workspace) with its draft; null view before it is written. */
     site(siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }>;
+    /**
+     * L4.7: one theme as the Studio's editor shows it — editable or read-only with why (by real path), template.yaml's
+     * text and sha256, the allow-listed fields, components, its font and image files checked, palette checks, used by.
+     */
+    view(name: string): Promise<ThemeEditView>;
+    /**
+     * L4.7: one verified write of a theme's template.yaml (core applyThemeEdit, if_match, re-parse, files served from
+     * its folder only, the registry, the write lock; `restore` of a version shown or written). Refused for MCP.
+     */
+    edit(name: string, req: ThemeEditRequest): Promise<ThemeEditResult>;
+    /** L4.7: a new workspace theme copied from a listed one ("Copy to edit"; refused inside the Demo Studio package). */
+    copy(req: { from: string; name: string }): Promise<ThemeCopied>;
+    /** L4.7: the workspace's image or font files a new theme may take (names and sizes; brand source rules). */
+    files(kind: 'image' | 'font'): Promise<BrandFileList>;
+    /** L4.7: the newest site extractions (hex colours and candidates; URL, host and page text under untrusted). */
+    sites(): Promise<SiteList>;
   };
   components: {
     list(kind?: string): Promise<ComponentListView>;
@@ -388,6 +413,17 @@ export interface Engine {
     create(req: ComponentCreateRequest): Promise<ComponentCreated>;
     /** Queue a still of a component with a theme, slot values and params into .demo-studio/previews/ (never its folder). */
     preview(req: { project: string; template?: string; component: string; slots?: Record<string, string>; params?: Record<string, unknown>; at_s?: number }): Promise<PreviewSubmitted>;
+    /**
+     * L4.7, the Studio library: the poster and loop keys of `components` (default: the whole registry) in a theme (a
+     * name; default the project's) and what the preview cache holds for each — `committed` for a fresh built-in poster
+     * in the editorial starter. Failure reasons under `untrusted`.
+     */
+    library(req: { project: string; template?: string; components?: string[] }): Promise<LibraryStatesView>;
+    /**
+     * L4.7: queue posters and / or loops of at most 12 components into the preview cache, each with the key the caller
+     * expects (`library` gave them). Refused under 1 GB free.
+     */
+    libraryRender(req: { project: string; template?: string; items: Array<{ component: string; poster?: string; loop?: string }>; retry?: boolean }): Promise<PreviewSubmitted>;
   };
   inspect: {
     /**
@@ -640,9 +676,11 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'templates.preview',
         'templates.create',
         'templates.from_site',
+        'templates.edit',
         'components.read',
         'components.create',
         'components.preview',
+        'components.library',
         'inspect',
         'record',
         'comments',
@@ -852,6 +890,11 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...r, ...(worker ? { worker } : {}) };
       },
       site: (siteId, url) => readSite(ws, siteId, url),
+      view: (name) => templateView(ws, name),
+      edit: (name, req) => editTemplate(ws, name, req, { client: opts.client }),
+      copy: (req) => copyTheme(ws, req),
+      files: (kind) => brandFileList(ws, kind),
+      sites: () => siteList(ws),
       preview: async (req) => {
         const r = await submitPreviewJob(submitCtx, { project: req.project, ...(req.template !== undefined ? { template: req.template } : {}), target: { kind: 'theme' } });
         const worker = await startWorker();
@@ -874,6 +917,16 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
             ...(req.params ? { params: req.params } : {}),
             ...(req.at_s !== undefined ? { at_s: req.at_s } : {}),
           },
+        });
+        const worker = await startWorker();
+        return { ...r, ...(worker ? { worker } : {}) };
+      },
+      library: async (req) => libraryStatesOf(ws, req),
+      libraryRender: async (req) => {
+        const r = await submitPreviewJob(submitCtx, {
+          project: req.project,
+          ...(req.template !== undefined ? { template: req.template } : {}),
+          target: { kind: 'library', items: req.items, ...(req.retry ? { retry: true } : {}) },
         });
         const worker = await startWorker();
         return { ...r, ...(worker ? { worker } : {}) };

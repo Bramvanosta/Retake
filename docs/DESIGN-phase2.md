@@ -599,6 +599,52 @@ the proxy and are refused (absolute-form GET, unannounced CONNECTs).
   template_preview (the interstitial on the site's dark colour, the outro on its paper) → a `quote` capture rendered
   with the new theme (guarded) → review clean.
 
+### 1.12 The Studio's theme write path (L4.7 part A, R-UI-07)
+
+The theme editor's backend; MCP never edits a theme (engine `templates.edit` refuses an `mcp` client whatever the
+transport; `template_list`'s wording stays true).
+
+- **Splicer** (core `map-edits.ts` `setMapPath`): L4.5's scenario field editor extracted and shared — one or two keys of
+  the root map (or of a top-level sequence item: a scenario's scene) set, replaced (a non-scalar value as a flow value),
+  added (before an anchor key: `scenes:` / `steps:` / a theme's `components:`) or removed (with its comment lines; the
+  last key of a nested map takes its parent), every step re-parsed against the whole file's intended value. Themes pass
+  `keepComments`: a block collection holding a comment is never rewritten (refused: by hand).
+- **Edit kinds** (core `theme-edits.ts` `applyThemeEdit`, pure): `set_field` over `THEME_FIELD_PATHS` (colours,
+  the background's colours of its own type, cursor style / ripple, brand name / URL, outro URL / tagline, style bias,
+  max / default zoom, logo, wordmark, display / body fonts; removable: `THEME_REMOVABLE_FIELDS`), values checked and
+  normalised (hex lower-case, `rgba(r, g, b, a)` with numbers only, text without hidden characters or line breaks,
+  zoom 1–3 in 0.01 steps, file paths of the theme folder by pattern); `colors.accent` with `ripple: true` also writes
+  the cursor ripple (the accent at the ripple's alpha). `set_background {from?, to}`: type and colours in one write.
+  `set_component {component, from?, id | null, params: keep | drop}`: none only for caption / transition; a theme's own
+  file entry is never replaced; a legacy field the new entry contradicts (core `legacyContradictions`, the same rule as
+  the template warning) is removed by the same write and named (`removed`). Every edit applies only while the file
+  holds `from` there.
+- **Editability by real path** (critique B15): the theme folder a real folder directly in templates_dir (inside the
+  workspace, outside the Demo Studio package), its template.yaml a regular file with one name; starters, the
+  repository's starters listed as `workspace`, a project's folder theme, links and hard links are read-only with why.
+- **Write** (engine `theme-edit.ts` `editTemplate`): `if_match` (conflict naming the current sha256; a stale `from`
+  is a conflict with `details.stale`), the splice verified, no hidden character added on a changed line, the theme
+  re-parsed, every file it names a regular file of its own folder reached without a symbolic link and with one name
+  (images checked, SVGs scanned, fonts sniffed), the registry resolving every kind (kept params validated), then
+  written atomically under the storage write lock keyed on the real path (workspace `.demo-studio/locks/`). `restore`
+  (undo / redo) sends bytes + sha256, accepted only for a version this process showed (view) or wrote, then checked
+  again like any write except for hidden characters.
+- **View** (`templates.view`): editable or why, sha256, the whole text (null when it is not text the Studio edits),
+  the allow-listed fields as written, each kind's entry and resolution, the folder's fonts (sniffed) and images
+  (checked), links named, palette checks (`derivePalette` with `adjust: false`), warnings, issues and used by
+  (projects naming it in project.yaml, scenarios naming it in `template:`); path-free, font names under `untrusted`.
+- **Copy to edit** (engine `brand/copy.ts`): a listed theme's regular files verbatim (dot entries left out; a link or a
+  special file refuses the copy), `name:` spliced, this tool's provenance file (`copy_of`, trust `mcp`), validated,
+  renamed into place; the L3.5 name rules; refused inside the package.
+- **Lists**: `templates.files(image | font)` — workspace files under brand/files.ts's source rules (no hidden,
+  components or agent-writable folder, no node_modules, links neither followed nor listed), names and sizes, bounded;
+  `templates.sites()` — the newest extractions of `.demo-studio/site/` (real folders, site.json read plainly): hex
+  colours with contrast checks and existing candidate PNGs as the tool's fields, the URL and host (re-parsed) and page
+  text only under `untrusted` (critique B11: a CLI extraction has no signed job).
+- **A scenario's theme** (critique B1): `template` is a field of `scenario_edit set_field` (core FIELD_PATHS.top, a
+  theme name the workspace lists — never a path); an edit value, so the next plan of every existing take uses it
+  (L5.5 re-plan; its `theme_sha256`). project.yaml's `template:` stays a hand edit.
+
 ## 2. Editor (`packages/editor`)
 
 ```ts
@@ -871,6 +917,185 @@ the engine), `at`, and the image's `file` name (`intro.png`… for a theme). `ne
 network guard on the previews' browser (§2.2), `onBrowser` lets the worker record the browser (a killed worker's next
 one kills it), `onWarnings` receives the blocked origins, and `signal` is checked before each still
 (RenderCancelledError). The theme is a name or the project's own; its logo, wordmark and fonts must lie in its folder.
+
+**Library previews (L4.7 part B, R-UI-06 / R-UI-06b).** *Motion mode*: `buildComponentPreview({…, motion: true})`
+changes transitions only — `spec.motion = {lead, tail}` (0.6 s / 1.0 s, `PREVIEW_MOTION`), the composition length
+lead + n + tail, the still's frame moved by `lead`; `ComponentPreview` then shows the outgoing scene, the transition
+inside `<Sequence from={lead} durationInFrames={n}>` (its half picked from the current frame, never from `spec.frame`;
+the outgoing scene keeps the composition's frames, the card its two-second advance counted from the transition's start)
+and the settled card. Every still spec is unchanged (all built-ins × three starters compared byte for byte; the
+transitions pinned by a test). *Sessions*: `render/preview.ts` runs every preview through one session — asset server,
+specs, ONE bundle, one renderer (`PreviewBackend`: Remotion in the render browser by default, a stand-in in tests).
+`renderComponentPreviews` keeps its API and fails as a whole; `renderComponentLoops({items: [{target, poster?, loop?}]})`
+renders the poster (the still, 960×540 under 200 KB) and / or the loop — GIF 640×360 at 15 fps (every second frame),
+playing forever, at most 6 s, of the motion spec; over 1.5 MB again at 480×270, still over → `{too_large}` — into the
+files the caller names, then awaits `onItem`. Items are isolated (a spec that cannot be built or a component that throws
+is a `PreviewFailure` whose reason is untrusted text; its files are removed); ENOSPC anywhere (`isDiskFullError`) stops
+the session with `RenderDiskFullError`; a cancel stops between items. `bundle: 'registry'` bundles every usable registry
+component and the scaffolds (`registryBundleComponents`): one ≈ 30 MB bundle per registry state shared by every library
+job, instead of one per component set. `compositionHash()` exposes the composition + kit + Remotion part of the bundle
+hash. Measured: a cold registry bundle and five items ≈ 8 s; loops of fade-black / tap-open / the clock interstitial in
+editorial 305 / 485 / 555 KB.
+
+*Cache and job* (engine `library.ts`, `jobs/preview-job.ts`): a `preview` job with target `{kind: 'library', items:
+[{component, poster?: key, loop?: key}] (1–12, once each), retry?}`. One key builder (`libraryKeyContext` +
+`libraryPreviewKey`) serves the Studio's states (`components.library`) and the worker: sha256 of the format, the
+composition hash, the render browser's identity, the kind and its output settings, the theme folder's `themeContentHash`, the spec with every served
+URL as `asset:<sha256 of the file>` and the `componentFolderHash` of every component the spec uses (target and
+context) — every file of its registry folder by bytes, unlike `componentSourceHash` (UTF-8, imports only). The worker
+computes its own keys, writes under them and reports a difference (`expected`, `changed`). Entries live in
+`<workspace>/.demo-studio/cache/previews/<key>/` (`.demo-studio`, `cache`, `previews` real folders, else refused):
+written into `<key>.tmp-<pid>-<hex>/`, `meta.json` or `failed.json` last, renamed into place (a planted link or an
+incomplete folder under the key is removed without being followed; a complete one is kept). Read only through
+`readPlainFile` (no link, one link count, capped) with a PNG / GIF89a magic check and a meta naming its key; a failed key
+is left alone until `retry` while the registry bundle's hash it was recorded under is current (else it reads as missing). The job refuses under 1 GB free (`statfs`, at submit and in the worker) and a full disk
+during it fails it with "the disk has N MB free"; the prune at its end sweeps temporary folders older than an hour and,
+over 400 entries / 200 MB, drops other versions of the theme first, then the least recently read (`readLibraryImage`
+touches meta.json). A fresh built-in's committed preview.png is the poster in the editorial starter, decided by real
+path (never for a workspace component or a workspace override of a built-in id).
+
+*Studio server* (L4.7 part C; `packages/ui` `server/library-ops.ts`, `theme-ops.ts`, `library-watch.ts`): own ops in
+UI_OPS with strict inputs (names and ids by regex, keys by shape, ≤ 12 per call) and path-free answers; agent-writable
+text (a workspace manifest's name and description, a failure's reason, a site page's URL / host / title) under
+`untrusted`. `library_view {project, theme?}` — the engine's states (`components.library`, the worker's key builder),
+per component its source, slots, the themes picking it, poster / loop key, state and `queued`; registry notices with the
+`studio components validate <id>` command; the theme switcher. Memoised on file-level stat walks (every file of the
+workspace and built-in component folders, every theme folder, project.yaml, the cache folder): an in-place rewrite by
+Claude is a new key at once (critique B5). `library_images {project, keys, committed?}` — cached PNG / GIF by key
+(`readLibraryImage`) and committed posters of built-ins only (a workspace component with its own preview.png never),
+magic-checked again, base64 capped at 280,000 (poster: 200 KB raw × 4/3) / 2,000,000 (loop) characters, 8,000,000 per
+answer (`budget`: asked again). `library_render {project, theme?, items ≤ 12, retry?}` — keys already queued or running
+are skipped (no merge of queued jobs), nothing left queues nothing; calls of a project run one at a time. `theme_view`
+/ `theme_edit` (writes of a theme one at a time on the op chain) / `theme_copy` / `theme_create` (the brand form, trust
+`mcp`, `replace` pinned out) / `brand_files` / `site_list {url?}` (with a URL: the `studio theme from-site` command, never
+a job — the extraction needs the person's approval of the URL). `theme_preview {project, theme, target: intro | clip |
+outro | {component}, draft?, lease}` builds the editor's ComponentPreviewSpec (motion mode) in the Studio with every file
+registered on the player origin under the project's capability (the theme folder, the preview samples), applies draft
+colours in memory, and publishes it as `{format: 'component-preview', spec}` (`publishPreview`: every string scanned —
+no `file:` URL, no absolute path, no folder of this Mac, every URL one of the scope's but the display text of a fixed
+list of paths — protocol.ts `PREVIEW_DISPLAY_PATHS`, the frame applying the same); the frame plays it with the ComponentPreview composition, looping (bundle format 3). Workspace components
+the spec renders are `preview_held` until `preview_allow` (absent from the frame's bundle); a theme whose intro / outro is
+its own video, image or Lottie answers `not_previewed` (B10). The theme pages' leases are the timeline's
+(`PreviewLeases`; `timeline_leave` ends either). Events: the `workspace` event carries `themes` (theme folders changed),
+`components` (namespaces whose component files changed, by the same file-level walk) and `site: true` (an extraction
+written or removed), with `projects: []` when no project changed.
+
+*Library screen* (L4.7 part D1; `packages/ui` app `LibraryScreen.tsx`, `library-words.ts`, `library-load.ts`; route
+`#/p/<slug>/library[/<theme>[/<namespace>/<name>]]`, linked from the project page and its sidebar pages as
+"Components"): a grid by kind (sections in COMPONENT_KINDS order; filters: kind — a component also counts under the kinds
+it can serve —, source, words over id / name / description; a kind chip counts what picking it lists under the other
+filters (`filterCounts`), and in the All view a kind's section lists the components of that kind and, when others can
+also serve it, a "+ N more that can also serve here" button that picks the kind filter (`alsoServing`): section + N =
+the chip, L4.7 part E), each card the poster in the selected theme (the project's
+by default; the switcher lists `library_view.themes`), the source badge in words ("Built-in" / "Workspace": the tool
+cannot tell who wrote a workspace component, so never "made with Claude"), "Theme default" for the selected theme's
+picks, Play / Pause (`aria-pressed`; loops never start by themselves: the GIF replaces the poster, Pause swaps back), a
+failed key's reason as text with Retry, the registry's notices with their validate command. *Images*: the app's one
+`<img>` is Thumb.tsx's `Picture` with `url = imageDataUrl(format, base64, max)` — fixed `data:image/jpeg|png|gif`
+prefixes, plain base64, a cap per format (JPEG: THUMB_DATA_MAX / SHEET_DATA_MAX as before; PNG poster: 280,000; GIF loop:
+2,000,000 — part C's caps) and the PNG / GIF89a magic decoded (`atob` of the first bytes); a format under another's cap
+counts as its own; no SVG or WebP ever (critique B9 decided: a theme's logos show in the live frame only and are listed
+by name). The source lint requires every `<Picture` to name its format and that format's cap literally. `LibraryImages`
+asks library_images for the cards on screen only (IntersectionObserver), ≤ 12 keys and ≤ 12 committed posters a call,
+two calls at a time, re-checks each image (its kind's format, the component asked, imageDataUrl), keeps ≤ 24 M
+characters in the tab. *Renders* (`RenderPump`, critique B8 / B18 / C1): loops the person asked for (Play, opening the
+detail, "Render all loops" of the shown cards) first, then the posters of the cards on screen, in chunks of ≤ 12
+components, 2 s after the last change of the cards on screen or of the theme (a Play after 50 ms), only while no key of
+the library is queued or running (the next chunk goes when that job ended: a capture queued meanwhile runs first) and the
+tab is visible; a key is asked once (pending → asked → queued → ended): a failed one only by Retry (`retry: true`, that
+key alone), one whose job ended without it (cancelled, or the worker's own key differed) only by "Render again"; a
+refusal (the disk gate) stops the page until "Try again". The view is re-read on the `workspace` event (themes,
+components, the project) and on job changes while previews are queued or asked. *Detail*: own op `library_component
+{project, component}` (engine components.get without dir / entry / files; kinds, version, source, kit compatibility —
+`engines.kit` against KIT_API_VERSION —, duration bounds, variants, slots with name / type / required / default_from /
+max_chars; under `untrusted` the name, description, slot words, the params table, tags, tokens and the README as text;
+path-free); "Set as theme default" = theme_view, then one `set_component {component: kind, from: what the view shows
+written, id, params: 'drop'}` through theme_edit with the view's sha256, confirmed first, Undo = `restore` of the bytes
+shown; a starter or read-only theme is copied first (theme_copy, name suggested `<theme>-copy`) and the library moves to
+the copy (the project keeps its theme until `template:` names the copy — a hand edit or per scenario). *Create with
+Claude*: a dialog (kind, id checked: pattern, not `studio/`, not taken; the person's words) whose text names the
+demo-studio-component skill, the id, the project and the theme only when each matches its pattern, and the words with
+hidden characters removed (controls, format and tag characters, variation selectors, blank fillers) and double quotes made single; Copy writes it to the clipboard (refused: the text
+is selected), the scaffold command is shown for a terminal. The Studio calls no model and queues no job but library
+previews.
+
+*Theme screens* (L4.7 part D2; `packages/ui` app `ThemesScreen.tsx`, `ThemeEditor.tsx`, `theme-words.ts`; route
+`#/p/<slug>/themes[/<theme>]`, sidebar "Themes", "Open the theme editor" from the library bar and the Set-as-default
+card). *List*: own op `theme_list {project}` (engine `themeEditList`: every listed theme with `editable` decided by real
+path — the same rule as templates.view —, the project's own folder theme first, read-only "edit it by hand"; hex colours
+only; `used_by` from one pass over the workspace's projects and scenarios; plus the registry's components by id / kind /
+source and the project's scenarios; path-free). Copy to edit on a read-only listed theme (theme_copy, `<theme>-copy`);
+the project's own folder theme has none (theme_copy takes a listed name — a hand copy). *Editor*: theme_view, then each
+control's change is one theme_edit on the shown sha256 — `set_field` with `from` = the field as the view shows it
+(absent when not written), `set_background` for a type switch (the new type with its colours: solid keeps the first
+colour, a gradient runs to the paper), `set_component` with `from` as written (none → null, absent → omitted) and the
+old params kept or dropped (drop by default); a refusal says why; a 409 (if_match, or a stale `from`) re-reads the view
+and says the change was not written (the history is cleared: another version). Fields show the version read (a refusal
+resets them). Undo / redo (`ThemeHistory`): each entry holds the view's bytes before a write and the view read again
+after it — both versions the server served, the only ones `restore` accepts (B14). Logos / wordmarks / fonts are picked
+among `view.images` / `view.fonts` without a problem, listed by name (B9: no image of a theme in the app). *Live frame*:
+theme_preview `{project, theme, target: intro | clip | outro, lease, draft?}` → `LiveFrame` (the app's second
+PreviewFrame page: the same literal `const urls = 'frame_url' in v ? previewUrls(…) : null;` the lint pins), loaded at
+the still's moment and settled there, Play / Pause posting to the frame, `preview_held` → the timeline's Allow card
+(preview_allow, then a new frame document), `not_previewed` (B10) / `preview_error` as text; the lease is given back with
+timeline_leave when the editor unmounts. *Drafts*: a colour input's every move (`input`) updates the swatch and is sent
+as `draft` through `DraftThrottle` (≤ one per 200 ms, first at once, newest last; answers older than the newest ignored);
+the native `change` (release) writes it. *Use in a scenario* (B1): scenario_blocks (hash, text, `video.template`,
+`edit.blocks`), then scenario_edit `set_field {at: {entry: top}, field: template, from?, to}`; Undo = `restore` of the
+text shown. The engine's timeline view offers the same field in `choices.video` (`template`: null = the project's theme,
+then every listed theme; the listed names in the view's memo key) and the inspector words it "Theme (this scenario)"
+with the filmed-cursor note. *New theme*: the L3.5 brand form (name, base, colours, logo / wordmark from brand_files or a
+site candidate, fonts from brand_files, brand name / URL) → theme_create; adjustments, suggestions and warnings shown.
+*Site panel*: site_list (host and page title under `untrusted`, shown as text; hex roles; candidates by ref), a URL →
+`site_list {url}` → the command line to copy (or `url_problem`); New theme from this prefills the form from the hex roles
+and the first candidate only. No Studio op queues a site job; the app calls no model.
+
+*Acceptance* (L4.7 part E, measured on the Mac, 2026-10-27). *Loops through the real worker* (a scratch workspace,
+`components.libraryRender` in chunks of 12 as the page's pump, the worker started by the engine): in the editorial
+starter the 41 built-ins' posters are the committed preview.png and their 41 loops took 4 jobs, 80 s (the first job
+38.7 s with the cold whole-registry bundle, then ≈ 1.3–1.5 s a loop; median 1.49 s, slowest caption-overlay /
+card-before-after ≈ 4.5 s); 8.4 MB of GIFs, median 122 KB, min 40 KB, max `studio/document-pdf` 1.16 MB — the only one
+at the 480 px fallback; every loop 640×360 at 15 fps, 1.6–6 s. In a dark copy (theme_copy + four colours + a radial
+background through templates.edit) posters and loops of the 41: 4 jobs, 73 s (≈ 1.8 s a component), loops 7.9 MB
+(max document-pdf 995 KB at 480), posters 3.4 MB (median 83 KB, max card-before-after 174 KB). One bundle (30 MB)
+served all 8 jobs; nothing failed; the cache held 19.8 MB for 164 entries. Frames looked at (8 per loop, every kind,
+the three transitions, both themes): intros / outros build, the clock turns, crossfade / dip to black / tap-open from
+the button, the chart grows, the figure counts, phone notifications stack, the loupe magnifies, the overlays enter;
+layouts are near-still (only their caption enters) by design. The dark copy keeps editorial's dark-ink wordmark.svg,
+invisible on its dark background: a theme file the editor can swap for another file of the folder, not a component
+fault. *The Studio with the real worker* (gated `studio-e2e-themes-acceptance.test.ts`, Chromium, the fixture on free
+ports): a capture of `highlights` 16 s; library Play on fade-black → its loop on the card 20.8 s after the click (behind
+the capture, the bundle cold); Copy to edit → solid background → a colour dragged shows in the live frame in 0.28 s
+with nothing written, released → written; the accent by its hex field; Use in this scenario → Open its timeline →
+Render: render and review 34 s, the record names the copy and the capture's run, and the video's intro and middle
+frames show the new background and accent.
+
+*Review fixes* (L4.7, after two independent reviews). *Hidden imports* (A H1, an L4.5 hole): a component folder's
+content hash (`componentHashedFiles`: the render bundle cache, the preview allow-list, library keys) skips dot entries,
+node_modules, previews, dist, the generated preview files and other file types — one definition in components
+`compile.ts` (`UNHASHED_DIRS`, `HASHED_FILE`, `PREVIEW_ARTIFACTS`, `unhashedFileProblem`), and no import may reach such a
+file: refused by the import's words (`importProblem`), by the file the compile check actually loads (a folder's
+package.json may point anywhere), by the Studio's player loader, and by the render bundle's webpack plugin
+(`componentFilesGuard` / `bundledFileProblem`: a loaded file of a component folder the hash skips, or a file of a
+namespace / components folder no component owns — a planted node_modules — fails the bundle); a test checks every file
+esbuild loads of every built-in, scaffold and a crafted component is hashed and moves the hash. *Theme copies* (A M1):
+a hard link in the source refuses the copy whole (base fonts / LICENSES.md of a new theme too); a copy is the person's
+(provenance trust `author`: MCP's replace never takes it). *Display text* (A M2): the preview scan exempts only
+`spec.scene.url`, `spec.scene.rects.panes[*].url`, `spec.theme.brand.url` and a slot value equal to that brand url
+(`default_from`), array indices tracked on both sides (all 41 components × the three starters preview); the theme
+editor refuses a scheme or a leading `//` in brand.url / outro.url (shown as typed). *One broken component* (A M3 /
+B H1): in a registry bundle, an item that fails to bundle or render is rendered again with a bundle of its own components
+(`used`), a group at a time, a group failing whole split in halves, until it fails alone; a failed item reopens the
+renderer (B M1: a failed composition select left its port taken); progress counts failures (B M2). failed.json records
+the registry bundle's hash (`LibraryKeyContext.registryHash`): a failure under another registry state reads as missing
+and is rendered again without a Retry; a library job that fails as a whole shows its error on the page (`job_error`,
+path-free, untrusted). Failure reasons reach the page path-free (A L2); the key covers the render browser
+(`renderBrowserIdentity`, A L3); the library / theme watch shares one budget of 20,000 entries per scan, past it a
+folder's own stat (A L4). The Create-with-Claude words lose every format character, tag characters, variation selectors
+and blank fillers (A L1). Card buttons are named with the component's name through `aria-labelledby` (never the
+agent's words in an attribute), the Default zoom select is labelled, cards keep a 260–300 px track, the timeline's theme
+switch shows a theme that does not resolve disabled with why, "Set as default" on a starter links to the copy's editor,
+`used_by` is memoised on the projects' file-level signature, `theme_preview` requires its lease (B L1–L6, A N2–N4).
 
 ### 2.4 Raw export for editors (L2.13)
 Capture-side, so it lives in `@demo-studio/runner-web` (`src/raw/`): it owns the screencast frames, the CFR schedule

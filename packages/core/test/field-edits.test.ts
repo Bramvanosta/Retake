@@ -93,7 +93,7 @@ describe('set_field: the allow-list (⚑ no hook, var, env, capture, pacing or s
       ['pacing', 'x'],
       ['clock', 'x'],
       ['scenes', 'x'],
-      ['template', 'editorial'],
+      ['template.name', 'editorial'], // L4.7 (critique B1): `template` itself is a field (theme name)
       ['title.text', 'x'],
       ['__proto__', 'x'],
       ['intro.params', 'x'],

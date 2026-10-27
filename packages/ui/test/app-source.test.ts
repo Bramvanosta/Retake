@@ -7,7 +7,11 @@
  * object URL anywhere (an address a frame could be loaded from). L4.5 part C: one frame — PreviewFrame.tsx's `<iframe`,
  * once, with the literal attributes of player/parent.ts's PREVIEW_FRAME_ATTRS (`sandbox="allow-scripts"` and no other
  * sandbox token anywhere in the app) and `src={frameSrc}` once, frameSrc being the URL TimelineScreen.tsx checked with
- * previewUrls (the player origin's frame route) and set only after connectPreview listens.
+ * previewUrls (the player origin's frame route) and set only after connectPreview listens. L4.7 part D1: the one image
+ * source is Thumb.tsx's `Picture` (`imageDataUrl`: JPEG step pictures and contact sheets through `Jpeg`, PNG library
+ * posters, GIF library loops — fixed prefixes, plain base64, the use's cap, PNG / GIF magic; never SVG or WebP); every
+ * `<Picture` of the app names its format and cap literally; the library route; no "made with Claude" anywhere. L4.7 part
+ * D2: the theme editor's live frame is the second page passing a checked URL to PreviewFrame (the same literal lines).
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,7 +21,7 @@ import { visibleControls } from '../src/app/bits.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
 import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
-import { SHEET_DATA_MAX, THUMB_DATA_MAX, jpegDataUrl } from '../src/app/thumbs.js';
+import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 
 const APP = join(REPO, 'packages', 'ui', 'src', 'app');
 
@@ -50,16 +54,21 @@ const LIVE_DECODE = /createImageBitmap\(new Blob\(\[bytes\], \{ type: 'image\/jp
 const LIVE_IMAGE_DECODER = /new Decoder\(\{ data: bytes, type: 'image\/jpeg' \}\)/g;
 
 /**
- * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is `jpegDataUrl(base64, max)` (a
- * fixed `data:image/jpeg;base64,` prefix and a checked payload). Exactly that line, once, in that file only. L4.5 part
- * E: that `<img>` is Thumb.tsx's `Jpeg`, used for the step pictures and the review's contact sheets; `max` is one of the
- * two caps — every `<Jpeg` in the app passes `max={THUMB_DATA_MAX}` or `max={SHEET_DATA_MAX}` literally.
+ * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is built by the checked-address
+ * function. Exactly that line, once, in that file only. L4.5 part E: the step pictures and the review's contact sheets
+ * go through `Jpeg`; every `<Jpeg` in the app passes `max={THUMB_DATA_MAX}` or `max={SHEET_DATA_MAX}` literally. L4.7
+ * part D1: that `<img>` is `Picture` with `const url = imageDataUrl(format, base64, max);` — every `<Picture` names its
+ * format and the cap of that format literally (`format="png" … max={POSTER_DATA_MAX}`, `format="gif" … max={LOOP_DATA_MAX}`),
+ * except Jpeg's own one in Thumb.tsx (`format="jpeg" base64={base64} max={max}`).
  */
 const THUMB_FILE = 'Thumb.tsx';
 const THUMB_SRC = /<img src=\{url\} /g;
-const THUMB_URL = /const url = jpegDataUrl\(base64, max\);/g;
+const THUMB_URL = /const url = imageDataUrl\(format, base64, max\);/g;
 const JPEG_USE = /<Jpeg\b[^>]*>/g;
 const JPEG_MAX = /\bmax=\{(THUMB_DATA_MAX|SHEET_DATA_MAX)\}/;
+const PICTURE_USE = /<Picture\b[^>]*>/g;
+const PICTURE_CAP = /^<Picture format="(?:png"[^>]*\bmax=\{POSTER_DATA_MAX\}|gif"[^>]*\bmax=\{LOOP_DATA_MAX\})[^>]*>$/;
+const PICTURE_JPEG = '<Picture format="jpeg" base64={base64} max={max} width={width} height={height} alt={alt} />';
 
 /**
  * L4.5: the app's one frame — PreviewFrame.tsx renders `<iframe` once with these literal attributes (the same as
@@ -191,6 +200,13 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(screen.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
     expect(screen.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
     expect(screen.match(/\burls\s*=/g)?.length).toBe(1);
+    // L4.7 part D2: the theme editor's live frame passes its checked URL the same way; no other file mounts a PreviewFrame.
+    const themes = code(files.get('ThemeEditor.tsx') ?? '');
+    expect(themes.match(/<PreviewFrame\b/g)?.length).toBe(1);
+    expect(themes.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
+    expect(themes.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
+    expect(themes.match(/\burls\s*=/g)?.length).toBe(1);
+    for (const [f, text] of files) if (f !== 'TimelineScreen.tsx' && f !== 'ThemeEditor.tsx') expect(/<PreviewFrame\b/.test(code(text)), `${f}: mounts a PreviewFrame`).toBe(false);
     // No other file frames anything, connects a preview or loosens a sandbox; sandbox= appears once in the app.
     let sandboxes = 0;
     for (const [f, text] of files) {
@@ -230,11 +246,11 @@ describe('the app builds no HTML from data (source lint)', () => {
     }
   });
 
-  it('the one image source: Thumb.tsx, once, `src={url}` with url = jpegDataUrl(entry.base64)', async () => {
+  it('the one image source: Thumb.tsx, once, `src={url}` with url = imageDataUrl(format, base64, max)', async () => {
     const files = new Map(await appSources());
     const thumb = code(files.get(THUMB_FILE) ?? '');
     expect(thumb.match(THUMB_SRC)?.length, 'one <img src={url} in Thumb.tsx').toBe(1);
-    expect(thumb.match(THUMB_URL)?.length, 'url is built by jpegDataUrl, once').toBe(1);
+    expect(thumb.match(THUMB_URL)?.length, 'url is built by imageDataUrl, once').toBe(1);
     expect(thumb.match(/\burl\s*=/g)?.length, 'url assigned once').toBe(1);
     expect(thumb.match(/\bsrc=/g)?.length).toBe(1);
     expect(thumb).toMatch(/max: ImageCap;/);
@@ -249,6 +265,24 @@ describe('the app builds no HTML from data (source lint)', () => {
     }
     expect(uses).toBeGreaterThanOrEqual(2);
     expect(JPEG_MAX.test('<Jpeg base64={b} max={9999999} />')).toBe(false);
+    // L4.7 part D1: every <Picture names its format and that format's cap literally; Jpeg's own one, once, in Thumb.tsx.
+    let pictures = 0;
+    let jpegs = 0;
+    for (const [f, text] of files) {
+      for (const m of code(text).matchAll(PICTURE_USE)) {
+        if (f === THUMB_FILE && m[0] === PICTURE_JPEG) {
+          jpegs++;
+          continue;
+        }
+        pictures++;
+        expect(PICTURE_CAP.test(m[0]), `${f}: ${m[0]}`).toBe(true);
+      }
+    }
+    expect(jpegs).toBe(1);
+    expect(pictures).toBeGreaterThanOrEqual(2);
+    for (const bad of ['<Picture format="png" base64={b} max={LOOP_DATA_MAX} />', '<Picture format="gif" base64={b} max={POSTER_DATA_MAX} />', '<Picture format={f} base64={b} max={POSTER_DATA_MAX} />', '<Picture format="svg" base64={b} max={POSTER_DATA_MAX} />', '<Picture format="jpeg" base64={b} max={max} />']) {
+      expect(PICTURE_CAP.test(bad), bad).toBe(false);
+    }
     // The caps: a contact sheet's payload is refused past SHEET_DATA_MAX, a step picture's past THUMB_DATA_MAX.
     const b64 = (n: number) => 'A'.repeat(n);
     expect(jpegDataUrl(b64(THUMB_DATA_MAX + 4))).toBeNull();
@@ -354,6 +388,15 @@ describe('hash routes', () => {
     expect(parseRoute('#/p/n/s/q/timeline/r1/request.2')).toEqual({ name: 'timeline', slug: 'n', scenario: 'q', run: 'r1', step: 'request.2' });
     expect(parseRoute('#/p/n/s/q/timeline/r1/request.2/x')).toMatchObject({ name: 'not-found' });
     expect(parseRoute('#/p/n/s/q/timeline/%E0%A4%A')).toMatchObject({ name: 'not-found' });
+    // L4.7 part D1: the library, in a theme, one component's detail.
+    expect(parseRoute('#/p/northfield-fixture/library')).toEqual({ name: 'library', slug: 'northfield-fixture' });
+    expect(parseRoute('#/p/northfield-fixture/library/editorial')).toEqual({ name: 'library', slug: 'northfield-fixture', theme: 'editorial' });
+    expect(parseRoute('#/p/n/library/editorial/studio/card-cta')).toEqual({ name: 'library', slug: 'n', theme: 'editorial', component: 'studio/card-cta' });
+    expect(parseRoute('#/p/n/library/editorial/studio')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/library/editorial/a/b/c')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/library/editorial/a%2Fb/c')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/library/%3Cimg%3E')).toEqual({ name: 'library', slug: 'n', theme: '<img>' });
+    expect(parseRoute('#/p/n/library/%E0%A4%A')).toMatchObject({ name: 'not-found' });
   });
 
   it('hrefTo round-trips any slug through parseRoute and always yields an in-page fragment', () => {
@@ -384,6 +427,17 @@ describe('hash routes', () => {
       // A step without its run is dropped (the key is the run's own).
       expect(parseRoute(hrefTo({ name: 'timeline', slug: 'p', scenario, step: 'a.1' }))).toEqual({ name: 'timeline', slug: 'p', scenario });
     }
+    // L4.7 part D1: the library; a component needs its theme and two segments.
+    for (const theme of [undefined, 'editorial', '<b>', '../x', '\u202Egnp']) {
+      for (const component of [undefined, 'studio/card-cta', 'a b/<c>']) {
+        const r = { name: 'library' as const, slug: 'p/q', ...(theme ? { theme } : {}), ...(component ? { component } : {}) };
+        const href = hrefTo(r);
+        expect(href.startsWith('#/p/')).toBe(true);
+        expect(parseRoute(href)).toEqual(theme ? r : { name: 'library', slug: 'p/q' });
+      }
+    }
+    expect(parseRoute(hrefTo({ name: 'library', slug: 'p', theme: 't', component: 'a/b/c' }))).toEqual({ name: 'library', slug: 'p', theme: 't' });
+    expect(parseRoute(hrefTo({ name: 'library', slug: 'p', theme: 't', component: 'nope' }))).toEqual({ name: 'library', slug: 'p', theme: 't' });
   });
 });
 
@@ -415,5 +469,48 @@ describe('jpegDataUrl: the only way to an image address', () => {
       expect(jpegDataUrl(bad), String(bad).slice(0, 40)).toBeNull();
     }
     expect(jpegDataUrl('A'.repeat(THUMB_DATA_MAX))).toBe(`data:image/jpeg;base64,${'A'.repeat(THUMB_DATA_MAX)}`);
+  });
+});
+
+describe('imageDataUrl: library posters and loops (L4.7 part D1, critique B6 / B9)', () => {
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0]).toString('base64');
+  const GIF = Buffer.from('GIF89a\x01\x00\x01\x00\x80\x00', 'latin1').toString('base64');
+  const pad = (b64: string, n: number) => b64 + 'A'.repeat(n - b64.length);
+
+  it('⚑ a PNG poster under POSTER_DATA_MAX and a GIF loop under LOOP_DATA_MAX, each with its fixed prefix and magic', () => {
+    expect(imageDataUrl('png', PNG, POSTER_DATA_MAX)).toBe(`data:image/png;base64,${PNG}`);
+    expect(imageDataUrl('gif', GIF, LOOP_DATA_MAX)).toBe(`data:image/gif;base64,${GIF}`);
+    expect(imageDataUrl('png', pad(PNG, POSTER_DATA_MAX), POSTER_DATA_MAX)).not.toBeNull();
+    expect(imageDataUrl('png', pad(PNG, POSTER_DATA_MAX + 4), POSTER_DATA_MAX)).toBeNull();
+    expect(imageDataUrl('gif', pad(GIF, LOOP_DATA_MAX), LOOP_DATA_MAX)).not.toBeNull();
+    expect(imageDataUrl('gif', pad(GIF, LOOP_DATA_MAX + 4), LOOP_DATA_MAX)).toBeNull();
+  });
+
+  it('⚑ the magic is checked: a GIF as a PNG, a PNG as a GIF, an SVG or a JPEG as either → refused', () => {
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>').toString('base64');
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46]).toString('base64');
+    const gif87 = Buffer.from('GIF87a\x01\x00\x01\x00', 'latin1').toString('base64');
+    for (const [format, b64] of [['png', GIF], ['png', svg], ['png', jpeg], ['gif', PNG], ['gif', svg], ['gif', gif87], ['png', 'QUJD'], ['gif', 'AAAA']] as const) {
+      expect(imageDataUrl(format, b64, format === 'png' ? POSTER_DATA_MAX : LOOP_DATA_MAX), `${format} ${b64.slice(0, 12)}`).toBeNull();
+    }
+  });
+
+  it('⚑ a format only under its own cap; no SVG / WebP / other format; the base64 rules of jpegDataUrl hold', () => {
+    // A PNG under the loop's larger cap counts as the poster's: refused past POSTER_DATA_MAX.
+    expect(imageDataUrl('png', pad(PNG, POSTER_DATA_MAX + 4), LOOP_DATA_MAX)).toBeNull();
+    // A JPEG under a library cap counts as a step picture's.
+    expect(imageDataUrl('jpeg', 'A'.repeat(THUMB_DATA_MAX + 4), POSTER_DATA_MAX)).toBeNull();
+    expect(imageDataUrl('jpeg', 'A'.repeat(THUMB_DATA_MAX + 4), SHEET_DATA_MAX)).not.toBeNull();
+    for (const f of ['svg', 'svg+xml', 'webp', 'html', '', 'constructor', '__proto__', 'toString']) {
+      expect(imageDataUrl(f as never, PNG, POSTER_DATA_MAX), f).toBeNull();
+    }
+    for (const bad of [`${PNG}"`, ` ${PNG}`, `${PNG}\n`, PNG.slice(0, -1), `data:image/png;base64,${PNG}`, null, 42, { toString: () => PNG }]) {
+      expect(imageDataUrl('png', bad, POSTER_DATA_MAX), String(bad).slice(0, 30)).toBeNull();
+    }
+    expect(jpegDataUrl('QUJD')).toBe('data:image/jpeg;base64,QUJD');
+  });
+
+  it('no "made with Claude" in the app: the source badge says Built-in or Workspace (nobody can tell who wrote one)', async () => {
+    for (const [f, text] of await appSources()) expect(/made (?:with|by) claude/i.test(code(text)), f).toBe(false);
   });
 });

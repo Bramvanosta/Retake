@@ -14,6 +14,9 @@
  * - `GET /s/<cap>/boot.<hash>.js`, `/s/<cap>/b.<hash>.js` — the scripts (immutable: the hash names the build).
  * - `GET /m/<cap>/plan/<id>.json` — a preview plan (editor previewPlan: capability URLs, no path, no product URL hidden
  *   from the bar, no display table, notes or warnings), served from memory (critique B4: never in a JSON op).
+ *   L4.7: or a component preview, `{format: 'component-preview', spec}` (publishPreview: the editor's
+ *   ComponentPreviewSpec, every URL a capability URL of the same scope — the same `forbid` scan of every string), which
+ *   the frame plays with the ComponentPreview composition, looping.
  * - `GET|HEAD /m/<cap>/<file id>/<name>` — a registered file: the capture, page tracks, fonts, logo, music, card media
  *   and artefact pages of a plan, i.e. the files planRun's trust gate 2 put inside the project, the run or the theme —
  *   registered only when its real path lies in one of those folders, the path is no link and the file has one name
@@ -39,8 +42,9 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
 import { checkRequest, listenLoopback, newSecret, secretEquals } from '@demo-studio/engine';
 import type { RouteSpec } from '@demo-studio/engine';
-import type { EditPlan } from '@demo-studio/editor';
+import type { ComponentPreviewSpec, EditPlan } from '@demo-studio/editor';
 import type { PlayerBundle } from '../player/bundle-player.js';
+import { isPreviewDisplayText } from '../player/protocol.js';
 
 /** Files registered per scope (a plan has a few dozen). */
 export const PLAYER_FILES_MAX = 4096;
@@ -52,6 +56,35 @@ export const PLAYER_SCOPES_MAX = 32;
 export const DEFAULT_SCOPE = '';
 /** Largest preview plan served. */
 export const PLAYER_PLAN_MAX = 16 * 1024 * 1024;
+/** The `format` of a served component preview (L4.7): `{format, spec}` instead of a preview plan. */
+export const COMPONENT_PREVIEW_FORMAT = 'component-preview';
+
+/** A POSIX absolute path or a Windows one ("C:\…"), not a URL. */
+const ABSOLUTE = /^(?:\/(?!\/)|[A-Za-z]:[\\/])/;
+/** A string that names a resource by a scheme (or scheme-relative): in a component preview it must be one of this scope's URLs. */
+const URL_LIKE = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:file|blob|data|javascript|about|filesystem|mailto):)/i;
+
+/**
+ * The `forbid` scan of a component preview spec (pure; L4.7): every string checked — no `file:` URL, no absolute path,
+ * none holding a folder of `forbid`, and any URL one under `media` (the scope's `/m/<cap>/`) — but the display text of
+ * protocol.ts `isPreviewDisplayText` (a fixed list of paths, the frame applies the same). Throws PreviewPlanError.
+ */
+export async function checkPreviewSpec(spec: unknown, media: string, forbid: readonly string[]): Promise<void> {
+  const ed = await import('@demo-studio/editor');
+  const dirs = forbid.filter((d) => d.length > 1);
+  const scan = (v: unknown, path: string): void => {
+    if (typeof v === 'string') {
+      if (/^file:/i.test(v)) throw new ed.PreviewPlanError(`${path} is a file: URL`);
+      if (ABSOLUTE.test(v)) throw new ed.PreviewPlanError(`${path} is a path of this Mac`);
+      for (const d of dirs) if (v.includes(d)) throw new ed.PreviewPlanError(`${path} names a folder of this Mac`);
+      if (URL_LIKE.test(v) && !v.startsWith(media) && !isPreviewDisplayText(path, v, spec)) throw new ed.PreviewPlanError(`${path} names a URL this preview does not serve`);
+      return;
+    }
+    if (Array.isArray(v)) v.forEach((x, i) => scan(x, `${path}[${i}]`));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) scan(x, `${path}.${k}`);
+  };
+  scan(spec, 'spec');
+}
 
 const ASSET_ROUTE: RouteSpec = { methods: ['GET', 'HEAD'], token: false, api: false };
 const CAP_RE = '[A-Za-z0-9_-]{43}';
@@ -167,6 +200,12 @@ export interface PlayerServer {
    * PreviewPlanError when an asset cannot be served.
    */
   publish(view: { plan: EditPlan; folders: { project: string; run: string; theme: string } }, o?: { forbid?: readonly string[]; scope?: string }): Promise<PublishedPreview>;
+  /**
+   * L4.7: serve a component preview spec (editor buildComponentPreview, its URLs registered in `scope` by the caller)
+   * as `{format: 'component-preview', spec}` — after checkPreviewSpec (`forbid`: folders no string may name; every URL
+   * one of this scope's). Throws PreviewPlanError otherwise.
+   */
+  publishPreview(spec: ComponentPreviewSpec, o: { forbid: readonly string[]; scope?: string }): Promise<PublishedPreview>;
   /** A new capability for every scope: every URL given so far answers 404. */
   rotate(): void;
   /** Drop a scope: its capability, files and plans — its URLs answer 404 (a later use starts it again, new capability). */
@@ -381,6 +420,18 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     return 'other';
   };
 
+  /** Keep a plan body in the scope (as it is now: a release meanwhile drops it with the scope) and give its URLs. */
+  const servePlan = async (scope: string, body: Buffer): Promise<PublishedPreview> => {
+    if (body.length > PLAYER_PLAN_MAX) throw new (await editor()).PreviewPlanError(`the preview plan is over ${PLAYER_PLAN_MAX} bytes`);
+    const id = createHash('sha256').update(body).digest('base64url').slice(0, 22);
+    const sc = scopeNamed(scope);
+    if (!sc) throw new Error('the preview server is closed');
+    sc.plans.delete(id);
+    sc.plans.set(id, body);
+    while (sc.plans.size > PLAYER_PLANS_KEEP) sc.plans.delete(sc.plans.keys().next().value!);
+    return { frame_url: `${origin}/s/${sc.cap}/frame`, plan_url: `${origin}/m/${sc.cap}/plan/${id}.json` };
+  };
+
   const server: Server = createServer((req, res) => {
     handle(req, res).catch((e: unknown) => {
       // The route family only: a path here holds the capability (critique B16).
@@ -413,16 +464,14 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
         urlFor: (_asset, file) => register(resolve(file), within, scope),
         forbid: [...within, ...(po.forbid ?? [])],
       });
-      const body = Buffer.from(JSON.stringify(preview), 'utf8');
-      if (body.length > PLAYER_PLAN_MAX) throw new ed.PreviewPlanError(`the preview plan is over ${PLAYER_PLAN_MAX} bytes`);
-      const id = createHash('sha256').update(body).digest('base64url').slice(0, 22);
-      // The scope as it is now (registering made or kept it): a release while planning drops this plan with it.
+      return servePlan(scope, Buffer.from(JSON.stringify(preview), 'utf8'));
+    },
+    async publishPreview(spec, po) {
+      const scope = po.scope ?? DEFAULT_SCOPE;
       const sc = scopeNamed(scope);
       if (!sc) throw new Error('the preview server is closed');
-      sc.plans.delete(id);
-      sc.plans.set(id, body);
-      while (sc.plans.size > PLAYER_PLANS_KEEP) sc.plans.delete(sc.plans.keys().next().value!);
-      return { frame_url: `${origin}/s/${sc.cap}/frame`, plan_url: `${origin}/m/${sc.cap}/plan/${id}.json` };
+      await checkPreviewSpec(spec, `${origin}/m/${sc.cap}/`, po.forbid);
+      return servePlan(scope, Buffer.from(JSON.stringify({ format: COMPONENT_PREVIEW_FORMAT, spec }), 'utf8'));
     },
     rotate() {
       if (scopes === null) return;

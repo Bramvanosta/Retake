@@ -20,7 +20,8 @@ const SKIP_DIRS = new Set(['node_modules', 'previews']);
 
 type Entry = { rel: string; file: string; size: number; mtimeMs: number; link: boolean };
 
-function walk(dir: string): Entry[] {
+/** `budget`: entries looked at, shared with the caller's other walks (the Studio's watch); spent → the walk stops. */
+function walk(dir: string, budget?: { left: number }): Entry[] {
   const out: Entry[] = [];
   const go = (d: string) => {
     let names: string[];
@@ -32,6 +33,7 @@ function walk(dir: string): Entry[] {
     for (const n of names) {
       if (out.length >= THEME_FILES_MAX) return;
       if (n.startsWith('.')) continue;
+      if (budget && budget.left-- <= 0) return;
       const p = join(d, n);
       let st;
       try {
@@ -72,9 +74,13 @@ export function themeContentHash(dir: string): string {
   return h.digest('hex').slice(0, 16);
 }
 
-/** A cheap signature of the theme folder's files: names, sizes and mtimes (16 hex). */
-export function themeStatSignature(dir: string): string {
+/**
+ * A cheap signature of the theme folder's files: names, sizes and mtimes (16 hex). `o.budget`: entries the walk may
+ * look at, decremented (the Studio's watch shares one budget over every folder it scans; spent: the walk stops there).
+ */
+export function themeStatSignature(dir: string, o: { budget?: { left: number } } = {}): string {
   const h = createHash('sha256');
-  for (const e of walk(dir)) h.update(`${e.rel}\0${e.link ? 'link' : e.size}\0${e.mtimeMs}\0`);
+  for (const e of walk(dir, o.budget)) h.update(`${e.rel}\0${e.link ? 'link' : e.size}\0${e.mtimeMs}\0`);
+  if (o.budget && o.budget.left < 0) h.update('truncated\0');
   return h.digest('hex').slice(0, 16);
 }

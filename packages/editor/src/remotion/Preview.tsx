@@ -6,7 +6,7 @@
  * scene as its backdrop. Everything comes from the spec (../preview.ts builds it), so the preview is deterministic.
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { AbsoluteFill, Img, Sequence } from 'remotion';
+import { AbsoluteFill, Img, Sequence, useCurrentFrame } from 'remotion';
 import { Logo, Wordmark, backgroundCss } from '@demo-studio/components/kit';
 import type { ComponentProps } from '@demo-studio/components';
 import { useThemeFonts } from './fonts.js';
@@ -125,6 +125,64 @@ function Incoming({ spec, use }: { spec: ComponentPreviewSpec; use: PreviewUse }
   );
 }
 
+/**
+ * The transition component over both segments at transition frame `at`: fade-black shows the outgoing half before
+ * ⌊n/2⌋ and the incoming one from it; a crossfade draws both (the entering one on top).
+ */
+function TransitionAt({ spec, at, outgoing, incoming }: { spec: ComponentPreviewSpec; at: number; outgoing: ReactNode; incoming: ReactNode }) {
+  const main = spec.main;
+  const anchor = spec.anchor ? { anchor: spec.anchor } : {};
+  const n = main.durationInFrames;
+  if (spec.transitionKind === 'fade-black' && at >= Math.floor(n / 2)) {
+    return <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming, ...anchor }} />;
+  }
+  if (spec.transitionKind === 'fade-black') return <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing, ...anchor }} />;
+  return (
+    <AbsoluteFill>
+      <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing, ...anchor }} />
+      <AbsoluteFill>
+        <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming, ...anchor }} />
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+}
+
+/** Inside the transition's Sequence: its own frame picks the half (motion mode). */
+function TransitionNow({ spec, outgoing, incoming }: { spec: ComponentPreviewSpec; outgoing: ReactNode; incoming: ReactNode }) {
+  return <TransitionAt spec={spec} at={useCurrentFrame()} outgoing={outgoing} incoming={incoming} />;
+}
+
+/**
+ * Motion mode (a looping transition preview): the outgoing scene for `lead` frames, the transition — its component
+ * sees transition frames 0…n−1, the outgoing scene inside keeps the composition's frames — then the settled card for
+ * `tail` frames. The card keeps the still's two-second advance, counted from the transition's start.
+ */
+function MotionTransition({ spec, motion }: { spec: ComponentPreviewSpec; motion: { lead: number; tail: number } }) {
+  const frame = useCurrentFrame();
+  const n = spec.main.durationInFrames;
+  const scene = spec.scene;
+  const outgoing: ReactNode = scene ? <Scene spec={spec} scene={scene} caption /> : null;
+  const incoming: ReactNode = spec.incoming ? <Incoming spec={spec} use={spec.incoming} /> : null;
+  if (frame < motion.lead) return <AbsoluteFill>{outgoing}</AbsoluteFill>;
+  if (frame >= motion.lead + n) {
+    return (
+      <Sequence from={motion.lead} layout="none" name="settled">
+        {incoming}
+      </Sequence>
+    );
+  }
+  const held = (
+    <Sequence from={-motion.lead} layout="none" name="outgoing">
+      {outgoing}
+    </Sequence>
+  );
+  return (
+    <Sequence from={motion.lead} durationInFrames={n} layout="none" name="transition">
+      <TransitionNow spec={spec} outgoing={held} incoming={incoming} />
+    </Sequence>
+  );
+}
+
 function Body({ spec }: { spec: ComponentPreviewSpec }) {
   const { main, scene } = spec;
   switch (main.kind) {
@@ -150,22 +208,10 @@ function Body({ spec }: { spec: ComponentPreviewSpec }) {
     case 'interstitial':
       return <UseOf use={main} spec={spec} extra={scene ? { screen: <Scene spec={spec} scene={scene} caption={false} /> } : {}} />;
     case 'transition': {
-      const anchor = spec.anchor ? { anchor: spec.anchor } : {};
+      if (spec.motion) return <MotionTransition spec={spec} motion={spec.motion} />;
       const outgoing: ReactNode = scene ? <Scene spec={spec} scene={scene} caption /> : null;
       const incoming: ReactNode = spec.incoming ? <Incoming spec={spec} use={spec.incoming} /> : null;
-      const n = main.durationInFrames;
-      if (spec.transitionKind === 'fade-black' && spec.frame >= Math.floor(n / 2)) {
-        return <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming, ...anchor }} />;
-      }
-      if (spec.transitionKind === 'fade-black') return <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing, ...anchor }} />;
-      return (
-        <AbsoluteFill>
-          <UseOf use={main} spec={spec} extra={{ direction: 'exiting', screen: outgoing, ...anchor }} />
-          <AbsoluteFill>
-            <UseOf use={main} spec={spec} extra={{ direction: 'entering', screen: incoming, ...anchor }} />
-          </AbsoluteFill>
-        </AbsoluteFill>
-      );
+      return <TransitionAt spec={spec} at={spec.frame} outgoing={outgoing} incoming={incoming} />;
     }
     default:
       return <UseOf use={main} spec={spec} />;

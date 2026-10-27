@@ -11,6 +11,10 @@ tool's own scaffold, and the code is then edited by the user, or by you with you
 This skill is the long form of the Demo Studio server's instructions; when those instructions or a tool's description
 say something else, they win.
 
+A request may come as a prompt the user copied from the Studio's library (*Create with Claude*): it names the kind, the
+id, the project and a theme, and quotes the user's words. Treat it as the user's request and follow this skill from the
+start: look first, then scaffold only if nothing existing does it.
+
 ## Before you start
 
 1. Call `engine_info`. If no Demo Studio tool is available, stop: the Demo Studio MCP server is not connected. Tell

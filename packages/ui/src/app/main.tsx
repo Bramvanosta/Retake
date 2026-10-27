@@ -1,7 +1,7 @@
 /**
  * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
  * event stream per browser) and the screens inside the shell — Projects (with search and recent activity), a project,
- * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6). Every string from the server is a React text node: no HTML from data,
+ * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
  * is the second line.
  */
@@ -12,11 +12,13 @@ import { startEvents, useEvents } from './events.js';
 import { Notice, Txt } from './bits.js';
 import { dirtyDrafts, guardUnload } from './drafts.js';
 import { CommentsScreen } from './CommentsScreen.js';
+import { LibraryScreen } from './LibraryScreen.js';
 import { ProjectPage } from './ProjectPage.js';
 import { ProjectsScreen } from './ProjectsScreen.js';
 import { ReadmeEditor } from './ReadmeEditor.js';
 import { RunScreen } from './RunScreen.js';
 import { ScenarioScreen } from './ScenarioScreen.js';
+import { ThemesScreen } from './ThemesScreen.js';
 import { TimelineScreen } from './TimelineScreen.js';
 import { hrefTo, parseRoute } from './route.js';
 import type { Route } from './route.js';
@@ -35,7 +37,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -48,7 +50,7 @@ function Studio() {
   });
   const first = useRef(true);
   useEffect(() => {
-    document.title = `${route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · Demo Studio`;
+    document.title = `${route.name === 'themes' && route.theme ? `${route.theme} · ` : ''}${route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · Demo Studio`;
     // Back on the projects: read them again (the first load is useCall's own).
     if (route.name === 'projects' && !first.current) reloadList();
     first.current = false;
@@ -70,6 +72,8 @@ function Studio() {
       {route.name === 'comments' && (
         <CommentsScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.thread ? { thread: route.thread } : {})} {...(route.at ? { at: route.at } : {})} />
       )}
+      {route.name === 'library' && <LibraryScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} {...(route.component ? { component: route.component } : {})} />}
+      {route.name === 'themes' && <ThemesScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} />}
       {route.name === 'not-found' && (
         <div className="screen">
           <h1>Nothing here</h1>

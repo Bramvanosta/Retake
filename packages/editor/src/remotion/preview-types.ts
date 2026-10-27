@@ -62,4 +62,10 @@ export interface ComponentPreviewSpec {
   region?: PreviewRect;
   /** overlay previews: sample chapters (a progress bar). */
   chapters?: ProgressChapter[];
+  /**
+   * Motion mode (a looping transition preview): `lead` frames of the outgoing scene, the transition
+   * (`main.durationInFrames`), then `tail` frames of the settled card; the transition's half is picked from the current
+   * frame, never from `frame`. Absent for stills and every other kind.
+   */
+  motion?: { lead: number; tail: number };
 }

@@ -3,10 +3,14 @@
  * held in this tab's memory only, shown as `data:image/jpeg;base64,…` (the CSP's `img-src data:`; never a URL from
  * data, never written anywhere).
  *
- * - `jpegDataUrl` is the only way to make an image address: always the fixed `data:image/jpeg;base64,` prefix, and the
- *   payload must be plain base64 (alphabet and padding checked) of at most THUMB_DATA_MAX characters (a review's contact
- *   sheet, L4.5 part E: SHEET_DATA_MAX) — anything else is refused (null), so no scheme or markup from an answer can
- *   reach an `<img>`.
+ * - `imageDataUrl` is the only way to make an image address: always a fixed prefix of its format (`data:image/jpeg`,
+ *   L4.7: `data:image/png` for a library poster, `data:image/gif` for a library loop), and the payload must be plain
+ *   base64 (alphabet and padding checked) within the cap of its use — a step picture's THUMB_DATA_MAX, a review's contact
+ *   sheet's SHEET_DATA_MAX (L4.5 part E), a poster's POSTER_DATA_MAX, a loop's LOOP_DATA_MAX (part C's caps); a PNG or
+ *   GIF payload must also decode to its magic bytes (`89 50 4E 47 0D 0A 1A 0A`, `GIF89a`). A format under another
+ *   format's cap, or anything else, is refused (null), so no scheme, markup or other kind of file from an answer can
+ *   reach an `<img>`. No SVG or WebP ever (critique B9: a theme's logos show in the live frame only, listed by name).
+ *   `jpegDataUrl` is the JPEG case (L4.2's rule: no magic check, the server's own ffmpeg JPEGs).
  * - `ThumbLoader`: rows say when they become visible or leave (an IntersectionObserver in Thumb.tsx); every
  *   BATCH_DELAY_MS the keys on screen that are neither known nor asked for go out in calls of at most BATCH_MAX keys of
  *   one run, IN_FLIGHT_MAX calls at a time (the event stream holds one of the browser's 6 connections). A call whose
@@ -28,21 +32,58 @@ export const CACHE_MAX = 600;
 export const THUMB_DATA_MAX = 200_000;
 /** One review contact sheet's base64, at most (L4.5 part E: the server's REVIEW_IMAGE_BASE64_MAX). */
 export const SHEET_DATA_MAX = 2_000_000;
-/** The caps an image may be shown under: a step's picture or a contact sheet — no other number. */
-export type ImageCap = typeof THUMB_DATA_MAX | typeof SHEET_DATA_MAX;
+/** L4.7: a library poster's base64 (PNG), at most (the server's POSTER_DATA_MAX: every committed poster fits). */
+export const POSTER_DATA_MAX = 280_000;
+/** L4.7: a library loop's base64 (GIF), at most (the server's LOOP_DATA_MAX). */
+export const LOOP_DATA_MAX = 2_000_000;
+/** The caps an image may be shown under: a step's picture, a contact sheet, a library poster or loop — no other number. */
+export type ImageCap = typeof THUMB_DATA_MAX | typeof SHEET_DATA_MAX | typeof POSTER_DATA_MAX | typeof LOOP_DATA_MAX;
+/** The formats an image may be: no SVG, no WebP (critique B9). */
+export type ImageFormat = 'jpeg' | 'png' | 'gif';
 
-const PREFIX = 'data:image/jpeg;base64,';
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+/** Each format's fixed prefix, the caps it may be shown under (the first is its default) and its magic bytes. */
+const FORMATS: Record<ImageFormat, { prefix: string; caps: readonly number[]; magic: readonly number[] | null }> = {
+  jpeg: { prefix: 'data:image/jpeg;base64,', caps: [THUMB_DATA_MAX, SHEET_DATA_MAX], magic: null },
+  png: { prefix: 'data:image/png;base64,', caps: [POSTER_DATA_MAX], magic: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  gif: { prefix: 'data:image/gif;base64,', caps: [LOOP_DATA_MAX], magic: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61] },
+};
+
+/** The first bytes of a base64 payload (already checked plain), or null. */
+function headBytes(base64: string, n: number): number[] | null {
+  try {
+    const bin = atob(base64.slice(0, Math.ceil(n / 3) * 4));
+    return Array.from(bin.slice(0, n), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The image address of a base64 image from the server, or null: `format` one of jpeg / png / gif, the payload plain
+ * base64 within `max` — a cap of that format (a JPEG: THUMB_DATA_MAX, the default, or SHEET_DATA_MAX; a PNG:
+ * POSTER_DATA_MAX; a GIF: LOOP_DATA_MAX; another number counts as the format's first cap) — and, for a PNG or a GIF,
+ * starting with the format's magic bytes.
+ */
+export function imageDataUrl(format: ImageFormat, base64: unknown, max?: ImageCap): string | null {
+  const f = Object.prototype.hasOwnProperty.call(FORMATS, format) ? FORMATS[format] : null;
+  if (!f) return null;
+  const cap = max !== undefined && f.caps.includes(max) ? max : f.caps[0];
+  if (typeof base64 !== 'string' || base64.length === 0 || base64.length > cap || base64.length % 4 !== 0) return null;
+  if (!BASE64.test(base64)) return null;
+  if (f.magic) {
+    const head = headBytes(base64, f.magic.length);
+    if (!head || head.length < f.magic.length || f.magic.some((b, i) => head[i] !== b)) return null;
+  }
+  return f.prefix + base64;
+}
 
 /**
  * The image address of a base64 JPEG from the server, or null when it is not plain base64 within the cap — the step
  * pictures' (THUMB_DATA_MAX, the default) or a contact sheet's (SHEET_DATA_MAX); any other cap counts as the first.
  */
 export function jpegDataUrl(base64: unknown, max: ImageCap = THUMB_DATA_MAX): string | null {
-  const cap = max === SHEET_DATA_MAX ? SHEET_DATA_MAX : THUMB_DATA_MAX;
-  if (typeof base64 !== 'string' || base64.length === 0 || base64.length > cap || base64.length % 4 !== 0) return null;
-  if (!BASE64.test(base64)) return null;
-  return PREFIX + base64;
+  return imageDataUrl('jpeg', base64, max);
 }
 
 export type MissingReason = 'no_step' | 'not_reached' | 'no_picture' | 'unreadable' | 'too_large' | 'budget' | 'cancelled' | 'failed';

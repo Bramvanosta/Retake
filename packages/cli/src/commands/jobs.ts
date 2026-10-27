@@ -68,7 +68,7 @@ export function jobWhat(j: JobRecord): string {
     case 'sandbox_reset':
       return `sandbox reset${i.reseed ? ' (reseed)' : ''}${on}`;
     case 'preview':
-      return `preview of ${i.target.kind === 'component' ? i.target.component : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`;
+      return `preview of ${i.target.kind === 'component' ? i.target.component : i.target.kind === 'library' ? `${i.target.items.length} library component${i.target.items.length === 1 ? '' : 's'}` : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`;
     case 'inspect':
       return `inspect ${i.source.kind === 'page' ? `page ${i.source.page} ${i.source.path}` : `scenario ${i.source.scenario}${i.source.until ? ` until ${i.source.until}` : ''}`}${on} → ${i.inspect_id}`;
     case 'record':

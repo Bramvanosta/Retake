@@ -3599,6 +3599,56 @@ running: the MCP server keeps working without it.
   the render in the thread and offers **Resolve with vN**. A theme change is never a proposal: Claude saves it and
   renders (the direct loop). Apply and re-render is offered for a landscape comment whose render used the files'
   theme and no option (the Studio renders that way); otherwise Apply, then render from your terminal or ask Claude.
+- **Component library** (L4.7). **Components** in the project's pages (or *Open the library* on the project page,
+  `#/p/<project>/library`) shows every component of the workspace by kind — the built-in library and your own
+  `components/` — each card the component's poster in the project's theme; the *Theme* menu shows them in another
+  (`#/p/<project>/library/<theme>`). Filter by kind, source and words: a kind's chip counts what it lists (the
+  components of that kind and those that can also serve as one); in the full view a kind's section lists its own
+  components, and *+ N more that can also serve here* picks that kind's filter. A badge says where it comes from: *Built-in* or *Workspace* (made in this workspace, by you or with Claude:
+  the Studio cannot tell who). **Play** shows the component moving — a looping GIF in place of the poster — and
+  **Pause** the poster again; loops never start by themselves. Posters and loops are rendered by the jobs worker (the
+  component's code runs only in the render's guarded browser, never in the Studio) and kept in
+  `.demo-studio/cache/previews/`: posters of the cards on screen are asked 2 s after you stop scrolling or switch theme,
+  12 components at a time, each batch once the previous one finished (a capture you start meanwhile goes first); a
+  loop when you press Play or open a component; **Render all loops** the shown ones (about 1.5 s a loop once the
+  worker has its bundle; the first one waits ≈ 20 s for it). A built-in's committed preview is
+  its poster in the editorial starter. A preview that failed says why (as text) and is rendered again with **Retry** —
+  or by itself once any component changed (a broken component of the workspace never fails the others: they are
+  rendered with their own components); a batch that failed as a whole says why at the top of the page; nothing is
+  queued while the disk has less than 1 GB free (the page says so — **Try again** after freeing space). A component's page (click its id) shows the picture large, its kinds, version, source, whether it works
+  with this Demo Studio's kit, its duration, formats, slots and params, which themes use it and its README as text.
+  **Set as default of <theme>** makes it the theme's component for its kind (choose the kind when it serves several)
+  after a confirmation, with **Undo** (the theme file back byte for byte); a starter theme cannot be changed, so it is
+  copied first to a theme of your workspace (name it; the library then shows the copy — your project keeps its theme
+  until `template:` names the copy; *Open the copy* takes you to its theme editor, where *Use in this scenario* is). A
+  component imports only its own files — never through a dot folder, `node_modules/`, `previews/` or `dist/` of its
+  folder (their changes would go unseen by the caches): `studio components validate` names such an import.
+  **Create with Claude…** writes a prompt for Claude Code's component skill from a
+  kind, an id and your words, to copy (**Copy the prompt**) — the Studio calls no model — and shows the
+  `studio components create <id> --kind <kind>` command; the new component shows up in the library when its folder is
+  written.
+- **Themes** (L4.7). **Themes** in the project's pages (`#/p/<project>/themes`; *Open the theme editor* from the
+  library) lists every theme — your workspace's, the starters, the project's own theme folder — with its colours, where
+  it comes from, what uses it and whether the Studio edits it: a starter (or anything shipped with Demo Studio, or a
+  project's own folder theme) is read-only, and **Copy to edit…** copies a listed one into your workspace first. A
+  theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
+  `example.com/path`, no `https://` —, the outro's tagline; the logo
+  and wordmark among the theme folder's own image files — add one there to pick it), colours (picker or hex, with the
+  contrast checks; the cursor ripple can follow the accent), background (solid, radial or linear), type pair (the
+  theme's own font files), style, zoom, cursor (filmed: the next capture uses it) and the component of each kind
+  (switching keeps or drops the old one's params). Every change is written at once to template.yaml — comments and the
+  rest of the file kept — and **Undo** / **Redo** put back the exact earlier bytes; if the file changed meanwhile
+  (another window, Claude, you in an editor) the change is not written and the editor shows the new version. The **live
+  preview** beside it plays the theme's intro, a clip with its caption or its outro (Play loops it); a colour being
+  dragged shows there before it is written (on release). A workspace component the preview would run waits for
+  **Allow in the preview**, as on the timeline. **Use in this scenario** sets a scenario's `template:` to the theme
+  (Undo puts the file back): every existing take of it uses the theme at its next render, no new capture — the cursor
+  style is filmed, existing takes keep theirs; the same choice is the timeline inspector's *Theme (this scenario)*. The
+  project's own theme stays a hand edit of project.yaml. **New theme…** makes one from your brand (colours, a logo and
+  fonts among the workspace's files, over a base theme) as Claude's template_create_from_brand does. **From a
+  website**: the extractions already made (`studio theme from-site`, or Claude's template_from_site — the page's title
+  shown as text) with **New theme from this**; for a new URL the Studio shows the command to copy — it never fetches a
+  site itself (the extraction needs your approval of the URL).
 - **Sessions.** The project page lists every persona of every environment with its saved sign-in (*valid*, *expired*,
   *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
   known state: no browser opens to read it. **Sign in** queues a job that opens a browser window on this computer:
@@ -3648,7 +3698,10 @@ running: the MCP server keeps working without it.
   `threads_counts`, `thread_get`, `thread_still`, `render_outline`, `render_frame` — one frame of a render as a JPEG,
   made in memory —, `frame_anchor`, `thread_add`, `thread_reply`, `thread_resolve`, `thread_reopen` and `thread_apply`
   — written as the channel *Studio*, never with an author, a channel or a proposal from the page, the writes on the
-  thread's hash as shown), run with the trust an agent has
+  thread's hash as shown; L4.7: `library_view`, `library_images` — posters (PNG) and loops (GIF) as base64, checked and
+  capped —, `library_render` — at most 12 components' previews by the keys the library showed —, `library_component`
+  — one component's detail, its manifest's words as text —, and the theme ops `theme_list`, `theme_view`, `theme_edit`, `theme_copy`,
+  `theme_create`, `brand_files`, `site_list`, `theme_preview`), run with the trust an agent has
   through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
   stays in the terminal.
 

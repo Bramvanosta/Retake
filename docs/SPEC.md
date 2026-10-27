@@ -354,6 +354,11 @@ replies and resolves — there is no create or reopen tool, and no input names a
   render from the timeline, comment the total with a region from the timeline's Comment, Claude's caption proposal,
   Preview change, Apply and re-render, resolve with the new render; the viewer's frame latency measured on that render
   and a 4K copy (1080p: a frame in 150–223 ms typically, 372 ms at worst; 4K: 490–661 ms, 1.4 s at worst). Safari, Firefox and a live Claude Code session by hand (MACOS-CHECKLIST 13g).
+- L4.7 (acceptance, part E): the loops of all 41 built-ins rendered by the worker in the editorial starter (80 s, 8.4 MB,
+  ≈ 1.5 s a loop once the bundle is built) and in a dark copy (posters and loops, 73 s), frames of every kind looked at;
+  in the Studio with the real worker (gated, the fixture on free ports): Play renders and plays a loop, Copy to edit, a
+  colour dragged in the live frame then written, Use in this scenario, and a render of the existing take showing the new
+  theme. Safari and Firefox by hand (MACOS-CHECKLIST 13h).
 
 All long tasks are jobs with status polling (agents' tool calls time out): a call long-polls at most `wait_s` ≤ 25 s
 with progress notifications, and `*_status` follows. Every tool returns a short text summary readable by Claude plus
@@ -435,13 +440,35 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
   every render); the code is then edited by the user, or by Claude Code's own file tools with the user's permission
   (component code runs in the render's Chromium — the compile check's import scan can be evaded, the network guard
   still applies). MCP previews are written to `.demo-studio/previews/`, never to the committed `preview.png`.
+- Themes are edited by people, in the Studio's theme editor (L4.7): each change one verified write to template.yaml
+  (an allow-list of fields, the file's comments kept, undo / redo to the exact bytes), on a workspace theme only —
+  starters and anything shipped with the tool are copied first. Through MCP, Claude makes new themes and never edits an
+  existing one. A scenario picks a theme with `template:` (the Studio's *Use in this scenario*, or Claude through
+  `scenario_save`): every existing take of it uses that theme at its next render; project.yaml's theme stays a hand edit.
+- The library's previews (L4.7): a poster and a looping GIF per component and theme, rendered by the jobs worker in the
+  render's guarded browser and cached in `.demo-studio/cache/previews/` by a key over every file they depend on; the
+  committed `preview.png` of a built-in is its poster in the editorial starter. Measured: about 1.5 s per loop once the
+  worker has its bundle; the 41 built-ins' loops in about 80 s, 8 MB. One workspace component that does not compile or
+  throws as it loads fails alone (the others are rendered with their own components); its failure is asked again by
+  itself once any component changes. A component imports only files its folder's content hash reads (never a dot
+  folder, node_modules, previews or dist): every cache and the preview allow-list are keyed by that hash.
 
 ## 12. Studio app (web UI, then the Tauri desktop shell)
 
 A client of the same packages (the MCP keeps working without it). Served locally by `studio ui`; the Tauri app
 (phase 5, macOS) wraps the same UI.
 - **Projects**: list, README editor, themes & component gallery (previews rendered with the project theme, and a short
-  animated preview per component so motion can be judged without a render).
+  animated preview per component so motion can be judged without a render). Built in L4.7 part D1 (the library screen,
+  `#/p/<slug>/library`): the grid by kind with each component's poster in the selected theme (a switcher), filters,
+  a source badge in words (*Built-in* / *Workspace* — the tool cannot tell who wrote a component), Play swapping the
+  poster for a looping GIF rendered by the worker (cards on screen only, ≤ 12 per job, Retry for a failure), a detail
+  (slots, params, kit compatibility, README as text), "Set as theme default" (one verified theme write with undo; a
+  starter copied first) and "Create with Claude" (a prompt to copy: the Studio calls no model). The theme screens came in L4.7
+  part D2 (`#/p/<slug>/themes[/<theme>]`): the list (editable or read-only by real path, Copy to edit, New theme from
+  brand files, site extractions with the command to copy for a new URL) and the editor (brand, colours with contrast
+  checks, background, type pair from the theme's own fonts, motion, cursor, a component per kind; each change one
+  verified write with undo / redo; a live preview of the intro, a clip with its caption and the outro; Use in a
+  scenario).
 - **Scenario as blocks** (WYSIWYG-like, two-way with the YAML — comments and formatting preserved): scenes are cards
   (page, URL, caption, speed); steps are rows with an action icon and **badges** (click, type, navigation, scroll, zoom,
   hold, mark, caption, speed, irreversible); inline editing, drag & drop reordering; each step shows the real frame from

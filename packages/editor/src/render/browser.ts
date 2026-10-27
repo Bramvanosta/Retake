@@ -3,7 +3,7 @@
  * (looked up through playwright-core's browser registry, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
  * revision), else none (Remotion then downloads its own headless shell).
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -44,4 +44,29 @@ export function renderBrowser(env: NodeJS.ProcessEnv = process.env): RenderBrows
   const pw = playwrightHeadlessShell();
   if (pw) return { path: pw, source: 'playwright' };
   return { path: null, source: 'remotion', note: "Playwright's chromium headless shell is not installed (playwright-core install chromium-headless-shell): Remotion uses its own" };
+}
+
+/**
+ * Which browser renders (pure but for a stat): Playwright's headless shell or `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` by
+ * its real path (the revision is in Playwright's folder name), size and date; Remotion's own by @remotion/renderer's
+ * version. A library preview's key covers it (L4.7 review A L3): a browser update is a new picture.
+ */
+export function renderBrowserIdentity(env: NodeJS.ProcessEnv = process.env): string {
+  const b = renderBrowser(env);
+  if (!b.path) {
+    let version = 'unknown';
+    try {
+      version = (JSON.parse(readFileSync(require.resolve('@remotion/renderer/package.json'), 'utf8')) as { version: string }).version;
+    } catch {
+      /* unknown */
+    }
+    return `remotion ${version}`;
+  }
+  try {
+    const real = realpathSync(b.path);
+    const st = statSync(real);
+    return `${b.source} ${real} ${st.size} ${Math.round(st.mtimeMs)}`;
+  } catch {
+    return `${b.source} ${b.path}`;
+  }
 }

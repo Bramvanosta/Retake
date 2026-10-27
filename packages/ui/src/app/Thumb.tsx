@@ -4,15 +4,15 @@
  * from the scenario only — never from page text. While it loads, or when the run has none, a placeholder says so in
  * words.
  *
- * The app's ONE image source: `Jpeg`'s `src={url}` where `url` comes from `jpegDataUrl` (the fixed
- * `data:image/jpeg;base64,` prefix and a checked base64 payload, under the use's cap: a step picture's THUMB_DATA_MAX or,
- * L4.5 part E, a review contact sheet's SHEET_DATA_MAX) — the source lint test allows `src=` here only, in exactly this
- * form.
+ * The app's ONE image source: `Picture`'s `src={url}` where `url` comes from `imageDataUrl` (a fixed prefix of the
+ * format and a checked base64 payload, under the use's cap: a step picture's THUMB_DATA_MAX or, L4.5 part E, a review
+ * contact sheet's SHEET_DATA_MAX — both JPEG, through `Jpeg`; L4.7, a library poster's POSTER_DATA_MAX (PNG) or loop's
+ * LOOP_DATA_MAX (GIF), magic-checked) — the source lint test allows `src=` here only, in exactly this form.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { THUMB_DATA_MAX, ThumbLoader, jpegDataUrl } from './thumbs.js';
-import type { ImageCap, MissingReason, ThumbEntry, ThumbFetch } from './thumbs.js';
+import { THUMB_DATA_MAX, ThumbLoader, imageDataUrl, jpegDataUrl } from './thumbs.js';
+import type { ImageCap, ImageFormat, MissingReason, ThumbEntry, ThumbFetch } from './thumbs.js';
 
 /** The width and height a picture is shown at (CSS px); the server sends ≤ 480 px for 2× screens. */
 export const THUMB_W = 160;
@@ -106,13 +106,19 @@ export function Thumb({ run, runKey, alt }: { run: string; runKey: string; alt: 
 }
 
 /**
- * The app's one `<img>`: a base64 JPEG from the server as a checked data: address (jpegDataUrl under `max`), or nothing
- * when it does not pass. `max` is one of the two caps (ImageCap), never a number from data.
+ * The app's one `<img>`: a base64 image from the server as a checked data: address (imageDataUrl of `format` under
+ * `max`), or nothing when it does not pass. `format` and `max` are literals at every use (ImageFormat, ImageCap: the
+ * lint checks), never values from data.
  */
-export function Jpeg({ base64, max, width, height, alt }: { base64: string; max: ImageCap; width: number; height: number; alt: string }) {
-  const url = jpegDataUrl(base64, max);
+export function Picture({ format, base64, max, width, height, alt, className }: { format: ImageFormat; base64: string; max: ImageCap; width: number; height: number; alt: string; className?: string }) {
+  const url = imageDataUrl(format, base64, max);
   if (!url) return null;
-  return <img src={url} width={width} height={height} alt={alt} decoding="async" draggable={false} />;
+  return <img src={url} width={width} height={height} alt={alt} decoding="async" draggable={false} className={className} />;
+}
+
+/** A base64 JPEG (a step picture, a contact sheet) through the one `<img>`; `max` one of the two JPEG caps. */
+export function Jpeg({ base64, max, width, height, alt }: { base64: string; max: ImageCap; width: number; height: number; alt: string }) {
+  return <Picture format="jpeg" base64={base64} max={max} width={width} height={height} alt={alt} />;
 }
 
 /** The same box with words instead of a picture (a step the run cannot picture). */

@@ -42,6 +42,9 @@
  * - `scenario_render`, `scenario_renders`, `render_cancel`, `render_review`, `review_image` (L4.5 part E): Render from
  *   the timeline or the scenario screen, the render queue and list, Cancel, the review's report and its contact sheets
  *   (renderOps).
+ * - L4.7: the library ops live in library-ops.ts (library_view, library_images, library_render) and the theme ops in
+ *   theme-ops.ts (theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview); the
+ *   preview pages' leases (PreviewLeases) are shared by timeline_view and theme_preview.
  * - L4.6: `timeline_view {proposal}` (the preview of Claude's proposal, through the same workspace-component hold); the
  *   comment ops live in comment-ops.ts; scenario_edit, scenario_render and thread_apply share one op chain (op-chain.ts,
  *   critique B5); the scenario_edit answer no longer carries the file's absolute path.
@@ -55,6 +58,8 @@ import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, Revi
 import type { ToolDef } from '@demo-studio/mcp';
 import type { Live } from './live.js';
 import { COMMENT_OPS } from './comment-ops.js';
+import { LIBRARY_OPS } from './library-ops.js';
+import { THEME_OPS } from './theme-ops.js';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 import type { PlayerServer } from './player.js';
@@ -524,6 +529,50 @@ const PreviewAllowInput = z.strictObject({
 /** A page's lease is forgotten after this long without a timeline_view (a tab closed without leaving). */
 export const TIMELINE_LEASE_TTL_MS = 2 * 60 * 60 * 1000;
 
+/**
+ * The preview pages' leases by project (lease → last seen): a project's scope on the player origin lives while one is
+ * held — timeline pages (L4.5) and, L4.7, theme preview pages (theme_preview) share the set; `timeline_leave` ends a
+ * lease of either; a lease unseen for TIMELINE_LEASE_TTL_MS is forgotten. The last one gone releases the scope.
+ */
+export class PreviewLeases {
+  private readonly byProject = new Map<string, Map<string, number>>();
+
+  constructor(
+    private readonly release: (project: string) => void,
+    private readonly ttl = TIMELINE_LEASE_TTL_MS,
+  ) {}
+
+  /** A page of `project` holds `lease` (seen now). */
+  hold(project: string, lease: string, now = Date.now()): void {
+    const m = this.byProject.get(project) ?? new Map<string, number>();
+    m.set(lease, now);
+    this.byProject.set(project, m);
+  }
+
+  /** A page left: its lease ends. The leases still held for the project (0: its scope was released). */
+  leave(project: string, lease: string): number {
+    const m = this.byProject.get(project);
+    m?.delete(lease);
+    if (!m || m.size === 0) {
+      this.byProject.delete(project);
+      this.release(project);
+      return 0;
+    }
+    return m.size;
+  }
+
+  /** Forget leases unseen for the TTL; release the projects left with none. */
+  prune(now = Date.now()): void {
+    for (const [p, m] of this.byProject) {
+      for (const [l, at] of m) if (now - at > this.ttl) m.delete(l);
+      if (m.size === 0) {
+        this.byProject.delete(p);
+        this.release(p);
+      }
+    }
+  }
+}
+
 /** The file's text while switches can be written (the engine gives it beside the view): what undo restores (L4.5 part D). */
 interface TimelineText {
   text?: string;
@@ -561,18 +610,9 @@ export interface PreviewHeld {
  * does not run until `preview_allow` (review A H1 c: the Studio's in-memory allow-list, by folder content hash).
  * Not MCP tools: Claude reads plan_preview.
  */
-export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry> }): ToolDef[] {
-  /** Leases by project (lease → last seen): the project's preview scope lives while one is held. */
-  const leases = new Map<string, Map<string, number>>();
-  const prune = (now: number) => {
-    for (const [p, m] of leases) {
-      for (const [l, at] of m) if (now - at > TIMELINE_LEASE_TTL_MS) m.delete(l);
-      if (m.size === 0) {
-        leases.delete(p);
-        o.player().release(p);
-      }
-    }
-  };
+export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry>; leases?: PreviewLeases }): ToolDef[] {
+  // L4.7: the theme editor's preview pages hold leases of the same set (theme-ops.ts), so timeline_leave ends theirs too.
+  const leases = o.leases ?? new PreviewLeases((p) => o.player().release(p));
   /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
   const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan']): Promise<NonNullable<PreviewHeld['preview_held']>> => {
     if (!o.allow || !o.registry) return [];
@@ -601,13 +641,8 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       // The file's text, for undo (L4.5 part D: L4.3's `restore` of the exact bytes) — as scenario_blocks gives it.
       const text = r.text !== undefined ? { text: r.text } : {};
       const head = `${a.name}: ${v.run_id}, ${plural(v.model.segments.length, 'segment')}, ${plural(v.model.frames, 'frame')}${v.proposal ? `, previewing the proposal of ${v.proposal.comment_id}` : ''}`;
-      const now = Date.now();
-      prune(now);
-      if (a.lease) {
-        const m = leases.get(a.project) ?? new Map<string, number>();
-        m.set(a.lease, now);
-        leases.set(a.project, m);
-      }
+      leases.prune();
+      if (a.lease) leases.hold(a.project, a.lease);
       // The proposal's plan too (critique B9 c): a workspace component a proposal adds is held until the person allows it.
       const held = await heldOf(r.plan);
       const heldPart: PreviewHeld = held.length ? { preview_held: held } : {};
@@ -630,15 +665,10 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
     input: TimelineLeaveInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     async run(a) {
-      const m = leases.get(a.project);
-      m?.delete(a.lease);
-      const revoked = !m || m.size === 0;
-      if (revoked) {
-        leases.delete(a.project);
-        o.player().release(a.project);
-      }
-      prune(Date.now());
-      return { summary: revoked ? `${a.project}: preview URLs revoked` : `${a.project}: ${plural(m!.size, 'other page')} still on a timeline`, data: { project: a.project, revoked } };
+      const others = leases.leave(a.project, a.lease);
+      const revoked = others === 0;
+      leases.prune();
+      return { summary: revoked ? `${a.project}: preview URLs revoked` : `${a.project}: ${plural(others, 'other page')} still on a timeline or a theme preview`, data: { project: a.project, revoked } };
     },
   };
   const allow: ToolDef<typeof PreviewAllowInput> = {
@@ -862,4 +892,4 @@ export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] 
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS] as const;

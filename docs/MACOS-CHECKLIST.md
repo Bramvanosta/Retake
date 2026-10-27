@@ -1114,6 +1114,66 @@ the timeline (13f steps 1 and 6: `highlights-v1`). First keep a copy of the scen
   Firefox, and of the banner), whether Claude proposed (step 4) and saved directly (step 9) as written, the browsers'
   versions and `claude --version`.
 
+## 13h. The component library and the theme editor in your browsers (L4.7)
+
+What the automated tests cannot reach: Safari (WebKit) and Firefox (the tests drive Playwright's Chromium, and one gated
+acceptance the real worker in it), GIFs and colour inputs drawn by your browsers, your own drag of a colour, and your
+eyes on the loops. The workspace of 13a with a themes folder (`mkdir -p "$W/templates"`), the fixture running
+(terminal 3), `pnpm build` first and `studio ui` as in 13b (terminal 1). *highlights* needs a capture (13f step 1).
+First keep a copy of the scenario: `cp "$W/projects/northfield-fixture/scenarios/highlights.yaml"
+"$H/highlights.orig.yaml"`.
+
+1. **The library grid (Safari).** Project page → **Components**: the cards by kind, each with its poster at once (the
+   editorial starter's committed pictures), *Built-in* badges in words. The *Intros* chip and the *Intros* section agree
+   (the section says *+ N more that can also serve here* when the chip counts more; the button shows them). Switch the
+   *Theme* menu to *motion*: the cards on screen get *Waiting for the worker…*, then their posters in the dark theme
+   within about a minute (12 at a time); scroll down: the next cards follow; nothing is asked for cards you never
+   scrolled to.
+2. **Play the loops (Safari, Firefox, Chrome).** Back in editorial, **Play** on *Fade through black*, *Tap to open*,
+   *Clock* (interstitial), *Chart* (card) and *Notification* (overlay): the first one waits ≈ 20 s (the worker builds its
+   bundle), the next ones ≈ 1.5 s each; each GIF loops smoothly in place of the poster (no stutter at the loop point,
+   the colours not banded beyond a GIF's), **Pause** shows the poster again. **Render all loops** fills the rest
+   (≈ 1 min for 41). Note any loop that looks wrong. Firefox and Chrome: the same five loops play (cached: at once).
+3. **The theme editor's live frame (Safari).** **Open the theme editor** → editorial is read-only (*copy it to edit
+   it*) → **Copy to edit** (name `editorial-copy`): the editor of the copy, *Editable*. The live preview shows the
+   intro in the theme's serif (not a system font); **Clip with caption** and **Outro** switch it; **Play** loops it.
+4. **Drag a colour, then undo (Safari, then Firefox and Chrome).** Background → *Solid*. Drag its colour picker slowly
+   across blues: the frame follows within a blink while you drag (*Showing the colour you are changing (not written
+   yet)*) and `template.yaml` is unchanged meanwhile (`cat "$W/templates/editorial-copy/template.yaml"` in a terminal);
+   release (close Safari's colour panel / Firefox's picker): one write, named on the status line beside Undo. Type a hex
+   in the accent's field and Enter: the contrast lines update. **Undo** twice, **Redo** once: the file follows each time
+   (`git diff --no-index` against a copy you keep shows the exact bytes back). Say what each browser's colour input does
+   on drag (WebKit's panel may send fewer moves).
+5. **Use in this scenario, then render (Safari).** *Use in a scenario*: **highlights** → **Use in this scenario**:
+   *Set the theme to editorial-copy*, *Used by 1 scenario*. **Open its timeline**: the header says *theme
+   editorial-copy*, the preview shows the new background; **Render**: about 35–45 s later the review; open the render in
+   QuickTime: the new background and accent everywhere around the capture; the cursor style is the take's (filmed).
+   **Undo** in the editor's *Use in a scenario* card: `cmp "$H/highlights.orig.yaml"
+   "$W/projects/northfield-fixture/scenarios/highlights.yaml"` prints nothing.
+6. **A workspace component waits for Allow (Safari).** In terminal 2: `studio components create acme/check-intro --kind
+   intro`; in the editor's *Components*, set the intro to `acme/check-intro`: the live preview shows *A workspace
+   component is not run in the preview* naming it; **Allow in the preview**: the frame draws it. In the library its card
+   says *Workspace* and its poster / loop render in the worker (its code never runs in the Studio tab). Set the intro
+   back (or **Undo**).
+7. **The site panel (any browser).** Themes → *From a website*: type `https://example.com/pricing` → the command line
+   `studio -C … theme from-site https://example.com/pricing` to copy (**Copy**): the Studio fetched nothing (Web
+   Inspector's Network tab shows no request to example.com) and queued no job. An extraction you run in a terminal from
+   that line shows up in the panel, its page title as text.
+8. **VoiceOver** (optional): the kind / source chips are radio groups; each card's Play says *Play* and the component's
+   name, and *pressed* while it plays; the editor's *Default zoom* menu says its name; the colour pickers are paired with
+   their hex fields; saves are announced.
+9. **A broken component of yours (any browser).** In terminal 2: `studio components create acme/check-broken --kind card`,
+   then put `throw new Error('not yet');` as the first line of its `index.tsx`. In the library (theme *motion*, the
+   *Cards* chip), scroll the cards and **Play** two built-in cards: their posters and loops still come (a little slower
+   for that batch); only *check-broken* says why it failed. Delete the line: within a minute its card is asked again by
+   itself (no **Retry**) and shows its poster. Remove the folder afterwards.
+
+- **Expected:** every step as written; no loop starts by itself; the theme file and the scenario back to their exact
+  bytes after the undos; nothing written to a starter (`git status` in the repository is clean).
+- **Send back:** for each step, OK or what you saw instead (a screenshot of the grid in motion and of the editor while
+  dragging, in Safari), any loop that looks wrong, what each browser's colour input sent while dragging, the browsers'
+  versions.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

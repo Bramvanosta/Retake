@@ -55,7 +55,7 @@ export { PreviewPlanError, previewPlan } from './preview-plan.js';
 export { PreviewContext, usePreviewMode, usedComponentIds } from './remotion/preview-mode.js';
 export type { PreviewMode } from './remotion/preview-mode.js';
 export type { PreviewPlan, PreviewPlanOptions } from './preview-plan.js';
-export { RenderCancelledError, RenderError } from './render/types.js';
+export { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './render/types.js';
 export type { RenderProgress, RenderRecord, RenderStage } from './render/types.js';
 export {
   COMPOSITION_IDS,
@@ -89,17 +89,22 @@ export {
   bundleCacheDir,
   bundleComponentsFor,
   bundleHash,
+  bundledFileProblem,
+  componentFilesGuard,
   componentFolderHash,
+  componentHashedFiles,
   compositionFiles,
+  compositionHash,
   ensureBundle,
   entrySource,
   listCachedBundles,
   planComponentIds,
+  registryBundleComponents,
   registryModuleSource,
   withCspMeta,
 } from './render/bundle.js';
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
-export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser } from './render/browser.js';
+export { HEADLESS_SHELL_ENV, playwrightHeadlessShell, renderBrowser, renderBrowserIdentity } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
 export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, standInTransition, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
 export {
@@ -132,10 +137,24 @@ export {
 } from './panes.js';
 export type { InsetPlanInput } from './panes.js';
 export type { TransitionWindow } from './remotion/frames.js';
-export { buildComponentPreview, loadPreviewSamples } from './preview.js';
+export { PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples } from './preview.js';
 export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';
-export { PREVIEW_COMPOSITION, STARTER_TEMPLATES_DIR, loadPreviewTheme, renderComponentPreviews } from './render/preview.js';
-export type { PreviewComponentTarget, RenderPreviewsOptions, RenderedPreview } from './render/preview.js';
+export { LOOP_FORMAT, PREVIEW_COMPOSITION, REMOTION_PREVIEW_BACKEND, STARTER_TEMPLATES_DIR, loadPreviewTheme, loopFrames, renderComponentLoops, renderComponentPreviews } from './render/preview.js';
+export type {
+  LoopItem,
+  PreviewBackend,
+  PreviewBundleMode,
+  PreviewComponentTarget,
+  PreviewFailure,
+  PreviewRenderer,
+  RenderLoopsOptions,
+  RenderLoopsResult,
+  RenderPreviewsOptions,
+  RenderedLoop,
+  RenderedLoopItem,
+  RenderedPoster,
+  RenderedPreview,
+} from './render/preview.js';
 export { generateTestTrack, testTrackExpression } from './render/audio.js';
 export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, findRenderRecord, gifWindow, recordPathProblem } from './render/export.js';
 export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult } from './render/export.js';

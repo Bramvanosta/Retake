@@ -6,14 +6,25 @@
  * component folder bundled and the Remotion version: a render rebuilds only when one of them changed.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMPONENT_KINDS } from '@demo-studio/core';
 import type { ComponentKind } from '@demo-studio/core';
-import { MANIFEST_FILE, kitEntry, paramDefaults, parseManifest, scaffoldDir } from '@demo-studio/components';
+import {
+  HASHED_FILE,
+  MANIFEST_FILE,
+  PREVIEW_ARTIFACTS,
+  UNHASHED_DIRS,
+  kitEntry,
+  paramDefaults,
+  parseManifest,
+  scaffoldDir,
+  unhashedFileProblem,
+  unhashedImportMessage,
+} from '@demo-studio/components';
 import type { ComponentRegistry, JsonSchemaNode } from '@demo-studio/components';
 import type { EditPlan } from '../plan-types.js';
 import { usedComponentIds } from '../remotion/preview-mode.js';
@@ -107,12 +118,7 @@ function kitFiles(): { entry: string; files: string[] } {
   return { entry, files };
 }
 
-const SKIP_DIRS = new Set(['node_modules', 'previews', '.git', 'dist']);
-const CODE_FILE = /\.(tsx?|jsx?|mjs|cjs|json|css|ya?ml|svg|png|jpe?g|webp|woff2?|ttf|otf)$/i;
-/** Generated files of a component folder that never change what it renders (regenerating them keeps the bundle). */
-const PREVIEW_ARTIFACTS = new Set(['preview.png', 'preview.json']);
-
-/** Every file under `dir` (sorted, absolute), skipping node_modules, previews and dotfiles. */
+/** Every file under `dir` (sorted, absolute), skipping dot entries and the folders UNHASHED_DIRS names. */
 function listFiles(dir: string): string[] {
   const out: string[] = [];
   const walk = (d: string) => {
@@ -120,12 +126,21 @@ function listFiles(dir: string): string[] {
       if (e.name.startsWith('.')) continue;
       const p = join(d, e.name);
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) walk(p);
+        if (!UNHASHED_DIRS.has(e.name)) walk(p);
       } else if (e.isFile()) out.push(p);
     }
   };
   walk(dir);
   return out.sort();
+}
+
+/**
+ * The files of a component folder its content hash reads (sorted, absolute): code, manifest, own assets — never a dot
+ * entry, node_modules / previews / dist, the generated preview files. The import rules (components
+ * `unhashedFileProblem`, the same constants) refuse every other file, so the hash covers all a bundle loads of it.
+ */
+export function componentHashedFiles(dir: string): string[] {
+  return listFiles(dir).filter((x) => HASHED_FILE.test(x) && !PREVIEW_ARTIFACTS.has(basename(x)));
 }
 
 function packageVersion(name: string): string {
@@ -156,9 +171,40 @@ export async function bundleHash(components: readonly BundleComponent[]): Promis
   for (const c of [...components].sort((a, b) => a.id.localeCompare(b.id))) {
     add(`component:${c.id}:entry`, relative(c.dir, c.entry).split(sep).join('/'));
     add(`component:${c.id}:defaults`, JSON.stringify(c.defaults));
-    for (const f of listFiles(c.dir).filter((x) => CODE_FILE.test(x) && !PREVIEW_ARTIFACTS.has(basename(x)))) add(`component:${c.id}:${relative(c.dir, f).split(sep).join('/')}`, await readFile(f));
+    for (const f of componentHashedFiles(c.dir)) add(`component:${c.id}:${relative(c.dir, f).split(sep).join('/')}`, await readFile(f));
   }
   return h.digest('hex').slice(0, 16);
+}
+
+let compositionMemo: { stamp: string; hash: string } | undefined;
+
+/**
+ * What every bundle shares, by content (16 hex): the bundle format, the Remotion versions, the composition sources and
+ * the kit — the part of bundleHash that is not the components. A library preview's cache key (L4.7) covers it: a
+ * change of the composition or the kit is a new preview. Memoised on the files' sizes and mtimes.
+ */
+export async function compositionHash(): Promise<string> {
+  const comp = compositionFiles();
+  const kit = kitFiles();
+  const files = [...comp.files, ...kit.files];
+  const stamp = files.map((f) => {
+    const st = statSync(f);
+    return `${f}:${st.size}:${st.mtimeMs}`;
+  }).join('\n');
+  if (compositionMemo?.stamp === stamp) return compositionMemo.hash;
+  const h = createHash('sha256');
+  const add = (label: string, data: string | Buffer) => {
+    h.update(`${label}\0${data.length}\0`);
+    h.update(data);
+    h.update('\0');
+  };
+  add('format', String(BUNDLE_FORMAT));
+  add('remotion', `${packageVersion('remotion')} ${packageVersion('@remotion/bundler')}`);
+  for (const f of comp.files) add(`composition:${relative(EDITOR_DIR, f).split(sep).join('/')}`, await readFile(f));
+  for (const f of kit.files) add(`kit:${relative(dirname(kit.entry), f).split(sep).join('/')}`, await readFile(f));
+  const hash = h.digest('hex').slice(0, 16);
+  compositionMemo = { stamp, hash };
+  return hash;
 }
 
 /**
@@ -176,7 +222,7 @@ export async function componentFolderHash(c: Pick<BundleComponent, 'id' | 'dir' 
   add('id', c.id);
   add('entry', relative(c.dir, c.entry).split(sep).join('/'));
   add('defaults', JSON.stringify(c.defaults));
-  for (const f of listFiles(c.dir).filter((x) => CODE_FILE.test(x) && !PREVIEW_ARTIFACTS.has(basename(x)))) add(relative(c.dir, f).split(sep).join('/'), await readFile(f));
+  for (const f of componentHashedFiles(c.dir)) add(relative(c.dir, f).split(sep).join('/'), await readFile(f));
   return h.digest('hex').slice(0, 16);
 }
 
@@ -252,6 +298,23 @@ export async function bundleComponentsFor(plan: EditPlan, registry: ComponentReg
   return out;
 }
 
+/**
+ * Every usable component of the registry (built-in and workspace; folders that do not load are not listed) and the
+ * per-kind scaffolds, as bundle components: the bundle of library previews (L4.7) — one per registry state, whatever
+ * components a job shows.
+ */
+export async function registryBundleComponents(registry: ComponentRegistry): Promise<BundleComponent[]> {
+  const out: BundleComponent[] = registry.list().map((info) => ({
+    id: info.manifest.id,
+    kind: info.manifest.kind,
+    dir: info.dir,
+    entry: info.entry,
+    defaults: paramDefaults(info.manifest.params as JsonSchemaNode | undefined),
+  }));
+  out.push(...(await scaffoldComponents()));
+  return out;
+}
+
 /** <root>/.demo-studio/cache */
 export function bundleCacheDir(root: string): string {
   return join(resolve(root), '.demo-studio', 'cache');
@@ -289,6 +352,72 @@ function abortError(): Error {
   const e = new Error('render cancelled');
   e.name = 'AbortError';
   return e;
+}
+
+/** The path with symbolic links resolved (a missing tail is kept as written under its real parent). */
+function realPathOf(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    const parent = dirname(p);
+    return parent === p ? p : join(realPathOf(parent), basename(p));
+  }
+}
+
+function within(dir: string, file: string): string | undefined {
+  const rel = relative(dir, file);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : undefined;
+}
+
+/**
+ * Why a file the render bundler loaded is outside the bundle hash, or undefined (pure but for real paths). A file in a
+ * bundled component's folder must be one componentHashedFiles reads; a file in the folders holding workspace / built-in
+ * components (a namespace folder, `components/`) must belong to a component. Webpack follows imports with no rules of
+ * its own (a planted node_modules there would win): this guard fails the bundle closed instead of caching code the hash
+ * never saw (L4.7 review fix; the compile check and the Studio's player loader refuse the same imports).
+ */
+export function bundledFileProblem(file: string, components: readonly Pick<BundleComponent, 'id' | 'dir' | 'scaffold'>[]): string | undefined {
+  const real = realPathOf(file.split('?')[0]);
+  const dirs = components.map((c) => ({ c, dir: realPathOf(c.dir) }));
+  for (const { c, dir } of dirs) {
+    const rel = within(dir, real);
+    if (rel === undefined) continue;
+    const what = unhashedFileProblem(rel);
+    return what ? `${c.id}: ${unhashedImportMessage(rel, what)}` : undefined;
+  }
+  for (const { c, dir } of dirs) {
+    if (c.scaffold) continue;
+    for (const holder of [dirname(dir), dirname(dirname(dir))]) {
+      const rel = within(holder, real);
+      if (rel !== undefined) return `the render bundle loaded ${rel} from the folder holding ${c.id}, but it belongs to no component (a planted node_modules?): not bundled`;
+    }
+  }
+  return undefined;
+}
+
+interface GuardCompilation {
+  errors: Error[];
+  hooks: { finishModules: { tap(name: string, fn: (modules: Iterable<{ resource?: unknown }>) => void): void } };
+}
+
+/** The webpack plugin applying bundledFileProblem to every module of the bundle (each problem is a build error). */
+export function componentFilesGuard(components: readonly Pick<BundleComponent, 'id' | 'dir' | 'scaffold'>[]): {
+  apply(compiler: { hooks: { compilation: { tap(name: string, fn: (c: GuardCompilation) => void): void } } }): void;
+} {
+  const name = 'demo-studio-component-files';
+  return {
+    apply(compiler) {
+      compiler.hooks.compilation.tap(name, (compilation) => {
+        compilation.hooks.finishModules.tap(name, (modules) => {
+          for (const m of modules) {
+            if (typeof m.resource !== 'string' || m.resource === '') continue;
+            const problem = bundledFileProblem(m.resource, components);
+            if (problem) compilation.errors.push(new Error(problem));
+          }
+        });
+      });
+    },
+  };
 }
 
 /**
@@ -336,6 +465,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
           extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },
           modules: [...((config.resolve?.modules as string[] | undefined) ?? ['node_modules']), ...nodeModules],
         },
+        plugins: [...(config.plugins ?? []), componentFilesGuard(opts.components) as never],
       }),
     });
     const index = join(tmp, 'bundle', 'index.html');

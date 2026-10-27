@@ -18,6 +18,7 @@ import { join, resolve } from 'node:path';
 import { DEMO_STUDIO_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@demo-studio/core';
 import type { RenderJobInput, RunJobInput } from '@demo-studio/core';
 import type { RecordJobTestHooks } from './record-job.js';
+import type { PreviewJobTestHooks } from './preview-job.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
@@ -55,6 +56,8 @@ export interface WorkerOptions {
    * "headed" window. A worker process has no way to receive it.
    */
   recordTest?: RecordJobTestHooks;
+  /** In-process tests only (never set by worker-main): a stand-in for Remotion and the disk gate's free space in library previews. */
+  previewTest?: PreviewJobTestHooks;
   /** The client that started this worker (`ui`, `mcp`, …): recorded in the worker lock (`started_by`). */
   startedBy?: string;
 }
@@ -74,7 +77,7 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
   const exported = job.input.kind === 'export' ? { render: job.input.render_id, formats: r?.kind === 'export' ? r.outputs.map((o) => o.format) : [], rendered: r?.kind === 'export' ? r.rendered : 0 } : undefined;
   const preview =
     job.input.kind === 'preview'
-      ? { id: job.input.preview_id, target: job.input.target.kind === 'component' ? job.input.target.component : 'theme', ...(r?.kind === 'preview' ? { theme: r.theme } : {}) }
+      ? { id: job.input.preview_id, target: job.input.target.kind === 'component' ? job.input.target.component : job.input.target.kind, ...(r?.kind === 'preview' ? { theme: r.theme } : {}) }
       : undefined;
   // An inspection counts nothing (a dry replay to read a page, not a dry run of the scenario).
   const inspect =
@@ -486,7 +489,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
         case 'preview': {
           // Lazy: Remotion is loaded by the first preview. A cancel stops between images.
           const { executePreviewJob } = await import('./preview-job.js');
-          const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser });
+          const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, ...(o.previewTest ? { test: o.previewTest } : {}) });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;
         }

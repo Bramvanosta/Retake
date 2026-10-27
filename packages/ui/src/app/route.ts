@@ -7,7 +7,9 @@
  * (L4.5), `#/p/<slug>/s/<name>/comments` its frame comments (L4.6: the list and a render's frames),
  * `…/comments/<comment id>` one thread open and `…/comments/at/<render id>/<frame>` a render's frame, ready to comment,
  * `#/p/<slug>/s/<name>/proposal/<comment id>/<entry id>` the timeline previewing the change Claude proposed on a thread
- * (L4.6 part D2: planned in memory, nothing written).
+ * (L4.6 part D2: planned in memory, nothing written), `#/p/<slug>/library[/<theme>[/<namespace>/<name>]]` the component
+ * library in the project's theme or another, and one component's detail (L4.7 part D1), `#/p/<slug>/themes[/<theme>]` the
+ * theme list and one theme's editor (L4.7 part D2).
  * A slug, a scenario name, a run id, a comment or render id is whatever
  * the address bar holds, percent-decoded and capped — the server checks it (`project_get` / `scenario_blocks` refuse anything but a slug); here it is only ever a text node or an
  * argument. `hrefTo` is the only way the app builds an `href` (the source lint test enforces it).
@@ -23,6 +25,8 @@ export type Route =
   | { name: 'timeline'; slug: string; scenario: string; run?: string; step?: string }
   | { name: 'comments'; slug: string; scenario: string; thread?: string; at?: { render: string; frame: number } }
   | { name: 'proposal'; slug: string; scenario: string; thread: string; entry: string }
+  | { name: 'library'; slug: string; theme?: string; component?: string }
+  | { name: 'themes'; slug: string; theme?: string }
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
@@ -82,6 +86,19 @@ export function parseRoute(hash: string): Route {
     const [pSlug, pScenario, pThread, pEntry] = prParts as string[];
     return { name: 'proposal', slug: pSlug, scenario: pScenario, thread: pThread, entry: pEntry };
   }
+  const lb = /^\/p\/([^/]+)\/library(?:\/([^/]+)(?:\/([^/]+)\/([^/]+))?)?\/?$/.exec(path);
+  const lbParts = lb ? [lb[1], lb[2], lb[3], lb[4]].map((x) => (x === undefined ? undefined : decode(x))) : null;
+  if (lbParts && lbParts.every((x) => x !== null)) {
+    const [lSlug, lTheme, lNs, lName] = lbParts as Array<string | undefined>;
+    // A component id is two segments, neither holding a "/" once decoded (the server checks the id itself).
+    if (lNs === undefined || (!lNs.includes('/') && !lName!.includes('/'))) {
+      return { name: 'library', slug: lSlug!, ...(lTheme !== undefined ? { theme: lTheme } : {}), ...(lNs !== undefined ? { component: `${lNs}/${lName}` } : {}) };
+    }
+  }
+  const th = /^\/p\/([^/]+)\/themes(?:\/([^/]+))?\/?$/.exec(path);
+  const thSlug = th ? decode(th[1]) : null;
+  const thTheme = th?.[2] !== undefined ? decode(th[2]) : undefined;
+  if (th && thSlug !== null && thTheme !== null) return { name: 'themes', slug: thSlug, ...(thTheme !== undefined ? { theme: thTheme } : {}) };
   return { name: 'not-found', path: path.slice(0, SLUG_MAX) };
 }
 
@@ -111,5 +128,13 @@ export function hrefTo(r: Route): string {
     }
     case 'proposal':
       return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/proposal/${encodeURIComponent(r.thread)}/${encodeURIComponent(r.entry)}`;
+    case 'library': {
+      // A component needs its theme (the detail shows it in one) and is "namespace/name": anything else is dropped.
+      const parts = r.component?.split('/');
+      const comp = r.theme !== undefined && parts?.length === 2 && parts[0] && parts[1] ? `/${encodeURIComponent(parts[0])}/${encodeURIComponent(parts[1])}` : '';
+      return `#/p/${encodeURIComponent(r.slug)}/library${r.theme !== undefined ? `/${encodeURIComponent(r.theme)}${comp}` : ''}`;
+    }
+    case 'themes':
+      return `#/p/${encodeURIComponent(r.slug)}/themes${r.theme !== undefined ? `/${encodeURIComponent(r.theme)}` : ''}`;
   }
 }

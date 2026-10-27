@@ -73,18 +73,27 @@ function describeChoice(c: ThemeComponent | null): string {
   return Object.keys(c.params).length > 0 ? `${c.id} ${sortedJson(c.params)}` : c.id;
 }
 
+/** A `components` entry contradicting the legacy fields written next to it (checkTemplateFile, theme edits). */
+export interface LegacyContradiction {
+  kind: ComponentKind;
+  /** The legacy fields written in the file for that kind ("frame.style", "transitions.duration"). */
+  written: string[];
+  message: string;
+}
+
 /**
- * Semantic check of a template file: a `components` entry that disagrees with a legacy field written in the same
- * file (e.g. `components.layout: studio/layout-browser` next to `frame: {style: card}`) is a warning — the
- * components entry wins, so editing the legacy field would change nothing.
+ * The `components` entries of a parsed template file that disagree with a legacy field written in the same file (e.g.
+ * `components.layout: studio/layout-browser` next to `frame: {style: card}`): the components entry wins, so the legacy
+ * field changes nothing. `value` must be structurally valid. Used by checkTemplateFile (a warning each) and by the
+ * Studio's theme edits (L4.7, critique B7: a component change removes the legacy fields it now contradicts).
  */
-function checkTemplateFile(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
-  if (hasErrors(structural) || !isPlainObject(value) || !isPlainObject(value.components)) return [];
+export function legacyContradictions(value: unknown): LegacyContradiction[] {
+  if (!isPlainObject(value) || !isPlainObject(value.components)) return [];
   const file = value as TemplateFile;
   const merged = mergeTemplate(nameless(), file);
   const chosen = resolveThemeComponents(merged);
   const legacy = resolveThemeComponents({ ...merged, components: undefined });
-  const out: LocatedIssue[] = [];
+  const out: LegacyContradiction[] = [];
   for (const [kind, fields] of Object.entries(LEGACY_FIELDS) as Array<[ComponentKind, { section: string; keys: string[] }]>) {
     if (file.components?.[kind] === undefined) continue;
     const section = (value as Record<string, unknown>)[fields.section];
@@ -94,16 +103,25 @@ function checkTemplateFile(value: unknown, structural: readonly LocatedIssue[]):
     const b = legacy[kind];
     const same = a === null || b === null ? a === b : a.id === b.id && sortedJson(a.params) === sortedJson(b.params);
     if (same) continue;
-    out.push(
-      issue(
-        'warning',
-        ['components', kind],
+    out.push({
+      kind,
+      written: written.map((k) => `${fields.section}.${k}`),
+      message:
         `components.${kind} (${describeChoice(a)}) takes precedence over ${written.map((k) => `${fields.section}.${k}`).join(', ')} ` +
-          `(which ${written.length > 1 ? 'map' : 'maps'} to ${describeChoice(b)}): change components.${kind}, or remove it to use ${fields.section}`,
-      ),
-    );
+        `(which ${written.length > 1 ? 'map' : 'maps'} to ${describeChoice(b)}): change components.${kind}, or remove it to use ${fields.section}`,
+    });
   }
   return out;
+}
+
+/**
+ * Semantic check of a template file: a `components` entry that disagrees with a legacy field written in the same
+ * file (e.g. `components.layout: studio/layout-browser` next to `frame: {style: card}`) is a warning — the
+ * components entry wins, so editing the legacy field would change nothing.
+ */
+function checkTemplateFile(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
+  if (hasErrors(structural)) return [];
+  return legacyContradictions(value).map((c) => issue('warning', ['components', c.kind], c.message));
 }
 
 /**

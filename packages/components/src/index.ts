@@ -60,7 +60,19 @@ export { loadComponentRegistry, loadComponentDir, usableAs } from './registry.js
 export type { ComponentRegistry, LoadComponentRegistryOptions, RegistryNotice } from './registry.js';
 export { componentFit } from './fit.js';
 export type { ComponentFit, ComponentUse } from './fit.js';
-export { ALLOWED_IMPORTS, FORBIDDEN_APIS, checkComponentEntry, importProblem, scanSource, stripComments } from './compile.js';
+export {
+  ALLOWED_IMPORTS,
+  FORBIDDEN_APIS,
+  HASHED_FILE,
+  PREVIEW_ARTIFACTS,
+  UNHASHED_DIRS,
+  checkComponentEntry,
+  importProblem,
+  scanSource,
+  stripComments,
+  unhashedFileProblem,
+  unhashedImportMessage,
+} from './compile.js';
 export type { EntryCheck } from './compile.js';
 export { validateComponent, validateComponentDir } from './validate.js';
 export type { ComponentValidation, ValidateComponentOptions } from './validate.js';

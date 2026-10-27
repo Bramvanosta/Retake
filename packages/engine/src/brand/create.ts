@@ -106,6 +106,17 @@ interface Provenance {
   files: Record<string, string>;
 }
 
+/**
+ * A base theme's own file, read to be copied into the new theme (its fonts, LICENSES.md): a regular file with one name
+ * only — a symbolic or hard link would turn bytes from elsewhere into the new theme's own file (L4.7 review A M1).
+ */
+async function readOwnThemeFile(abs: string, theme: string): Promise<Buffer> {
+  const st = await lstat(abs);
+  if (!st.isFile()) throw new EngineError('refused', `base theme ${theme}: ${basename(abs)} is not a regular file (a link?): a new theme copies only the base's own files`);
+  if (st.nlink > 1) throw new EngineError('refused', `base theme ${theme}: ${basename(abs)} has another name (a hard link): a new theme copies only the base's own files`);
+  return readFile(abs);
+}
+
 function parseInput(raw: unknown, trust: BrandTrust): BrandInput {
   const parsed = (trust === 'mcp' ? BrandInputSchema : AuthorBrandInputSchema).safeParse(raw);
   if (!parsed.success) {
@@ -174,7 +185,7 @@ export async function replaceProblem(dir: string, trust: BrandTrust = 'author'):
 }
 
 /** Remove this tool's build / swap folders left by a crash (see the module comment); anything else stays. */
-async function removeStale(templatesDir: string, now: number): Promise<void> {
+export async function removeStale(templatesDir: string, now: number): Promise<void> {
   for (const e of await entries(templatesDir)) {
     const m = WORK_DIR_RE.exec(e);
     if (!m || !THEME_NAME_RE.test(m[1])) continue;
@@ -194,7 +205,7 @@ async function removeStale(templatesDir: string, now: number): Promise<void> {
 }
 
 /** The name checks: lower-case, not a starter's, not an existing folder's (unless `replace` of an unchanged tool-made one). */
-async function checkNewName(templatesDir: string, name: string, replace: boolean, trust: BrandTrust): Promise<{ existing: boolean }> {
+export async function checkNewName(templatesDir: string, name: string, replace: boolean, trust: BrandTrust): Promise<{ existing: boolean }> {
   const lower = name.toLowerCase();
   const starters = (await entries(STARTER_TEMPLATES_DIR)).filter((e) => !e.startsWith('.'));
   const starter = starters.find((s) => s.toLowerCase() === lower);
@@ -414,7 +425,7 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
     return { view: { file, role, source: fontRefFile(ref), format: info.format, weight: face.weight, italic: face.italic, weight_from: face.from, licence_notes: info.licence_notes }, bytes: f.bytes, names: info.names };
   };
   const baseFont = async (abs: string, role: 'display' | 'body'): Promise<FontPlan> => {
-    const bytes = await readFile(abs);
+    const bytes = await readOwnThemeFile(abs, baseName);
     const info = sniffFont({ ref: `base:${baseName}/${relative(base.dir, abs).split(sep).join('/')}`, ext: extname(abs).toLowerCase(), bytes }, `${role} font of ${baseName}`);
     const face = lib.fontFileFace(abs);
     return {
@@ -475,7 +486,7 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
   let baseLicences: string | undefined;
   if (uniqueFonts.some((f) => f.view.weight_from === 'base')) {
     try {
-      baseLicences = await readFile(join(base.dir, 'LICENSES.md'), 'utf8');
+      baseLicences = (await readOwnThemeFile(join(base.dir, 'LICENSES.md'), baseName)).toString('utf8');
     } catch {
       baseLicences = `(${baseName} has no LICENSES.md: check the licences of fonts/${'…'} yourself)`;
       warnings.push(`base theme ${baseName} has no LICENSES.md for the font files copied from it`);

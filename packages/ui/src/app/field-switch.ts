@@ -9,7 +9,8 @@
  *   what the file says); speeds get chips (1×, 1.25×, 1.5×, 2×) and a custom value; durations a number field.
  * - An edit carries `from` — what the inspector showed — so a value changed meanwhile is refused as stale, never
  *   overwritten (critique B2's rule for forms, kept for switches).
- * - Every switch is an edit value (core FIELD_PATHS): a render of the same take shows it, no new capture.
+ * - Every switch is an edit value (core FIELD_PATHS): a render of the same take shows it, no new capture. L4.7
+ *   (critique B1): the scenario's theme (`template`) is one too — its default is the project's theme.
  */
 import type { TimelineView } from '@demo-studio/engine';
 
@@ -63,6 +64,8 @@ export function switchLegend(c: Pick<Choice, 'at' | 'field'>): string {
   switch (c.field) {
     case 'caption_component':
       return 'Caption component (every caption)';
+    case 'template':
+      return 'Theme (this scenario)';
     case 'frame':
       return top ? 'Layout of every scene' : 'Layout';
     case 'transition':
@@ -90,6 +93,7 @@ export function switchWhat(c: Pick<Choice, 'at' | 'field'>): string {
   const leaf = c.field.split('.').at(-1)!;
   if (c.at.entry === 'top') {
     if (c.field === 'caption_component') return 'the caption component';
+    if (c.field === 'template') return "the scenario's theme";
     if (c.field === 'frame') return "the video's layout";
     if (c.field === 'intro' || c.field === 'outro') return `the ${c.field}`;
     return `the ${c.field.split('.')[0]} ${leaf}`;
@@ -101,7 +105,7 @@ export function switchWhat(c: Pick<Choice, 'at' | 'field'>): string {
 
 /** The words of a value of a switch (an option's label, else the value itself). */
 export function valueWords(c: Pick<Choice, 'options' | 'field'>, value: SwitchValue | null | undefined): string {
-  if (value === null || value === undefined) return c.field === 'intro' || c.field === 'outro' ? 'the theme’s default' : 'the default';
+  if (value === null || value === undefined) return c.field === 'intro' || c.field === 'outro' ? 'the theme’s default' : c.field === 'template' ? 'the project’s theme' : 'the default';
   if (value === false) return 'off';
   if (typeof value === 'number') return switchKind(c.field) === 'speed' ? speedWords(value) : `${value} s`;
   const o = c.options.find((x) => x.value === value);

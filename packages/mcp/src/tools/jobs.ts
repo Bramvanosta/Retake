@@ -56,7 +56,7 @@ export function jobLine(j: JobRecord): string {
         : i.kind === 'export'
           ? `export ${i.render_id} → ${i.formats.join(', ')}`
           : i.kind === 'preview'
-            ? `preview of ${i.target.kind === 'component' ? i.target.component : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`
+            ? `preview of ${i.target.kind === 'component' ? i.target.component : i.target.kind === 'library' ? `${i.target.items.length} library component${i.target.items.length === 1 ? '' : 's'}` : 'the theme'}${i.template ? ` (theme ${i.template})` : ''} → ${i.preview_id}`
           : i.kind === 'run'
       ? `run ${i.scenario} (${i.mode}) → ${i.run_id}`
       : i.kind === 'hooks'

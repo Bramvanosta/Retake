@@ -877,7 +877,8 @@ draft from one public page; the model chooses the values):
 - `studio theme list` (`studio list` already lists themes).
 - Several pages of a site, a mobile viewport, signed-in brand portals; bot-challenge pages are never bypassed.
 - Theme media files (intro / outro video, image, Lottie) in generated themes; editing an existing theme through MCP
-  beyond `replace` of an unchanged tool-made one; a theme diff, variants or a light + dark pair from one brand.
+  beyond `replace` of an unchanged tool-made one (L4.7: people edit existing themes in the Studio's theme editor; MCP
+  still never does); a theme diff, variants or a light + dark pair from one brand (BL-113).
 - Brand guideline PDFs as input; cleaning a human's SVG with scripts (refused instead) or keeping a site's SVG logos as
   vectors (PNG only).
 - Known limits of the site extraction as built: a subresource redirected to another host fails (refused at CONNECT:
@@ -1005,8 +1006,8 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
 - A Markdown preview of the README (a sanitising renderer or a sandboxed iframe: today plain text only).
 - Creating, renaming and configuring projects from the Studio (project.yaml stays a hand edit or `project_create`);
   a workspace switcher (one server per workspace).
-- The themes and component gallery of SPEC §12 (R-UI-06 is L4.7); the Geist fonts and the visual identity (R-UI-02,
-  L4.9).
+- ~~The themes and component gallery of SPEC §12 (R-UI-06 is L4.7)~~ — built in L4.7 (the library and theme screens;
+  extras in BL-113); the Geist fonts and the visual identity (R-UI-02, L4.9).
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
   from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `studio ui` terminal or the Tauri shell's
@@ -1387,9 +1388,10 @@ Studio's agent-trust write rules, never more.
 
 Cut to keep L4.5 an L (the timeline, the preview, one-click switches of the edit's values, render and review from the
 Studio):
-- Variants (vertical, square) previewed and rendered from the Studio; a theme picker (L4.7); a component's params and
-  slots edited from the inspector; component previews (pictures or animated) in the inspector's options (L4.7,
-  R-UI-06b).
+- Variants (vertical, square) previewed and rendered from the Studio; ~~a theme picker (L4.7)~~ — built in L4.7 (the
+  inspector's *Theme (this scenario)*, the scenario's `template`); a component's params and slots edited from the
+  inspector; component previews (pictures or animated) in the inspector's options (still open: the L4.7 library's
+  cache makes them cheap, BL-113).
 - Caption, card and interstitial text edited on the timeline; per-scene caption components; a general scenario
   `components:` map (L4.5 added the narrow `caption_component` key only, critique B9).
 - Durations and holds dragged on the tracks; overlay and camera spans edited on their tracks; per-step speeds (today a
@@ -1483,6 +1485,44 @@ applied and re-rendered from the Studio):
 The Studio app is one esbuild bundle that grows with each screen (L4.6: the Comments screen and the proposal view;
 the test budget is raised each time, never a reason to cut). Code splitting with a chunk route under the same gate and
 CSP (a hash-named chunk per screen, loaded on its route) would keep the first load small.
+
+### BL-113 — Library and theme editor extras cut from L4.7
+*M · cut in L4.7 · builds on: L4.7, L3.5, BL-75, BL-106, BL-107, BL-112*
+
+Cut to keep L4.7 an M (the Studio's component library with posters and looping GIFs rendered by the worker, the theme
+editor with a live preview, undo / redo and *Use in this scenario*):
+- **Loops as WebM / AV1** in a `<video>` (needs `media-src` in the Studio's CSP and a media route; GIF today, no CSP
+  change); loops of the vertical / square variants; animated previews through MCP (`component_preview` keeps its
+  stills).
+- **A theme reel** (intro → clip → outro with the theme's transition, one composition) instead of the editor's three
+  switched previews; the cursor in the live preview (the runner draws it at capture: no component, no loop — R-UI-06b's
+  gap).
+- **Font adoption**: font files (and their licence notes) added to an existing theme from the Studio (today the type
+  pair is limited to the theme folder's own fonts; new fonts come with *New theme*); logo adoption (`theme_adopt`,
+  cut in part A: a logo is a file the person drops into the theme folder, then picks); theme media files (intro / outro
+  video, image, Lottie) chosen in the editor.
+- **Params and text styles**: a component's params and slot defaults edited per theme (layout width, radius…);
+  captions' text styles, frame, durations, interstitial and brandmark fields; a template.yaml text tab with live
+  validation (the scenario YAML tab's twin).
+- **Rename / delete** a theme; a theme diff; light + dark pairs; **Copy to edit** of a project's own folder theme
+  (theme_copy takes a listed name: today a hand copy).
+- **Site approval from the Studio**: the site panel shows the `studio theme from-site <url>` command to copy; approving
+  a URL in the page needs the person's presence (BL-106); a screenshot of the extraction in the panel (`site_image`).
+- **Newest-wins job merging**: a queued library job cancelled and merged with a newer request (racy with the worker's
+  claim); today each request is a job of ≤ 12 components, ids already queued are skipped and the worker skips cached
+  keys.
+- **Play live in the library** (the live Player per card; the loop is the library's motion, the live frame is the theme
+  editor's) and **hover-play** (loops start on Play only).
+- Library extras: editing a workspace component's params from the detail; two components or two themes side by side;
+  thumbnails of the library's posters in the timeline inspector's options (BL-107 keeps it: the cache makes it cheap);
+  the marketplace source (V2).
+- Measured in L4.7 part E, not fixed: `studio/document-pdf`'s loop is the only one that needs the 480 px fallback (1.16 MB
+  in editorial); a dark copy of editorial keeps the starter's dark-ink wordmark.svg (invisible on a dark background — a
+  theme file, not a component fault; a light wordmark comes with the person's own brand files).
+- Left after the L4.7 reviews: a library key recomputed after the bundle (a component edited while its job runs is
+  written under its old key — the next view asks the new one again); `<workspace>/node_modules` stays in webpack's
+  lookup for workspace components (outside every component folder, same trust as renders); a theme deleted and made
+  again at the same path keeps the old one's shown versions for `restore` (they were on disk there once).
 
 ## Guard-rails for planned lots (no new scope)
 

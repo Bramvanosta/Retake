@@ -16,6 +16,7 @@ import {
   hookInputsChangedMessage,
   hooksChangedMessage,
   issuesMessage,
+  listTemplates,
   loadProjectTemplate,
   newHiddenCharProblem,
   parseScenario,
@@ -433,6 +434,13 @@ export async function prepareScenarioEdit(
       const registry = await (o.registry ? o.registry() : c.loadComponentRegistry({ root: project.root }));
       const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
       if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
+      // L4.7 (critique B1): a scenario's theme is a theme the workspace lists (by name, never a path).
+      if (edit.field === 'template' && typeof edit.to === 'string') {
+        const names = (await listTemplates(project.root)).map((t) => t.name);
+        if (!names.includes(edit.to)) {
+          throw new EngineError('invalid', `not saved: "${edit.to}" is not a theme of this workspace (themes: ${names.join(', ') || 'none'})`, { details: { field: edit.field } });
+        }
+      }
       // Defence: every path of the allow-list is an edit value — a field edit never changes what a take films.
       const filmed = filmedChangesOf(applied.intended, parseYaml(base.yaml).value);
       if (filmed.length) throw new EngineError('refused', `not saved: this edit would change the filmed part (${filmed.slice(0, 3).join('; ')})`);

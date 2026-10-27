@@ -117,7 +117,16 @@ export interface BuildPreviewOptions {
   slots?: Record<string, string>;
   /** Params over the manifest's preview params (the caller validates them against the params schema). */
   params?: Record<string, unknown>;
+  /**
+   * Motion mode (L4.7, a looping preview): a transition gets a lead-in on the outgoing scene and a hold on the settled
+   * card around it (`spec.motion`); every other kind already animates over its duration. Stills never set it: their
+   * spec stays exactly as before.
+   */
+  motion?: boolean;
 }
+
+/** Motion mode's lead-in (outgoing scene) and hold (settled card) around a transition, seconds. */
+export const PREVIEW_MOTION = { lead_s: 0.6, tail_s: 1.0 } as const;
 
 export interface BuiltPreview {
   spec: ComponentPreviewSpec;
@@ -363,5 +372,14 @@ export function buildComponentPreview(opts: BuildPreviewOptions): BuiltPreview {
   }
   spec.frame = Math.max(0, Math.min(Math.round(at * fps), main.durationInFrames - 1));
   spec.durationInFrames = Math.max(main.durationInFrames, spec.frame + 1, 1);
+  if (opts.motion && m.kind === 'transition') {
+    // The transition plays between `lead` frames of the outgoing scene and `tail` frames of the settled card; the
+    // still's moment moves with it (a poster of a motion spec shows the same instant of the transition).
+    const lead = Math.round(PREVIEW_MOTION.lead_s * fps);
+    const tail = Math.round(PREVIEW_MOTION.tail_s * fps);
+    spec.motion = { lead, tail };
+    spec.frame += lead;
+    spec.durationInFrames = lead + main.durationInFrames + tail;
+  }
   return { spec, at, ...(screen ? { screen } : {}), components: [...used].sort() };
 }

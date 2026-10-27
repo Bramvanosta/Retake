@@ -1,7 +1,8 @@
 /**
  * A project (`project_get`): its README (as plain text — no Markdown rendering), environments with their pages, display
  * URLs, flags and personas, scenarios (each a link to its blocks, L4.2), recent runs (`run_list`), its recent activity
- * (the index), the Sessions panel (L4.4: every persona's saved sign-in, "Sign in" for each) and project.yaml warnings.
+ * (the index), the Sessions panel (L4.4: every persona's saved sign-in, "Sign in" for each), a link to its component
+ * library (L4.7) and project.yaml warnings.
  * URLs are text, never links. It re-reads when the project's files change (events.ts).
  */
 import type { EnvironmentView, ProjectView, RunListItem } from '@demo-studio/engine';
@@ -183,6 +184,17 @@ export function ProjectPage({ slug }: { slug: string }) {
                 ))}
               </ul>
             )}
+          </section>
+          <section className="card" aria-labelledby="lib-h">
+            <div className="card-head">
+              <h2 id="lib-h" className="card-title">
+                Components
+              </h2>
+              <a className="button" href={hrefTo({ name: 'library', slug: p.slug })} data-testid="library-link">
+                Open the library
+              </a>
+            </div>
+            <p className="muted small">Every intro, card, layout, caption, overlay and transition in your theme — still and moving.</p>
           </section>
           <section className="card" aria-labelledby="scen-h">
             <h2 id="scen-h" className="card-title">

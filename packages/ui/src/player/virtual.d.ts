@@ -6,6 +6,8 @@ declare module 'ds:composition' {
   import type { ComponentType, Context } from 'react';
   /** DemoVideo, the composition of every render (packages/editor src/remotion). */
   export const DemoVideo: ComponentType<Record<string, unknown>>;
+  /** ComponentPreview, the composition of component previews (L4.7: the theme editor's live previews). */
+  export const ComponentPreview: ComponentType<Record<string, unknown>>;
   export const ModulesContext: Context<unknown>;
   export const PreviewContext: Context<{ warn(message: string): void } | null>;
   export function usedComponentIds(plan: unknown): string[];

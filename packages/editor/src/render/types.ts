@@ -21,6 +21,26 @@ export class RenderCancelledError extends RenderError {
   }
 }
 
+/**
+ * The disk filled up during a render or a preview (ENOSPC): the work stopped there, nothing more was attempted. The
+ * jobs worker turns it into "the disk has N MB free".
+ */
+export class RenderDiskFullError extends RenderError {
+  constructor(detail: string) {
+    super(`the disk is full (${detail})`);
+    this.name = 'DiskFullError';
+  }
+}
+
+/** An ENOSPC from Node (its `code`) or from a tool's message (ffmpeg, Chromium, Remotion). */
+export function isDiskFullError(e: unknown): boolean {
+  if (e instanceof RenderDiskFullError) return true;
+  if (!e || typeof e !== 'object') return false;
+  if ((e as { code?: unknown }).code === 'ENOSPC') return true;
+  const message = (e as { message?: unknown }).message;
+  return typeof message === 'string' && /\bENOSPC\b|no space left on device/i.test(message);
+}
+
 export type RenderStage = 'planning' | 'bundling' | 'rendering' | 'encoding' | 'done';
 
 export interface RenderProgress {

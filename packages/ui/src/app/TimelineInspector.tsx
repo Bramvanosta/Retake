@@ -430,6 +430,11 @@ export function TimelineInspector({ v, segment, ed }: { v: SwitchView; segment: 
         {v.choices.video.map((c) => (
           <Switch key={choiceKey(c)} c={c} ed={ed} />
         ))}
+        {v.choices.video.some((c) => c.field === 'template') && (
+          <p className="small muted" data-testid="inspector-theme-note">
+            The theme re-dresses every take of this scenario at its next render; the cursor style is filmed: existing takes keep theirs.
+          </p>
+        )}
       </section>
       <section className="tl-insp-part" aria-labelledby="tl-insp-seg" data-testid="inspector-segment">
         {segment ? (

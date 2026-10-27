@@ -1,6 +1,7 @@
 /**
  * The preview bundle (L4.5, DESIGN §4g; critiques B3, B11): esbuild, in memory, one classic IIFE script for the
- * sandboxed preview frame — the Remotion Player, DemoVideo (the render's own composition, src/remotion) and EVERY
+ * sandboxed preview frame — the Remotion Player, DemoVideo (the render's own composition, src/remotion), L4.7
+ * ComponentPreview (the component previews' composition) and EVERY
  * component of the workspace (built-in and workspace components, plus the per-kind scaffolds), so a switch in the
  * Studio never rebuilds it — and `boot.js`, the frame's first script (boot.ts).
  *
@@ -34,8 +35,8 @@ import type { ComponentRegistry, JsonSchemaNode } from '@demo-studio/components'
 import type { BundleComponent } from '@demo-studio/editor';
 import { UI_TARGETS } from '../bundle.js';
 
-/** Bump when the generated modules or the frame's layout change. 2: `held`. */
-export const PLAYER_BUNDLE_FORMAT = 2;
+/** Bump when the generated modules or the frame's layout change. 2: `held`. 3: ComponentPreview (L4.7). */
+export const PLAYER_BUNDLE_FORMAT = 3;
 /** Largest component file the preview bundles. */
 export const COMPONENT_FILE_MAX = 1024 * 1024;
 /** Bundles kept in memory. */
@@ -184,6 +185,8 @@ export function compositionSource(rootFile: string): string {
   const ext = rootFile.endsWith('.tsx') ? { tsx: '.tsx', ts: '.ts' } : { tsx: '.js', ts: '.js' };
   return [
     `export { DemoVideo } from ${JSON.stringify(`${dir}/DemoVideo${ext.tsx}`)};`,
+    // L4.7: the component previews of the theme editor (a `component-preview` served by publishPreview).
+    `export { ComponentPreview } from ${JSON.stringify(`${dir}/Preview${ext.tsx}`)};`,
     `export { ModulesContext } from ${JSON.stringify(`${dir}/modules${ext.ts}`)};`,
     `export { PreviewContext, usedComponentIds } from ${JSON.stringify(`${dir}/preview-mode${ext.ts}`)};`,
     '',
@@ -229,6 +232,7 @@ type BuildOnce = { ok: true; js: Buffer; boot: Buffer } | { ok: false; byOwner: 
 
 async function buildOnce(components: readonly BundleComponent[], hash: string, composition: string, kit: string, held: readonly string[]): Promise<BuildOnce> {
   const { build } = await import('esbuild');
+  const { unhashedFileProblem, unhashedImportMessage } = await import('@demo-studio/components');
   const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realPath(c.dir) })).sort((a, b) => b.realDir.length - a.realDir.length);
   const byId = new Map(owners.map((x) => [x.id, x]));
   const entryOwner = new Map(components.map((c) => [c.entry.split(sep).join('/'), c.id]));
@@ -291,6 +295,11 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
         const owner = byId.get(id)!;
         const real = realPath(args.path);
         if (!isInside(real, owner.realDir)) return fail(owner, `${id}: an import leads out of the component folder (a link)`);
+        // Only files the component's content hash reads (the allow-list and every cache are keyed by it): never a dot
+        // folder, node_modules, previews or dist, whatever the import's words (a folder's package.json may point there).
+        const rel = relative(owner.realDir, real).split(sep).join('/');
+        const hidden = unhashedFileProblem(rel);
+        if (hidden) return fail(owner, `${id}: ${unhashedImportMessage(rel, hidden)}`);
         const loader = COMPONENT_LOADERS[extname(real).toLowerCase()];
         if (!loader) return fail(owner, `${named(owner, real)}: only code and JSON files can be imported`);
         const read = readPlainFile(real, COMPONENT_FILE_MAX);

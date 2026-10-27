@@ -104,6 +104,8 @@ export type {
   JobWorkerInfo,
   ExportJobResult,
   ExportOutputView,
+  LibraryEntryView,
+  LibraryJobView,
   PreviewImageView,
   PreviewJobResult,
   InspectJobResult,
@@ -141,8 +143,36 @@ export type { ReviewRequest } from './jobs/review-job.js';
 export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine, submitExportJob } from './jobs/export-job.js';
 export type { ExportRequest } from './jobs/export-job.js';
 export { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX, REVIEW_IMAGE_RE, REVIEW_IMAGE_SOURCE_MAX, reviewGet, reviewImage, thumbnail } from './reviews.js';
-export { THEME_PREVIEW_KINDS, executePreviewJob, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
-export type { PreviewRequest } from './jobs/preview-job.js';
+export { THEME_PREVIEW_KINDS, executePreviewJob, libraryStatesOf, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
+export type { PreviewJobTestHooks, PreviewRequest } from './jobs/preview-job.js';
+export {
+  LIBRARY_CACHE_MAX_BYTES,
+  LIBRARY_CACHE_MAX_ENTRIES,
+  LIBRARY_DISK_MIN_BYTES,
+  LIBRARY_FILES,
+  LIBRARY_PREVIEW_FORMAT,
+  LIBRARY_REASON_MAX,
+  LIBRARY_TMP_MAX_AGE_MS,
+  checkLibraryDisk,
+  commitLibraryEntry,
+  diskSentence,
+  dropLibraryEntry,
+  ensureLibraryCacheDir,
+  isEditorialStarter,
+  currentEntry,
+  failureIsCurrent,
+  libraryCacheDir,
+  libraryKeyContext,
+  libraryPreviewKey,
+  libraryRegistryHash,
+  libraryStates,
+  plainLibraryCacheDir,
+  pruneLibraryCache,
+  readLibraryEntry,
+  readLibraryImage,
+  stageLibraryEntry,
+} from './library.js';
+export type { LibraryEntry, LibraryEntryMeta, LibraryFailure, LibraryItemState, LibraryKeyContext, LibraryLoopState, LibraryPosterState, LibraryPreviewKind, LibraryStatesView } from './library.js';
 export {
   INSPECT_KEEP,
   activeInspections,
@@ -167,6 +197,14 @@ export { checkComponentId, componentCreate, componentGet, componentList, compone
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
+export { THEME_USES_STATS, editTemplate, knownThemeVersion, templateView, themeEditList, themeFileProblem } from './theme-edit.js';
+export type { ThemeComponentView, ThemeEditList, ThemeEditRequest, ThemeEditResult, ThemeEditView, ThemeEditable, ThemeListItem } from './theme-edit.js';
+export { THEME_COPY_MAX_BYTES, THEME_COPY_MAX_FILES, copyTheme } from './brand/copy.js';
+export type { ThemeCopied } from './brand/copy.js';
+export { BRAND_LIST_MAX_DEPTH, BRAND_LIST_MAX_ENTRIES, BRAND_LIST_MAX_FILES, brandFileList } from './brand/file-list.js';
+export type { BrandFileList } from './brand/file-list.js';
+export { siteList } from './site-list.js';
+export type { SiteList, SiteListEntry } from './site-list.js';
 export type { ReviewFindingView, ReviewImageRef, ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
 export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderReviewSummary, RenderStatusView, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from './renders.js';
 export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js';

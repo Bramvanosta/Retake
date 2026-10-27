@@ -48,7 +48,9 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { OWN_OPS, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { OWN_OPS, PreviewLeases, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { libraryOps } from './library-ops.js';
+import { themeOps } from './theme-ops.js';
 import { commentOps, pathFree } from './comment-ops.js';
 import { opChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
@@ -74,6 +76,11 @@ import { z } from 'zod';
  * render_frame, frame_anchor; thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply: the channel
  * `studio`, never a proposal) and `timeline_view {proposal}` (the preview of Claude's proposal). The MCP's comment tools
  * (comments_list, comment_reply, comment_resolve) stay out: a page is never Claude.
+ * L4.7: the component library (library-ops.ts — library_view, library_images, library_render: posters and loops are
+ * pixels the worker rendered, never component code in the Studio's origin) and the theme editor (theme-ops.ts —
+ * theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview: the live preview in the
+ * sandboxed frame, workspace components held until allowed). `template_from_site` stays out (a site extraction needs a
+ * person's approval of the URL: the Studio shows the command), as do the MCP theme tools (MCP never edits a theme).
  * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
@@ -232,6 +239,9 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   };
   // One chain for the writes of a scenario (critique B5): scenario_edit, scenario_render and thread_apply.
   const chain = opChain();
+  // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
+  const leases = new PreviewLeases((p) => playerNow().release(p));
+  const forbid = () => [engine.workspace.root, homedir()];
   const tools = uiTools([
     ...indexOps(live),
     overviewOp(),
@@ -239,9 +249,11 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...runOps(),
     ...editOps(chain),
     ...liveOps(),
-    ...timelineOps({ player: playerNow, forbid: () => [engine.workspace.root, homedir()], allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry }),
+    ...timelineOps({ player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases }),
     ...renderOps(chain),
     ...commentOps({ chain }),
+    ...libraryOps({ chain }),
+    ...themeOps({ chain, player: playerNow, forbid, allow: previewAllow, leases }),
   ]);
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();

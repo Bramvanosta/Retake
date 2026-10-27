@@ -6,16 +6,20 @@
  * L4.6 (T12): ⚑ a thread written or an entry appended (a temp file renamed into its scenario's comments folder, as the
  * store writes) → `workspace {comments: ['<slug>/<scenario>']}` naming that scenario only; the comments screen's filter
  * (app events.ts commentsEventAction) re-reads for its own scenario only.
+ * L4.7 part C (critique B5): ⚑ a workspace component's file rewritten in place (its folders' mtimes unchanged) →
+ * `workspace {projects: [], readme: [], components: ['<namespace>']}` and library_view's key for it changes; a site
+ * extraction written → `{site: true}`.
  */
 import { request } from 'node:http';
 import type { ClientRequest } from 'node:http';
-import { mkdir, mkdtemp, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, indexFile, newJobId } from '@demo-studio/engine';
+import { scaffoldDir } from '@demo-studio/components';
 import { EVENT_STREAMS_MAX, startStudioServer } from '../src/index.js';
-import type { StudioServer } from '../src/index.js';
+import type { LibraryViewAnswer, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 import { commentsEventAction } from '../src/app/events.js';
@@ -221,6 +225,51 @@ describe('comment events (L4.6, T12)', () => {
     expect(act({ type: 'workspace', projects: ['p'], readme: ['p'] })).toEqual(none);
     expect(act({ type: 'jobs', changed: ['j_1'] })).toEqual(none);
     expect(act({ type: 'resync' })).toEqual({ threads: true, scenario: true, renders: true });
+  });
+});
+
+describe('library events (L4.7, critique B5)', () => {
+  const posterKey = async (id: string) => {
+    const r = await call(studio, 'library_view', { project: P });
+    expect(r.status, r.body.slice(0, 300)).toBe(200);
+    return r.json<{ data: LibraryViewAnswer }>().data.items.find((i) => i.component === id)?.poster.key;
+  };
+
+  it('⚑ a component file rewritten in place → workspace {components: [namespace]} and a new library key; a site extraction → {site: true}', async () => {
+    const comp = join(ws, 'components', 'acme', 'evented');
+    const code = (n: number) => `import { AbsoluteFill } from 'remotion';\nexport default function E() { return <AbsoluteFill>{'evented ${n}'}</AbsoluteFill>; }\n`;
+    const s = await stream(studio.port, auth());
+    try {
+      await s.next('hello');
+      // A new component (a namespace appears).
+      let changed = s.next('workspace');
+      await mkdir(comp, { recursive: true });
+      await cp(scaffoldDir('card'), comp, { recursive: true });
+      await writeFile(join(comp, 'component.yaml'), (await readFile(join(comp, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/evented'));
+      await writeFile(join(comp, 'index.tsx'), code(1));
+      expect(await changed).toEqual({ projects: [], readme: [], components: ['acme'] });
+      await new Promise((r) => setTimeout(r, 400));
+      const before = await posterKey('acme/evented');
+      expect(before).toMatch(/^[0-9a-f]{32}$/);
+      // Rewritten in place: neither components/ nor acme/ nor the component folder change their mtime (probe E1).
+      const folders = await Promise.all([join(ws, 'components'), join(ws, 'components', 'acme'), comp].map(async (d) => (await stat(d)).mtimeMs));
+      changed = s.next('workspace');
+      await writeFile(join(comp, 'index.tsx'), code(2));
+      expect(await changed).toEqual({ projects: [], readme: [], components: ['acme'] });
+      expect(await Promise.all([join(ws, 'components'), join(ws, 'components', 'acme'), comp].map(async (d) => (await stat(d)).mtimeMs))).toEqual(folders);
+      const after = await posterKey('acme/evented');
+      expect(after).not.toBe(before);
+      // A site extraction written (as `studio theme from-site` does): site: true.
+      changed = s.next('workspace');
+      const site = join(ws, '.demo-studio', 'site', 's_01JQ4000000000000000000001');
+      await mkdir(site, { recursive: true });
+      await writeFile(join(site, 'site.json'), '{}\n');
+      expect(await changed).toEqual({ projects: [], readme: [], site: true });
+    } finally {
+      s.close();
+      await rm(comp, { recursive: true, force: true });
+    }
+    expect(await until(() => studio.streams === 0)).toBe(true);
   });
 });
 

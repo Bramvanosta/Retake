@@ -66,8 +66,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | **done** (live checks: MACOS-CHECKLIST 13e) |
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | **done** (live checks: MACOS-CHECKLIST 13f) |
 | L4.6 | Frame comments UI | M | **done** (live checks: MACOS-CHECKLIST 13g) |
-| L4.7 | Component library (with animated previews) + theme editor screens | M | **next** (when the user asks) |
-| L4.8 | Record screen | M | todo |
+| L4.7 | Component library (with animated previews) + theme editor screens | M | **done** (live checks: MACOS-CHECKLIST 13h) |
+| L4.8 | Record screen | M | **next** (when the user asks) |
 | L4.9 | Studio acceptance, accessibility pass | S | todo |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
@@ -785,8 +785,17 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   / Undo through the verified write path. Two independent reviews fixed with mutation-checked tests. Cuts: BL-111,
   BL-112. Live checks: MACOS-CHECKLIST 13g.
 
-### L4.7 – L4.9, L5.2 – L5.4, L6
-- L4.7 also shows an animated preview per component (R-UI-06b, user decision 2026-10-26).
+### L4.7 — Component library (with animated previews) + theme editor screens (M)
+- **Goal:** see every component in the project's (or any) theme, watch it move, pick theme defaults, and edit a theme
+  with live previews — then use it in a scenario.
+- **Done (2026-10-27, in a worktree):** the library screen (grid by kind, posters, animated GIF loops rendered on demand
+  by the worker and cached, detail, Set as theme default, Create with Claude as a copyable prompt), the theme editor
+  (brand, colours, type, motion, zoom, cursor, components per kind, live Intro / Clip / Outro in the sandboxed Player,
+  undo, Copy to edit, New theme, site extractions with the command to copy) and a scenario `template` field ("Use in
+  this scenario"). Two independent reviews fixed with mutation-checked tests (incl. an L4.5 hidden-import hole). Cuts:
+  BL-113. Live checks: MACOS-CHECKLIST 13h.
+
+### L4.8 – L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

@@ -42,6 +42,21 @@ function picks(reg: ComponentRegistry, t: LoadedTemplate): { components: Partial
 }
 
 /**
+ * The first reason a listed theme cannot be used for work, or null (its components resolve, its files lie in its folder):
+ * the timeline's theme switch shows it disabled with this (review B L4). One line; the workspace's part of a path cut off.
+ */
+export async function themeUnusable(dir: string, reg: ComponentRegistry, root: string): Promise<string | null> {
+  let issue: string | undefined;
+  try {
+    const t = await loadTemplate(dir);
+    issue = [...picks(reg, t).issues, ...themeAssetProblems(t)][0];
+  } catch (e) {
+    issue = toEngineError(e).message;
+  }
+  return issue === undefined ? null : issue.split(`${root}/`).join('').split(root).join('.').replace(/\s*\n\s*/g, ' ');
+}
+
+/**
  * Why a theme's files are refused for work submitted through MCP: its logo, wordmark and fonts must lie in its own
  * folder (symbolic links followed) — a theme cannot serve a file from elsewhere to a render or a preview.
  */

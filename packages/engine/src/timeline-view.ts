@@ -25,7 +25,7 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@demo-studio/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@demo-studio/core';
 import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { ComponentRegistry } from '@demo-studio/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@demo-studio/editor';
@@ -42,6 +42,7 @@ import { editor, planRenderRequest } from './jobs/render-job.js';
 import type { RenderEditSource } from './jobs/render-job.js';
 import { getScenario, scenarioEditBlocker } from './scenarios.js';
 import { sha256Hex } from './storage.js';
+import { themeUnusable } from './templates.js';
 
 export interface TimelineViewRequest {
   project: string;
@@ -307,7 +308,15 @@ function currentAt(entry: Obj | undefined, field: string): { value?: FieldValue;
   return { map: true };
 }
 
-async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditPlan, editable: true | { why: string }): Promise<TimelineView['choices']> {
+/** The themes the scenario's `template` switch offers: the workspace's listed names, and the project's own. */
+interface ThemeChoices {
+  names: string[];
+  /** Listed themes that cannot be used (why), offered disabled (review B L4). */
+  unusable: Record<string, string>;
+  project?: string;
+}
+
+async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditPlan, editable: true | { why: string }, themes: ThemeChoices): Promise<TimelineView['choices']> {
   const make = async (at: FieldAt, field: string, range?: FieldChoice['range']): Promise<FieldChoice> => {
     const entry = entryOf(root, at);
     const cur = currentAt(entry, field);
@@ -323,7 +332,13 @@ async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditP
             : true;
     return { at, field, ...(cur.value !== undefined ? { current: cur.value } : {}), editable: why, options: await fieldOptions(registry, root, at, field), ...(range ? { range } : {}) };
   };
-  const video = [await make({ entry: 'top' }, 'caption_component'), await make({ entry: 'top' }, 'frame')];
+  // L4.7 (critique B1): the scenario's theme — the project's (the key removed) or a theme the workspace lists, by name.
+  const theme = await make({ entry: 'top' }, 'template');
+  theme.options = [
+    { value: null, label: themes.project !== undefined && !isTemplatePath(themes.project) ? `The project's theme (${themes.project})` : "The project's theme", usable: true },
+    ...themes.names.map((n): FieldOption => ({ value: n, label: n, usable: themes.unusable[n] === undefined ? true : { why: `this theme cannot be used: ${themes.unusable[n]}` } })),
+  ];
+  const video = [await make({ entry: 'top' }, 'caption_component'), await make({ entry: 'top' }, 'frame'), theme];
   const segments: Record<string, FieldChoice[]> = {};
   const scenes = isObj(root) && Array.isArray(root.scenes) ? root.scenes : [];
   for (const s of plan.segments) {
@@ -418,6 +433,7 @@ async function buildView(
   req: TimelineViewRequest,
   file: { hash?: string; yaml?: string; blocked?: string },
   t0: number,
+  themes: ThemeChoices,
   proposal?: ProposalPreview,
 ): Promise<TimelineViewResult> {
   const { registry } = await memoRegistry(ws);
@@ -479,7 +495,7 @@ async function buildView(
   // The choices read the file as it is now (the same text the plan came from when the edit is today's).
   const shownText = proposal ? proposal.text : file.yaml;
   const root = shownText !== undefined ? parseYaml(shownText).value : undefined;
-  const choices = await choicesOf(registry, root, plan, editable);
+  const choices = await choicesOf(registry, root, plan, editable, themes);
   const capture = await memoCapture(planned.captureFile);
   const runs = (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
   const { untrusted, ...shape } = model;
@@ -560,6 +576,15 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(join(project.dir, 'comments', req.scenario));
   const projectStat = statKey(join(project.dir, 'project.yaml'));
+  // The themes the scenario's theme switch offers (a theme copied or created since: a new view).
+  const listed = await listTemplates(project.root);
+  const unusable: Record<string, string> = {};
+  const reg = (await memoRegistry(ws)).registry;
+  for (const t of listed) {
+    const why = await themeUnusable(t.dir, reg, ws.root);
+    if (why !== null) unusable[t.name] = why;
+  }
+  const themes: ThemeChoices = { names: listed.map((t) => t.name), unusable, ...(typeof project.config.template === 'string' ? { project: project.config.template } : {}) };
   const key = sha256Hex(
     canonicalJson([
       project.dir,
@@ -571,6 +596,8 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
       commentsStat,
       projectStat,
       componentsSignature(ws.componentsDir),
+      themes.names,
+      themes.unusable,
       proposal ? [proposal.comment_id, proposal.entry, proposal.result_sha256] : null,
     ]),
   ).slice(0, 24);
@@ -584,7 +611,7 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, proposal);
+    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal);
     p = built;
     viewMemo.set(key, built);
     if (viewMemo.size > VIEW_MEMO_MAX) {

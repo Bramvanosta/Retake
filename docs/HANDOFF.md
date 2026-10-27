@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-27, end of lot **L4.6 (frame comments UI)** — phases 1–3 are done (phase 3
-pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.6 done). **Next: L4.7 (component
-library with animated previews + theme editor screens), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-27, end of lot **L4.7 (component library with animated previews + theme editor)** — phases 1–3
+are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.7 done).
+**Next: L4.8 (Record screen), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,29 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-113); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-114); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.6)
+## State (after L4.7)
+- **L4.7 done (2026-10-27)**: the Studio's component library (`#/p/<slug>/library[/<theme>[/<ns>/<name>]]`): a grid by
+  kind with posters in the selected / project theme, filters (kind, source, words), "Built-in" / "Workspace" badges,
+  Play / Pause of an animated GIF loop per component (rendered on demand by the worker's `library` preview job in
+  chunks of ≤ 12, cached content-keyed in `.demo-studio/cache/previews/`; ≈ 1.5 s per loop warm, 41 built-in loops in
+  80 s, 8.4 MB; transitions in a motion mode; one broken component never blocks the others), a detail (slots, params,
+  kit compatibility, README as untrusted text), "Set as theme default" and "Create with Claude" (a copyable prompt; the
+  Studio calls no model). The theme editor (`#/p/<slug>/themes[/<theme>]`): brand, colours with contrast checks, type
+  pair from the theme's own fonts, motion bias, zoom, cursor, component per kind, a live Intro / Clip / Outro frame in
+  the L4.5 sandboxed Player (drafts ≤ 5/s, written on release), undo / redo, Copy to edit for starters, New theme, the
+  site extractions listed with the `studio theme from-site` command to copy (no Studio op queues a site job), and "Use
+  in this scenario" — a new scenario `template` field that re-themes existing takes at their next render (no new
+  capture). One verified write path for themes (`templates.edit`: allow-list, if_match, re-parse, lock, restore of
+  served versions; MCP never edits themes). Tests on the Mac: **3583 — 3517 pass, 64 skipped, 2
+  failures in the one full run** (load timing: a new theme e2e spacing check — loosened, still kills an unthrottled
+  drag; the YAML-alias time bound at 470 ms > 400 — green alone); `pnpm test:slow` 63/63 (incl. the Studio-to-render
+  acceptance). Requirements: 647 tracked — 598 done, 26
+  partial, 15 todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 13h.
 - **L4.6 done (2026-10-27)**: frame comments in the Studio (`#/p/<slug>/s/<name>/comments[/<id>]`): the Comments
   screen shows a render's exact frames as server-made JPEGs (an input seek to (F − 0.5)/fps, checked equal to an exact
   frame select on real renders with B-frames and audio; fps / start time / frame rate probed from the video, never the
@@ -1228,6 +1245,21 @@ sandbox, a hook step and compact results through Claude Code).
   mutation-checked tests (99 mutations over the lot). Files: runner-web `live-preview.ts`, `pause.ts`, timeline
   CaptureClock; engine `jobs/live-channel.ts`, `runs.pause`, `auth.forScenario`; ui `server/run-live.ts`,
   `RunScreen.tsx`, `LiveView.tsx`, `Sessions.tsx`, `run-live.ts`, `sse.ts`. Cuts: BL-105, BL-106. No new dependency.
+- **L4.7 done** (library + theme editor; R-UI-06, R-UI-07 done, R-UI-06b partial — cursors get no loop). Planned with
+  probes (the ComponentPreview composition renders as a GIF loop in 1–1.5 s; the Studio CSP has no media-src, so loops
+  are GIF data URLs; Homebrew ffmpeg has no libwebp), criticised ("Use for this project" would not re-theme existing
+  takes → a scenario `template` field instead; every library request building a 28 MB bundle; a cache key blind to
+  binary component files; one bad component or a full disk breaking the library), built in parts in a worktree (A core
+  theme edits + engine write path, B motion mode + loop rendering + library cache and job, C Studio server ops + player
+  `component-preview` format, D1 library screen, D2 theme editor, E acceptance of all 41 loops in two themes and a
+  Studio-to-render drive), reviewed by two reviewers (a component importing through folders its hash skips stayed
+  allowed after a change — an L4.5 hole, now refused at four points; theme copies laundering hard links; layout-pip /
+  split failing the preview scan; one broken workspace component failing every card for good…) and fixed with
+  mutation-checked tests (≈ 140 mutations over the lot, all killed). Files: core `map-edits.ts`, `theme-edits.ts`, jobs
+  `library` target; editor motion mode, `renderComponentLoops`, `componentFilesGuard`; engine `theme-edit.ts`,
+  `library.ts`, brand `copy.ts` / `file-list.ts`, `site-list.ts`; ui `server/library-ops.ts`, `theme-ops.ts`,
+  `library-watch.ts`, `LibraryScreen.tsx`, `ThemesScreen.tsx`, `ThemeEditor.tsx`, `library-words.ts`, `theme-words.ts`.
+  No new dependency. Cuts: BL-113.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1495,6 +1527,23 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.7:
+- A scenario's `template` (a listed theme name, written through set_field / scenario_edit) re-themes existing takes at
+  their next render; project.yaml's theme stays a hand edit. Editable themes are decided by real path; starters and
+  project-folder themes are read-only (Copy to edit; copying a project-folder theme is BL-113). Theme copies refuse
+  links and hard links. brand / outro URLs are shown as typed (no scheme).
+- Library loops: the worker bundles the whole registry once (≈ 30 MB, shared with renders); an item that fails there is
+  re-rendered with its own components only; `failed.json` records the bundle hash (a failure under another hash
+  re-renders without Retry). The key = component folder hashes + theme content + spec (URLs as file hashes) +
+  composition / kit / Remotion / browser identity. The job refuses below 1 GB free.
+- A component may not import through what its content hash skips (dot entries, node_modules, previews, dist…): refused
+  by the compile check, the player loader and a webpack guard on render bundles. `<workspace>/node_modules` stays in
+  webpack's lookup (same trust as renders; BL-113).
+- The app's one image element is `Picture`, built only by `imageDataUrl` (JPEG / PNG / GIF, magic-checked, capped per
+  format; never SVG / WebP — theme logos show in the live frame only). The app bundle budget is 600 KB (raised
+  freely). The gated L4.7 acceptance: `DEMO_STUDIO_TEST_SLOW=1 npx vitest run
+  packages/ui/test/studio-e2e-themes-acceptance.test.ts` (part of test:slow).
+
 Notes from L4.6:
 - `via: 'studio'` exists only through the Studio's HTTP routes (only studio.ts makes a `ui` engine client); its comment
   ops pin their inputs (no author, via, path or proposal from a page). MCP still cannot create, reopen or apply; the
