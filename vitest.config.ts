@@ -27,6 +27,8 @@ export default defineConfig({
     include: ['packages/*/test/**/*.test.ts', 'packages/*/test/**/*.test.tsx'],
     testTimeout: 120_000,
     hookTimeout: 120_000,
+    // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
+    env: { DEMO_STUDIO_DISK_WARN: 'off' },
     pool: 'forks',
     // Browser + ffmpeg tests are timing-sensitive: cap parallel files so a 4-CPU machine is not saturated.
     poolOptions: { forks: { maxForks: 2 } },

@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CursorSample, TimelineEvent } from '@demo-studio/core';
 import {
@@ -17,6 +17,8 @@ import {
   STREAM_LAG_S,
   CELLS_X,
   CfrStream,
+  DISK_FREE_MIN_GB,
+  DISK_FREE_MIN_SHARE,
   PerfSampler,
   StreamEncoder,
   THUMB_H,
@@ -377,6 +379,13 @@ describe('GPU, choppy motion, disk (R-FLD-24, R-FLD-28)', () => {
     const d = await diskCheck(dir, 'demo');
     expect(d.free_gb).toBeGreaterThan(0);
     if (d.warning) expect(d.warning).toContain('studio prune demo');
+    // Without the switch the warning follows the thresholds; DEMO_STUDIO_DISK_WARN=off (set for the suite) drops it only.
+    const f = await statfs(dir);
+    const low = (f.bavail * f.bsize) / 1e9 < DISK_FREE_MIN_GB || f.bavail / f.blocks < DISK_FREE_MIN_SHARE;
+    expect(Boolean((await diskCheck(dir, 'demo', {})).warning)).toBe(low);
+    const off = await diskCheck(dir, 'demo', { DEMO_STUDIO_DISK_WARN: 'off' });
+    expect(off.warning).toBeUndefined();
+    expect(off.free_gb).toBeGreaterThan(0);
   });
 });
 

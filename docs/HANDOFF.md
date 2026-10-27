@@ -1512,8 +1512,9 @@ Notes from L4.6:
   says so). The gated installed-Chrome acceptance: `DEMO_STUDIO_TEST_CHROME=1 npx vitest run
   packages/ui/test/studio-e2e-comments-chrome.test.ts` (fixture on free ports, ≈ 2–6 min). The app bundle budget is
   490 KB.
-- Capture tests assert no warnings: below 23 GB free on this Mac's 460 GB disk (5 %, R-FLD-28) the low-disk warning
-  fails cli e2e, runner-web deep and the catalogue acceptance — free the disk before the full suite.
+- The test suite sets `DEMO_STUDIO_DISK_WARN=off` (vitest.config.ts): captures still measure the free space but the
+  low-disk warning (below 10 GB or 5 % of the disk, R-FLD-28) no longer fails the capture tests that assert no warnings
+  (user decision 2026-10-27).
 
 Notes from L4.5:
 - The preview runs agent-writable code (workspace components): it lives in a `sandbox="allow-scripts"` iframe on the

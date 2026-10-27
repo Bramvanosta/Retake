@@ -301,13 +301,16 @@ async function folderMB(dir: string): Promise<number> {
 export const DISK_FREE_MIN_GB = 10;
 export const DISK_FREE_MIN_SHARE = 0.05;
 
-/** Free GB on the disk of `dir` and the warning when it is low (undefined: not measurable). */
-export async function diskCheck(dir: string, project: string): Promise<{ free_gb?: number; warning?: string }> {
+/** Free GB on the disk of `dir` and the warning when it is low (undefined: not measurable).
+ *  `DEMO_STUDIO_DISK_WARN=off` keeps the measure but drops the warning (the test suite sets it: a full disk is the
+ *  machine's state, not a regression). */
+export async function diskCheck(dir: string, project: string, env: NodeJS.ProcessEnv = process.env): Promise<{ free_gb?: number; warning?: string }> {
   try {
     const f = await statfs(dir);
     const free = (f.bavail * f.bsize) / 1e9;
     const total = (f.blocks * f.bsize) / 1e9;
     const free_gb = Math.round(free * 10) / 10;
+    if (env.DEMO_STUDIO_DISK_WARN === 'off') return { free_gb };
     if (free < DISK_FREE_MIN_GB || free < total * DISK_FREE_MIN_SHARE) {
       return { free_gb, warning: `only ${free_gb} GB left on this disk: \`studio prune ${project}\` removes failed takes, dry runs and old renders (it says how much first)` };
     }
