@@ -5,10 +5,10 @@
  *
  * Kept from the take: every capture time (scenes, steps, holds, clicks), the cursor, the pages, the target boxes the
  * runner measured, the artefacts (mails, documents, notifications, texts), the tracks, the environment.
- * From today's file: title, intro / outro, frame, template, music, tutorial switches, target length; the cards and
- * interstitials and their place between the scenes; each scene's caption, speed, transition, frame, tutorial switches,
- * page labels and `offscreen` (L5.8); each step's caption, speed, tutorial switches, id, mark (the markers are rebuilt
- * on the steps' start times), overlay and camera hint.
+ * From today's file: title, intro / outro, frame, template, music, tutorial switches, target length, the caption
+ * component (L4.5); the cards and interstitials and their place between the scenes; each scene's caption, speed,
+ * transition, frame, tutorial switches, page labels and `offscreen` (L5.8); each step's caption, speed, tutorial
+ * switches, id, mark (the markers are rebuilt on the steps' start times), overlay and camera hint.
  *
  * A value equal to the run's snapshot keeps the timeline's (templated at capture: `{{hooks.…}}` resolved then). A
  * changed value is templated now with the edit context (display URLs, vars, run); a token only the take knew
@@ -110,6 +110,9 @@ export function replanEdit(input: ReplanEditInput): ReplanEditResult {
   if (now.target_length !== undefined) video.target_length = { ...now.target_length };
   else delete video.target_length;
   if (!same(now.target_length, then.target_length)) changes.push('target_length');
+  if (now.caption_component !== undefined) video.caption_component = now.caption_component;
+  else delete video.caption_component;
+  if (!same(now.caption_component, then.caption_component)) changes.push('caption_component');
 
   // ── Scenes, cards, interstitials in today's order ───────────────────────────
   const thenEntries = then.scenes.map((e, i) => ({ e, id: sceneId(e, i) }));

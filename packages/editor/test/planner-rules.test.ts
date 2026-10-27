@@ -353,8 +353,8 @@ describe('idle trims', () => {
     const p = plan(ctx, synthTimeline({ entries: idleScene(), duration: 20, idle: IDLE }));
     const c = clip(p, 'i');
     expect(c.trims).toEqual([
-      { at: 87, src_from_s: 3.4, src_to_s: 8.7 },
-      { at: 87 + (534 - 261), src_from_s: 17.8, src_to_s: 19.7 },
+      { at: 87, src_from_s: 3.4, src_to_s: 8.7, reason: 'idle' },
+      { at: 87 + (534 - 261), src_from_s: 17.8, src_to_s: 19.7, reason: 'idle' },
     ]);
     const content = c.srcFrames.slice(0, c.durationInFrames - c.heldFrames);
     expect(content.length).toBe(585 - (261 - 102) - (591 - 534));
@@ -473,7 +473,7 @@ describe('held page loads (R-ISS-08)', () => {
     tl.loading = [{ t_start: 2.9, t_end: 4.1, page: 'app', until: 'paint', held_frames: 70 }];
     const p = plan(ctx, tl);
     const c = clip(p, 'nav');
-    expect(c.trims).toEqual([{ at: expect.any(Number), src_from_s: 2.9, src_to_s: 4.1 }]);
+    expect(c.trims).toEqual([{ at: expect.any(Number), src_from_s: 2.9, src_to_s: 4.1, reason: 'loading' }]);
     expect(p.notes).toContain('"nav": page load 2.90 s–4.10 s of the capture cut (the capture held the previous frame until the new page painted)');
     // The waiting after the click (page change at 2.9, painted at 4.1) is played faster from 4.1 + WAIT_KEEP_S, not
     // from inside the cut.

@@ -244,6 +244,11 @@ export const ScenarioSchema = z
       .refine((v) => v.min_s <= v.max_s, { message: 'min_s is at most max_s' })
       .describe("The length this video aims at (L5.5): the review's video-length rule uses it instead of the reference 60–120 s.")
       .optional(),
+    caption_component: componentIdSchema('caption component id')
+      .describe(
+        "Caption component of the whole video (default: the theme's), e.g. studio/caption-overlay; a render's overrides.components.caption wins over it.",
+      )
+      .optional(),
     clock: z
       .union([z.literal(false), ClockSpecSchema])
       .describe('The product\'s clock when the capture starts (wins over the project\'s): an ISO date-time or {at, freeze}; false turns the project\'s clock off.')

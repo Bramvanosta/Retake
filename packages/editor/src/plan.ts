@@ -1297,6 +1297,10 @@ export function planEdit(input: PlanEditInput): EditPlan {
   // Scenes, cards, interstitials
   const captionsOn = ov.captions !== false;
   if (!captionsOn) notes.add('captions disabled (overrides.captions = false)');
+  // L4.5: the scenario's caption component, between a render override and the theme (per video: captions resolve by kind).
+  const scenarioCaption: Candidate[] = video.caption_component
+    ? [{ ref: video.caption_component, source: 'scenario', label: 'the scenario (caption_component)' }]
+    : [];
   for (const e of entries) {
     const id = e.scene.id;
     if (e.type === 'card') {
@@ -1375,7 +1379,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     const layoutComponent = layoutRc ?? resolver.resolve('layout', [resolver.builtinCandidate('layout')], where)!;
     let layout = layoutRc === mainLayoutComponent && !multiPane(layoutRc) ? mainLayout : layoutOf(layoutComponent, frameSpec, where);
     const captionRc = captionsOn
-      ? resolver.resolve('caption', [...kindOverride('caption'), ...themeAndBuiltin('caption')], where, {
+      ? resolver.resolve('caption', [...kindOverride('caption'), ...scenarioCaption, ...themeAndBuiltin('caption')], where, {
           ctx: { ...slotBase, scene: { caption: e.scene.caption } },
         })
       : null;
@@ -1752,7 +1756,7 @@ export function planEdit(input: PlanEditInput): EditPlan {
     seg.speeds = speeds;
     seg.trims = run.cuts
       .filter((c) => c.clip === d.clip!.index)
-      .map((c): TrimSpan => ({ at: c.at - k0, src_from_s: round(c.a / srcFps), src_to_s: round(c.b / srcFps) }));
+      .map((c): TrimSpan => ({ at: c.at - k0, src_from_s: round(c.a / srcFps), src_to_s: round(c.b / srcFps), reason: c.reason }));
     seg.zooms = d.clip.moves.map((m): ZoomSpan => {
       const [vx, vy] = clampView(m.zoom, m.focus.x, m.focus.y, cssW, cssH);
       const z: ZoomSpan = {

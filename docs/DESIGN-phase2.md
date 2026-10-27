@@ -157,6 +157,16 @@ previewStatus(dir, { theme? }): { state: 'fresh' | 'missing' | 'stale', reason?,
 previewReadmeBlock(manifest, meta) / writePreviewReadme(dir, manifest, meta)   // README block between markers
 themeTokens(template: LoadedTemplate, urls: { logo?, wordmark?, fonts? }): ThemeTokens
 fillSlots(manifest, given, ctx): { slots, from, missing, tooLong, unknown }   // default_from sources (planner, previews)
+// L4.5 (the guard-rail): manifest `engines: {kit: "1" | "^1"}` (absent = 1); KIT_API_VERSION = 1, kitMajorOf(manifest).
+//  A component whose kit major is not KIT_API_VERSION is a broken folder of the registry (notice, get / resolve throw
+//  "needs kit API N"): its uses fall back down the planner's chain, else render as `missing`. The 41 built-in manifests
+//  carry none (kit 1).
+componentFit(registry, id, use: { kind, slots?, named?, params?, file?, pages? }): { ok: true } | { ok: false, why }
+//  L4.5 (critique B7): whether a component takes a use as the scenario writes it — registered and loadable, usable as
+//  the kind, shows every written slot, gets every required one (written, `default_from`, a planner-filled `screen`),
+//  takes the use's params (schema + defaults), a layout shows as many pages as the scene films; a user file (`video` /
+//  `image` / `lottie`) takes no component. The timeline offers a non-fitting option disabled with `why`, and the
+//  engine refuses that `set_field`.
 ```
 **Geometry expressions (L2.5).** A layout's geometry may follow its params: every value of `geometry` /
 `geometry_vertical` (rect `x`, `y`, `w`, `h`, `radius`) is a number or an arithmetic expression over the component's
@@ -238,7 +248,10 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
   the step's own target box as the action reports it, else the cursor position (a target not found → cursor + a
   warning). `camera` targets follow the same rule (tested on the SPEC example: scroll to "Awards" with a camera on
   "Awards" records the post-scroll box).
-- `Timeline.video = { title?, intro?, outro?, frame?, template?, music? }` (`timelineVideo()` in core): the scenario's
+- `caption_component: <ComponentId>` (scenario, L4.5): the caption component of every clip, between a render override
+  and the theme (§2.1); an edit value (core filmedChanges leaves it out; replanEdit copies it and names it among the
+  changes); validated as a component id (the registry is checked at plan time and by the Studio's `set_field`).
+- `Timeline.video = { title?, intro?, outro?, frame?, template?, music?, tutorial?, target_length?, caption_component? }` (`timelineVideo()` in core): the scenario's
   edit info as written (its strings templated by the runner after the setup hooks since L1.2, `templateVideo`), the
   effective default `frame` (scenario, else project) and the template the run used — the editor never re-reads
   scenario.yaml. Optional in the schema so older timelines stay valid.
@@ -622,7 +635,10 @@ listRenders(project): Promise<RenderRecord[]>
 
 ### 2.1 Planner rules (SPEC §9 + reference look)
 - Order: intro (unless disabled) → scenes / cards / interstitials in scenario order → outro. Every segment carries its
-  ResolvedComponent: override by segment id → override by kind → scenario → theme → built-in default.
+  ResolvedComponent: override by segment id → override by kind → scenario → theme → built-in default. A clip's caption
+  resolves by kind (L4.5): `overrides.components.caption` → the scenario's `caption_component` (`timeline.video`,
+  re-planned from today's file like every edit value) → theme → built-in default; `overrides.captions: false` still
+  turns captions off. Per-scene caption components are not a scenario key (BL-107).
 - Scene source range: from the end of the scene's page load (`scene_still`.t_start, else `scene_open`.t_end, else
   scene.t_start) to scene.t_end (includes trailing holds). Page loads are never shown.
 - Transitions: scenes NOT contiguous in the capture (page load or any gap) use the theme transition (crossfade 0.35 s:

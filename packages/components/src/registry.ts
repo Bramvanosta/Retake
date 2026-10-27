@@ -22,8 +22,8 @@ import type { ComponentKind, ComponentRef, Template } from '@demo-studio/core';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
-import { MANIFEST_FILE, parseManifest } from './manifest.js';
-import { LIBRARY_DIR } from './paths.js';
+import { MANIFEST_FILE, kitMajorOf, parseManifest } from './manifest.js';
+import { KIT_API_VERSION, LIBRARY_DIR } from './paths.js';
 import type { ComponentInfo, ComponentIssue, ComponentManifest, ComponentSource, ResolvedComponentRef } from './types.js';
 
 /** Can a component be used as `kind`? Its own kind, or one of its `kinds` (L2.12). */
@@ -123,6 +123,22 @@ export async function loadComponentDir(dir: string, source: ComponentSource, fol
     const issue: ComponentIssue = { severity: 'error', path: ['entry'], message: `entry file "${manifest.entry}" not found`, file: MANIFEST_FILE };
     return {
       broken: { severity: 'error', message: `invalid component ${folderId}: entry file ${manifest.entry} not found`, source, dir, id: folderId, issues: [issue] },
+    };
+  }
+  // L4.5 (the guard-rail): a component written for another kit API is not loaded — its uses fall back (a warning), or
+  // render as `missing` when nothing else resolves.
+  const kit = kitMajorOf(manifest);
+  if (kit !== KIT_API_VERSION) {
+    const issue: ComponentIssue = { severity: 'error', path: ['engines', 'kit'], message: `needs kit API ${kit}: this Demo Studio provides kit API ${KIT_API_VERSION}`, file: MANIFEST_FILE };
+    return {
+      broken: {
+        severity: 'error',
+        message: `component ${folderId} needs kit API ${kit} (engines.kit "${manifest.engines?.kit}"): this Demo Studio provides kit API ${KIT_API_VERSION} — use a version of the component written for it`,
+        source,
+        dir,
+        id: folderId,
+        issues: [issue],
+      },
     };
   }
   return { info: { manifest, dir, entry, source } };

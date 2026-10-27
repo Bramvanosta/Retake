@@ -2,5 +2,5 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "jsx": "react-jsx", "outDir": "dist", "rootDir": "src", "tsBuildInfoFile": "dist/.tsbuildinfo" },
   "include": ["src"],
-  "references": [{ "path": "../core" }, { "path": "../engine" }, { "path": "../mcp" }]
+  "references": [{ "path": "../core" }, { "path": "../components" }, { "path": "../editor" }, { "path": "../engine" }, { "path": "../mcp" }]
 }

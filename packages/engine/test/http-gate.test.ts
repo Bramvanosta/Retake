@@ -24,6 +24,7 @@ import {
   readBody,
   secretEquals,
   securityHeaders,
+  studioCsp,
 } from '../src/index.js';
 import type { RouteSpec } from '../src/index.js';
 
@@ -278,6 +279,32 @@ describe('security headers and error statuses', () => {
   it('maps every engine error code to a status (needs_approval and cancelled included)', () => {
     expect(Object.keys(ERROR_STATUS).sort()).toEqual([...ENGINE_ERROR_CODES].sort());
     expect(ERROR_STATUS).toMatchObject({ invalid: 400, refused: 403, needs_approval: 403, not_found: 404, conflict: 409, cancelled: 409, busy: 423, unavailable: 503, internal: 500 });
+  });
+});
+
+describe('the player origin (L4.5)', () => {
+  const ASSET: RouteSpec = { methods: ['GET', 'HEAD'], token: false, api: false };
+  const o = { port: 4000, token: TOKEN, route: () => ASSET };
+  const get = (headers: Record<string, string>, opts: Partial<Parameters<typeof checkRequest>[1]> = {}) => checkRequest({ method: 'GET', url: '/m/x', headers: { host: '127.0.0.1:4000', ...headers } }, { ...o, ...opts });
+
+  it('⚑ allowNullOrigin takes `Origin: null` (the sandboxed frame) and nothing else; without it, null is refused', () => {
+    expect(get({ origin: 'null' }, { allowNullOrigin: true })).toMatchObject({ ok: true });
+    expect(get({ origin: 'null', 'sec-fetch-site': 'cross-site' }, { allowNullOrigin: true })).toMatchObject({ ok: true });
+    expect(get({}, { allowNullOrigin: true })).toMatchObject({ ok: true });
+    for (const origin of ['http://127.0.0.1:4001', 'http://evil.example', 'NULL', 'null ', 'file://']) expect(get({ origin }, { allowNullOrigin: true }), origin).toMatchObject({ ok: false, status: 403 });
+    expect(get({ origin: 'null' })).toMatchObject({ ok: false, status: 403, code: 'cross_origin' });
+    // Host first, POST refused (405) even with a null Origin.
+    expect(get({ origin: 'null', host: 'rebind.test:4000' }, { allowNullOrigin: true })).toMatchObject({ status: 421 });
+    expect(checkRequest({ method: 'POST', url: '/m/x', headers: { host: '127.0.0.1:4000', origin: 'null' } }, { ...o, allowNullOrigin: true })).toMatchObject({ status: 405 });
+  });
+
+  it('⚑ the Studio CSP frames exactly the player origin, a loopback http origin only', () => {
+    expect(studioCsp()).toBe(STUDIO_CSP);
+    expect(studioCsp('http://127.0.0.1:4100')).toBe(
+      "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src http://127.0.0.1:4100; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    );
+    expect(securityHeaders('static', { frameSrc: 'http://127.0.0.1:4100' })['Content-Security-Policy']).toBe(studioCsp('http://127.0.0.1:4100'));
+    for (const bad of ['http://localhost:4100', 'https://127.0.0.1:4100', 'http://127.0.0.1:4100/', "http://127.0.0.1:4100; script-src *", '*', 'http://example.test']) expect(() => studioCsp(bad), bad).toThrow(/frame-src/);
   });
 });
 

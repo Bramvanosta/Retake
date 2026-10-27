@@ -8,10 +8,10 @@
  * `persona`, `still` and `cursor`, and each step's action and arguments (core stepFingerprint: shorthands and object
  * forms agree) with the modifiers that act on the page — `hold`, `park`, `on`, `retry_click` (L5.6).
  *
- * Everything else is edit: title, intro / outro, frame, template, music, tutorial switches, target length; cards and
- * interstitials (their text, duration, place between scenes); a scene's caption, speed, transition, frame, tutorial,
- * page labels and `offscreen` (L5.8: the take plays the scene either way); a step's caption, speed, camera, mark,
- * overlay, tutorial and id. `timeout`, `optional` and `irreversible` change nothing a successful take filmed and are
+ * Everything else is edit: title, intro / outro, frame, template, music, tutorial switches, target length, the caption
+ * component (L4.5); cards and interstitials (their text, duration, place between scenes); a scene's caption, speed,
+ * transition, frame, tutorial, page labels and `offscreen` (L5.8: the take plays the scene either way); a step's
+ * caption, speed, camera, mark, overlay, tutorial and id. `timeout`, `optional` and `irreversible` change nothing a successful take filmed and are
  * left out, as are `defaults` (L5.6: a default timeout) and `capture.step_shots` (pictures copied after the take);
  * `note`s are ignored.
  *
@@ -266,13 +266,15 @@ export interface ScenarioSinceRun {
 /**
  * Today's scenario file of a project against a run's snapshot. Undefined when either file is missing, a symbolic link,
  * not a regular file, over SCENARIO_COMPARE_MAX_BYTES or unreadable: a run of a file elsewhere, a scenario since
- * deleted, a run without a snapshot. `scenario` is a name, never a path.
+ * deleted, a run without a snapshot. `scenario` is a name, never a path. `nowText` (L4.5, critique B5): the text of the
+ * file as a render job snapshotted it at submit, used instead of today's file (a switch made while the render waited
+ * in the queue no longer changes what it renders).
  */
-export function scenarioSinceRun(project: Pick<LoadedProject, 'dir'>, runDir: string, scenario: string): ScenarioSinceRun | undefined {
+export function scenarioSinceRun(project: Pick<LoadedProject, 'dir'>, runDir: string, scenario: string, nowText?: string): ScenarioSinceRun | undefined {
   if (scenario === '' || /[\\/]/.test(scenario)) return undefined;
-  const file = scenarioFileOf(project, scenario);
+  const file = scenarioFileOf(project, scenario) ?? (nowText !== undefined ? join(project.dir, 'scenarios', `${scenario}.yaml`) : undefined);
   if (!file) return undefined;
-  const now = readSmallPlainFile(file, SCENARIO_COMPARE_MAX_BYTES);
+  const now = nowText !== undefined ? (nowText.length <= SCENARIO_COMPARE_MAX_BYTES ? nowText : undefined) : readSmallPlainFile(file, SCENARIO_COMPARE_MAX_BYTES);
   const then = now === undefined ? undefined : readSmallPlainFile(join(runDir, 'scenario.yaml'), SCENARIO_COMPARE_MAX_BYTES);
   if (now === undefined || then === undefined) return undefined;
   const a = parseYaml(now).value;

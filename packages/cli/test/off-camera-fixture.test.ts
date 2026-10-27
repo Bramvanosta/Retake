@@ -136,7 +136,7 @@ describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => 
     const plan = JSON.parse(planned.out) as { segments: Array<{ id: string; kind: string; trims?: Array<{ src_from_s: number; src_to_s: number }> }>; notes: string[] };
     expect(plan.segments.map((s) => s.id)).not.toContain('to-the-list');
     const requests = plan.segments.find((s) => s.id === 'requests')!;
-    expect(requests.trims).toEqual(expect.arrayContaining([{ at: expect.any(Number), src_from_s: expect.closeTo(hook.t_start, 1), src_to_s: expect.closeTo(hook.t_end, 1) }]));
+    expect(requests.trims).toEqual(expect.arrayContaining([{ at: expect.any(Number), src_from_s: expect.closeTo(hook.t_start, 1), src_to_s: expect.closeTo(hook.t_end, 1), reason: 'hook' }]));
     expect(plan.notes).toContain('scene "to-the-list" was played off camera (offscreen: true): not in the edit');
 
     // `offscreen` is edit: removed from today's file, the same take plans the scene as a clip (no scenario_changed).

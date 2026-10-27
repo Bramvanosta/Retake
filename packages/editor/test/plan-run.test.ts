@@ -3,11 +3,12 @@
  * MCP must not read — files outside the project (absolute, `..`, a symbolic link out), a Lottie file an agent can write,
  * the music bed outside (never "not found": no existence oracle), a theme named by folder (unless it is project.yaml's
  * own), a remote slot value; gate 2 refuses a plan that serves a file from outside the project, the run and the theme
- * folders (an extension-less image slot, a theme logo that leaves its folder). Trust `author` (the CLI) is unchanged.
+ * folders (an extension-less image slot, a theme logo that leaves its folder) or a hard-linked file (review A N4). Trust
+ * `author` (the CLI) is unchanged.
  * No browser: planning only.
  */
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -157,6 +158,16 @@ describe.skipIf(!canPlan)('planRun, trust mcp', () => {
     const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: '../../outside/logo' } }));
     expect(preReadProblems(p, timeline({ component: 'studio/card-testimonial', slots: { logo: '../../outside/logo' } }), undefined, { project: p })).toEqual([]);
     expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^the plan serves image-.* from .*outside\/logo, outside the project, the run and the theme folders/)]);
+  });
+
+  it('gate 2 (review A N4): a hard link in the project — the same file as one outside — is never served', async () => {
+    const p = await project(timeline({ component: 'studio/card-testimonial', slots: { quote: 'Fast.', name: 'A. Buyer', logo: 'assets/logo.svg' } }));
+    await link(join(outside, 'logo.svg'), join(p.dir, 'assets', 'logo.svg'));
+    // Every check on paths passes (inside assets/, no symbolic link): only its link count tells.
+    expect(preReadProblems(p, timeline({ component: 'studio/card-testimonial', slots: { logo: 'assets/logo.svg' } }), undefined, { project: p })).toEqual([]);
+    expect((await refusal(mcp(p))).problems).toEqual([expect.stringMatching(/^the plan serves image-.* from .*assets\/logo\.svg, a file with more than one name \(a hard link\): through MCP a render serves none$/)]);
+    // The CLI (trust author) is unchanged.
+    expect((await planRun({ project: p, run: 'latest', root })).plan.durationInFrames).toBeGreaterThan(0);
   });
 
   it("gate 2: a theme's logo that leaves its folder (and the project) is refused", async () => {

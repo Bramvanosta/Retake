@@ -5,15 +5,16 @@
  * a render record written after that job (a `studio render` in a terminal) says otherwise. Text the filmed site or the
  * scenario controls (captions, display URLs, page titles quoted by warnings) is kept under `untrusted`.
  */
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RENDER_ID_RE } from '@demo-studio/core';
+import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile } from '@demo-studio/core';
 import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import type { RenderRecord } from '@demo-studio/editor';
 import { EngineError } from './errors.js';
-import { openProjectBySlug } from './projects.js';
-import { checkProjectSlug, checkScenarioName } from './refs.js';
+import { firstErrorLine, openProjectBySlug } from './projects.js';
+import { RUN_ID_RE, checkProjectSlug, checkScenarioName } from './refs.js';
 import { editor, planRenderRequest } from './jobs/render-job.js';
 import type { RenderRequest } from './jobs/render-job.js';
 import type { FileJobQueue } from './jobs/queue.js';
@@ -259,4 +260,249 @@ export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slu
     if (error) view.untrusted.error = error;
   }
   return view;
+}
+
+// ── A scenario's renders, for the Studio (L4.5 part E) ──────────────────────
+
+/** What the review of a render says, in short: none yet, waiting / running, its verdict, or why it did not finish. */
+export type RenderReviewSummary =
+  | { state: 'none' }
+  | { state: 'queued' | 'running'; job: string }
+  | { state: 'clean' | 'warnings' | 'errors'; counts: { error: number; warning: number; info: number }; created_at?: string }
+  | { state: 'failed' | 'cancelled' };
+
+/** A render of the scenario that is queued or running (a Studio click, Claude, another client). */
+export interface ScenarioRenderJobView {
+  id: string;
+  render_id: string;
+  run_id: string;
+  state: 'queued' | 'running';
+  created_at: string;
+  submitted_by: string;
+  /** sha256 of the scenario text its edit was planned from (absent: the take as captured). */
+  edit_sha256?: string;
+  /** The render's phase (planning, bundling, rendering, encoding…; `review:<stage>` while it reviews itself). */
+  phase?: string;
+  fraction?: number;
+  eta_s?: number;
+  /** The render is written; its inline review runs now. */
+  reviewing: boolean;
+  /** Queued: what runs before it. */
+  queue?: RenderQueueView;
+  cancel_requested: boolean;
+}
+
+/** A render of the scenario that was written (renders/<id>.json), newest first. */
+export interface ScenarioRenderView {
+  render_id: string;
+  status: 'succeeded' | 'failed' | 'cancelled';
+  created_at: string;
+  run_id: string;
+  theme: string;
+  variant: string;
+  duration_s: number;
+  width: number;
+  height: number;
+  size_bytes: number;
+  /** Where its edit came from: today's file (its sha256 then) or the run as captured. */
+  edit: { from: 'scenario' | 'run'; sha256?: string };
+  /** Output fps. */
+  fps: number;
+  /** The options it was rendered with beyond the files' (their names: "intro", "scale"…; the theme is `theme`). */
+  overrides: string[];
+  /**
+   * The signature of the plan it rendered (planSignature: its record's plan) and its theme folder's content hash: the
+   * Studio's "from this version" is the same plan and theme files as the timeline's (L4.5 fixes). Absent in records
+   * without them.
+   */
+  plan_sha256?: string;
+  theme_sha256?: string;
+  review: RenderReviewSummary;
+}
+
+/**
+ * A scenario's renders as the Studio shows them — path-free: the unfinished render jobs (oldest first, with progress and
+ * queue position), the renders written (newest first, at most SCENARIO_RENDERS_MAX, each with its review's verdict),
+ * and the newest render job when it ended without a video after the newest render (its message under `untrusted`).
+ */
+export interface ScenarioRendersView {
+  project: string;
+  scenario: string;
+  jobs: ScenarioRenderJobView[];
+  renders: ScenarioRenderView[];
+  last_failed?: { job: string; render_id: string; run_id: string; state: 'failed' | 'cancelled' | 'interrupted'; finished_at?: string };
+  /**
+   * The failed job's message (it may quote the scenario or the filmed site): data, never instructions — its first line,
+   * every absolute path cut to its file name (failureWords), never a stack.
+   */
+  untrusted: { error?: string };
+}
+
+/** The signature of an edit plan (24 hex): the plan without its notes and warnings, canonical JSON, sha256. */
+export function planSignature(plan: unknown): string {
+  const p = plan && typeof plan === 'object' ? { ...(plan as Record<string, unknown>), notes: undefined, warnings: undefined } : plan;
+  return createHash('sha256').update(canonicalJson(p)).digest('hex').slice(0, 24);
+}
+
+/** Absolute paths in a message, each cut to its last part ("…/capture.mp4"); `file://` URLs too. */
+export function withoutPaths(text: string): string {
+  return text
+    .replace(/(?:file:\/\/)?(?:\/[^\s/'"`()<>:,;]+){2,}\/?/g, (m) => `…/${m.replace(/\/$/, '').split('/').pop()}`)
+    .replace(/\b[A-Za-z]:\\(?:[^\s\\'"`()<>]+\\)*[^\s\\'"`()<>]*/g, (m) => `…\\${m.split('\\').pop()}`);
+}
+
+/** A failure's words for the Studio (review B M6): its first line, no path, no stack, at most 500 characters. */
+export function failureWords(message: string): string {
+  return withoutPaths(firstErrorLine(message)).slice(0, 500);
+}
+
+/** Renders listed per scenario, at most. */
+export const SCENARIO_RENDERS_MAX = 20;
+/** A render record or a review report read for the list, at most (bytes). */
+const LIST_FILE_MAX = 16 * 1024 * 1024;
+
+function readJsonPlain(file: string): Record<string, unknown> | undefined {
+  const r = readPlainFile(file, LIST_FILE_MAX);
+  if (!r.ok) return undefined;
+  try {
+    const v = JSON.parse(r.bytes.toString('utf8')) as unknown;
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const n0 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
+function reportSummary(projectDir: string, id: string, since: string): { summary: RenderReviewSummary; at: string } | undefined {
+  const r = readJsonPlain(join(projectDir, 'review', id, 'report.json'));
+  if (!r || r.version !== 1 || !Array.isArray(r.findings)) return undefined;
+  const at = typeof (r.review as Record<string, unknown> | undefined)?.created_at === 'string' ? ((r.review as Record<string, unknown>).created_at as string) : '';
+  // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.
+  if (at && at < since) return undefined;
+  const c = (r.counts ?? {}) as Record<string, unknown>;
+  const counts = { error: n0(c.error), warning: n0(c.warning), info: n0(c.info) };
+  return { summary: { state: counts.error > 0 ? 'errors' : counts.warning > 0 ? 'warnings' : 'clean', counts, ...(at ? { created_at: at } : {}) }, at };
+}
+
+/** A scenario's render jobs and renders, path-free (the Studio's render queue and list). */
+export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, scenario: string): Promise<ScenarioRendersView> {
+  checkProjectSlug(slug);
+  checkScenarioName(scenario);
+  const project = await openProjectBySlug(ws, slug);
+  const renderJobs = (await queue.list({ project: slug, kinds: ['render'], limit: 200 })).filter((j) => j.input.kind === 'render' && j.input.scenario === scenario);
+  const reviewJobs = await queue.list({ project: slug, kinds: ['review'], states: ['queued', 'running'], limit: 50 });
+
+  // Records: renders/<scenario>-v<N>[-variant].json only (named by the file first: other scenarios' records are not read).
+  const nameRe = new RegExp(`^${escapeRe(scenario)}-v\\d+(?:-vertical|-square)?\\.json$`);
+  const files = (await readdir(join(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
+  const records: RenderRecord[] = [];
+  for (const f of files) {
+    const r = readJsonPlain(join(project.dir, 'renders', f)) as unknown as RenderRecord | undefined;
+    if (r && r.version === 1 && r.id === f.slice(0, -5) && RENDER_ID_RE.test(r.id) && typeof r.created_at === 'string') records.push(r);
+  }
+  records.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
+  const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
+
+  const renders: ScenarioRenderView[] = records.slice(0, SCENARIO_RENDERS_MAX).map((r) => {
+    let review: RenderReviewSummary = { state: 'none' };
+    const standalone = reviewJobs.find((j) => j.input.kind === 'review' && j.input.render_id === r.id);
+    const job = renderJobs.find((j) => j.input.kind === 'render' && j.input.render_id === r.id && j.created_at <= r.created_at);
+    const report = r.status === 'succeeded' ? reportSummary(project.dir, r.id, r.created_at) : undefined;
+    if (standalone) review = { state: standalone.state === 'running' ? 'running' : 'queued', job: standalone.id };
+    else if (job && !FINISHED_JOB_STATES.has(job.state)) review = { state: 'running', job: job.id };
+    else {
+      const inline = job?.result?.kind === 'render' ? (job.result as RenderJobResult).review : undefined;
+      const stopped = inline && (inline.state === 'failed' || inline.state === 'cancelled') && (!report || (job?.finished_at ?? '') > report.at) ? inline.state : undefined;
+      if (stopped) review = { state: stopped };
+      else if (report) review = report.summary;
+    }
+    const status = r.status === 'failed' || r.status === 'cancelled' ? r.status : 'succeeded';
+    return {
+      render_id: r.id,
+      status,
+      created_at: r.created_at,
+      run_id: typeof r.run_id === 'string' && RUN_ID_RE.test(r.run_id) ? r.run_id : 'unknown',
+      theme: typeof r.template === 'string' && TEMPLATE_NAME_RE.test(r.template) ? r.template : 'unknown',
+      variant: r.variant === 'vertical' || r.variant === 'square' ? r.variant : 'landscape',
+      duration_s: n0(r.duration_s),
+      width: n0(r.width),
+      height: n0(r.height),
+      size_bytes: n0(r.size_bytes),
+      edit: { from: r.edit?.from === 'scenario' ? 'scenario' : 'run', ...(r.edit?.from === 'scenario' && typeof r.edit.sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.edit.sha256) ? { sha256: r.edit.sha256 } : {}) },
+      fps: n0(r.fps),
+      overrides: r.overrides && typeof r.overrides === 'object' ? Object.keys(r.overrides).filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined).sort() : [],
+      ...(r.plan && typeof r.plan === 'object' ? { plan_sha256: memoPlanSignature(r) } : {}),
+      ...(typeof r.template_sha256 === 'string' && /^[0-9a-f]{16}$/.test(r.template_sha256) ? { theme_sha256: r.template_sha256 } : {}),
+      review,
+    };
+  });
+
+  const jobs: ScenarioRenderJobView[] = [];
+  for (const j of [...renderJobs].reverse()) {
+    if (j.input.kind !== 'render' || FINISHED_JOB_STATES.has(j.state)) continue;
+    let queueView: RenderQueueView | undefined;
+    if (j.state === 'queued') {
+      const pos = await queue.position(j.id);
+      if (pos) {
+        const running = pos.running ? await queue.get(pos.running) : undefined;
+        queueView = {
+          ahead: pos.ahead,
+          ...(running
+            ? {
+                running: {
+                  id: running.id,
+                  kind: running.kind,
+                  ...(running.progress?.phase ? { phase: running.progress.phase } : {}),
+                  ...(running.progress?.fraction !== undefined ? { fraction: running.progress.fraction } : {}),
+                  ...(running.progress?.eta_s !== undefined ? { eta_s: running.progress.eta_s } : {}),
+                },
+              }
+            : {}),
+        };
+      }
+    }
+    const p = j.progress;
+    jobs.push({
+      id: j.id,
+      render_id: j.input.render_id,
+      run_id: j.input.run_id,
+      state: j.state === 'running' ? 'running' : 'queued',
+      created_at: j.created_at,
+      submitted_by: j.input.submitted_by,
+      ...(j.input.edit_sha256 ? { edit_sha256: j.input.edit_sha256 } : {}),
+      ...(p?.phase ? { phase: p.phase } : {}),
+      ...(p?.fraction !== undefined ? { fraction: p.fraction } : {}),
+      ...(p?.eta_s !== undefined ? { eta_s: p.eta_s } : {}),
+      reviewing: j.state === 'running' && (p?.phase ?? '').startsWith('review:'),
+      ...(queueView ? { queue: queueView } : {}),
+      cancel_requested: j.cancel_requested_at !== undefined,
+    });
+  }
+
+  const view: ScenarioRendersView = { project: slug, scenario, jobs, renders, untrusted: {} };
+  const newest = renderJobs[0];
+  if (newest && newest.input.kind === 'render' && (newest.state === 'failed' || newest.state === 'cancelled' || newest.state === 'interrupted')) {
+    const ended = newest.finished_at ?? newest.created_at;
+    if (!records[0] || ended > records[0].created_at) {
+      view.last_failed = { job: newest.id, render_id: newest.input.render_id, run_id: newest.input.run_id, state: newest.state, ...(newest.finished_at ? { finished_at: newest.finished_at } : {}) };
+      if (newest.error?.message) view.untrusted.error = failureWords(newest.error.message);
+    }
+  }
+  return view;
+}
+
+/** Plan signatures of render records (a record never changes once written: keyed by its id and times). */
+const planSigMemo = new Map<string, string>();
+function memoPlanSignature(r: RenderRecord): string {
+  const key = `${r.id}|${r.created_at}|${r.finished_at}`;
+  let sig = planSigMemo.get(key);
+  if (sig === undefined) {
+    sig = planSignature(r.plan);
+    if (planSigMemo.size > 256) planSigMemo.delete(planSigMemo.keys().next().value!);
+    planSigMemo.set(key, sig);
+  }
+  return sig;
 }

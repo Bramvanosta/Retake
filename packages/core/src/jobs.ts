@@ -226,7 +226,8 @@ export const renderIdSchema = z.string().max(200).regex(RENDER_ID_RE, 'a render 
 /**
  * A render (L3.2): plan the run's capture with the theme and overrides, then render it with Remotion in the worker
  * (renders/<render_id>.mp4 + .json). The render id is reserved at submit (a `.<scenario>-v<N>.lock` of renders/); the
- * worker re-plans and refuses a timeline or a variant that changed since.
+ * worker re-plans and refuses a timeline or a variant that changed since. An edit planned from the scenario file is
+ * snapshotted at submit in the job folder (edit.yaml, sha256 = `edit_sha256`, L4.5): the worker plans from it.
  */
 export const RenderJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
@@ -243,6 +244,11 @@ export const RenderJobInputSchema = z.strictObject({
   /** Theme for this render instead of the run's (a name, never a path). */
   template: templateNameSchema.optional(),
   overrides: EditOverridesInputSchema,
+  /**
+   * L4.5 (critique B12): review the render in the same job once it is written (contact sheets at `fps`): a review that
+   * fails leaves the render succeeded with a warning; a cancel stops the review, the render written stays the result.
+   */
+  review: z.strictObject({ fps: z.union([z.literal(1), z.literal(2)]) }).optional(),
   submitted_by: z.enum(JOB_CLIENTS),
 });
 

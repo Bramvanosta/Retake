@@ -296,6 +296,9 @@
             "max_s"
           ],
           "additionalProperties": false
+        },
+        "caption_component": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

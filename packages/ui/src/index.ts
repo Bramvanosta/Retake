@@ -10,8 +10,8 @@ export { CALL_BODY_MAX, SMALL_BODY_MAX, UI_OPS, startStudioServer, uiTools } fro
 export type { StudioServer, StudioServerOptions, UiOp } from './server/studio.js';
 export { EVENT_KEEPALIVE_MS, EVENT_POLL_MS, EVENT_STREAMS_MAX, Live, noIndexError, sseText } from './server/live.js';
 export type { LiveOptions } from './server/live.js';
-export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RUN_OPS, SCENARIO_OPS, confirmWhy, editOps, indexOps, liveOps, overviewOp, runOps, scenarioOps, sessionsToConfirm } from './server/ops.js';
-export type { ProjectOverview, ScenarioRunAnswer, SessionToConfirm } from './server/ops.js';
+export { EDIT_OPS, INDEX_OPS, LIVE_OPS, OWN_OPS, RENDER_OPS, REVIEW_IMAGES_MAX, RUN_OPS, SCENARIO_OPS, TIMELINE_LEASE_TTL_MS, TIMELINE_OPS, confirmWhy, editOps, indexOps, liveOps, overviewOp, renderOps, reviewAnswer, runOps, scenarioOps, sessionsToConfirm, timelineOps } from './server/ops.js';
+export type { ProjectOverview, RenderReviewAnswer, ScenarioRenderAnswer, ScenarioRunAnswer, PreviewHeld, SessionToConfirm, TimelineViewAnswer } from './server/ops.js';
 export {
   JsonlTail,
   LIVE_LINE_MAX,
@@ -32,6 +32,11 @@ export {
   viewProgress,
 } from './server/run-live.js';
 export type { LiveItem, PictureState, RunLiveOptions, RunLiveRequest, Scrub } from './server/run-live.js';
+export { DEFAULT_SCOPE, PLAYER_FILES_MAX, PLAYER_PLANS_KEEP, PLAYER_PLAN_MAX, PLAYER_SCOPES_MAX, frameCsp, frameHtml, servedName, startPlayerServer } from './server/player.js';
+export type { PlayerServer, PlayerServerOptions, PublishedPreview } from './server/player.js';
+export { COMPONENT_FILE_MAX, PLAYER_BUNDLES_KEEP, PLAYER_BUNDLE_FORMAT, PlayerBundles, buildPlayerBundle, playerBundleHash, playerComponentSet, playerComponents, workspaceComponents } from './player/bundle-player.js';
+export type { PlayerBundle, PreviewAllowed, WorkspaceComponent } from './player/bundle-player.js';
+export { COMPONENT_HASH_RE, PREVIEW_ALLOW_MAX, PreviewAllowList } from './server/preview-allow.js';
 export { studioWorkerEnv } from './server/worker-env.js';
 export { launchStudio } from './server/launch.js';
 export type { Launched } from './server/launch.js';

@@ -12,7 +12,7 @@
  *    folder, symbolic links resolved — whatever named it (an image slot without an extension, a theme's logo or font).
  */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   displayPages,
@@ -69,11 +69,19 @@ export interface PlanRunOptions {
   trust?: PlanTrust;
   /** Measure the music bed with ffprobe so the plan loops or trims it (default true; a still does without). */
   measureMusic?: boolean;
+  /** How the music bed is measured (default: ffprobe each time; the Studio's timeline memoises it by file, L4.5). */
+  musicLength?: (file: string) => Promise<number | undefined>;
   /**
    * Where the edit comes from (L5.5). `auto` (default): today's scenario file when its filmed part is unchanged since
    * the run, else the run as captured. `run`: the run as captured.
    */
   edit?: 'auto' | 'run';
+  /**
+   * The scenario file's text to plan the edit from instead of today's file (L4.5, critique B5): a render job's snapshot
+   * of the file as it was planned at submit (its job folder's edit.yaml). The same parse, filmed-part check and trust
+   * gates apply; only the source of the text differs.
+   */
+  editText?: string;
 }
 
 /**
@@ -112,6 +120,8 @@ export interface PlannedRun {
   scenario?: Scenario;
   /** Where the edit came from (L5.5). */
   edit: PlannedEdit;
+  /** The scenario text the edit was planned from (from `scenario`): what a render job snapshots at submit (L4.5). */
+  editText?: string;
   plan: EditPlan;
   plan_ms: number;
 }
@@ -144,11 +154,25 @@ export function preReadProblems(project: LoadedProject, timeline: Timeline, vide
 export function servedFileProblems(plan: Pick<EditPlan, 'assets'>, folders: { project: string; run: string; theme: string }): string[] {
   const problems: string[] = [];
   for (const [url, file] of Object.entries(plan.assets)) {
-    if (insideFolder(folders.project, file) || insideFolder(folders.run, file) || insideFolder(folders.theme, file)) continue;
     const name = url.startsWith(PLAN_ASSET_SCHEME) ? url.slice(PLAN_ASSET_SCHEME.length) : url;
+    if (insideFolder(folders.project, file) || insideFolder(folders.run, file) || insideFolder(folders.theme, file)) {
+      // A hard link inside the folders may be the same file as one outside them (review A N4): never served.
+      if (hardLinked(file)) problems.push(`the plan serves ${name} from ${file}, a file with more than one name (a hard link): through MCP a render serves none`);
+      continue;
+    }
     problems.push(`the plan serves ${name} from ${file}, outside the project, the run and the theme folders: through MCP a render serves only those`);
   }
   return problems;
+}
+
+/** Whether a regular file has more than one name (a hard link: the same bytes may also lie outside the folders). */
+function hardLinked(file: string): boolean {
+  try {
+    const st = statSync(file);
+    return st.isFile() && st.nlink > 1;
+  } catch {
+    return false;
+  }
 }
 
 /** Plan a capture run (see the module comment); throws RenderError (PlanTrustError for a trust refusal). */
@@ -166,7 +190,7 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const overrides: EditOverrides = { ...(o.overrides ?? {}) };
   const scenarioSnapshot = await runScenario(run.dir);
   const envName = await runEnv(run.dir);
-  const { timeline, edit, warnings: editWarnings } = editOfToday(project, run, captured, envName, o.edit ?? 'auto');
+  const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText);
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
   if (trust === 'mcp') {
     const problems = preReadProblems(project, timeline, video, o);
@@ -184,8 +208,8 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   if (musicSpec && o.measureMusic !== false) {
     const file = musicFile(musicSpec, project);
     if (!existsSync(file)) throw new RenderError(`music file not found: ${file}`);
-    const probe = await probeMedia(file);
-    if (probe && probe.duration_s > 0) musicDuration_s = probe.duration_s;
+    const length = o.musicLength ? await o.musicLength(file) : (await probeMedia(file))?.duration_s;
+    if (length !== undefined && length > 0) musicDuration_s = length;
   }
   const files = await planInputFiles(timeline, project, template);
   const plan = planEdit({ timeline, template, project, registry, captureFile, scenario: scenarioSnapshot, env: envName, overrides, musicDuration_s, files });
@@ -205,6 +229,7 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
     overrides,
     ...(scenarioSnapshot ? { scenario: scenarioSnapshot } : {}),
     edit,
+    ...(editText !== undefined ? { editText } : {}),
     plan,
     plan_ms: Math.round(performance.now() - t0),
   };
@@ -220,7 +245,8 @@ export function noteEdit(plan: EditPlan, edit: PlannedEdit, warnings: readonly s
 
 /**
  * The timeline a plan reads (L5.5): the run's, rewritten with today's edit when the scenario file's filmed part is
- * unchanged since the capture (core scenarioSinceRun, replanEdit); else the run's as captured.
+ * unchanged since the capture (core scenarioSinceRun, replanEdit); else the run's as captured. `editText` (L4.5): the
+ * file's text as a render job snapshotted it, read instead of today's file. `text`: the text the edit came from.
  */
 export function editOfToday(
   project: LoadedProject,
@@ -228,10 +254,11 @@ export function editOfToday(
   captured: Timeline,
   envName: string | undefined,
   mode: 'auto' | 'run' = 'auto',
-): { timeline: Timeline; edit: PlannedEdit; warnings: string[] } {
+  editText?: string,
+): { timeline: Timeline; edit: PlannedEdit; warnings: string[]; text?: string } {
   const asCaptured = (edit: PlannedEdit, warnings: string[] = []) => ({ timeline: captured, edit, warnings });
   if (mode === 'run') return asCaptured({ from: 'run' });
-  const since = scenarioSinceRun(project, run.dir, captured.scenario);
+  const since = scenarioSinceRun(project, run.dir, captured.scenario, editText);
   if (!since) return asCaptured({ from: 'run' });
   if (since.filmed === undefined) return asCaptured({ from: 'run', scenario_changed: true });
   if (since.filmed.length > 0) return asCaptured({ from: 'run', scenario_changed: true, filmed_changes: since.filmed });
@@ -262,5 +289,5 @@ export function editOfToday(
   }
   const ctx: TemplateContext = { pages, vars: { ...(project.config.vars ?? {}), ...(now.scenario.vars ?? {}) }, run: { id: run.id, dir: run.dir }, hooks: {} };
   const r = replanEdit({ timeline: captured, now: now.scenario, then: then.scenario, project: project.config, ctx });
-  return { timeline: r.timeline, edit: { from: 'scenario', sha256, changes: r.changes, scenario_changed: false, filmed_changes: [] }, warnings: r.warnings };
+  return { timeline: r.timeline, edit: { from: 'scenario', sha256, changes: r.changes, scenario_changed: false, filmed_changes: [] }, warnings: r.warnings, text: since.now };
 }

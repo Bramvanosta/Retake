@@ -14,9 +14,14 @@
  * Trust: the engine client is `ui` — the ops L4.1 allows run under the agent's trust, with no approver (a page's
  * script cannot be told from a person's click): a run whose hooks need a person is refused with the `studio run …`
  * command to type in a terminal, and the scenario screen shows that before any click (scenario_blocks `run_blockers`).
+ * L4.5: a second loopback listener in the same process, the player origin (player.ts), serves the sandboxed preview
+ * frame; the Studio's CSP names it in `frame-src` (the one origin a Studio page may frame). The timeline screen's read
+ * (`timeline_view`) publishes each view's plan there and answers its capability URLs.
+ *
  * Nothing here logs a token, a body or a README.
  */
 import { createServer } from 'node:http';
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import {
@@ -28,6 +33,7 @@ import {
   createEngine,
   drainBody,
   listenLoopback,
+  memoRegistry,
   newSecret,
   readBody,
   securityHeaders,
@@ -37,8 +43,12 @@ import { TOOLS, callTool, capUntrusted } from '@demo-studio/mcp';
 import type { ToolDef } from '@demo-studio/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
+import { PlayerBundles } from '../player/bundle-player.js';
 import { Live } from './live.js';
-import { OWN_OPS, editOps, indexOps, liveOps, overviewOp, runOps, scenarioOps } from './ops.js';
+import { startPlayerServer } from './player.js';
+import { PreviewAllowList } from './preview-allow.js';
+import type { PlayerServer } from './player.js';
+import { OWN_OPS, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { z } from 'zod';
@@ -53,6 +63,11 @@ import { z } from 'zod';
  * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`).
  * L4.4: the Run screen's Pause / Resume (`run_pause`) and preflight panel (`scenario_sessions`), the Sessions panel
  * (`auth_status`, read-only; `auth_login` NARROWED to a headed window for the person, never a wait; `sign_in_cancel`).
+ * L4.5: the timeline screen's read (`timeline_view`: the view and the preview's capability URLs), `timeline_leave` (a
+ * page left: its project's preview URLs are revoked once no page holds one) and `preview_allow` (the person allows a
+ * workspace component to run in the preview, this session only: PreviewAllowList); part E: Render with
+ * pinned arguments (`scenario_render`), the render queue and list (`scenario_renders`), Cancel of a render or review of
+ * the project (`render_cancel`), the review without paths (`render_review`) and its contact sheets (`review_image`).
  * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
@@ -114,6 +129,8 @@ export interface StudioServerOptions {
   workerIdleExitMs?: number;
   /** How often a run stream reads the run's files (ms; default 300). */
   runPollMs?: number;
+  /** The player origin's port (0 or absent: a free port). */
+  playerPort?: number;
 }
 
 export interface StudioServer {
@@ -130,6 +147,17 @@ export interface StudioServer {
   readonly calls: number;
   /** Event streams open now (at most EVENT_STREAMS_MAX). */
   readonly streams: number;
+  /**
+   * Requests that came from another site (Sec-Fetch-Site cross-site / same-site, or Origin `null`): the gate refuses
+   * them; tests assert the preview frame sent none.
+   */
+  readonly crossSite: number;
+  /** The player origin (L4.5): the preview frame, its bundle, the preview plans and media under one capability. */
+  player: PlayerServer;
+  /** The preview bundles (memo). */
+  bundles: PlayerBundles;
+  /** The workspace components the person allowed in the preview this session (memory only; review A H1 c). */
+  previewAllow: PreviewAllowList;
   /** The workspace index and the event streams. */
   live: Live;
   /** The run streams (`POST /v1/live`). */
@@ -173,16 +201,37 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   });
   const getEngine = async () => engine;
   const live = await Live.start({ ws: engine.workspace, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
-  const tools = uiTools([...indexOps(live), overviewOp(), ...scenarioOps(), ...runOps(), ...editOps(), ...liveOps()]);
+  // The player origin starts after the Studio's listener (it must know the Studio's port): the timeline op reads it
+  // when called, which is only ever after startStudioServer returned.
+  let player: PlayerServer | undefined;
+  const previewAllow = new PreviewAllowList();
+  const playerNow = (): PlayerServer => {
+    if (!player) throw new Error('the preview server is not started');
+    return player;
+  };
+  const tools = uiTools([
+    ...indexOps(live),
+    overviewOp(),
+    ...scenarioOps(),
+    ...runOps(),
+    ...editOps(),
+    ...liveOps(),
+    ...timelineOps({ player: playerNow, forbid: () => [engine.workspace.root, homedir()], allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry }),
+    ...renderOps(),
+  ]);
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
   const codes = new BootstrapCodes();
   let port = 0;
   let calls = 0;
+  let crossSite = 0;
+  /** The player origin, once it listens: the one origin a Studio page may frame. */
+  let frameSrc: string | undefined;
+  const headers = (kind: 'api' | 'static') => securityHeaders(kind, frameSrc ? { frameSrc } : {});
 
   const send = (res: ServerResponse, status: number, body: unknown, kind: 'api' | 'static' = 'api', extra: Record<string, string> = {}) => {
     const text = JSON.stringify(body);
-    res.writeHead(status, { ...securityHeaders(kind), 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(Buffer.byteLength(text)), ...extra });
+    res.writeHead(status, { ...headers(kind), 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(Buffer.byteLength(text)), ...extra });
     res.end(text);
   };
   const fail = (res: ServerResponse, status: number, code: string, message: string, extra: Record<string, string> = {}) => send(res, status, { ok: false, error: { code, message } }, 'api', extra);
@@ -215,6 +264,8 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   };
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const site = req.headers['sec-fetch-site'];
+    if (req.headers.origin === 'null' || site === 'cross-site' || site === 'same-site') crossSite++;
     const g = checkRequest(req, { port, token, route: (p) => route(p, assets) });
     if (!g.ok) {
       // The body is never used: drained (bounded) so the client reads the answer; the connection closes after it.
@@ -223,12 +274,12 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     }
     const a = assets.get(g.path);
     if (a) {
-      const headers = { ...securityHeaders('static'), 'Content-Type': a.type, 'Content-Length': String(a.bytes.length), ETag: a.etag };
+      const h = { ...headers('static'), 'Content-Type': a.type, 'Content-Length': String(a.bytes.length), ETag: a.etag };
       if (req.headers['if-none-match'] === a.etag) {
-        res.writeHead(304, headers).end();
+        res.writeHead(304, h).end();
         return;
       }
-      res.writeHead(200, headers);
+      res.writeHead(200, h);
       res.end(req.method === 'HEAD' ? undefined : a.bytes);
       return;
     }
@@ -290,13 +341,24 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       else res.destroy();
     });
   });
+  const bundles = new PlayerBundles();
   try {
     port = await listenLoopback(server, o.port ?? 0);
+    player = await startPlayerServer({
+      studioPort: port,
+      // Built-in components, and the workspace components the person allowed (by content) in this session.
+      bundle: async () => bundles.get((await memoRegistry(engine.workspace)).registry, (id, hash) => previewAllow.has(id, hash)),
+      log,
+      ...(o.playerPort ? { port: o.playerPort } : {}),
+    });
   } catch (e) {
     runLive.close();
     await live.close();
+    if (server.listening) await new Promise<void>((done) => server.close(() => done()));
     throw e;
   }
+  frameSrc = player.origin;
+  const started: PlayerServer = player;
   const url = `http://127.0.0.1:${port}/`;
   let closed: Promise<void> | undefined;
   return {
@@ -311,11 +373,17 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     get streams() {
       return live.streamCount;
     },
+    get crossSite() {
+      return crossSite;
+    },
+    player: started,
+    bundles,
+    previewAllow,
     live,
     runLive,
     engine,
     close: () =>
-      (closed ??= (runLive.close(), live.close()).then(
+      (closed ??= (runLive.close(), Promise.all([live.close(), started.close()])).then(
         () =>
           new Promise<void>((resolve) => {
             server.close(() => resolve());

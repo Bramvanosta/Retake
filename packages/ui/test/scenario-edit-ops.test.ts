@@ -10,7 +10,9 @@
  * Part 3: `scenario_forms` allowed; the form's `set_step` and the palette's `insert_step` — strict shapes refused before
  * any read (an object or a list as a value, a path segment with a dot, four levels, a whole step, raw YAML, an action
  * outside the palette), a field changed meanwhile a 409 with `stale` and the field, a secret reference refused for the
- * Studio.
+ * Studio. L4.5 part D: the timeline's `set_field` — ⚑ the strict shape refused before any read (a field outside the
+ * allow-list or not of that entry, a step / hook / var path, an object or null as a value, a guard that is not one, an
+ * extra key), a switch written as one line with `change: 'edit'`, a value changed meanwhile a 409 with `stale`.
  */
 import { createHash } from 'node:crypto';
 import { request } from 'node:http';
@@ -20,6 +22,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
+import { parseYaml, stepGuard } from '@demo-studio/core';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
@@ -290,5 +293,75 @@ describe('forms and the palette over HTTP (part 3)', () => {
     const ins = await call('scenario_edit', { project: P, name: 'form', hash: sha(t1), edit: { kind: 'insert_step', to: { scene: 'a', index: 2 }, after: guardOf({ hold: 0.5 }), action: 'click', values: { 'click.text': 'Save', 'click.in': 'dialog' } } });
     expect(ins.status).toBe(200);
     expect(await readFile(file('form'), 'utf8')).toBe(`${t1}      - click: {text: Save, in: dialog}\n`);
+  });
+});
+
+describe('timeline switches over HTTP (L4.5 part D)', () => {
+  const FIELD = 'video: field\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n  - card: {slots: {title: Two}}\n    id: c1\n';
+  const guard = (text: string, i: number) => stepGuard((parseYaml(text).value as { scenes: unknown[] }).scenes[i]);
+
+  it('⚑ refuses a malformed set_field before any read (400), the file untouched', async () => {
+    await writeFile(file('field'), FIELD);
+    const before = await stat(file('field'));
+    const h = sha(FIELD);
+    const a = { entry: 'scene', id: 'a', guard: guard(FIELD, 0) };
+    const bad: Array<[string, unknown]> = [
+      ['a field outside the allow-list', { kind: 'set_field', at: a, field: 'steps', to: 'x' }],
+      ['a hook path', { kind: 'set_field', at: { entry: 'top' }, field: 'hooks.setup', to: 'x' }],
+      ['a var path', { kind: 'set_field', at: { entry: 'top' }, field: 'vars.who', to: 'x' }],
+      ['the environment', { kind: 'set_field', at: { entry: 'top' }, field: 'env', to: 'staging' }],
+      ['a scene field at the top', { kind: 'set_field', at: { entry: 'top' }, field: 'speed', to: 2 }],
+      ['a top field on a scene', { kind: 'set_field', at: a, field: 'caption_component', to: 'studio/caption-pill' }],
+      ['a card field on a scene', { kind: 'set_field', at: a, field: 'card.component', to: 'studio/card-title' }],
+      ['an object as a value', { kind: 'set_field', at: a, field: 'frame', to: { component: 'studio/layout-laptop' } }],
+      ['a list as a value', { kind: 'set_field', at: a, field: 'frame', to: ['laptop'] }],
+      ['null as a value', { kind: 'set_field', at: a, field: 'frame', to: null }],
+      ['a value over 200 characters', { kind: 'set_field', at: a, field: 'frame', to: 'x'.repeat(201) }],
+      ['a guard that is not one', { kind: 'set_field', at: { ...a, guard: 'zz' }, field: 'frame', to: 'laptop' }],
+      ['a scene without its guard', { kind: 'set_field', at: { entry: 'scene', id: 'a' }, field: 'frame', to: 'laptop' }],
+      ['a path as an id', { kind: 'set_field', at: { ...a, id: '../a' }, field: 'frame', to: 'laptop' }],
+      ['an unknown entry', { kind: 'set_field', at: { entry: 'hooks', id: 'a', guard: a.guard }, field: 'frame', to: 'laptop' }],
+      ['an extra key at the top level', { kind: 'set_field', at: { entry: 'top', id: 'x' }, field: 'frame', to: 'laptop' }],
+      ['an extra key in the edit', { kind: 'set_field', at: a, field: 'frame', to: 'laptop', yaml: 'frame: laptop' }],
+    ];
+    for (const [what, edit] of bad) {
+      const r = await call('scenario_edit', { project: P, name: 'field', hash: h, edit });
+      expect(r.status, what).toBe(400);
+      expect(r.json<Answer<unknown>>().error?.code, what).toBe('invalid');
+      // Before any read: a scenario that does not exist answers 400 too (not 404).
+      const ghost = await call('scenario_edit', { project: P, name: 'no-such-scenario', hash: h, edit });
+      expect(ghost.status, `${what} (no such scenario)`).toBe(400);
+    }
+    expect((await stat(file('field'))).mtimeMs).toBe(before.mtimeMs);
+  });
+
+  it('a switch is one line and an edit change; the default removes it; a value changed meanwhile is a 409 with stale', async () => {
+    await writeFile(file('field'), FIELD);
+    const r = await call('scenario_edit', { project: P, name: 'field', hash: sha(FIELD), edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(FIELD, 0) }, field: 'frame', to: 'laptop' } });
+    expect(r.status, r.body.slice(0, 300)).toBe(200);
+    expect(r.json<Answer<{ label: string; change: string }>>().data).toMatchObject({ label: 'Set the layout of scene a to laptop', change: 'edit' });
+    const t1 = await readFile(file('field'), 'utf8');
+    expect(t1).toBe(FIELD.replace('    open: /\n', '    open: /\n    frame: laptop\n'));
+    const stale = await call('scenario_edit', { project: P, name: 'field', hash: sha(t1), edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(t1, 0) }, field: 'frame', from: 'browser', to: 'phone' } });
+    expect(stale.status).toBe(409);
+    expect(stale.json<Answer<unknown>>().error?.details).toMatchObject({ current: sha(t1), stale: true });
+    const back = await call('scenario_edit', { project: P, name: 'field', hash: sha(t1), edit: { kind: 'set_field', at: { entry: 'scene', id: 'a', guard: guard(t1, 0) }, field: 'frame', from: 'laptop' } });
+    expect(back.status).toBe(200);
+    expect(await readFile(file('field'), 'utf8')).toBe(FIELD);
+  });
+
+  it("review B H2: the outro switch over an outro with its own tagline is refused — the tagline survives, nothing written", async () => {
+    const text = FIELD.replace('video: field\n', 'video: field\noutro:\n  tagline: Order in two clicks\n');
+    await writeFile(file('field'), text);
+    for (const edit of [
+      { kind: 'set_field', at: { entry: 'top' }, field: 'outro', from: true, to: false },
+      { kind: 'set_field', at: { entry: 'top' }, field: 'outro', from: true },
+    ]) {
+      const r = await call('scenario_edit', { project: P, name: 'field', hash: sha(text), edit });
+      expect(r.status, JSON.stringify(edit)).toBeGreaterThanOrEqual(400);
+      expect(r.body).toContain('the outro has its own tagline');
+      expect(await readFile(file('field'), 'utf8')).toBe(text);
+    }
+    await writeFile(file('field'), FIELD);
   });
 });

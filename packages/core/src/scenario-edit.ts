@@ -25,6 +25,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { canonicalJson } from './comments.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
+import type { FieldEdit } from './field-edits.js';
 import type { StepEdit } from './step-edits.js';
 import { parseYaml } from './validation/yaml-source.js';
 
@@ -33,9 +34,10 @@ export const SCENARIO_EDIT_MAX_CHARS = 500_000;
 
 /**
  * The kinds of `scenario_edit`: the YAML tab's text, undo / redo's byte-exact restore, the Blocks tab's step edits
- * (step-edits.ts STEP_EDIT_KINDS — written out here: step-edits imports this module's input rules).
+ * (step-edits.ts STEP_EDIT_KINDS — written out here: step-edits imports this module's input rules) and the timeline's
+ * field edits (L4.5, field-edits.ts `set_field`).
  */
-export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step'] as const;
+export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'delete_step', 'duplicate_step', 'set_step', 'insert_step', 'set_field'] as const;
 export type ScenarioEditKind = (typeof SCENARIO_EDIT_KINDS)[number];
 
 export type ScenarioEdit =
@@ -44,7 +46,9 @@ export type ScenarioEdit =
   /** Undo / redo: the exact bytes of an earlier version (`text_hash`: their sha256, checked), no line break added. */
   | { kind: 'restore'; text: string; text_hash: string }
   /** The Blocks tab: move, delete, duplicate, change or add a step (step-edits.ts: text splices, verified). */
-  | StepEdit;
+  | StepEdit
+  /** The timeline (L4.5): one edit value of the video, a scene, a card or an interstitial (field-edits.ts, verified). */
+  | FieldEdit;
 
 // Characters the Studio never adds (see the header): controls, format and default-ignorable characters, line /
 // paragraph separators, the Hangul fillers and the braille blank; tab, line feed and a CR LF's carriage return are left

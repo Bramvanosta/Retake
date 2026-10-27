@@ -10,8 +10,8 @@
  */
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
-import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder } from '@demo-studio/core';
+import { basename, dirname, join } from 'node:path';
+import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, readPlainFile } from '@demo-studio/core';
 import type { WorkspaceConfig } from '@demo-studio/core';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
@@ -251,4 +251,69 @@ export async function thumbnail(ws: WorkspaceConfig, file: string, maxPx = 1280)
   if (!(insideFolder(ws.root, file) || insideFolder(ws.projectsDir, file))) throw new EngineError('refused', `${file} is outside the workspace: no thumbnail`);
   const rv = await review();
   return rv.thumbnailOf(file, Math.max(64, Math.min(1280, Math.round(maxPx))));
+}
+
+// ── One review image for the Studio (L4.5 part E, critique B16) ─────────────
+
+/**
+ * The images the Studio shows from a review folder, by their name in it: contact sheet pages, scene sheets and the diff
+ * sheet (JPEG), and the key frames (PNG, in keyframes/) — review B: not the 1 fps sheets only.
+ */
+export const REVIEW_IMAGE_RE = /^(?:(?:sheet|diff)_[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.jpg|keyframes\/[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.png)$/;
+/** A sheet read from the folder, at most (bytes): a 1 fps sheet page is ≈ 0.3–2 MB. */
+export const REVIEW_IMAGE_SOURCE_MAX = 8 * 1024 * 1024;
+/** The long side of the JPEG answered, at most (px), and its base64, at most (the page's SHEET_DATA_MAX). */
+export const REVIEW_IMAGE_MAX_PX = 1600;
+export const REVIEW_IMAGE_BASE64_MAX = 2_000_000;
+
+export interface ReviewImageView {
+  project: string;
+  render_id: string;
+  image: string;
+  mime: 'image/jpeg';
+  base64: string;
+  width: number;
+  height: number;
+}
+
+const thumbs = () => import('@demo-studio/review/thumbs');
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * One image of a render's review as a base64 JPEG (≤ REVIEW_IMAGE_MAX_PX, ≤ REVIEW_IMAGE_BASE64_MAX characters), made in
+ * memory: `image` is a file NAME of review/<render_id>/ (REVIEW_IMAGE_RE: a contact sheet page, a scene sheet, the diff
+ * sheet, or `keyframes/<name>.png`, as render_review lists them) — never a path. The folder (and the key frames'
+ * folder) must lie in the project once links are resolved; the file is opened without following a link (O_NOFOLLOW),
+ * must be a regular file with one name (no hard link: review A N4) within REVIEW_IMAGE_SOURCE_MAX and start like its
+ * kind (JPEG FF D8 FF, PNG's signature): a link planted in the folder, a renamed file or a huge file is refused.
+ */
+export async function reviewImage(ws: WorkspaceConfig, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
+  checkProjectSlug(slug);
+  if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId) || renderId.length > 200) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
+  if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image)) throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
+  const project = await openProjectBySlug(ws, slug);
+  const dir = join(project.dir, 'review', renderId);
+  if (!existsSync(dir)) throw new EngineError('not_found', `render ${renderId} has no review yet`);
+  if (!insideFolder(project.dir, dir)) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
+  const file = join(dir, image);
+  // A key frame's folder too stays in the review folder once links are resolved (the file itself: O_NOFOLLOW below).
+  if (!insideFolder(dir, dirname(file))) throw new EngineError('refused', `${image} of the review of ${renderId} lies outside its folder: not shown`);
+  const read = readPlainFile(file, REVIEW_IMAGE_SOURCE_MAX, { verify: (st) => st.nlink === 1 });
+  if (!read.ok) {
+    if (read.reason === 'missing') throw new EngineError('not_found', `the review of ${renderId} has no ${image}`);
+    if (read.reason === 'link') throw new EngineError('refused', `${image} of the review of ${renderId} is a link (symbolic or hard): not followed`);
+    if (read.reason === 'too_large') throw new EngineError('refused', `${image} of the review of ${renderId} is larger than ${REVIEW_IMAGE_SOURCE_MAX / 1024 / 1024} MB: not shown`);
+    throw new EngineError('refused', `${image} of the review of ${renderId} cannot be read (${read.reason})`);
+  }
+  const b = read.bytes;
+  const png = image.endsWith('.png');
+  const ok = png ? b.length >= 8 && b.subarray(0, 8).equals(PNG_MAGIC) : b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  if (!ok) throw new EngineError('refused', `${image} of the review of ${renderId} is not a ${png ? 'PNG' : 'JPEG'}: not shown`);
+  const t = await thumbs();
+  let out = await t.thumbJpeg(b, { maxPx: REVIEW_IMAGE_MAX_PX, quality: 80 }).catch(() => undefined);
+  if (out && out.data.toString('base64').length > REVIEW_IMAGE_BASE64_MAX) out = await t.thumbJpeg(b, { maxPx: 1100, quality: 70 }).catch(() => undefined);
+  if (!out) throw new EngineError('refused', `${image} of the review of ${renderId} cannot be decoded`);
+  const base64 = out.data.toString('base64');
+  if (base64.length > REVIEW_IMAGE_BASE64_MAX) throw new EngineError('refused', `${image} of the review of ${renderId} stays too large once scaled: not shown`);
+  return { project: slug, render_id: renderId, image, mime: 'image/jpeg', base64, width: out.width, height: out.height };
 }

@@ -4,11 +4,13 @@
  * where it is in the file ("Show in YAML") and its source lines, what the source run did with it, and — in a box titled
  * "From the page" — the target as the run found it, its error and the URL (text the filmed site controls). L4.3 part 2:
  * the screen's edit buttons for the step (move, duplicate, delete) sit at the top; part 3: its form (StepForm.tsx)
- * below them — what a form cannot show changes in the YAML tab.
+ * below them — what a form cannot show changes in the YAML tab. L4.5: a step bound to a capture's step links to that
+ * step on the capture's timeline ("Show in timeline").
  */
 import type { ReactNode } from 'react';
 import type { SceneBlock, StepBlock } from '@demo-studio/core';
 import { Badge, Txt } from './bits.js';
+import { hrefTo } from './route.js';
 import { keyWords, missingWords, seconds } from './scenario-words.js';
 import type { View } from './scenario-words.js';
 
@@ -206,6 +208,15 @@ function StepDetails({ v, scene, step, onShowYaml, editing }: { v: View; scene: 
             <>
               {' '}
               · <Txt text={b.why} />
+            </>
+          )}
+          {v.source.mode === 'capture' && (
+            <>
+              {' '}
+              ·{' '}
+              <a href={hrefTo({ name: 'timeline', slug: v.project, scenario: v.name, run: v.source.run, step: b.run_key })} data-testid="show-in-timeline">
+                Show in timeline
+              </a>
             </>
           )}
         </p>

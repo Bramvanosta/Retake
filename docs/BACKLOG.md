@@ -1062,8 +1062,9 @@ the lot's own cuts:
   list, log and live preview~~ — built in L4.4 as the Run screen (critique C5), "Watch live" from the banner.
 - `run_thumbs` as an MCP tool for Claude (Claude reads review contact sheets); captions and scenario text in the
   search (BL-79).
-- "Open timeline" from a step (R-UI-15: the timeline screen is L4.5); video serving for the L4.5 Player (Range
-  requests: a blob URL against a capability URL — decided there).
+- ~~"Open timeline" from a step (R-UI-15: the timeline screen is L4.5); video serving for the L4.5 Player (Range
+  requests: a blob URL against a capability URL — decided there)~~ — built in L4.5: "Show in timeline" on a step bound
+  to a capture, the capture served under the player origin's capability URL with Range.
 - Approving hooks from the Studio (a capture whose hooks need a person: today the button says "needs the terminal" and
   shows the `studio run …` command); the sandbox reset, `until` and hooks of a dry run from the Studio (pinned out by
   `scenario_run`, critique B11) — L4.4 kept both out: approvals BL-106, the dry run's options BL-105.
@@ -1191,6 +1192,10 @@ element's box per step cheaply (or the elements the scenario names anywhere) so 
 
 The Studio's scenario screen says "only the edit changed since this run" but offers no render: a Render button on that
 notice (and a list of the edit changes, as plan_preview gives them) would close the loop without the terminal or MCP.
+*Built in L4.5 (R-UI-26):* Render on the timeline (the capture shown, the version shown: `expect_edit_sha256`) with the
+review inline, the queue and the renders with their verdict on the timeline and the scenario screen; the timeline says
+what changed since the take ("changed since the take: frame of quotes"). The list of edit changes as plan_preview gives
+them stays open.
 
 ### BL-92 — A field still covered after the scrolls
 *S · L5.6 follow-up*
@@ -1353,7 +1358,8 @@ panel and the capture's session confirmation):
   environment of the worker this Studio would start).
 - A headed sign-in in a temporary copy of the persona's profile, swapped in only when it succeeds (today a stopped
   sign-in leaves what the window changed in an existing profile, and says so).
-- Render from the Run screen (BL-91, L4.5); recording or exporting the preview; live thumbnails on the scenario screen
+- ~~Render from the Run screen (BL-91, L4.5)~~ — L4.5: the Run screen's outcome opens the capture's timeline, which
+  renders; recording or exporting the preview; live thumbnails on the scenario screen
   while a run runs (BL-80).
 - WebKit and Firefox in the automated suite (MACOS-CHECKLIST 13e checks them by hand).
 
@@ -1369,6 +1375,76 @@ Residue documented in L4.4: the capture's session confirmation (`sessions_ack`) 
 presence — a page script can send it; the run's own preflight stays the authority and stops before filming a persona
 it can check (a `check`, or never signed in); one without a `check` is used as saved and fails only when a page lands on
 the sign-in page, after its setup hooks (the confirmation says so).
+
+### BL-107 — Timeline editing extras cut from L4.5
+*M · cut in L4.5 · builds on: L4.5, L4.7, BL-95*
+
+Cut to keep L4.5 an L (the timeline, the preview, one-click switches of the edit's values, render and review from the
+Studio):
+- Variants (vertical, square) previewed and rendered from the Studio; a theme picker (L4.7); a component's params and
+  slots edited from the inspector; component previews (pictures or animated) in the inspector's options (L4.7,
+  R-UI-06b).
+- Caption, card and interstitial text edited on the timeline; per-scene caption components; a general scenario
+  `components:` map (L4.5 added the narrow `caption_component` key only, critique B9).
+- Durations and holds dragged on the tracks; overlay and camera spans edited on their tracks; per-step speeds (today a
+  scene's speed); multi-select; a music waveform on its own track.
+- Zoom levels beyond "fit" and "about ten seconds per screen".
+
+### BL-108 — Preview fidelity and media cut from L4.5
+*M · cut in L4.5 · builds on: L4.5, L5.7*
+
+The preview plays the render's own composition, so it shows the plan's frames; what it does not do yet:
+- Frame-exact playback through speed ramps and cuts (WebCodecs, or `@remotion/media`'s `Video` in preview mode): a
+  paused frame is exact, playback seeks at a ramp or a cut (measured smooth on the fixture: 29.7 frames / s of 30).
+- A preview proxy made by a worker job and pruned with its run — short GOP, smaller, or VP9 — for a browser without
+  H.264 (a Chromium build without proprietary codecs gets a message only, critique Q5) and for takes whose keyframes are
+  more than a second apart (the screen's "scrubbing is slow" note names that trigger, critique B14).
+- Lottie expressions in the preview (they would need `'unsafe-eval'` in the frame: no).
+- The capture's colours: measured in L4.5 part F (DESIGN §4g "Preview versus render"), the preview draws the capture
+  ≈ 3–4 levels brighter on near-white and ≈ 10 on mid-tones than the render (renderStill and the encoded render agree
+  within 1); what the frame composes around it differs by ≤ 2. Two decoders of a bt709 / limited-range file with no
+  transfer or primaries tags: tag the capture's colour metadata at encode time, or convert the same way on both sides.
+- Premounting the next clip and `acceptableTimeShiftInSeconds` tuning, if a longer or heavier take ever stutters at a
+  segment boundary (not needed on the fixture).
+
+### BL-109 — Verify extras cut from L4.5
+*M · cut in L4.5 · builds on: L4.5, L4.6, BL-72*
+
+- Watching a finished render in the preview (a second media mode of the frame, an op, a codec path; critique C1).
+- Exports (formats, GIF) started from the Studio; two renders side by side or as a difference view.
+- A key-frame gallery and a per-scene sheets' viewer (the review panel lists scene sheets, key frames and the diff
+  sheet since the L4.5 review, at most 24 images, one after the other).
+- Seeking the preview from a finding of a render of ANOTHER version by its segment and offset (today only a render of
+  the same plan and theme files seeks; others say so).
+- A review from the Studio with other settings (2 fps, against the previous render); the Studio's renders at another
+  scale (today 1920×1080, pinned).
+- `scenario_renders` reads at most 200 render jobs and 50 review jobs of a project per call (queue list limits).
+
+### BL-110 — Player isolation residues of L4.5
+*M · cut in L4.5 · builds on: L4.5, BL-42, BL-72, BL-79*
+
+The preview frame is a cross-origin `sandbox="allow-scripts"` iframe on a second loopback origin under a strict CSP
+(DESIGN §4g); what it does not cover:
+- **WebKit has no process isolation for sandboxed cross-origin frames:** in Safari (and Tauri's WKWebView, L5.2) a busy
+  component — a long loop in its render — freezes the whole Studio tab until it returns; Chromium runs the frame in its
+  own process. A message flood is still stopped by the page's budget in every browser (MACOS-CHECKLIST 13f).
+- DNS prefetch (the `X-DNS-Prefetch-Control` header is honoured by Chrome only) and WebRTC (the constructors deleted in
+  the frame; a CSP `webrtc 'block'` once browsers have it) — as BL-72 for renders.
+- The player origin's port taken by another local account first (as BL-79's Studio port); capability URLs readable by
+  any local process while they live (they die with the project's last timeline page, the Studio process, or a
+  rotation; a tab closed without leaving keeps its lease two hours).
+- **Chrome's prerender ignores a frame's CSP and sandbox** (review A of L4.5: a `<link rel="prerender">` in the frame
+  fetched an arbitrary URL and resolved an arbitrary host name; installed Chrome and Chromium, not the headless shell).
+  Closed in L4.5 by three layers — boot.js refuses the token on every way to set a `rel` and refuses child frames,
+  Trusted Types with no policy close the HTML parsers, and a workspace component runs in the preview only once the
+  person allowed it this session (built-in components always run) — but a future browser feature that fetches from a
+  frame without the CSP's consent would reach an allowed component again: re-run review A's probe on each new Chrome /
+  Safari major (MACOS-CHECKLIST 13f). An allowed component is trusted code for that session.
+- Trusted Types are Chromium's (Safari and Firefox enforce them only in recent versions): there the HTML parsers stay
+  open to an allowed component; the prerender token checks and the allow-list hold in every browser.
+- A message of up to the budget's size (one huge message) is accepted (review A N5): bounded by the browser's own
+  limits; an optional bytes budget if it ever matters.
+- The render path's webpack bundle has no import allow-list (the preview bundle's checks real paths; BL-42).
 
 ## Guard-rails for planned lots (no new scope)
 
@@ -1390,11 +1466,11 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.demo-studio/history.jsonl` — one line per finished job and per CLI run / render / still (and per `studio export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
 - **L3.1** — Amend ADR-1 when L3.1 starts: split 'engine runs locally' from 'UI delivery'; define the job input contract (files, sessions, secrets, network reach); replace 'data never leave the machine' with a data-flow table. *Why:* It keeps the UI delivery decision open and makes the privacy claim accurate before it is used in sales material. *Applied in L3.1:* the ADR-1 amendment in docs/ARCHITECTURE.md.
 - **L3.6** — Done 2026-10-12 (DESIGN-phase2 §4, R-CMT-02). Fix DESIGN-phase2 §4 and R-CMT-02 to one file per thread (R-ARC-04). Make replies append-only (one file each, or entries with their own ids). Anchor comments on step `id` or a fingerprint, not only the step index. *Why:* This avoids sync conflicts on threads, and drag-and-drop in L4.3 reorders steps, which breaks anchors based on the index. *Applied in L3.6:* threads `c_<ULID>` with append-only `r_<ULID>` entries, the anchor with `step_id`, a step fingerprint and its occurrence (DESIGN-phase2 §4).
-- **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5.
+- **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5. *`engines` applied in L4.5 part A:* manifest `engines: {kit: "^1"}` (absent = kit API 1); a component written for another kit API is not loaded (registry notice), its uses fall back. *Applied in L4.5:* the Studio's preview runs the Remotion Player in a cross-origin `sandbox="allow-scripts"` iframe on a second loopback origin, every file of it (frame, bundle, plan, media) under one session capability, no engine token in the frame, a strict CSP with `sandbox` (`connect-src` / `media-src` / `font-src` that origin only, no `unsafe-eval`), WebRTC removed, one MessageChannel to the page with a strict schema and a flood budget, the bundle's imports on an allow-list of real paths (DESIGN §4g); each rule mutation-checked. Residues: BL-110.
 - **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `demo-studio-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it. *Applied in L4.4:* the worker's live channel records carry `{v, kind}` (`kind: 'frame'` today) so an input channel can be added as a separate authenticated route beside `GET /v1/frames` (DESIGN §4f); nothing of it is built (BL-105).
-- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code.
+- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110).
 - **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI.
 
 ## Recorder precisions (L3.4 / L4.8)

@@ -36,14 +36,25 @@
  *   in, their stored state, `auto`; no path; the last check's text under `untrusted`) and `confirm`: the personas a
  *   capture's `sessions_ack` must name.
  * - `sign_in_cancel` (L4.4): the Sessions panel's Cancel — engine auth.cancelSignIn (an `auth_login` job only).
+ * - `timeline_view` (L4.5): the timeline screen's read — engine timeline.view and the preview's capability URLs on the
+ *   player origin (timelineOps); `timeline_leave` (the page left: its project's preview URLs are revoked once no page
+ *   holds a lease) and `preview_allow` (the person allows a workspace component to run in the preview, this session).
+ * - `scenario_render`, `scenario_renders`, `render_cancel`, `render_review`, `review_image` (L4.5 part E): Render from
+ *   the timeline or the scenario screen, the render queue and list, Cancel, the review's report and its contact sheets
+ *   (renderOps).
  */
 import { z } from 'zod';
-import { ACTION_DESCRIPTIONS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
+import { basename, dirname } from 'node:path';
+import { ACTION_DESCRIPTIONS, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
 import type { ActionName } from '@demo-studio/core';
-import { EngineError, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
-import type { Engine, EnvironmentView, RunListItem, ScenarioSessions } from '@demo-studio/engine';
+import { EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
+import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@demo-studio/engine';
 import type { ToolDef } from '@demo-studio/mcp';
 import type { Live } from './live.js';
+import type { PlayerServer } from './player.js';
+import { COMPONENT_HASH_RE } from './preview-allow.js';
+import type { PreviewAllowList } from './preview-allow.js';
+import type { ComponentRegistry } from '@demo-studio/components';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (project_list names them), never a path');
@@ -133,6 +144,35 @@ const FieldChangeInput = z.strictObject({
   to: fieldValue.optional().describe('The new value (absent: the value is removed).'),
 });
 
+/**
+ * A timeline switch's place (L4.5, core FieldAt): the video's top level, or a scene / card / interstitial by its id and
+ * its guard (timeline_view `choices[…].at`).
+ */
+const FieldAtInput = z.union([
+  z.strictObject({ entry: z.literal('top') }),
+  z.strictObject({
+    entry: z.enum(['scene', 'card', 'interstitial']),
+    id: sceneId,
+    guard: z.string().regex(/^[0-9a-f]{16}$/, "the entry's guard as timeline_view gave it (16 hex characters)"),
+  }),
+]);
+/** Every path of core FIELD_PATHS (each an edit value); which entry takes which is checked below, before any read. */
+const FIELD_NAMES = [...new Set(Object.values(FIELD_PATHS).flat())] as [string, ...string[]];
+/** A timeline switch's value: a frame, a transition, a component id, a speed or duration, the intro / outro switch. */
+const switchValue = z.union([z.string().max(200, 'at most 200 characters'), z.number().finite(), z.boolean()]);
+const SetFieldInput = z
+  .strictObject({
+    kind: z.literal('set_field'),
+    at: FieldAtInput,
+    field: z.enum(FIELD_NAMES).describe('A value of the edit part (core FIELD_PATHS), never a step, a hook, a var or the environment.'),
+    from: switchValue.optional().describe('What the inspector showed there (absent: not written) — applied only while the file still holds it.'),
+    to: switchValue.optional().describe("The new value (absent: removed — the theme's default)."),
+  })
+  .superRefine((e, ctx) => {
+    const allowed = FIELD_PATHS[e.at.entry] as readonly string[];
+    if (!allowed.includes(e.field)) ctx.addIssue({ code: 'custom', path: ['field'], message: `${e.field} is not a value of ${e.at.entry === 'top' ? 'the video' : `a ${e.at.entry}`} (${allowed.join(', ')})` });
+  });
+
 const EditInput = z.strictObject({
   project,
   name: scenario.describe('The scenario: the file scenario_blocks read (scenarios/<name>.yaml, or an existing .yml).'),
@@ -168,6 +208,7 @@ const EditInput = z.strictObject({
         action: z.enum(PALETTE_ACTIONS as unknown as [ActionName, ...ActionName[]]).describe('An action of the palette.'),
         values: z.record(fieldKey, fieldValue).describe("The new step's form values (scenario_forms names the fields).").refine((v) => Object.keys(v).length <= 40, 'at most 40 values'),
       }),
+      SetFieldInput,
     ])
     .describe('One edit.'),
 });
@@ -437,8 +478,9 @@ async function scenarioSessions(engine: Engine, a: z.infer<typeof SessionsInput>
  * trust ("from the Studio"): the file the view read, `hash` as if_match, refused whole when the file is blocked (the
  * view's `edit` said so first), no hidden character added, hooks and mocks unchanged, validated (errors refuse with
  * their lines, warnings save), atomic with its mode kept, under the write lock. Edits of one file run one at a time in
- * this server (a double click, two tabs): the second then finds the new hash and gets its 409. Not an MCP tool:
- * Claude edits a scenario with scenario_save.
+ * this server (a double click, two tabs): the second then finds the new hash and gets its 409. L4.5 part D: the
+ * timeline inspector's `set_field` (SetFieldInput: strict, a field of core FIELD_PATHS that the entry takes, checked
+ * before any read). Not an MCP tool: Claude edits a scenario with scenario_save.
  */
 export function editOps(): ToolDef[] {
   const chains = new Map<string, Promise<unknown>>();
@@ -454,7 +496,7 @@ export function editOps(): ToolDef[] {
   const edit: ToolDef<typeof EditInput> = {
     name: 'scenario_edit',
     title: 'Edit a scenario from the Studio',
-    description: "Apply one edit (the YAML tab's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette) to a scenario, on the version the screen showed.",
+    description: "Apply one edit (the YAML tab's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette, a timeline switch of an edit value) to a scenario, on the version the screen showed.",
     input: EditInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a, { engine }) {
@@ -468,10 +510,367 @@ export function editOps(): ToolDef[] {
   return [edit] as unknown as ToolDef[];
 }
 
+/** A timeline page's lease (random, made by the page): the preview's capability of the project lives while one is held. */
+const lease = z.string().regex(/^[A-Za-z0-9_-]{16,43}$/, 'a random lease id of the page (16 to 43 base64url characters)');
+const TimelineInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
+  run: run.optional().describe('A capture of the scenario (default: its latest capture; the view lists them in `runs`).'),
+  lease: lease.optional().describe("The page's lease (timeline_leave ends it): the project's preview URLs are revoked once no page holds one."),
+});
+const TimelineLeaveInput = z.strictObject({ project, lease: lease.describe('The lease the page gave timeline_view.') });
+const PreviewAllowInput = z.strictObject({
+  id: z.string().max(120).regex(COMPONENT_ID_RE, 'a component id "namespace/name" (timeline_view preview_held names them)'),
+  hash: z.string().regex(COMPONENT_HASH_RE, 'the folder hash timeline_view preview_held gave (16 hex characters)'),
+});
+
+/** A page's lease is forgotten after this long without a timeline_view (a tab closed without leaving). */
+export const TIMELINE_LEASE_TTL_MS = 2 * 60 * 60 * 1000;
+
+/** The file's text while switches can be written (the engine gives it beside the view): what undo restores (L4.5 part D). */
+interface TimelineText {
+  text?: string;
+}
+
+/**
+ * What timeline_view answers: the engine's view (path-free, plan-free: tracks, pins, choices, capture codec, text under
+ * `untrusted`) and the preview's two capability URLs on the player origin — or why the take cannot be planned
+ * (`blocked`, with the command a person types), or the view without a preview when the player cannot serve it.
+ */
+export type TimelineViewAnswer =
+  | (TimelineView & TimelineText & PreviewHeld & { frame_url: string; plan_url: string })
+  | (TimelineView & TimelineText & PreviewHeld & { preview_error: string })
+  | { blocked: { problems: string[]; command?: string }; run_id?: string };
+
+/**
+ * The workspace components this take uses that the preview does not run until the person allows them in this Studio
+ * session (review A H1 c): id, kind and folder content hash — what the Allow button names and sends (preview_allow).
+ */
+export interface PreviewHeld {
+  preview_held?: Array<{ id: string; kind: string; hash: string }>;
+}
+
+/**
+ * timeline_view (L4.5 part C): the timeline screen's one read — engine timeline.view (memoised per file, run,
+ * timeline and components: a re-read after an event plans nothing new), then the player origin publishes the view's
+ * plan (`publish`: its files registered under the session capability, the preview plan served as plan.json; `forbid`
+ * adds the workspace and the home folder) and the answer carries `frame_url` and `plan_url` — never the plan, its
+ * folders or any path (critique B4: the plan holds product text and local URLs; it reaches the sandboxed frame by its
+ * capability URL only). The two URLs hold the session capability: the page that frames the preview needs them, the
+ * server never logs them. Part D: while switches can be written, `text` — the file's text (the view's `hash`), which
+ * the screen's undo restores byte for byte (scenario_edit `restore`), the same text scenario_blocks gives the page.
+ * L4.5 fixes: the plan is published in the project's own scope (its own capability, review A L3) and the page's `lease`
+ * keeps it alive until `timeline_leave`; `preview_held` names the workspace components the take uses that the preview
+ * does not run until `preview_allow` (review A H1 c: the Studio's in-memory allow-list, by folder content hash).
+ * Not MCP tools: Claude reads plan_preview.
+ */
+export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry> }): ToolDef[] {
+  /** Leases by project (lease → last seen): the project's preview scope lives while one is held. */
+  const leases = new Map<string, Map<string, number>>();
+  const prune = (now: number) => {
+    for (const [p, m] of leases) {
+      for (const [l, at] of m) if (now - at > TIMELINE_LEASE_TTL_MS) m.delete(l);
+      if (m.size === 0) {
+        leases.delete(p);
+        o.player().release(p);
+      }
+    }
+  };
+  /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
+  const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan']): Promise<NonNullable<PreviewHeld['preview_held']>> => {
+    if (!o.allow || !o.registry) return [];
+    const { usedComponentIds } = await import('@demo-studio/editor');
+    const used = new Set(usedComponentIds(plan));
+    const { workspaceComponents } = await import('../player/bundle-player.js');
+    return (await workspaceComponents(await o.registry())).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
+  };
+  const view: ToolDef<typeof TimelineInput> = {
+    name: 'timeline_view',
+    title: "A scenario's timeline",
+    description: "A capture of a scenario as the timeline shows it: its tracks, comment pins, the inspector's choices, the capture's codec, and the preview's capability URLs.",
+    input: TimelineInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      // No capture yet: said plainly (the planner's own error names the runs folder).
+      if (!a.run && (await engine.runs.list(a.project, { scenario: a.name, mode: 'capture', limit: 1 })).length === 0) {
+        throw new EngineError('not_found', `${a.name} has no capture yet: a capture films the take its timeline shows (Capture on the scenario screen)`);
+      }
+      const r = await engine.timeline.view({ project: a.project, scenario: a.name, ...(a.run ? { run_id: a.run } : {}) });
+      if (!('view' in r)) {
+        const data: TimelineViewAnswer = { blocked: r.blocked, ...(r.run_id ? { run_id: r.run_id } : {}) };
+        return { summary: `${a.name}: the take cannot be previewed from the Studio (${plural(r.blocked.problems.length, 'problem')})`, data: data as unknown as Record<string, unknown> };
+      }
+      const v = r.view;
+      // The file's text, for undo (L4.5 part D: L4.3's `restore` of the exact bytes) — as scenario_blocks gives it.
+      const text = r.text !== undefined ? { text: r.text } : {};
+      const head = `${a.name}: ${v.run_id}, ${plural(v.model.segments.length, 'segment')}, ${plural(v.model.frames, 'frame')}`;
+      const now = Date.now();
+      prune(now);
+      if (a.lease) {
+        const m = leases.get(a.project) ?? new Map<string, number>();
+        m.set(a.lease, now);
+        leases.set(a.project, m);
+      }
+      const held = await heldOf(r.plan);
+      const heldPart: PreviewHeld = held.length ? { preview_held: held } : {};
+      try {
+        // Each project its own capability (review A L3): a page of one project never holds URLs of another's files.
+        const p = await o.player().publish(r, { forbid: o.forbid(), scope: a.project });
+        const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, frame_url: p.frame_url, plan_url: p.plan_url };
+        return { summary: head, data: data as unknown as Record<string, unknown> };
+      } catch (e) {
+        // The tracks still show; the preview says why it cannot (the player's words: asset ids, never a path).
+        const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, preview_error: firstErrorLine(e instanceof Error ? e.message : String(e)) };
+        return { summary: `${head}, no preview`, data: data as unknown as Record<string, unknown> };
+      }
+    },
+  };
+  const leave: ToolDef<typeof TimelineLeaveInput> = {
+    name: 'timeline_leave',
+    title: 'Leave a timeline',
+    description: "A timeline page left: its lease ends; once no page holds one, the project's preview URLs answer 404 (the next view gets new ones).",
+    input: TimelineLeaveInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(a) {
+      const m = leases.get(a.project);
+      m?.delete(a.lease);
+      const revoked = !m || m.size === 0;
+      if (revoked) {
+        leases.delete(a.project);
+        o.player().release(a.project);
+      }
+      prune(Date.now());
+      return { summary: revoked ? `${a.project}: preview URLs revoked` : `${a.project}: ${plural(m!.size, 'other page')} still on a timeline`, data: { project: a.project, revoked } };
+    },
+  };
+  const allow: ToolDef<typeof PreviewAllowInput> = {
+    name: 'preview_allow',
+    title: 'Allow a workspace component in the preview',
+    description: 'The person allows one workspace component, at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).',
+    input: PreviewAllowInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(a) {
+      if (!o.allow || !o.registry) throw new EngineError('refused', 'this Studio runs every component in its preview');
+      const { workspaceComponents } = await import('../player/bundle-player.js');
+      const c = (await workspaceComponents(await o.registry())).find((x) => x.id === a.id);
+      if (!c) throw new EngineError('not_found', `${a.id} is not a workspace component (a built-in component always runs)`);
+      if (c.hash !== a.hash) throw new EngineError('conflict', `${a.id} changed since the timeline showed it (its folder is now ${c.hash}): look at it again, then allow it`, { details: { id: a.id, hash: c.hash } });
+      if (!o.allow.allow(a.id, a.hash)) throw new EngineError('refused', 'too many components were allowed in this session: restart the Studio');
+      return { summary: `${a.id} (${a.hash}) runs in the preview until the Studio stops`, data: { id: a.id, hash: a.hash, allowed: true } };
+    },
+  };
+  return [view, leave, allow] as unknown as ToolDef[];
+}
+
+const renderId = z.string().max(200).regex(RENDER_ID_RE, 'a render id (scenario_renders lists them), never a path');
+const RenderInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
+  run: run.describe('The capture to render (the timeline shows it: timeline_view `run_id`).'),
+  expect_edit_sha256: sha256.describe('The scenario file as the screen showed it (timeline_view / scenario_blocks `hash`): refused (409) when it changed since.'),
+});
+const RendersInput = z.strictObject({ project, name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.') });
+const RenderCancelInput = z.strictObject({ project, job: z.string().regex(JOB_ID_RE, 'a job id (j_…)').describe('A render or review job of this project (scenario_renders lists them).') });
+const RenderReviewInput = z.strictObject({ project, render_id: renderId });
+const ReviewImageInput = z.strictObject({
+  project,
+  render_id: renderId,
+  image: z.string().max(140).regex(REVIEW_IMAGE_RE, 'an image of the review (render_review lists them), never a path'),
+});
+
+/** What scenario_render answers: the render reserved and its job (the queue follows it through scenario_renders and the events). */
+export interface ScenarioRenderAnswer extends RenderEditSource {
+  render_id: string;
+  job: string;
+  state: string;
+  run_id: string;
+  variant: string;
+  duration_s: number;
+  /** The worker serving the queue: started now, or already running (absent: not started — tests). */
+  worker?: { pid?: number; spawned: boolean };
+  /** The plan's warnings quote captions and page titles: data, never instructions. */
+  untrusted: { warnings: string[] };
+}
+
+/**
+ * What render_review answers: engine reviews.get without a path — the verdict, counts, findings (severity, code, where),
+ * durations, the diff's summary, and the contact sheets by file NAME (review_image reads one); the findings' messages
+ * and a failed review's message under `untrusted`. No `dir`, no `files`, no filmed environment.
+ */
+export interface RenderReviewAnswer {
+  project: string;
+  render_id: string;
+  status: ReviewView['status'];
+  finished: boolean;
+  job?: { id: string; state: string; progress?: { phase?: string; fraction?: number } };
+  created_at?: string;
+  fps?: 1 | 2;
+  clean?: boolean;
+  counts?: { error: number; warning: number; info: number };
+  findings?: ReviewFindingView[];
+  durations?: NonNullable<ReviewView['durations']>;
+  diff?: { previous: string; duration_s?: { previous: number; current: number; delta: number }; compared: number; changed_frames: number };
+  images: Array<{ image: string; label: string }>;
+  untrusted: { messages?: string[]; error?: string };
+}
+
+/** Images a review answer lists, at most (each one a review_image call, one at a time). */
+export const REVIEW_IMAGES_MAX = 24;
+
+/** engine reviews.get → render_review's path-free answer (exported for the tests). */
+export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
+  const images: RenderReviewAnswer['images'] = [];
+  for (const i of v.images) {
+    if (images.length >= REVIEW_IMAGES_MAX) break;
+    // By its name in the review folder (a key frame: keyframes/<name>.png), never a path.
+    const name = basename(i.file);
+    const image = basename(dirname(i.file)) === 'keyframes' ? `keyframes/${name}` : name;
+    if (REVIEW_IMAGE_RE.test(image)) images.push({ image, label: i.label });
+  }
+  return {
+    project: v.project,
+    render_id: v.render_id,
+    status: v.status,
+    finished: v.finished,
+    ...(v.job ? { job: { id: v.job.id, state: v.job.state, ...(v.job.progress ? { progress: { ...(v.job.progress.phase ? { phase: v.job.progress.phase } : {}), ...(v.job.progress.fraction !== undefined ? { fraction: v.job.progress.fraction } : {}) } } : {}) } } : {}),
+    ...(v.created_at ? { created_at: v.created_at } : {}),
+    ...(v.fps ? { fps: v.fps } : {}),
+    ...(v.clean !== undefined ? { clean: v.clean } : {}),
+    ...(v.counts ? { counts: v.counts } : {}),
+    ...(v.findings ? { findings: v.findings } : {}),
+    ...(v.durations ? { durations: v.durations } : {}),
+    ...(v.diff ? { diff: { previous: v.diff.previous, ...(v.diff.duration_s ? { duration_s: v.diff.duration_s } : {}), compared: v.diff.compared, changed_frames: v.diff.changed_frames } } : {}),
+    images,
+    untrusted: { ...(v.untrusted.messages ? { messages: v.untrusted.messages } : {}), ...(v.untrusted.error !== undefined ? { error: v.untrusted.error } : {}) },
+  };
+}
+
+/**
+ * The Studio's render ops (L4.5 part E, R-UI-26):
+ * - `scenario_render`: Render from the timeline (or the scenario screen) — engine renders.submit with pinned arguments:
+ *   the project, the scenario and the capture shown; the theme and every override come from the files (none can be
+ *   passed: landscape, the scenario's or project's theme), the review runs inline after the render (`review: {fps: 1}`,
+ *   critique B12) and the scenario text is snapshotted with the job (B5). `expect_edit_sha256` (the view's `hash`) makes a
+ *   changed file a 409 before anything is reserved; a render of the scenario already queued or running makes another a
+ *   409 naming it (one click, one render — submits of a scenario run one at a time in this server). Not an MCP tool:
+ *   Claude has `render` (with every option).
+ * - `scenario_renders`: engine renders.ofScenario — the queue (queued with what runs first / running with phase,
+ *   fraction and eta / reviewing) and the renders with their review verdict, path-free.
+ * - `render_cancel`: a render or review job of THIS project only (another project's job, or another kind, is refused
+ *   403: job_cancel stays out of the Studio). A cancel during the inline review keeps the render.
+ * - `render_review`: the review without any path (reviewAnswer).
+ * - `review_image`: one contact sheet as a base64 JPEG (≤ 1600 px, ≤ 2,000,000 characters), by its file name in the
+ *   review folder, read without following a link (engine reviews.image).
+ */
+export function renderOps(): ToolDef[] {
+  const chains = new Map<string, Promise<unknown>>();
+  const oneAtATime = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+    const next = (chains.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
+    const tail = next.catch(() => undefined);
+    chains.set(key, tail);
+    void tail.then(() => {
+      if (chains.get(key) === tail) chains.delete(key);
+    });
+    return next;
+  };
+  const render: ToolDef<typeof RenderInput> = {
+    name: 'scenario_render',
+    title: 'Render a scenario from the Studio',
+    description: "Queue a render of the capture shown, with the theme and options of the files, reviewed after it; refused (409) when the file changed since it was shown or a render of the scenario is already queued or running.",
+    input: RenderInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    async run(a, { engine }) {
+      const sub = await oneAtATime(`${a.project}\0${a.name}`, async () => {
+        const open = await engine.jobs.list({ project: a.project, kinds: ['render'], states: ['queued', 'running'] });
+        const busy = open.find((j) => j.input.kind === 'render' && j.input.scenario === a.name);
+        if (busy && busy.input.kind === 'render') {
+          throw new EngineError('conflict', `render ${busy.input.render_id} of ${a.name} is ${busy.state}: wait for it to end, or cancel it`, {
+            details: { render_id: busy.input.render_id, job: busy.id },
+          });
+        }
+        return engine.renders.submit({ project: a.project, scenario: a.name, run_id: a.run, review: { fps: 1 }, expect_edit_sha256: a.expect_edit_sha256 });
+      });
+      const data: ScenarioRenderAnswer = {
+        render_id: sub.render_id,
+        job: sub.job.id,
+        state: sub.job.state,
+        run_id: sub.run_id,
+        variant: sub.variant,
+        duration_s: sub.duration_s,
+        edit: sub.edit,
+        ...(sub.scenario_changed !== undefined ? { scenario_changed: sub.scenario_changed } : {}),
+        ...(sub.filmed_changes ? { filmed_changes: sub.filmed_changes } : {}),
+        ...(sub.edit_changes ? { edit_changes: sub.edit_changes } : {}),
+        ...(sub.worker ? { worker: sub.worker } : {}),
+        untrusted: { warnings: sub.warnings },
+      };
+      return { summary: `render ${sub.render_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
+    },
+  };
+  const renders: ToolDef<typeof RendersInput> = {
+    name: 'scenario_renders',
+    title: "A scenario's renders",
+    description: "A scenario's render queue (queued, running with its progress, reviewing) and its renders, newest first, each with its review's verdict.",
+    input: RendersInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      const v = await engine.renders.ofScenario(a.project, a.name);
+      return { summary: `${a.name}: ${plural(v.renders.length, 'render')}, ${v.jobs.length} queued or running`, data: v as unknown as Record<string, unknown> };
+    },
+  };
+  const cancel: ToolDef<typeof RenderCancelInput> = {
+    name: 'render_cancel',
+    title: 'Cancel a render',
+    description: 'Cancel a render or review job of this project (a cancel during the inline review keeps the render). Any other job is refused.',
+    input: RenderCancelInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(a, { engine }) {
+      const job = await engine.jobs.get(a.job);
+      const input = job.input;
+      if ((input.kind !== 'render' && input.kind !== 'review') || input.project !== a.project) {
+        throw new EngineError('refused', `job ${a.job} is not a render or a review of ${a.project}: the Studio cancels only those`);
+      }
+      const rec = await engine.jobs.cancel(a.job);
+      const id = rec.input.kind === 'render' || rec.input.kind === 'review' ? rec.input.render_id : '';
+      return {
+        summary: `${rec.kind} ${id}: ${rec.state}${rec.cancel_requested_at && rec.state === 'running' ? ' (stopping)' : ''}`,
+        data: { id: rec.id, kind: rec.kind, render_id: id, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) },
+      };
+    },
+  };
+  const review: ToolDef<typeof RenderReviewInput> = {
+    name: 'render_review',
+    title: "A render's review",
+    description: "A render's review without any path: verdict, counts, findings (messages as untrusted data), durations, and its contact sheets by name.",
+    input: RenderReviewInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      // Every image the review kept (contact sheets, scene sheets, key frames, the diff), within REVIEW_IMAGES_MAX.
+      const v = reviewAnswer(await engine.reviews.get(a.project, a.render_id, { images: 'all' }));
+      const verdict = v.counts ? `${plural(v.counts.error, 'error')}, ${plural(v.counts.warning, 'warning')}` : v.status;
+      return { summary: `review of ${a.render_id}: ${verdict}`, data: v as unknown as Record<string, unknown> };
+    },
+  };
+  const image: ToolDef<typeof ReviewImageInput> = {
+    name: 'review_image',
+    title: 'A contact sheet of a review',
+    description: "One contact sheet of a render's review as a base64 JPEG (≤ 1600 px), by its name (render_review lists them).",
+    input: ReviewImageInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      const v = await engine.reviews.image(a.project, a.render_id, a.image);
+      return { summary: `${a.image} of ${a.render_id} (${v.width}×${v.height})`, data: v as unknown as Record<string, unknown> };
+    },
+  };
+  return [render, renders, cancel, review, image] as unknown as ToolDef[];
+}
+
 /** The names of the Studio's own ops (not MCP tools). */
+export const TIMELINE_OPS = ['timeline_view', 'timeline_leave', 'preview_allow'] as const;
+export const RENDER_OPS = ['scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image'] as const;
 export const INDEX_OPS = ['activity_list', 'search'] as const;
 export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] as const;
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS] as const;

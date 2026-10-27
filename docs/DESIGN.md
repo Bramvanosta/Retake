@@ -2825,6 +2825,470 @@ recording untouched (frames, fps, no stall, nothing dropped). Above the plan's 1
 by default during a capture (one click shows it, the screen says it costs CPU), on for a dry run. A cheaper capture
 picture (a narrower `maxWidth`, a lower rate) is in the backlog's Run screen extras.
 
+## 4g. Edit / verify timeline (L4.5)
+
+R-UI-23…26 (+ R-UI-15's "Open timeline", the guard-rail "L3.2 / L4.5"): see the edit of a take before rendering it,
+switch its components in one click, render and review it from the Studio. Built in parts (the lot's plan and its
+critique B1–B17 apply): **A — model, edits, render snapshot**; **B — the player origin and its sandbox**; **C — the
+timeline screen and the preview**; **D — the inspector and switching**; **E — render, queue and review in the screen**;
+**F — acceptance, measurements, docs** (all built). Cuts: BL-107 (editing extras), BL-108 (preview fidelity: frame-exact
+playback, a proxy, colours), BL-109 (watching a finished render, exports, other review settings), BL-110 (isolation
+residues, WebKit's frames).
+
+**Timeline model** (editor `timeline.ts`, pure). `timelineOf(plan, {labels?, timeline?}) → TimelineModel`: every
+frame absolute (a segment's `from` plus its segment-relative spans). `segments[]` — `index, id, kind, from, to`
+(`to` = from + durationInFrames: a crossfade's overlap included), `component {id, kind, source, missing?}`,
+`transition {kind, frames, component}` (absent: the first segment, or a same-page join — then `joined: true` on a
+clip), a clip's `scene`, its `caption` component (null: captions off), a multi-page clip's `pages` (ids), a card's
+`reading`. `captions[] {from, to, scene, i}`, `steps[] {from, to, scene, step, step_id?, action, key: "<scene>.<step>"}`
+(a scene's still is step -1), `camera[] {from, in_to, out_from, to, zoom, requested_zoom?, source, scene, step, key,
+pane?}` (panes' zooms included), `speed[]` (every span of every clip, `protected` kept), `cuts[] {at, src_from_s,
+src_to_s, scene, reason}` — every planner trim (they are all cuts: idle, a held page load, a freeze, a busy wait, a hook
+step) plus any other jump of the time map, the reason taken from the run's timeline span covering most of the skipped
+capture time (`loading` + `scene_open`, `stalls` → frozen, `busy`, `hook` events, `idle`; `gap` without the timeline)
+—, `markers[] {frame, done?, scene, step?, i}`. Text is only under `untrusted`: caption kicker / text and marker names
+by index, step labels by key (given by the caller), page labels by "<scene>.<page>". No per-frame array: a 4-minute
+plan's model is ≈ 15 KB (its plan ≈ 60 KB), built in 0.1 ms. `placePins(model, threads, {run_id, edit})`: a thread of
+the shown take at its anchored step's first frame (else its marker, else its segment's start); on today's edit
+(`edit: 'scenario'`) a thread of another take at `step_now`; else listed beside the track (no position invented).
+
+**Preview plan** (editor `preview-plan.ts`, critique B4). `previewPlan(plan, {urlFor, forbid}) → PreviewPlan`: every
+`ds-asset:` URL swapped for the URL the player serves it at (`urlFor(asset, file)`: undefined → refused); `assets`,
+`display`, `notes`, `warnings`, `source.file`, `tracks[].file`, `music.file` removed; an absolute path left in a slot (a
+theme's own file in studio/media's `file`) blanked; a `hidden` URL entry (a local URL without a display one) keeps its
+frame, loses its address; refused (`PreviewPlanError`) — a `ds-asset:` URL the asset map does not serve, a `file:`
+URL, any string holding one of the `forbid` folders (project, run, theme, workspace, home). Part B serves it as
+plan.json under the player's capability; nothing in a JSON op.
+
+**Field edits** (core `field-edits.ts`, critique B10: L4.3's step operations untouched — their low-level text helpers
+are exported as one frozen object, `stepEditText`, and reused). `ScenarioEdit` gains `{kind: 'set_field', at, field,
+from?, to?}`: `at` = `{entry: 'top'}` or `{entry: 'scene' | 'card' | 'interstitial', id, guard}` (guard = stepGuard of
+the entry as written; a card / interstitial id is its `id`, else `card-<index>` / `interstitial-<index>`); `to` absent
+= the theme's default (the key removed). The allow-list (`FIELD_PATHS`) is the only set of paths it takes, every one an
+edit value (core filmedChanges): top `frame`, `intro`, `intro.component`, `intro.duration`, `outro`,
+`outro.component`, `outro.duration`, `caption_component`; scene `frame`, `transition`, `speed`; card `card.component`,
+`card.duration`, `card.transition`; interstitial `interstitial.component`, `interstitial.duration`. Values checked
+first (`fieldValueProblem`): a frame word or a layout id, a transition kind or a component id, speed in (0, 16],
+durations in (0, 600], a component id, the intro / outro switch takes `false` or nothing; strings through
+`editValueProblem` (no hidden character, one line). Applied only while the file holds `from` there (`true` for an intro
+/ outro written as a map) and the entry still has its guard (`stale` otherwise); a value written as a map (a transition
+with params) is not editable here. The editor: a scalar set through yaml's CST (quoting kept, double-quoted when the
+re-parse disagrees), a value replaced (a flow value; a block map written over by `intro: false` — the pair's lines
+rewritten), a pair added (a new top-level key just before `scenes:`, a new scene key just before `steps:`, both above
+the comment lines that belong to that key; else after the map's last pair; `, key: value` into a flow map; a missing
+parent as `{key: value}`), a pair removed with its comment lines (removing a nested map's last key removes the parent
+pair — `intro: {component: x}` → the theme's intro; a card keeps its `card` key). Each operation re-parsed against the
+whole file's intended value; the final line break state kept. Labels: "Set the layout of scene request to laptop",
+"Turned the intro off", "Reset the intro component to the theme's default".
+
+**Through `scenario_edit`** (engine `scenarios.editScenario`): the file-level rules of L4.3 unchanged (the hash as
+if_match, the blocker, no hidden character added, hooks / mocks frozen and — while there are any — vars / env, the
+validation with agent trust, the write lock); then a `set_field` that does not fit its use is refused (`invalid`, the
+same words the inspector shows: engine `field-options.ts` `fieldFitProblem` over components `componentFit` — kind,
+written slots shown, required slots given, params valid, a layout's pages, a user file taking no component; frame
+words against the scene's pages: `split` / `pip` only for a multi-page scene, a single-page style never for one, no
+multi-page frame for the whole video; a component written for another kit API); a `set_field` whose result changes
+the filmed part is refused (defence: the allow-list holds only edit values); the result's `change` is always `edit`.
+
+**`caption_component`** (scenario key; core types, zod, JSON Schema, `timelineVideo`, `replanEdit` — copied, named
+`caption_component` among the edit changes; filmed: no). The planner resolves a clip's caption `overrides.components.caption`
+→ `video.caption_component` (source `scenario`) → theme → built-in; an unknown id falls back with the resolver's
+warning. MCP and the CLI read it through the same planner (no new argument; MCP `render {overrides.components.caption}`
+still wins). Per-scene caption components and a general scenario `components:` map are BL-107 (critique B9).
+
+**`engines.kit`** (components manifest, the guard-rail). `engines: {kit: "1" | "^1"}` (`KIT_RANGE_RE`, absent = 1),
+`KIT_API_VERSION = 1`, `kitMajorOf`. A component of another major is a broken registry folder: a notice ("needs kit
+API 2 (engines.kit "^2"): this Demo Studio provides kit API 1"), `get` / `resolve` throw, `list` leaves it out — its uses
+fall back down the planner's chain (a warning) or render as `missing`. The 41 built-in manifests carry none (critique
+C4); BL-15 is the consumer.
+
+**Timeline view** (engine `timeline-view.ts`, `engine.timeline.view({project, scenario, run_id?})`, feature
+`timeline.view`). Plans the take as a render would (`planRenderRequest`, trust `mcp`, the L5.5 edit source) and returns
+`{view, plan, folders}` — the plan and folders only for the in-process caller (part B's player); `view` holds
+`run_id`, `theme`, `hash` (today's file: the next `scenario_edit`'s), `source` (`edit`, `scenario_changed`,
+`filmed_changes`, `edit_changes`, `edit_sha256`), `editable` (true, or why: no file, a file the Studio does not edit —
+its blocker —, a filmed change pending: "capture again to see edits on it", an edit from the run), `model` (the
+timeline model without its untrusted part), `pins`, `choices` (`video`: caption component and frame; per segment id —
+intro / outro: component, switch, duration; scene: frame, transition, speed; card: component, duration, transition;
+interstitial: component, duration — each `{at, field, current?, editable, options, range?}`, options the theme default
+first then the frame styles by name (Card, Browser, Laptop, Phone, Tablet, Full screen; split / pip for a multi-page
+scene) or the components of the kind, each `usable: true | {why}`), `capture` (codec, B-frames, keyframe interval over
+the first 30 s — ffprobe reading the packets from a descriptor opened without following a link; `slow_scrub` when
+keyframes are more than 1 s apart, critique B14), `runs` (the scenario's captures), `key`, `ms {planning, total}` and
+`untrusted` (captions, markers, step labels — from the text the plan came from —, page labels, the plan's warnings and
+notes, the last 50 threads' text and author). A trust refusal returns `{blocked: {problems, command}}`. Path-free and
+plan-free (a test scans it). **Memo (critique B13):** one view per key — sha256 of the file, its blocker, the run, its
+timeline.json size and mtime, the workspace components' folder and manifest mtimes — LRU 4, concurrent reads sharing one
+planning (`memo: true` on a hit); the registry reused while those mtimes hold; the music bed measured once per file
+(size, mtime); the capture probed once per file. A click's write and the scenario event it raises plan once; undo back
+to a version still memoised plans nothing.
+
+**Render jobs** (critique B5, B12). Submit writes `edit.yaml` (the scenario text the edit was planned from: editor
+`PlannedRun.editText`, its sha256 = the job's `edit_sha256`) into the job folder before job.json (`FileJobQueue.enqueue
+(input, {files})`: plain names only — `[a-z][a-z0-9-]*.(yaml|json|txt)`, never the queue's own files — mode 0600,
+exclusive create). The worker reads it without following a link (≤ 2 MB), refuses one whose sha256 is not the job's
+(conflict) and plans from it (`renderVideo` / `planRun {editText}` → core `scenarioSinceRun(…, nowText)`: the same parse,
+filmed check and trust gates); a job without one (queued by an older build) reads today's file as before. A render
+job's `review: {fps: 1 | 2}` (core `RenderJobInputSchema`, engine `RenderRequest.review`) reviews the render in the
+same job once it is written (`reviewInline`: the review job's own execution with the job's signal; progress phases
+`review:<stage>`): a cancel during it stops the review (`result.review: {state: 'cancelled'}`; the render, already written, stays this succeeded job's result — render_status must not call a finished render cancelled; the previous review comes back),
+another failure leaves the render succeeded with `result.review: {state: 'failed'}` and the reason under
+`untrusted.review_error`; on success `result.review {state, clean, counts, ms}`. A worker killed during it: the
+interrupted-render cleanup recovers the review folder too.
+
+**Player origin** (part B; ui `server/player.ts`, critiques B4, B6, B15, B16). The Studio process opens a second
+loopback listener, `http://127.0.0.1:<Q>` (`StudioServer.player`; `playerPort` option), after its own: it knows the
+Studio's port P, and the Studio's CSP then names Q in `frame-src` (engine `studioCsp(frameSrc)`, `securityHeaders(kind,
+{frameSrc})`; `FRAME_SRC_RE` accepts only `http://127.0.0.1:<port>`) — the one origin a Studio page may frame, which is
+also what stops the frame from navigating itself elsewhere (CSP has no `navigate-to`). Gate: engine `checkRequest` with
+the new `allowNullOrigin` (Host exactly 127.0.0.1 / localhost:Q → else 421; GET / HEAD → else 405; Origin absent,
+`null` or its own → else 403; no token: the capability is the proof). One **session capability** (32 random bytes) in
+every path, created with the server, replaced by `rotate()`, revoked by `close()` (every older URL 404); never logged
+(a failure logs `studio player: a <frame|media|other> request failed: <Error name>`), never in a Referer
+(`no-referrer` on every answer and the iframe). Routes, nothing else (no `/v1`, no op, no event):
+- `GET /s/<cap>/frame` — the frame document: no inline script; `boot.<hash>.js` (first, classic) then
+  `b.<hash>.js` (defer); `<meta name="ds-parent">` with `http://127.0.0.1:P http://localhost:P`; `Cache-Control:
+  no-store`; the frame CSP as a header: `default-src 'none'; script-src Q/s/<cap>/; style-src 'unsafe-inline';
+  img-src Q/m/<cap>/ data:; media-src Q/m/<cap>/ data:; font-src Q/m/<cap>/ data:; connect-src Q/m/<cap>/;
+  worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; manifest-src 'none'; base-uri 'none';
+  form-action 'none'; frame-ancestors http://127.0.0.1:P http://localhost:P; sandbox allow-scripts` (sandboxed even
+  opened on its own); `X-DNS-Prefetch-Control: off`, `nosniff`, `CORP: cross-origin` (the frame is an opaque origin).
+- `GET /s/<cap>/{boot,b}.<hash>.js` — the scripts, `private, max-age=86400, immutable` (the hash names the build).
+- `GET /m/<cap>/plan/<id>.json` — a preview plan (`publish`: editor `previewPlan` over the view's plan; `forbid` = the
+  project, run and theme folders plus the caller's — the Studio passes the workspace and the home folder), from
+  memory, LRU 16, ≤ 16 MB, id = its sha256.
+- `GET|HEAD /m/<cap>/<file id>/<name>` — a registered file. `register(file, within)` takes a file only when its real
+  path lies inside one of `within` (publish: the view's project, run and theme — the folders planRun's gate 2 put every
+  asset in), the path given is no link, and it opens (`O_NOFOLLOW | O_NONBLOCK`) as a regular file; ids are random
+  (16 bytes) and stable per (device, inode, size, mtime) for the session (critique B6: a switch keeps every media URL,
+  no `<video>` reloads), ≤ 4,096 per session. Each read reopens the real path without following a link and checks it
+  is still that regular file (device, inode, size, mtime) — swapped for a link, a FIFO or other bytes → 404; Range
+  (editor `parseRange`; 206 / 416), HEAD, ETag = the id, `private, max-age=86400, immutable`, `Content-Security-Policy:
+  default-src 'none'; sandbox` (a file opened as a document runs nothing).
+CORS (`Access-Control-Allow-Origin: *`, exposing Content-Length / Content-Range / Accept-Ranges) only on `/m/`: the
+plan, fonts and Lottie JSON are CORS fetches with `Origin: null`. The Studio port still never sends an
+`Access-Control-*` header. `StudioServer.crossSite` counts requests that came from another site (Sec-Fetch-Site
+cross-site / same-site, or Origin `null`) — the sandbox test asserts the frame sent none.
+
+**Preview bundle** (part B; ui `player/bundle-player.ts`, critiques B3, B11). esbuild in memory, one classic IIFE per
+script (`b.js` from `frame-main.tsx`, `boot.js` from `boot.ts`), minified, the Studio's browser targets. It holds the
+Remotion Player, DemoVideo (the render's own composition, through the generated `ds:composition`) and **every**
+component of the workspace registry plus the scaffolds (`playerComponents`), so a switch never rebuilds it. The
+generated `ds:modules` maps each id to `() => import(entry)` (and each scaffold by kind): esbuild makes each a lazily
+initialised module inside the one IIFE — nothing a component's module does runs before the frame loads it for a plan
+that uses it, and one that throws rejects its own import only. Import allow-list (an esbuild plugin): a component's
+import is checked with components `importProblem` (own folder, react, react/jsx-runtime, remotion, the kit — the rule
+`studio components` applies); its bare imports resolve from the ui package, never from its folder (a planted
+`node_modules/react` is ignored); each of its files is loaded by the plugin: real path inside the component's real
+folder (a link out of it is refused), read with core `readPlainFile` (no link, regular, ≤ 1 MB), `.ts .tsx .js .jsx
+.mjs .json` only. The frame, the composition and the kit import their own sources and react, react-dom, remotion,
+@remotion/player, @remotion/lottie, lottie-web, scheduler, @demo-studio/core / components (type-only in practice).
+A component that breaks a rule or does not compile is excluded and the build retried once without it (`excluded:
+[{id, why}]`, worded with its id, never its folder); its uses draw with their kind's scaffold. Memo (`PlayerBundles`):
+key = sha256 of the format, the Player's version, editor `bundleHash` of the components (composition, kit, every
+component folder by content, Remotion's version) and the frame's sources; rehashed on every frame document (an edited
+component file is a new bundle), at most 2 kept, concurrent asks share one build. `@remotion/player@4.0.534`,
+`remotion`, `@demo-studio/components` and `@demo-studio/editor` are now dependencies of `ui` (same versions as the
+lockfile already held; installed with `pnpm install --offline --frozen-lockfile`).
+
+**The frame** (part B; `player/boot.ts`, `player/frame-main.tsx`). `boot.js` deletes and pins to a non-configurable
+`undefined` RTCPeerConnection, webkitRTCPeerConnection, RTCDataChannel, RTCSessionDescription, RTCIceCandidate,
+RTCRtp{Sender,Receiver,Transceiver}, WebTransport and `navigator.sendBeacon` (WebRTC is the one channel the CSP does not
+cover; an about:blank child cannot bring it back: `frame-src 'none'`). No storage shim: storage throws in the opaque
+origin and the Player tolerates it. `frame-main` posts its `hello` from its own `load` event; on `load {plan_url,
+frame}` it refuses a plan URL that is not `Q/m/<cap>/plan/…` and a plan whose capture, page tracks or music are not
+under `Q/m/<cap>/`, loads the plan's component ids (editor `usedComponentIds`, shared with the render's
+`planComponentIds`) — a missing or throwing one is `missing` (`loaded.missing` + a warning; its kind's scaffold draws)
+— then mounts the Player (`initiallyMuted`, no controls, no click / space / double-click handling, key = the load).
+`settled {frame}` once paused at that frame with no delayRender handle left, every `<video>` at readyState ≥ 2 and not
+seeking, `document.fonts.status === 'loaded'` and every image complete, for two polls (30 ms) in a row — the Player
+itself waits for nothing (critique B8). Preview mode (editor `remotion/preview-mode.ts`, `PreviewContext`, set only by
+the frame): a theme font that fails is a `warning` ("a theme font could not be loaded (<families>): the preview uses a
+fallback font") and the text draws in the fallback; a render still stops (cancelRender). Errors and warnings: at most 8
+per load, 300 characters each.
+
+**Protocol v1** (part B; `player/protocol.ts`, `player/parent.ts`, critique B2). The frame opens a MessageChannel and
+posts one `hello {bundle}` with its port to the parent — to `location.ancestorOrigins[0]` when it is one of the
+`ds-parent` origins, else to each of them (one channel each: only the matching one delivers). The page
+(`connectPreview(iframe, {onHello, onMessage, onStop, budget?})`) listens on `window` for exactly one message from the
+frame: a valid `hello` with a port connects and the window listener is removed; anything else from the frame stops the
+preview; other windows are ignored; the frame's `load` event re-arms it (a reloaded frame's new hello replaces the
+port). Over the port every message must parse exactly (`parseFrameMessage`: exact keys, whole frames within the last
+`loaded.frames`, text ≤ 300, lists ≤ 64) and fit the budget (240 messages in any second), else the preview stops: port
+closed, iframe removed, `onStop` with "the preview stopped: a component sent too many messages" / "…it sent a message
+the Studio does not take". Page → frame: `load {plan_url, frame}`, `seek`, `play`, `pause`, `rate {0.5|1|2}`, `mute
+{muted}`, `clear`. Frame → page: `loaded {frames, missing, warnings}`, `frame` (at most one per animation frame),
+`state {playing, buffering, muted}` (first on mount: muted — the page shows "Unmute"), `settled`, `ended`, `warning`,
+`error`. `PREVIEW_FRAME_ATTRS`: `sandbox="allow-scripts"`, `referrerpolicy="no-referrer"`, `allow="autoplay"`,
+`aria-hidden`, `tabindex=-1` (part C's PreviewFrame uses the same).
+
+**Timeline screen** (part C; ui `app/TimelineScreen.tsx`, `TimelineTracks.tsx`, `PreviewFrame.tsx`, `timeline-words.ts`,
+op `timeline_view` in `server/ops.ts`). Route `#/p/<slug>/s/<name>/timeline[/<run>[/<step key>]]` (`hrefTo` drops a
+step without its run: the key is the run's own); reached from the scenario screen's **Open timeline** (R-UI-15; the
+newest capture that succeeded with its video, else the button disabled with why), the Run screen's outcome of a
+succeeded capture (**Open its timeline**) and the step inspector's **Show in timeline** (a step bound to a capture: its
+run key). **The op** `timeline_view {project, name, run?}` (strict; not an MCP tool): no capture → 404 in the Studio's
+words (the planner's own error names the runs folder); engine `timeline.view`; a trust refusal → `{blocked}` with the
+command and no URL; else the view plus `frame_url` / `plan_url` from `player.publish(result, {forbid: [workspace,
+home]})` — the plan, its folders and every path stay in the process (a test scans the answer: no `plan` / `folders`
+key, no workspace or home path, no `ds-asset:`, no product URL); a publish failure keeps the view with `preview_error`.
+The engine memo's key gained the scenario's comment folder (size, mtime): a new or answered thread is new pins. **The
+screen** reads it once per route, again on this scenario's file / runs events and `resync` (a re-read of an unchanged
+take is a memo hit and the same `plan_url`: nothing reloads); a new run id remounts the screen (a new playhead), a new
+`plan_url` loads into the same frame. **PreviewFrame** — the app's one `<iframe>`: literal `sandbox="allow-scripts"
+referrerPolicy="no-referrer" allow="autoplay" aria-hidden="true" tabIndex={-1}` (= `PREVIEW_FRAME_ATTRS`, both checked
+by the source lint), `pointer-events: none`; first rendered without `src`, `connectPreview` attached in a layout effect,
+then `src={frameSrc}` set (`frameSrc = armed ? url : undefined`, url = `previewUrls(frame_url, plan_url)`: the player's
+frame route and a plan of the same origin and capability, else no preview); on each `hello` it sends `load {plan_url,
+frame: the playhead}`, on each new `plan_url` `load` again; it sits in a wrapper the page unmounts when parent.ts has
+removed a stopped frame (the reason shown, **Restart the preview**). **Playhead and preview:** a seek sets the
+playhead at once and posts at most one `seek` per animation frame (a pending one is flushed before `play` / `pause`,
+which it would otherwise undo); the preview region says *Loading the preview…* (`aria-busy`) until the codec answer and
+then a `settled` for the frame asked (after a pause: the first `settled`, whose frame becomes the playhead); `frame`
+messages move the playhead only while playing (late ones from a scrub are ignored); `state` gives Play / Pause, the
+buffering note and **Unmute** / **Mute** — the sound asked is re-sent after every `loaded` (a load remounts the Player
+muted); `warning` / `error` and `loaded.missing` are listed as text a component may have written. **Codec** (critique
+B14, Q5): `canPlay` asks `MediaSource.isTypeSupported` (else Media Capabilities) for the capture's codec
+(`avc1.640028` for H.264, `vp09.00.10.08`, `av01.0.04M.08`, `hvc1…`; an unknown codec or no way to ask is playable); no →
+"This browser cannot play the take's H.264 video: open the Studio in Chrome, Safari or Firefox. The tracks still work."
+in place of the frame (Play, Unmute and Speed disabled; the tracks and scrubber still move the playhead); the facts line
+shows the codec, the keyframe spacing and B-frames, and `slow_scrub` is an info note. **Tracks:** a label column
+(sticky) and one lane per track, every item absolutely placed by percentage of the frames (the zoomed level is the same
+layout wider: `max(2, seconds / 10)` screens, ≤ 50), each a button with its words as accessible name (kind, label,
+times) that seeks to its start: segments (scene id / kind, the component's short id, a shaded transition, missing ones
+striped), captions (kicker — text), steps (1-based; a scene's still dashed), camera (zoom, its ease in hatched), speed
+(spans; `held` for a transition's held frame; cuts ✂ at their frame with the reason's words), markers ◆, comment pins
+(● open / ○ resolved; status, time, author and text on hover / focus; replying is L4.6) and "made on another
+take" below. The scrubber is a native range (step 1 frame, `aria-valuetext` "0:00.07 · scene a · step 1
+hold"), as wide as the lanes plus a thumb so its thumb's centre meets the playhead line. **Keys** (`keyAction`): Space,
+← / →, Shift+← / →, Home / End, [ / ]; none with Alt / Ctrl / ⌘, while typing (input, select, text area, editable) or in
+a radio group; on the scrubber its own arrows / Home / End (no double step), Space the screen's; on a button or link
+Space is its own. **Preview fidelity:** in preview mode DemoVideo's capture asks for the middle of its source frame
+(`PREVIEW_FRAME_CENTRE` = 0.5: a browser keeps a frame's timestamp in microseconds, rounded — asking for exactly n / fps
+showed frame n − 1 in Chromium at a 2× span); renders unchanged. Premounting the next clip and
+`acceptableTimeShiftInSeconds` were not needed: in the installed Chrome a real 45 s capture played at 29.6 output
+frames / s and every seek settled in ≈ 0.1 s (below).
+
+**Measured (part C, this Mac).** Chromium e2e (VP9 copy of a self-numbering synthetic take: ten blocks per frame give
+the source frame index; a scene at 2× with an idle cut, a card, a zoom): 10 frames read back exactly through a
+screenshot of the iframe's region after clicks on the tracks, arrows, Shift+arrow, End, a scrubber drag across the card,
+the scrubber's own arrow and a play / pause (output → source 0→6, 7→13, 37→43, 157→192, 158→194, 26→32, 179→236, 2→8,
+23→29); the libx264 H.264 take shows the message, no frame. The installed Google Chrome (gated
+`DEMO_STUDIO_TEST_CHROME=1`, temporary profile): the VideoToolbox take (keyframes every 0.4 s) and the libx264 one
+(7.97 s, B-frames) both play — 8 seeks each exact, seek → settled median 107–109 ms, p95 109–111 ms, max ≤ 212 ms
+(the settle check itself is two 30 ms polls), playback 29.4–29.5 output frames / s of 30; a real capture of the fixture
+(`highlights`, VideoToolbox, 1,364 frames, 10 segments; `DEMO_STUDIO_TEST_REAL`): timeline view 77–205 ms, the first
+frame settled 320 ms after the tracks drew, 8 seeks median 106–107 ms (max 223 ms), playback 29.6 frames / s. On these
+short 640×360 / 1080p takes the long GOP costs no visible seek time; the note stays (critique B14: an 8-s GOP on a long
+1080p take decodes up to 8 s per seek).
+
+**Inspector** (part D; ui `app/TimelineInspector.tsx`, `field-switch.ts`; the timeline screen and tracks). Beside the
+preview (under it below 1,040 px): the video's switches (`choices.video`: the caption component, every scene's layout)
+and the selected segment's (`choices.segments[<id>]`: a scene's layout, transition, speed; a card's component, duration,
+transition; a waiting screen's component, duration; intro / outro: the switch, component, duration). **Selecting:** a
+click on the segments track (`aria-pressed`) or [ / ] (the segment whose first frame the playhead lands on); a segment
+gone from a new version unselects. **Radio groups:** each switch is a `fieldset` with a `role="radiogroup"` of
+`role="radio"` buttons (`aria-checked`); arrows / Home / End move the focus only and Space / Enter picks — a pick
+writes, so never one write per arrow (manual activation); roving `tabindex`; the timeline's keys stay out
+(`keyAction`'s radio-group rule). Options are the view's: `value: null` is the theme's default ("As the video (Full
+screen)" for a scene's layout when the video writes one), sent as `set_field` **without `to`** (the key removed — the
+core label "Reset … to the theme's default"); an option the use cannot take (critique B7) is `aria-disabled`, dashed,
+with the engine's reason on it ("studio/card-before-after needs slots.before"), focusable, and a click does nothing
+(the server refuses it too: 400). Speeds: Normal (1×), 1.25×, 1.5×, 2× and a custom value; durations a number field;
+the intro / outro switch Theme default / Off (+ "On, as written", not pickable, when the file writes a map); a value
+not offered shows as "… (as written)". A switch the file writes with params (`c.editable.why`) is disabled with why.
+**Writing** (`useSwitchEditor`, L4.3's `useStepEditor` for `set_field`): `scenario_edit {hash: view.hash, edit:
+{kind: 'set_field', at, field, from: current?, to?}}`; from the send until the view with the answer's hash lands, picks
+are ignored (`busy`); then the screen's `reload` reads `timeline_view` again, the new `plan_url` loads into the same
+frame and the preview says *Loading the preview…* until `settled` at the playhead, which does not move (the plan-change
+effect is a layout effect: no paint shows the new view as already settled). The live region (polite) says "Set the
+layout of scene a to Laptop. Saved: ⌘Z undoes. Only the edit changed: a render of this take shows it, no new capture."
+(L5.5's rule: every `set_field` path is an edit value) plus L4.3's warning count. **The op:** `scenario_edit`'s strict
+schema gained `set_field` — `at` `{entry: 'top'}` or `{entry: scene | card | interstitial, id (slug), guard (16 hex)}`,
+`field` one of core `FIELD_PATHS` **and** of that entry's list (a refinement: before any read), `from` / `to` a string
+≤ 200, a finite number or a boolean, no other key — a malformed switch is a 400 even for a scenario that does not exist.
+**Undo / redo** (⌘Z / Ctrl+Z, Shift+⌘Z / Ctrl+Y, the buttons; not while typing in a field): L4.3's `EditHistory` —
+`restore` of the exact earlier bytes, which the server checks against their sha256 and against the versions the Studio
+read or wrote. The bytes come from `timeline_view`'s `text`: the engine gives the file's text **beside** the view while
+switches can be written (like the plan, so the view itself keeps text only under `untrusted`), the op adds it to its
+answer (the same text `scenario_blocks` gives the page). A version this screen did not make clears the history, with a
+notice. **409** (another writer changed the file): "Your switch (Set the layout of scene a to Laptop) was not applied.
+The timeline now shows the new version." — **Apply it to the new version** sends the same switch found again by (entry,
+id, field) with the new guard and the **same `from`** (a value the other writer changed is refused as stale — "the
+layout of scene a changed meanwhile (it is now "phone")" — never overwritten; off with why when the new version takes no
+switch there) and **Leave it**. The undo buttons, the live region and the notices stay on top of the inspector while its
+switches scroll (sticky). A filmed change pending or a file the Studio does not edit: every switch disabled with the
+view's why (part C's notice above the preview says it once).
+
+**Measured (part D, this Mac).** Chromium e2e on the self-numbering VP9 take: from the click to the preview settled on
+the new version (the view's hash changed and the frame asked settled), measured in the page with `requestAnimationFrame`:
+layout → laptop 98–100 ms, caption component 97–99 ms, speed 97–103 ms, transition 98–100 ms, default speed 99 ms — the
+write and the view take ≈ 10 ms, the rest is the frame's own settle check (two 30 ms polls after the load). Laptop: the
+preview's corner went from the capture's grey (21, 21, 21) to the theme's background (147, 144, 141) and the numbered
+blocks no longer read; undo gave back the original bytes (`Buffer.compare` 0) and exactly the plan's source frame again.
+The caption component (studio/caption-below → studio/caption-overlay): the caption band changed (mean difference 10.9 /
+255) while the capture's blocks still read exactly.
+
+**Render, queue, review** (part E, R-UI-26; ui `server/ops.ts` `renderOps`, `app/Renders.tsx`, `render-words.ts`;
+engine `renders.ofScenario`, `reviews.image`). **`scenario_render {project, name, run, expect_edit_sha256}`** — strict,
+nothing else: no theme, override, variant, review setting or path (400); it calls `renders.submit` with `review: {fps:
+1}` (the review inline, critique B12) and the snapshot of B5, the theme and every option coming from the files.
+`expect_edit_sha256` (the view's `hash`; engine `RenderRequest.expect_edit_sha256`, also open to MCP callers) is checked
+after planning and **before** the id is reserved: the file the edit was planned from — today's file when the edit comes
+from the run — must be the version shown, else 409 "scenarios/<name> changed since it was shown: look at the timeline
+again, then render" with nothing reserved or queued (the screen reads the view again). While a render of the scenario is
+queued or running another is a 409 naming it (`details.render_id`, `job`); submits of one scenario run one at a time in
+the server, so two clicks at once give one job. **`scenario_renders {project, name}`** — the engine's path-free list: the
+unfinished render jobs, oldest first (queued with `queue {ahead, running {kind, phase, fraction}}`, running with phase,
+fraction, eta, `reviewing` while the phase is `review:*`, `cancel_requested`, the job's `edit_sha256`); the records
+renders/<name>-vN[-variant].json (named by the file first: other scenarios' records are not read; O_NOFOLLOW, ≤ 16 MB),
+newest first, at most 20, each with its review's verdict (`none | queued | running | clean | warnings | errors | failed |
+cancelled` — from a review job, the render job still reviewing, its inline `result.review`, or review/<id>/report.json
+written after the render, counts only); and `last_failed` (the newest render job when it failed, was cancelled or
+interrupted after the newest record), its message under `untrusted`. **`render_cancel {project, job}`** — a `render` or
+`review` job of that project only (403 otherwise: job_cancel stays out of the Studio); a cancel during the inline review
+keeps the render. **`render_review {project, render_id}`** — `reviews.get` reduced: verdict, counts, findings (severity,
+code, `at`), durations, the diff's summary, the contact sheets by file name (`image`, `label`; REVIEW_IMAGE_RE
+`sheet_…jpg`), the findings' messages and a failed review's message under `untrusted` — no `dir`, `files`, filmed
+environment or path. **`review_image {project, render_id, image}`** (critique B16) — a NAME of review/<id>/ (400 for
+anything else), the folder inside the project once links are resolved, the file opened with O_NOFOLLOW, regular, ≤ 8 MB,
+starting `FF D8 FF`; scaled in memory (sharp, review's `./thumbs` entry) to ≤ 1600 px and ≤ 2,000,000 base64 characters
+(else 1100 px, q 70, else refused). **The app:** the timeline header's Render bar (Render — "Render the take as
+captured" when the edit comes from the run — off while a render of the scenario is unfinished, with why; the newest job
+in one live line with a `<progress>`; else "Latest: v3 · 2 warnings · from this version"); the Renders card under the
+tracks and on the scenario screen (Render on the newest finished capture and the file's hash): the queue with Cancel
+("Stop the review" while it reviews), the failure, the renders (5, then "Show all"), each "from this version" (same run,
+same edit sha256, same theme), "from an earlier version", "the take as captured" or "of another capture", and its review
+badge; **Show the review** (and by itself once a render this tab queued is reviewed): the verdict, the findings (message
+through `Txt`; **Show in the preview** seeks the timeline only when the render is of the version shown), the contact
+sheets one after another through Thumb.tsx's one `<img>` (`Jpeg`, now shared: `jpegDataUrl(base64, max)` with `max` one
+of THUMB_DATA_MAX / SHEET_DATA_MAX = 2,000,000 — a type and a lint rule: every `<Jpeg` names one literally), larger on
+click. **Events:** the Live poll's `workspace` event gains `renders` (the projects whose renders/ folder changed); the
+list reads again for a job it shows, a job id the tab never saw, its project's `renders`, or a resync — at most once a
+second (a running render's progress: one `scenario_renders` a second; a capture's progress: nothing).
+
+**Measured (part E, this Mac).** Engine, through the worker in-process: submit + render (half scale, a 2 s synthetic take)
++ inline review at 1 fps: 8.4 s with the shared bundle cache warm. Chromium e2e (a 2 s VP9 take, 1920×1080, the worker run
+in the test): from the worker's start to the review's verdict on screen 4.0–4.6 s; states seen in the page: queued,
+running; the contact sheet decoded (2 tiles, 1 fps).
+
+**Measured (part B, this Mac).** Go / no-go (critique B17, before the server): the real bundle — Player, DemoVideo, the
+41 built-ins, 8 scaffolds, Lottie — on the fixture's quote timeline plus a Lottie card (a VP9 copy of a synthetic
+capture), in Playwright's Chromium 141 under the frame CSP in an opaque `sandbox="allow-scripts"` frame: intro, clip,
+Lottie card, card, interstitial and outro drawn; the editorial fonts loaded through FontFace CORS with `Origin: null`;
+the Lottie JSON fetched under `connect-src`; 0 CSP violations, 0 errors; plan.json 18.7 KB. The real bundle: 1,043,579
+bytes (boot.js 418), 128 ms to build, 14 ms to re-hash on a memo hit; 49 lazy imports. The sandbox e2e: the positive
+control's allowed fetch read the 62,284-byte font; 36 channels from the component and 3 navigations blocked; 0 hits on a third loopback port,
+0 STUN packets, 0 cross-site requests on the Studio, 0 ops; under a 100,000-message flood on `window` and then on a
+stolen port, the page's 20 ms timer stayed under 200 ms and the preview stopped.
+
+**Measured (part A, this Mac, load ≈ 2–2.5).** `timeline.view` on a synthetic 3-segment take: 62–65 ms cold, 1.9 ms
+from the memo; a switch (the `set_field` write — the registry memoised too — and the view the screen reads after it)
+median 11 ms, p95 17 ms over 10; the fixture's `quote` timeline: 95–99 ms cold (planning 68–72 ms), 7.7–8.7 ms from the
+memo, view 17 KB (plan 22 KB); a synthetic 4-minute take (8 scenes, 96 steps, 7,080 frames): 67–69 ms cold, a switch
+37–39 ms, view 25 KB, plan 58 KB. The budget of "shows in the preview within a second" is therefore the preview's own
+part (parts B–C): the write plus the view stay under 100 ms (the tests allow 1.5 s / 3 s under load).
+
+**Acceptance (part F, this Mac, 2026-10-27).** The built `studio ui` (`--json --no-open`) on a scratch copy of the
+fixture workspace (its own fixture on 4471–4474, a scratch `DEMO_STUDIO_HOME`), driven in the installed Google Chrome
+156 (Playwright `channel: 'chrome'`, a temporary profile, 1600×1000 at device scale 2), the worker spawned by the
+Studio itself (`started by the Studio`): Capture of `highlights` from the scenario screen — run
+`20261027-045015-highlights`, 15.9 s; **Open timeline**: tracks 230 ms after the click (`timeline_view` 141 ms on the
+wire), the first frame settled 312 ms after the tracks; 1,365 frames, 10 segments, H.264 (VideoToolbox, keyframes every
+0.4 s, no B-frames), no "cannot play". Ten scrubber jumps across the take: seek → settled median 109 ms, p95 114 ms,
+max 160 ms; ten one-frame steps: median 108 ms, max 112 ms. Playback 4 s from the start: 119 frames, 29.7 frames / s of
+30, no warning. Scene `quotes` → **Laptop**: one line (`    frame: laptop`), the preview settled on it 132 ms after the
+click (mean absolute difference of the preview 22.4 / 255 against the frame before: the bezel and the theme around it);
+**Caption band** (`caption_component: studio/caption-overlay`, one more line): 115 ms, the caption drawn as a band over
+the capture (difference 5.6); ⌘Z twice: the file `cmp`-identical to the original, the preview pixel-identical to the
+frame before the switches. **Render** from the timeline: queued, running ("preparing the components 2 %"), reviewing,
+then v1 with its verdict 45.7 s after the click (a 45.5 s 1920×1080 render, 5.0 MB): 3 warnings (`card-too-short` on
+figure, testimonial, cta — the fixture's own short cards), 1 note (`video-length`), "from this version"; the contact
+sheet decoded (1600 px wide), larger on click. 0 CSP violations, 0 console errors. The default caption of the editorial
+theme is already `studio/caption-below`: choosing **Caption below** writes a line and changes no pixel (correct: the
+inspector's "Theme default" names no component, BL-107's previews would show it).
+
+**Preview versus render (part F, R-UI-25).** Same plan (the file undone to the take's bytes), same frames: the preview
+cut out of a device-scale-2 screenshot of the frame (1564×880; 1.5 % cropped on each side: the rounded corners), against `renderStills` of the
+plan (1920×1080 PNG, scaled down by area) and the frame of the encoded render `highlights-v1.mp4`. Mean absolute
+difference (0–255) / pixels whose largest channel differs by more than 48:
+
+| frame | what | preview vs renderStill | preview vs render | renderStill vs render |
+|---|---|---|---|---|
+| 48 | intro | 1.11 / 0.69 % | 1.50 / 0.70 % | 0.66 / 0 % |
+| 137 | clip (coffees, card layout) | 7.01 / 3.06 % | 6.97 / 3.03 % | 0.96 / 0 % |
+| 295 | caption (quotes) | 4.22 / 1.32 % | 3.93 / 1.32 % | 0.75 / 0 % |
+| 561 | card (key figure, counted up) | 1.06 / 0.55 % | 1.46 / 0.56 % | 0.67 / 0 % |
+| 776 | card (features) | 1.83 / 1.14 % | 2.24 / 1.13 % | 0.71 / 0 % |
+| 1320 | outro | 0.60 / 0.20 % | 0.99 / 0.19 % | 0.66 / 0 % |
+
+Looked at (amplified difference pictures): the same source frame of the capture (the cursor at the same place), the
+same layout, caption, card text, fonts and animation step everywhere; the differences outside the capture are edges
+only — text antialiasing at the preview's scale (the Player draws the 1920×1080 composition scaled by CSS, the still is
+rasterised at full size then scaled) and a registration of about one device pixel (the frame sits at a fractional CSS
+position). Inside the capture there is one real difference: **its colours** — the preview draws the capture ≈ 3–4
+levels brighter on near-white (247 245 239 against 243 242 235) and ≈ 10 on mid-tones (152 112 75 against 142 102 66),
+while the theme's background around it differs by ≤ 2. The two decode the same bt709 limited-range H.264 (no transfer
+or primaries tag) through different paths — Chrome's `<video>` in the preview, the render's frame extraction — and the
+preview's near-white is the closer to the page's own CSS colour (#f7f3ee = 247 243 238). Not a plan difference; BL-108.
+
+**Review fixes (after parts A–F; two independent reviews).** Isolation (review A):
+- *Chrome's prerender ignores a frame's CSP and sandbox* (installed Chrome and Playwright's `chromium` channel; the
+  headless shell sends nothing): a `<link rel="prerender">` made in the frame — in its head or body, by
+  insertAdjacentHTML, setAttribute or relList — had Chrome fetch an arbitrary URL (the frame's own capability path
+  in the query) and resolve an arbitrary host name. Three layers now: (a) `boot.ts` refuses the token everywhere an
+  element gets a `rel` (the property, DOMTokenList add / toggle / replace / value, setAttribute(NS),
+  setAttributeNode(NS), NamedNodeMap.setNamedItem(NS), an Attr's value / nodeValue / textContent — originals and the
+  built-ins the checks use captured first, values converted once, every pin non-configurable), removes XSLTProcessor,
+  a document-typed XMLHttpRequest, execCommand('insertHTML'), setHTML / parseHTML, and refuses to create elements that
+  make a child browsing context (iframe, frame, object, embed, fencedframe, portal) or to define custom elements;
+  (b) the frame CSP requires Trusted Types with no policy (`require-trusted-types-for 'script'; trusted-types 'none'`):
+  innerHTML, insertAdjacentHTML, document.write, DOMParser, createContextualFragment, srcdoc, a script's src and a
+  Worker's URL throw — the Player, DemoVideo, every built-in and Lottie use none of them (the sandbox e2e still draws
+  them, 0 errors); (c) **structural**: a workspace component (anything not built in) runs in the preview only after the
+  person allowed it in this Studio session — `preview_allow {id, hash}` (the timeline's *Allow in the preview* button,
+  naming the component and its folder content hash, editor `componentFolderHash`); the allow-list (ui
+  `server/preview-allow.ts`) is in the Studio server's memory only, keyed by content, cleared on restart, never
+  persisted, reached by no MCP tool or engine call. Until then the component is `held`: not in the frame's bundle at
+  all (`PlayerBundles.get(registry, allowed)`), its uses drawn with their kind's stand-in, the timeline naming it
+  (`timeline_view.preview_held`). Built-in components always run.
+- *A child frame* (srcdoc, about:blank) was a fresh realm with none of boot.js's pins (review A L2): Trusted Types close
+  srcdoc, boot.js refuses frame elements, and the bundle starts (renders, says hello) only in the frame document — its
+  capability path, a direct child of the Studio page.
+- *One capability for the whole Studio, never rotated* (L3): the player origin now keeps a capability per scope — the
+  Studio scopes by project (`publish(…, {scope: project})`), so a page of one project never holds URLs of another's
+  files. A timeline page holds a lease (`timeline_view {lease}`) and gives it back when it leaves (`timeline_leave`);
+  the last lease of a project leaving releases its scope (every URL 404; the next view gets a new capability); leases
+  of tabs closed without leaving lapse after two hours. `/m/` answers CORS with `Access-Control-Allow-Origin: null`
+  (the frame's opaque origin, not `*`): fonts, the plan and Lottie JSON still load.
+- *Hard links* (N4) passed every path check: the player origin refuses a file with more than one name (at registration
+  and at every read), as do `review_image` and planRun's trust gate 2.
+
+Correctness (review B):
+- *"From this version"* (H1) compared the file, the capture and the theme name only: a `studio render --no-intro
+  --scale 0.25` of the same file was labelled "this version" and its findings seeked the wrong segments. The render
+  list now carries each render's plan signature (`planSignature`: the record's plan without notes and warnings,
+  canonical JSON, sha256) and theme folder content hash (`template_sha256`, written in the render record:
+  editor `theme-hash.ts`), the timeline view carries its own (`plan_sha256`, `theme_sha256`), and on the timeline only
+  equal ones are "this version" (*with other options* / *with other theme or project settings* otherwise). The Studio
+  render's real plan equals the view's (render e2e). The scenario screen (no plan shown) also requires landscape and
+  no option beyond the files'.
+- *The intro / outro switch* (H2) deleted a tagline or an image with the map: core refuses `intro` / `outro` switches
+  over a map holding more than a component and a duration, and the inspector shows that switch disabled with why.
+- *The view memo* (H3 / A N6) missed theme and project files: project.yaml joins the key, and on every hit the theme
+  folder's files (names, sizes, mtimes) and every file the plan serves are re-stat'ed — a change plans again.
+- *Cut reasons* (M4): the planner records why it cut on each trim (`TrimSpan.reason`); for other time-map jumps a page
+  load, a frozen screen, a busy wait or a hook covering any of the skipped time wins over idle.
+- *Comment pins* (M5): a thread made on a render whose plan and theme match the shown version is pinned at its own
+  frame; any other at its step, marker or segment, as before.
+- *A failed render* (M6) showed a raw stack: its message is its first line with every absolute path cut to its file
+  name (`failureWords`), in the Renders card and the Render bar (which no longer shows an older render's "Latest").
+- Smaller: a picked segment lands after the transition into it; the video's layout offers split / pip when a scene
+  films several pages and says when a one-page layout would change none; a filmed change names steps 1-based; "0.0 s
+  skipped" reads "under 0.1 s"; the notice of a take without a snapshot says "Switches are off for this take"; the
+  review panel shows scene sheets, key frames and the diff too (at most 24 images); the app bundle budget is 430 KB
+  (≈ 415 KB).
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

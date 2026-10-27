@@ -139,6 +139,17 @@ const replan = (now: string, timeline = timelineOf()) =>
   replanEdit({ timeline, now: parse(now), then: parse(BASE), project: { frame: 'card', template: 'default' }, ctx: { pages: { admin: 'https://admin.example.com' }, vars: { company: 'Acme Bakery', greeting: 'Hi' }, run: { id: 'r', dir: '/r' }, hooks: {} } });
 
 describe('replanEdit (L5.5, R-FLD-01): today\'s edit on the take\'s measurements', () => {
+  it('the caption component (L4.5) comes from today: set, changed and removed, named among the changes', () => {
+    const set = replan(BASE.replace('scenes:\n', 'caption_component: studio/caption-overlay\nscenes:\n'));
+    expect(set.changes).toEqual(['caption_component']);
+    expect(set.timeline.video?.caption_component).toBe('studio/caption-overlay');
+    const tl = timelineOf();
+    tl.video = { ...tl.video, caption_component: 'studio/caption-overlay' };
+    const removed = replan(BASE, tl);
+    expect(removed.changes).toEqual([]);
+    expect(removed.timeline.video).not.toHaveProperty('caption_component');
+  });
+
   it('nothing changed: the timeline is the same', () => {
     const r = replan(BASE);
     expect(r.changes).toEqual([]);

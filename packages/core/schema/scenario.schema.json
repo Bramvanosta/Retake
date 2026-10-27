@@ -320,6 +320,11 @@
       "additionalProperties": false,
       "description": "The length this video aims at (L5.5): the review's video-length rule uses it instead of the reference 60–120 s."
     },
+    "caption_component": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*\\/[a-z0-9][a-z0-9-]*$",
+      "description": "Caption component of the whole video (default: the theme's), e.g. studio/caption-overlay; a render's overrides.components.caption wins over it."
+    },
     "clock": {
       "anyOf": [
         {

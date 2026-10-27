@@ -36,7 +36,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~14 min on the Mac; run `pnpm build` first; 51 skip by default: 35 slow (incl. 3 Claude CLI), 7 Postgres, 7 Docker, 1 old Node, 1 headed)
+pnpm test                            # = vitest run, full suite (~14 min on the Mac; run `pnpm build` first; 53 skip by default: 35 slow (incl. 3 Claude CLI), 2 installed Chrome, 7 Postgres, 7 Docker, 1 old Node, 1 headed)
 pnpm test:pg                         # the 7 Postgres tests on a throwaway demo-studio-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
 pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin and phase-3 acceptances (~12 min)
 DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)

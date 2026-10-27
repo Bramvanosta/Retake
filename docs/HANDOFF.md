@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-27, end of lot **L4.4 (Studio Run screen)**, after the field-feedback group L5.5 – L5.8 —
-phases 1–3 are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.4
-done). **Next: L4.5 (edit / verify timeline, Remotion Player) — the user asked to chain it.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-27, end of lot **L4.5 (edit / verify timeline, Remotion Player)** — phases 1–3 are done (phase 3
+pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.5 done). **Next: L4.6 (frame
+comments UI), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,25 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-107); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-111); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.4)
+## State (after L4.5)
+- **L4.5 done (2026-10-27)**: the Studio's timeline (`#/p/<slug>/s/<name>/timeline[/<run>[/<step>]]`): the segment
+  track and the caption / steps / camera / speed / marker / comment tracks from the EditPlan, a playhead and scrubber
+  driving a live preview — the Remotion Player in a sandboxed iframe on a second loopback origin (session capability per
+  project, strict CSP with Trusted Types, WebRTC removed, a MessageChannel protocol with a flood budget; workspace
+  components run in the preview only once the person allows them in this Studio session) — seeking exact (≈ 109 ms) and
+  playing ≈ 30 fps in Chrome on H.264 (a browser without H.264 gets a message); a segment inspector switching layout,
+  caption component, speed and transition in one click (a verified `set_field` edit, ≈ 100–130 ms to a settled preview,
+  ⌘Z to the exact bytes); Render from the timeline with the review inline (verdict, report, contact sheets in the UI).
+  The preview matches the render (mean difference 0.6–7 / 255; captured colours read slightly brighter by the browser's
+  decoder: BL-108). Tests on the Mac: **3289 — 3229 pass, 56 skipped, 4 failures in the one full run** (3 tests expecting
+  the old cut shape — updated; a real layout regression on the scenario screen — fixed); `pnpm test:slow` 58/58.
+  Requirements: 647 tracked — 593 done, 25 partial, 21 todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 13f
+  (Safari, Firefox; WebKit keeps sandboxed frames in-process).
 - **L4.4 done (2026-10-27)**: the Studio's Run screen (`#/p/<slug>/s/<name>/run[/<id>]`): the live picture of the page
   the run acts on (its own CDP screencast in the worker, ≤ 10 fps keeping the last frame, a loopback channel behind the
   engine gate, relayed by the Studio only while a tab watches; never on disk; on for dry runs, off by default for
@@ -1195,6 +1208,20 @@ sandbox, a hook step and compact results through Claude Code).
   mutation-checked tests (99 mutations over the lot). Files: runner-web `live-preview.ts`, `pause.ts`, timeline
   CaptureClock; engine `jobs/live-channel.ts`, `runs.pause`, `auth.forScenario`; ui `server/run-live.ts`,
   `RunScreen.tsx`, `LiveView.tsx`, `Sessions.tsx`, `run-live.ts`, `sse.ts`. Cuts: BL-105, BL-106. No new dependency.
+- **L4.5 done** (timeline; R-UI-15, R-UI-23/24/25/26 done). Planned with probes (esbuild bundles the Player and every
+  component in ≈ 0.5 s; a `sandbox="allow-scripts"` frame on a second origin blocks a hostile component's network),
+  criticised (a postMessage flood froze the Studio tab; one throwing component killed the preview; a switch killed a
+  queued render; the plan carried product text into JSON ops; the sandbox test had no positive control), built in six
+  parts in a worktree (model + `caption_component` + `set_field` + render snapshot + inline review; player origin and
+  sandbox after a go / no-go on the real bundle; timeline screen; inspector and switching; render / queue / review;
+  acceptance in the installed Chrome), reviewed by two reviewers (Chrome follows `<link rel=prerender>` despite the
+  frame CSP and sandbox — closed by a guard in boot.ts, Trusted Types and a per-session allow of workspace components;
+  outro switches deleting the user's tagline; a stale memo after a theme change; "from this version" ignoring render
+  options…) and fixed with mutation-checked tests. Files: editor `timeline.ts`, `preview-plan.ts`,
+  `remotion/preview-mode.ts`; core `field-edits.ts`; components `fit.ts`, `engines.kit`; engine `timeline-view.ts`,
+  `field-options.ts`, render snapshot + inline review; ui `server/player.ts`, `server/preview-allow.ts`, `src/player/*`,
+  `TimelineScreen.tsx`, `TimelineTracks.tsx`, `TimelineInspector.tsx`, `PreviewFrame.tsx`, `Renders.tsx`. New direct
+  dependency of packages/ui: `@remotion/player` (already in the lockfile; R-UI-25 asks for it). Cuts: BL-107 – BL-110.
 - **L4.2 done** (scenario as blocks; R-UI-08/09/10/13/14 done, R-UI-15 partial — "Open timeline" is L4.5). Planned,
   criticised with probes (re-reading the view on every run step; a capture refused only after the click; the last
   step's seek past the video; fingerprints blind to `on:` and scene pages; the Studio's worker inheriting its env),
@@ -1435,6 +1462,19 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.5:
+- The preview runs agent-writable code (workspace components): it lives in a `sandbox="allow-scripts"` iframe on the
+  player origin (a second loopback port, one capability per project leased by the page and revoked when the last tab
+  leaves, CORS `null` on media, hard links and symlinks refused), with Trusted Types, WebRTC removed and boot.ts refusing
+  `rel=prerender` (Chrome follows it despite CSP and sandbox). A workspace component runs there only once the person
+  allowed it in this Studio session (memory only, keyed by its folder content hash; no MCP tool reaches it).
+- `set_field` writes only the scenario's edit values (always an edit change: no new capture); intro / outro switches
+  refuse when the map holds more than component and duration. `caption_component` picks the caption component.
+- A Studio render renders the scenario text it was submitted with (`.demo-studio/jobs/<id>/edit.yaml`) and runs its
+  review inline; "from this version" needs the same plan signature and theme hash.
+- The gated real-Chrome timeline test: `DEMO_STUDIO_TEST_CHROME=1` (+ `DEMO_STUDIO_TEST_REAL=<ws>:<project>:<scenario>`).
+  The app bundle budget is 430 KB.
+
 Notes from L4.4:
 - Live pictures never reach disk (a scan test enforces it); the worker channel (`live.json`, 0600, read without
   following links) passes the engine gate with browsers refused; the Studio opens one upstream per job only while a tab

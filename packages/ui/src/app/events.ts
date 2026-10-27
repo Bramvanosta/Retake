@@ -28,7 +28,7 @@ export interface RunEvent {
 }
 
 export type StudioEvent =
-  | { type: 'workspace'; projects: string[]; readme: string[]; scenarios?: string[]; runs?: RunEvent[] }
+  | { type: 'workspace'; projects: string[]; readme: string[]; scenarios?: string[]; renders?: string[]; runs?: RunEvent[] }
   | { type: 'jobs'; changed: string[] }
   | { type: 'index'; generation: number }
   | { type: 'resync' };

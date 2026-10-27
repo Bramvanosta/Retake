@@ -27,6 +27,10 @@ export type { Storage, StoredKind, StoredRef, WriteResult } from './storage.js';
 export { README_MAX_CHARS, createProjectFromRequest, firstErrorLine, listProjectSummaries, maskUrlCredentials, openProjectBySlug, projectView, updateProjectReadme } from './projects.js';
 export type { CreateProjectRequest, EnvironmentView, PersonaView, ProjectSummary, ProjectView } from './projects.js';
 export { editScenario, getScenario, saveScenarioText, scenarioEditBlocker, validateScenarioText } from './scenarios.js';
+export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry, timelineView } from './timeline-view.js';
+export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './timeline-view.js';
+export { FRAME_STYLE_OPTIONS, MULTI_PAGE_OPTIONS, TRANSITION_KIND_OPTIONS, componentUseOf, fieldFitProblem, fieldOptions, videoPages } from './field-options.js';
+export type { FieldOption } from './field-options.js';
 export type { SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
 export { draftFromScript } from './authoring.js';
 export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecordId, pruneRecords, recordDir, recordMaxMs, recordScenario, recordStart, recordsRoot } from './record.js';
@@ -116,6 +120,7 @@ export { AUTH_HEADED_MAX_ENV, AUTH_HEADED_MAX_MS, cancelSignIn, executeAuthLogin
 export type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 export { executeSandboxJob, sandboxCommandLine, submitSandboxJob } from './jobs/sandbox-job.js';
 export {
+  EDIT_SNAPSHOT_FILE,
   checkRenderRequest,
   cleanupInterruptedRender,
   executeRenderJob,
@@ -125,15 +130,17 @@ export {
   releaseRenderLock,
   removePartials,
   renderCommandLine,
+  renderJobEditText,
+  reviewInline,
   submitRenderJob,
 } from './jobs/render-job.js';
-export type { RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
-export { planPreview, renderForWork, renderStatus } from './renders.js';
+export type { InlineReview, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
+export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, scenarioRenders, withoutPaths } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
 export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine, submitExportJob } from './jobs/export-job.js';
 export type { ExportRequest } from './jobs/export-job.js';
-export { reviewGet, thumbnail } from './reviews.js';
+export { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX, REVIEW_IMAGE_RE, REVIEW_IMAGE_SOURCE_MAX, reviewGet, reviewImage, thumbnail } from './reviews.js';
 export { THEME_PREVIEW_KINDS, executePreviewJob, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';
 export type { PreviewRequest } from './jobs/preview-job.js';
 export {
@@ -160,8 +167,8 @@ export { checkComponentId, componentCreate, componentGet, componentList, compone
 export type { ComponentCreateRequest, ComponentCreated, ComponentListView, ComponentSummary, ComponentValidationView, ComponentView } from './components.js';
 export { checkTemplateName, templateGet, templateList, themeAssetProblems, themeForWork } from './templates.js';
 export type { TemplateDetail, TemplateListView, TemplateSummary } from './templates.js';
-export type { ReviewFindingView, ReviewImageRef, ReviewImagesMode, ReviewView } from './reviews.js';
-export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderStatusView } from './renders.js';
+export type { ReviewFindingView, ReviewImageRef, ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
+export type { PlanPreviewSegment, PlanPreviewView, RenderJobView, RenderQueueView, RenderReviewSummary, RenderStatusView, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from './renders.js';
 export type { SandboxJobKind, SandboxSubmitRequest } from './jobs/sandbox-job.js';
 export { HISTORY_VERSION, appendHistory, historyFile, runCounted, usageCounts } from './history.js';
 export type { HistoryEntry, UsageCounts } from './history.js';
@@ -185,7 +192,7 @@ export {
 export { DEFAULT_KEEP_RENDERS, formatBytes, pruneProject } from './prune.js';
 export type { PruneItem, PruneRequest, PruneResult } from './prune.js';
 export type { CommentAddRequest, CommentAdded, CommentEntryView, CommentListRequest, CommentListView, CommentResolveRequest, CommentView, CommentWritten } from './comments.js';
-export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders } from './http/gate.js';
+export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, FRAME_SRC_RE, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders, studioCsp } from './http/gate.js';
 export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, readPrivateToken, stableToken } from './http/token-file.js';
 export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from './http/gate.js';
 export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';

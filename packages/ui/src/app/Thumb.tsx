@@ -4,13 +4,15 @@
  * from the scenario only — never from page text. While it loads, or when the run has none, a placeholder says so in
  * words.
  *
- * The app's ONE image source: `src={url}` where `url` comes from `jpegDataUrl` (the fixed `data:image/jpeg;base64,`
- * prefix and a checked base64 payload) — the source lint test allows `src=` here only, in exactly this form.
+ * The app's ONE image source: `Jpeg`'s `src={url}` where `url` comes from `jpegDataUrl` (the fixed
+ * `data:image/jpeg;base64,` prefix and a checked base64 payload, under the use's cap: a step picture's THUMB_DATA_MAX or,
+ * L4.5 part E, a review contact sheet's SHEET_DATA_MAX) — the source lint test allows `src=` here only, in exactly this
+ * form.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { ThumbLoader, jpegDataUrl } from './thumbs.js';
-import type { MissingReason, ThumbEntry, ThumbFetch } from './thumbs.js';
+import { THUMB_DATA_MAX, ThumbLoader, jpegDataUrl } from './thumbs.js';
+import type { ImageCap, MissingReason, ThumbEntry, ThumbFetch } from './thumbs.js';
 
 /** The width and height a picture is shown at (CSS px); the server sends ≤ 480 px for 2× screens. */
 export const THUMB_W = 160;
@@ -91,16 +93,26 @@ export function Thumb({ run, runKey, alt }: { run: string; runKey: string; alt: 
       if (visible) ctx.loader.setVisible(run, runKey, false);
     };
   }, [ctx, run, runKey]);
-  const url = entry?.state === 'ok' ? jpegDataUrl(entry.base64) : null;
+  const ok = entry?.state === 'ok' && jpegDataUrl(entry.base64) !== null ? entry : null;
   return (
-    <div ref={box} className="thumb" data-testid="thumb" data-state={url ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
-      {url ? (
-        <img src={url} width={THUMB_W} height={THUMB_H} alt={alt} decoding="async" draggable={false} />
+    <div ref={box} className="thumb" data-testid="thumb" data-state={ok ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
+      {ok ? (
+        <Jpeg base64={ok.base64} max={THUMB_DATA_MAX} width={THUMB_W} height={THUMB_H} alt={alt} />
       ) : (
         <span className="thumb-words">{entry?.state === 'missing' ? REASON[entry.reason] : 'Loading the picture…'}</span>
       )}
     </div>
   );
+}
+
+/**
+ * The app's one `<img>`: a base64 JPEG from the server as a checked data: address (jpegDataUrl under `max`), or nothing
+ * when it does not pass. `max` is one of the two caps (ImageCap), never a number from data.
+ */
+export function Jpeg({ base64, max, width, height, alt }: { base64: string; max: ImageCap; width: number; height: number; alt: string }) {
+  const url = jpegDataUrl(base64, max);
+  if (!url) return null;
+  return <img src={url} width={width} height={height} alt={alt} decoding="async" draggable={false} />;
 }
 
 /** The same box with words instead of a picture (a step the run cannot picture). */

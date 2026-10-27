@@ -776,7 +776,9 @@ its last run (`DEMO_STUDIO_HOME=~/ds-studio-home node packages/cli/dist/bin.js -
 not running*; else `kill <its pid>`), then the same `rm -rf ~/ds-studio ~/ds-studio-home` (the runs it made go with
 the workspace). After step 13c: as after 13b (the copy `quote.orig.yaml` is in `~/ds-studio-home`); a
 fixture left with an armed proposal is reset by `curl -X POST localhost:4402/api/reset` or by stopping it. After step
-13e: as after 13b; the supplier's session saved in step 6 lives in `~/ds-studio-home` and goes with it.
+13e: as after 13b; the supplier's session saved in step 6 lives in `~/ds-studio-home` and goes with it. After step
+13f: as after 13b (the copy `highlights.orig.yaml` is in `~/ds-studio-home`; the renders and reviews it made go with
+the workspace).
 
 ## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
 
@@ -980,6 +982,64 @@ you type, VoiceOver, and your own eyes on the live picture. The workspace of 13a
   shows thin dark bands above and below, a capture's fills it); no password field anywhere in the Studio.
 - **Send back:** for each step, OK or what you saw instead (a screenshot of the Run screen during a run and after it);
   the browsers' versions.
+
+## 13f. The timeline in your browsers: preview, switches, render and review (L4.5)
+
+What the automated tests cannot reach: Safari (WebKit) and Firefox (the tests drive Playwright's Chromium and, gated,
+the installed Chrome), the sound, and your own eyes on the preview against the render. The workspace of 13a, the
+fixture running (terminal 3), `studio ui` as in 13b (terminal 1). First keep a copy of the scenario:
+`cp "$W/projects/northfield-fixture/scenarios/highlights.yaml" "$H/highlights.orig.yaml"`.
+
+1. **Capture, then the timeline (Safari).** *highlights* → **Capture** (≈ 16 s), then **Open timeline**. The header
+   says *H.264, keyframes every 0.4 s*; the tracks draw at once and the preview's first frame within about a second;
+   no *cannot play* message, no *Loading the preview…* left on screen.
+2. **Scrub and play.** Drag the scrubber across the take, then ← / →, Shift + ← / →, Home / End, [ / ]: the preview
+   follows each time (*Loading the preview…* only for a blink), the caption and the cards drawn in the theme's serif —
+   not a system font (a font WebKit refused would add a warning under the preview). **Play**: smooth through the
+   scenes, the transitions and the cards; **Pause** stops on the frame shown.
+3. **WebKit's frame — what to check.** Safari keeps the sandboxed preview in the Studio tab's own process (Chrome runs
+   it apart), so a component that works hard freezes the whole tab while it works (BACKLOG BL-110). With the built-in
+   components: while the preview plays, click **Pause**, a segment and an inspector choice — each answers at once, the
+   scrubber never sticks; note any stall longer than a blink. Then Develop → Show Web Inspector, Console, pick the
+   preview frame's context (the frame menu of the console): `localStorage.length` and `document.cookie` throw a
+   security error, `fetch('http://127.0.0.1:1/')` and a fetch to the Studio's own address (the one in the address bar)
+   are refused (*Refused to connect … Content Security Policy*), `typeof RTCPeerConnection` is `"undefined"`; the
+   page's own console shows no *Refused to …* line while you scrub and play.
+3b. **A workspace component is not run until you allow it; the frame makes no prerender (Safari, then Chrome).** In
+   terminal 2: `studio components create acme/check-card --kind card`, then in the YAML tab of *highlights* give its
+   first card `component: acme/check-card` and open the timeline again. A notice *A workspace component is not run in
+   the preview* names `acme/check-card` and its folder hash; that card draws the stand-in, and *Not in the preview*
+   lists it under the tracks. Click **Allow in the preview**: the notice goes and the card draws your component. Stop
+   and restart `studio ui`: the notice is back (the permission lived in memory only). Then the prerender check: in a
+   terminal `nc -lk 127.0.0.1 4699`; in the preview frame's console (as in step 3)
+   `const l = document.createElement('link'); l.rel = 'prerender'` and `l.setAttribute('rel', 'prerender')` each throw a
+   *TypeError … refuses rel="prerender"*; `document.body.insertAdjacentHTML('beforeend', '<link rel=prerender
+   href=http://127.0.0.1:4699/x>')` throws in Chrome (Trusted Types; say what Safari does); `nc` prints nothing.
+   Stop `nc` (Ctrl-C) and put the scenario back before step 5: `cp "$H/highlights.orig.yaml"
+   "$W/projects/northfield-fixture/scenarios/highlights.yaml"`.
+4. **Sound, own media, Lottie (Safari).** Capture *own-media* from its scenario screen, open its timeline: the brand's
+   intro video plays in the preview, its chime heard only after **Unmute** (muted at first, nothing heard before); the
+   transparent burst over the capture when the request is sent (a VP9-with-alpha `.webm`: if Safari draws it as a black
+   box or not at all, say so); the Lottie card and the check badge animate.
+5. **Switch and undo.** On *highlights*, click the *quotes* segment, then **Laptop**: the preview shows the laptop in a
+   fraction of a second at the same frame; the YAML tab shows one new line (`frame: laptop`). **Caption band**: the
+   captions become a band over the capture. ⌘Z twice: `cmp "$H/highlights.orig.yaml"
+   "$W/projects/northfield-fixture/scenarios/highlights.yaml"` prints nothing.
+6. **Render and review.** **Render**: *queued*, *rendering n %*, *reviewing*, then *v1 · 3 warnings · from this
+   version* (*card-too-short* on three of the fixture's cards, one note on the length) about 45 s later; the review
+   opens by itself, **Show in the preview** jumps to a finding, the contact sheet grows on click. Open
+   `$W/projects/northfield-fixture/renders/highlights-v1.mp4` in QuickTime at 0:09.8 and the preview at the same time:
+   the same picture — the capture may look a few levels brighter in the preview (two video decoders: BL-108); say if
+   anything else differs.
+7. **Firefox.** Steps 1, 2 and 5 again in Firefox (a new link from `studio ui` in terminal 2).
+8. **VoiceOver** (optional, Cmd-F5): the scrubber says its time, segment and step (*0:09.63 · scene quotes · step 1
+   hold*); each inspector group is a radio group, the arrows move between its choices, Space picks one.
+
+- **Expected:** every step as written; the preview never blank once drawn; the file back to its exact bytes after the
+  undos.
+- **Send back:** for each step, OK or what you saw instead (a screenshot of the timeline while it plays and of the
+  review), anything that stalled in Safari (step 3), what each console line of step 3b did in each browser, the
+  browsers' versions.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

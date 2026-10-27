@@ -132,8 +132,11 @@ scenes:
   `studio/mail-view` shows the mail from its top (`params: {scroll: auto}` scrolls a tall one).
 - `target_length: {min_s, max_s}` (scenario key) is the length this video aims at: the review's `video-length` rule
   uses it instead of the reference 60–120 s.
-- Cards, captions, overlays, durations, the title, intro / outro and template are the edit: a change renders on the
-  same capture. Steps, pages, hooks and capture settings are filmed: a change needs `run_capture` first.
+- `caption_component: studio/caption-overlay` (scenario key) sets the caption component of the whole video instead of
+  the theme's (`component_list {kind: caption}` names them); `render {overrides: {components: {caption: …}}}` still
+  wins over it for one render.
+- Cards, captions, overlays, durations, the title, intro / outro, the caption component and template are the edit: a
+  change renders on the same capture. Steps, pages, hooks and capture settings are filmed: a change needs `run_capture` first.
 - `overlay` on a step draws a component over the clip from the end of that step (at most 30 s); `component_list
   {kind: overlay}` names them.
 - `tutorial` switches (`shortcuts`, `spotlight`, `steps`, `loupe`, `progress`) draw key caps, a spotlight, numbered

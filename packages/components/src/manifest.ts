@@ -40,6 +40,15 @@ export const GEOMETRY_KEYS = { landscape: 'geometry', vertical: 'geometry_vertic
 export const SEMVER_RE =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
+/** `engines.kit` (L4.5): a kit API major, optionally with a caret ("1", "^1"). */
+export const KIT_RANGE_RE = /^\^?[1-9]\d{0,2}$/;
+
+/** The kit API major an `engines.kit` value names ("^2" → 2); absent → 1. */
+export function kitMajorOf(m: Pick<ComponentManifest, 'engines'>): number {
+  const k = m.engines?.kit;
+  return k === undefined ? 1 : Number(k.replace(/^\^/, ''));
+}
+
 /** Where the planner can take a slot value from when the scenario does not set it (`default_from`). */
 export const SLOT_SOURCES = [
   'theme.logo',
@@ -203,6 +212,15 @@ export const ComponentManifestFileSchema = z
     license: nonEmpty().describe('License (SPDX id, marketplace metadata).').optional(),
     tags: z.array(nonEmpty()).describe('Search tags.').optional(),
     entry: nonEmpty().describe(`Implementation file relative to the component folder (default ${DEFAULT_ENTRY}).`).optional(),
+    engines: z
+      .strictObject({
+        kit: z
+          .string()
+          .regex(KIT_RANGE_RE, { error: (iss) => `engines.kit must be a kit API major such as "1" or "^1", got ${JSON.stringify(iss.input)}` })
+          .describe('The kit API major the component was written for: "1" or "^1".'),
+      })
+      .describe('What the component needs from Demo Studio (absent: kit API 1).')
+      .optional(),
     slots: z
       .record(keyString('slot name'), SlotSpecSchema)
       .describe('Values the component renders, by name (title, kicker, logo…).')

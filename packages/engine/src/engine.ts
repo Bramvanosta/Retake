@@ -45,12 +45,14 @@ import type { AuthLoginSubmitRequest } from './jobs/auth-job.js';
 import { submitSandboxJob } from './jobs/sandbox-job.js';
 import { submitRenderJob } from './jobs/render-job.js';
 import type { RenderEditSource, RenderRequest } from './jobs/render-job.js';
-import { planPreview, renderStatus } from './renders.js';
+import { planPreview, renderStatus, scenarioRenders } from './renders.js';
+import { memoRegistry, timelineView } from './timeline-view.js';
+import type { TimelineViewRequest, TimelineViewResult } from './timeline-view.js';
 import { submitReviewJob } from './jobs/review-job.js';
 import type { ReviewRequest } from './jobs/review-job.js';
 import { submitExportJob } from './jobs/export-job.js';
 import type { ExportRequest } from './jobs/export-job.js';
-import { reviewGet, thumbnail } from './reviews.js';
+import { reviewGet, reviewImage, thumbnail } from './reviews.js';
 import { submitPreviewJob } from './jobs/preview-job.js';
 import { readInspection, submitInspectJob } from './jobs/inspect-job.js';
 import type { InspectSubmitRequest } from './jobs/inspect-job.js';
@@ -68,8 +70,8 @@ import type { SiteSubmitted } from './jobs/site-job.js';
 import type { ThemeCreated } from './brand/create.js';
 import type { TemplateDetail, TemplateListView } from './templates.js';
 import type { ComponentKind } from '@demo-studio/core';
-import type { ReviewImagesMode, ReviewView } from './reviews.js';
-import type { PlanPreviewView, RenderStatusView } from './renders.js';
+import type { ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
+import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from './renders.js';
 import type { SandboxSubmitRequest } from './jobs/sandbox-job.js';
 import { MCP_AUTHOR_NAME, addComment, defaultAuthorName, getComment, listComments, reopenComment, replyComment, resolveComment } from './comments.js';
 import type { CommentAddRequest, CommentAdded, CommentListRequest, CommentListView, CommentView, CommentWritten } from './comments.js';
@@ -314,12 +316,30 @@ export interface Engine {
     ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean } } & RenderEditSource>;
     /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
+    /**
+     * A scenario's render jobs (queued / running, with progress and queue position) and renders (newest first, each with
+     * its review's verdict) — path-free (L4.5 part E: the Studio's render queue).
+     */
+    ofScenario(project: string, scenario: string): Promise<ScenarioRendersView>;
+  };
+  timeline: {
+    /**
+     * The Studio timeline's view of a scenario's take (L4.5, timeline-view.ts): tracks, pins, the inspector's choices
+     * (usable or disabled with why), the capture's codec and keyframes — path-free, text under `untrusted` — and, beside
+     * it for the in-process caller only, the plan. Memoised per file / run / components (one planning per change).
+     */
+    view(req: TimelineViewRequest): Promise<TimelineViewResult>;
   };
   reviews: {
     /** Queue a review of a render (its video and run must lie in the project; `latest` is resolved now). */
     submit(req: ReviewRequest): Promise<{ job: JobRecord; render_id: string; worker?: { pid?: number; spawned: boolean } }>;
     /** A render's review: its newest job, then review/<id>/report.json (paths rebuilt from the folder, messages untrusted). */
     get(project: string, renderId: string, o?: { scenario?: string; images?: ReviewImagesMode }): Promise<ReviewView>;
+    /**
+     * One contact sheet of a render's review as a base64 JPEG (L4.5 part E): named by its file name in review/<id>/, read
+     * without following a link, JPEG only, scaled and capped.
+     */
+    image(project: string, renderId: string, image: string): Promise<ReviewImageView>;
   };
   exports: {
     /** Queue an export of a render to delivery formats (exports/<id>/; re-rendered formats are planned and checked first). */
@@ -565,7 +585,10 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'sandbox.reset',
         'renders',
         'renders.plan',
+        'renders.of_scenario',
+        'timeline.view',
         'reviews',
+        'reviews.image',
         'exports',
         'templates.read',
         'templates.preview',
@@ -608,7 +631,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       view: (slug, name, o = {}) => views.view(slug, name, o),
       save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
-      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
+      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client), registry: async () => (await memoRegistry(ws)).registry }),
       fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: agentTrust(opts.client) }),
     },
     runs: {
@@ -745,6 +768,10 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...r, ...(worker ? { worker } : {}) };
       },
       status: (slug, renderId, o = {}) => renderStatus(ws, queue, slug, renderId, o.scenario),
+      ofScenario: (slug, scenario) => scenarioRenders(ws, queue, slug, scenario),
+    },
+    timeline: {
+      view: (req) => timelineView(ws, studio, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
     },
     reviews: {
       submit: async (req) => {
@@ -753,6 +780,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...r, ...(worker ? { worker } : {}) };
       },
       get: (slug, renderId, o = {}) => reviewGet(ws, queue, slug, renderId, o),
+      image: (slug, renderId, image) => reviewImage(ws, slug, renderId, image),
     },
     exports: {
       submit: async (req) => {

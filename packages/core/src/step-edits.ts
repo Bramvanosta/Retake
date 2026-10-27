@@ -956,3 +956,24 @@ export function stepsLockedWhy(stepsNode: unknown, aliased: boolean): string | u
   if (isSeq(stepsNode) && stepsNode.flow && stepsNode.items.length > 0) return 'its scene writes its steps as a flow list ([…]): edit them in the YAML tab';
   return undefined;
 }
+
+/**
+ * The low-level text helpers of this module, shared by field-edits.ts (L4.5, `set_field`: critique B10 — reused by
+ * export only, nothing here changed). Not meant for other callers.
+ */
+export const stepEditText = Object.freeze({
+  lineStartOf,
+  lineEndOf,
+  lineAt,
+  commentColumn,
+  eolOf,
+  applySplices,
+  insertLines,
+  itemLines,
+  pairRemoval,
+  composeWithTokens,
+  nodeIn,
+  renderFlow,
+  renderPair,
+  pairEnd,
+});

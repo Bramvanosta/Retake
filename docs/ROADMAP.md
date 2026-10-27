@@ -64,8 +64,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.2 | Scenario as blocks (read) with run thumbnails | M | **done** (live checks: MACOS-CHECKLIST 13b) |
 | L4.3 | Blocks editing, two-way YAML, drag & drop | M | **done** (live checks: MACOS-CHECKLIST 13c) |
 | L4.4 | Run screen: live headless preview, steps, log, pause/stop | M | **done** (live checks: MACOS-CHECKLIST 13e) |
-| L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | **next** |
-| L4.6 | Frame comments UI | M | todo |
+| L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | **done** (live checks: MACOS-CHECKLIST 13f) |
+| L4.6 | Frame comments UI | M | **next** (when the user asks) |
 | L4.7 | Component library (with animated previews) + theme editor screens | M | todo |
 | L4.8 | Record screen | M | todo |
 | L4.9 | Studio acceptance, accessibility pass | S | todo |
@@ -765,7 +765,17 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   capture's session confirmation. Two independent reviews fixed with mutation-checked tests. Cuts: BL-105, BL-106. Live
   checks: MACOS-CHECKLIST 13e.
 
-### L4.5 – L4.9, L5.2 – L5.4, L6
+### L4.5 — Edit/verify timeline: tracks, component switching, Remotion Player (L)
+- **Goal:** see the edit on a timeline, preview it live without rendering, switch a segment's components in one click,
+  then render and review from the same screen.
+- **Done (2026-10-27, in a worktree):** the timeline screen (segment, caption, steps, camera, speed, marker and comment
+  tracks; playhead and scrubber); a live preview by the Remotion Player in a sandboxed iframe on a second loopback origin
+  (workspace components run only once allowed in the session); a segment inspector switching layout, caption component,
+  speed and transition through a verified edit with undo; Render with the review inline, the queue, the report and the
+  contact sheets in the UI. Two independent reviews fixed with mutation-checked tests (incl. a prerender escape closed
+  three ways). Cuts: BL-107 – BL-110. Live checks: MACOS-CHECKLIST 13f.
+
+### L4.6 – L4.9, L5.2 – L5.4, L6
 - L4.7 also shows an animated preview per component (R-UI-06b, user decision 2026-10-26).
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),

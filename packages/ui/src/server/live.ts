@@ -7,11 +7,12 @@
  *   fs.watch): the index's reconcile (or, without node:sqlite, the same scan held in memory) and the job watch (live
  *   from the queue, critique B2). An op of the index (activity_list, search) refreshes first, so it never answers
  *   stale, and what it found goes out on the streams too.
- * - Events: `hello {api, index, generation}`, `workspace {projects, readme, scenarios?, runs?}`, `jobs {changed}`,
+ * - Events: `hello {api, index, generation}`, `workspace {projects, readme, scenarios?, renders?, runs?}`, `jobs {changed}`,
  *   `index {generation}`, and a comment line every 15 s (proxies and idle sockets). `scenarios` names the scenario files
  *   changed (`<slug>/<name>`, an in-place save included) and `runs` the runs that started, progressed, finished or went
  *   away, each with its scenario (L4.2, critique B1): a scenario screen re-reads only for its own file and its own
  *   scenario's runs starting or finishing — a running run's progress is a `run_status` read, never a whole view.
+ *   `renders` (L4.5 part E) names the projects whose renders/ folder changed: a render list re-reads for its project.
  * - At most 4 streams (critique B1): the page keeps one per browser (the tab holding a Web Lock relays to the others
  *   over a BroadcastChannel); a 5th gets 503 `too_many_streams` and that tab re-reads on a timer instead. A stream is
  *   never an op: the op counter does not move.
@@ -126,8 +127,10 @@ export class Live {
     const changed = await this.jobs.poll();
     if (this.closed) return;
     const w = workspaceChanges(keys);
+    // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released).
+    const renders = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'renders' && k.project !== undefined).map((k) => k.project as string))].sort();
     if (w.projects.length) {
-      this.send('workspace', { projects: w.projects, readme: w.readme, ...(w.scenarios.length ? { scenarios: w.scenarios } : {}), ...(runs.length ? { runs } : {}) });
+      this.send('workspace', { projects: w.projects, readme: w.readme, ...(w.scenarios.length ? { scenarios: w.scenarios } : {}), ...(renders.length ? { renders } : {}), ...(runs.length ? { runs } : {}) });
     }
     if (changed.length) this.send('jobs', { changed });
     if (keys.length && generation !== undefined) this.send('index', { generation });

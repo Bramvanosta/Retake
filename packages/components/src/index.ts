@@ -14,6 +14,8 @@ export {
   GEOMETRY_KEYS,
   VARIANTS,
   SEMVER_RE,
+  KIT_RANGE_RE,
+  kitMajorOf,
   SLOT_SOURCES,
   THEME_TOKENS,
   MULTI_USE_KINDS,
@@ -56,7 +58,9 @@ export type { JsonSchemaNode, ParamType } from './json-schema.js';
 export { componentJsonSchema, writeComponentJsonSchema } from './schema-json.js';
 export { loadComponentRegistry, loadComponentDir, usableAs } from './registry.js';
 export type { ComponentRegistry, LoadComponentRegistryOptions, RegistryNotice } from './registry.js';
-export { ALLOWED_IMPORTS, FORBIDDEN_APIS, checkComponentEntry, scanSource, stripComments } from './compile.js';
+export { componentFit } from './fit.js';
+export type { ComponentFit, ComponentUse } from './fit.js';
+export { ALLOWED_IMPORTS, FORBIDDEN_APIS, checkComponentEntry, importProblem, scanSource, stripComments } from './compile.js';
 export type { EntryCheck } from './compile.js';
 export { validateComponent, validateComponentDir } from './validate.js';
 export type { ComponentValidation, ValidateComponentOptions } from './validate.js';
@@ -64,7 +68,7 @@ export { BUILTIN_NAMESPACE, createComponent, componentDisplayName } from './crea
 export type { CreateComponentOptions, CreatedComponent } from './create.js';
 export { themeTokens, themeFontFamilies, fontFileFace } from './theme.js';
 export type { ThemeUrls } from './theme.js';
-export { COMPONENT_SCHEMA_FILE, KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, SCAFFOLDS_DIR, kitEntry, scaffoldDir } from './paths.js';
+export { COMPONENT_SCHEMA_FILE, KIT_API_VERSION, KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, SCAFFOLDS_DIR, kitEntry, scaffoldDir } from './paths.js';
 export { fillSlots, slotSource } from './slots.js';
 export { parseCsv, parseNumber } from './data.js';
 export type { FilledSlots, SlotContext } from './slots.js';

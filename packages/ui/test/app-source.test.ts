@@ -4,7 +4,10 @@
  * hash routes treat whatever the address bar holds as an inert string. L4.2: one image source (Thumb.tsx, a data: URL
  * from `jpegDataUrl`), and no srcSet, createElement, `src` key or embedded media anywhere. L4.4 (critique B14): the live
  * picture is decoded by `createImageBitmap(new Blob([bytes], {type: 'image/jpeg'}))` in LiveView.tsx only — no blob: or
- * object URL anywhere (an address a frame could be loaded from).
+ * object URL anywhere (an address a frame could be loaded from). L4.5 part C: one frame — PreviewFrame.tsx's `<iframe`,
+ * once, with the literal attributes of player/parent.ts's PREVIEW_FRAME_ATTRS (`sandbox="allow-scripts"` and no other
+ * sandbox token anywhere in the app) and `src={frameSrc}` once, frameSrc being the URL TimelineScreen.tsx checked with
+ * previewUrls (the player origin's frame route) and set only after connectPreview listens.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -12,7 +15,9 @@ import { describe, expect, it } from 'vitest';
 import { REPO } from '../../engine/test/helpers.js';
 import { visibleControls } from '../src/app/bits.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
-import { THUMB_DATA_MAX, jpegDataUrl } from '../src/app/thumbs.js';
+import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
+import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
+import { SHEET_DATA_MAX, THUMB_DATA_MAX, jpegDataUrl } from '../src/app/thumbs.js';
 
 const APP = join(REPO, 'packages', 'ui', 'src', 'app');
 
@@ -45,16 +50,35 @@ const LIVE_DECODE = /createImageBitmap\(new Blob\(\[bytes\], \{ type: 'image\/jp
 const LIVE_IMAGE_DECODER = /new Decoder\(\{ data: bytes, type: 'image\/jpeg' \}\)/g;
 
 /**
- * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is `jpegDataUrl(entry.base64)` (a
- * fixed `data:image/jpeg;base64,` prefix and a checked payload). Exactly that line, once, in that file only.
+ * L4.2: the app's one image source — Thumb.tsx renders `<img src={url}` where `url` is `jpegDataUrl(base64, max)` (a
+ * fixed `data:image/jpeg;base64,` prefix and a checked payload). Exactly that line, once, in that file only. L4.5 part
+ * E: that `<img>` is Thumb.tsx's `Jpeg`, used for the step pictures and the review's contact sheets; `max` is one of the
+ * two caps — every `<Jpeg` in the app passes `max={THUMB_DATA_MAX}` or `max={SHEET_DATA_MAX}` literally.
  */
 const THUMB_FILE = 'Thumb.tsx';
 const THUMB_SRC = /<img src=\{url\} /g;
-const THUMB_URL = /const url = entry\?\.state === 'ok' \? jpegDataUrl\(entry\.base64\) : null;/g;
+const THUMB_URL = /const url = jpegDataUrl\(base64, max\);/g;
+const JPEG_USE = /<Jpeg\b[^>]*>/g;
+const JPEG_MAX = /\bmax=\{(THUMB_DATA_MAX|SHEET_DATA_MAX)\}/;
 
-/** A source as the lint reads it: Thumb.tsx without its one allowed image source (checked on its own). */
+/**
+ * L4.5: the app's one frame — PreviewFrame.tsx renders `<iframe` once with these literal attributes (the same as
+ * PREVIEW_FRAME_ATTRS) and `src={frameSrc}` once, where `const frameSrc = armed ? url : undefined;` (url: the checked
+ * frame URL its page passes, `url={urls.frame}`, urls = previewUrls(...)).
+ */
+const FRAME_FILE = 'PreviewFrame.tsx';
+const FRAME_TAG = /<iframe\b/g;
+const FRAME_SRC = /\bsrc=\{frameSrc\}/g;
+const FRAME_SRC_SET = /const frameSrc = armed \? url : undefined;/g;
+const FRAME_LITERALS = ['sandbox="allow-scripts"', 'referrerPolicy="no-referrer"', 'allow="autoplay"', 'aria-hidden="true"', 'tabIndex={-1}'];
+/** Sandbox tokens that would loosen the frame, and attributes that would bypass the literal ones: nowhere in the app. */
+const FRAME_LOOSE = /allow-(?:same-origin|top-navigation|popups|forms|downloads|modals|pointer-lock|presentation|storage-access|orientation-lock)|\bsandbox=\{|\bcredentialless\b|\ballowFullScreen\b|\bcsp=/;
+
+/** A source as the lint reads it: Thumb.tsx without its one allowed image source, PreviewFrame.tsx without its one frame (each checked on its own). */
 function linted(f: string, src: string): string {
-  return f === THUMB_FILE ? src.replace(THUMB_SRC, '<img ') : src;
+  if (f === THUMB_FILE) return src.replace(THUMB_SRC, '<img ');
+  if (f === FRAME_FILE) return src.replace(FRAME_TAG, '<span').replace(FRAME_SRC, 'data-frame-src');
+  return src;
 }
 
 async function appSources(): Promise<Array<[string, string]>> {
@@ -143,6 +167,69 @@ describe('the app builds no HTML from data (source lint)', () => {
     for (const line of ['const u = URL.createObjectURL(b);', "const a = 'blob:' + x;", 'const { createObjectURL } = URL;']) expect(BANNED.some(([re]) => re.test(code(line))), line).toBe(true);
   });
 
+  it('⚑ L4.5: the one frame — PreviewFrame.tsx, once, the literal sandboxed attributes, src={frameSrc} from a checked URL', async () => {
+    const files = new Map(await appSources());
+    const frame = code(files.get(FRAME_FILE) ?? '');
+    expect(frame.match(FRAME_TAG)?.length, 'one <iframe in PreviewFrame.tsx').toBe(1);
+    expect(frame.match(FRAME_SRC)?.length, 'one src={frameSrc}').toBe(1);
+    expect(frame.match(/\bsrc=/g)?.length).toBe(1);
+    expect(frame.match(FRAME_SRC_SET)?.length, 'frameSrc set once, from url, only once armed').toBe(1);
+    expect(frame.match(/\bframeSrc\s*=/g)?.length).toBe(1);
+    // The connection listens before the address is set: connectPreview in the layout effect, then setArmed(true).
+    const connect = frame.indexOf('connectPreview(iframe');
+    expect(connect).toBeGreaterThan(0);
+    expect(frame.indexOf('setArmed(true)')).toBeGreaterThan(connect);
+    expect(frame.match(/setArmed\(true\)/g)?.length).toBe(1);
+    // The literal attributes, each once, and they are PREVIEW_FRAME_ATTRS.
+    const tag = frame.slice(frame.indexOf('<iframe'), frame.indexOf('/>', frame.indexOf('<iframe')));
+    for (const lit of FRAME_LITERALS) expect(tag.split(lit).length - 1, lit).toBe(1);
+    expect(PREVIEW_FRAME_ATTRS).toEqual({ sandbox: 'allow-scripts', referrerpolicy: 'no-referrer', allow: 'autoplay', 'aria-hidden': 'true', tabindex: '-1' });
+    expect(tag).not.toMatch(/\{\.\.\./);
+    // Its page passes the URL previewUrls checked, nothing else.
+    const screen = code(files.get('TimelineScreen.tsx') ?? '');
+    expect(screen.match(/<PreviewFrame\b/g)?.length).toBe(1);
+    expect(screen.match(/\burl=\{urls\.frame\}/g)?.length).toBe(1);
+    expect(screen.match(/const urls = 'frame_url' in v \? previewUrls\(v\.frame_url, v\.plan_url\) : null;/g)?.length).toBe(1);
+    expect(screen.match(/\burls\s*=/g)?.length).toBe(1);
+    // No other file frames anything, connects a preview or loosens a sandbox; sandbox= appears once in the app.
+    let sandboxes = 0;
+    for (const [f, text] of files) {
+      const src = code(text);
+      expect(FRAME_LOOSE.test(src), `${f}: loosens the frame`).toBe(false);
+      sandboxes += src.split('sandbox=').length - 1;
+      if (f === FRAME_FILE) continue;
+      expect(/<iframe\b|connectPreview|PREVIEW_FRAME_ATTRS/.test(src), `${f}: frames or connects a preview`).toBe(false);
+    }
+    expect(sandboxes).toBe(1);
+    // The lint catches a second frame, another src, a loosened sandbox.
+    expect(BANNED.some(([re]) => re.test(linted('Other.tsx', '<iframe title="x" />')))).toBe(true);
+    expect(BANNED.some(([re]) => re.test(linted(FRAME_FILE, '<iframe src={other} />')))).toBe(true);
+    for (const line of ['<iframe sandbox="allow-scripts allow-same-origin" />', '<iframe sandbox={x} />', 'f.sandbox.add("allow-popups")']) expect(FRAME_LOOSE.test(line), line).toBe(true);
+  });
+
+  it('L4.5: previewUrls takes only the player origin\'s frame and a plan of the same capability', () => {
+    const cap = 'A'.repeat(43);
+    const frame = `http://127.0.0.1:4321/s/${cap}/frame`;
+    const plan = `http://127.0.0.1:4321/m/${cap}/plan/${'b'.repeat(22)}.json`;
+    expect(previewUrls(frame, plan)).toEqual({ frame, plan });
+    expect(FRAME_URL_RE.test(frame)).toBe(true);
+    for (const [f, p] of [
+      [frame.replace('127.0.0.1', 'localhost'), plan],
+      [frame.replace('http:', 'https:'), plan],
+      [`${frame}?x`, plan],
+      [frame.replace(cap, 'B'.repeat(43)), plan],
+      [frame, plan.replace(':4321', ':4322')],
+      [frame, plan.replace('/plan/', '/x/')],
+      ['javascript:alert(1)', plan],
+      [`data:text/html,<script>`, plan],
+      [frame, `http://127.0.0.1:4321/m/${cap}/plan/../../v1/info`],
+      [42, plan],
+      [frame, undefined],
+    ] as Array<[unknown, unknown]>) {
+      expect(previewUrls(f, p), `${String(f)} ${String(p)}`).toBeNull();
+    }
+  });
+
   it('the one image source: Thumb.tsx, once, `src={url}` with url = jpegDataUrl(entry.base64)', async () => {
     const files = new Map(await appSources());
     const thumb = code(files.get(THUMB_FILE) ?? '');
@@ -150,7 +237,25 @@ describe('the app builds no HTML from data (source lint)', () => {
     expect(thumb.match(THUMB_URL)?.length, 'url is built by jpegDataUrl, once').toBe(1);
     expect(thumb.match(/\burl\s*=/g)?.length, 'url assigned once').toBe(1);
     expect(thumb.match(/\bsrc=/g)?.length).toBe(1);
-    for (const [f, text] of files) if (f !== THUMB_FILE) expect(/\bsrc=/.test(code(text)), f).toBe(false);
+    expect(thumb).toMatch(/max: ImageCap;/);
+    for (const [f, text] of files) if (f !== THUMB_FILE) expect(/\bsrc=/.test(linted(f, code(text))), f).toBe(false);
+    // L4.5 part E: every use of the one <img> names one of the two caps.
+    let uses = 0;
+    for (const [f, text] of files) {
+      for (const m of code(text).matchAll(JPEG_USE)) {
+        uses++;
+        expect(JPEG_MAX.test(m[0]), `${f}: ${m[0]}`).toBe(true);
+      }
+    }
+    expect(uses).toBeGreaterThanOrEqual(2);
+    expect(JPEG_MAX.test('<Jpeg base64={b} max={9999999} />')).toBe(false);
+    // The caps: a contact sheet's payload is refused past SHEET_DATA_MAX, a step picture's past THUMB_DATA_MAX.
+    const b64 = (n: number) => 'A'.repeat(n);
+    expect(jpegDataUrl(b64(THUMB_DATA_MAX + 4))).toBeNull();
+    expect(jpegDataUrl(b64(THUMB_DATA_MAX + 4), SHEET_DATA_MAX)).not.toBeNull();
+    expect(jpegDataUrl(b64(SHEET_DATA_MAX + 4), SHEET_DATA_MAX)).toBeNull();
+    expect(jpegDataUrl(b64(THUMB_DATA_MAX + 4), 9_999_999 as never)).toBeNull();
+    expect(jpegDataUrl('AAAA<svg>', SHEET_DATA_MAX)).toBeNull();
   });
 });
 
@@ -179,6 +284,12 @@ describe('hash routes', () => {
     expect(parseRoute('#/p/x/s/q/run/%3Cimg%3E')).toEqual({ name: 'run', slug: 'x', scenario: 'q', run: '<img>' });
     expect(parseRoute('#/p/x/s/q/run/a/b')).toMatchObject({ name: 'not-found' });
     expect(parseRoute(`#/p/x/s/q/run/${'a'.repeat(201)}`)).toMatchObject({ name: 'not-found' });
+    // L4.5: the timeline of the latest capture, of one capture, at one of its steps.
+    expect(parseRoute('#/p/northfield-fixture/s/quote/timeline')).toEqual({ name: 'timeline', slug: 'northfield-fixture', scenario: 'quote' });
+    expect(parseRoute('#/p/northfield-fixture/s/quote/timeline/20261026-120000-quote')).toEqual({ name: 'timeline', slug: 'northfield-fixture', scenario: 'quote', run: '20261026-120000-quote' });
+    expect(parseRoute('#/p/n/s/q/timeline/r1/request.2')).toEqual({ name: 'timeline', slug: 'n', scenario: 'q', run: 'r1', step: 'request.2' });
+    expect(parseRoute('#/p/n/s/q/timeline/r1/request.2/x')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/s/q/timeline/%E0%A4%A')).toMatchObject({ name: 'not-found' });
   });
 
   it('hrefTo round-trips any slug through parseRoute and always yields an in-page fragment', () => {
@@ -201,6 +312,13 @@ describe('hash routes', () => {
         expect(href.startsWith('#/p/')).toBe(true);
         expect(parseRoute(href)).toEqual({ name: 'run', slug: 'p/q', scenario, ...(run ? { run } : {}) });
       }
+      for (const [run, step] of [[undefined, undefined], ['20261026-120000-quote', undefined], ['../x', 'a.1'], ['<b>', '../../x']] as const) {
+        const href = hrefTo({ name: 'timeline', slug: 'p/q', scenario, ...(run ? { run } : {}), ...(step ? { step } : {}) });
+        expect(href.startsWith('#/p/')).toBe(true);
+        expect(parseRoute(href)).toEqual({ name: 'timeline', slug: 'p/q', scenario, ...(run ? { run } : {}), ...(step ? { step } : {}) });
+      }
+      // A step without its run is dropped (the key is the run's own).
+      expect(parseRoute(hrefTo({ name: 'timeline', slug: 'p', scenario, step: 'a.1' }))).toEqual({ name: 'timeline', slug: 'p', scenario });
     }
   });
 });

@@ -25,6 +25,7 @@ import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
 import { planRun } from './plan-run.js';
 import type { PlanTrust } from './plan-run.js';
 import { rendersDir, reserveVersion, versionLockFile } from './runs.js';
+import { themeContentHash } from './theme-hash.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia, run } from './probe.js';
@@ -356,6 +357,8 @@ export interface RenderVideoOptions {
    * job at submit, an export of a master): a plan of another edit is refused. Undefined: no check.
    */
   editSha256?: string | null;
+  /** The scenario text to plan the edit from instead of today's file (a render job's snapshot, L4.5: planRun `editText`). */
+  editText?: string;
 }
 
 /**
@@ -392,6 +395,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
       ...(opts.registry ? { registry: opts.registry } : {}),
       ...(opts.trust ? { trust: opts.trust } : {}),
       ...(opts.edit ? { edit: opts.edit } : {}),
+      ...(opts.editText !== undefined ? { editText: opts.editText } : {}),
     });
     if (opts.editSha256 !== undefined && (planned.edit.sha256 ?? null) !== opts.editSha256) {
       throw new RenderError(
@@ -432,6 +436,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   }
   const recordFile = file.replace(/\.mp4$/i, '.json');
   const id = basename(file, extname(file));
+  const templateSha256 = themeContentHash(template.dir);
   const base = (): RenderRecord => ({
     version: 1,
     id,
@@ -440,6 +445,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     run_id: timeline.run_id,
     run_dir: run.dir,
     template: template.name,
+    template_sha256: templateSha256,
     overrides,
     edit: { from: edit.from, ...(edit.sha256 ? { sha256: edit.sha256 } : {}), ...(edit.changes?.length ? { changes: edit.changes } : {}), ...(edit.from === 'scenario' ? { captions: sceneCaptions(timeline) } : {}) },
     variant: plan.variant,

@@ -92,6 +92,11 @@ export interface JobFilter {
   limit?: number;
 }
 
+/** Names of the files a submit may add to a job folder (no path, no hidden file). */
+const JOB_FILE_RE = /^[a-z][a-z0-9-]{0,30}\.(?:yaml|json|txt)$/;
+/** The job folder's own files: never written by a submit. */
+const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'browser.json', 'live.json', 'events.jsonl']);
+
 export class FileJobQueue {
   readonly dir: string;
 
@@ -108,8 +113,11 @@ export class FileJobQueue {
     return join(this.dir, id);
   }
 
-  /** Validate an input and queue it: job.json written once, atomically (`queued`). */
-  async enqueue(input: JobInput): Promise<JobRecord> {
+  /**
+   * Validate an input and queue it: job.json written once, atomically (`queued`). `files`: files of the job folder
+   * written first (mode 0600, by name: a render's edit.yaml snapshot, L4.5), so a worker that sees the job sees them.
+   */
+  async enqueue(input: JobInput, opts: { files?: Record<string, string> } = {}): Promise<JobRecord> {
     const parsed = JobInputSchema.safeParse(input);
     if (!parsed.success) {
       throw new EngineError('invalid', `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}`);
@@ -119,6 +127,10 @@ export class FileJobQueue {
     // Its approvals are signed (signing.ts): the worker honours no approval a submit did not write.
     const signed = await signApprovals(parsed.data);
     await mkdir(dir, { recursive: true });
+    for (const [name, text] of Object.entries(opts.files ?? {})) {
+      if (!JOB_FILE_RE.test(name) || JOB_RESERVED_FILES.has(name)) throw new EngineError('invalid', `invalid job file name "${name.slice(0, 40)}"`);
+      await writeFile(join(dir, name), text, { mode: 0o600, flag: 'wx' });
+    }
     const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: new Date().toISOString() };
     await writeAtomic(join(dir, 'job.json'), JSON.stringify(rec, null, 2) + '\n');
     return rec;

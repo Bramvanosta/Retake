@@ -23,6 +23,8 @@ import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, EnvFlags, Loading, Notice, plural, RunState, Txt, visibleControls, When } from './bits.js';
 import { useScenarioEvents } from './events.js';
 import { Inspector } from './Inspector.js';
+import { RenderBar, RendersPanel, useRenders } from './Renders.js';
+import type { RenderTarget } from './Renders.js';
 import { hrefTo } from './route.js';
 import type { ScenarioTab } from './route.js';
 import { NoThumb, Thumb, ThumbsProvider } from './Thumb.js';
@@ -61,6 +63,61 @@ function Breadcrumb({ slug, name }: { slug: string; name: string }) {
       <span aria-hidden="true"> / </span>
       <Txt aria-current="page" text={name} />
     </nav>
+  );
+}
+
+/** The newest capture that finished with its video (the timeline plans the take on it), or undefined. */
+export function timelineRun(v: Pick<View, 'runs'>): string | undefined {
+  return v.runs.find((r) => r.mode === 'capture' && r.status === 'succeeded' && r.pictures === 'video')?.id;
+}
+
+/**
+ * Renders (L4.5 part E, Renders.tsx): Render the newest finished capture on the file as shown, the queue, the renders
+ * with their review's verdict and a render's review (its contact sheets) — the timeline screen shows the same.
+ */
+function RendersCard({ v, slug, name, reload }: { v: View; slug: string; name: string; reload: () => void }) {
+  const r = useRenders(slug, name, reload);
+  const run = timelineRun(v);
+  const shown = { ...(run ? { run } : {}), hash: v.hash };
+  const target: RenderTarget = run ? { run, hash: v.hash } : { why: 'no finished capture yet: a capture films the take a render edits' };
+  return (
+    <section className="card renders-card" aria-labelledby="renders-h">
+      <h2 id="renders-h" className="card-title">
+        Renders
+      </h2>
+      <RenderBar r={r} target={target} shown={shown} />
+      <RendersPanel r={r} slug={slug} shown={shown} />
+    </section>
+  );
+}
+
+/**
+ * Open timeline (R-UI-15, L4.5): the newest finished capture's timeline — or, with none yet, the button disabled with
+ * why (no dead button).
+ */
+function OpenTimeline({ v, slug, name }: { v: View; slug: string; name: string }) {
+  const run = timelineRun(v);
+  if (!run) {
+    return (
+      <p className="run-action blocker-row">
+        <button type="button" className="button" disabled aria-describedby="timeline-why" data-testid="open-timeline-off">
+          Open timeline
+        </button>{' '}
+        <span id="timeline-why" className="muted small">
+          no finished capture yet: a capture films the take the timeline edits
+        </span>
+      </p>
+    );
+  }
+  return (
+    <p className="run-action blocker-row">
+      <a className="button" href={hrefTo({ name: 'timeline', slug, scenario: name, run })} data-testid="open-timeline">
+        Open timeline
+      </a>{' '}
+      <span className="muted small">
+        the edit of capture <Txt className="mono" text={run} />, previewed without a render
+      </span>
+    </p>
   );
 }
 
@@ -258,6 +315,7 @@ function RunActions({ v, slug, name, busy, onSubmitted }: { v: View; slug: strin
       </h2>
       {row('dry', 'Dry run', v.run_blockers.dry)}
       {row('capture', 'Capture', v.run_blockers.capture)}
+      <OpenTimeline v={v} slug={slug} name={name} />
       {/* Until the run it queued has ended: then its outcome (and the picker, the pictures) say the rest. */}
       {last && 'run_id' in last && !ended && (
         <p className="small" role="status" data-testid="run-submitted">
@@ -1339,7 +1397,12 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
         {tab === 'blocks' ? (
           <>
             <div className="scenario-top">
-              <SourceBar v={v} pick={pick} onPick={setPick} />
+              {/* Renders under the pictures' source, beside the run actions: the steps stay on the first screen (no row
+                  pushed under the fold, so the first pictures load at once). */}
+              <div className="scenario-top-main">
+                <SourceBar v={v} pick={pick} onPick={setPick} />
+                <RendersCard v={v} slug={slug} name={name} reload={reload} />
+              </div>
               <RunActions v={v} slug={slug} name={name} busy={v.running !== null || (live !== null && !live.finished)} onSubmitted={reload} />
             </div>
             {yamlDraft && (

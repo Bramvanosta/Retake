@@ -377,7 +377,10 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
   scrolling when long) and **document** components (`document-pdf` — an A4 page on the theme background with a
   paper shadow and a slow push-in or scroll), fed by captured emails/documents or by values written in the scenario.
 - Scenarios can override per use: `intro: {component, params}`, `interstitial: {component, text}`, generic full-screen
-  `card: {component, slots, duration}` entries, scene `frame: <component>`, step `overlay: {component, slots, duration}`.
+  `card: {component, slots, duration}` entries, scene `frame: <component>`, step `overlay: {component, slots, duration}`,
+  and the caption component of the whole video (`caption_component`, L4.5).
+- A manifest says which kit API it was written for (`engines: {kit: "^1"}`, absent = 1, L4.5): a component written for
+  another one is not loaded, its uses fall back.
 - Sources, in resolution order: the workspace (`components/`, created by the user or by Claude through a skill), the
   tool's built-in library, and — V2 — a cloud marketplace (manifests already carry publisher/version for it).
 - Authoring: a Claude skill (`demo-studio-component`) + MCP tools (`component_list`, `component_get`,
@@ -437,7 +440,53 @@ A client of the same packages (the MCP keeps working without it). Served locally
   a frame of the pause filmed).
 - **Edit/verify timeline**: segments (intro, scenes, cards, outro) with their **components switchable in one click**,
   caption / camera (zoom) / speed / marker tracks, a scrubber with a live preview (Remotion Player — no render needed),
-  render queue, review report and contact sheets.
+  render queue, review report and contact sheets. Built in L4.5 part A (core, components, editor, engine; no screen
+  yet): the timeline's model of a plan (segments with their component, transition and same-page joins; captions,
+  steps, camera, speed, cuts with their reasons, markers, comment pins), the engine's timeline view (path-free, the
+  inspector's choices with each option usable or disabled with why — a component that drops a slot the use writes, a
+  single-page layout for a two-page scene —, memoised per file version), a click's write as `scenario_edit`
+  `set_field` (only the edit part's allow-listed values: layouts, transitions, speeds, components, durations, the
+  intro / outro switch, the caption component — verified, undoable byte for byte, L4.3's rules unchanged), and render
+  jobs that keep the scenario text they were planned from (a switch made while a render waits never changes it) and
+  can review themselves in the same job. Built in L4.5 part B (Studio server; no screen yet): the preview's own origin —
+  a second loopback listener of the Studio that serves only the sandboxed preview frame, its bundle (the Remotion
+  Player, the render's composition and every component of the workspace, each loaded only when a plan uses it, under
+  an import allow-list that checks real paths) and the plan's media under one session capability (stable file URLs, a
+  file read without following a link, revoked when the Studio closes); the frame runs with no access to the Studio,
+  its storage or the network beyond that capability (WebRTC removed), starts muted, says when a paused frame is
+  `settled`, falls back to a system font with a warning, and talks to its page over one checked channel that stops a
+  flooding component. Built in L4.5 part C (the Studio's timeline screen; no switching or rendering from it yet):
+  **Open timeline** (the scenario screen, the Run screen's outcome, a step's *Show in timeline*), the tracks of the
+  plan (segments with their components and transitions, captions, steps, camera zooms, speed with its cuts and their
+  reasons, markers, comment pins read-only), a playhead and scrubber driving the sandboxed preview (exact to the frame
+  when paused, muted at first, a loading state until the frame is drawn, keys, zoom fit and in), the take's codec and
+  keyframe spacing, and a message instead of the preview in a browser that cannot play the take's video. Built in
+  L4.5 part D (the inspector; no rendering from the screen yet): a segment selected on the track (click, [ / ]), the
+  video's and the segment's switches as radio groups (layout, caption component, speed chips and a custom speed,
+  transition, card / waiting-screen / intro / outro component, durations, the intro / outro switch; the theme's default
+  removes the value), an option the use cannot take shown disabled with the reason, one click writing one line through
+  `scenario_edit` `set_field` (strict schema, allow-listed edit values only) with the preview updated in the same frame
+  (≈ 0.1 s in Chromium), undo / redo of the exact bytes, and another writer's change handled like L4.3 (not applied,
+  "Apply it to the new version", a value they changed refused as stale). Built in L4.5 part E (render, queue,
+  review): **Render** on the timeline (and the scenario screen) with pinned arguments — the capture and the file's
+  version shown, the theme and options of the files, the review inline after the render; a file changed since it was
+  shown, or a render of the scenario already waiting or running, refuses it —, the render queue (queued and what runs
+  first, the phase, percentage and time left, reviewing; Cancel of a render or review of that project), the renders
+  with their review's verdict (clean / warnings / errors) and whether they show the version on screen, and a render's
+  review: its findings (a finding seeks the preview when the render is of the version shown) and its contact sheets as
+  images — every answer path-free, a sheet read by name without following a link, JPEG only, capped. Accepted in L4.5
+  part F from the built `studio ui` in the installed Chrome on a fixture capture (capture from the screen, timeline,
+  scrub and play at ≈ 30 frames / s, seeks settled in ≈ 0.1 s, a layout and the caption component switched and undone
+  to the exact bytes, render and review from the timeline); the preview matches the render frame for frame but for text
+  antialiasing and the capture's colours (a few levels brighter in the preview). Cut: editing extras (BL-107), preview
+  fidelity — frame-exact playback through speed changes, a proxy for browsers without H.264, colours (BL-108), watching
+  a finished render and other verify extras (BL-109), isolation residues — WebKit runs the frame in the tab's process
+  (BL-110). After two independent reviews: a workspace component runs in the preview only once the person allowed it
+  in that Studio session (by its folder's content hash; built-in components always run), the frame refuses
+  `rel="prerender"` (Chrome's prerender ignores a frame's CSP and sandbox) and parses no HTML from a string (Trusted
+  Types), each project has its own preview capability revoked when its last timeline page leaves, hard links are never
+  served; "from this version" means the same plan and theme files, an intro / outro with its own text is never dropped
+  by a switch, and the view re-plans when a theme or project file changes.
 - **Frame comments**: click a frame (optionally draw a region) and write a comment. Comments are anchored to the
   render frame AND to the scenario (scene, step, segment, component) through the edit plan, stored in the workspace,
   and exposed to Claude (`comments_list`, `comment_reply`, `comment_resolve`) so it can make the change — a scenario

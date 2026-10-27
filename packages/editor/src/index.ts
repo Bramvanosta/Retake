@@ -35,6 +35,26 @@ export { DESIGN_SPACES, FALLBACK_GEOMETRY, RAW_GEOMETRY, REFRAME_MIN_SCALE, fitR
 export type { SourceView } from './layout.js';
 export { BUILTIN_DEFAULTS, TRANSITION_COMPONENTS, transitionKindOf } from './resolve.js';
 export { resolvePlanAssets, summarizePlan } from './summary.js';
+export { placePins, reasonOf, timelineOf } from './timeline.js';
+export type {
+  CutReason,
+  PinThread,
+  PlacedPin,
+  TimelineCaption,
+  TimelineComponent,
+  TimelineCut,
+  TimelineMarker,
+  TimelineModel,
+  TimelineOptions,
+  TimelineSegment,
+  TimelineSpeed,
+  TimelineStep,
+  TimelineZoom,
+} from './timeline.js';
+export { PreviewPlanError, previewPlan } from './preview-plan.js';
+export { PreviewContext, usePreviewMode, usedComponentIds } from './remotion/preview-mode.js';
+export type { PreviewMode } from './remotion/preview-mode.js';
+export type { PreviewPlan, PreviewPlanOptions } from './preview-plan.js';
 export { RenderCancelledError, RenderError } from './render/types.js';
 export type { RenderProgress, RenderRecord, RenderStage } from './render/types.js';
 export {
@@ -54,6 +74,7 @@ export { PlanTrustError, editOfToday, noteEdit, planRun, preReadProblems, served
 export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from './render/plan-run.js';
 export { allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, originOf, pickFreePort } from './render/network-guard.js';
 export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
+export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './render/theme-hash.js';
 export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
 export type { RunRef } from './render/runs.js';
 export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
@@ -68,6 +89,7 @@ export {
   bundleCacheDir,
   bundleComponentsFor,
   bundleHash,
+  componentFolderHash,
   compositionFiles,
   ensureBundle,
   entrySource,

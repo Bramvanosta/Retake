@@ -50,6 +50,11 @@ export interface RenderRecord {
   run_dir: string;
   /** Theme (template name) the plan was made with. */
   template: string;
+  /**
+   * The theme folder's content hash at render time (theme-hash.ts; L4.5 fixes): the Studio's "from this version" needs
+   * the same theme files. Absent in renders made before.
+   */
+  template_sha256?: string;
   overrides: EditOverrides;
   /**
    * Where the edit came from (L5.5): today's scenario file re-planned on the run (`scenario`, with the file's sha256

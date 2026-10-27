@@ -221,11 +221,16 @@ export interface SpeedSpan {
   protected?: boolean;
 }
 
-/** An idle gap shortened by the planner: at output frame `at` (relative), capture time jumps over [src_from_s, src_to_s). */
+/** A cut of the planner: at output frame `at` (relative), capture time jumps over [src_from_s, src_to_s). */
 export interface TrimSpan {
   at: number;
   src_from_s: number;
   src_to_s: number;
+  /**
+   * Why the planner cut it (timing.ts RunCut): a shortened idle gap, a held page load, a frozen screen, a wait after a
+   * click, an off-camera hook step. Absent in plans made before L4.5's fixes.
+   */
+  reason?: 'idle' | 'loading' | 'frozen' | 'busy' | 'hook';
 }
 
 /** A camera zoom of a clip, from a step `camera` hint (frames relative to the clip whose step asked for it). */

@@ -7,6 +7,7 @@ import {
   ScenarioError,
   StepEditError,
   agentTrustProblemsAt,
+  applyFieldEdit,
   applyStepEdit,
   changedHookInputs,
   changedHookSections,
@@ -23,7 +24,10 @@ import {
   verifyEditText,
 } from '@demo-studio/core';
 import type { AgentChannel, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@demo-studio/core';
+import type { ComponentRegistry } from '@demo-studio/components';
+import { components } from './components.js';
 import { EngineError } from './errors.js';
+import { fieldFitProblem } from './field-options.js';
 import { checkScenarioName } from './refs.js';
 import { LocalStorage, sha256Hex } from './storage.js';
 
@@ -243,8 +247,9 @@ export interface ScenarioEditResult {
   warnings: ValidationIssue[];
   notices: string[];
   /**
-   * A block edit's kind of change (L5.5's rule): `filmed` (what the browser does: a dry run shows it, a capture films
-   * it) or `edit` (a caption, a speed, a mark: a render of the same run re-plans it). Absent for the YAML tab and undo.
+   * A block or field edit's kind of change (L5.5's rule): `filmed` (what the browser does: a dry run shows it, a capture
+   * films it) or `edit` (a caption, a speed, a mark, a layout: a render of the same run re-plans it). Absent for the YAML
+   * tab and undo. A field edit (`set_field`, L4.5) is always `edit`.
    */
   change?: 'filmed' | 'edit';
 }
@@ -306,7 +311,12 @@ export function scenarioEditBlocker(
  * value (core verifyEditText) — a step no longer where the edit says (its guard), or a field no longer holding what the
  * form showed (critique B2), is a conflict with `details.stale`.
  */
-export async function editScenario(project: LoadedProject, name: string, req: ScenarioEditRequest, o: { agent: boolean; via: AgentChannel }): Promise<ScenarioEditResult> {
+export async function editScenario(
+  project: LoadedProject,
+  name: string,
+  req: ScenarioEditRequest,
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry> },
+): Promise<ScenarioEditResult> {
   const base = await getScenario(project, name);
   const storage = new LocalStorage(project.dir);
   if (base.hash !== req.hash) {
@@ -371,6 +381,32 @@ export async function editScenario(project: LoadedProject, name: string, req: Sc
       // L5.5's rule, said after each block edit: a step edit is a filmed change (a new capture films it), a caption,
       // speed or mark alone is an edit change (a render of the same run re-plans it).
       change = filmedChangesOf(applied.intended, parseYaml(base.yaml).value).length ? 'filmed' : 'edit';
+      break;
+    }
+    case 'set_field': {
+      // L4.5: one edit value of the video, a scene, a card or an interstitial (core applyFieldEdit: allow-list, from /
+      // guard, splice), refused when the component or frame does not fit the use (critique B7: the inspector shows such
+      // an option disabled with the same reason).
+      let applied: ReturnType<typeof applyFieldEdit>;
+      try {
+        applied = applyFieldEdit(base.yaml, edit);
+      } catch (e) {
+        if (!(e instanceof StepEditError)) throw e;
+        const field = e.field !== undefined ? { field: e.field } : {};
+        if (e.code === 'stale') throw new EngineError('conflict', `not saved: ${e.message}`, { details: { current: base.hash, stale: true, ...field } });
+        throw new EngineError(e.code === 'invalid' ? 'invalid' : 'refused', `not saved: ${e.message}`, e.field !== undefined ? { details: field } : {});
+      }
+      const wrong = verifyEditText(applied.text, applied.intended);
+      if (wrong) throw new EngineError('refused', `not saved: ${wrong}`);
+      const c = await components();
+      const registry = await (o.registry ? o.registry() : c.loadComponentRegistry({ root: project.root }));
+      const misfit = fieldFitProblem(registry, c.componentFit, parseYaml(base.yaml).value, edit);
+      if (misfit) throw new EngineError('invalid', `not saved: ${misfit}`, { details: { field: edit.field } });
+      // Defence: every path of the allow-list is an edit value — a field edit never changes what a take films.
+      const filmed = filmedChangesOf(applied.intended, parseYaml(base.yaml).value);
+      if (filmed.length) throw new EngineError('refused', `not saved: this edit would change the filmed part (${filmed.slice(0, 3).join('; ')})`);
+      ({ text, label } = applied);
+      change = 'edit';
       break;
     }
     default:

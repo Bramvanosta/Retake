@@ -20,6 +20,7 @@ import { useThemeFonts } from './fonts.js';
 import { brandmarkRect, insetHole, layoutRects, mapUseRect, overlayBoxAt, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
+import { usePreviewMode } from './preview-mode.js';
 
 export interface DemoVideoProps extends Record<string, unknown> {
   plan: EditPlan | null;
@@ -51,10 +52,19 @@ function Use(props: { rc: ResolvedComponent; plan: EditPlan; durationInFrames: n
  * frame index beyond the video's length (a clip taken late in a long capture, an interstitial backdrop near the end)
  * would silently show the wrong frame. A Sequence offset moves the media time without moving the timeline.
  */
+/**
+ * In the Studio's preview (a Player: an HTML5 video) the capture is asked for the middle of its source frame — a browser
+ * keeps a frame's timestamp in microseconds, rounded, so asking for exactly n / fps can show frame n − 1 (measured in
+ * Chromium on a VP9 take: output frame 158 showed source frame 193 instead of 194). A render (OffthreadVideo) is
+ * unchanged: no preview mode there.
+ */
+export const PREVIEW_FRAME_CENTRE = 0.5;
+
 function CaptureFrame({ plan, srcFrame, source }: { plan: EditPlan; srcFrame: number; source?: PlanSource }) {
   const current = useCurrentFrame();
+  const preview = usePreviewMode() !== null;
   const src = source ?? plan.source;
-  const t = (srcFrame / src.fps) * plan.fps;
+  const t = ((srcFrame + (preview ? PREVIEW_FRAME_CENTRE : 0)) / src.fps) * plan.fps;
   return (
     <Sequence from={current - t} layout="none" name="capture">
       {/* objectFit fill: the box is the visible region (the reframe crop) scaled to the capture's aspect, never letterboxed. */}

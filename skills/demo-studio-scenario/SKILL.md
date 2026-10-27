@@ -84,8 +84,8 @@ render on the same take). Hooks are the user's: propose one, never add one they 
    `render {project, scenario}` and `render_status {project, render_id, wait_s: 25}` until it is finished, then
    `review {project, render_id}` (it waits up to 20 s; a review still running: follow it with
    `review_get {project, render_id, wait_s: 25}`). Look at the contact sheet and the findings, then fix.
-   A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render. Save it first (step 5). The edit is also camera hints, marks, speeds, interstitials and
-   `target_length`: `plan_preview` / `render` re-plan it from today's file (`edit: "scenario"`, `edit_changes`). The
+   A change to the edit (captions, cards and their order, durations, overlays, title, intro/outro, template) needs only a render on the same run; a change to the filmed part (steps, pages, hooks, capture settings) shows only in a new capture: `run_capture`, then render. Save it first (step 5). The edit is also camera hints, marks, speeds, interstitials,
+   `caption_component` and `target_length`: `plan_preview` / `render` re-plan it from today's file (`edit: "scenario"`, `edit_changes`). The
    filmed part is also the steps' arguments, `hold` / `park` / `on`, a scene's `open`, persona, still or cursor, scenes
    added, removed or moved, `env`, `pacing` and the vars the steps use: `plan_preview` and `render` say
    `scenario_changed` and list `filmed_changes`. Group the changes: a take costs minutes, a render seconds. A theme or a

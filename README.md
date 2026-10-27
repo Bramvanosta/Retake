@@ -439,7 +439,8 @@ scenes:
 during the take, see [Hooks during the take](#hooks-during-the-take)), `capture`, `frame` (default for
 every scene, see [frames](#components-in-scenarios)), `template`, `pacing`, `music` (`{file, volume, duck, loop}`, see
 [the music bed](#music-bed)), `target_length` (`{min_s, max_s}`: the length this video aims at — the review's
-`video-length` rule uses it instead of the reference 60–120 s), `scenes`.
+`video-length` rule uses it instead of the reference 60–120 s), `caption_component` (the caption component of the whole
+video, see [components in scenarios](#components-in-scenarios)), `scenes`.
 
 **Scene keys:** `id`, `caption` (string or `{kicker, text}`), `page`, `open`, `persona` (the account the page is
 signed in as, `none` for none: see [Signing in](#signing-in-personas-and-sessions)), `steps`, `speed` (edit-time),
@@ -614,6 +615,7 @@ scenes:
 | `card` | scene entry | `{component, params, slots, duration, transition}`; needs `component`, `slots.title` (the theme's card component shows a title) or your file (`video`, `image`, `lottie`) |
 | `overlay` | step modifier | `{component, slots, params, duration (0 < s ≤ 30), target}`, or your file over the capture: `{video \| image \| lottie, at, anchor \| rect, scale, duration, loop}` |
 | `transition` | scene, card | the transition INTO it: `crossfade` · `cut` · `fade-black` (the theme's of that kind) or a transition component — `studio/transition-tap-open` or `{component, params}` |
+| `caption_component` | scenario | the caption component of every clip, e.g. `studio/caption-overlay` (default: the theme's). `studio plan` / `studio render`, MCP `plan_preview` / `render` and the Studio read it the same way; a render's `overrides.components.caption` (MCP `render {overrides}`) wins over it and `captions: false` still turns captions off. An edit value: a render of the same take uses it, no new capture |
 
 No component is ever mandatory: a file given as `video`, `image` or `lottie` is drawn by the built-in `studio/media` /
 `studio/lottie` components — see [your own media and motion](#your-own-media-and-motion).
@@ -1115,6 +1117,7 @@ preview:                          # sample values: previews render with any them
 | `slots.<name>` | `type`: `text`, `image` (URL), `url` (shown as text), `color`, `screen` (the capture: layouts, interstitials, transitions); `required`; `default_from`: `theme.logo`, `theme.wordmark`, `theme.brand.name`, `theme.brand.url`, `theme.outro.tagline`, `theme.outro.url`, `scenario.title.text`, `scenario.title.kicker`, `scenario.outro.tagline`, `scenario.outro.url`, `scene.caption.text`, `scene.caption.kicker`, `interstitial.text`, `interstitial.kicker`; `max_chars` (text and url) |
 | `params` | JSON Schema subset: `type`, `properties`, `required`, `additionalProperties`, `default`, `enum`, `const`, `minimum`/`maximum` (+ exclusive), `multipleOf`, `minLength`/`maxLength`, `pattern`, `items`, `minItems`/`maxItems`, `uniqueItems`, `anyOf`, `oneOf` (+ annotations such as `description`). Objects are **closed** unless they set `additionalProperties`. Every `default` must match its schema |
 | `geometry`, `geometry_vertical`, `geometry_square` | layouts only: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920, square: 1080×1080) design space, and `radius` — the planner and the review reason on them without rendering. `geometry` is required, the others when `variants` lists `vertical` / `square`. Every value may be an **expression** over the numeric params (see below). In the vertical and square variants a screen rect with another aspect than the capture **reframes** it (see [Variants](#variants-4k-music-and-export)) |
+| `engines` | `{kit: "1"}` or `{kit: "^1"}`: the kit API major the component was written for (absent: 1). This Demo Studio provides kit API 1; a component that needs another one is not loaded (a registry notice in `studio components list` / `component_list`): its uses fall back to the theme's component with a plan warning, or render as a stand-in |
 | `preview` | `slots` must give a sample for every required slot that is not filled from the theme; `params` are validated; `at` = seconds of the preview stills (preview.png shows the last one); `screen`: `desktop` (default), `tablet` or `phone` — the sample screen a layout, caption, overlay or transition preview shows |
 
 **Geometry that follows params.** A layout's geometry values are numbers or arithmetic expressions over its numeric
@@ -1536,7 +1539,8 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
   `overrides.components[<kind>]` → the scenario → the theme → the built-in default, with its slots filled (scenario
   title and outro, theme brand and logo, scene captions, interstitial text, card slots). A component that does not
   resolve is reported and the next candidate is used; when none resolves the use is marked `missing` and the
-  renderer draws a stand-in.
+  renderer draws a stand-in. A clip's caption resolves by kind: `overrides.components.caption` → the scenario's
+  `caption_component` → the theme → the built-in default.
 - **Clips** show a scene from the end of its page load (`scene_still` start, else `scene_open` end) to its end,
   trailing holds included: page loads are never shown. `srcFrames` gives the exact capture frame of every output
   frame. A scene played with `offscreen: true` has no clip (noted).
@@ -1678,9 +1682,11 @@ $ studio render northfield-fixture catalogue
   edit-only change says `edit: "scenario"` with `edit_changes`. The files are compared by their data: a comment, blank
   lines, quoting, indentation or key order is no change; a link, a non-regular file or one over 2 MB is not compared;
   a run without its snapshot, or a file that does not validate, renders as captured. A render records where its edit
-  came from (`edit` in `renders/<id>.json`); a queued render job and an export that re-renders a master refuse a
-  scenario file changed since they were planned (submit again). Project-level changes (project.yaml environments or
-  vars) are not compared.
+  came from (`edit` in `renders/<id>.json`). A render job (MCP `render`, the Studio) keeps the scenario text its edit
+  was planned from in its job folder (`.demo-studio/jobs/<job>/edit.yaml`, L4.5): it renders that version even when
+  the file changes while it waits in the queue (keep editing after Render); an export that re-renders a master still
+  refuses a scenario file changed since it was planned (submit again). Project-level changes (project.yaml environments
+  or vars) are not compared.
 
 How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
 
@@ -3492,6 +3498,63 @@ running: the MCP server keeps working without it.
   A run whose worker was killed shows its running step as *interrupted* and its clock stopped at its last event. A third tab on a run screen (two at most follow runs) reads the run's
   status every few seconds instead. Everything works with the keyboard; one status line tells a screen reader when
   the run starts, pauses, stops or ends — the steps and the log are lists, not announcements.
+- **The timeline** (L4.5). **Open timeline** on the scenario screen (under *Runs from the Studio*; disabled, with why,
+  until a capture has finished), **Open its timeline** after a capture on the Run screen, or **Show in timeline** on a
+  step bound to a capture (`#/p/<project>/s/<scenario>/timeline[/<run>[/<step>]]`) shows one capture as the edit plans
+  it — the edit of today's file on that take, or the take as captured when what the browser does changed since (it then
+  says so). On top: the capture (a picker when there are several), the theme, the length, the frames, and the take's
+  codec and keyframe spacing — a take encoded without the Mac's hardware encoder (keyframes seconds apart) says that
+  scrubbing is slow on it. Then the **preview**: the edit drawn live by the Remotion Player, no render needed — exact to
+  the frame when paused or scrubbing, close while playing; it starts muted (**Unmute**), says *Loading the preview…*
+  until the frame asked is drawn, and a browser that cannot play the take's video (H.264: Playwright's own Chromium;
+  Chrome, Safari and Firefox on a Mac play it) gets that said instead, the tracks still working. **Play** / **Pause**,
+  one frame back or on, the time and frame, a playback speed, **Fit** or **Zoom in** (about ten seconds per screen,
+  scrolled; the playhead follows while playing). Under it the scrubber and the **tracks**, each item placed at its
+  frames and a button that seeks there: *Segments* (intro, scenes, cards, waiting screens, outro, each with its
+  component; a transition shaded at its start), *Captions*, *Steps*, *Camera* (zooms with their ease in), *Speed*
+  (each span's speed, a held frame under a transition, the cuts ✂ with their reason — an idle wait, a page load, a
+  frozen screen, a busy wait, a hook step), *Markers* and *Comments* (the scenario's comment threads at their frames,
+  read-only; those made on another take listed below). Keys: Space plays or pauses, ← / → one frame, Shift + ← / → one
+  second, Home / End, [ / ] the previous / next segment — not while you type or in a choice group, and the scrubber's
+  own arrows move it one frame. A segment picked (a click, [ / ]) shows from its first frame after the transition into
+  it. A workspace component the take uses runs in the preview only once you click **Allow in the preview** in the
+  notice that names it (with its folder's hash; for this Studio session — see [Security](#security)); until then its
+  kind's stand-in draws. The take's warnings and notes, and what the preview could not draw (a component that did not
+  load or is not allowed: its kind's stand-in draws), are listed at the end. Beside the preview, the **inspector** switches in one
+  click: for the whole video the caption component and every scene's layout; for the segment you select (click it on
+  the *Segments* track, or [ / ]) a scene's layout (*Card*, *Browser*, *Laptop*, *Phone*, *Tablet*, *Full screen*, or a
+  layout component of the workspace), its transition and its speed (1×, 1.25×, 1.5×, 2× or your own); a card's or a
+  waiting screen's component and duration; the intro's and outro's component, duration, or *Off* — an intro or outro
+  with its own text or files (a tagline, an image) is turned off or back to the theme's in the YAML tab, never by a
+  click that would drop them. The video's layout offers *Split screen* / *Picture in picture* when a scene films
+  several pages, and says so when a one-page layout would change no scene. *Theme default* (or *As the video*) removes
+  the value from the file. A component the segment cannot take is shown greyed with the reason
+  ("needs slots.before"). A click writes the scenario file at once — one line — and the preview shows it in about a
+  tenth of a second, at the same frame; it changes only the edit: a render of this take shows it, no new capture. ⌘Z
+  (or **Undo**) gives back the file's exact bytes, Shift+⌘Z redoes. If something else changed the file meanwhile, the
+  switch is not applied: **Apply it to the new version** does it on the new file — unless that value itself was changed,
+  which is then said, never overwritten. The arrows move between a group's choices; Space or Enter picks one. The
+  preview is the render's own composition: against the render, frame by frame on the fixture, it shows the same frame
+  of the capture, the same layout, captions, cards and fonts — text antialiased at the preview's size, and the capture's
+  colours a few levels brighter than in the render (two video decoders: BACKLOG BL-108). Not in the timeline yet:
+  durations by drag, text, variants and a theme picker (BL-107), playback frame-exact through speed changes and a
+  lighter copy of the take for browsers without H.264 (BL-108).
+- **Render and review** (L4.5). **Render** at the top of the timeline renders the capture shown, as the screen shows
+  it — the theme and options of your files (the timeline's own switches included), landscape — then reviews it in the
+  same job (contact sheets at 1 fps, the checks, the report). If the file changed since the screen read it, the render
+  is not started and the screen reads it again; while a render of the scenario waits or runs, Render is off (one at a
+  time) and says why. You can keep switching meanwhile: the render keeps the version it was sent with. The **Renders**
+  card (under the tracks, and on the scenario screen, where Render takes the newest finished capture) shows the queue —
+  *queued* (and what runs first), *rendering 43 % · about 12 s left*, *reviewing* — with **Cancel** (during the review:
+  **Stop the review**, the render stays); a render that failed, with its message; and the renders, newest first, each
+  with its size and length, whether it shows *this version* of the edit, and its review: *clean*, *2 warnings*, *1
+  error*, *reviewing…*, *review failed*. **Show the review** (it opens by itself when a render you started is reviewed)
+  lists the findings — on the timeline, **Show in the preview** jumps to a finding's frame only when the render is of
+  the version shown: the same plan (the same file, capture, options, fps and variant — a `studio render --no-intro`
+  is another version, *with other options*) and the same theme files — and its images: the contact sheets, the scene
+  sheets, the key frames and the diff with the previous render (at most 24), larger on click. A render that failed
+  after the newest video is said in the Render bar too, with its message's first line (no path, no stack). Watching a finished render in the preview, exports and
+  other review settings from the Studio: BL-109.
 - **Sessions.** The project page lists every persona of every environment with its saved sign-in (*valid*, *expired*,
   *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
   known state: no browser opens to read it. **Sign in** queues a job that opens a browser window on this computer:
@@ -3532,7 +3595,12 @@ running: the MCP server keeps working without it.
   L4.4: `run_pause` — pause a run of a job (dry run or capture) before its next step, resume it —, `scenario_sessions` — the sessions a run of a
   scenario needs, with `has_check`, the login variables missing for the worker —, `auth_status`, `auth_login` — only
   the window where **you** sign in, never Claude's headless sign-in, never a wait — and `sign_in_cancel` — stop that
-  window, nothing else), run with the trust an agent has
+  window, nothing else; L4.5: `timeline_view` — a capture's timeline, its preview's two addresses on the preview's own
+  origin, never the plan or a path —, `scenario_render` — a render of the capture shown with the review after it, the
+  project, scenario, capture and the file's version as shown and nothing else (no theme, option or path) —,
+  `scenario_renders` — the render queue and the renders with their review's verdict, no path —, `render_cancel` — a
+  render or review of that project only —, `render_review` — a review without any path — and `review_image` — one
+  contact sheet as a JPEG, by its name in the review folder, never through a link), run with the trust an agent has
   through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
   stays in the terminal.
 
@@ -3544,8 +3612,30 @@ running: the MCP server keeps working without it.
   (`Sec-Fetch-Site`; a page of another local port — a filmed local app — is *same-site* and refused), then the method
   (no CORS: a preflight always fails), the bearer token (a header, never a cookie or a URL), `application/json` (a
   `<form>` cannot send it) and a 2 MiB body cap. Every answer carries a strict Content-Security-Policy (scripts,
-  styles and fetches from the server itself only; no inline script, no `eval`, no framing). No secret is in the app's
-  files; the token comes from the one-time code (see [Studio app](#studio-app)).
+  styles and fetches from the server itself only; no inline script, no `eval`; the page may frame one origin, the
+  preview's below, and nothing may frame it). No secret is in the app's files; the token comes from the one-time code
+  (see [Studio app](#studio-app)).
+- **The timeline preview** (L4.5) plays in its own origin: a second `127.0.0.1` port of the same `studio ui` process
+  that serves only the preview frame, its script and the files of the take being previewed (the capture, the theme's
+  fonts and logo, the music, card media) — each registered only when it lies inside the project, the run or the theme,
+  has one name (no hard link) and is read without following a link — under a capability in the path, one per project,
+  revoked when the last timeline page of the project is left or `studio ui` stops, never logged; only the frame's
+  opaque origin may read those files from a script (CORS `null`).
+  The frame is `sandbox="allow-scripts"` (an opaque origin: no storage, no cookie, no access to the Studio page), its
+  CSP allows scripts, fetches, images, fonts and media only from that capability (no other host, no WebSocket) and
+  requires Trusted Types with no policy (no HTML is ever parsed from a string there), and WebRTC is removed in it.
+  It talks to the page over one channel whose messages are checked; one that floods it is stopped.
+  **A workspace component runs in the preview only once you allow it:** components of your workspace are code (an
+  agent may have written or changed one), so until you click *Allow in the preview* on the timeline — which names the
+  component and its folder's content hash — it is not even in the preview's bundle and its stand-in draws. The
+  permission lives in the Studio's memory only, for that session: it is gone when `studio ui` stops, and a component
+  changed since is held again. No MCP tool can give it. Built-in components always run. (Why: Chrome's prerender of
+  a `<link rel="prerender">` ignores a frame's CSP and sandbox — the frame's first script refuses to make one, Trusted
+  Types close the HTML parsers, and an unallowed component's code never reaches the frame at all.) An allowed
+  component is bundled only with imports of its own folder (real paths: a link out of it is refused), `react`,
+  `remotion` and the kit; its module runs only when a previewed plan uses it.
+  In Safari (WebKit) the frame shares the page's process: a component that loops in its render freezes the Studio tab
+  until it returns (Chrome runs the frame apart); a flooding one is still stopped (BACKLOG BL-110).
 - **MCP over HTTP** (`studio mcp --http`) listens on `127.0.0.1` only and takes no request from a web page: the `Host`
   check (421) stops a DNS-rebinding page, and a page holds no token; as a second line, any request carrying an
   `Origin` header or a `Sec-Fetch-*` header is refused (browsers send an `Origin` on every POST and cross-origin fetch,

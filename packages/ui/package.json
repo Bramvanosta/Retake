@@ -17,12 +17,16 @@
     "src"
   ],
   "dependencies": {
+    "@demo-studio/components": "workspace:*",
     "@demo-studio/core": "workspace:*",
+    "@demo-studio/editor": "workspace:*",
     "@demo-studio/engine": "workspace:*",
     "@demo-studio/mcp": "workspace:*",
+    "@remotion/player": "4.0.534",
     "esbuild": "0.28.1",
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "remotion": "4.0.534",
     "zod": "^4.1.0"
   },
   "devDependencies": {

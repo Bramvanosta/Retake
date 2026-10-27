@@ -162,6 +162,8 @@ export interface ComponentManifest {
   tags?: string[];
   /** Implementation file relative to the component dir (default "index.tsx"). */
   entry?: string;
+  /** The kit API major it was written for (L4.5): "1" or "^1" (absent: 1). See KIT_API_VERSION. */
+  engines?: { kit: string };
   slots: Record<string, SlotSpec>;
   /** JSON Schema (object) of the params, with defaults. */
   params?: Record<string, unknown>;

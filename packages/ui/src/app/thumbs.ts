@@ -4,8 +4,9 @@
  * data, never written anywhere).
  *
  * - `jpegDataUrl` is the only way to make an image address: always the fixed `data:image/jpeg;base64,` prefix, and the
- *   payload must be plain base64 (alphabet and padding checked) of at most THUMB_DATA_MAX characters — anything else is
- *   refused (null), so no scheme or markup from an answer can reach an `<img>`.
+ *   payload must be plain base64 (alphabet and padding checked) of at most THUMB_DATA_MAX characters (a review's contact
+ *   sheet, L4.5 part E: SHEET_DATA_MAX) — anything else is refused (null), so no scheme or markup from an answer can
+ *   reach an `<img>`.
  * - `ThumbLoader`: rows say when they become visible or leave (an IntersectionObserver in Thumb.tsx); every
  *   BATCH_DELAY_MS the keys on screen that are neither known nor asked for go out in calls of at most BATCH_MAX keys of
  *   one run, IN_FLIGHT_MAX calls at a time (the event stream holds one of the browser's 6 connections). A call whose
@@ -25,13 +26,21 @@ export const BATCH_DELAY_MS = 50;
 export const CACHE_MAX = 600;
 /** One picture's base64, at most (the server's THUMB_BASE64_MAX). */
 export const THUMB_DATA_MAX = 200_000;
+/** One review contact sheet's base64, at most (L4.5 part E: the server's REVIEW_IMAGE_BASE64_MAX). */
+export const SHEET_DATA_MAX = 2_000_000;
+/** The caps an image may be shown under: a step's picture or a contact sheet — no other number. */
+export type ImageCap = typeof THUMB_DATA_MAX | typeof SHEET_DATA_MAX;
 
 const PREFIX = 'data:image/jpeg;base64,';
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
-/** The image address of a base64 JPEG from the server, or null when it is not plain base64 within the cap. */
-export function jpegDataUrl(base64: unknown): string | null {
-  if (typeof base64 !== 'string' || base64.length === 0 || base64.length > THUMB_DATA_MAX || base64.length % 4 !== 0) return null;
+/**
+ * The image address of a base64 JPEG from the server, or null when it is not plain base64 within the cap — the step
+ * pictures' (THUMB_DATA_MAX, the default) or a contact sheet's (SHEET_DATA_MAX); any other cap counts as the first.
+ */
+export function jpegDataUrl(base64: unknown, max: ImageCap = THUMB_DATA_MAX): string | null {
+  const cap = max === SHEET_DATA_MAX ? SHEET_DATA_MAX : THUMB_DATA_MAX;
+  if (typeof base64 !== 'string' || base64.length === 0 || base64.length > cap || base64.length % 4 !== 0) return null;
   if (!BASE64.test(base64)) return null;
   return PREFIX + base64;
 }

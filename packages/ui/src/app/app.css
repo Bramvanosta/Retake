@@ -1639,3 +1639,603 @@ textarea:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Timeline screen (L4.5 part C): the preview, the transport, the scrubber and the tracks */
+.timeline-screen {
+  max-width: 1320px;
+  display: grid;
+  gap: 14px;
+}
+.timeline-screen > .breadcrumb,
+.timeline-screen > .screen-head {
+  margin-bottom: 0;
+}
+.tl-facts {
+  font-variant-numeric: tabular-nums;
+}
+.tl-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.tl-run-pick,
+.tl-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tl-preview-wrap {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.tl-preview {
+  position: relative;
+  /* Its height sets its width (the aspect ratio is the video's): the preview, the transport and the tracks fit a laptop screen. */
+  height: min(44vh, 460px);
+  max-width: 100%;
+  background: #16181d;
+  border-radius: 6px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.preview-frame-box,
+.preview-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+/* The frame only displays: every control is the page's (L4.6 draws comment regions over it). */
+.preview-frame {
+  pointer-events: none;
+  background: #16181d;
+}
+.tl-preview-note {
+  position: relative;
+  max-width: 80%;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--fg);
+  text-align: center;
+}
+.tl-preview-note.is-message {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.tl-transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  width: min(100%, 980px);
+}
+.tl-time {
+  min-width: 15ch;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.tl-zoomer {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+}
+.tl-zoomer .button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent-soft);
+}
+.tl-keys {
+  width: min(100%, 980px);
+}
+.tl-scroll {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 0 10px;
+}
+.tl-inner {
+  position: relative;
+  min-width: 100%;
+}
+.tl-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  min-height: 30px;
+}
+.tl-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 14px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tl-lane {
+  position: relative;
+  list-style: none;
+  margin: 0 12px 0 0;
+  padding: 0;
+  height: 26px;
+  border-bottom: 1px dashed var(--line);
+}
+.tl-scrub-row .tl-lane {
+  border-bottom: 0;
+  display: flex;
+  align-items: center;
+}
+/* The thumb's centre spans the lane's edges (a thumb is about 16 px): the playhead and the items line up with it. */
+.tl-scrubber {
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  accent-color: var(--accent);
+}
+.tl-item,
+.tl-tick {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+}
+.tl-item {
+  min-width: 3px;
+}
+.tl-item > button {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: #f1f3f6;
+  color: var(--fg);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+.tl-item > button:hover {
+  border-color: var(--accent);
+}
+.tl-seg > button {
+  display: flex;
+  gap: 6px;
+  background: var(--accent-soft);
+  border-color: #c6d4f6;
+}
+.tl-seg-name {
+  font-weight: 620;
+}
+.tl-seg-comp {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-seg-card > button,
+.tl-seg-interstitial > button {
+  background: #f4effc;
+  border-color: #dccff3;
+}
+.tl-seg-intro > button,
+.tl-seg-outro > button {
+  background: #eef1f4;
+}
+.tl-seg.is-missing > button {
+  background: repeating-linear-gradient(45deg, var(--warning-soft) 0 6px, #fff 6px 12px);
+  border-color: var(--warning);
+}
+.tl-seg.is-joined > button {
+  border-left-style: dotted;
+}
+.tl-trans {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(35, 87, 217, 0.28), rgba(35, 87, 217, 0));
+  border-radius: 4px 0 0 4px;
+}
+.tl-caption > button {
+  background: var(--warning-soft);
+  border-color: #efd9ad;
+}
+.tl-step > button {
+  text-align: center;
+  padding: 0 2px;
+  background: #fff;
+}
+.tl-step.is-still > button {
+  border-style: dashed;
+  color: var(--muted);
+}
+.tl-cam > button,
+.tl-speed > button {
+  position: relative;
+  background: #fff;
+}
+.tl-ramp {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(90deg, rgba(29, 107, 58, 0.18) 0 2px, transparent 2px 5px);
+}
+.tl-speed.is-fast > button {
+  background: var(--success-soft);
+  border-color: #bfe0c9;
+}
+.tl-tick {
+  width: 0;
+  z-index: 1;
+}
+.tl-tick > button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -9px;
+  width: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.tl-cut > button {
+  color: var(--danger);
+  border-left: 1px dashed var(--danger);
+  left: 0;
+  width: 14px;
+  text-align: left;
+  padding-left: 1px;
+}
+.tl-marker > button {
+  color: var(--info);
+}
+.tl-pin > button {
+  color: var(--accent-strong);
+  font-size: 14px;
+}
+.tl-pin.is-resolved > button {
+  color: var(--muted);
+}
+.tl-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: -12px;
+  z-index: 5;
+  width: max-content;
+  max-width: 280px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--fg);
+  color: #fff;
+  font-size: 12px;
+  white-space: normal;
+  pointer-events: none;
+}
+.tl-tip-head {
+  display: block;
+  color: #c9ced8;
+  font-size: 11px;
+}
+.tl-pin:hover .tl-tip,
+.tl-pin:focus-within .tl-tip {
+  display: grid;
+}
+.tl-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 112px;
+  right: 12px;
+  pointer-events: none;
+  z-index: 3;
+}
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--danger);
+}
+.tl-elsewhere ul,
+.tl-notes ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.tl-notes details {
+  margin-top: 8px;
+}
+.tl-speed.is-held > button {
+  color: var(--muted);
+  background: repeating-linear-gradient(90deg, #f1f3f6 0 3px, #fff 3px 6px);
+}
+
+/* Timeline inspector (L4.5 part D): the preview and the inspector side by side; switches as radio chips */
+.tl-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1040px) {
+  .tl-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.tl-inspector {
+  max-height: calc(min(44vh, 460px) + 150px);
+  overflow-y: auto;
+  padding: 0 14px 12px;
+}
+.tl-inspector-top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: 12px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+  background: var(--surface);
+}
+.tl-inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tl-inspector-head .card-title {
+  margin: 0;
+}
+.tl-undo {
+  display: inline-flex;
+  gap: 4px;
+}
+.tl-live {
+  min-height: 1.4em;
+  margin: 4px 0 8px;
+}
+.tl-insp-part {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  margin-top: 8px;
+}
+.tl-insp-part h3 {
+  font-size: 14px;
+  margin: 4px 0 6px;
+}
+.tl-switch {
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  min-width: 0;
+}
+.tl-switch legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tl-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tl-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.tl-radio:hover:not([aria-disabled='true']) {
+  border-color: var(--accent);
+}
+.tl-radio:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.tl-radio-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.tl-radio.is-checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+.tl-radio.is-checked .tl-radio-dot {
+  background: currentColor;
+  box-shadow: inset 0 0 0 2px var(--accent-soft);
+}
+.tl-radio[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+.tl-radio[aria-disabled='true']:not(.is-checked) {
+  color: var(--muted);
+}
+/* An option the use cannot take: its reason on the chip, a dashed border (never colour alone). */
+.tl-radio.is-unusable {
+  border-style: dashed;
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+.tl-why {
+  color: var(--muted);
+  font-weight: 400;
+}
+.tl-number {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.tl-number input {
+  width: 6.5em;
+}
+.tl-seg.is-selected > button {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -2px;
+  font-weight: 650;
+}
+
+/* Renders (L4.5 part E): the Render bar, the queue, the list and a render's review with its contact sheets */
+.render-bar {
+  margin-left: auto;
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+}
+.render-bar .run-action {
+  margin: 0;
+}
+.render-bar progress,
+.render-job progress {
+  width: 120px;
+  height: 8px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+/* In the scenario screen's top grid, under the pictures' source (its column's gap spaces it). */
+.scenario-top-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.renders-card {
+  margin: 0;
+}
+.tl-renders {
+  margin-top: 16px;
+}
+.renders {
+  display: grid;
+  gap: 10px;
+}
+.render-jobs,
+.render-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.render-job {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--info);
+  border-radius: var(--radius);
+  background: var(--info-soft);
+}
+.render-job > span:first-child {
+  flex: 1 1 260px;
+}
+.render-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.render-row.is-open {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.render-id {
+  font-weight: 600;
+  min-width: 3.5em;
+}
+.review-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.review-panel p {
+  margin: 0;
+}
+.review-findings {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 4px;
+}
+.review-sheets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.review-sheet {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.review-sheet.is-large {
+  grid-column: 1 / -1;
+}
+.sheet-button {
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: zoom-in;
+  line-height: 0;
+}
+.review-sheet.is-large .sheet-button {
+  cursor: zoom-out;
+}
+.sheet-button img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.sheet-words {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 4px;
+  margin: 0;
+}

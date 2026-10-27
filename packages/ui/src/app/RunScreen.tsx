@@ -673,7 +673,7 @@ function LogPanel({ log, dropped, truncated }: { log: LogLine[]; dropped: number
   );
 }
 
-function Outcome({ slug, name, s, mode, pauseLate }: { slug: string; name: string; s: RunLiveState; mode: string | undefined; pauseLate: boolean }) {
+function Outcome({ slug, name, runId, s, mode, pauseLate }: { slug: string; name: string; runId: string; s: RunLiveState; mode: string | undefined; pauseLate: boolean }) {
   const e = s.end;
   const status = e?.status ?? s.ended?.status ?? s.ended?.job_state ?? 'ended';
   const setup = s.hooks.filter((h) => h.phase === 'setup' && !h.marker);
@@ -747,6 +747,14 @@ function Outcome({ slug, name, s, mode, pauseLate }: { slug: string; name: strin
         )}
         <p>
           <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })}>Back to the scenario and its pictures</a>
+          {ok && mode === 'capture' && (
+            <>
+              {' · '}
+              <a href={hrefTo({ name: 'timeline', slug, scenario: name, run: runId })} data-testid="outcome-timeline">
+                Open its timeline
+              </a>
+            </>
+          )}
         </p>
       </div>
     </Notice>
@@ -805,7 +813,7 @@ function Watch({ slug, name, runId }: { slug: string; name: string; runId: strin
           The run's stream dropped: reconnecting…
         </p>
       )}
-      {(st.finished || s.ended) && <Outcome slug={slug} name={name} s={s} mode={mode} pauseLate={pauseLate} />}
+      {(st.finished || s.ended) && <Outcome slug={slug} name={name} runId={runId} s={s} mode={mode} pauseLate={pauseLate} />}
       <Controls slug={slug} runId={runId} s={s} fb={fallback} mode={mode} />
       <div className="run-grid">
         <LiveView

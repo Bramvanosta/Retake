@@ -16,6 +16,7 @@ export function timelineVideo(scenario: Scenario, project: Pick<ProjectConfig, '
   if (scenario.music) video.music = structuredClone(scenario.music);
   if (scenario.tutorial !== undefined) video.tutorial = structuredClone(scenario.tutorial);
   if (scenario.target_length !== undefined) video.target_length = { ...scenario.target_length };
+  if (scenario.caption_component !== undefined) video.caption_component = scenario.caption_component;
   return video;
 }
 

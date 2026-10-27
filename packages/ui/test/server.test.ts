@@ -9,7 +9,7 @@ import { readFile, readdir, rm, stat, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STUDIO_CSP, discoveryFile, readDiscovery, sha256Hex } from '@demo-studio/engine';
+import { discoveryFile, readDiscovery, sha256Hex, studioCsp } from '@demo-studio/engine';
 import { TOOLS } from '@demo-studio/mcp';
 import { CALL_BODY_MAX, INDEX_HTML, INDEX_OPS, OWN_OPS, UI_OPS, buildUi, launchStudio, startStudioServer, uiTools } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -45,7 +45,8 @@ describe('static app from memory', () => {
     const index = await raw(studio.port, 'GET', '/');
     expect(index.status).toBe(200);
     expect(index.headers['content-type']).toBe('text/html; charset=utf-8');
-    expect(index.headers['content-security-policy']).toBe(STUDIO_CSP);
+    // L4.5: the CSP frames the player origin, and only it.
+    expect(index.headers['content-security-policy']).toBe(studioCsp(studio.player.origin));
     expect(index.body).toBe(INDEX_HTML);
     expect((await raw(studio.port, 'GET', '/', { 'if-none-match': String(index.headers.etag) })).status).toBe(304);
     const js = await raw(studio.port, 'GET', '/app.js');
@@ -60,12 +61,14 @@ describe('static app from memory', () => {
     expect(Object.keys(index.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
   });
 
-  it('the bundle: no eval, no node built-in, under 400 KB; the document has no inline script or style', async () => {
+  it('the bundle: no eval, no node built-in, under 430 KB; the document has no inline script or style', async () => {
     const t = Date.now();
     const assets = await buildUi();
     expect(Date.now() - t).toBeLessThan(5000);
     const js = assets.get('/app.js')!.bytes.toString('utf8');
-    expect(js.length).toBeLessThan(400_000);
+    // L4.5 part E: the render queue and review (≈ 15 KB minified) took the app past 400 KB (413 KB then).
+    // L4.5 review: tightened to 430 KB (≈ 415 KB after the fixes).
+    expect(js.length).toBeLessThan(430_000);
     expect(js).not.toMatch(/\beval\(|new Function\(/);
     expect(js).not.toMatch(/(?:from|import)\s*\(?\s*["']node:/);
     expect(INDEX_HTML).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i);
@@ -119,7 +122,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     const names = new Set(TOOLS.map((t) => t.name));
     for (const op of UI_OPS) expect(names.has(op) !== (OWN_OPS as readonly string[]).includes(op), op).toBe(true);
     expect([...INDEX_OPS]).toEqual(['activity_list', 'search']);
-    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'scenario_blocks', 'run_thumbs', 'scenario_forms', 'scenario_run', 'scenario_edit', 'run_pause', 'scenario_sessions', 'sign_in_cancel']);
+    expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'scenario_blocks', 'run_thumbs', 'scenario_forms', 'scenario_run', 'scenario_edit', 'run_pause', 'scenario_sessions', 'sign_in_cancel', 'timeline_view', 'timeline_leave', 'preview_allow', 'scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image']);
     expect(() => uiTools([{ ...TOOLS.find((t) => t.name === 'run_capture')! }])).toThrow(/shadow/);
     const before = studio.calls;
     for (const op of ['run_capture', 'run_dry', 'hooks_run', 'job_cancel', 'project_create', 'scenario_save', 'sandbox_reset', 'template_from_site', 'comment_reply']) {
@@ -220,7 +223,7 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
     for (const [headers, status] of cases) {
       const r = await call('project_update_readme', args, headers);
       expect(r.status, JSON.stringify(headers)).toBe(status);
-      expect(r.headers['content-security-policy']).toBe(STUDIO_CSP);
+      expect(r.headers['content-security-policy']).toBe(studioCsp(studio.player.origin));
     }
     // A CORS preflight never succeeds: refused at the Origin layer (another page), or 405 (OPTIONS) for this origin.
     expect((await raw(studio.port, 'OPTIONS', '/v1/call/project_update_readme', { ...auth(), origin: `http://127.0.0.1:${studio.port + 1}`, 'access-control-request-method': 'POST' })).status).toBe(403);

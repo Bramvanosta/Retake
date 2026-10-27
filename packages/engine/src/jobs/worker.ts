@@ -462,6 +462,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
             input: job,
             progress: onProgress,
             browser: recordBrowser,
+            jobDir: queue.jobDir(id),
           });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;

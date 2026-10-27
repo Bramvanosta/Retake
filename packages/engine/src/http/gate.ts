@@ -10,7 +10,9 @@
  *    Sec-Fetch-Site / -Mode / -Dest set from secure contexts only (a plain-http page sends no Sec-Fetch-*; its no-cors
  *    GET carries neither header — and no token: layer 4).
  * 2. Origin / Sec-Fetch-Site — a present Origin must be this server's own (`http://127.0.0.1:<port>` or
- *    `http://localhost:<port>`), and on API routes a present Sec-Fetch-Site must be `same-origin` or `none`, else 403.
+ *    `http://localhost:<port>`) — or `null` on a server that takes `allowNullOrigin` (L4.5: the Studio's player origin,
+ *    whose only client is the sandboxed preview frame, an opaque origin) — and on API routes a present Sec-Fetch-Site
+ *    must be `same-origin` or `none`, else 403.
  *    Pages of another port of 127.0.0.1 (a filmed local app) are *same-site* with this server: the Sec-Fetch-Site
  *    check is what stops their `no-cors` fetches and `<form>` posts, which do reach the server.
  * 3. Route and method — an unknown path 404; OPTIONS and any method the route does not take 405 (no CORS preflight
@@ -60,6 +62,11 @@ export interface GateOptions {
   route(path: string): RouteSpec | undefined;
   /** Refuse every request a browser could send (fromBrowser): 403. */
   refuseBrowsers?: boolean;
+  /**
+   * Accept `Origin: null` too (L4.5: the player origin — its pages are the sandboxed preview frame, whose fetches carry
+   * `Origin: null`; what proves a right there is the capability in the path, never the Origin).
+   */
+  allowNullOrigin?: boolean;
 }
 
 /**
@@ -104,7 +111,7 @@ export function checkRequest(req: GateRequest, o: GateOptions): GateResult {
   if (o.refuseBrowsers && fromBrowser(req.headers)) return refuse(403, 'browser', 'this server takes no request from a web page');
 
   const origin = header(req.headers, 'origin');
-  if (origin !== undefined && !allowedOrigins(o.port).includes(origin)) return refuse(403, 'cross_origin', 'a request from another page is refused');
+  if (origin !== undefined && !(o.allowNullOrigin && origin === 'null') && !allowedOrigins(o.port).includes(origin)) return refuse(403, 'cross_origin', 'a request from another page is refused');
   const url = req.url ?? '';
   if (!url.startsWith('/')) return refuse(400, 'bad_request', 'the request target must be a path');
   const path = url.split('?')[0];
@@ -196,10 +203,27 @@ export function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
 export const STUDIO_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-/** Headers of every response: the CSP and its companions; API answers are never cached, static ones revalidated. */
-export function securityHeaders(kind: 'api' | 'static'): Record<string, string> {
+/** A loopback origin a Studio page may frame (L4.5: the player origin) — nothing else is ever put in `frame-src`. */
+export const FRAME_SRC_RE = /^http:\/\/127\.0\.0\.1:\d{1,5}$/;
+
+/**
+ * The Studio CSP, with `frame-src <frameSrc>` when the Studio frames its player origin (L4.5): the one origin a Studio
+ * page may embed, which is also what stops the frame from navigating itself anywhere else (CSP has no `navigate-to`:
+ * the parent's `frame-src` covers its child's navigations). Throws on anything but `http://127.0.0.1:<port>`.
+ */
+export function studioCsp(frameSrc?: string): string {
+  if (frameSrc === undefined) return STUDIO_CSP;
+  if (!FRAME_SRC_RE.test(frameSrc)) throw new Error('frame-src must be http://127.0.0.1:<port>');
+  return STUDIO_CSP.replace("font-src 'self';", `font-src 'self'; frame-src ${frameSrc};`);
+}
+
+/**
+ * Headers of every response: the CSP and its companions; API answers are never cached, static ones revalidated.
+ * `frameSrc`: the player origin a Studio page may frame (studioCsp).
+ */
+export function securityHeaders(kind: 'api' | 'static', o: { frameSrc?: string } = {}): Record<string, string> {
   return {
-    'Content-Security-Policy': STUDIO_CSP,
+    'Content-Security-Policy': studioCsp(o.frameSrc),
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',

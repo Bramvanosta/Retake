@@ -75,6 +75,21 @@
       "minLength": 1,
       "description": "Implementation file relative to the component folder (default index.tsx)."
     },
+    "engines": {
+      "type": "object",
+      "properties": {
+        "kit": {
+          "type": "string",
+          "pattern": "^\\^?[1-9]\\d{0,2}$",
+          "description": "The kit API major the component was written for: \"1\" or \"^1\"."
+        }
+      },
+      "required": [
+        "kit"
+      ],
+      "additionalProperties": false,
+      "description": "What the component needs from Demo Studio (absent: kit API 1)."
+    },
     "slots": {
       "type": "object",
       "propertyNames": {

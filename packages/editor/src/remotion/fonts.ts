@@ -1,10 +1,12 @@
 /**
  * Theme fonts: registered with the FontFace API before anything is drawn (text fitting measures with the real
- * fonts), the render held with delayRender until they are loaded.
+ * fonts), the render held with delayRender until they are loaded. In the Studio's preview (preview-mode.ts) a face that
+ * fails is a warning and the text draws in the fallback font; a render stops (cancelRender).
  */
 import { useEffect, useState } from 'react';
 import { cancelRender, continueRender, delayRender } from 'remotion';
 import type { ThemeFontFace } from '@demo-studio/components';
+import { usePreviewMode } from './preview-mode.js';
 
 const loaded = new Map<string, Promise<void>>();
 
@@ -29,6 +31,7 @@ export function useThemeFonts(faces: readonly ThemeFontFace[] | undefined): bool
   const list = faces ?? [];
   const [handle] = useState(() => (list.length > 0 ? delayRender(`loading ${list.length} theme font(s)`) : null));
   const [ready, setReady] = useState(list.length === 0);
+  const preview = usePreviewMode();
   useEffect(() => {
     if (handle === null) return;
     let alive = true;
@@ -36,7 +39,15 @@ export function useThemeFonts(faces: readonly ThemeFontFace[] | undefined): bool
       .then(() => {
         if (alive) setReady(true);
       })
-      .catch((e: unknown) => cancelRender(new Error(`a theme font could not be loaded (${list.map((f) => f.url).join(', ')}): ${e instanceof Error ? e.message : String(e)}`)));
+      .catch((e: unknown) => {
+        if (!preview) {
+          cancelRender(new Error(`a theme font could not be loaded (${list.map((f) => f.url).join(', ')}): ${e instanceof Error ? e.message : String(e)}`));
+          return;
+        }
+        // Preview: the faces that loaded are used, the others fall back (the frame's URLs are not named: capabilities).
+        preview.warn(`a theme font could not be loaded (${[...new Set(list.map((f) => f.family))].join(', ')}): the preview uses a fallback font`);
+        if (alive) setReady(true);
+      });
     return () => {
       alive = false;
     };

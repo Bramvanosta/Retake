@@ -150,6 +150,7 @@ const TimelineVideoSchema = z
     music: z.strictObject({ file: z.string(), volume: z.number().optional(), duck: z.number().optional(), loop: z.boolean().optional() }).optional(),
     tutorial: TutorialSwitchSchema.optional(),
     target_length: z.strictObject({ min_s: z.number(), max_s: z.number() }).optional(),
+    caption_component: z.string().optional(),
   })
   .describe("The scenario's edit info: title, intro, outro, effective frame, template, music.");
 

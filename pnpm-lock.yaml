@@ -285,15 +285,24 @@ importers:
 
   packages/ui:
     dependencies:
+      '@demo-studio/components':
+        specifier: workspace:*
+        version: link:../components
       '@demo-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@demo-studio/editor':
+        specifier: workspace:*
+        version: link:../editor
       '@demo-studio/engine':
         specifier: workspace:*
         version: link:../engine
       '@demo-studio/mcp':
         specifier: workspace:*
         version: link:../mcp
+      '@remotion/player':
+        specifier: 4.0.534
+        version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
@@ -303,6 +312,9 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
+      remotion:
+        specifier: 4.0.534
+        version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       zod:
         specifier: ^4.1.0
         version: 4.6.5

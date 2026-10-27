@@ -1028,6 +1028,11 @@ export interface Scenario {
   tutorial?: TutorialSwitch;
   /** The length the video aims at (L5.5): the review's length rule uses it instead of the reference 60–120 s. */
   target_length?: TargetLength;
+  /**
+   * The caption component of the whole video (L4.5): a caption component id, between a render override and the theme's
+   * caption (`overrides.components.caption` → `caption_component` → theme → built-in). An edit value.
+   */
+  caption_component?: ComponentId;
   /** The product's clock at capture time 0 (L1.7; wins over the project's); `false` turns the project's clock off. */
   clock?: ClockSpec | false;
   /** Answers to writes stopped on read-only runs (L1.7), tried before the environment's `read_only.mocks`. */
@@ -1862,6 +1867,8 @@ export interface TimelineVideo {
   tutorial?: TutorialSwitch;
   /** The scenario's `target_length` (L5.5). */
   target_length?: TargetLength;
+  /** The scenario's `caption_component` (L4.5). */
+  caption_component?: ComponentId;
 }
 
 /** The length a video aims at, seconds (scenario `target_length`, L5.5). */
