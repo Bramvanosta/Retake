@@ -22,7 +22,9 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
 
 - **2026-10-28 — Captures first.** The load under a take is what must be controlled; renders and other heavy jobs are
   background work whose duration does not matter, and wait for (or pause during) the takes (BL-116). A render's file
-  size is not a concern; renders on the GPU (angle) are accepted (BL-114).
+  size is not a concern; renders on the GPU (angle) are accepted (BL-114). The job queue moves to pg-boss over an
+  embedded Postgres shipped by npm, in principle (BL-117: nothing to install apart; amends ADR-1 for the queue's state
+  only).
 - **2026-10-12 — Voice-over is an evolution.** The MVP keeps its silent track (R-ED-18); narration from a file (BL-46),
   AI voice-over (BL-12) and SRT/VTT subtitles (BL-30) stay in this backlog.
 - **2026-10-12 — Commercialisation later.** First a local tool for our own use; the open decisions below that are about
@@ -496,6 +498,18 @@ Developer ID signing and notarisation of the macOS app and every bundled executa
 
 - **Value:** Non-developers can install without Gatekeeper warnings and stay up to date.
 - **Hard parts:** Notarising Chromium sidecars. Losing the updater key blocks every future update. Apple Developer membership costs about $99/year.
+- **One app with everything in it (direction of 2026-10-28):** installing the app is the whole install. It holds the
+  engine (Node and our packages: the Studio it shows, the worker), the **CLI** (the app installs a `studio` command on
+  the PATH — a small launcher running the bundled Node, so the CLI is always the app's version, like an editor's
+  "install command in PATH"), the **MCP server** (the same `studio mcp`, stdio or HTTP served by the app, registered in
+  Claude Code / Claude Desktop by the app from `studio mcp --print-config`), and the binaries: Chromium for captures,
+  the headless shell and Remotion's compositor for renders, ffmpeg, and the queue's Postgres (BL-117). The app
+  supervises the Studio server, the worker and Postgres. The repository clone stays the developers' path.
+- **Size and shell:** with Chromium, the headless shell, Postgres (≈ 150 MB) and Node, the app is ≈ 0.7–1 GB.
+  L5.2 chose Tauri for a small shell (R-DSK-01 / R-DSK-02: Rust only for OS glue); as Node ships inside anyway, compare
+  with Electron (Node and Chromium built in, an all-TypeScript app) when L5.2 is detailed. Unsigned is enough for our
+  own use; distributing needs every executable signed and notarised, and the Remotion licence reviewed for a
+  redistributed tool (R-V2-08).
 
 ### BL-37 — Windows and Linux support
 *L · proposed in review · builds on: L4.1, L1.6*
@@ -1564,6 +1578,73 @@ take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurren
 - Left unexplained: the 56 cpu-s ffmpeg keeps with VideoToolbox (decoding Remotion's JPEG q95 frames, the BT.709
   conversion — to profile). Previews and stills (`preview.ts`) open their own browser: same options there.
 
+### BL-117 — The job queue on pg-boss over an embedded Postgres
+*L · decided in principle 2026-10-28 · amends ADR-1 · builds on: L3.1, L4.1, L4.4, L4.8 · carries BL-116*
+
+Replace the file queue's state (`packages/engine/src/jobs/`, ≈ 5,800 lines with the job kinds; `FileJobQueue` used by
+`engine.ts`, `renders.ts`, `reviews.ts`, `record.ts`, the index's `jobs-watch.ts` and the Studio server's live
+routes; 21 test files) with pg-boss on a Postgres the studio ships and runs itself. **Why:** a standard queue instead of
+a format of our own (pg-boss is the most used Node queue, MIT; a queue viewer that reads pg-boss reads Demo Studio
+with nothing specific to it, and `@pg-boss/dashboard` exists meanwhile), with what BL-116 needs built in, and **nothing
+to install apart**: the Postgres binaries come with `pnpm install` (`embedded-postgres`, per-platform packages for
+macOS, Linux and Windows), as Chromium and Remotion's compositor already do — and later inside the macOS app (L5.2,
+BL-36) like the other bundled executables.
+
+**Not chosen** (2026-10-28): BullMQ over Valkey (a Redis-compatible server to install apart: no macOS binaries
+published, Homebrew only — not self-contained); pg-boss on PGlite (Postgres in WASM, 26 MB, supported by pg-boss, but
+one connection in one process: the CLI, the Studio server, the MCP server and the worker would go through a socket
+multiplexer that "does not guarantee all use cases"); SQLite queues (no daemon, but niche: a viewer adapter would be as
+specific as one for our files); Restate (durable execution replays journaled steps, which a capture driving a browser
+cannot do; server under BSL 1.1); Faktory, a Rust queue (apalis 1.0 still a release candidate, Rust workers only).
+Keeping the file queue stays the fallback: self-contained already, BL-116 is a small change there.
+
+**Postgres on the machine** (one for every workspace, so captures-first holds machine-wide):
+- `embedded-postgres` (MIT, ≈ 1 M downloads a week; the macOS arm64 package is ≈ 148 MB unpacked; its version carries
+  a "beta" suffix — pin it and check its update cadence). Its data in `~/.demo-studio/postgres/` (0700), initialised
+  on first use; started on demand by the studio as the worker is today, left running, stopped by `studio` on request;
+  `studio doctor` checks it.
+- Listening on 127.0.0.1 on a port of its own, password authentication, a random password in a discovery file (0600)
+  — no `trust`: the capture browser's pages can reach loopback ports (the Postgres protocol is not HTTP, still to test
+  with a hostile page). A viewer connects with host, port, user and password.
+- pg-boss needs PostgreSQL 13+ and Node 22.12+ (we require 22): check our Node floor.
+
+**Mapping** (from pg-boss's queue and job docs, to check while planning):
+- Queues: `capture` (run, record, auth_login, inspect, hooks, env_reset, sandbox_up / reset) with the **`singleton`**
+  policy (one active job, any number queued) and `heavy` (render, export, review, preview, site), `singleton` too;
+  priorities inside a queue (higher number first). The workspace root travels in the job data, checked against the
+  workspaces the machine knows. One worker process per machine (`work()` on both queues), started on demand, exiting
+  when idle, handing over on a new build as `worker.ts` does.
+- **No retry of a capture**: `retryLimit: 0` everywhere; `heartbeatSeconds` (≥ 10, sent by `work()`) fails the job of
+  a dead worker — today's `interrupted`, kept as its failure reason — and its clean-up runs from the next worker as now.
+  `expireInSeconds` (default 15 min, max 24 h) raised for long takes and 4K exports.
+- **Captures first**: the heavy worker watches the capture queue; a capture becomes active → it stops its running
+  job's process group (SIGSTOP) and resumes it (SIGCONT) when none is. A stopped process sends no heartbeat: send one
+  (`touch()`) and suspend the heartbeat check for that job, or set its heartbeat longer than any take, or it is failed.
+  Jobs run inside the worker process today: a heavy job needs its own child process to be stopped alone.
+- States: `created` / `retry` → queued, `active` → running, `completed` → succeeded, **`cancelled`** (native), `failed`
+  (with interrupted as a reason). Cancel → `boss.cancel(name, id)` for a queued or active job; the worker sees an
+  active job cancelled and aborts it (the runner already honours an AbortSignal). A capture's pause (L4.4) and a
+  recording's stop (L4.8: `requestStop` / `stopRequested`, a `record` job finishes its recording and runs its check)
+  stay markers the worker polls (a small table or the job's own data instead of files).
+- Progress and events: pg-boss documents no progress or log feed for an active job — keep `events.jsonl` in the job's
+  folder (one writer, as now) or a table of our own beside pg-boss's; the Studio's job stream reads job states with
+  LISTEN/NOTIFY or a poll. Queue position from the queued jobs in priority order.
+- **What stays files** (ADR-1 for everything but the queue's state): a job's folder for its files (a render's
+  edit.yaml snapshot, browser.json, live.json — the live channel's token never goes to the database), runs reserved
+  at submit (`runs/<id>/run.json`), `history.jsonl` and the index. Job data holds no secret already (inputs carry
+  `{{env:}}` / `{{keychain:}}` refs, resolved by the worker) and its approvals stay signed (signing.ts).
+- Retention: pg-boss's retention settings for finished jobs; the history stays in history.jsonl.
+- **CLI commands** (`studio run`, `render`, `export`) run outside the queue today: they enqueue and follow (one path,
+  captures-first everywhere), or take the singleton slot themselves — to decide.
+- **A queue viewer** acts with pg-boss's own operations (cancel, resume, retry, delete): a retried capture re-runs a
+  take — refuse a retry on capture jobs (job data flag the worker checks) or lock that connection in the viewer.
+
+**Cost**: dependencies `pg-boss`, `embedded-postgres` (+ `pg`) — a strong reason: a standard queue and nothing to
+install apart; ≈ 150 MB more on install; a server process to start, stop and upgrade (Postgres major versions need a
+data migration — the queue is transient, so recreate it after draining). Tests need a throwaway Postgres (one per suite
+from the embedded package, in TMPDIR). ADR-1 and DESIGN's queue sections rewritten; jobs queued in the old format
+drained before the switch (a local tool: no migration of queued jobs).
+
 ### BL-116 — Captures first: heavy jobs wait for the takes
 *M · decided 2026-10-28 · builds on: L3.1 (job queue), L4.4 (pause) · replaces BL-89's direction*
 
@@ -1594,9 +1675,9 @@ worker.
 - **Light work during a take** (listing, planning, the live preview's own cost — L4.4 measured +15.6 % Chromium CPU for
   a watched take) stays allowed; the run's perf report already records the load (`perf.machine`), so a take can warn
   when the machine was busy.
-- **Not BullMQ** (considered 2026-10-28): it needs a Redis server, built for workers spread over machines; the file
-  queue already has atomic claims, crash recovery, cancel and pause, and priority classes plus a gate are a small change
-  to `claimNext`. Revisit only with cloud workers (BL-07).
+- **Where it is built**: on pg-boss over an embedded Postgres (BL-117, decided later the same day): its `singleton`
+  queue policy and priorities give the gate and the classes, one Postgres per machine gives the machine-wide view.
+  Done on the file queue instead, the same rules are a change to `claimNext` plus a machine-wide marker.
 
 ### BL-115 — Capture without JPEG frames (tab capture, hardware H.264)
 *M–L spike · measured 2026-10-28*
