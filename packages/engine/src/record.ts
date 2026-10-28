@@ -4,9 +4,12 @@
  * draftFromRecording), saved as scenarios/<name>.yaml when the name is free, then a headless check replay of the draft.
  * Claude may start a recording through MCP, never drive it.
  *
- * Files: <project>/.demo-studio/records/<rec_id>/ (0700) — events.jsonl (streamed by the runner while recording),
- * draft.yaml and record.json (0600), check/ (the check replay's run folder, without its per-step screenshots). The
- * newest RECORD_KEEP are kept. Typed text lives only there and in the saved scenario: progress, logs and the outcome's
+ * Files: <project>/.demo-studio/records/<rec_id>/ (0700) — meta.json (L4.8: written once when the folder is made: the
+ * draft's context, who started it, its job and process; record-files.ts), events.jsonl (streamed by the runner while
+ * recording), draft.yaml and record.json (0600; record.json holds the events file's sha256, `events_sha256`, so a
+ * later Save can tell an edited events file), check/ (the check replay's run folder, without its per-step
+ * screenshots), studio.json (the Studio's annotations, engine record-studio.ts). The newest RECORD_KEEP are kept,
+ * and an unsaved Studio recording for RECORD_UNSAVED_KEEP_MS; a folder whose lock is held is never pruned. Typed text lives only there and in the saved scenario: progress, logs and the outcome's
  * messages carry counts and enums, never page text or a typed value.
  *
  * Rules:
@@ -22,9 +25,12 @@
  *   followed (any host; on a read-only environment the guard's stopped or mocked writes do not count, so it usually
  *   replays the whole draft): nothing is written twice. It starts from the state the recording left the product in.
  * - the draft is validated with the project (its vars, pages, personas) before it is saved or checked; an error is an
- *   `invalid` issue with its scene and step, never the validator's text.
+ *   `invalid` issue with its scene and step, never the validator's text;
+ * - a recording the Studio started (`submittedBy: 'ui'`, L4.8) is never saved here (`not_saved: 'studio'`): the person
+ *   arranges the draft and saves it from the Record screen (record-studio.ts).
  */
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createReadStream, existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -47,6 +53,9 @@ import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
 import { newJobId } from './jobs/ids.js';
 import { FileJobQueue } from './jobs/queue.js';
+import { selfIdentity } from './jobs/proc.js';
+import { lockAlive, readLock } from '@demo-studio/sandbox';
+import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
 
@@ -78,7 +87,9 @@ export async function activeRecords(root: string, slug: string): Promise<string[
 
 /**
  * Keep the newest `keep` recording folders of a project; `except` is never removed, nor — given the workspace root —
- * the folder of a recording whose job is still queued or running.
+ * the folder of a recording whose job is still queued or running. L4.8 (critique B12): nor a folder whose lock is held
+ * (an annotate, a Save or a Discard in progress), nor an unsaved, undiscarded Studio recording younger than
+ * RECORD_UNSAVED_KEEP_MS.
  */
 export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], root?: string): Promise<string[]> {
   const active = root !== undefined ? await activeRecords(root, project.slug).catch(() => null) : [];
@@ -91,9 +102,37 @@ export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, e
   } catch {
     return [];
   }
-  const old = names.sort().reverse().slice(keep).filter((n) => !except.includes(n));
+  const now = Date.now();
+  const old = names
+    .sort()
+    .reverse()
+    .slice(keep)
+    .filter((n) => !except.includes(n) && !recordInUse(project, n, now));
   for (const n of old) await rm(join(recordsRoot(project), n), { recursive: true, force: true }).catch(() => undefined);
   return old;
+}
+
+/** A folder prune leaves: its lock held by a live process, or an unsaved Studio recording younger than 7 days. */
+function recordInUse(project: LoadedProject, id: string, now: number): boolean {
+  const held = readLock(recordLockFile(project.dir, id));
+  if (held && lockAlive(held)) return true;
+  const meta = readRecordMeta(join(recordsRoot(project), id), id);
+  if (meta?.submitted_by !== 'ui') return false;
+  const ann = readRecordAnnotations(join(recordsRoot(project), id));
+  if ('annotations' in ann && (ann.annotations?.saved || ann.annotations?.discard)) return false;
+  const started = Date.parse(meta.started_at);
+  return Number.isFinite(started) && now - started < RECORD_UNSAVED_KEEP_MS;
+}
+
+/** sha256 (hex) of a file's bytes, streamed. */
+export function fileSha256(file: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const h = createHash('sha256');
+    createReadStream(file)
+      .on('data', (d) => h.update(d))
+      .on('error', reject)
+      .on('end', () => resolve(h.digest('hex')));
+  });
 }
 
 /** The longest recording (ms): DEMO_STUDIO_RECORD_MAX_MIN when set (minutes), else undefined (the runner's 30 min). */
@@ -139,6 +178,8 @@ export interface RecordRequest {
   submittedBy?: JobClient;
   /** The recording's id, reserved by a `record` job at submit (default: a new one). */
   id?: string;
+  /** The `record` job that runs it (meta.json's job_id; none for `studio record`). */
+  jobId?: string;
 }
 
 export interface RecordPorts {
@@ -193,7 +234,8 @@ export interface RecordOutcome {
   draft: string | null;
   name: string;
   saved: { file: string; path: string; hash: string } | null;
-  not_saved?: 'name_taken' | 'invalid' | 'nothing_recorded' | 'refused';
+  /** studio: a recording the Studio started — the person saves it from the Record screen. */
+  not_saved?: 'name_taken' | 'invalid' | 'nothing_recorded' | 'refused' | 'studio';
   env: string;
   persona: string | null;
   access: 'read-only' | 'read-write';
@@ -344,6 +386,22 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   await mkdir(recordsRoot(project), { recursive: true });
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await chmod(dir, 0o700);
+  // What the Studio's view and Save rebuild the draft's context from, and who may change it (critique B4).
+  await writeRecordMeta(dir, {
+    v: 1,
+    rec_id: id,
+    job_id: req.jobId ?? null,
+    submitted_by: req.submittedBy ?? 'cli',
+    name,
+    env: env.name,
+    persona: persona?.name ?? null,
+    access: access.mode,
+    page: start.page,
+    path: start.path,
+    started_at: new Date(started).toISOString(),
+    max_ms: maxMs ?? null,
+    owner: await selfIdentity(),
+  });
   await pruneRecords(project, RECORD_KEEP, [id], ws.root);
   const eventsFile = join(dir, 'events.jsonl');
 
@@ -421,6 +479,8 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
 
   const draftFile = join(dir, 'draft.yaml');
   await writePrivate(draftFile, draft.yaml);
+  // The events file as drafted and checked (the stream has ended): a Save from the Studio refuses another one (B8).
+  const eventsSha256 = await fileSha256(eventsFile).catch(() => null);
   // Valid in the project (its vars, pages, personas), not only as a scenario: else it is neither saved nor checked.
   if (!draft.issues.some((i) => i.severity === 'error')) {
     const ids = base.scenes.map((x) => x.id);
@@ -432,14 +492,15 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   const recordJson = (extra: Record<string, unknown>) =>
     writePrivate(
       join(dir, 'record.json'),
-      `${JSON.stringify({ version: 1, ...base, started_at: new Date(started).toISOString(), page: start.page, path: start.path, max_ms: maxMs ?? null, writes: draft.writes, first_write: draft.firstWrite, ...extra }, null, 1)}\n`,
+      `${JSON.stringify({ version: 1, ...base, started_at: new Date(started).toISOString(), page: start.page, path: start.path, max_ms: maxMs ?? null, writes: draft.writes, first_write: draft.firstWrite, events_sha256: eventsSha256, ...extra }, null, 1)}\n`,
     );
   await recordJson({ saved: null, check: null });
 
   // Save when the name is (still) free.
   let saved: RecordOutcome['saved'] = null;
   let notSaved: RecordOutcome['not_saved'];
-  if (!valid) notSaved = 'invalid';
+  if (req.submittedBy === 'ui') notSaved = 'studio';
+  else if (!valid) notSaved = 'invalid';
   else if (scenarioTaken(project, name)) notSaved = 'name_taken';
   else {
     try {

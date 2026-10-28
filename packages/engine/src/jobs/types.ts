@@ -322,7 +322,8 @@ export interface RecordJobResult {
   name: string;
   /** scenarios/<name>.yaml when the draft was saved (its hash: scenario_save's if_match). */
   saved: { file: string; path: string; hash: string } | null;
-  not_saved?: 'name_taken' | 'invalid' | 'nothing_recorded' | 'refused';
+  /** studio (L4.8): a recording the Studio started — the person saves it from the Record screen. */
+  not_saved?: 'name_taken' | 'invalid' | 'nothing_recorded' | 'refused' | 'studio';
   env: string;
   persona: string | null;
   access: 'read-only' | 'read-write';

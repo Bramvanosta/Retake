@@ -185,11 +185,17 @@ export function Commands({ fix, fixNode }: { fix?: string; fixNode?: string }) {
   return (
     <>
       <p className="small">
-        In a terminal: <code className="copyable" data-testid="blocker-fix">{fix}</code>
+        In a terminal:{' '}
+        <code className="copyable" data-testid="blocker-fix">
+          <Txt text={fix} />
+        </code>
       </p>
       {fixNode && (
         <p className="small muted">
-          Without <code>studio</code> on your PATH: <code className="copyable" data-testid="blocker-fix-node">{fixNode}</code>
+          Without <code>studio</code> on your PATH:{' '}
+          <code className="copyable" data-testid="blocker-fix-node">
+            <Txt text={fixNode} />
+          </code>
         </p>
       )}
     </>
@@ -1392,6 +1398,11 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
           )}
         </p>
         <Tabs slug={slug} name={name} tab={tab} />
+        <p className="small">
+          <a href={hrefTo({ name: 'record', slug })} data-testid="record-link">
+            Record a new scenario
+          </a>
+        </p>
       </header>
       <Running run={v.running} live={live} slug={slug} name={name} onCancelled={reload} />
       {/* Around both tabs: the pictures already loaded stay while the YAML tab is open. */}

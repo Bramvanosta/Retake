@@ -51,6 +51,7 @@ import type { PlayerServer } from './player.js';
 import { OWN_OPS, PreviewLeases, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
 import { libraryOps } from './library-ops.js';
 import { themeOps } from './theme-ops.js';
+import { recordOps } from './record-ops.js';
 import { commentOps, pathFree } from './comment-ops.js';
 import { opChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
@@ -81,6 +82,10 @@ import { z } from 'zod';
  * theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview: the live preview in the
  * sandboxed frame, workspace components held until allowed). `template_from_site` stays out (a site extraction needs a
  * person's approval of the URL: the Studio shows the command), as do the MCP theme tools (MCP never edits a theme).
+ * L4.8: the Record screen (record-ops.ts — record_options, record_start, record_view, record_annotate, record_stop,
+ * record_discard, record_save: the control panel of the headed window the worker opens; nothing reaches that window).
+ * `scenario_record` and `job_cancel` stay out (a recording from the Studio is pinned: page and path, no --allow-writes,
+ * the check on; it is stopped, discarded and saved through its own ops only).
  * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
@@ -254,6 +259,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...commentOps({ chain }),
     ...libraryOps({ chain }),
     ...themeOps({ chain, player: playerNow, forbid, allow: previewAllow, leases }),
+    ...recordOps({ chain }),
   ]);
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();

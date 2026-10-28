@@ -12,10 +12,18 @@
  * posters, GIF library loops — fixed prefixes, plain base64, the use's cap, PNG / GIF magic; never SVG or WebP); every
  * `<Picture` of the app names its format and cap literally; the library route; no "made with Claude" anywhere. L4.7 part
  * D2: the theme editor's live frame is the second page passing a checked URL to PreviewFrame (the same literal lines).
+ * L4.8 part 5: the Record screen renders page text only through Txt — its views rendered (react-dom/server) with a
+ * hostile string in every page field: each one inside a <bdi>, no raw direction control, no markup; its words module
+ * never reads page text; the record route.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
+import { RecordingBody, StartForm } from '../src/app/RecordScreen.js';
+import type { RecordingUi } from '../src/app/RecordScreen.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { visibleControls } from '../src/app/bits.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
@@ -514,3 +522,209 @@ describe('imageDataUrl: library posters and loops (L4.7 part D1, critique B6 / B
     for (const [f, text] of await appSources()) expect(/made (?:with|by) claude/i.test(code(text)), f).toBe(false);
   });
 });
+
+/** A right-to-left override, built at run time (the sources hold no raw direction control). */
+const RLO = String.fromCharCode(0x202e);
+/** A page string: markup that would run as HTML, a marker, then a direction override. */
+const H = (n: string) => `<img src=x onerror="globalThis.__pwned='${n}'">PAGE-${n}${RLO}gnp`;
+
+/** A Studio recording's view whose every page-derived string (and every name) is hostile. */
+function hostileView(): RecordViewAnswer {
+  const step = (index: number, n: string, extra: Record<string, unknown> = {}) => ({
+    key: `${H('scene')}.${index}`,
+    index,
+    action: 'click',
+    category: 'click',
+    label: H(`label${n}`),
+    target: H(`target${n}`),
+    summary: H(`summary${n}`),
+    chips: [{ kind: 'caption', label: H(`chip${n}`) }],
+    occurrence: 0,
+    issues: [],
+    ...extra,
+  });
+  return {
+    rec_id: 'rec_01JABCDEFGHJKMNPQRSTVWXYZ0',
+    state: 'done',
+    version: '0123456789abcdef',
+    job: { id: 'j_01JABCDEFGHJKMNPQRSTVWXYZ0', state: 'failed', phase: null, cancel_requested: false, stop_requested: false, error: { code: 'invalid', message: H('jobmessage'), fix: H('jobfix') } },
+    started_by: 'ui',
+    can: { annotate: true, save: true, discard: true, stop: false },
+    problem: H('problem'),
+    name: H('name'),
+    env: H('env'),
+    persona: H('persona'),
+    access: 'read-write',
+    page: H('page'),
+    path: H('path'),
+    started_at: '2026-10-28T10:00:00.000Z',
+    ends_at: '2026-10-28T10:30:00.000Z',
+    rev: 3,
+    counts: { events: 9, actions: 4, dropped_lines: 0 },
+    stats: { scenes: 1, steps: 3, actions: 4, noise: 0, secrets: 1, fallbacks: 0 },
+    issues: { error: 0, warning: 1, info: 0 },
+    check: { status: 'failed', scope: 'all', steps_passed: 1, steps_total: 3, events_changed: false },
+    saved: { name: H('savedname'), file: H('savedfile') },
+    warnings: [H('warning')],
+    writes: { total: 1, by_steps: 1, ambient: 0 },
+    untrusted: {
+      yaml_lines: [H('yaml1'), H('yaml2')],
+      blocks: {
+        parsed: true,
+        video: { intro: { mode: 'theme' }, outro: { mode: 'theme' } },
+        hooks: { setup: [], teardown: [], named: [] },
+        entries: [{ type: 'scene', index: 0, id: H('scene'), page: H('scenepage'), open: H('sceneopen'), continues: false, context: 'x', steps: [step(0, '0'), step(1, '1'), step(2, '2', { category: 'hold', action: 'hold' })], issues: [] }],
+        step_count: 3,
+        issues: [],
+      },
+      sources: [
+        { scene: H('scene'), step: 0, seqs: [1, 2], role: 'action', row: 'a1', target_seqs: [1], target_seq: 1, modifiers: ['i2'] },
+        { scene: H('scene'), step: 1, seqs: [3, 3], role: 'helper', helper: 'wait', row: 'w3' },
+        { scene: H('scene'), step: 2, seqs: [3, 3], role: 'insert', insert: 'i1', row: 'i:i1' },
+      ],
+      issues: [{ severity: 'warning', code: 'fragile_target', message: H('issue'), scene: H('scene'), step: 0 }],
+      pending: ['i3'],
+      placeholders: [{ name: H('placeholder'), kind: 'password', project_var: false, scene: H('scene'), step: 0 }],
+      alternatives: [{ scene: H('scene'), step: 0, seq: 1, chosen: 1, options: [{ index: 0, target: { text: 'x' }, words: H('alt0'), fragile: [] }, { index: 1, target: { label: 'y' }, words: H('alt1'), fragile: ['css'] }] }],
+      inserts: [
+        { id: 'i1', after_seq: 2, kind: 'wait_for', until: 'text', text: H('waittext') },
+        { id: 'i2', after_seq: 0, kind: 'caption', text: H('caption'), kicker: H('kicker') },
+        { id: 'i3', after_seq: 3, kind: 'mark', name: H('mark') },
+      ],
+      writes: [{ label: H('write'), outcome: 'passed', scene: null, step: null }],
+      check: { failed_at: { scene: H('scene'), step: 1, action: H('action') }, error: H('checkerror') },
+    },
+  } as unknown as RecordViewAnswer;
+}
+
+function hostileOptions(): RecordOptionsAnswer {
+  return {
+    project: 'p',
+    default_env: H('env'),
+    default_name: 'recorded-20261028-1000',
+    max_minutes: 30,
+    display: true,
+    notes: [H('note')],
+    open: { job: 'j_x', project: 'p', rec_id: H('openrec'), state: 'running' },
+    environments: [
+      {
+        name: H('env'),
+        production: false,
+        access: 'read-write',
+        sandbox: false,
+        pages: [H('pagekey')],
+        personas: [{ name: H('persona'), pages: [], login_steps: false, sandbox: false, status: 'never', in_use: false }],
+        default: { page: H('pagekey'), path: '/', persona: H('persona') },
+        problem: H('envproblem'),
+        warnings: [H('envwarning')],
+      },
+    ],
+    recent: [{ rec_id: H('recentid'), state: 'done', job: null, started_by: 'mcp', started_at: null, name: H('recentname'), env: H('recentenv'), persona: null, page: null, path: null, steps: 2, actions: 3, saved: { name: H('recentsaved'), file: 'x' }, studio: false }],
+  } as unknown as RecordOptionsAnswer;
+}
+
+/**
+ * The markup as a person (or a screen reader) gets it: identifiers that are never shown — a form value sent back, a
+ * radio group's name, data-* attributes — removed (they hold the page string as it is).
+ */
+function shownMarkup(html: string): string {
+  return html.replace(/\s(?:value|name|data-[a-z-]+)="[^"]*"/g, '');
+}
+
+/** Each `PAGE-<n>` of the markup: where it sits (in a <bdi>'s text, in an <option>'s text, in a tag's attribute, or bare). */
+function placesOf(html: string): Array<{ n: string; where: 'bdi' | 'option' | 'attribute' | 'bare' }> {
+  const out: Array<{ n: string; where: 'bdi' | 'option' | 'attribute' | 'bare' }> = [];
+  for (const m of html.matchAll(/PAGE-([a-z0-9]+)/g)) {
+    const before = html.slice(0, m.index);
+    const inTag = before.lastIndexOf('<') > before.lastIndexOf('>');
+    const where = inTag ? 'attribute' : before.lastIndexOf('<bdi') > before.lastIndexOf('</bdi>') ? 'bdi' : before.lastIndexOf('<option') > before.lastIndexOf('</option>') ? 'option' : 'bare';
+    out.push({ n: m[1], where });
+  }
+  return out;
+}
+
+const UI: RecordingUi = { busy: false, note: { tone: 'danger', text: H('note'), issues: [{ severity: 'error', code: 'invalid', message: H('noteissue'), scene: H('scene'), step: 0 }], fix: H('notefix') }, taken: null, discarding: false, now: Date.parse('2026-10-28T10:05:00.000Z') };
+const ACT = { annotate: () => undefined, stop: () => undefined, discard: () => undefined, save: () => undefined, onSignedIn: () => undefined };
+
+describe('the Record screen shows page text only through Txt (L4.8 part 5)', () => {
+  it('⚑ a recording: every page string (rows, targets, alternatives, inserts, issues, placeholders, writes, the check, the YAML) in a <bdi>, its direction controls as visible marks', () => {
+    const done = hostileView();
+    const failed = { ...done, state: 'failed' } as RecordViewAnswer;
+    for (const [v, cursor] of [
+      [done, { at: 'end' as const }],
+      [done, { at: 'after' as const, row: 'a1' }],
+      [failed, { at: 'end' as const }],
+    ] as const) {
+      const html = shownMarkup(renderToStaticMarkup(createElement(RecordingBody, { slug: 'p', v, cursor, setCursor: () => undefined, ui: UI, act: ACT })));
+      expect(html.includes(RLO), 'a raw direction control').toBe(false);
+      expect(html).not.toMatch(/<img|onerror="/);
+      const places = placesOf(html);
+      const bare = places.filter((p) => p.where === 'bare' || p.where === 'option');
+      expect(bare, JSON.stringify(bare)).toEqual([]);
+      // Attributes hold page text only with the controls made visible (visibleControls): no raw RLO above.
+      const shown = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
+      for (const n of ['name', 'env', 'persona', 'scene', 'scenepage', 'sceneopen', 'label0', 'target0', 'summary0', 'chip0', 'label1', 'alt0', 'alt1', 'waittext', 'caption', 'kicker', 'mark', 'issue', 'placeholder', 'write', 'checkerror', 'action', 'yaml1', 'yaml2', 'problem', 'warning', 'savedfile', 'note', 'noteissue', 'notefix']) {
+        expect(shown, n).toContain(n);
+      }
+      // The cursor's words (its row's step and scene) are page text too; each row's Insert after names its step, its
+      // controls made visible (an attribute), and keeps its name whatever the cursor (aria-pressed says it).
+      if (cursor.at === 'after') expect(html.slice(html.indexOf('Where:')).slice(0, 400)).toMatch(/after (?:<!-- -->)?<bdi[^>]*>step 1 of /);
+      if (v.can.annotate) expect(html).toMatch(/aria-label="Insert after step 1 of [^"]*PAGE-scene\[U\+202E\]gnp"/);
+      // A failed job: its message and its command.
+      if (v.state === 'failed') for (const n of ['jobmessage', 'jobfix']) expect(shown, n).toContain(n);
+    }
+  });
+
+  it('B-L5: Start is refused for a persona that cannot sign in by itself — the reason said, Sign in offered', () => {
+    const o = hostileOptions();
+    const html = renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: { ...o, open: null }, onStarted: () => undefined, onChanged: () => undefined }));
+    expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*data-testid="record-start"/);
+    expect(html).toContain('data-testid="record-start-blocked"');
+    expect(html).toContain('data-testid="sign-in-button"');
+    const signed = { ...o, open: null, environments: o.environments.map((e) => ({ ...e, problem: undefined, personas: e.personas.map((x) => ({ ...x, status: 'valid' as const })) })) } as RecordOptionsAnswer;
+    const ok = renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: signed, onStarted: () => undefined, onChanged: () => undefined }));
+    expect(ok).not.toContain('data-testid="record-start-blocked"');
+    expect(ok).not.toMatch(/<button type="submit"[^>]*disabled=""[^>]*data-testid="record-start"/);
+  });
+
+  it('⚑ the start form and the recent list: names, notes, warnings, the open recording in a <bdi>; a select option with visible marks', () => {
+    const html = shownMarkup(renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: hostileOptions(), onStarted: () => undefined, onChanged: () => undefined })));
+    expect(html.includes(RLO), 'a raw direction control').toBe(false);
+    expect(html).not.toMatch(/<img|onerror="/);
+    const places = placesOf(html);
+    expect(places.filter((p) => p.where === 'bare'), html).toEqual([]);
+    for (const n of ['note', 'openrec', 'persona', 'envproblem', 'envwarning']) expect(places.filter((p) => p.where === 'bdi').map((p) => p.n), n).toContain(n);
+    // An <option> cannot hold a <bdi>: its text is visibleControls(…), the control shown as [U+202E].
+    for (const n of ['env', 'pagekey', 'persona']) expect(html, n).toContain(`PAGE-${n}[U+202E]gnp`);
+  });
+
+  it('the lint catches a page string rendered bare (a planted row)', () => {
+    expect(placesOf('<li>PAGE-x</li>')).toEqual([{ n: 'x', where: 'bare' }]);
+    expect(placesOf('<li><bdi>PAGE-x</bdi> PAGE-y</li>')).toEqual([
+      { n: 'x', where: 'bdi' },
+      { n: 'y', where: 'bare' },
+    ]);
+    expect(placesOf('<button aria-label="PAGE-z">x</button>')).toEqual([{ n: 'z', where: 'attribute' }]);
+    expect(shownMarkup('<option value="PAGE-a" data-key="PAGE-b">PAGE-c</option>')).toBe('<option>PAGE-c</option>');
+  });
+
+  it('record-words.ts never reads page text (no `untrusted`): its sentences hold enums, numbers and the Studio\'s own words', async () => {
+    const words = code((await appSources()).find(([f]) => f === 'record-words.ts')![1]);
+    expect(words).not.toMatch(/untrusted|yaml_lines|\.words\b|\.label\b|\.summary\b/);
+  });
+
+  it('the record route: the start form, one recording; ids inert strings; hrefTo round-trips', () => {
+    expect(parseRoute('#/p/northfield-fixture/record')).toEqual({ name: 'record', slug: 'northfield-fixture' });
+    expect(parseRoute('#/p/n/record/rec_01JABCDEFGHJKMNPQRSTVWXYZ0')).toEqual({ name: 'record', slug: 'n', rec: 'rec_01JABCDEFGHJKMNPQRSTVWXYZ0' });
+    expect(parseRoute('#/p/n/record/%3Cimg%3E')).toEqual({ name: 'record', slug: 'n', rec: '<img>' });
+    expect(parseRoute('#/p/n/record/a/b')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/record/%E0%A4%A')).toMatchObject({ name: 'not-found' });
+    for (const rec of [undefined, 'rec_01JABCDEFGHJKMNPQRSTVWXYZ0', '../x', '<b>', `${RLO}gnp`]) {
+      const r = { name: 'record' as const, slug: 'p/q', ...(rec ? { rec } : {}) };
+      const href = hrefTo(r);
+      expect(href.startsWith('#/p/')).toBe(true);
+      expect(parseRoute(href)).toEqual(r);
+    }
+  });
+});
+

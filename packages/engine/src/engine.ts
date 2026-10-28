@@ -57,6 +57,9 @@ import { libraryStatesOf, submitPreviewJob } from './jobs/preview-job.js';
 import { readInspection, submitInspectJob } from './jobs/inspect-job.js';
 import type { InspectSubmitRequest } from './jobs/inspect-job.js';
 import { readRecording, submitRecordJob } from './jobs/record-job.js';
+import { checkAgentCancel, recordAnnotate, recordDiscard, recordList, recordSave, recordStop, recordView } from './record-studio.js';
+import type { RecordAnnotated, RecordDiscarded, RecordListItem, RecordSaved, RecordStopped, RecordView } from './record-studio.js';
+import type { RecordAnnotationChange } from '@demo-studio/core';
 import type { RecordSubmitRequest } from './jobs/record-job.js';
 import type { InspectJobInput } from '@demo-studio/core';
 import type { InspectReport } from '@demo-studio/runner-web';
@@ -444,6 +447,25 @@ export interface Engine {
     submit(req: RecordSubmitRequest): Promise<RecordSubmitted>;
     /** A recording's draft.yaml read back (null when there is none); its text is page and typed text: untrusted. */
     get(project: string, recId: string): Promise<{ dir: string; draft: string | null; truncated: boolean }>;
+    /**
+     * The Record screen (L4.8, record-studio.ts; clients `ui` and `test` only): a recording's state and live draft —
+     * counts and enums, page text under `untrusted`, no path. `job`: the job record_start returned (before the folder
+     * exists); `since`: the previous answer's `version` (unchanged: a short answer).
+     */
+    view(project: string, recId: string, o?: { job?: string; since?: string }): Promise<RecordView>;
+    /** One change to a Studio recording's annotations (choose / insert / remove) at the revision the view returned. */
+    annotate(project: string, recId: string, req: { rev: number; change: RecordAnnotationChange }): Promise<RecordAnnotated>;
+    /**
+     * Save a finished Studio recording as a NEW scenarios/<name>.yaml (agent trust, `via: 'studio'`) — only the draft the
+     * person saw: `draft` is the view's `draft_sha256` (another draft is a conflict).
+     */
+    save(project: string, recId: string, req: { name: string; rev: number; draft: string }): Promise<RecordSaved>;
+    /** Discard a Studio recording (its folder; an open window is cancelled). The saved scenario is never touched. */
+    discard(project: string, recId: string, o?: { job?: string }): Promise<RecordDiscarded>;
+    /** Stop and keep: queued = cancel; before the window opened = a clean cancel (the stop marker); while recording = the stop marker (the check runs). */
+    stop(project: string, recId: string, o?: { job?: string }): Promise<RecordStopped>;
+    /** The project's recordings, newest first (the Record screen's recent list; no page text, no path). */
+    list(project: string, o?: { limit?: number }): Promise<RecordListItem[]>;
   };
   /** A JPEG thumbnail (base64) of an image of the workspace, made on read: never stored. */
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
@@ -552,6 +574,12 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   };
   const commentIndex = new CommentIndex();
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
+  // L4.8: the Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
+  const recordCtx = { queue, client: opts.client };
+  let recordChain: Promise<unknown> = Promise.resolve();
+  const studioOnly = (what: string) => {
+    if (opts.client !== 'ui' && opts.client !== 'test') throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${opts.client === 'mcp' ? 'scenario_record starts a recording and job_status reads its draft' : 'studio record records in a terminal'}`);
+  };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
   const runThumbs = new RunThumbs({}, runData);
@@ -683,6 +711,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'components.library',
         'inspect',
         'record',
+        'record.studio',
         'comments',
         'comments.studio',
         'comments.anchor',
@@ -773,6 +802,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       list: (f) => queue.list(f),
       events: async (id, o) => (await getJob(id), queue.events(id, o)),
       cancel: async (id) => {
+        // B16 (L4.8): Claude never discards the person's open Studio recording through job_cancel.
+        checkAgentCancel(await getJob(id), opts.client);
         const rec = await queue.cancel(id, opts.client);
         await startWorker();
         return rec;
@@ -942,11 +973,55 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     },
     record: {
       submit: async (req) => {
-        const r = await submitRecordJob(submitCtx, req);
+        // The Studio opens one window at a time in the workspace (critique B5): checked and queued in one chain, so two
+        // tabs cannot both pass the check.
+        const once = async () => {
+          const busy = (await queue.list({ kinds: ['record'], states: ['queued', 'running'], limit: 1 }))[0];
+          if (busy && busy.input.kind === 'record') {
+            throw new EngineError('conflict', `a recording is already ${busy.state === 'queued' ? 'waiting' : 'open'} in this workspace (project ${busy.input.project}): stop it first — one window at a time`, {
+              details: { job: busy.id, project: busy.input.project, rec_id: busy.input.rec_id },
+            });
+          }
+          return submitRecordJob(submitCtx, req);
+        };
+        let r: Awaited<ReturnType<typeof submitRecordJob>>;
+        if (opts.client === 'ui') {
+          const next = recordChain.catch(() => undefined).then(once);
+          recordChain = next;
+          r = await next;
+        } else r = await submitRecordJob(submitCtx, req);
         const worker = await startWorker();
         return { ...r, ...(worker ? { worker } : {}) };
       },
       get: (slug, id) => readRecording(ws, slug, id),
+      view: async (slug, id, o = {}) => {
+        studioOnly('record_view');
+        return recordView(recordCtx, await project(slug), id, o);
+      },
+      annotate: async (slug, id, req) => {
+        studioOnly('record_annotate');
+        return recordAnnotate(recordCtx, await project(slug), id, req);
+      },
+      save: async (slug, id, req) => {
+        studioOnly('record_save');
+        return recordSave(recordCtx, await project(slug), id, req);
+      },
+      discard: async (slug, id, o = {}) => {
+        studioOnly('record_discard');
+        const r = await recordDiscard(recordCtx, await project(slug), id, o);
+        if (r.state === 'discarding') await startWorker();
+        return r;
+      },
+      stop: async (slug, id, o = {}) => {
+        studioOnly('record_stop');
+        const r = await recordStop(recordCtx, await project(slug), id, o);
+        if (r.action !== 'none') await startWorker();
+        return r;
+      },
+      list: async (slug, o = {}) => {
+        studioOnly('the recent recordings list');
+        return recordList(recordCtx, await project(slug), o);
+      },
     },
     thumbnail: (file, maxPx) => thumbnail(ws, file, maxPx),
     comments: {

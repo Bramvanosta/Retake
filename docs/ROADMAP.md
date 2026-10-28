@@ -67,8 +67,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.5 | Edit/verify timeline: tracks, component switching, Remotion Player | L | **done** (live checks: MACOS-CHECKLIST 13f) |
 | L4.6 | Frame comments UI | M | **done** (live checks: MACOS-CHECKLIST 13g) |
 | L4.7 | Component library (with animated previews) + theme editor screens | M | **done** (live checks: MACOS-CHECKLIST 13h) |
-| L4.8 | Record screen | M | **next** (when the user asks) |
-| L4.9 | Studio acceptance, accessibility pass | S | todo |
+| L4.8 | Record screen | M | **done** (live checks: MACOS-CHECKLIST 13i) |
+| L4.9 | Studio acceptance, accessibility pass | S | **next** (when the user asks) |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
 | L5.2 | Tauri desktop shell (macOS) | M | todo |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
@@ -795,7 +795,16 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   this scenario"). Two independent reviews fixed with mutation-checked tests (incl. an L4.5 hidden-import hole). Cuts:
   BL-113. Live checks: MACOS-CHECKLIST 13h.
 
-### L4.8 – L4.9, L5.2 – L5.4, L6
+### L4.8 — Record screen (M)
+- **Goal:** record a scenario from the Studio by clicking through the site, pick robust targets, add quick inserts,
+  and save it as a scenario.
+- **Done (2026-10-28, in a worktree):** a real headed browser window opened by the worker with the Studio as control
+  panel (no input forwarding: BL-25), a live draft, up to 3 verified alternative targets per action, quick inserts
+  (hold, wait for, caption, mark, zoom) placed by row, Stop, the check replay, Save as a new scenario, Discard,
+  read-only for recordings Claude or the CLI started. Two independent reviews fixed with mutation-checked tests; L3.4's
+  generator pinned by golden drafts. Cuts: BL-118, BL-119. Live checks: MACOS-CHECKLIST 13i.
+
+### L4.9, L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

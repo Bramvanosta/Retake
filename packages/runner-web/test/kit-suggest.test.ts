@@ -2,7 +2,7 @@
  * Kit 1.5.0 for the recorder (L3.4): `suggestFor` is the inventory's own entry for one element (same target, context
  * and action as `inventory` lists it), found from what a person acts on (a span inside a button, a label, a hidden
  * file input); `secretField` classifies fields without reading a value; the passive kit draws, patches and listens to
- * nothing.
+ * nothing. Kit 1.6.0 (L4.8): up to three alternative targets per element, for the recorder only.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
@@ -53,6 +53,7 @@ type Kit = {
   suggestFor(t: Element | string, o?: object): InventoryElement | null;
   secretField(t: Element | string): string | null;
   el(ref: string): Element | null;
+  find(t: object, o?: object): { count: number; ref?: string };
 };
 
 beforeAll(async () => {
@@ -132,6 +133,109 @@ describe('suggestFor (kit 1.5.0)', () => {
   });
 });
 
+describe('alternative targets (kit 1.6.0, the recorder only)', () => {
+  it('up to three other targets, each resolving once to the very element; never positional; without the option nothing changes', async () => {
+    const r = await page.evaluate(() => {
+      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const sels = ['#email', '#q', '#roast', '#notes', '#x', '#inner', 'tr:nth-child(2) button', '[role=dialog] button', 'a[href]', '#zone'];
+      return sels.map((sel) => {
+        const e = kit.suggestFor(document.querySelector(sel)!, { alternatives: 3, alternatives_budget_ms: 50 });
+        const el = e ? kit.el(e.ref) : null;
+        const plain = kit.suggestFor(document.querySelector(sel)!);
+        return {
+          sel,
+          suggested: e?.suggested?.target ?? null,
+          alternatives: e?.alternatives ?? null,
+          partial: e?.alternatives_partial ?? null,
+          // Re-checked here: each alternative resolves once, to the element the suggestion names.
+          resolve: (e?.alternatives ?? []).map((a) => {
+            const f = kit.find(a.target, {});
+            return f.count === 1 && f.ref !== undefined && kit.el(f.ref) === el;
+          }),
+          plainKeys: plain ? Object.keys(plain).includes('alternatives') : null,
+        };
+      });
+    });
+    const by = Object.fromEntries(r.map((x) => [x.sel, x]));
+    for (const x of r) {
+      expect(x.alternatives, x.sel).not.toBeNull();
+      expect(x.alternatives!.length, x.sel).toBeLessThanOrEqual(3);
+      expect(x.resolve.every(Boolean), x.sel).toBe(true);
+      for (const a of x.alternatives!) {
+        expect(a.target.nth, x.sel).toBeUndefined();
+        expect(a.fragile, x.sel).not.toContain('nth');
+        expect(a.target, x.sel).not.toEqual(x.suggested);
+      }
+      expect(x.plainKeys, x.sel).toBe(false);
+    }
+    expect(by['#email'].suggested).toEqual({ label: 'Email' });
+    expect(by['#email'].alternatives!.map((a) => a.target)).toEqual([{ role: 'textbox', name: 'Email' }, { css: '#email' }]);
+    expect(by['#email'].alternatives![1].fragile).toEqual(['css']);
+    expect(by['#q'].alternatives!.map((a) => a.target)).toEqual([{ role: 'textbox', name: 'Search lots' }, { css: '#q' }]);
+    // "Save" twice on the page: only the stable id resolves once; no positional alternative is ever offered.
+    expect(by['#inner'].suggested).toEqual({ css: '#b1' });
+    expect(by['#inner'].alternatives).toEqual([]);
+    expect(r.reduce((n, x) => n + x.alternatives!.length, 0)).toBeGreaterThanOrEqual(6);
+  });
+
+  it('each one is verified in the page: a key the page shares with an element outside the interactive ones is not offered', async () => {
+    const r = await page.evaluate(() => {
+      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const alts = () => kit.suggestFor(document.querySelector('#x')!, { alternatives: 3, alternatives_budget_ms: 50 })?.alternatives?.map((a) => a.target);
+      const before = alts();
+      const twin = document.createElement('div');
+      twin.setAttribute('aria-label', 'Close panel');
+      twin.textContent = 'Panel';
+      document.body.append(twin);
+      try {
+        return { before, after: alts() };
+      } finally {
+        twin.remove();
+      }
+    });
+    expect(r.before).toContainEqual({ aria: 'Close panel' });
+    expect(r.after).not.toContainEqual({ aria: 'Close panel' });
+    expect(r.after).toContainEqual({ css: '#x' });
+  });
+
+  it('a noisy text is never offered — mostly digits (a price) or pieces run together — and the good ones still are (review B-L7)', async () => {
+    const r = await page.evaluate(() => {
+      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const box = document.createElement('div');
+      box.innerHTML =
+        '<div role="listbox" aria-label="Sizes"><div role="option" id="o5" data-testid="opt-5kg"><span>5 kg</span><span>€36.40 / kg</span></div></div>' +
+        '<button id="card" data-testid="card-cv"><span>Cerro Verde</span><span>Peru · Natural</span></button>';
+      document.body.append(box);
+      try {
+        const alts = (sel: string) => kit.suggestFor(document.querySelector(sel)!, { alternatives: 3, alternatives_budget_ms: 50 });
+        const o = alts('#o5');
+        const c = alts('#card');
+        return { option: { target: o?.target, alts: o?.alternatives?.map((a) => a.target) }, card: { target: c?.target, alts: c?.alternatives?.map((a) => a.target) } };
+      } finally {
+        box.remove();
+      }
+    });
+    const texts = (ts: unknown[] | undefined) => (ts ?? []).flatMap((t) => (t && typeof t === 'object' && 'text' in t ? [(t as { text: string }).text] : []));
+    expect(texts(r.option.alts)).not.toContain('€36.40 / kg');
+    expect(texts(r.option.alts)).not.toContain('5 kg€36.40 / kg');
+    expect(JSON.stringify(r.option.alts)).not.toContain('36.40');
+    expect(r.option.alts).toContainEqual({ testid: 'opt-5kg' });
+    expect(texts(r.card.alts)).not.toContain('Cerro VerdePeru · Natural');
+    expect(r.card.alts).toContainEqual({ testid: 'card-cv' });
+    expect(r.card.alts!.length).toBe(3);
+  });
+
+  it('a spent budget gives none, said partial; the inventory of page_inspect never carries them', async () => {
+    const r = await page.evaluate(() => {
+      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const e = kit.suggestFor(document.querySelector('#email')!, { alternatives: 3, alternatives_budget_ms: 0 });
+      const inv = kit.inventory({ limit: 300 });
+      return { alternatives: e?.alternatives, partial: e?.alternatives_partial, inventory: inv.elements.some((x) => 'alternatives' in x || 'alternatives_partial' in x) };
+    });
+    expect(r).toEqual({ alternatives: [], partial: true, inventory: false });
+  });
+});
+
 describe('the passive kit (the recorder\'s copy)', () => {
   it('draws no cursor, patches no API, still resolves and inventories', async () => {
     const p = await browser.newPage();
@@ -148,7 +252,7 @@ describe('the passive kit (the recorder\'s copy)', () => {
           save: w.__demoStudio.suggestFor(document.querySelector('#inner')!)?.tag,
         };
       });
-      expect(r).toEqual({ version: '1.5.0', healthy: true, cursor: 0, patched: false, save: 'button' });
+      expect(r).toEqual({ version: '1.6.0', healthy: true, cursor: 0, patched: false, save: 'button' });
     } finally {
       await p.close();
     }

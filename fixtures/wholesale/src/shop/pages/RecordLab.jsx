@@ -7,6 +7,10 @@
 //   a file drop zone, a textarea and a contenteditable, a "Mark notifications read" button (a write), a link;
 // - a script that tries to forge the recorder's input: synthetic events, every window function that looks like a
 //   binding, the kit's and the recorder's names (it reports what it could see in `[data-testid=forge-report]`).
+// - with `?hostile=1` only (L4.8): one more button whose label is markup and a direction override — the Studio's Record
+//   screen must show it as inert text (the other tests film the page without the flag: their counts never move);
+// - at the bottom, below a tall spacer (L4.8 review): "Far away" (a person scrolls to it: the recorder's scroll before
+//   the press) and "Unlock the last step", which shows "Delayed control" (pressed after a pause: the recorder's wait first).
 // Content is invented. Only "Mark notifications read" writes (POST /api/notifications/read).
 
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -14,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api.js';
 import { Confirm, Modal } from '../../shared/dialog.jsx';
 import { Icon } from '../../shared/icons.jsx';
-import { Link } from '../../shared/router.jsx';
+import { Link, useLocation } from '../../shared/router.jsx';
 import { SelectField } from '../../shared/select.jsx';
 import { notify } from '../../shared/toast.jsx';
 
@@ -23,6 +27,12 @@ const ROWS = [
   { id: 'lot-b', name: 'Cerro Alto', origin: 'Colombia' },
   { id: 'lot-c', name: 'Kiambu Hills', origin: 'Kenya' },
 ];
+
+/**
+ * The hostile label (`?hostile=1`): markup that would run if a tool rendered page text as HTML, then a right-to-left
+ * override — under the kit's 60 characters, so the recorder names the button by it.
+ */
+const HOSTILE_LABEL = `<img src=x onerror=__pwned=1>Hostile ${String.fromCharCode(0x202e)}gnp.exe`;
 
 /** What a page script can try against a recorder: run once on load and again by the button. */
 function forge() {
@@ -122,6 +132,8 @@ export function RecordLabPage() {
   const [archive, setArchive] = useState(null);
   const [file, setFile] = useState(null);
   const [report, setReport] = useState(null);
+  const [late, setLate] = useState(false);
+  const hostile = useLocation().search.get('hostile') === '1';
 
   useEffect(() => {
     const t = setTimeout(() => setReport(forge()), 300);
@@ -282,11 +294,36 @@ export function RecordLabPage() {
               Forgery target
             </button>
           </div>
+          {hostile ? (
+            <p>
+              <button id="lab-hostile" type="button" className="btn btn-secondary btn-sm">
+                {HOSTILE_LABEL}
+              </button>
+            </p>
+          ) : null}
           <pre data-testid="forge-report" className="lab-report">
             {report ? JSON.stringify(report) : ''}
           </pre>
         </section>
       </div>
+
+      <section className="card card-pad lab-far">
+        <div aria-hidden="true" style={{ height: 1600 }} />
+        <h2 className="section-title">Further down</h2>
+        <p className="lab-row">
+          <button id="lab-far" type="button" className="btn btn-secondary btn-sm" data-testid="lab-far" onClick={() => notify({ title: 'Far away pressed' })}>
+            Far away
+          </button>{' '}
+          <button id="lab-reveal" type="button" className="btn btn-secondary btn-sm" onClick={() => setLate(true)}>
+            Unlock the last step
+          </button>{' '}
+          {late ? (
+            <button id="lab-late" type="button" className="btn btn-primary btn-sm" onClick={() => notify({ title: 'Delayed control pressed' })}>
+              Delayed control
+            </button>
+          ) : null}
+        </p>
+      </section>
 
       <Modal
         open={dialog}

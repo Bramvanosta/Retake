@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AuthStatusItem } from '@demo-studio/engine';
 import { call, errorText, useCall } from './api.js';
-import { Badge, Loading, Notice, Txt, When } from './bits.js';
+import { Badge, Loading, Notice, Txt, visibleControls, When } from './bits.js';
 import type { BadgeTone } from './bits.js';
 import { useEvents, useProjectEvents } from './events.js';
 
@@ -121,7 +121,7 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
   return (
     <div className="sign-in" data-testid="sign-in">
       {!open && (
-        <button type="button" className="button small" aria-label={`${label} (${env})`} disabled={sending} onClick={start} data-testid="sign-in-button">
+        <button type="button" className="button small" aria-label={visibleControls(`${label} (${env})`)} disabled={sending} onClick={start} data-testid="sign-in-button">
           {sending ? 'Opening…' : job ? 'Sign in again' : 'Sign in'}
         </button>
       )}
@@ -164,7 +164,7 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
             </p>
           )}
           {open && !job.cancel_requested_at && (
-            <button type="button" className="button small" onClick={cancel} data-testid="sign-in-cancel" aria-label={`Cancel the sign-in of ${persona}`}>
+            <button type="button" className="button small" onClick={cancel} data-testid="sign-in-cancel" aria-label={visibleControls(`Cancel the sign-in of ${persona}`)}>
               Cancel
             </button>
           )}

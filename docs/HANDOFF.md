@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-27, end of lot **L4.7 (component library with animated previews + theme editor)** — phases 1–3
-are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.7 done).
-**Next: L4.8 (Record screen), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-28, end of lot **L4.8 (Record screen)** — phases 1–3
+are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.8 done).
+**Next: L4.9 (Studio acceptance, accessibility pass), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,29 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-118); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-120); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.7)
+## State (after L4.8)
+- **L4.8 done (2026-10-28)**: the Studio's Record screen (`#/p/<slug>/record[/<rec_id>]`, "Record a scenario" on the
+  project and scenario screens). The person clicks through the site in a **real headed browser window** opened by the
+  worker (full size, Cmd-Tab between it and the Studio); the Studio is the control panel — no input forwarding (why not:
+  BL-25). Start form (environment, page, path, persona with Sign in, name), a live draft polled from the recording
+  (≈ 0.7 s), per action the recorder's suggestion plus up to 3 verified alternative targets (kit 1.6.0, never
+  position-based, a 10 ms budget per press; ≈ 71 % of fixture controls get one), quick inserts (hold 2 s, wait for,
+  caption, mark, zoom up to the theme's max_zoom) placed by row identity ("after this step" = exactly after that row,
+  incl. the recorder's own scroll / wait rows), Stop (a `stop` marker the worker polls for record jobs), the check
+  replay (labelled honestly: the recorded draft, without picks and inserts), Save (a new `scenarios/<name>.yaml` only,
+  refused with a 409 when the draft changed since it was shown), Discard, read-only for recordings Claude or the CLI
+  started. Picks and inserts live in the recording's `studio.json` (engine-only writes, revision-checked); the
+  recording's `meta.json` and `events_sha256` let the engine refuse a forged or tampered recording (state `tampered`);
+  hidden / bidi characters never reach a saved draft. Studio recordings never auto-save. Tests on the Mac: **3697 —
+  3628 pass, 66 skipped, 3 failures in the one full run** (the secrets sentinel test hit a lab button whose name
+  contained "Reveal" — the new lab buttons were renamed, green; two L4.6 e2e load timeouts, green alone); `pnpm
+  test:slow` 65/65 (incl. the Studio-to-render Record acceptance, ≈ 100 s). Requirements: 647 tracked — 601 done, 26
+  partial, 12 todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 13i.
 - **L4.7 done (2026-10-27)**: the Studio's component library (`#/p/<slug>/library[/<theme>[/<ns>/<name>]]`): a grid by
   kind with posters in the selected / project theme, filters (kind, source, words), "Built-in" / "Workspace" badges,
   Play / Pause of an animated GIF loop per component (rendered on demand by the worker's `library` preview job in
@@ -394,8 +411,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-The field-feedback group L5.5 – L5.8 is closed: **what comes next is the user's choice — L4.4 (the run screen) per the
-roadmap**, only when the user asks. Pending
+**Next: L4.9 (Studio acceptance, accessibility pass) per the roadmap**, only when the user asks. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
 document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
 (L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
@@ -1260,6 +1276,20 @@ sandbox, a hook step and compact results through Claude Code).
   `library.ts`, brand `copy.ts` / `file-list.ts`, `site-list.ts`; ui `server/library-ops.ts`, `theme-ops.ts`,
   `library-watch.ts`, `LibraryScreen.tsx`, `ThemesScreen.tsx`, `ThemeEditor.tsx`, `library-words.ts`, `theme-words.ts`.
   No new dependency. Cuts: BL-113.
+- **L4.8 done** (Record screen; R-UI-20, R-UI-21, R-UI-22 done). Decision with the user: a real headed window and the
+  Studio as control panel, not input forwarding through the live preview (BL-25 gets the reasons). Planned with probes
+  (alternatives on 160 fixture controls: 71 % get one, 0.04–0.55 ms each), criticised, built in parts in a worktree
+  (1 core generator + annotations schema, 2 kit 1.6.0 alternatives + runner, 3 engine record-studio + queue stop marker
+  + meta.json, 4 Studio server ops + records watch, 5 Record screen, 6 docs + gated Studio-to-render acceptance),
+  reviewed by two reviewers (an insert "after" a recorder-added row landing elsewhere, the cursor sliding a row, Save
+  of a draft changed since it was shown, a missing events hash passing, hidden characters reaching a saved draft, a
+  zoom above the theme's max, a check result describing a different draft…) and fixed with mutation-checked tests (60
+  checks after the reviews, 59 killed — the survivor is the worker's belt-and-braces stop check at claim). L3.4's
+  generator is pinned byte for byte by golden drafts (`packages/core/test/fixtures/recordings/`). Files: core
+  `recording.ts`, `record-annotations.ts`; runner-web kit `kit.ts` / `record-script.ts`, `record-session.ts`; engine
+  `record-files.ts`, `record-studio.ts`, `record.ts`, jobs `queue.ts` / `worker.ts` / `record-job.ts`; ui
+  `server/record-ops.ts`, `record-watch.ts`, `RecordScreen.tsx`, `record-words.ts`; fixture RecordLab (a far section,
+  `?hostile=1`). No new dependency. Cuts: BL-118, BL-119.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1527,6 +1557,24 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.8:
+- A Studio recording is the person's only when its job exists with `submitted_by: 'ui'` and is the job its `meta.json`
+  names; otherwise it is read-only. Studio record jobs never auto-save; Save writes a new file only and sends back the
+  `draft_sha256` from the view (409 when events, a project var or the annotations changed). A missing / malformed
+  `events_sha256`, or a succeeded job with no record.json, is `tampered` (no Save, no "check passed").
+- `studio.json` (picks, inserts) is written by the engine only, under the recording's lock, with a revision check and
+  no-follow opens; inserts carry the identity of their row (`row`, `after_insert`), so the draft can regenerate without
+  moving them. Studio drafts are written without YAML aliases (CLI / MCP drafts unchanged: BL-119).
+- The queue's `stop` marker (like `pause`) is polled by the worker for running `record` jobs only; `queue.cancel(id, by,
+  'discard')` records why. MCP `job_cancel` is refused on an open Studio recording. No new job kind, no job.json change
+  (relevant to BL-117).
+- The check replays the recorded draft without picks and inserts (a dry run of the saved scenario checks those). One
+  instant wheel jump (headless 2400 px) records no scroll — an L3.4 limit noted in BACKLOG; tests scroll in steps.
+- The lab's labels must not contain each other (Playwright `getByRole` names match substrings): the far section's
+  buttons are "Unlock the last step" / "Delayed control". The gated L4.8 acceptance: `DEMO_STUDIO_TEST_SLOW=1 npx
+  vitest run packages/ui/test/studio-e2e-record-acceptance.test.ts` (part of test:slow; `DEMO_STUDIO_TEST_HEADED=1`
+  shows the window).
+
 Notes from L4.7:
 - A scenario's `template` (a listed theme name, written through set_field / scenario_edit) re-themes existing takes at
   their next render; project.yaml's theme stays a hand edit. Editable themes are decided by real path; starters and

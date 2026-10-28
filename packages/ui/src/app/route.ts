@@ -9,7 +9,8 @@
  * `#/p/<slug>/s/<name>/proposal/<comment id>/<entry id>` the timeline previewing the change Claude proposed on a thread
  * (L4.6 part D2: planned in memory, nothing written), `#/p/<slug>/library[/<theme>[/<namespace>/<name>]]` the component
  * library in the project's theme or another, and one component's detail (L4.7 part D1), `#/p/<slug>/themes[/<theme>]` the
- * theme list and one theme's editor (L4.7 part D2).
+ * theme list and one theme's editor (L4.7 part D2), `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
+ * recent recordings, or one recording, live then reviewed (L4.8).
  * A slug, a scenario name, a run id, a comment or render id is whatever
  * the address bar holds, percent-decoded and capped — the server checks it (`project_get` / `scenario_blocks` refuse anything but a slug); here it is only ever a text node or an
  * argument. `hrefTo` is the only way the app builds an `href` (the source lint test enforces it).
@@ -27,6 +28,7 @@ export type Route =
   | { name: 'proposal'; slug: string; scenario: string; thread: string; entry: string }
   | { name: 'library'; slug: string; theme?: string; component?: string }
   | { name: 'themes'; slug: string; theme?: string }
+  | { name: 'record'; slug: string; rec?: string }
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
@@ -99,6 +101,10 @@ export function parseRoute(hash: string): Route {
   const thSlug = th ? decode(th[1]) : null;
   const thTheme = th?.[2] !== undefined ? decode(th[2]) : undefined;
   if (th && thSlug !== null && thTheme !== null) return { name: 'themes', slug: thSlug, ...(thTheme !== undefined ? { theme: thTheme } : {}) };
+  const rc = /^\/p\/([^/]+)\/record(?:\/([^/]+))?\/?$/.exec(path);
+  const rcSlug = rc ? decode(rc[1]) : null;
+  const rcRec = rc?.[2] !== undefined ? decode(rc[2]) : undefined;
+  if (rc && rcSlug !== null && rcRec !== null) return { name: 'record', slug: rcSlug, ...(rcRec !== undefined ? { rec: rcRec } : {}) };
   return { name: 'not-found', path: path.slice(0, SLUG_MAX) };
 }
 
@@ -136,5 +142,7 @@ export function hrefTo(r: Route): string {
     }
     case 'themes':
       return `#/p/${encodeURIComponent(r.slug)}/themes${r.theme !== undefined ? `/${encodeURIComponent(r.theme)}` : ''}`;
+    case 'record':
+      return `#/p/${encodeURIComponent(r.slug)}/record${r.rec !== undefined ? `/${encodeURIComponent(r.rec)}` : ''}`;
   }
 }

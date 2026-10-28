@@ -24,6 +24,11 @@ product marketers, founders, designers — and Claude, which operates everything
    create with Claude).
 5. **Theme editor** — brand (logo, name, URL), colours, type pair, motion bias (real / balanced / motion), max zoom,
    cursor; the component chosen per kind; live previews (intro, clip with caption, outro); "extract from a website".
+6. **Record screen** — the control panel of a real full-size browser window the person clicks in (nothing forwarded
+   to it): a start form (environment, page, path, persona with its session, name), then the live draft as step rows
+   (the recorder's helpers marked, "added by you" insert chips), a step's verified alternative targets as a radio
+   group, a draft cursor ("at the end" / "after step n"), quick inserts (hold 2 s, mark, zoom 1.5×, wait for…,
+   caption…; "applies to your next action"), Stop and keep, the check's result, Save as scenario, Discard.
 
 ### B. Video components (1920×1080 frames) — same components in two themes
 Intro (logo + wordmark row, kicker, display title, accent rule), clip (capture in a rounded card on a soft background,

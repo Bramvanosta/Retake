@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright-core';
-import { RecordedEventSchema, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
+import { RecordedEventSchema, draftFromRecording, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
 import type { LoadedProject, RecordedEvent } from '@demo-studio/core';
 import { CancelledError, disableAutofill, looksLikeSecretSegment, looksLikeToken, maskPathSecrets, recordSession, secretHash, signIn } from '../src/index.js';
 import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
@@ -349,6 +349,30 @@ describe('recordSession: secrets', () => {
     expect(note).toMatchObject({ secret: false, text: 'Browse later' });
     expect(r.events.find((e) => e.kind === 'pointer' && e.el?.href_path === '/coffees')).toMatchObject({ el: { target: { text: 'Browse coffees' } } });
     expect(r.events.some((e) => e.kind === 'pointer' && e.redacted)).toBe(false);
+  }, 60_000);
+
+  it('a known secret retyped in a plain field, its typing split by a blur (a visit to the Studio): no part of it is sent, one placeholder (review A-L2)', async () => {
+    // Letters only, none of them a vowel: no 4-character run of it is in an event by chance.
+    const letters = 'BCDFGHJKLMNPQRSTVWXZ';
+    const secret = `Q${Array.from(randomBytes(15), (b) => letters[b % letters.length]).join('')}`;
+    const { r, bytes } = await record(async (page) => {
+      await page.locator('#lab-password').click();
+      await page.keyboard.type(secret);
+      const note = page.getByLabel('Note');
+      await note.click();
+      await page.keyboard.type(secret.slice(0, 8));
+      await note.blur();
+      await page.waitForTimeout(200);
+      await note.focus();
+      await page.keyboard.type(secret.slice(8));
+      await page.getByRole('button', { name: 'Edit address' }).click();
+    });
+    for (let i = 0; i + 4 <= secret.length; i++) expect(bytes.includes(secret.slice(i, i + 4)), secret.slice(i, i + 4)).toBe(false);
+    const notes = r.events.filter((e): e is Extract<RecordedEvent, { kind: 'type' }> => e.kind === 'type' && e.el?.label === 'Note');
+    expect(notes.map((n) => n.secret)).toEqual([true, true]);
+    const d = draftFromRecording(r.events, { name: 'split', env: 'test', envIsDefault: true, pages: { shop: fixture.urls.shop, console: fixture.urls.console }, persona: null, access: 'read-write' });
+    expect(d.placeholders.map((p) => p.kind)).toEqual(['password', 'secret']);
+    for (let i = 0; i + 4 <= secret.length; i++) expect(d.yaml.includes(secret.slice(i, i + 4))).toBe(false);
   }, 60_000);
 
   it('a token dropped as text into a plain field is a secret (as a paste is)', async () => {

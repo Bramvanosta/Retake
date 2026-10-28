@@ -1264,7 +1264,8 @@ and a draft that validates. Pure and deterministic (no model, no network, nothin
 ### 3.11 Recording: capture (L3.4 part 1; runner `record-session.ts`, `kit/record-script.ts`, kit `suggestFor` / `secretField`, core `recording.ts`)
 
 A person performs a flow once in a HEADED window; the actions become events for the draft generator (part 2). Claude
-may start a recording, never drive it. Nothing is filmed.
+may start a recording, never drive it. Nothing is filmed. L4.8: the Studio's Record screen (§4h) is this window's control
+panel — the same session, nothing forwarded to it.
 - **runner** `recordSession({project, env, persona?, url, allowWrites?, eventsFile?, maxMs?, stop?, signal?, drive?,
   headless?, windowSize?})` → `{events, stop: closed | stopped | max_duration, ms, window, capture, access, persona,
   counts {events, actions, writes, redacted, dropped {sign_in, frame, invalid, new_page}}, warnings}` (warnings never
@@ -1333,7 +1334,8 @@ may start a recording, never drive it. Nothing is filmed.
   `onEvent`.
 - **core** `recording.ts`: `RECORDING_VERSION` 1, `RECORD_ID_RE` (`rec_` + 26 Crockford), `SECRET_FIELD_KINDS`,
   `RECORDED_KEYS`, `RecordedElementSchema` (the inventory entry: target, matches, fragile, in, action, role, tag,
-  input_type, name, text, label, placeholder, testid, href_path, in_view, state, appeared, secret, desc?) and
+  input_type, name, text, label, placeholder, testid, href_path, in_view, state, appeared, secret, desc?,
+  alternatives? / alternatives_partial? — L4.8) and
   `RecordedEventSchema` (pointer, dblclick, type, select_native, file, key, scroll, navigation, new_page, write,
   dropped, stop; strict objects; a secret `type` without `text`, a plain one with it; a path without `?` / `#`; a
   printable key only with Control / Meta).
@@ -1342,6 +1344,18 @@ may start a recording, never drive it. Nothing is filmed.
   or its nearest interactive ancestors (≤ 4 tries) — null when nothing interactive holds it; `secretField`. Measured: a
   press on the lab costs 1–4 ms in the page; on `/inspect-lab?rows=5000` (≈ 10,000 controls) ≈ 210 ms, the budget spent
   (description fallback).
+- **alternative targets (L4.8, kit 1.6.0)**: `inventory({alternatives: n ≤ 3, alternatives_budget_ms})` /
+  `suggestFor(el, {alternatives})` go on along the ladder past the verified suggestion: never `nth` / `last_visible`
+  (none at all when the suggestion is positional), never a key an index knows is shared, each `verify`-ed to resolve
+  once to this very element (a key the page shares with a non-interactive element is not offered), ≤ 3 kept, ≤ 6 extra
+  verifications, an own budget of min(10 ms, what is left of the press's 150 ms) — none, `alternatives_partial`, after a
+  suggestion over 20 ms or on a page of over 2,000 distinct texts. Only asked for by the recorder (`info(target, true)`
+  on a press, a keyboard activation, typing, a native select, a file; never a scroll or a key), never kept for a secret
+  field; page_inspect's inventory never carries them. They reach the event as `el.alternatives` (`{target, fragile}`,
+  ≤ 3, never positional in the schema) through the in-page and runner masking like every string; an event the schema
+  refuses only for its alternatives is kept without them. `RECORD_ALT_BUDGET_MS` 10 (test hook `alternativesBudgetMs`).
+  Measured (headless, 2026-10-28): a press on the lab p50 1 ms / p95 4 ms in the page with alternatives, the same
+  without; a press on `/inspect-lab?rows=5000` ≈ 250 ms (a slow suggestion: no alternatives).
 
 ### 3.12 Recording: draft, engine, CLI (L3.4 part 2; core `draftFromRecording`, engine `record.ts`, `studio record`)
 
@@ -1380,7 +1394,51 @@ may start a recording, never drive it. Nothing is filmed.
   scene's step count at its end); a click folded into the typing that follows it passes its issues on. The YAML:
   steps' values in flow style, a header comment; the draft is parsed (`parseScenario`) and any error is an `invalid`
   issue (`draftInvalidIssue`: a fixed message, its line, scene and step — never the validator's text). Issue messages
-  never quote page text or a typed value.
+  never quote page text or a typed value. Two typing events on one field (the same recorded target) with nothing
+  between them but scrolls under 120 px, the second without `clear`, the first without `enter`, are one `type` step
+  (L4.8: a visit to another window blurs the field and commits the first part) — not when an annotation insert sits
+  between them, the joined text would hold `{{` or pass 2,000 characters; two secret parts of one kind stay one
+  placeholder (never a second one that appends); the step keeps each part's time (`tw`), so a write that follows
+  either part is attributed to it (the window counts from the latest part before the write).
+- **Hidden characters (L4.8 review A-M3)**: a recorded string holding one of the characters no Studio write adds
+  (scenario-edit.ts `firstHiddenChar`: controls, zero-width and direction characters, line / paragraph separators, a
+  BOM inside) is treated like a masked or templated one: a press on such a name, typed or pasted text, a choice, an
+  alternative — the step is left out (`hidden_text`, never quoted), no such alternative is offered, and any step that
+  would hold one (a list's field name…) is refused by `push` itself; a write label with one is not quoted in `note:`.
+  Recordings without one are unchanged (golden drafts of L3.4's generator: core test fixtures `recordings/`).
+- **Studio annotations (L4.8; core `record-annotations.ts`)**: `draftFromRecording(events, ctx, annotations?, {final?})`
+  with `{v: 1, rev, choices: {"<seq>": 0..3}, inserts: [{id, after_seq, kind, …}]}` (strict; ≤ 200 inserts, ≤ 2,000
+  choices, 64 KiB; Studio text without `{{`, control or hidden characters, line breaks included). Without annotations
+  (or empty ones) the draft is the recorder's, byte for byte (tested over every generator case, also with alternatives
+  on every element). Picks: every fold and merge decision compares the recorded targets; a pick is written only when
+  the draft is emitted, at the step's main target (click, double_click, `type {into}`, `select {combobox}`, `drop_file
+  {zone}` — never a list's label, a select by field or a row menu): the latest of the step's target events that has a
+  choice wins (0 = the recorder's suggestion), and the recorder's own `wait_for` / `scroll {to}` before that action
+  follow it; `recordedAlternatives(el)` lists the offered ones (masked, templated, hidden-character, positional or
+  same-as-suggestion dropped, none for a secret field). Inserts at an event position: `hold` / `wait_for` (the next
+  action's target — a select or pick by field: `{label: <field>}` —, page idle when it has none — `insert_wait_idle`
+  —, or a text) go before the first action whose latest event is after the position, after that action's helpers that
+  ended at or before the position (a scroll made before the insert) and before the others (the recorder's wait, made
+  with the action) (a wait for the same target replaces the recorder's, its timeout kept: `insert_replaced`), else at
+  the end of the scene current at the position; an insert made on a row keeps that row's identity (review B-H1):
+  `row: 'wait'` — right after the recorder's wait before the action at `after_seq` —, `after_insert` — right after
+  that insert (its `after_seq` / `row` copied, the fallback once it is removed); `caption` / `mark` / `camera {zoom,
+  until}` go on that action step — never a helper —, `pending` while the recording goes on, on the last action
+  (`insert_moved`) once it ended (`final`: by default a `stop` event), left out with nothing recorded
+  (`insert_unplaced`); two of one kind on a step: the later wins (`insert_replaced`). Writes are never attributed to an
+  inserted step; issue positions and `firstWrite` count inserted steps. New outputs: `sources` (per step: `seqs`
+  [first, last], `role` action / helper / insert, `helper` wait / scroll, `row` — its identity, stable while the draft
+  regenerates: `a<first seq>`, `w<seq>`, `s<first seq>`, `i:<id>` —, `target_seqs`, `target_seq` — where its
+  alternatives are picked —, `chosen`, `insert`, `modifiers`), `pending`, `placeholders` ({name, kind, project_var,
+  scene, step}). With annotations the header comment says the draft was arranged in the Studio. `{aliases: false}`
+  (every Studio recording's draft, review B-M2): no YAML anchor / alias — a target shared by a helper and its action is
+  written each time (CLI / MCP drafts keep L3.4's aliases, byte for byte: BL-119). `shownStep(bare, shown, at)` maps a
+  step of the recorder's own draft to its row in the arranged one (by `row`; null when gone). `applyRecordChange(
+  annotations, change, events)` applies one `choose {seq, index}` (an offered alternative only) / `insert {at: 'end' |
+  {after_step_seq, row?: 'wait'} | {after_insert}, insert}` (the end = the newest event, resolved by the caller under
+  its lock) / `remove {id}`; ids `i<rev>`, marks `m1`, `m2`… by default, unique; a camera's zoom a factor with two
+  decimals in (1, 3] (`recordZoomOptions(max_zoom)`: 1.25 / 1.5 / 2 each capped at the theme's max_zoom, default
+  min(1.5, max_zoom)); studio.json's `saved` a slug and its own `scenarios/<name>.yaml`; errors are fixed messages.
 - **engine** `recordScenario(ws, project, {env?, persona?, page?, path?, url?, name?, allowWrites?, check?, agent?,
   submittedBy?}, ports)` → `RecordOutcome {rec_id, dir, draft, name, saved, not_saved?, env, persona, access, stop, ms,
   window, capture, counts, stats, scenes [{id, steps, opens}], issues, warnings, writes {total, by_steps, ambient,
@@ -1446,6 +1504,80 @@ may start a recording, never drive it. Nothing is filmed.
   draft_lines}` (the YAML as lines: each string under `untrusted` is capped at 2000 characters); a refusal naming a
   persona that must sign in points at `auth_login`. `record` is a product-text kind: a failed job's message is only
   under `untrusted.error`. INSTRUCTIONS: one line on when to record and how to follow it.
+- **The Studio's side (L4.8 part 3; engine `record-files.ts`, `record-studio.ts`)**. The folder's creator
+  (`recordScenario`: the CLI and the worker alike) writes `meta.json` once (0600, `wx`) right after making the folder:
+  `{v: 1, rec_id, job_id | null, submitted_by, name, env, persona, access, page, path, started_at, max_ms, owner {pid,
+  started_at}}` — the draft's context (with the current project.yaml's pages, default personas and vars, the view and
+  Save rebuild the worker's draft byte for byte) and who may change it. `record.json` gains `events_sha256` (the events
+  file after the stream ended). A job with `submitted_by: 'ui'` is never saved by the job (`not_saved: 'studio'`; no new
+  input field, MCP and CLI unchanged on the wire). The job's `stop` marker (`queue.requestStop` / `stopRequested`,
+  reserved like `pause`) is polled with the cancel marker for running `record` jobs and aborts the job's `finish`
+  signal: the window closes as if closed (`stop: 'stopped'`) and the check replay runs (a worker signal still skips it).
+  Ops (`engine.record.{view, annotate, save, discard, stop}`, clients `ui` / `test` only; every answer path-free, page
+  and typed text under `untrusted`):
+  `view(project, rec_id, {job?, since?})` — the job from `meta.job_id` (or the `job` hint before the folder exists, or
+  after a discard removed it; checked to be that recording's job), state `queued | preflight | recording | draft |
+  check | done | interrupted | tampered | nothing_recorded | failed | cancelled | discarded | missing` (`interrupted`: a
+  dead worker, or a CLI recording whose owner process is gone, with no record.json: Save and Discard allowed,
+  unchecked; `tampered`, fail closed (review A-M2): a Studio recording whose record.json holds no valid
+  `events_sha256`, or whose job succeeded without a record.json — read-only, Discard only; `discarded` also for an open
+  window the Studio discarded — its cancel marker says `reason: 'discard'`), `can {annotate, save, discard, stop}`,
+  counts, stats, issue counts, check (+ `events_changed`, true when record.json's checksum is not the events'),
+  saved, `rev`, `draft_sha256` (the hash of the draft shown), `zoom {max, options, default}` (the project theme's
+  max_zoom), `version` (an equal `since` answers `unchanged: true`, nothing read), `untrusted {yaml, blocks, sources,
+  issues, pending, placeholders, alternatives [{scene, step, seq, chosen, options [{index, target, words, fragile}]}],
+  inserts, writes, check? (+ `failed_row`: the check's failing step of the recorded draft on screen, through
+  `shownStep`; null when gone)}`; nothing is read when the records folder or the recording's folder is a link or leads
+  out of the project (realpath compared, as for writes: the view says why, the list skips it); events.jsonl is read
+  without following a link, each complete line re-validated (a refused line dropped and counted, a last line without
+  its newline left for the next read). `annotate(project, rec_id, {rev, change})` — under the lock
+  `.demo-studio/locks/record-<id>.lock`, the revision checked, the events read then (an insert `at: 'end'` lands after
+  the newest event in the file at that moment: a visit to the Studio commits the typing in progress after the screen's
+  last poll), studio.json read with O_NOFOLLOW (a link refused) and replaced by an exclusive temp file and a rename.
+  `save(project, rec_id, {name, rev, draft})` — a finished (done / interrupted) Studio recording: the events file must
+  hash to record.json's `events_sha256` (fail closed), the draft made again with the annotations (`final`), and it must
+  be byte for byte the draft the person saw (`draft` = the view's `draft_sha256`: an events line, a project.yaml var or
+  page, or an annotation changed since is a `conflict`, no file — review A-M1); its errors refuse, then
+  `saveRecordedDraft`: a hidden character anywhere refused (located by scene and step), agent trust (`via: 'studio'`),
+  a NEW `scenarios/<name>.yaml` only (a taken name: `conflict`, "choose another name"), the validator's text never in
+  the message (issues located by scene and step, text under `details.untrusted`, paths removed); then `saved` in
+  studio.json (read-only after). `discard(project, rec_id, {job?})` — the window open (or not yet): job cancel with
+  `reason: 'discard'` (L3.4 removes the folder; the view says discarded); during the draft or the check: `discard`
+  written into studio.json and the job cancelled, the folder removed by the job itself when it ends (B-L2), else by
+  the next view or recent list; afterwards removed at once — only a real folder directly under the project's real
+  `.demo-studio/records` (realpath compared, no link on the way). `stop(project, rec_id, {job?})` — queued: cancel
+  (unless the worker took it meanwhile); preflight and recording: the stop marker — before the window opens the job
+  turns it into a clean cancel (nothing opens, no folder kept; a worker taking a job whose stop was asked sees it at
+  once), never a cancel racing the window into a discard (B-L8); any recording with a job, whoever started it.
+  Annotate, save and discard need a Studio recording (review A-L1): its job exists with `submitted_by: 'ui'` and is the
+  job meta.json names with `submitted_by: 'ui'` (meta.json alone proves nothing — `.demo-studio/` is agent-writable;
+  before the folder exists, the job alone); MCP and CLI recordings, and one whose origin cannot be verified (its job
+  gone or another), are read-only from the Studio. A camera insert above the project theme's max_zoom is refused
+  (`invalid`). The Studio's `record.submit` refuses a second recording while one is queued
+  or running in the workspace (`conflict` naming it; checked and queued in one in-process chain). `jobs.cancel` from
+  the MCP client refuses an unfinished `record` job the Studio submitted (it would discard the person's recording).
+  Prune keeps, beyond the newest 20, a folder whose lock is held and an unsaved, undiscarded Studio recording younger
+  than 7 days (`RECORD_UNSAVED_KEEP_MS`).
+  `list(project, {limit?})` (part 4) — the recent list: recordings whose job is queued or running before their folder
+  exists, then the real folders of `.demo-studio/records/`, newest first (≤ 50), each `{rec_id, state, job, started_by,
+  started_at, name, env, persona, page, path, steps, actions, saved, studio}` without reading its events.
+- **The Studio server's Record ops (L4.8 part 4; ui `server/record-ops.ts`, `server/record-watch.ts`)**: seven own ops
+  in `UI_OPS` (not MCP tools; `scenario_record` and `job_cancel` stay out). `record_options {project}` — environments
+  (the access a Studio recording gets: never `--allow-writes`), page keys, personas with their stored session state
+  (auth.status, no browser), `login_steps`, the path-free sign-in command, defaults per environment, warnings and notes
+  in words, the recording open in the workspace, and `recent` (engine `record.list`). `record_start {project, env?,
+  page?, path?, persona?, name?}` — strict: no `url`, `allow_writes`, `check` or `submitted_by` from a page (400,
+  nothing queued); submitted with `check: true`, a page and a path; the job's `submitted_by` is the engine's client.
+  `record_view {project, rec_id, job?, since?}` (the draft's YAML as `untrusted.yaml_lines`: the untrusted cap is per
+  string), `record_annotate {project, rec_id, rev, change}` (core `RecordAnnotationChangeSchema`, strict),
+  `record_stop` / `record_discard {project, rec_id, job?}`, `record_save {project, rec_id, name, rev}` (in the
+  server's scenario chain). Every answer goes through `recordPathFree`: pathFree on every trusted string (a failed
+  job's `error.message` / `error.fix` included: `studio -C .` for the workspace) and on the check replay's failure text;
+  the draft and URL `path` fields keep their text with only the workspace's own path cut (withoutPathsDeep would
+  shorten a page path such as `/orders/new` and drop blocks below 8 levels). Errors keep the HTTP layer's rule (message
+  and details path-free, `fix` as typed). Live re-reads: a stat poll of each recording folder's own files (events.jsonl,
+  studio.json, record.json, meta.json; never through a link, ≤ 40 folders a project) while an event stream is open;
+  `workspace {records: ['<project>/<rec_id>']}` names those that changed. The screen on top of them: §4h.
 
 ### 3.14 Themes from brand files (L3.5 part 1; core `brand.ts`, components `brand/`, engine `brand/`, MCP `template_create_from_brand`, `studio theme create`)
 The contract (input schema, palette formulas and thresholds, template.yaml generation, file checks, naming, replace
@@ -3288,6 +3420,103 @@ Correctness (review B):
   skipped" reads "under 0.1 s"; the notice of a take without a snapshot says "Switches are off for this take"; the
   review panel shows scene sheets, key frames and the diff too (at most 24 images); the app bundle budget is 430 KB
   (≈ 415 KB).
+
+## 4h. Record screen (L4.8)
+
+R-UI-20…22: record a scenario from the Studio by clicking through the product, pick a step's target among verified
+alternatives, add quick inserts while recording. Built in six parts (the lot's plan and its critique B1–B17, C1–C7
+apply): **1 — core generator and annotations** and **2 — kit and runner alternatives** (§3.11, §3.12), **3 — engine**
+and **4 — the Studio server's ops** (§3.13), **5 — the screen**, **6 — docs and acceptance**. Cuts: BL-118 (thumbnails
+per step, a live picture of the window, controls inside it, editing before Save, a re-check after later changes, more
+alternatives, choices and inserts through MCP), BL-119 (CLI / MCP drafts written with YAML anchors — a Studio draft has
+none), BL-25 (recording through the live picture, with the reasons it was not built). The two reviews' findings (trust
+A-M1…A-L3, screen B-H1…B-L8) are folded into §3.12, §3.13 and this section.
+
+**The person clicks in a real window.** A Studio recording is L3.4's `record` job submitted by the `ui` client: the
+worker opens the headed window on this Mac, full size (maximised, as L3.4: the desktop layout is what the video films;
+never "side by side"), and the person clicks and types there. The Studio is its control panel and nothing on the screen
+reaches the window: no input is forwarded, no live picture is shown. The recorder, its masking and its isolated world
+are L3.4's, unchanged; the draft is made again from events.jsonl and studio.json on every read (§3.12 "Studio
+annotations").
+
+**Routes** (ui `app/route.ts`): `#/p/<project>/record` the start form, `#/p/<project>/record/<rec_id>` one recording.
+Entry points: *Record a scenario* on the project page (the Scenarios card) and *Record a new scenario* on the scenario
+screen. The project nav stays open on both.
+
+**The start form** (`StartForm`, `record_options`): environment (production / read-only / sandbox warnings in words),
+page, path (starts with `/`), persona with its stored session (*valid*, *expired*, … — no browser opens to read it) and
+the Sessions panel's **Sign in** beside it, name (`recorded-YYYYMMDD-HHMM` by default, the same rules as Save); the
+window note (a full-size window on this Mac, Cmd-Tab between it and the Studio, come back by its title bar — a click in
+the page is recorded —, a Studio visit commits the typing, closing the window is Stop); the recording open in the
+workspace (one window at a time: Start is disabled, with *Open it*); a persona that cannot sign in by itself (no valid
+session, no `login:` steps, no sandbox) disables Start too, saying why beside it, with its Sign in; the project's
+recent recordings (state, steps,
+who started it, *saved as <name>*). **Start** sends a page and a path only (`record_start`; never a URL, never
+`--allow-writes`, the check replay always on) and opens the recording's route.
+
+**The recording** (`RecordingScreen` → `RecordingBody`, presentational): `record_view` every 700 ms while the recording
+is live and the tab visible, every 3 s once it is over, and at once on a `workspace {records}` or `jobs` event; an
+unchanged read sends `since` and gets `unchanged: true`. Before meta.json exists the view needs the job id: the tab
+keeps the one `record_start` answered (an in-memory map); after a reload, `record_options.open` gives it; then the last
+view's job (a discard removes the folder). A poll answer never replaces a newer one: an annotate answer makes the polls
+already sent stale, and a view of an older revision is dropped (B-L1) — unless the server said the screen's revision
+is stale (a 409), then its next view wins. The page
+shows the state in words (*waiting for the worker*, *opening the window*, *recording*, *making the draft*, *checking the
+draft*, *recorded*, …) with the time left, then:
+- **The draft** — step rows by scene (`draftRows` over `untrusted.blocks` and `sources`): the recorder's helpers say
+  *added by the recorder*, inserts are rows or chips *added by you* with **Remove**; under a step whose main target has
+  offered alternatives, a disclosure *Other targets: N verified* opens a radio group (a fieldset whose legend names the
+  step; index 0 the recorder's suggestion; fragile ones say why); the checked radio follows the server's answer
+  (*Target picked by you*), and a pick made on a click the typing later folded in shows on the typing step. The draft
+  as YAML in a closed disclosure.
+- **The draft cursor** — tab state, never stored: *at the end* (follows the next actions) or right *after a row*, keyed
+  by the row's identity (`sources[].row`, never its index — review B-M1): it stays on that row while the draft
+  regenerates (its words, *after step n of <scene>*, follow the row), moves onto a hold or a wait it adds (the next one
+  goes right after it), and goes back to the end when its row is gone. An insert there is anchored to that row
+  (B-H1): after an action or the recorder's scroll `{after_step_seq}`, after the recorder's wait `{after_step_seq,
+  row: 'wait'}` (between the wait and its press), after an insert `{after_insert}`. Each row's **Insert after this
+  step** is named *Insert after step n of <scene>* and keeps that name (its state in `aria-pressed`); **Back to the
+  end**. A done change is said in the status line (*Hold added after step 2 of products*).
+- **Quick inserts** at the cursor: **Hold 2 s**, **Mark**, **Zoom** (the view's `zoom.default`: min(1.5, the project
+  theme's max_zoom) — never a factor the editor would clamp; hidden when the theme allows none), **Wait for…** (the
+  next target, the page idle, a text), **Caption…** (text and kicker). Wait for and Caption are disclosures (Enter
+  adds, Escape closes and gives the focus back to the button). A caption, a mark or a zoom made at the end while the
+  recording goes on waits in *Applies to your next action* and goes on it.
+- **The window** card — **Stop and keep** (`record_stop`: the window closes as if closed, the draft is made, then
+  checked) and **Discard** (a confirmation whose first, focused button is *Keep it*); once over, **Save as scenario**
+  (a name; a taken one says *choose another name* and nothing is written; Save sends the view's `draft_sha256` — a
+  draft changed since is refused and read again) then the scenario screen; saved recordings are read-only with links
+  to the scenario. The card is titled *The window* while it is open, then *Save* (or *Discard*). A Discard — of an
+  open window too — ends on a neutral *Discarded* (no error notice; the *being discarded* note goes once it is over),
+  and a cancel the Studio asked for is never shown as an error.
+- Placeholders (`{{vars.<name>}}` names only, never a value), writes with the reset advice, issues by severity in words,
+  the check (passed / failed / skipped) said honestly (B-M4): it replayed the recorded draft without the picks and
+  inserts — its counts are *recorded steps*; its failing step is shown at its row on screen (`failed_row`), else as
+  *recorded step n … not a row on screen any more*; the dry run after Save replays everything.
+- A preflight refusal naming a persona not signed in shows the Sessions panel's **Sign in** for it (no empty draft
+  card under it); a recording Claude or the CLI started is read-only (no Save, Discard, picks or inserts; Stop only
+  while its job runs: none for a CLI recording) and says who started it; one whose origin cannot be verified, or
+  *cannot be verified* (tampered), says so in fixed words.
+
+**Page text only through `Txt`.** Every string from the draft, the page or a file (step labels, targets, alternatives'
+words, inserts' text, issues, placeholders, writes, the check's failure, the YAML, names, notes, warnings) is rendered
+by `Txt` (a `<bdi>` with direction controls shown as `[U+202E]`) or, in an attribute, by `visibleControls`;
+`record-words.ts` never reads `untrusted` (its sentences hold enums, numbers and the Studio's own words). The SSR lint
+in `app-source.test.ts` renders `RecordingBody` and `StartForm` to static markup with a hostile string in every field
+and fails on any page string outside a `<bdi>` (bare text, an `<option>`) or a raw direction control; the e2e records
+the fixture's flagged page (`/record-lab?hostile=1`, a label with markup and a direction override) and checks no script
+ran.
+
+**Tests.** `studio-e2e-record.test.ts` (default suite, ≈ 19 s; Studio server, headless Chromium, an in-process worker
+whose `recordTest.drive` plays the person in the window, fixture on 4551–4554): a pick that folds, a password sentinel,
+a blur mid-word, each insert, Stop, Save (a taken name refused), the hostile page, Discard during the check, a
+read-only recording, the sign-in mapping, the sentinel nowhere. `studio-e2e-record-acceptance.test.ts` (gated by
+`DEMO_STUDIO_TEST_SLOW=1`, ≈ 107 s; `DEMO_STUDIO_TEST_HEADED=1` shows the window): the shop's quote flow recorded with
+every insert and a pick, Stop, the check, Save, then a dry run, a capture and a render of the saved scenario from the
+Studio — the plan has the caption from the picked click on, the zoom on it and the marker on the select; measured on
+the Mac (2026-10-28): Stop → checked ≈ 10 s, Save 0.18 s, dry run ≈ 24 s, capture ≈ 24 s, render + review ≈ 37–41 s
+for a 25 s video. The real window with a person switching to the Studio is MACOS-CHECKLIST 13i: `drive` is an
+in-process hook, so no automated test has a person's Cmd-Tab.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

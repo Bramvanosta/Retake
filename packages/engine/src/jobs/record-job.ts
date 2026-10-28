@@ -9,7 +9,11 @@
  * protected hosts, the draft saved under agent trust, its check replay with trust `mcp`. Stop and cancel: a worker
  * signal stops the recording and KEEPS it (draft made and saved, the check replay skipped: a human's twenty minutes are
  * not lost to a worker restart); job_cancel while the window is open DISCARDS it (the folder removed); after the
- * recording a cancel only stops the check replay.
+ * recording a cancel only stops the check replay. L4.8: the job's `stop` marker (the Studio's Stop) stops and keeps as
+ * closing the window does (the check replay runs) — before the window opened it is a clean cancel (nothing opens, no
+ * cancel races the window into a discard); a job the Studio submitted (`submitted_by: 'ui'`) is never saved by the job
+ * — the person saves it from the Record screen (engine record-studio.ts) — and a Discard asked during its draft or
+ * check removes the folder when the job ends.
  *
  * The result has counts, enums and file paths only: the draft and record.json stay in the recording's folder (typed
  * text and page text never enter job.json, the job's events or the worker log); scene ids (made from page paths), the
@@ -25,6 +29,7 @@ import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { newRecordId, recordDir, recordScenario, recordStart } from '../record.js';
 import type { RecordOutcome, RecordPorts } from '../record.js';
+import { settleDiscardAtJobEnd } from '../record-studio.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { checkEnvName } from './hooks-job.js';
 import type { SubmitContext } from './run-job.js';
@@ -123,6 +128,10 @@ export interface RecordJobContext {
   signal: AbortSignal;
   /** A worker signal: stop and keep, no check replay. */
   stop: AbortSignal;
+  /** The job's stop marker (L4.8, the Studio's Stop): stop and keep, as closing the window — the check replay runs. */
+  finish?: AbortSignal;
+  /** The job's id (written to the recording's meta.json). */
+  jobId?: string;
   event(e: JobEventBody): void;
   progress(p: JobProgress): void;
   test?: RecordJobTestHooks;
@@ -180,6 +189,14 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   };
   let actions = 0;
   const loginCommand = (p: { project: string; env: string; persona?: string }) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`;
+  // The Studio's Stop before the window opened (B-L8): a clean cancel. Once the window is open, it stops and keeps.
+  const early = new AbortController();
+  let opened = false;
+  const onFinish = () => {
+    if (!opened) early.abort();
+  };
+  if (ctx.finish?.aborted) onFinish();
+  else ctx.finish?.addEventListener('abort', onFinish, { once: true });
   try {
     const outcome = await recordScenario(
       ctx.ws,
@@ -194,6 +211,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         check: input.check,
         agent: true,
         submittedBy: input.submitted_by,
+        ...(ctx.jobId !== undefined ? { jobId: ctx.jobId } : {}),
       },
       {
         // Messages of the engine and the runner: counts and enums, never page text or a typed value.
@@ -202,6 +220,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         },
         onPhase: (phase) => update({ phase, ...(phase === 'check' ? { steps_done: 0, steps_total: 0 } : {}) }),
         onOpen: () => {
+          opened = true;
           ctx.event({ type: 'log', level: 'info', message: 'a browser window is open on this machine — the user performs the flow, then closes the window' });
           update({ phase: 'recording · 0 actions' });
         },
@@ -214,15 +233,19 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
           if (e.type === 'run_start') update({ phase: 'check', steps_total: e.run.steps_total });
           else if (e.type === 'step_end') update({ steps_done: progress.steps_done + 1 });
         },
-        stop: ctx.stop,
+        stop: ctx.finish ? AbortSignal.any([ctx.stop, ctx.finish]) : ctx.stop,
         skipCheck: () => ctx.stop.aborted,
-        signal: ctx.signal,
+        signal: AbortSignal.any([ctx.signal, early.signal]),
         hookTrust: 'mcp',
         loginCommand,
         history: false,
         ...(ctx.test ?? {}),
       },
     );
+    // A Discard asked during the draft or the check: the folder goes now (B9 / B-L2), even with no Record screen open.
+    if (input.submitted_by === 'ui' && outcome.dir && (await settleDiscardAtJobEnd(project, input.rec_id).catch(() => false))) {
+      return recordResult({ ...outcome, dir: null, draft: null });
+    }
     return recordResult(outcome);
   } catch (e) {
     const err = toEngineError(e);
@@ -241,6 +264,8 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
       });
     }
     throw err;
+  } finally {
+    ctx.finish?.removeEventListener('abort', onFinish);
   }
 }
 

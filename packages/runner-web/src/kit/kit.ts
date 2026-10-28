@@ -14,6 +14,7 @@ import type {
   FieldState,
   FileSpec,
   FindOptions,
+  FragileFlag,
   InventoryContext,
   InventoryElement,
   InventoryOptions,
@@ -37,7 +38,7 @@ import type {
 } from './types.js';
 
 export function demoKit(config: KitConfig): void {
-  const VERSION = '1.5.0';
+  const VERSION = '1.6.0';
   // ── Time sources (L1.7): the kit's timers, frames and clocks are the browser's real ones, captured once — also under
   // a product clock (`clock:`: product-clock.ts replaces `Date` in every document). The kit's init script runs before
   // the clock's in each new document, so `Date` is still real there; evaluated later (KitClient.install), it takes the
@@ -2726,6 +2727,12 @@ export function demoKit(config: KitConfig): void {
   const WORDY = /[\p{L}\p{N}]/u;
   /** Verifications per element before the `nth` fallback. */
   const VERIFY_MAX = 5;
+  /** Alternatives (L4.8): extra verifications per element, the default time budget, and the suggestion time (ms) and the
+   * count of distinct texts on the page past which a press does not wait for them. */
+  const ALT_VERIFY_MAX = 6;
+  const ALT_BUDGET_MS = 10;
+  const ALT_AFTER_MS = 20;
+  const ALT_TEXTS_MAX = 2000;
 
   function whereOf(el: Element): 'document' | 'shadow' | 'frame' {
     if (el.ownerDocument !== document) return 'frame';
@@ -2969,10 +2976,15 @@ export function demoKit(config: KitConfig): void {
       const { ctx, row } = contextOf(el);
       const fits = (s: string | null): s is string => !!s && s.length <= SUGGEST_MAX;
       let suggested: KitSuggestion | null = null;
+      let alternatives: KitSuggestion[] | undefined;
+      let alternativesPartial = false;
       let rowKey: string | null = null;
       if (RT.performance.now() - t0 > budget) partial = true;
       else {
-        const plain: Array<{ t: TargetObject; m: Index | null; k: string }> = [];
+        // `noisy` (L4.8 review): a text an alternative never offers — mostly digits (a price, a count, a date) or pieces run
+        // together without a space ("5 kg€36.40 / kg"). The suggestion ignores the flag.
+        const plain: Array<{ t: TargetObject; m: Index | null; k: string; noisy?: boolean }> = [];
+        const numeric = (t: string) => (t.match(/\p{N}/gu)?.length ?? 0) >= (t.match(/\p{L}/gu)?.length ?? 0);
         if (valued) {
           if (fits(label)) plain.push({ t: { label }, m: idx.label, k: lc(label) });
           if (fits(ph)) plain.push({ t: { placeholder: ph }, m: idx.placeholder, k: lc(ph) });
@@ -2984,10 +2996,12 @@ export function demoKit(config: KitConfig): void {
           // better — and lasts longer — as one of its pieces with letters.
           const pieces = full ? textPieces(el, 4) : [];
           const leaves = pieces.length >= 2 ? pieces.filter((l) => l.length >= 3 && /\p{L}/u.test(l)) : [];
-          if (fits(full) && leaves.length === 0 && WORDY.test(full)) plain.push({ t: { text: full }, m: idx.text, k: lc(full) });
-          for (const leaf of leaves.slice(0, 2)) plain.push({ t: { text: leaf }, m: null, k: '' });
-          if (fits(full) && leaves.length > 0 && WORDY.test(full)) plain.push({ t: { text: full }, m: idx.text, k: lc(full) });
-          if (known && fits(name) && WORDY.test(name)) plain.push({ t: { role: known, name }, m: idx.rn, k: `${role}\n${lc(name)}` });
+          const runTogether = (t: string) => t.length > 16 && pieces.some((p, i) => i > 0 && t.includes(pieces[i - 1] + p));
+          const noisyText = (t: string) => numeric(t) || runTogether(t);
+          if (fits(full) && leaves.length === 0 && WORDY.test(full)) plain.push({ t: { text: full }, m: idx.text, k: lc(full), noisy: noisyText(full) });
+          for (const leaf of leaves.slice(0, 2)) plain.push({ t: { text: leaf }, m: null, k: '', noisy: numeric(leaf) });
+          if (fits(full) && leaves.length > 0 && WORDY.test(full)) plain.push({ t: { text: full }, m: idx.text, k: lc(full), noisy: noisyText(full) });
+          if (known && fits(name) && WORDY.test(name)) plain.push({ t: { role: known, name }, m: idx.rn, k: `${role}\n${lc(name)}`, noisy: noisyText(name) });
         }
         // A name of symbols only ("↻"): after testid, aria and a stable id.
         const symbolic = known && fits(name) && !WORDY.test(name) ? [{ t: { role: known, name } as TargetObject, m: idx.rn, k: `${role}\n${lc(name)}` }] : [];
@@ -2996,9 +3010,9 @@ export function demoKit(config: KitConfig): void {
           rowKey = rowKeyOf(row, el);
           if (rowKey) scopeSpec = { row: rowKey };
         } else if (ctx !== 'page' && ctx !== 'row') scopeSpec = ctx;
-        const ladder: Array<{ t: TargetObject; m: Index | null; k: string }> = [
+        const ladder: Array<{ t: TargetObject; m: Index | null; k: string; noisy?: boolean }> = [
           ...plain,
-          ...(scopeSpec ? plain.map((c) => ({ t: { ...c.t, in: scopeSpec } as TargetObject, m: null, k: '' })) : []),
+          ...(scopeSpec ? plain.map((c) => ({ t: { ...c.t, in: scopeSpec } as TargetObject, m: null, k: '', noisy: c.noisy })) : []),
           ...(testid ? [{ t: { testid }, m: idx.testid, k: testid }] : []),
           ...(fits(ariaLabel) ? [{ t: { aria: ariaLabel }, m: idx.aria, k: lc(ariaLabel) }] : []),
           ...(el.id && !GENERATED_ID.test(el.id) ? [{ t: { css: `#${cssEscape(el.id)}` }, m: idx.id, k: el.id }] : []),
@@ -3006,17 +3020,19 @@ export function demoKit(config: KitConfig): void {
           ...(scopeSpec ? symbolic.map((c) => ({ t: { ...c.t, in: scopeSpec } as TargetObject, m: null, k: '' })) : []),
         ];
         let tries = 0;
+        let at = -1;
         // The budget is checked before each lookup too: on a page of many identical elements one lookup is long.
         const spent = () => {
           if (RT.performance.now() - t0 > budget) partial = true;
           return partial;
         };
-        for (const c of ladder) {
+        for (const [k, c] of ladder.entries()) {
           // The index knows another element with the same key: `find` would see at least as many.
           if (c.m && (c.m.get(c.k) ?? 0) > 1) continue;
           if (tries++ >= VERIFY_MAX || spent()) break;
           if (verify(c.t, el) === 1) {
             suggested = { target: c.t, matches: 1, fragile: [] };
+            at = k;
             break;
           }
         }
@@ -3051,14 +3067,42 @@ export function demoKit(config: KitConfig): void {
             }
           }
         }
-        if (suggested) {
-          const t = suggested.target;
+        const flag = (t: TargetObject, fragile: FragileFlag[]): FragileFlag[] => {
           const q = t.text ?? t.name ?? t.label ?? t.placeholder ?? t.aria;
           const kindIdx = t.text !== undefined ? idx.text : t.name !== undefined ? idx.name : t.label !== undefined ? idx.label : t.placeholder !== undefined ? idx.placeholder : t.aria !== undefined ? idx.aria : null;
-          if (t.css !== undefined) suggested.fragile.push('css');
+          if (t.css !== undefined) fragile.push('css');
           const rk = t.in && typeof t.in === 'object' && 'row' in t.in ? (t.in as { row: string }).row : '';
-          if ((q && /\d/.test(q)) || /\d/.test(rk)) suggested.fragile.push('dynamic_text');
-          if (q && kindIdx && broader(kindIdx, q)) suggested.fragile.push('broader');
+          if ((q && /\d/.test(q)) || /\d/.test(rk)) fragile.push('dynamic_text');
+          if (q && kindIdx && broader(kindIdx, q)) fragile.push('broader');
+          return fragile;
+        };
+        if (suggested) flag(suggested.target, suggested.fragile);
+        // Alternatives (the recorder, L4.8): the rest of the ladder past the suggestion, inside a press — so a small
+        // budget of their own, none on a large page or after a slow suggestion. Never positional, never a key the
+        // indexes know is shared, each verified to resolve once to this very element.
+        const want = Math.max(0, Math.min(3, Math.floor(opts.alternatives ?? 0)));
+        if (want > 0 && suggested && at >= 0) {
+          alternatives = [];
+          const tA = RT.performance.now();
+          const cap = Math.min(opts.alternatives_budget_ms ?? ALT_BUDGET_MS, (opts.budget_ms ?? 2500) - (tA - t0));
+          if (tA - t0 > ALT_AFTER_MS || idx.text.size > ALT_TEXTS_MAX || cap <= 0) alternativesPartial = true;
+          else {
+            const seen = new Set([JSON.stringify(suggested.target)]);
+            let extra = 0;
+            for (let k = at + 1; k < ladder.length && alternatives.length < want; k++) {
+              const c = ladder[k];
+              if (c.noisy || c.t.nth !== undefined || c.t.last_visible || (c.m && (c.m.get(c.k) ?? 0) > 1)) continue;
+              const key = JSON.stringify(c.t);
+              if (seen.has(key)) continue;
+              if (extra >= ALT_VERIFY_MAX || RT.performance.now() - tA > cap) {
+                alternativesPartial = true;
+                break;
+              }
+              extra++;
+              seen.add(key);
+              if (verify(c.t, el) === 1) alternatives.push({ target: c.t, matches: 1, fragile: flag(c.t, []) });
+            }
+          }
         }
       }
       // The action: through the helper the runner's action uses, else the target's own verification.
@@ -3093,6 +3137,7 @@ export function demoKit(config: KitConfig): void {
         href_path: hrefPath(el),
         suggested,
         action,
+        ...(alternatives !== undefined ? { alternatives, alternatives_partial: alternativesPartial } : {}),
       });
     }
     return { ...base, elements, within_found: true, counts, partial, ms: Math.round(RT.performance.now() - t0) };
@@ -3104,7 +3149,7 @@ export function demoKit(config: KitConfig): void {
    * file input's label or zone. Null when nothing interactive holds it. One `inventory({within, limit: 1})` per try
    * (at most 4), each with the per-call memo and the time budget (default 150 ms).
    */
-  function suggestFor(target: Element | string, opts: { budget_ms?: number } = {}): InventoryElement | null {
+  function suggestFor(target: Element | string, opts: { budget_ms?: number; alternatives?: number; alternatives_budget_ms?: number } = {}): InventoryElement | null {
     const el = typeof target === 'string' ? deref(target) : target;
     if (!el || !el.isConnected) return null;
     const tries: Element[] = [];
@@ -3122,7 +3167,12 @@ export function demoKit(config: KitConfig): void {
     for (const c of tries.slice(0, 4)) {
       const left = budget - (RT.performance.now() - t0);
       if (left <= 0) break;
-      const inv = inventory({ within: ref(c), limit: 1, budget_ms: Math.max(20, left) });
+      const inv = inventory({
+        within: ref(c),
+        limit: 1,
+        budget_ms: Math.max(20, left),
+        ...(opts.alternatives ? { alternatives: opts.alternatives, alternatives_budget_ms: opts.alternatives_budget_ms } : {}),
+      });
       if (inv.elements[0]) return inv.elements[0];
     }
     return null;

@@ -168,6 +168,9 @@ form with a password (`/record-lab/results`); a native select, a Radix select, a
 rows have a Radix menu (Archive asks to confirm), a file drop zone, a textarea, a contenteditable, an in-app link and
 "Mark notifications read" (its one write, `POST /api/notifications/read`). A script forges events and calls every
 window function that looks like a binding, on load and by "Run the forgery script", and shows what it could see.
+`?hostile=1` adds one button whose label is markup and a right-to-left override (the Record screen must show it as text).
+At its bottom, below a tall spacer: "Far away" (reached by scrolling) and "Unlock the last step", which shows "Delayed control"
+(the recorder's own scroll and wait before a press).
 
 **Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,

@@ -6,6 +6,8 @@
  * - cancel: created exclusively by whoever asks for a cancel (a client); the worker polls it;
  * - pause (L4.4, a running `run` job): created by whoever asks for a pause and removed by whoever asks to resume (a
  *   client); the worker polls it with the cancel marker and never writes it (a marker left by a finished job is inert);
+ * - stop (L4.8, a running `record` job): created exclusively by whoever asks to stop and keep (the Studio's Stop); the
+ *   worker polls it with the cancel marker and ends the recording as if its window were closed (the check replay runs);
  * - live.json (L4.4, a running `run` job): the live channel's port and token, 0600, written and removed by the claiming
  *   worker (jobs/live-channel.ts);
  * - events.jsonl: appended by the claiming worker only.
@@ -95,7 +97,7 @@ export interface JobFilter {
 /** Names of the files a submit may add to a job folder (no path, no hidden file). */
 const JOB_FILE_RE = /^[a-z][a-z0-9-]{0,30}\.(?:yaml|json|txt)$/;
 /** The job folder's own files: never written by a submit. */
-const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'browser.json', 'live.json', 'events.jsonl']);
+const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'stop', 'browser.json', 'live.json', 'events.jsonl']);
 
 export class FileJobQueue {
   readonly dir: string;
@@ -236,16 +238,23 @@ export class FileJobQueue {
    * (derived at once, closed by the next worker); a running one is stopped by its worker (teardown and rollbacks still
    * run). A finished job is returned as it is.
    */
-  async cancel(id: string, by: string): Promise<JobRecord> {
+  /** `reason` 'discard' (L4.8): the Studio's Discard of an open recording window — its view says "discarded", not "cancelled". */
+  async cancel(id: string, by: string, reason?: 'discard'): Promise<JobRecord> {
     const rec = await this.get(id);
     if (!rec) throw new EngineError('not_found', `job ${id} not found (job_list names the jobs)`);
     if (FINISHED_JOB_STATES.has(rec.state)) return rec;
-    await createExclusive(join(this.jobDir(id), 'cancel'), JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+    await createExclusive(join(this.jobDir(id), 'cancel'), JSON.stringify({ at: new Date().toISOString(), by, ...(reason ? { reason } : {}) }) + '\n');
     return (await this.get(id)) ?? rec;
   }
 
   async cancelRequested(id: string): Promise<boolean> {
     return exists(join(this.jobDir(id), 'cancel'));
+  }
+
+  /** The cancel marker's reason (cancel's `reason`), if any. */
+  async cancelReason(id: string): Promise<'discard' | undefined> {
+    const marker = await readJsonFile<{ reason?: unknown }>(join(this.jobDir(id), 'cancel'));
+    return marker?.reason === 'discard' ? 'discard' : undefined;
   }
 
   /**
@@ -271,6 +280,19 @@ export class FileJobQueue {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * Ask a running `record` job to stop and keep (L4.8): the `stop` marker is created once (asking again keeps the first
+   * time). The caller checks the job may stop (engine record.stop); the worker only reads the marker, and a marker left
+   * by a finished job is inert.
+   */
+  async requestStop(id: string, by: string): Promise<void> {
+    await createExclusive(join(this.jobDir(id), 'stop'), JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
+  }
+
+  async stopRequested(id: string): Promise<boolean> {
+    return exists(join(this.jobDir(id), 'stop'));
   }
 
   /** <job>/live.json: the live channel of a running `run` job (jobs/live-channel.ts). */
@@ -423,8 +445,13 @@ function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
     // Where it was (the job's last progress): from the draft on, the recording had ended and its draft was written.
     const phase = rec.progress?.phase ?? '';
     const folder = `.demo-studio/records/${i.rec_id}`;
-    const message =
-      phase === 'check'
+    // A recording the Studio started is never saved by its job: the person saves it from the Record screen.
+    const studio = i.submitted_by === 'ui';
+    const message = studio
+      ? phase === 'check' || phase === 'draft'
+        ? `interrupted: ${why}. The recording had ended: open it in the Studio's Record screen to look at its draft and save it`
+        : `interrupted: ${why}. The recording stopped with it: what was recorded up to then is kept — open it in the Studio's Record screen to save it, or record again`
+      : phase === 'check'
         ? `interrupted: ${why}. The recording had ended and its draft was made: ${folder}/draft.yaml (saved under scenarios/ too when its name was free); only its check replay was cut — dry-run the draft`
         : phase === 'draft'
           ? `interrupted: ${why}. The recording had ended; its draft was being made: ${folder}/draft.yaml if it was written (${folder}/events.jsonl holds what was recorded); record again if it is missing`

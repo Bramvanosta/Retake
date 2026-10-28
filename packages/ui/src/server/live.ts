@@ -18,7 +18,9 @@
  *   L4.7 (critique B5): `themes` names the theme folders of templates_dir whose files changed, `components` the
  *   namespaces of components_dir whose component files changed (an in-place rewrite included: library-watch.ts's
  *   file-level stat walk), `site: true` an extraction written or removed — the library and theme screens re-read on
- *   them (`projects` is then empty: no project changed).
+ *   them (`projects` is then empty: no project changed). L4.8: `records` names the recordings whose own files changed
+ *   (`<project>/<rec_id>`: events streamed while the window is open, the annotations, the draft and the check written,
+ *   the folder created or removed — record-watch.ts); a Record screen re-reads its own recording's view on it.
  * - At most 4 streams (critique B1): the page keeps one per browser (the tab holding a Web Lock relays to the others
  *   over a BroadcastChannel); a 5th gets 503 `too_many_streams` and that tab re-reads on a timer instead. A stream is
  *   never an op: the op counter does not move.
@@ -32,6 +34,7 @@ import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@demo-studio/en
 
 import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
 import { libraryChanges, libraryWatchScan } from './library-watch.js';
+import { recordsChanges, recordsWatchScan } from './record-watch.js';
 
 /**
  * One server-sent event: `data` is one line of JSON with U+2028 / U+2029 escaped (review A M1: JSON.stringify leaves
@@ -69,6 +72,8 @@ export class Live {
   private sources: SourceMap | undefined;
   /** L4.7: the library / theme watch as last scanned (library-watch.ts). */
   private libSources: Map<string, string> | undefined;
+  /** L4.8: the recordings' files as last scanned (record-watch.ts). */
+  private recSources: Map<string, string> | undefined;
   /** Without node:sqlite: each project's runs as last read (what a run change is told from). */
   private readonly runRows = new Map<string, RunRow[]>();
   private timer: NodeJS.Timeout | undefined;
@@ -137,11 +142,14 @@ export class Live {
     const libNext = await libraryWatchScan({ root: this.o.ws.root, componentsDir: this.o.ws.componentsDir, templatesDir: this.o.ws.templatesDir });
     const lib = this.libSources ? libraryChanges(this.libSources, libNext) : {};
     this.libSources = libNext;
+    const recNext = recordsWatchScan(this.o.ws.projectsDir);
+    const records = this.recSources ? recordsChanges(this.recSources, recNext) : [];
+    this.recSources = recNext;
     if (this.closed) return;
     const w = workspaceChanges(keys);
     // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released).
     const renders = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'renders' && k.project !== undefined).map((k) => k.project as string))].sort();
-    if (w.projects.length || Object.keys(lib).length) {
+    if (w.projects.length || Object.keys(lib).length || records.length) {
       this.send('workspace', {
         projects: w.projects,
         readme: w.readme,
@@ -152,6 +160,8 @@ export class Live {
         ...(w.comments?.length ? { comments: w.comments } : {}),
         // L4.7: theme folders, component namespaces and site extractions that changed.
         ...lib,
+        // L4.8: the recordings whose files changed (`<project>/<rec_id>`): a Record screen re-reads its own.
+        ...(records.length ? { records } : {}),
       });
     }
     if (changed.length) this.send('jobs', { changed });

@@ -798,7 +798,9 @@ personas, `studio login`, or their automated `login:` steps off camera (see
 Instead of writing a scenario, a person can **show the flow once**: `studio record` opens a browser window on an
 environment page, you click and type through the flow as you would for a colleague, then close the window. A draft
 scenario comes out of it, with targets the runner verified at the moment you pressed. Nothing is filmed while
-recording: the draft is a starting point you edit, dry-run and capture like any scenario.
+recording: the draft is a starting point you edit, dry-run and capture like any scenario. The Studio's **Record
+screen** starts the same recording and is its control panel (picks, quick inserts, Save): see
+[Studio app](#studio-app).
 
 ```sh
 node packages/cli/dist/bin.js record northfield-fixture my-quote --page shop            # opens the shop's home
@@ -817,7 +819,10 @@ node packages/cli/dist/bin.js run northfield-fixture my-quote --dry             
   `{role: button, name: Increase}`, `{label: Message}`); a dropdown becomes `select` or `pick`, a row's menu `menu
   {row, item, confirm?}`, a file zone `drop_file` (a fake file of the same name: set your own), the typed text a
   `type`, an element you waited for a `wait_for`. Scenes split where the page changed; an address-bar visit opens its
-  page (`open:`). Captions are empty and nothing is held: add them.
+  page (`open:`). Leaving the window in the middle of typing (to look at something else) commits what you typed so
+  far; typing on in the same field when you come back still makes one `type` step. Each action also keeps up to three
+  other targets that matched the same element when you acted (never one that depends on position, none for a secret
+  field), for the Studio's Record screen to offer. Captions are empty and nothing is held: add them.
 - **What is never recorded.** Anything typed into a field of a secret kind — passwords, card numbers and codes,
   one-time codes, IBANs, PINs, API keys, a long pasted token, or a value autofill put in — becomes a placeholder
   `type: {into: …, text: "{{vars.password_1}}"}` with `vars: {password_1: CHANGE-ME}` (a project.yaml var of that name
@@ -853,7 +858,7 @@ node packages/cli/dist/bin.js run northfield-fixture my-quote --dry             
   recording left the product in. The draft is validated with the project before it is saved or checked. The draft is
   saved as `scenarios/<name>.yaml` when that name is free (default `recorded-YYYYMMDD-HHMM`; an existing scenario is
   never overwritten), and always kept with the recording in `<project>/.demo-studio/records/<id>/` (`draft.yaml`,
-  `record.json`, `events.jsonl`; private files; the newest 20). Exit 1 when nothing was recorded, the draft does not
+  `record.json`, `events.jsonl`, `meta.json`; private files; the newest 20). Exit 1 when nothing was recorded, the draft does not
   validate or the check failed. `--json` prints the outcome; `--no-check` skips the replay.
 - **Through Claude.** `scenario_record` (MCP) starts the same recording as a job: the window opens on the machine the
   worker runs on and **you** perform the flow — Claude never drives the window, types in it or sees keystrokes live.
@@ -863,9 +868,10 @@ node packages/cli/dist/bin.js run northfield-fixture my-quote --dry             
   validates and dry-runs. Cancelling the job while the window is open discards the recording; stopping the worker
   keeps it (without its check replay).
 - **Limits** (BACKLOG BL-74): tabs, pop-ups and frames are not recorded (a new tab is warned); a date picker, a drag
-  or a hover-to-reveal is recorded as plain clicks (or not at all for hover); no alternative targets are offered; on a
-  page with ~10,000 controls a press takes ≈ 0.2 s to resolve, then falls back to its text. Typing not yet committed
-  when the window closes is best effort.
+  or a hover-to-reveal is recorded as plain clicks (or not at all for hover); alternative targets are offered by the
+  Studio's Record screen only (not for a `pick`, a `menu` or a select by field — BL-118); on a page with ~10,000
+  controls a press takes ≈ 0.2 s to resolve, then falls back to its text. Typing not yet committed when the window
+  closes is best effort.
 
 ## Your own media and motion
 
@@ -3098,8 +3104,11 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   one from a terminal, one from Claude — can run at the same time.
 - A recording (`scenario_record`) holds the queue while its window is open, as a headed sign-in. The worker's first
   signal closes its window and keeps what was recorded (the draft made and saved, its check replay skipped);
-  `job_cancel` discards it. A killed worker leaves no draft (`studio record` again; the events streamed so far stay in
-  the recording's folder).
+  `job_cancel` discards it — except a recording you started from the Studio, which only the Studio stops or discards
+  (Claude's `job_cancel` is refused while it runs; a `studio jobs cancel` typed in a terminal, or a `cancel` file
+  written in the job's folder, still discards it — the BL-76 class). Claude can still read a Studio recording's draft
+  (its job's result names the folder): it holds what you typed, as any recording does. A killed worker leaves no draft
+  (`studio record` again; the events streamed so far stay in the recording's folder).
 - A killed sign-in leaves nothing saved (`studio login` again); a killed sandbox job may leave services running and its
   seed unrecorded (the next `studio sandbox up` seeds again). Each interrupted job's `fix` says so.
 - **Renders.** `render` plans in the server's process (no browser; a refusal costs nothing), reserves the render id
@@ -3649,6 +3658,42 @@ running: the MCP server keeps working without it.
   website**: the extractions already made (`studio theme from-site`, or Claude's template_from_site — the page's title
   shown as text) with **New theme from this**; for a new URL the Studio shows the command to copy — it never fetches a
   site itself (the extraction needs your approval of the URL).
+- **Record a scenario** (L4.8). **Record a scenario** on the project page (or *Record a new scenario* on a scenario
+  screen, `#/p/<project>/record`) records a flow by clicking through the product — the same recording as `studio
+  record`, controlled from the Studio. The form takes an environment, a page and a path, the persona (with its stored
+  session and **Sign in**) and a name; **Start** queues the recording and the worker opens a **real browser window on
+  this Mac, full size** (the desktop layout is what the video films: keep it that size). Click and type in that window
+  as you would for a colleague; switch to the Studio with Cmd-Tab (or keep it on a second screen) and come back to the
+  window by its title bar — a click in the page is recorded, and a visit to the Studio commits the typing in progress
+  (typing on in the same field still makes one step). Nothing you do in the Studio reaches the window: it shows the
+  **live draft** (`#/p/<project>/record/<id>`), step by step as you act, with the steps the recorder added (a wait, a
+  scroll) marked. Under a step, *Other targets: N verified* lists the targets that matched the same element when you
+  acted: pick one and the saved step uses it (the recorder's wait and scroll before it follow). **Quick inserts** go at
+  the draft's cursor — at the end (following your next actions) or right *after* the row you choose, whatever its kind
+  (after the recorder's scroll: between the scroll and its press; after its wait: between the wait and its press); the
+  cursor stays on that row while the draft grows, and moves onto a hold or a wait you add, so the next one follows it:
+  **Hold 2 s**, **Mark**, **Zoom** (until the scene ends; the factor is at most the theme's `max_zoom` — 1.4× with the
+  default and editorial themes — so it is never clamped), **Wait for…** (the next target — a list's field by its
+  label —, the page idle, or a text) and **Caption…** (a text and a kicker); a caption, a mark or a zoom made at the
+  end waits for your next action and goes on it (*Applies to your next action*); each insert has **Remove**. A
+  password or another secret field shows as its `{{vars.…}}` placeholder only (a secret typed in two parts too: one
+  placeholder). A text holding a hidden character (a direction control, a zero-width or line-separator character)
+  never reaches the draft: its step is left out and said so. **Stop and keep** closes the window (as closing it
+  yourself does), makes the draft and runs the check replay — it replays the draft **as recorded, without your picks
+  and inserts** (none of them is checked; its counts are recorded steps, and its failing step is shown on its row, or
+  as a recorded step when that row is gone): save, then dry-run the scenario to replay everything. **Save as
+  scenario** writes a **new** `scenarios/<name>.yaml` (a taken name is refused: choose another) — exactly the draft on
+  the screen: if its events, project.yaml or the arrangement changed since the screen read it, Save is refused and the
+  screen reads it again — and opens its scenario screen; nothing is saved before you do, and the file has no YAML
+  alias (the block editor can delete or duplicate the recorder's steps). **Discard** (after a confirmation) removes
+  the recording, also while the window is open (it ends *Discarded*) or while the check runs (the folder goes when the
+  job ends, even with no Studio open). One recording window at a time in the workspace; it holds the jobs worker while
+  open, and stops by itself after 30 minutes; **Cancel** before the window opens never discards a window that opened
+  meanwhile. A persona that cannot sign in by itself (no valid session, no `login:` steps) blocks **Start** and offers
+  its **Sign in**; recordings Claude or `studio record` started are listed and shown read-only (already saved by their
+  job), and so is one whose origin cannot be verified (its job gone) or whose files were changed after its job wrote
+  them (*cannot be verified*: no Save). The recent recordings are listed under the form. Not here: thumbnails per step, a picture of the window, editing steps before Save (BACKLOG BL-118), and
+  recording through the live picture without a window (BL-25).
 - **Sessions.** The project page lists every persona of every environment with its saved sign-in (*valid*, *expired*,
   *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
   known state: no browser opens to read it. **Sign in** queues a job that opens a browser window on this computer:
@@ -3701,7 +3746,10 @@ running: the MCP server keeps working without it.
   thread's hash as shown; L4.7: `library_view`, `library_images` — posters (PNG) and loops (GIF) as base64, checked and
   capped —, `library_render` — at most 12 components' previews by the keys the library showed —, `library_component`
   — one component's detail, its manifest's words as text —, and the theme ops `theme_list`, `theme_view`, `theme_edit`, `theme_copy`,
-  `theme_create`, `brand_files`, `site_list`, `theme_preview`), run with the trust an agent has
+  `theme_create`, `brand_files`, `site_list`, `theme_preview`; L4.8: the Record screen's `record_options`,
+  `record_start` — a window on a page and a path of the environment, never a URL, never `--allow-writes`, its check
+  always on —, `record_view`, `record_annotate`, `record_stop`, `record_discard` and `record_save` — a new scenario
+  only, never over an existing one —, nothing of which reaches the window you click in), run with the trust an agent has
   through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
   stays in the terminal.
 

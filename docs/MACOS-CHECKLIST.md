@@ -780,7 +780,8 @@ fixture left with an armed proposal is reset by `curl -X POST localhost:4402/api
 13f: as after 13b (the copy `highlights.orig.yaml` is in `~/ds-studio-home`; the renders and reviews it made go with
 the workspace). After step 13g: as after 13f (the copy `highlights.orig.yaml` and the `frame-N.png` of
 step 2 are in `~/ds-studio-home`; the threads, renders and stills go with the workspace); restart or remove the MCP
-registration as after 13a.
+registration as after 13a. After step 13i: as after 13b (the recordings, the saved scenarios and their runs go with the
+workspace); a fixture left with a quote request is reset by `curl -X POST localhost:4401/api/reset`.
 
 ## 13a. The Studio app and MCP over HTTP in your browsers and Claude Code (L4.1)
 
@@ -1173,6 +1174,76 @@ First keep a copy of the scenario: `cp "$W/projects/northfield-fixture/scenarios
 - **Send back:** for each step, OK or what you saw instead (a screenshot of the grid in motion and of the editor while
   dragging, in Safari), any loop that looks wrong, what each browser's colour input sent while dragging, the browsers'
   versions.
+
+## 13i. Recording from the Studio: a real window, Cmd-Tab visits, picks and inserts (L4.8)
+
+What the automated tests cannot reach: a person in the real headed window the worker opens (the tests play the window
+with Playwright in the same process, headless; a gated acceptance once in a visible window, still driven), Cmd-Tab
+between the window and the Studio, where the focus goes when you come back, a password you type yourself, and your eyes
+on the screen while the draft grows. The workspace of 13a, the fixture running on its usual ports (terminal 3), `pnpm
+build` first and `studio ui` as in 13b (terminal 1), the link in Chrome (or Safari). Reset the shop first: `curl -X
+POST localhost:4401/api/reset`.
+
+1. **Start.** *Northfield (fixture)* → **Record a scenario** (the Scenarios card): the start form — environment
+   *local*, page *shop*, path `/`, persona *Signed out*, a name (type `hand-quote`); the note says the window opens full
+   size because the desktop layout is what the video films (never "side by side"). **Start**: the page becomes the
+   recording's (*waiting for the worker*, *opening the window*, then *recording* with the time left). **Note:** how long
+   the Chromium window took to appear, whether it came to the front, whether it is **full size** (maximised, the title
+   bar and the "controlled by automated software" bar visible) and whether the dialog's buttons are reachable later.
+2. **Cmd-Tab visits.** In the window: scroll a little, open *Selowa Ridge*. Cmd-Tab to the Studio: the draft shows the
+   click within about a second (*Scene 2* with the recorder's *wait for* / *scroll* marked *added by the recorder* once
+   you act there). Cmd-Tab back to the window: it gets the focus back without a click (note if it does not — then
+   click its **title bar**, never the page: a click in the page is recorded).
+3. **Inserts that wait for the next action, then a pick.** In the Studio: **Caption…** (text `Ask for a quote`, kicker
+   `Wholesale`, Enter) and **Zoom 1.4×** (the editorial theme's max_zoom: the button never offers more): both wait
+   under *Applies to your next action*. In the window: **Request a
+   quote**. In the Studio: both chips now sit on that click (*added by you*), *Applies to…* is gone. Under the click,
+   *Other targets: N verified* → pick the second one: *Target picked by you*; the step's target follows it (and the
+   recorder's wait and scroll before it).
+4. **A mark, then a typing split by a Studio visit.** **Mark** in the Studio (it waits), then in the window Increase
+   twice and Bag size *5 kg*: the mark *m1* sits on the select. Click *Message*, type `Light roast`, Cmd-Tab to the
+   Studio: the draft shows `Light roast` already. Cmd-Tab back (the field keeps the focus: do not click it) and type
+   ` for filter, please.`: one *type* step with the whole sentence. **Note** if you got two steps.
+5. **A wait and a hold at the end; Remove; the cursor on a row.** **Wait for…** → *a text shows* `Delivery window` →
+   Enter; **Hold 2 s**: two new rows at the end, *added by you*. Choose **Insert after this step** on the recorder's
+   *scroll* row of scene 2 (*added by the recorder*), **Hold 2 s**: the hold is the row right after the scroll, before
+   the click, and the cursor line now sits under the hold; **Hold 2 s** again: the second hold comes right after the
+   first. Then **Insert after this step** on the recorder's *wait for* row: a hold goes between the wait and its click.
+   **Remove** one of the holds (the cursor goes back to the end if it was on it); **Back to the end**. With VoiceOver
+   (Cmd-F5) on, note what the row buttons are called (*Insert after step n of products*) and what is said after a hold
+   is added.
+6. **A password typed by you.** In the window's address bar, type `localhost:4402/record-lab` and Enter, wait a second,
+   then type a made-up value of your own (e.g. `Plum-Kettle-4417`) into *Password*. The Studio shows a new scene opened
+   from the address bar and a *type* step with `{{vars.password_1}}` only, and a placeholder row naming `password_1`
+   (no value anywhere on the page).
+7. **Stop, the check, Save.** **Stop and keep**: the window closes as if you closed it; *making the draft*, *checking
+   the draft*, then *recorded* with the check *passed* (note the seconds from the click to *passed*). **Save as
+   scenario** with the name `quote`: *choose another name*, nothing written (`ls -l
+   "$W/projects/northfield-fixture/scenarios/quote.yaml"` keeps its time). Then `hand-quote`: the scenario screen of
+   the new scenario with the caption, zoom, mark, wait and hold in its steps; set `password_1` to a showable demo value
+   in the YAML tab (it reads `CHANGE-ME`). **Dry run** from the scenario screen succeeds; optionally **Capture**, **Open
+   timeline**, **Render**: the caption from the Request a quote click on, the zoom on it, the marker on the select.
+   `grep -r Plum-Kettle-4417 "$W" "$H"` finds nothing, nor does terminal 1's scrollback.
+8. **Discard.** **Record a scenario** again, Start, click once in the window, then **Discard** in the Studio: the
+   confirmation's focused button is *Keep it*; confirm: the window closes and the recording is gone — the page says
+   *Discarded* calmly (no red notice, no *being discarded* note left), not in the recent list after a reload, no folder
+   for it under `$W/projects/northfield-fixture/.demo-studio/records/`. Once more with **Stop and keep** then
+   **Discard** while it says *checking the draft*, and close the Studio's tab at once: the folder goes once the check
+   ends anyway (`ls` it a few seconds later). Then **Start** and press **Cancel** at once (*opening the window*): no
+   window stays open with your clicks lost — either none opens, or it closes as a Stop and keeps.
+9. **A recording from the CLI and one from Claude, read-only in the Studio.** In terminal 2: `DEMO_STUDIO_HOME="$H"
+   node packages/cli/dist/bin.js --root "$W" record northfield-fixture cli-quote --page shop`, click twice, close the
+   window: the recent list under the start form shows *cli-quote* by *a terminal*, *saved as cli-quote*; its page says
+   *Started by a terminal: shown read-only here* (no Save, Discard, picks or inserts). With Claude Code registered as in
+   13a, ask it to record the console import as `claude-import`: while its window is open, its page (from the recent
+   list) says *Started by Claude*, read-only, with **Stop and keep** only. Then start a recording from the Studio and ask Claude to cancel that job: it is refused (only the
+   Studio stops or discards it); Stop it from the Studio.
+
+- **Expected:** every step as written; one window at a time (a second Start while one is open is refused, with *Open
+  it*); nothing you typed into the password field appears anywhere; the saved scenario dry-runs.
+- **Send back:** for each step, OK or what you saw instead; whether the window came to the front and was full size;
+  where the focus went after each Cmd-Tab; the seconds from Stop to *passed*; a screenshot of the Studio during step 5;
+  the saved `hand-quote.yaml`.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

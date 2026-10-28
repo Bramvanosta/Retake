@@ -29,6 +29,7 @@ export * from './agent-trust.js';
 export * from './inspect.js';
 export * from './script-draft.js';
 export * from './recording.js';
+export * from './record-annotations.js';
 export * from './brand.js';
 export * from './ip-class.js';
 export * from './site.js';

@@ -201,6 +201,17 @@ Record a scenario inside the Studio's live headless preview (the L4.4 screencast
 
 - **Value:** Non-developers can write scenarios from a browser tab without a local browser window, which any hosted offer needs.
 - **Hard parts:** Input latency and fidelity over the stream (input methods, drag, file pickers, clipboard). The security of forwarding input to a remote browser that holds sessions.
+- **Why L4.8 did not build it** (the Record screen opens a real headed window and the Studio is its control panel):
+  - *Lag*: the L4.4 picture is at most 10 fps and 960 px (JPEG): too slow and too small to aim at a menu item or to
+    watch a hover.
+  - *No native widgets*: select popups, file choosers, date pickers, IME, the clipboard and drags do not exist in a
+    screencast; each would need its own emulation.
+  - *A page→driver channel*: forwarding needs a new input channel from the Studio page to the browser. CDP
+    `Input.dispatch*` events are trusted (`isTrusted`), so the recorder could not tell the person from any program
+    holding the Studio token (Claude Code's shell included, BL-106): it could drive a signed-in browser and write steps,
+    against L3.4's rule "Claude may start a recording, never drive it".
+  - *Secrets through the Studio server*: typed passwords would cross the Studio page and server as keystrokes; today
+    they never leave the window (masked in the page, hashed on the runner side).
 
 ### BL-26 — Recorder assist: narration to captions, data-prep suggestions
 *M · proposed in review · builds on: L3.4, L4.8; BL-10 optional*
@@ -879,8 +890,52 @@ Cut to keep L3.4 an M (a person shows the flow in a headed window; the draft com
 - Thumbnails per step and the quick inserts of R-UI-22 (hold, caption, mark, camera) while recording: L4.8's Record
   screen.
 
+*Applied in L4.8*: up to three verified alternative targets per action (kit 1.6.0, ≤ 10 ms a press, offered by the
+Studio's Record screen) and the quick inserts; thumbnails per step and the rest of the Record screen's cuts are BL-118.
+
 - **Value:** Recordings of richer apps (several tabs, embedded frames, date pickers) that need fewer fixes.
 - **Hard parts:** Per-page sessions and their correlation; UI-library heuristics for calendars and drags.
+
+### BL-118 — Record screen extras cut from L4.8
+*M · cut in L4.8 · builds on: L4.8, L3.4, L4.4, BL-25, BL-74, BL-105*
+
+Cut to keep L4.8 an M (the Studio's Record screen: a real headed window the person clicks in, the Studio as its control
+panel — the live draft, target alternatives to pick, quick inserts, Stop, Save as a new scenario, Discard):
+- **Thumbnails per step**: a screenshot of the window at each action (a cost at every press, and the window may show
+  what the draft does not hold).
+- **A live picture of the recording window** in the Studio (BL-105's residue for `record` jobs); the window placed
+  beside the Studio automatically (it opens full size: the desktop layout must be filmed).
+- **Controls inside the window**: Stop or inserts from an in-page pill or a shortcut (BL-74: every event on it would
+  have to be swallowed in the isolated world); keyboard shortcuts for the Studio's inserts.
+- **Editing before Save**: changing, moving or deleting recorded steps on the Record screen (the scenario screen does it
+  after Save); an insert's values changed in place (Remove, then add it again).
+- **A re-check after later changes**: the check replay covers the draft as recorded (the worker never reads the
+  Studio's picks and inserts); a pick or an insert made after it is checked by a dry run of the saved scenario.
+- **More alternatives**: alternatives after saving and for any step (through page_inspect); for a `pick`, a `menu` row,
+  a `select {field}` or a list's label (only a click, double click, typing, a combobox select and a file drop offer
+  them); a row-scoped `in: {row}` alternative for a name repeated in a list.
+- **Choices and inserts through MCP** (Claude cleans a draft with scenario_save); a CLI or MCP recording annotated in
+  the Studio (read-only there).
+- **An unsaved Studio draft kept longer**: beyond the newest 20 recordings, one is kept 7 days unless saved or
+  discarded.
+- **From the reviews of L4.8, not done** (DoS only, or a sentence's worth): a held `record-<id>.lock` or a forged live
+  `owner.pid` can keep a recording busy, unpruned or "recording in a terminal"; meta.json keeps the start path as typed
+  (as the job input and record.json do: `maskPathSecrets` for all three); a Studio recording whose job was pruned is
+  read-only (its origin cannot be verified: an origin signed with the studio home's key would keep it the person's).
+- **Value:** Fewer round trips between the Record screen and the scenario screen; a draft whose check matches what is
+  saved.
+- **Hard parts:** Thumbnails without slowing presses; an in-window control the page can neither see nor trigger.
+
+### BL-119 — Recorded drafts without YAML anchors (CLI and MCP)
+*S · noticed in L4.8 · builds on: L3.4, L4.8*
+
+A recorded draft whose recorder-added `wait_for` / `scroll {to}` share the action's target object is written with a YAML
+anchor and alias (`target: &a1 {role: button, name: Request a quote}` … `click: *a1`) — valid YAML, unchanged since L3.4.
+A Studio recording's draft has none since the L4.8 reviews (`draftFromRecording(…, {aliases: false})`: the block editor
+deletes or duplicates the helper); the drafts of `studio record` and `scenario_record` keep L3.4's bytes (pinned by
+golden drafts in core's test fixtures). People reading or editing those files by hand expect the target repeated: a hand
+edit of the anchored one changes all three steps. Write each target in full there too, with the goldens updated in one
+go.
 
 ### BL-75 — Theme extras cut from L3.5
 *M · cut in L3.5 · builds on: L3.5, L4.7, BL-51*
@@ -1742,7 +1797,11 @@ and L4.8 Record screen. Fold these precisions in when the lots start; what goes 
 *Applied in L3.4* (README "Recording a scenario", DESIGN §3.11–3.13), with two deviations: secret fields become
 `{{vars.<kind>_N}}` placeholders (CHANGE-ME, a showable demo value) — not `{{env:…}}` refs, which a scenario saved
 through MCP may not name — and `scenario_record` returns the draft itself (under `untrusted`) through `job_status`. The
-alternatives, the quick inserts and the thumbnails stay with L4.8 (BL-74).
+alternatives, the quick inserts and the thumbnails stay with L4.8 (BL-74). *Applied in L4.8* (README "Studio app" →
+Record a scenario, DESIGN §3.11–3.13 and §4h): the alternatives and the quick inserts; thumbnails per step cut (BL-118).
+Noticed in L4.8, not fixed: one instant wheel jump (a headless test's `wheel(0, 2400)`) is scrolled by the compositor
+before the passive wheel listener takes its baseline, so no scroll is recorded — a person's wheel makes many small
+events and is recorded (take the baseline from the previous scroll position instead).
 
 - Record what the user meant, not coordinates. Generate each target with the same resolver as page_inspect (role and name first, then label, text, testid; prefer role or testid when the project is localised). Check that each target resolves back to the same element, and keep the alternatives the user can pick from (R-UI-21).
 - Merge keystrokes into one `type` step and drop the human typing rhythm, since the runner sets pacing. Detect clear and select-all and turn them into the React-safe clear helper from L1.2.

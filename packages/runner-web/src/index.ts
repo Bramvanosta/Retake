@@ -37,7 +37,7 @@ export { KICK_GAP_MS, KICK_WINDOW_MS, ScreencastRecorder } from './recorder.js';
 export { kitSource, kitConfigFor, DEFAULT_CURSOR_SIZE, DEFAULT_RIPPLE_COLOR, CURSOR_STORAGE_KEY } from './kit/source.js';
 export type * from './kit/types.js';
 export { checkSavedSession, openLoginBrowser, seedProfilePreferences, signIn } from './login.js';
-export { RECORD_BUDGET_MS, RECORD_MAX_MS, disableAutofill, looksLikeSecretSegment, maskPathSecrets, recordSession } from './record-session.js';
+export { RECORD_ALT_BUDGET_MS, RECORD_BUDGET_MS, RECORD_MAX_MS, disableAutofill, looksLikeSecretSegment, maskPathSecrets, recordSession } from './record-session.js';
 export type { RecordSessionOptions, RecordSessionResult } from './record-session.js';
 export { SECRET_MASK, SECRET_MIN, demoRecorder, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
 export type { RecorderConfig, SecretHash } from './kit/record-script.js';

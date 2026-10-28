@@ -61,6 +61,8 @@ type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void
 export const RECORD_MAX_MS = 30 * 60_000;
 /** In-page time budget of one element's suggestion at pointerdown (ms). */
 export const RECORD_BUDGET_MS = 150;
+/** In-page time budget of its alternative targets (ms, inside RECORD_BUDGET_MS): a press waits for them (L4.8). */
+export const RECORD_ALT_BUDGET_MS = 10;
 /** The isolated world the recorder runs in. */
 const WORLD = 'demo-studio-record';
 /** Query keys a typed navigation never keeps (they may carry a token). */
@@ -95,6 +97,8 @@ export interface RecordSessionOptions {
   headless?: boolean;
   /** The window's size (tests; default: maximised on the screen). */
   windowSize?: { width: number; height: number };
+  /** Test hook: the alternatives' in-page budget per press (default RECORD_ALT_BUDGET_MS; 0: none, said partial). */
+  alternativesBudgetMs?: number;
 }
 
 export interface RecordSessionResult {
@@ -308,6 +312,10 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
   }
   const removeCopies = async () => {
     for (const d of cleanup) await rm(d, { recursive: true, force: true }).catch(() => undefined);
+    // The browser's last writes (its "Local State") can land after the context closed: removed again a moment later.
+    setTimeout(() => {
+      for (const d of cleanup) void rm(d, { recursive: true, force: true }).catch(() => undefined);
+    }, 1500).unref();
   };
 
   let context: BrowserContext;
@@ -369,7 +377,14 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
       candidate.secret = true;
       if (['text', 'search', 'multiline', 'contenteditable'].includes(String(candidate.field_kind))) candidate.field_kind = 'secret';
     }
-    const parsed = RecordedEventSchema.safeParse(candidate);
+    let parsed = RecordedEventSchema.safeParse(candidate);
+    const el = candidate.el as Record<string, unknown> | null | undefined;
+    if (!parsed.success && el && typeof el === 'object' && ('alternatives' in el || 'alternatives_partial' in el)) {
+      // Alternatives the schema refuses never cost the action: it is kept without them.
+      delete el.alternatives;
+      delete el.alternatives_partial;
+      parsed = RecordedEventSchema.safeParse(candidate);
+    }
     if (!parsed.success) {
       dropped.invalid++;
       log('debug', `recording: an event was refused by the schema (${parsed.error.issues.map((i) => i.path.join('.')).join(', ')})`);
@@ -614,7 +629,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     const tree = (await cdp.send('Page.getFrameTree')) as { frameTree: { frame: { id: string } } };
     mainFrame = tree.frameTree.frame.id;
     await cdp.send('Runtime.addBinding', { name: binding, executionContextName: WORLD });
-    const source = `${kitSource({ ...kitConfigFor(undefined, { hidden: true }), passive: true })}\n${recorderSource({ binding, origins, salt: memory.salt, budget_ms: RECORD_BUDGET_MS, secret_min: SECRET_MIN })}`;
+    const source = `${kitSource({ ...kitConfigFor(undefined, { hidden: true }), passive: true })}\n${recorderSource({ binding, origins, salt: memory.salt, budget_ms: RECORD_BUDGET_MS, alt_budget_ms: o.alternativesBudgetMs ?? RECORD_ALT_BUDGET_MS, secret_min: SECRET_MIN })}`;
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source, worldName: WORLD, runImmediately: true });
     if (state) await applyStorageState(context, state);
     if (o.signal?.aborted) onCancel();

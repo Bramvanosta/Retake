@@ -35,6 +35,10 @@ export type { PreparedScenarioEdit, SaveResult, ScenarioEditRequest, ScenarioEdi
 export { draftFromScript } from './authoring.js';
 export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecordId, pruneRecords, recordDir, recordMaxMs, recordScenario, recordStart, recordsRoot } from './record.js';
 export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStart } from './record.js';
+export { RECORD_META_FILE, RECORD_STUDIO_FILE, RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile } from './record-files.js';
+export type { RecordMeta } from './record-files.js';
+export { RECORD_EVENTS_MAX_BYTES, RECORD_LIST_MAX, checkAgentCancel, readRecordEvents, recordAnnotate, recordDiscard, recordList, recordLive, recordSave, recordStop, recordView, saveRecordedDraft } from './record-studio.js';
+export type { RecordAnnotated, RecordCheckView, RecordDiscarded, RecordListItem, RecordSaved, RecordState, RecordStopped, RecordTargetOption, RecordView, RecordZoomView } from './record-studio.js';
 export type { ScriptDraftView } from './authoring.js';
 export { listRuns, runStatus } from './runs.js';
 export type { RunStatusView, RunSummary } from './runs.js';

@@ -1,7 +1,7 @@
 /**
  * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
  * event stream per browser) and the screens inside the shell — Projects (with search and recent activity), a project,
- * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7). Every string from the server is a React text node: no HTML from data,
+ * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
  * is the second line.
  */
@@ -16,6 +16,7 @@ import { LibraryScreen } from './LibraryScreen.js';
 import { ProjectPage } from './ProjectPage.js';
 import { ProjectsScreen } from './ProjectsScreen.js';
 import { ReadmeEditor } from './ReadmeEditor.js';
+import { RecordScreen } from './RecordScreen.js';
 import { RunScreen } from './RunScreen.js';
 import { ScenarioScreen } from './ScenarioScreen.js';
 import { ThemesScreen } from './ThemesScreen.js';
@@ -37,7 +38,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -74,6 +75,7 @@ function Studio() {
       )}
       {route.name === 'library' && <LibraryScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} {...(route.component ? { component: route.component } : {})} />}
       {route.name === 'themes' && <ThemesScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} />}
+      {route.name === 'record' && <RecordScreen key={route.slug} slug={route.slug} {...(route.rec ? { rec: route.rec } : {})} />}
       {route.name === 'not-found' && (
         <div className="screen">
           <h1>Nothing here</h1>

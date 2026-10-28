@@ -364,6 +364,9 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     // L4.4: a run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
     // gate between steps (a capture does not film the pause).
     const pauseGate: { requested: boolean; maxMs?: number } = { requested: false };
+    // L4.8: a `record` job's stop marker (the Studio's Stop): the window closes as if the person closed it, the draft is
+    // made and its check replay runs (a worker signal, currentStop, skips the check).
+    const stopAsked = new AbortController();
     const cancelPoll = setInterval(() => {
       void queue.cancelRequested(id).then((asked) => {
         if (asked && !controller.signal.aborted) {
@@ -371,6 +374,17 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           controller.abort(new rw.CancelledError('run cancelled (cancel requested)'));
         }
       });
+      if (stored.kind === 'record' && !stopAsked.signal.aborted) {
+        void queue.stopRequested(id).then(
+          (asked) => {
+            if (asked && !stopAsked.signal.aborted) {
+              log(`job ${id}: stop requested`);
+              stopAsked.abort();
+            }
+          },
+          () => undefined,
+        );
+      }
       if (stored.kind === 'run') {
         void queue.pauseRequested(id).then(
           (asked) => {
@@ -505,8 +519,10 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           const { executeRecordJob } = await import('./record-job.js');
           const stop = new AbortController();
           currentStop = stop;
+          // A Stop asked before the worker took the job (the Studio's Stop as it was taken): seen before anything opens.
+          if (!stopAsked.signal.aborted && (await queue.stopRequested(id).catch(() => false))) stopAsked.abort();
           try {
-            const result = await executeRecordJob({ ...base, input: job, stop: stop.signal, progress: onProgress, ...(o.recordTest ? { test: o.recordTest } : {}) });
+            const result = await executeRecordJob({ ...base, input: job, jobId: id, stop: stop.signal, finish: stopAsked.signal, progress: onProgress, ...(o.recordTest ? { test: o.recordTest } : {}) });
             rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           } finally {
             currentStop = undefined;

@@ -567,6 +567,17 @@ A client of the same packages (the MCP keeps working without it). Served locally
   region, the anchor chips before posting, reply / resolve / reopen written as the channel `studio`) and Claude's
   edit-only proposals on a Studio thread — a diff of the scenario file, Preview change on the timeline, Apply (undoable)
   or Apply and re-render, then Resolve with the new render.
+- **Record**: record a scenario by clicking through the site; the actions become draft steps, each with robust target
+  suggestions to pick from, and quick inserts (hold, wait_for, caption, mark, camera zoom) are added while recording.
+  Built in L4.8 (`#/p/<slug>/record`): the worker opens L3.4's real browser window on this Mac, full size, and the
+  person clicks there; the Studio is its control panel and forwards nothing to it — the live draft, up to three
+  verified alternative targets per action, a draft cursor on a row (inserts go right after that row; a caption, a mark
+  or a zoom — at most the theme's max_zoom — goes on the next action), Stop and keep (then the check replay of the
+  recorded draft), Save as a new scenario (never over one, only the draft on screen, never a hidden character, no YAML
+  alias), Discard (a neutral *discarded*); recordings Claude or the CLI started, or whose origin or files cannot be
+  verified, are read-only. Accepted with a Playwright-driven window (the quote flow recorded with every
+  insert and a pick, saved, dry-run, captured and rendered with the caption, zoom and marker where placed); a person's
+  headed recording is MACOS-CHECKLIST 13i. Cut: BL-118; recording through the live picture: BL-25.
 
 ## 13. Security
 

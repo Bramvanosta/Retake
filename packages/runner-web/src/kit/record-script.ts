@@ -37,6 +37,8 @@ export interface RecorderConfig {
   salt: number;
   /** In-page time budget of one element's suggestion (ms). */
   budget_ms: number;
+  /** In-page time budget of an acted-on element's alternative targets (ms; within `budget_ms`; 0: none). */
+  alt_budget_ms: number;
   /** Shortest value the secret memory remembers (SECRET_MIN). */
   secret_min: number;
 }
@@ -136,6 +138,16 @@ export function demoRecorder(cfg: RecorderConfig): void {
   const partial = (el: Element, v: string): void => {
     if (v.length >= cfg.secret_min) partials.set(el, v);
     else partials.delete(el);
+  };
+  /** Shortest start of a remembered secret that makes typed text secret (the first part of a split typing, L4.8 review). */
+  const SECRET_PREFIX_MIN = 4;
+  /** Does `text` end with the start (SECRET_PREFIX_MIN characters or more) of a value the memory knows? */
+  const secretPrefix = (text: string): boolean => {
+    if (text.length < SECRET_PREFIX_MIN) return false;
+    for (const v of [...values, ...partials.values()]) {
+      for (let n = Math.min(v.length, text.length); n >= SECRET_PREFIX_MIN; n--) if (text.endsWith(v.slice(0, n))) return true;
+    }
+    return false;
   };
   /** A final secret value: remembered here, and told to the runner as its salted hash. */
   const share = (v: string): void => {
@@ -279,11 +291,16 @@ export function demoRecorder(cfg: RecorderConfig): void {
     }
     return secretEls.has(el) ? (secretKinds.get(el) ?? 'secret') : null;
   };
-  function info(target: Element | null): Record<string, unknown> | null {
+  /**
+   * The element acted on, as the kit's inventory entry describes it. `alts`: an action whose step targets this element
+   * (a press, a keyboard activation, typing, a native select, a file): up to three alternative targets too (L4.8) —
+   * never for a secret field.
+   */
+  function info(target: Element | null, alts = false): Record<string, unknown> | null {
     if (!target) return null;
     let e: InventoryElement | null = null;
     try {
-      e = kit!.suggestFor(target, { budget_ms: cfg.budget_ms });
+      e = kit!.suggestFor(target, { budget_ms: cfg.budget_ms, ...(alts ? { alternatives: 3, alternatives_budget_ms: cfg.alt_budget_ms } : {}) });
     } catch {
       e = null;
     }
@@ -310,6 +327,11 @@ export function demoRecorder(cfg: RecorderConfig): void {
       secret: secretOf(el) !== null,
     };
     if (!e.suggested) out.desc = kit!.describe(e.ref);
+    if (alts && out.secret === false && e.suggested) {
+      const list = (e.alternatives ?? []).filter((a) => a.target.nth === undefined && !a.target.last_visible).slice(0, 3);
+      if (list.length > 0) out.alternatives = list.map((a) => ({ target: a.target, fragile: a.fragile.filter((f) => f !== 'nth') }));
+      if (e.alternatives_partial) out.alternatives_partial = true;
+    }
     return out;
   }
   /**
@@ -385,7 +407,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     commit(false);
     const v0 = focusValue.get(el) ?? (fromInput ? '' : valueOf(el));
     if (secretOf(el)) remember(v0);
-    field = { el, v0, last: valueOf(el), info: info(el), keyed: fromInput ? -1e9 : now(), pasted: false, autofill: false };
+    field = { el, v0, last: valueOf(el), info: info(el, true), keyed: fromInput ? -1e9 : now(), pasted: false, autofill: false };
     return field;
   }
   /** Commit the field being typed in; false when nothing changed (nothing sent). */
@@ -400,8 +422,10 @@ export function demoRecorder(cfg: RecorderConfig): void {
     let kind = secretOf(f.el, f.autofill ? 'secret' : undefined);
     const clear = f.v0 !== '' && !v.startsWith(f.v0);
     const text = clear ? v : v.slice(f.v0.length);
-    // A value the memory knows (a re-mounted field, a password pasted into a plain one): secret too.
-    if (!kind && mask(v).hit) kind = secretOf(f.el, 'secret');
+    // A value the memory knows (a re-mounted field, a password pasted into a plain one): secret too — and so is typed
+    // text that ends with the first SECRET_PREFIX_MIN or more characters of one (its typing was split by a blur, a visit
+    // to the Studio: the rest would come as a secret, this part in clear). Once secret, the field stays secret.
+    if (!kind && (mask(v).hit || secretPrefix(text))) kind = secretOf(f.el, 'secret');
     if (kind) share(v);
     const el = f.info ? { ...f.info, secret: kind !== null } : null;
     const tag = f.el.localName;
@@ -463,7 +487,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     const files = Array.from((e as DragEvent).dataTransfer?.files ?? []);
     if (!files.length) return;
     commit(false);
-    emit({ kind: 'file', el: info(t), via: 'drop', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
+    emit({ kind: 'file', el: info(t, true), via: 'drop', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
   });
   on('input', (e) => {
     if (!e.isTrusted) return;
@@ -530,8 +554,9 @@ export function demoRecorder(cfg: RecorderConfig): void {
     flushKey();
     commit(false);
     const focusEl = t && t !== document.body && t !== document.documentElement ? t : null;
-    const what = focusEl ? info(focusEl) : null;
-    if (!shortcut && (k === 'Enter' || k === ' ') && focusEl) {
+    const activation = !shortcut && (k === 'Enter' || k === ' ') && focusEl !== null;
+    const what = focusEl ? info(focusEl, activation) : null;
+    if (activation && focusEl) {
       // A keyboard activation: its click (detail 0) makes it a press; else it stays a key.
       pendingKey = { key: k, mods, el: focusEl, info: what, timer: setTimeout(flushKey, 1000) as unknown as number };
       return;
@@ -558,7 +583,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     flushKey();
     const t0 = now();
     const quiet = Math.max(0, Math.round(t0 - lastMutation));
-    const el = info(t);
+    const el = info(t, true);
     emit({ kind: 'pointer', button: e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left', via: 'pointer', el, quiet_ms: quiet, ms: Math.round(now() - t0) });
   });
   on('click', (ev) => {
@@ -569,7 +594,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
     pendingKey = null;
     clearTimeout(p.timer);
     const same = t && (t === p.el || p.el.contains(t) || t.contains(p.el));
-    emit({ kind: 'pointer', button: 'left', via: 'keyboard', el: same ? p.info : info(t), quiet_ms: Math.max(0, Math.round(now() - lastMutation)), ms: 0 });
+    emit({ kind: 'pointer', button: 'left', via: 'keyboard', el: same ? p.info : info(t, true), quiet_ms: Math.max(0, Math.round(now() - lastMutation)), ms: 0 });
   });
   on('dblclick', (e) => {
     if (e.isTrusted) emit({ kind: 'dblclick' });
@@ -582,11 +607,11 @@ export function demoRecorder(cfg: RecorderConfig): void {
       commit(false);
       const s = t as HTMLSelectElement;
       const opt = s.selectedOptions[0];
-      emit({ kind: 'select_native', el: info(t), option: (opt ? (opt.label || opt.text) : '').trim().slice(0, 200) });
+      emit({ kind: 'select_native', el: info(t, true), option: (opt ? (opt.label || opt.text) : '').trim().slice(0, 200) });
     } else if (t.localName === 'input' && (t as HTMLInputElement).type === 'file') {
       commit(false);
       const files = Array.from((t as HTMLInputElement).files ?? []);
-      emit({ kind: 'file', el: info(t), via: 'input', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
+      emit({ kind: 'file', el: info(t, true), via: 'input', names: files.slice(0, 20).map((f) => f.name.slice(0, 200)) });
     }
   });
 

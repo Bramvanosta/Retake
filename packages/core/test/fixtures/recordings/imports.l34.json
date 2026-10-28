@@ -1,0 +1,25 @@
+{
+ "ctx": {
+  "name": "recorded",
+  "env": "local",
+  "envIsDefault": true,
+  "pages": {
+   "console": "http://127.0.0.1:4401/",
+   "shop": "http://127.0.0.1:4402/"
+  },
+  "persona": null,
+  "access": "read-write"
+ },
+ "yaml": "# Recorded with studio record: a draft. Captions are empty and nothing is held — add them, check the steps flagged\n# in the recording's report (page_inspect), then run_dry.\n\nversion: 1\nvideo: recorded\nscenes:\n  - id: imports\n    page: console\n    open: /imports\n    steps:\n      - click: New import\n",
+ "issues": [],
+ "writes": [],
+ "firstWrite": null,
+ "stats": {
+  "scenes": 1,
+  "steps": 1,
+  "actions": 1,
+  "noise": 0,
+  "secrets": 0,
+  "fallbacks": 0
+ }
+}

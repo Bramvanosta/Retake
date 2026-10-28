@@ -1,0 +1,35 @@
+{
+ "ctx": {
+  "name": "recorded",
+  "env": "local",
+  "envIsDefault": true,
+  "pages": {
+   "console": "http://127.0.0.1:4401/",
+   "shop": "http://127.0.0.1:4402/"
+  },
+  "persona": null,
+  "access": "read-write"
+ },
+ "yaml": "# Recorded with studio record: a draft. Captions are empty and nothing is held — add them, check the steps flagged\n# in the recording's report (page_inspect), then run_dry.\n\nversion: 1\nvideo: recorded\nscenes:\n  - id: signup\n    page: shop\n    open: /signup\n    steps:\n      - type: {into: {label: Café name}, text: Cafe Probe}\n      - type: {into: {label: Your name}, text: Test Buyer}\n      - type: {into: {label: Café name}, text: Cafe Again, clear: true}\n      - type: {into: {label: Work email}, text: owner@example.test}\n      - click: Create account\n        note: sends POST shop:/api/signup\n",
+ "issues": [],
+ "writes": [
+  {
+   "label": "POST shop:/api/signup",
+   "outcome": "passed",
+   "scene": "signup",
+   "step": 4
+  }
+ ],
+ "firstWrite": {
+  "scene": "signup",
+  "step": 4
+ },
+ "stats": {
+  "scenes": 1,
+  "steps": 5,
+  "actions": 6,
+  "noise": 0,
+  "secrets": 0,
+  "fallbacks": 0
+ }
+}

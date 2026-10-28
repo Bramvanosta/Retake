@@ -245,6 +245,14 @@ export interface InventoryOptions {
   limit?: number;
   /** In-page time budget for the suggestions (default 2500 ms); past it the rest is listed without one (`partial`). */
   budget_ms?: number;
+  /**
+   * The recorder only (L4.8): up to this many other verified targets per element (at most 3; default none, so
+   * `page_inspect`'s inventory is unchanged) — never `nth`, never a key the indexes know is shared, each verified to
+   * resolve once to the element. Skipped (`alternatives_partial`) when the suggestion took over 20 ms or the page is large.
+   */
+  alternatives?: number;
+  /** Their own time budget (default 10 ms, never more than what is left of `budget_ms`). */
+  alternatives_budget_ms?: number;
 }
 
 /** Where an element sits: the scope a suggested target may name with `in`. */
@@ -295,6 +303,10 @@ export interface InventoryElement {
   /** Null when no verified target was found (or the time budget ran out). */
   suggested: KitSuggestion | null;
   action: KitActionHint;
+  /** Asked for (`alternatives`) and the suggestion is not positional: other targets resolving once to this element. */
+  alternatives?: KitSuggestion[];
+  /** Their budget ran out (or they were skipped): there may be more. */
+  alternatives_partial?: boolean;
 }
 
 export interface InventoryPopup {
@@ -464,7 +476,7 @@ export interface KitApi {
    * Recorder (L3.4): the inventory's entry (`inventory({within, limit: 1})`) for the interactive element holding
    * `target` — the element a person acted on, or a ref — or null when nothing interactive holds it.
    */
-  suggestFor(target: Element | string, opts?: { budget_ms?: number }): InventoryElement | null;
+  suggestFor(target: Element | string, opts?: { budget_ms?: number; alternatives?: number; alternatives_budget_ms?: number }): InventoryElement | null;
   /** `find` for each target, without acting (L5.6): its visible count and, when none, the closest visible elements. */
   closest(targets: TargetObject[]): Array<{ count: number; near: NearElement[] }>;
   /** Whether the focused element is `ref` (or inside it, or the control of a label `ref`), and what has the focus. */

@@ -42,6 +42,8 @@ export type StudioEvent =
       components?: string[];
       /** L4.7: a site extraction was written or removed. */
       site?: true;
+      /** L4.8: recordings whose files changed or whose folder appeared or went (`<slug>/<rec_id>`). */
+      records?: string[];
     }
   | { type: 'jobs'; changed: string[] }
   | { type: 'index'; generation: number }
@@ -256,4 +258,15 @@ export function useScenarioEvents(slug: string, name: string, on: { reread: () =
     else if (a.progress.length) on.progress(a.progress);
     else if (a.jobs) on.jobs?.();
   });
+}
+
+/**
+ * What the Record screen does with an event (L4.8): `reread` the recording it shows when its folder changed (`records`
+ * names `<slug>/<rec_id>`), on a job change (its state, its phase), or after a reconnection; with no recording shown
+ * (the start form), when any recording of the project changed or a job changed (the recent list, the open recording).
+ */
+export function recordEventAction(e: StudioEvent, slug: string, rec: string | undefined): boolean {
+  if (e.type === 'resync' || e.type === 'jobs') return true;
+  if (e.type !== 'workspace' || !Array.isArray(e.records)) return false;
+  return rec !== undefined ? e.records.includes(`${slug}/${rec}`) : e.records.some((r) => r.startsWith(`${slug}/`));
 }
