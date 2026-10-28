@@ -20,6 +20,9 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
 
 ## Decisions taken
 
+- **2026-10-28 — Captures first.** The load under a take is what must be controlled; renders and other heavy jobs are
+  background work whose duration does not matter, and wait for (or pause during) the takes (BL-116). A render's file
+  size is not a concern; renders on the GPU (angle) are accepted (BL-114).
 - **2026-10-12 — Voice-over is an evolution.** The MVP keeps its silent track (R-ED-18); narration from a file (BL-46),
   AI voice-over (BL-12) and SRT/VTT subtitles (BL-30) stay in this backlog.
 - **2026-10-12 — Commercialisation later.** First a local tool for our own use; the open decisions below that are about
@@ -464,6 +467,12 @@ Keep the component format and kit independent of Remotion (R-V2-08), and prototy
 
 - **Value:** A bargaining position with Remotion, and an exit if its terms make a plan unviable.
 - **Hard parts:** The component scaffolds import `remotion` directly today. Reproducing frame-accurate sequencing, audio and the Player preview.
+- **Watched (2026-10-28):** kinetograph, a Rust renderer (wgpu, Skia, Stylo + taffy for CSS, ffmpeg) that resolves
+  `remotion` / `@remotion/*` imports to its own implementation and draws without a browser. Not adopted: five days old
+  at review (beta 0.2.0), no `@remotion/player` (the Studio's preview would stay on another engine), CLI only, content
+  it cannot draw is approximated with a warning unless `--strict`, PolyForm Small Business licence (a question once we
+  sell). The API we use is small (about twenty names) and in its compatibility list: revisit later. BL-114 (angle +
+  VideoToolbox) is the cheaper step meanwhile.
 
 ### BL-54 — Layouts that give the caption block's room back
 *S · found in the phase-2 acceptance (L2.14) · builds on: L2.5 (geometry expressions), L2.7*
@@ -1178,7 +1187,8 @@ successful take; `page_inspect` reusing a previous inspection's state when the s
 *M · field feedback 1 (chantier E)*
 
 The worker runs one job at a time (a capture is CPU / GPU heavy), so a 5-minute render blocks the next take. Allow one
-render next to one capture, once L5.7 has brought a take's cost down and measured the overlap.
+render next to one capture, once L5.7 has brought a take's cost down and measured the overlap. *Superseded on
+2026-10-28 by BL-116: captures go first and a running render is paused during a take, instead of both running at once.*
 
 ### BL-90 — Edit re-plan: project-level changes and unmeasured targets
 *S · L5.5 follow-up*
@@ -1291,7 +1301,8 @@ With capture.mp4 encoded in hardware during the take, Chromium's browser process
 core on the fixture: it reads every compositor frame back and encodes it as JPEG, ≈ 55–60 frames a second while the
 cursor moves, for a 30 fps video). `everyNthFrame: 2` while the output is 30 fps would halve it; measure the judder it
 may add (frames then land near the output ticks and their timing noise can pick one twice) and keep 60 Hz for the raw
-export (`keep_frames`).
+export (`keep_frames`). Bench of 2026-10-28 (a page moving on every animation frame, 20 s): everyNthFrame 1 → 75
+frames a second, 23 cpu-s for the tree; 2 → 37 fps, 17.5; 3 → 25 fps, 13.2. BL-115 removes the JPEG step altogether.
 
 ### BL-99 — Slow transitions and waits on page tracks
 *S · L5.7 follow-up*
@@ -1523,6 +1534,98 @@ editor with a live preview, undo / redo and *Use in this scenario*):
   written under its old key — the next view asks the new one again); `<workspace>/node_modules` stays in webpack's
   lookup for workspace components (outside every component folder, same trust as renders); a theme deleted and made
   again at the same path keeps the old one's shown versions for `restore` (they were on disk there once).
+
+### BL-114 — Renders on the GPU, with a lighter load
+*S · measured 2026-10-28 (M4, fixture `quote`, 60 s of 1080p video)*
+
+A render costs far more than a capture: 430 cpu-s for 60 s of video (7.2 cpu-s per video second against 0.85 for a
+take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurrency of 7. Chromium's page renderers take
+230 cpu-s of it (the headless shell rasterises in software), ffmpeg 96, Node 35. Measured by injecting options into
+`renderMedia` / `openBrowser` (no code change):
+
+| Variant | cpu-s | Wall | Cores mean / peak |
+|---|---|---|---|
+| Today (concurrency 7) | 430 | 64 s | 6.75 / 14.5 |
+| `chromiumOptions.gl: 'angle'` | 258 | 45 s | 5.8 / 7.8 |
+| angle + VideoToolbox (`hardwareAcceleration`, `videoBitrate` 4M) | 225 | 43 s | 5.2 / 7.9 |
+| angle + VideoToolbox, concurrency 3 | 229 | 58 s | 3.95 / 6.6 |
+| Concurrency 2 alone | 386 | 94 s | 4.1 / 7 |
+
+- **angle**: the renderers drop from 230 to 65 cpu-s; SSIM 0.997 against today's render, every frame above 0.994,
+  the differences are faint anti-aliasing edges invisible at 1×. Remotion warns of a Chrome memory leak on long renders
+  with angle: measure a 5-minute render (memory, failures) before making it the default; keep a software fallback for
+  machines without a GPU (`swangle`).
+- **VideoToolbox** only engages without `crf` (with it, Remotion silently keeps libx264: the file came out byte for
+  byte identical): set `videoBitrate` instead; ffmpeg 96 → 56 cpu-s. The file is 2.5× larger at the same SSIM (26 MB
+  against 10 MB): accepted (decision of 2026-10-28, the size of a render is not a concern).
+- **Concurrency**: a lower default (3 with angle) renders as fast as today with half the load; the output does not
+  depend on it (concurrency 2 gave the same file). Render time matters less than the take's margin: renders run as
+  background work after the captures (BL-116), at a lower priority (`nice`).
+- Left unexplained: the 56 cpu-s ffmpeg keeps with VideoToolbox (decoding Remotion's JPEG q95 frames, the BT.709
+  conversion — to profile). Previews and stills (`preview.ts`) open their own browser: same options there.
+
+### BL-116 — Captures first: heavy jobs wait for the takes
+*M · decided 2026-10-28 · builds on: L3.1 (job queue), L4.4 (pause) · replaces BL-89's direction*
+
+The load under a take is what must be controlled: a loaded machine shows in the take (fewer frames during motion,
+freezes the edit has to cut, more kicked frames). Renders, exports, reviews and previews are background work whose
+duration does not matter. Rule: **a capture runs first; heavy work only runs while no capture runs.**
+
+Measured on the M4 (fixture `quote`, one take each, 2026-10-28): alone — 40 cpu-s, motion 59 fps at worst, 5 dropped
+frames, no stall; during a default render (concurrency 7) — 48 cpu-s (contention), motion 45 fps at worst, 6 dropped,
+12 kicked, no stall; during an angle + VideoToolbox render at concurrency 3 under `nice 10` — motion 56 fps, 5 dropped,
+no stall. The M4 copes on the fixture; a heavier product, a longer take or a smaller machine has less margin.
+
+Today: the Studio and MCP submit jobs to one worker per workspace that runs one job at a time, oldest first, so a
+render queued before a capture delays the capture, and a capture never overlaps a queued render — but CLI commands
+(`studio run`, `studio render`, `export`) run outside the queue and can overlap anything, as can a second workspace's
+worker.
+
+- **Job classes** (over `JOB_KINDS`): `capture` — `run`, `record`, `auth_login`, `inspect`, and what prepares a take
+  (`hooks`, `env_reset`, `sandbox_up`, `sandbox_reset`) so a take's setup is not stuck behind a render; `heavy` —
+  `render`, `export`, `review`, `preview`, `site`. The worker claims a queued capture before any heavy job
+  whatever their age; a heavy job starts only when no capture runs or waits.
+- **A capture asked while a heavy job runs**: pause the heavy job's process group (SIGSTOP; SIGCONT when the take
+  ends — zero CPU meanwhile, no work lost, Remotion's own timeouts to check against a long pause) rather than make the
+  take wait or cancel the render. Windows has no SIGSTOP: wait there.
+- **A machine-wide marker** (`~/.demo-studio`, pid + start time, stale when the process is gone) set by every capture —
+  queued or CLI, any workspace — and honoured by every heavy job, CLI renders included (they pause, or wait to start
+  with a message).
+- **Light work during a take** (listing, planning, the live preview's own cost — L4.4 measured +15.6 % Chromium CPU for
+  a watched take) stays allowed; the run's perf report already records the load (`perf.machine`), so a take can warn
+  when the machine was busy.
+- **Not BullMQ** (considered 2026-10-28): it needs a Redis server, built for workers spread over machines; the file
+  queue already has atomic claims, crash recovery, cancel and pause, and priority classes plus a gate are a small change
+  to `claimNext`. Revisit only with cloud workers (BL-07).
+
+### BL-115 — Capture without JPEG frames (tab capture, hardware H.264)
+*M–L spike · measured 2026-10-28*
+
+The CDP screencast only sends JPEG or PNG: every frame is encoded as JPEG by Chromium's browser process, sent base64
+to Node, then decoded by ffmpeg and encoded again as H.264. On a take of the fixture (`quote`, ≈ 40 cpu-s for 47 s,
+three takes within 5 %) the browser process takes 18.5 cpu-s, ffmpeg 7.5, Node 6.5 (its main thread is idle > 90 % of
+the take), the GPU process 4.2 and the page's renderer 2.6. JPEG quality 75 instead of 90 saves only 5 %.
+
+A throwaway bench filmed the same moving page for 20 s at 30 fps through `getDisplayMedia({preferCurrentTab: true})`
+(`--auto-accept-this-tab-capture`, started by a CDP click) → `MediaStreamTrackProcessor` → WebCodecs `VideoEncoder`
+(H.264, `prefer-hardware`; `prefer-software` stalls at 1080p): ≈ 8.7 cpu-s for the whole tree against ≈ 15 for the
+screencast + ffmpeg path at a comparable frame rate, and no ffmpeg at all. `MediaRecorder` cannot replace WebCodecs:
+Playwright's Chromium has no H.264 for it (mp4, webm and matroska all refused).
+
+Open before it can replace the screencast:
+- **Geometry**: tab capture films the window's real surface and ignores the viewport Playwright emulates — the frames
+  came out stretched and blurred (a 1920×941 surface scaled to 1080). The headless window's real size moves with the
+  window chrome it emulates; scale 2 / 4K captures need the same check.
+- **Quality**: a realtime constant-bitrate encoder on small text — compare with today's capture (SSIM against PNG
+  screenshots once the geometry matches).
+- **Timing**: per-frame timestamps onto the capture clock (pause, kicked frames after a press, stalls), the activity
+  thumbnails ffmpeg gives today (`activity.ts`), the raw export's 60 fps frames (`keep_frames`).
+- **Where it runs**: in the filmed page it shares the product's renderer and needs a user gesture; an extension
+  (`chrome.tabCapture` in an offscreen document) would keep it out of the page. Two-page scenes need one per page.
+
+A small gain stays on the current path: the capture encoder's `scale=…:flags=lanczos` at the same size (full-range
+BT.601 → limited BT.709) is ≈ 40 % of its CPU (2.2 of 5.05 cpu-s per 900 frames) — a cheaper conversion (or tagging
+BT.601 instead of converting) saves ≈ 3 cpu-s a take, checked against players and the colour tests.
 
 ## Guard-rails for planned lots (no new scope)
 
