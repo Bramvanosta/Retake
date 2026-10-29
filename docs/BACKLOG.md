@@ -1853,11 +1853,12 @@ appearance.
   this.
 - **Name and mark.** "Retake": the take you redo — the video re-shoots itself at each release. The mark "two takes"
   (declension "Nette"): the previous take as a blue outline behind, the new one in front with a play triangle, on an
-  ink plate; the command becomes `retake`. No trademark or domain check (local distribution). Also considered: Cue (its
+  ink plate; the command becomes `retake`, everything renamed at once with no alias (2026-10-29). No trademark or domain check (local distribution). Also considered: Cue (its
   command collides with an existing open-source configuration language's CLI), Dolly, Stand-in. The rename touches the
   CLI binary, package and MCP server names, the skills and the docs — a lot of its own, right after the redesign lots, both after L5.2.
 - **A possible split.** (1) A reference note `docs/reference/studio-ui.md`: tokens, type scale, pane anatomy and the
-  screens, exported from the canvas. (2) Shell, tokens, dark and light. (3) Project and Scenario. (4) Shoot (prepare,
+  screens, exported from the canvas. (2) A design system for the Studio — one token file for dark and light, reusable
+  accessible components, a gallery, screens built from the kit only — with the shell. (3) Project and Scenario. (4) Shoot (prepare,
   live, record). (5) Edit and Review. (6) Library and Theme editor. (7) The rename. The menu bar and the sheets land
   with the desktop shell (L5.2).
 

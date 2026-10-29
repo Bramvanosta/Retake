@@ -78,7 +78,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
-| L5.9 | Studio « Épure » 1: reference note, tokens, dark and light, app shell, the Geist pair bundled | S–M | todo — after L5.2 |
+| L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | todo — after L5.2 |
 | L5.10 | Studio « Épure » 2: Project and Scenario screens | M | todo |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
@@ -829,11 +829,19 @@ L5.11 → L5.12 → L5.13 → L5.14 → L5.15 → L5.3 → L5.4**, so the phase 
 desktop app. Requirements are written when each lot starts (R-UI-02 is amended by BL-124: dark by default and
 following the system, the Geist pair and the blue accent kept, a red reserved for recording).
 
-- **L5.9 — Épure 1: foundations (S–M).** `docs/reference/studio-ui.md` (tokens, type scale 13 / 15 / 20, pane
-  anatomy, the screens, exported from the canvas); the tokens in the Studio's CSS with the dark and light appearances;
-  the app shell (title bar with the centred mode switch, left browser, inspector, status bar with the actions), wired
-  to the hooks L5.2 leaves (integrated title bar, menu-bar command table, system appearance); the Geist pair bundled
-  (BL-120). Screens keep their content inside the new shell.
+- **L5.9 — Épure 1: foundations and the design system (M).** `docs/reference/studio-ui.md` (tokens, type scale
+  13 / 15 / 20, pane anatomy, the components, the screens, exported from the canvas). **A design system for the Studio,
+  in `packages/ui` (decided 2026-10-29):** one token file for both appearances (dark and light, the CSS custom
+  properties generated from it); reusable, accessible React components — buttons (primary, secondary, destructive,
+  record), icon button, segmented control, switch, text field, select, labelled field row, status mark (shape + word),
+  toolbar, status bar, source list, inspector section, poster and frame card, timecode, one-line blocker with its
+  action, sheet, menu, command palette, empty state, progress; the app shell (title bar with the centred mode switch,
+  left browser, inspector, status bar with the actions) wired to the hooks L5.2 leaves (integrated title bar, menu-bar
+  command table, system appearance). A gallery screen shows every component in both appearances; the L4.9 checker runs
+  on it, and a source lint keeps screens on the kit (no ad-hoc button or colour). Built in-house on React (no new
+  dependency unless a headless library proves needed for menus and popovers — decided when the lot starts); the Geist
+  pair bundled (BL-120). Screens keep their content inside the new shell; L5.10 – L5.12 rebuild them from the kit
+  only.
 - **L5.10 — Épure 2: Project and Scenario (M).** The two reference screens of the canvas: productions as a poster grid
   with smart groups and an inspector; the scenario as a storyboard of real frames per scene, the step inspector, the
   YAML source.
@@ -842,9 +850,9 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
 - **L5.12 — Épure 4: Edit, Review and the rest (M–L).** The timeline and live preview, frame comments with Claude's
   proposal, the review report and exports, the component library, the theme editor, the ⌘K palette, the confirmation
   sheets; the accessibility items of BL-122 that come with them (the dark appearance, reduced motion).
-- **L5.13 — Rename to Retake (M).** The command (`retake`), package names, the MCP server's name, the skills and plugin,
-  the docs, the desktop app's name and identifier (defined in one place by L5.2) and the "two takes" icon; the old
-  `studio` command kept as an alias for a while.
+- **L5.13 — Rename to Retake (M).** Everything at once, no alias (decided 2026-10-29): the command (`retake`), package
+  names, the MCP server's name, the skills and plugin, the docs, the desktop app's name and identifier (defined in one
+  place by L5.2) and the "two takes" icon; the `studio` command and the old names are gone after it.
 - **L5.14 — Captures first (L).** BL-117 carrying BL-116: the queue's state on pg-boss over an embedded Postgres, and a
   capture running first, heavy jobs waiting for the takes.
 - **L5.15 — Renders on the GPU (S).** BL-114: angle and VideoToolbox, a lighter concurrency, measured against today.
