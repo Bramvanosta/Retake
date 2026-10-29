@@ -78,6 +78,13 @@ pub fn launch_config(env_node: Option<&str>, env_cli: Option<&str>, allow_env: b
     Ok(LaunchConfig { node: check("node", node)?, cli: check("cli", cli)? })
 }
 
+/// Whether DEMO_STUDIO_DESKTOP_TEST (its value `var`) puts the shell in test mode (L5.2b review A L2): `1`, and a parent
+/// other than launchd (`parent_pid` 1: a Finder or Dock launch, which `launchctl setenv` could otherwise arm — no
+/// question asked, notifications never posted, SIGUSR2 a quit). A test or a terminal starts the binary itself.
+pub fn test_mode_allowed(var: Option<&str>, parent_pid: i32) -> bool {
+    var == Some("1") && parent_pid != 1
+}
+
 /// Whether a release build drops this variable from the child's environment (review A L4): what makes Node.js or the
 /// dynamic linker load code — `NODE_OPTIONS` (`--require`, `--import`…), `NODE_PATH`, `NODE_REPL_EXTERNAL_MODULE`,
 /// `DYLD_*`, `LD_PRELOAD` / `LD_LIBRARY_PATH` / `LD_AUDIT` — which a Finder launch would otherwise take from
@@ -194,6 +201,15 @@ mod tests {
     use super::*;
     use crate::test_dir;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn test_mode_needs_its_variable_and_a_parent_other_than_launchd() {
+        assert!(test_mode_allowed(Some("1"), 4242));
+        assert!(!test_mode_allowed(Some("1"), 1));
+        assert!(!test_mode_allowed(Some("0"), 4242));
+        assert!(!test_mode_allowed(Some("true"), 4242));
+        assert!(!test_mode_allowed(None, 4242));
+    }
 
     #[test]
     fn launch_config_from_launch_json_and_debug_env() {

@@ -4,11 +4,16 @@
 //! Quit (desktop_core::stop_child). Attached (`reused`: another process serves the workspace): it exits at once and
 //! the shell never touches that server. A release build gives the child the app's environment without the variables
 //! that make Node.js or the linker load code (desktop_core::child_env_dropped: review A L4).
+//! L5.2b: after the line, stdout keeps being read through a capped line reader (desktop_core::LineReader, 16 KB a line):
+//! each `pending` replaces the snapshot the quit guard reads (a malformed one marks it unreadable until the next), each
+//! `job_end` goes to the notifier (held, at most 32, until `on_job_end` is installed), a blank line (the server frames
+//! each line with one before it: review A L3) is skipped silently, anything else is ignored (said once). The counts are logged when they change (`pending: 1 job, 0 unsaved`: the gated test's signal). At the
+//! server's end its jobs are history (critique L2): the snapshot keeps only the unsaved text.
 
 use crate::log;
-use desktop_core::{child_env_dropped, parse_ui_line, sanitize, stop_child, LaunchConfig, LineError, Stopped, UiLine};
+use desktop_core::{child_env_dropped, parse_ui_line, parse_pipe_line, sanitize, stop_child, JobEnd, LaunchConfig, Line, LineError, LineReader, Pending, PipeMsg, Stopped, UiLine, PIPE_LINE_MAX};
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,7 +29,9 @@ pub const STOP_GRACE: Duration = Duration::from_secs(5);
 /// The stderr tail kept for an alert (bytes).
 const TAIL_MAX: usize = 8 * 1024;
 /// The longest first line read.
-const LINE_MAX: u64 = 64 * 1024;
+const LINE_MAX: usize = 64 * 1024;
+/// Job ends kept until the notifier is installed.
+const ENDS_HELD_MAX: usize = 32;
 
 /// The CLI's usage exit code (EXIT.usage): "no workspace here" comes with its JSON error line; without it, the CLI
 /// refused its arguments (review B L4: a build older than `ui --supervised`).
@@ -87,10 +94,78 @@ struct Proc {
     stderr_done: Mutex<Option<mpsc::Receiver<()>>>,
 }
 
+/// Where job ends go: the notifier once installed, held until then.
+#[derive(Default)]
+struct EndSink {
+    handler: Option<Box<dyn Fn(JobEnd) + Send>>,
+    held: VecDeque<JobEnd>,
+}
+
 /// A started server: the line, and the process when this shell owns it.
 pub struct Server {
     pub line: UiLine,
     proc: Option<Arc<Proc>>,
+    /// The server's last `pending` snapshot (the pipe of an owned server).
+    pending: Arc<Mutex<Pending>>,
+    ends: Arc<Mutex<EndSink>>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn plural(n: u32, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
+}
+
+/// The lines after the `ui` line, until the server's stdout ends.
+fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mutex<Pending>>, ends: Arc<Mutex<EndSink>>) {
+    reader.set_cap(PIPE_LINE_MAX);
+    let (mut said_ignored, mut said_long, mut said_bad) = (false, false, false);
+    let mut counts: Option<(u32, u32, bool)> = None;
+    while let Some(line) = reader.next_line() {
+        match line {
+            Line::TooLong => {
+                lock(&pending).unknown = true;
+                if !std::mem::replace(&mut said_long, true) {
+                    log(&format!("a line from the Studio server was longer than {} KB: dropped", PIPE_LINE_MAX / 1024));
+                }
+            }
+            Line::Text(text) => match parse_pipe_line(&text) {
+                PipeMsg::Pending(p) => *lock(&pending) = p,
+                PipeMsg::BadPending(why) => {
+                    lock(&pending).unknown = true;
+                    if !std::mem::replace(&mut said_bad, true) {
+                        log(&format!("the Studio server sent a pending state this app cannot read ({why}): Quit asks with generic words"));
+                    }
+                }
+                PipeMsg::JobEnd(e) => {
+                    let mut sink = lock(&ends);
+                    match &sink.handler {
+                        Some(f) => f(e),
+                        None if sink.held.len() < ENDS_HELD_MAX => sink.held.push_back(e),
+                        None => {}
+                    }
+                }
+                // The server's framing newline (review A L3): nothing to say, nothing changed.
+                PipeMsg::Blank => continue,
+                PipeMsg::Ignored(why) => {
+                    if !std::mem::replace(&mut said_ignored, true) {
+                        log(&format!("ignored a line from the Studio server ({why})"));
+                    }
+                }
+            },
+        }
+        let now = {
+            let p = lock(&pending);
+            (p.jobs_total, p.unsaved_total, p.unknown)
+        };
+        if counts != Some(now) {
+            counts = Some(now);
+            log(&format!("pending: {}, {} unsaved{}", plural(now.0, "job", "jobs"), now.1, if now.2 { " (unreadable state)" } else { "" }));
+        }
+    }
+    lock(&pending).server_gone();
 }
 
 pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError> {
@@ -125,14 +200,26 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
         });
     }
     let (line_tx, line_rx) = mpsc::channel::<Option<String>>();
-    thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
-        let mut first = Vec::new();
-        let got = (&mut reader).take(LINE_MAX).read_until(b'\n', &mut first).unwrap_or(0) > 0 && first.ends_with(b"\n");
-        let _ = line_tx.send(got.then(|| String::from_utf8_lossy(&first).into_owned()));
-        // Later lines are not read for anything (no protocol yet: BL-106); drained so the child never blocks.
-        let _ = std::io::copy(&mut reader, &mut std::io::sink());
-    });
+    let pending = Arc::new(Mutex::new(Pending::default()));
+    let ends = Arc::new(Mutex::new(EndSink::default()));
+    {
+        let (pending, ends) = (pending.clone(), ends.clone());
+        thread::spawn(move || {
+            let mut reader = LineReader::new(stdout, LINE_MAX);
+            let first = match reader.next_line() {
+                Some(Line::Text(t)) => Some(t),
+                _ => None,
+            };
+            let got = first.is_some();
+            let _ = line_tx.send(first);
+            // L5.2b: the pipe lines (read to the end, so the child never blocks on a full pipe).
+            if got {
+                read_pipe(reader, pending, ends);
+            } else {
+                while reader.next_line().is_some() {}
+            }
+        });
+    }
 
     let fail = |child: &mut Child, stdin: Option<ChildStdin>| {
         let _ = stop_child(child, stdin, STOP_GRACE);
@@ -176,10 +263,10 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
         if wait_for(&mut child, Duration::from_secs(5)).is_none() {
             fail(&mut child, None);
         }
-        return Ok(Server { line, proc: None });
+        return Ok(Server { line, proc: None, pending, ends });
     }
     let proc = Arc::new(Proc { child: Mutex::new(child), stdin: Mutex::new(stdin), stopping: AtomicBool::new(false), tail, stderr_done: Mutex::new(Some(err_done_rx)) });
-    Ok(Server { line, proc: Some(proc) })
+    Ok(Server { line, proc: Some(proc), pending, ends })
 }
 
 fn wait_for(child: &mut Child, max: Duration) -> Option<ExitStatus> {
@@ -196,6 +283,23 @@ fn wait_for(child: &mut Child, max: Duration) -> Option<ExitStatus> {
 impl Server {
     pub fn owned(&self) -> bool {
         self.proc.is_some()
+    }
+
+    /// The server's last `pending` snapshot; None for an attached server (no pipe reaches it).
+    pub fn pending(&self) -> Option<Pending> {
+        self.proc.as_ref().map(|_| lock(&self.pending).clone())
+    }
+
+    /// Send each job end of an owned server to `f` (from the reader thread), the ones held so far first.
+    pub fn on_job_end(&self, f: impl Fn(JobEnd) + Send + 'static) {
+        if self.proc.is_none() {
+            return;
+        }
+        let mut sink = lock(&self.ends);
+        for e in std::mem::take(&mut sink.held) {
+            f(e);
+        }
+        sink.handler = Some(Box::new(f));
     }
 
     /// Stop the owned server (SIGTERM + EOF, then SIGKILL after STOP_GRACE) and let its last stderr lines through;

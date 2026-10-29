@@ -1,15 +1,22 @@
 //! The desktop shell's rules (L5.2, DESIGN §4j), kept free of Tauri and of any crate so that their tests run in the
 //! default suite: the supervised line, the navigation allow-list, what may be printed, the launch config, the
-//! workspace order, the remembered workspace and the stop sequence.
+//! workspace order, the remembered workspace and the stop sequence; L5.2b: the server's pipe lines (pipe), the words of
+//! the quit question and the notifications (words), when a job end becomes a notification (notify).
 
 pub mod config;
 pub mod json;
+pub mod notify;
+pub mod pipe;
 pub mod rules;
 pub mod stop;
+pub mod words;
 
-pub use config::{child_env_dropped, choose_workspace, is_workspace, launch_config, read_remembered, studio_home, write_remembered, ConfigError, LaunchConfig, Source};
+pub use config::{child_env_dropped, choose_workspace, test_mode_allowed, is_workspace, launch_config, read_remembered, studio_home, write_remembered, ConfigError, LaunchConfig, Source};
 pub use rules::{is_ipc_noise, loopback_port, navigation_allowed, navigation_decision, origin, parse_ui_line, redact, route_ok, sanitize, Admit, Allowed, LineError, Navigation, RateLimit, UiLine};
+pub use notify::{Auth, AuthAnswer, AuthStep, Decision, Notifier, Permission};
+pub use pipe::{parse_pipe_line, JobEnd, JobKind, Line, LineReader, Pending, PipeMsg, Reason, UnsavedKind, PIPE_LINE_MAX};
 pub use stop::{stop_child, Stopped};
+pub use words::{guard_question, notification_text, quit_action, restart_buttons, restart_note, Action, Question, RestartButtons};
 
 /// A fresh scratch folder for one test (under the system temporary folder).
 #[cfg(test)]

@@ -384,6 +384,8 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
 
   it('⚑ only theme_edit / theme_copy / theme_create wrote themes, never on a starter; no model call; no site op', async () => {
     const reads = new Set(['engine_info', 'auth_status', 'project_list', 'project_get', 'run_list', 'job_list', 'activity_list', 'projects_overview', 'search', 'theme_list', 'theme_view', 'theme_preview', 'timeline_leave', 'site_list', 'brand_files', 'scenario_blocks']);
+    // L5.2b review B L7: a colour draft or a changed new-theme form reports unsaved text (kinds only; it writes no file).
+    reads.add('unsaved_report');
     const writes = [...new Set(ops.map((o) => o.op))].filter((op) => !reads.has(op));
     expect(writes.sort()).toEqual(['preview_allow', 'scenario_edit', 'theme_copy', 'theme_create', 'theme_edit']);
     for (const o of opsOf('theme_edit')) expect(['editorial', 'default', 'motion']).not.toContain(JSON.parse(o.body).theme);

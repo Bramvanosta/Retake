@@ -72,6 +72,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.9 | Studio acceptance, accessibility pass | S | **done** — phase 4 done (live checks: MACOS-CHECKLIST 13j) |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
 | L5.2 | Tauri desktop shell (macOS) | M | **done** (live checks: MACOS-CHECKLIST 14a) |
+| L5.2b | Desktop app: job notifications and a quit confirmation (asked after L5.2) | S | **done** (live checks: MACOS-CHECKLIST 14a steps 10–11) |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |

@@ -10,6 +10,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { ActionName, FormField, SceneBlock, StepBlock, StepForms } from '@demo-studio/core';
 import { Notice, Txt } from './bits.js';
+import { useUnsavedMark } from './drafts.js';
 import { actionForm, fieldWords, fieldsOf, formChanges, groupLabel, inputsOf, isRequired, issueField, readInputs } from './forms.js';
 import type { Inputs } from './forms.js';
 import type { StepEditor } from './StepEditing.js';
@@ -198,7 +199,7 @@ function Fields({
  * The selected step's form (inspector). Its values reset when the step changes on disk (its guard); a step changed
  * meanwhile while the form held changes is said, with what was typed (to copy: review B).
  */
-export function StepForm({ forms, scene, step, ed }: { forms: StepForms; scene: SceneBlock; step: StepBlock; ed: StepEditor }) {
+export function StepForm({ slug, name, forms, scene, step, ed }: { slug: string; name: string; forms: StepForms; scene: SceneBlock; step: StepBlock; ed: StepEditor }) {
   const idBase = useId().replace(/:/g, '');
   const form = step.form;
   const fields = useMemo(() => (form ? fieldsOf(forms, form.action) : []), [forms, form]);
@@ -209,6 +210,8 @@ export function StepForm({ forms, scene, step, ed }: { forms: StepForms; scene: 
   const [changedOnDisk, setChangedOnDisk] = useState<string[] | null>(null);
   const typed = fields.filter((f) => (inputs[f.key] ?? '') !== (shown[f.key] ?? ''));
   const dirty = typed.length > 0;
+  // L5.2b: typed fields are unsaved text the desktop app's quit question names.
+  useUnsavedMark(dirty ? { kind: 'step_form', project: slug, scenario: name } : null);
   // A new step selected, or this one changed on disk (our own save included): the form shows its values.
   useEffect(() => {
     if (base.key === step.key && base.guard === step.guard) return;

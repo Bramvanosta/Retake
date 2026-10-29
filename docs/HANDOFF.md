@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-29, end of lot **L5.2 (Tauri desktop shell, macOS)** — phases 1–4
-are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.5 – L5.8 done). **Next: L5.9 (Studio « Épure » 1), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-29, end of **L5.2b (the desktop app's job notifications and quit confirmation)** — phases
+1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
+L5.2, L5.2b, L5.5 – L5.8 done). **Next: L5.9 (Studio « Épure » 1), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -29,7 +29,23 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.2)
+## State (after L5.2b)
+- **L5.2b done (2026-10-29, asked by the user after L5.2)**: the desktop app asks before quitting and tells when jobs
+  end. The page reports unsaved text to its own server (token-gated op `unsaved_report`: README, YAML drafts, step
+  forms, comment composer / replies / notes, the Library's component brief, the new-theme form, theme colour drafts;
+  per-tab call numbers so a report never outlives its tab; cleared on `pagehide`); the server pushes `pending`
+  snapshots (queued / running worker jobs — Studio or MCP; the CLI's in-process runs are not counted — and unsaved
+  items) and `job_end` lines on the supervised pipe (`v:2`; plain `--json` stays `v:1`), enums and checked slugs only.
+  The shell catches every quit (`applicationShouldTerminate:` added to tao's delegate: ⌘Q, menu, Dock, a quit Apple
+  event, logout) and asks in an app-modal alert worded by the shell (names cut at 40 characters; with unsaved text
+  Cancel / Escape is the default and Quit Anyway has no key); at a restart / shutdown jobs alone ask nothing; Quit with
+  nothing pending stays instant (17–29 ms); SIGTERM / SIGINT end every shell question (14–43 ms; the folder picker by
+  hand). Notifications through UNUserNotificationCenter (permission asked at the first one shown, never by tests or dev
+  builds), only when the window is not in front, at most one every 5 s with a summary, a click shows the window.
+  Attached servers get neither (documented). Tests on the Mac: **3804 — 3720 pass, 84 skipped, 0 failures**; `pnpm
+  test:slow` 65/65; the gated desktop file 15/15 three times in a row (≈ 101 s). Live checks for the user:
+  MACOS-CHECKLIST 14a steps 10–11 (the permission prompt, a delivered banner and its click, the permission after a
+  rebuild, logout / restart, the picker with SIGTERM).
 - **L5.2 done (2026-10-29)**: the macOS desktop app (`apps/desktop`, Tauri 2.12.5, built offline from the local crate
   cache with `--locked`; `pnpm desktop:dev|build|test|clean`). The shell spawns `studio ui --supervised` (= `--json
   --no-open`; stops when its stdin closes, so an app crash leaves no orphan; its JSON line gains `v` and `player`) and
@@ -1360,6 +1376,15 @@ sandbox, a hook step and compact results through Claude Code).
   (Permissions-Policy), ui `server/{launch,player,studio}.ts` (counters, `player`), `player/frame-store.ts`; tests
   `desktop-{config,core,shell}.test.ts`, `player-preview` / `player-protocol` additions. New dependency: the Rust crates
   of apps/desktop only (Tauri, offline cache), none in the pnpm workspace. Cuts: BL-125.
+- **L5.2b done** (job notifications and a quit confirmation in the desktop app, asked by the user; R-DSK-02 evidence:
+  notifications done, native pickers / keychain still the gap). Planned with offline probes (objc2-user-notifications
+  and block2 add 4 lock edges, no package; tao has no `applicationShouldTerminate:`, added at runtime), criticised (a
+  test hook calling terminate from a Tauri closure hung the app; a second terminate during the question quit without
+  asking), built in a worktree, reviewed by two reviewers (a report outliving its tab, SIGTERM not ending the other
+  questions, wrong words at logout and a restart blocked by jobs, Return restarting over unsaved text…) and fixed with
+  mutation-checked tests (≈ 75 mutations, all killed). Files: ui `server/{supervise,unsaved}.ts`,
+  `app/unsaved-report.ts`, `drafts.ts` marks; engine `JobsWatch.unfinished` / `record`; cli `ui.ts`; desktop
+  `src/{guard,notify,macos,child,main}.rs`, core `{pipe,words,notify,config}.rs`. Cuts: BL-125 trimmed.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1627,6 +1652,19 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.2b:
+- The supervised pipe is one-way and line-framed (`"\n"+line+"\n"`, ≤ 8 KB): `pending` (coalesced 250 ms,
+  latest-wins) and `job_end` (≤ 20 a minute); console output goes to stderr in supervised mode. The shell keeps the last
+  snapshot, so Quit reads memory; after a server crash only the unsaved part is kept.
+- Every word of an alert or a notification lives in `apps/desktop/core/src/words.rs`; the pipe carries enums and names
+  that pass the slug rules (checked on both sides, existing projects / scenarios only). A static test keeps the TS and
+  Rust enum lists equal.
+- Never send `terminate:` from a Tauri closure (tao's lock): only `performSelectorOnMainThread` from the signal thread.
+  `GUARD_OPEN` makes a second terminate during a question answer Cancel; `QUIT_NOW` (SIGTERM / SIGINT / SIGHUP) aborts
+  any shell modal and blocks new ones.
+- Test mode (`DEMO_STUDIO_DESKTOP_TEST` + parent not launchd) answers questions from `_ANSWERS`, logs notifications
+  instead of posting them, and SIGUSR2 sends Quit; a Finder launch can never arm it.
+
 Notes from L5.2:
 - `studio ui --supervised` is the shell's only contract: one JSON line (`v`, `url`, `player`, …), stop on stdin EOF /
   SIGTERM with `stopped: <reason>` on stderr; exit 2 is preceded by `{"type":"error","code":"no_workspace"}` (an exit

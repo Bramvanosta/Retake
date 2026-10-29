@@ -11,6 +11,7 @@ import { info, setToken, useCall, useConnection } from './api.js';
 import { startEvents, useEvents } from './events.js';
 import { Notice, Txt } from './bits.js';
 import { dirtyDrafts, guardUnload } from './drafts.js';
+import { startUnsavedReport } from './unsaved-report.js';
 import { CommentsScreen } from './CommentsScreen.js';
 import { LibraryScreen } from './LibraryScreen.js';
 import { ProjectPage } from './ProjectPage.js';
@@ -45,6 +46,8 @@ function Studio() {
   const [list, reloadList] = useCall<ProjectList>('project_list', {}, 'all');
   const connection = useConnection();
   useEffect(() => guardUnload(), []);
+  // L5.2b: what the tab holds unsaved, for the desktop app's quit question (kinds and names only).
+  useEffect(() => startUnsavedReport(), []);
   // A project added, removed or changed on disk (or a reconnection): the list and the sidebar read it again.
   useEvents((e) => {
     if ((e.type === 'workspace' && e.projects.length > 0) || e.type === 'resync') reloadList();

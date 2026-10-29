@@ -15,6 +15,15 @@
  * ⌘S ⌘Enter stay the page's; no Reload; ⌘O and Window › Show Studio Window ⌘0 are the shell's: review B M3), one
  * title-bar switch (standard today), no forced theme, the app's name and bundle id in tauri.conf.json only, the binary
  * name in Cargo.toml only (review B L12).
+ * L5.2b (job notifications, quit guard): two more dependencies, already in Cargo.lock (block2, objc2-user-notifications
+ * with its feature list pinned: no new package); `applicationShouldTerminate:` added to the delegate class; UN called
+ * only behind the bundle check and never in test mode; no `terminate:` from a Tauri closure (critique H1) — the test
+ * hook sends it from its signal thread, and only while no question is up (GUARD_OPEN, H2), the restart alerts wait for
+ * an open question, signals set QUIT_NOW before `app.exit` (M1), a panic in the hook answers Now (L7); still no
+ * osascript, one `.eval`, one Command, no capability. Review fixes: every shell modal counted while it runs and ended by
+ * a signal only while AppKit runs one (B M1), the hook answering Cancel while one is up (B L13), no picker inside a
+ * question (B L10), the dead server's ports refused before its alert waits (B L11), test mode never for a launchd
+ * launch (A L2), and the pipe's enum lists the same in TypeScript and Rust (B L8).
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -111,7 +120,14 @@ describe('desktop shell configuration (L5.2, static)', () => {
 
   it('Cargo.toml: a short dependency allow-list, Tauri with no extra feature, objc2-app-kit without default features; the rules crate has no dependency', () => {
     const toml = read('Cargo.toml');
-    expect([...section(toml, 'dependencies').keys()].sort()).toEqual(['desktop-core', 'libc', 'objc2', 'objc2-app-kit', 'objc2-foundation', 'tauri']);
+    expect([...section(toml, 'dependencies').keys()].sort()).toEqual(['block2', 'desktop-core', 'libc', 'objc2', 'objc2-app-kit', 'objc2-foundation', 'objc2-user-notifications', 'tauri']);
+    // L5.2b: the notification crates without default features, their feature list pinned (L4: NSBundle declared, not
+    // borrowed from tao's feature unification).
+    expect(section(toml, 'dependencies').get('objc2-user-notifications')).toBe(
+      '{ version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationTrigger"] }',
+    );
+    expect(section(toml, 'dependencies').get('block2')).toBe('"0.6"');
+    expect(section(toml, 'dependencies').get('objc2-foundation')).toBe('{ version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString", "NSURL"] }');
     expect([...section(toml, 'build-dependencies').keys()]).toEqual(['tauri-build']);
     const tauri = section(toml, 'dependencies').get('tauri')!;
     expect(tauri).toMatch(/features = \[\]/);
@@ -132,6 +148,107 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(coreTest.indexOf("spawnSync('xcode-select', ['-p']")).toBeLessThan(coreTest.indexOf("spawnSync('cargo'"));
     expect(readFileSync(join(REPO, 'packages', 'cli', 'test', 'desktop-shell.test.ts'), 'utf8')).toMatch(/const ENABLED = WANTED && existsSync\(CLI\) && spawnSync\('cargo'/);
     expect(read('Cargo.lock')).not.toMatch(/name = "tauri-plugin-/);
+  });
+
+  it('L5.2b: the quit guard and notifications — the hook added, UN behind the bundle check and never in test mode, no terminate from a Tauri closure', () => {
+    const src = rustSources();
+    const guard = read('src/guard.rs');
+    const notify = read('src/notify.rs');
+    const main = read('src/main.rs');
+    // The hook: class_addMethod of applicationShouldTerminate: on the delegate's class, type "Q@:@"; a panic answers Now.
+    expect(guard).toMatch(/objc2::ffi::class_addMethod\(cls as \*const AnyClass as \*mut AnyClass, sel!\(applicationShouldTerminate:\), imp, c"Q@:@"\.as_ptr\(\)\)/);
+    expect(guard).toContain('std::panic::catch_unwind(decide).unwrap_or(NSApplicationTerminateReply::TerminateNow)');
+    expect(main).toMatch(/guard::install\(&h\);\n\s*notify::install\(&h\);/);
+    // UN: never in test mode, only in a bundle.
+    const post = /fn post\(title: String, body: String\) \{[\s\S]*?\n\}\n/.exec(notify)?.[0] ?? '';
+    expect(post.indexOf('if test_mode() {')).toBeGreaterThan(0);
+    expect(post.indexOf('if test_mode() {')).toBeLessThan(post.indexOf('if !bundled() {'));
+    expect(post.indexOf('if !bundled() {')).toBeLessThan(post.indexOf('currentNotificationCenter'));
+    const install = /pub fn install\(app: &AppHandle\) \{[\s\S]*?\n\}\n/.exec(notify)?.[0] ?? '';
+    expect(install.indexOf('if !test_mode() && bundled() {')).toBeGreaterThan(0);
+    expect(install.indexOf('if !test_mode() && bundled() {')).toBeLessThan(install.indexOf('currentNotificationCenter'));
+    expect(notify.match(/currentNotificationCenter\(\)/g)).toHaveLength(3);
+    // add() posts: called only from post (its granted branch and the permission answer).
+    expect(notify.match(/\badd\(&/g)).toHaveLength(2);
+    for (const call of notify.match(/\badd\(&[^\n]*/g) ?? []) expect(post).toContain(call);
+    expect(notify).toContain('UNAuthorizationOptions::Alert,');
+    expect(notify).not.toMatch(/UNAuthorizationOptions::Sound|setSound/);
+    // H1: no terminate inside a run_on_main_thread closure (bracket-matched arguments); the only terminate: is
+    // request_terminate's performSelectorOnMainThread, called from the signal thread when no question is up (H2).
+    for (let i = src.indexOf('run_on_main_thread('); i >= 0; i = src.indexOf('run_on_main_thread(', i + 1)) {
+      let depth = 0;
+      let j = i + 'run_on_main_thread'.length;
+      do {
+        if (src[j] === '(') depth++;
+        else if (src[j] === ')') depth--;
+        j++;
+      } while (depth > 0 && j < src.length);
+      expect(src.slice(i, j), src.slice(i, i + 80)).not.toMatch(/terminate|request_terminate/);
+    }
+    expect(src.match(/sel!\(terminate:\)/g)).toHaveLength(1);
+    expect(guard).toMatch(/pub fn request_terminate\(\) \{[\s\S]{0,400}performSelectorOnMainThread: sel!\(terminate:\)/);
+    expect(main.match(/guard::request_terminate\(\)/g)).toHaveLength(1);
+    expect(main).toMatch(/libc::SIGUSR2 if test => \{\n\s*if guard::GUARD_OPEN\.load\(Ordering::SeqCst\) \{[\s\S]{0,200}\} else \{[\s\S]{0,120}guard::request_terminate\(\);/);
+    // H2: the restart alerts wait while a question is up; M1: a signal sets QUIT_NOW before app.exit.
+    expect(main).toMatch(/fn server_gone\([^)]*\) \{\n\s*if later_while_guard_open\(/);
+    // Review B L11: the dead server's ports are refused before its alert is put off for an open question.
+    const exited = /fn server_exited\([^)]*\) \{[\s\S]*?\n\}\n/.exec(main)?.[0] ?? '';
+    expect(exited.indexOf('*lock(&shell.allowed) = dc::Allowed::NONE;')).toBeGreaterThan(0);
+    expect(exited.indexOf('*lock(&shell.allowed) = dc::Allowed::NONE;')).toBeLessThan(exited.indexOf('if later_while_guard_open('));
+    // M1 / review B M1: a signal sets QUIT_NOW before app.exit, then ends whichever modal of the shell is up.
+    expect(main).toMatch(/guard::QUIT_NOW\.store\(true, Ordering::SeqCst\);\n\s*app\.exit\(0\);\n[\s\S]{0,160}macos::end_modals\(\);/);
+    const macos = read('src/macos.rs');
+    // Every modal loop of the shell is counted while it runs (each runModal after a Modal::enter, after a quitting()
+    // check), and ended only while AppKit says one runs (modalWindow): abortModal without one raises.
+    const runs = [...macos.matchAll(/\.runModal\(\)/g)].map((m) => m.index!);
+    expect(runs).toHaveLength(2);
+    for (const at of runs) {
+      const before = macos.slice(Math.max(0, at - 600), at);
+      expect(before, macos.slice(at - 80, at)).toMatch(/let modal = Modal::enter\(\);\n\s*if quitting\(\) \{\n\s*return None;\n\s*\}/);
+    }
+    expect(macos).toMatch(/fn end_current\(\) \{[\s\S]{0,200}let Some\(window\) = app\.modalWindow\(\) else \{ return \};/);
+    expect(macos.match(/abortModal\(\)/g)).toHaveLength(1);
+    // Review B L13 / L10: the quit hook answers Cancel while any modal of the shell is up; Open Workspace… never opens
+    // the picker inside one.
+    expect(guard).toMatch(/fn decide\(\) -> NSApplicationTerminateReply \{\n\s*if GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| crate::macos::modal_up\(\) \{/);
+    expect(main).toMatch(/fn open_other\(app: &AppHandle\) \{\n(?:\s*\/\/[^\n]*\n)*\s*if guard::GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| macos::modal_up\(\) \{/);
+    // Review A L2: test mode only with its variable and a parent other than launchd, decided at launch.
+    expect(main).toContain('*MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("DEMO_STUDIO_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))');
+    expect(src.match(/std::env::var\("DEMO_STUDIO_DESKTOP_TEST"\)/g)).toHaveLength(1);
+    // The guard's facts are an owned server's pipe only (an attached one has none: never its stale snapshot).
+    expect(read('src/child.rs')).toContain('self.proc.as_ref().map(|_| lock(&self.pending).clone())');
+  });
+
+  it('L5.2b review B L8: the pipe enum lists are the same in TypeScript (server, page) and Rust (desktop_core pipe.rs)', () => {
+    const ui = (f: string) => readFileSync(join(REPO, 'packages', 'ui', 'src', f), 'utf8');
+    const tsList = (src: string, name: string) => {
+      const m = new RegExp(`export const ${name} = \\[([^\\]]*)\\] as const;`).exec(src);
+      expect(m, name).not.toBeNull();
+      return [...m![1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+    };
+    const pipe = read('core/src/pipe.rs');
+    const rsList = (name: string) => {
+      const m = new RegExp(`\\b${name} \\{([^}]*)\\}`).exec(pipe);
+      expect(m, name).not.toBeNull();
+      return [...m![1]!.matchAll(/([A-Z][A-Za-z]*) = "([a-z_]+)"/g)].map((x) => [x[1], x[2]] as const);
+    };
+    const supervise = ui('server/supervise.ts');
+    const pairs: Array<[string, string]> = [
+      ['PIPE_KINDS', 'JobKind'],
+      ['PIPE_OUTCOMES', 'Outcome'],
+      ['PIPE_REASONS', 'Reason'],
+    ];
+    for (const [ts, rs] of pairs) expect(rsList(rs).map((x) => x[1]), `${ts} / ${rs}`).toEqual(tsList(supervise, ts));
+    expect(rsList('JobState').map((x) => x[1])).toEqual(['running', 'queued']);
+    const unsaved = tsList(ui('server/unsaved.ts'), 'UNSAVED_KINDS');
+    expect(rsList('UnsavedKind').map((x) => x[1])).toEqual(unsaved);
+    // The page's own union (drafts.ts UnsavedItem) names the same kinds.
+    const union = /kind: ((?:'[a-z_]+'(?: \| )?)+);/.exec(ui('app/drafts.ts'))![1]!;
+    expect([...union.matchAll(/'([a-z_]+)'/g)].map((x) => x[1])).toEqual(unsaved);
+    // Each Rust variant is its wire name in CamelCase (yaml_draft is YamlDraft).
+    for (const rs of ['JobKind', 'Outcome', 'Reason', 'UnsavedKind', 'JobState']) {
+      for (const [variant, wire] of rsList(rs)) expect(variant, rs).toBe(wire.split('_').map((w) => w[0]!.toUpperCase() + w.slice(1)).join(''));
+    }
   });
 
   it('the scripts: cargo always --locked through one call, never /Applications, ad-hoc signature only; root scripts and .gitignore', async () => {

@@ -1970,13 +1970,16 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   flags and last run in one call, for the Projects screen — and, since L4.2, `scenario_blocks`, `run_thumbs`, the own
   op `scenario_run` and the MCP tool `run_cancel` (§4d); since L4.3 the MCP tool `scenario_validate` and the own op
   `scenario_edit` (§4e); since L4.4 the MCP tools `auth_status` and `auth_login` (NARROWED: `mode` headed only, `wait_s`
-  0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
+  0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); since L5.2b the own op `unsaved_report`
+  (what a tab holds unsaved, kinds and names only: the desktop app's quit question, §4j); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
   code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
   it. `studio ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
   L5.2: each answer has `player` (the player origin; `/v1/bootstrap` answers it too — no secret, the capabilities under
-  it are), undefined from an older server; `studio ui --json` prints it with `v: 1`; `studio ui --supervised` (§4j).
+  it are), undefined from an older server; `studio ui --json` prints it with `v: 1`; `studio ui --supervised` (§4j:
+  `v: 2` since L5.2b, the pipe lines follow). L5.2b: after each op that succeeded and is not read-only (`unsaved_report`
+  excepted) the server's `onWrite` listeners run (the supervised job watch polls at once).
   `/v1/info` adds `counters` — `sessions` (codes redeemed), `streams` (event streams open), `player_media_bytes_read`
   (bytes of registered files read to answer GET requests — read, not sent: an aborted response counts its read-ahead;
   review B L9), `player_range_requests` (GET answers 206) — numbers only, what the desktop shell's black-box test asserts; every answer carries
@@ -3695,14 +3698,18 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
   launch would take from `launchctl setenv` (review A L4; `desktop-core` `child_env_dropped`). Not an allow-list: an
   automated sign-in's `{{env:NAME}}` secrets reach the worker through that environment) with three pipes, reads its
   first stdout line (≤ 30 s, ≤ 64 KB) and checks it
-  (`desktop-core` `parse_ui_line`: `type: "ui"`, `v: 1` — another version is refused with "pnpm build and pnpm
-  desktop:build", `url` exactly `http://127.0.0.1:<port>/#c=<43 chars>`, `player` exactly `http://127.0.0.1:<other
+  (`desktop-core` `parse_ui_line`: `type: "ui"`, `v: 2` (L5.2b; `studio ui --json` keeps `v: 1`) — another version is
+  refused with the one to rebuild: an older CLI "run pnpm build, then pnpm desktop:build", a newer one "rebuild the app —
+  pnpm desktop:build" (an app built before L5.2b refuses `v: 2` with its own "pnpm build (and pnpm desktop:build)"
+  alert: never a hang), `url` exactly `http://127.0.0.1:<port>/#c=<43 chars>`, `player` exactly `http://127.0.0.1:<other
   port>`; no `player` = an older running server → refused with "stop it and open the workspace again").
 - `--supervised` (cli `ui.ts`): `--json --no-open`, the stdin watcher installed before the server starts; stdin's end
   (or error), SIGTERM / SIGINT stop it through the same close path (ui.json released), then `stopped: <reason>` on
-  stderr. Nothing is written on stdout after the line, so a parent gone is seen as stdin's end (no EPIPE path). Bytes
-  on stdin are read and discarded (no protocol yet; see the confirm design below). A folder that is no workspace
-  prints `{"type":"error","v":1,"code":"no_workspace"}` before exiting 2 (review B L4: an older CLI without
+  stderr. After the line only the pipe lines below are written on stdout (console.log / info / debug go to stderr, the
+  lines through stdout's own write captured first: critique M4); a parent gone is seen as stdin's end (EPIPE ignored).
+  The signal handlers are installed before the line (a parent that signals as soon as it reads it meets them). Bytes
+  on stdin are still read and discarded (BL-106's confirm will be the first inbound message). A folder that is no
+  workspace prints `{"type":"error","v":2,"code":"no_workspace"}` before exiting 2 (review B L4: an older CLI without
   `--supervised` also exits 2, with no line — the app then says to run `pnpm build` and `pnpm desktop:build`).
 - **Owned** (`reused: false`): the app holds the only write end of the child's stdin — the app's death (crash, SIGKILL)
   is the child's EOF. Quit (menu, ⌘Q, SIGTERM / SIGINT / SIGHUP through a self-pipe handler that asks the event loop
@@ -3718,6 +3725,77 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
 - **The shell holds no token and never reads ui.json**: it asks the CLI, whose reuse (`launchStudio`) mints a code
   through the file's token; the one-time URL (valid 60 s, single use) is in the app's memory only, handed to the
   webview, never printed, never on a command line. The page keeps its token in its own sessionStorage.
+- **Pipe lines (L5.2b, push).** After the `ui` line an owned server writes, one JSON object per line, ≤ 8 KB each,
+  each framed by a newline before and after (review A L3: a stray partial write of another module on stdout becomes a
+  line of its own, ignored, never glued to the next state; the shell skips blank lines silently) (ui `supervise.ts`): `{"type":"pending","jobs":[{kind,state,project,scenario?}…≤ 8],"jobs_total","unsaved":[{kind,
+  project?,scenario?}…≤ 8],"unsaved_total"}` — what Quit would leave behind, whole, at start (after the job watch took
+  stock) and on every change, coalesced (one write per 250 ms at most, a trailing write so the last state always lands,
+  latest-wins while stdout is full: nothing queues) — and `{"type":"job_end","kind","outcome","reason"?,"project",
+  "scenario"?}` once per job that ends while it runs (≤ 20 a minute; more counted on stderr). Push, not a question
+  asked at Quit time: Quit with nothing pending decides from memory (a mutex read: instant, no round trip, no timeout),
+  the snapshot is still there after the server died (the restart alert names the unsaved text), stdin stays
+  inbound-free. Freshness: a Studio op that writes nudges the watch (a submit shows at once), a dirty report reaches
+  the server on the first changed character and is pushed at once, a job Claude queued through MCP shows within the
+  1 s poll. **Enums and slugs only**: job kind ∈ {capture, dry_run, render, review, export, recording,
+  studio_recording, hooks, env_reset, sandbox_start, sandbox_reset} (one explicit table from the job kinds:
+  `sandbox_up` is `sandbox_start`, a `record` job the Studio submitted is `studio_recording`), state ∈ {running,
+  queued}, outcome ∈ {succeeded, failed, attention}, reason ∈ {run_failed, interrupted, review_issues, check_failed,
+  ready_to_save, nothing_recorded, hooks_failed, reset_failed}, unsaved kind ∈ {readme, yaml_draft, step_form,
+  comment, component_brief, new_theme, theme_draft}; project `^[a-z0-9][a-z0-9-]{0,99}$`, scenario
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$` — checked by the server (a hand-edited job.json is data: a name is sent only when
+  it passes the rule AND names a project / scenario file that exists, review A L1) and again by the shell
+  (`desktop-core` `pipe.rs`: an unknown enum drops the item but its total still counts, a bad slug drops the name,
+  lists cut to 8). The lists are the same in TypeScript and Rust (a static test compares them: review B L8). No path,
+  message, URL or page text crosses; the shell's words are its own (`words.rs`) — **enums, plus names that pass the
+  slug rules**: a slug is still words someone chose (`Your_session_expired-…` is a valid scenario name), so the shell
+  shows a name cut to 40 characters, as a name inside its own sentence, never as one. The shell reads each line through a capped reader (16 KB; a
+  longer one is drained to its newline and marks the snapshot unreadable); a line that is no JSON object, an unknown
+  `type` or a `job_end` it cannot word is ignored (said once: forward compatible, a stray print never poisons the
+  snapshot); only a `pending` that fails its checks marks it unreadable — Quit then asks with generic words — until the
+  next valid one. At the server's end its jobs are history (critique L2): the snapshot keeps only the unsaved text.
+- **The job watch** (`Supervisor`, supervised and owned only): engine `JobsWatch` polled every 1 s for the server's
+  life (not the event stream's: a hidden window may lose its stream) — it takes stock first, so jobs finished before
+  the server started give no `job_end`; a job seen unfinished that reads finished, or a new one already finished, gives
+  exactly one (ids remembered, ≤ 1 000). Jobs of the workspace's queue count — the quit question and notifications
+  alike — whoever queued them: the Studio (any window or tab on this server) or Claude through MCP. The CLI queues
+  none: `studio run` / `render` / `export` / `record` run in-process and write no job, so a terminal's capture is
+  neither asked about nor notified (review B L1). Kinds that count: captures and dry runs, renders, reviews, exports,
+  recordings, sandbox starts and resets, environment resets and hooks that are not dry; not `preview` (the library's posters), `auth_login`
+  (the person is at its window), `inspect`, `site`. A queued job with no live worker is left out (critique M2: nothing
+  runs it until the next submit starts one — it would hold Quit, and "keeps running" would be false). Outcome
+  (`jobOutcome`): failed → failed; interrupted → failed / interrupted; cancelled → none (someone asked for it); a run
+  whose own status failed → failed / run_failed (cancelled → none); a render with an inline review not clean, a review
+  not clean → attention / review_issues; a recording: nothing recorded → attention / nothing_recorded, check failed →
+  attention / check_failed, a Studio recording to save → attention / ready_to_save; hooks not ok → failed /
+  hooks_failed; an environment reset not ok → failed / reset_failed (a rollback or a reset hook: review B L14);
+  otherwise succeeded. Each live job is read once per poll (`JobsWatch.record`: a running job's read checks its worker
+  with `ps`, review B L15); the event stream's own watch (`live.ts`) is a second reader while a page is open — one
+  shared watch is BL-125. Not every end is a notification (review B L12): past 20 `job_end` lines a minute the rest
+  are counted on the server's stderr only, so a summary can undercount a flood.
+- **Unsaved text** (`unsaved.ts`, own op `unsaved_report` — in every Studio, harmless in a browser tab):
+  `{tab: 22 base64url, hidden, items: ≤ 16 × {kind, project?, scenario?}}`, zod strict in its shape (an extra field
+  such as a label is a 400; a name is any text ≤ 1 000 characters). The board keeps each tab session's latest report;
+  names only for a project (`project.yaml`) and a scenario (`scenarios/<name>.yaml`) that pass the slug rules (≤ 100
+  characters) and exist — a name that does not is dropped, the item kept (review A L4: one bad name never refuses the
+  whole report; the page drops it before sending too); deduplicated across tabs; a new tab beyond 16 is refused
+  (critique L3: never an older one evicted — the oldest report is the hidden app window's; the refused 17th tab retries
+  every 5 s and is missing from the question meanwhile, review B L12). Reports of one tab apply in call order (reviews
+  A M1 / B M3): each call takes the tab's next number on entry, and a report whose existence checks end after a newer
+  call of its tab came is dropped — a report still checking when the `pagehide` empty report arrives never re-adds the
+  tab. **A report never outlives its tab session**
+  (critique L8, the simpler rule): an empty report clears it — the page sends one when its set empties and on
+  `pagehide` (with `keepalive`), then sends nothing until `pageshow` (Chromium fires the unload's `visibilitychange`
+  after `pagehide`: a report sent then could reach the server after the empty one) — and the board ends with its
+  server; nothing expires by time (a hidden window's timers are throttled: a report that expired while the window sat
+  closed would be the loss this exists to prevent). Worst case: a tab killed without `pagehide` (a WebContent crash)
+  leaves one needless question until the server stops. The page (`unsaved-report.ts`) reports the drafts store's
+  dirty README / scenario YAML and the **marks** of component-local text (`drafts.ts` `useUnsavedMark`: a step form's
+  typed fields, the comments composer, a reply or a resolve / reopen note, the Library's "create a component" words,
+  a changed new-theme form, a theme colour or background picked and not written — review B L7): kinds and names, never
+  the text; on a
+  change (one call in flight, the latest after it), on `visibilitychange` while not empty, nothing while nothing was
+  ever unsaved. The browser's own `beforeunload` prompt stays the drafts' only (marks are not added to it). The Record
+  screen's typed words are not marked (BL-125).
 - The jobs worker is detached and shared (`studio mcp`, the CLI): Quit never stops it; it finishes and idle-exits.
 
 **The window.** `WebviewUrl::External(<one-time URL>)` — not a Tauri custom protocol: the gate accepts only the
@@ -3751,7 +3829,8 @@ page under `devUrl` / `frontendDist` would be a Tauri *local* origin that reache
   hidden shows none (an `NSApplicationDidBecomeActive` observer needs a block crate the shell does not depend on:
   BL-125). While hidden the page keeps its event stream, so the server's 1 s workspace poll and keepalive go on
   (BL-125: measure with App Nap). No Reload item (critique M1: WKWebView implements no `beforeunload` panel — wry's UI
-  delegate has none — so a reload, Quit, Open Workspace… or a restart drops unsaved YAML / README text: BL-125).
+  delegate has none; Quit, Open Workspace… and a restart ask through the quit guard since L5.2b, a Reload would need
+  the same: BL-125).
 - `--route '#/…'` (debug builds, or DEMO_STUDIO_DESKTOP_TEST=1): once the page has removed `#c=` from its URL, the
   app sets `location.hash` (the only `.eval`; `route_ok`: `#/` + `[A-Za-z0-9/_.-]{0,200}`) — how the black-box test
   reaches a timeline without input automation.
@@ -3766,9 +3845,15 @@ or is cancelled reopens the previous workspace — Open Workspace… never quits
 `Contents/Resources/launch.json` (`{version: 1, node, cli}`, written by `desktop:build`: `stableNodePath(execPath)`,
 the repository's `packages/cli/dist/bin.js`); `DEMO_STUDIO_NODE` / `DEMO_STUDIO_CLI` win in debug builds only (a
 Finder launch never takes them from `launchctl setenv`); both absolute, regular files, else an alert with the fix.
-Under DEMO_STUDIO_DESKTOP_TEST=1 no modal is ever shown (alerts print and answer their last button; the picker
-answers DEMO_STUDIO_DESKTOP_TEST_PICK once, then cancels) and SIGUSR1 is File › Open Workspace… (the gated test's way
-to the menu without input automation).
+Under DEMO_STUDIO_DESKTOP_TEST=1 — honoured only when another process started the binary, never with launchd as its
+parent (`getppid() == 1`: a Finder or Dock launch, which `launchctl setenv` could arm — review A L2; decided once at
+launch, `desktop-core` `test_mode_allowed`) — no modal is ever shown (alerts print their text and their buttons' keys
+and answer their cancel button — the last, the guard's Cancel, the restart alert's Not Now — or the next index of
+DEMO_STUDIO_DESKTOP_TEST_ANSWERS; the picker answers DEMO_STUDIO_DESKTOP_TEST_PICK once, then cancels), SIGUSR1 is File › Open Workspace… and SIGUSR2 is Quit through `terminate:` (L5.2b: the ⌘Q path —
+the gated test's ways to the menu without input automation), notifications are logged, never posted
+(DEMO_STUDIO_DESKTOP_TEST_FRONT=0|1 says whether the window counts as in front), and DEMO_STUDIO_DESKTOP_TEST_MODAL_MS
+shows an alert for real and aborts it after that delay (the same main-thread call as a signal's, aimed at that alert
+only).
 
 **Output.** fd 2 is a pipe read by a filter thread (`logfilter.rs`) before the real stderr: `desktop-core` `sanitize`
 (every URL cut to its origin, `#c=…`, `Bearer …` and any run of ≥ 40 base64url characters hidden, control and bidi
@@ -3790,7 +3875,90 @@ system's appearance (DarkAqua in Dark mode — alerts, the picker and menus foll
 by review B M2): light today, because the Studio pins `color-scheme: light` (app.css). Nothing in the shell changes
 that — no `.theme()`, no `NSRequiresAquaSystemAppearance`; the redesign's dark / light tokens under
 `prefers-color-scheme` (BL-124) carry the bar with them. Keychain: nothing (secrets stay `{{keychain:…}}` references
-resolved by the worker). Notifications: cut (BL-125).
+resolved by the worker).
+
+**The quit guard (L5.2b, `src/guard.rs`).** `applicationShouldTerminate:` added at launch to the class of NSApp's
+delegate (`class_addMethod`, type `Q@:@`): tao 0.37 does not implement it and Tauri's `ExitRequested` never fires for
+⌘Q, so this is the one path for ⌘Q, the menu's Quit (`terminate:`), the Dock, a quit Apple event and logout / restart.
+`class_addMethod` returning NO (a later tao implements it) leaves the guard off and logs "quit guard off": the gated
+test turns red at that upgrade. The method, on the main thread: no session of the app's own (none, or an attached
+server: it has no pipe) or nothing pending → Now (a mutex read: Quit stays instant); otherwise the window is shown and
+an app-modal alert (`macos::ask`; not a sheet — it works with the window hidden, needs no TerminateLater bookkeeping,
+and logout waits for it) asks with `desktop-core` `guard_question`: "Quit Demo Studio?" — "Unsaved text in the Studio
+(this window, or a browser tab on it) can no longer be saved: • README.md of shop • Scenario quote of shop (YAML)"
+(review B L6: the board holds every tab on the server; a browser tab keeps its text on screen, but nothing saves it
+once the server stops) / "These jobs keep running after the app quits, but it will not tell you when they end:
+• Capture of shop · quote (running) …and 2 more" — and, with a recording the Studio started, "A recording started in
+the Studio keeps its window open: close that window to end it, then save it from the Record screen when this
+workspace is open again" (review B L5: its controls are the Record screen's). Unsaved text (or an unreadable state):
+[Cancel, Quit Anyway] — Cancel first and Escape (AppKit gives a button titled Cancel Escape even when it is first;
+Return then does nothing: logged by the gated test, review B L4), Quit Anyway destructive (red) and without a key, so
+Return never loses text (critique M3); jobs only: [Quit Anyway (Return), Cancel (Escape)]. File › Open Workspace… asks
+"Open another workspace?" the same way before the owned server stops ("These jobs keep running; this window stops
+following them"). The restart alert after the owned server died names the unsaved text still in the window: [Not Now
+(Return), Restart, Quit] — Restart and Quit lose the text, so both are destructive without a key (review B M4,
+`restart_buttons`); Not Now leaves the window as it is (Quit later asks again — its job list is gone, the jobs being
+history). Without unsaved text: [Restart (Return), Quit]. Rules found by the plan's
+critique and probes (`l52b/probe-crit`, `probe-tao`):
+- **Logout, restart, shut down** (review B M2): the quit Apple event being handled (`NSAppleEventManager
+  currentAppleEvent`, `kAEQuitReason`: logo / rlgo → logout; rest / rrst / shut / rsdn → restart or shut down) picks
+  `Action::LogOut` — "These jobs stop when you log out (the jobs worker ends with your session)" — or
+  `Action::SystemRestart`: jobs alone ask nothing there (an unattended restart, such as a macOS update's, is never held
+  by them; they stop with it either way, and the log says so), unsaved text or an unreadable state still asks ("These
+  jobs stop when the Mac restarts or shuts down"). ⌘Q, the menu and the Dock carry no reason: `Action::Quit`. Not
+  gated (sending a quit event with a reason needs Automation permission): the words are core tests, the reason is
+  MACOS-CHECKLIST 14a.
+- **Signals stay "quit now"**: SIGTERM / SIGINT / SIGHUP go through `app.exit` → `[NSApp stop:]`, never `terminate:`,
+  so they never meet the guard; `QUIT_NOW` is set first. `[NSApp stop:]` ends only the hook's own modal (it runs
+  outside tao's callback); a modal opened by a Tauri callback — Open Workspace…'s question, the restart alert, "not a
+  workspace", the picker — holds tao's queued exit until it closes (tauri-runtime-wry `request_exit` goes through the
+  event-loop proxy, which waits while `in_callback`). So every shell modal is counted while it runs (`macos.rs`
+  `Modal`), and the signal thread ends whichever is up (review B M1): `performSelectorOnMainThread:` of a small
+  `StudioShellModalEnder` method — it runs in the modal panel mode — that cancels the picker by its own `cancel:` or
+  ends an alert with `abortModal`, only while `[NSApp modalWindow]` says a modal loop runs (abortModal without one
+  raises); it is posted again every 100 ms while one is up (≤ 5 s: a modal opening as the signal comes, or the one an
+  ended modal returns to). Once `QUIT_NOW` is set no new modal opens and no server starts (`open` checks it): the
+  callback returns and the queued exit runs. Measured (gated, each modal up for real, the test's own abort set at 20 s): 23 ms for the
+  quit question, 41 ms for Open Workspace…'s, 20 ms for "not a workspace", 32 ms for the restart alert. A `terminate:`
+  (the test's Quit) during the restart alert reaches the hook, which answers Cancel (gated: no question nested). The picker's case is not gated
+  (test mode never shows the panel: a real NSOpenPanel would write the test bundle's preferences) — MACOS-CHECKLIST
+  14a.
+- **AppKit treats a `terminate:` sent while the hook is still deciding as Now** without asking again (H2): `GUARD_OPEN`
+  is set while a question is up — the test hook is ignored then, a second ⌘Q while another question of the guard is up
+  answers Cancel, and the restart alerts (`server_exited`, `server_gone`) wait (re-queued every 250 ms; the dead
+  server's ports refused first, review B L11) instead of opening an alert inside the alert or a server while it
+  decides. A `terminate:` while any other shell modal is up (the restart alert, the picker, "not a workspace")
+  answers Cancel too (review B L13: never the question nested in it, never `applicationWillTerminate` inside a modal a
+  Tauri callback opened — the H1 hang); File › Open Workspace… opens no picker while a question is up (B L10).
+- **Never `terminate:` from a Tauri / tao callback** (H1): tao runs `run_on_main_thread` closures holding its callback
+  lock, and `applicationWillTerminate` takes it again — a hang (reproduced). The test hook (SIGUSR2) sends
+  `performSelectorOnMainThread:terminate:` from its own thread, which arrives like a real ⌘Q (outside tao's callback,
+  Tauri events still flowing while the alert waits).
+- A panic in the hook answers Now (`catch_unwind`, L7): an app that cannot quit is worse than a question not asked.
+- An attached server: no guard, no notifications, said once at attach ("they need a server of this app's own"); the
+  relay (the `--supervised` child kept alive with the file's token) is BL-125.
+
+**Job notifications (L5.2b, `src/notify.rs`).** UNUserNotificationCenter (`objc2-user-notifications`, default features
+off, and `block2`: both already in Cargo.lock through objc2-ui-kit — four dependency edges, no new package). A
+`job_end` while the window is in front (the app active, its window key, visible, not minimised) is dropped (the page
+shows it); otherwise `desktop-core` `Notifier` posts the first at once and holds the ones within 5 s of a post for one
+summary at the 5 s mark (dropped if the window came to front meanwhile): at most 12 a minute by construction. Words
+from `words.rs`: "Capture finished" / "Render failed" / "Recording needs attention", the body "shop · quote" and a
+reason ("The review found errors or warnings.", "Ready to save on the Record screen.", "Interrupted: the worker
+stopped.", "A rollback or a reset hook failed."), "Sandbox started"; a summary "3 jobs ended" — "2 finished, 1 failed /
+shop · quote and 1 more" (review B L14). Thread identifier `jobs`, no sound. Permission (`Alert` only) is asked at the
+first notification that would be shown, which is posted once granted if the answer came within a minute. A no or an
+error is never kept for the session (review B L9, `desktop-core` `Permission`): the next notification asks again —
+once the person answered, that call never prompts, so a switch turned on in System Settings works without a relaunch
+— and each different outcome is logged once: "notifications are off: System Settings › Notifications › …" for a
+person's no, "notifications could not be allowed: macOS refused the request (<domain> <code>)" for an error (an
+unsigned or ad hoc bundle refused by macOS is not a person's no). The delegate is set at
+launch when bundled (a click on a notification left from an earlier session still shows the window): `willPresent`
+answers banner + list, a click activates the app and shows the window (no navigation to the job's screen: BL-125).
+Only a real bundle calls UN (`NSBundle.mainBundle` with a bundle id and a `.app` path; `desktop:dev` runs a bare binary
+and says so once); test mode never calls it. No osascript fallback. Permission is stored per bundle id, not tied to the
+ad hoc signature: expected to survive a rebuild (MACOS-CHECKLIST 14a checks it); the test bundle id never asks; the
+rename (L5.13) changes the bundle id → one new prompt.
 
 **Prepared for the redesign (BACKLOG BL-124; nothing of it built).**
 - *Title bar.* `src/menu.rs` `TITLE_BAR` is the one switch: `TitleBar::Standard` today; the redesign sets
@@ -3832,9 +4000,12 @@ build, dependencies without debug info; ≈ 0.85 GB for a release one; one per c
 git-ignored, all removed by `desktop:clean` (review B L3).
 
 **Tests.** `desktop-config.test.ts` (default suite, static: tauri.conf.json, no capability anywhere, the window's
-builder calls, one `.eval`, one `Command::new`, the dependency allow-list and Tauri features, `--locked`, no
-/Applications, ad hoc signature, the menu table's accelerators, `TITLE_BAR`, the name in one place);
-`desktop-core.test.ts` (default suite: `cargo test` of `apps/desktop/core`, a crate with no dependency — 21 tests,
+builder calls, one `.eval`, one `Command::new`, the dependency allow-list and Tauri features — L5.2b: the notification
+crates' feature list, the hook added, UN only behind the bundle check and never in test mode, no `terminate` inside a
+`run_on_main_thread` closure, GUARD_OPEN / QUIT_NOW / catch_unwind in place —, `--locked`, no /Applications, ad hoc
+signature, the menu table's accelerators, `TITLE_BAR`, the name in one place); `desktop-core.test.ts` (default suite:
+`cargo test` of `apps/desktop/core`, a crate with no dependency — 33 tests (L5.2b: the pipe lines, the question's
+words with a hostile-input property test, the no-storm rule),
 ≈ 1.6 s warm; skipped with the reason in its title on Windows, on macOS without the Xcode command line tools —
 `xcode-select -p`, checked before cargo runs so the `cc` shim never opens their install dialog —, without rustc /
 cargo, or with a Rust older than 1.70: review B M4); `desktop-shell.test.ts` (gated `DEMO_STUDIO_TEST_DESKTOP=1`,
@@ -3843,7 +4014,15 @@ with the test bundle id `local.demo-studio.desktop.test`, the binary started dir
 argv without secret, two listeners on 127.0.0.1; the page loaded = `/v1/info` counters `sessions ≥ 1`, `streams ≥ 1`;
 SIGTERM = the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`); SIGKILL = no orphan; attached = the
 terminal's server survives Quit; Open Workspace… (SIGUSR1) on a folder that is no workspace keeps the app, its server
-and its page; a hostile launch — a copy of the app whose launch.json runs a fake `studio ui --supervised` serving an
+and its page; L5.2b (SIGUSR2 = `terminate:`): nothing pending → instant; a running job (its worker: the test
+process) holds Quit and Open Workspace… (answered Cancel), then instant once it ended; a tab's unsaved report (the
+op, with ui.json's token) named, a name that does not exist never; notifications logged by the no-storm rule — window
+not in front: one at once and one summary 5 s later, in front: none; SIGTERM with a job running quits without a
+question; attached: no guard, SIGUSR2 quits at once and the job stays; the real alert (MODAL_MS): a second window of
+the app while it is up and gone after, a second SIGUSR2 ignored (H2), SIGTERM while it is up quits (M1), Return never
+on Quit Anyway with unsaved text (the alert's key equivalents logged), screenshots of the question; the owned server
+killed with unsaved text: the restart alert names it, Not Now keeps the window, Quit then asks about the text only; a
+hostile launch — a copy of the app whose launch.json runs a fake `studio ui --supervised` serving an
 adversarial page and a sandboxed "player" — proves no request reaches a foreign port (iframe, redirect, srcdoc frame,
 octal host, `target=_blank`, `window.open`, top-level location), data: / blob: / custom-scheme navigations refused,
 both downloads cancelled and nothing in `~/Downloads` (files named with a per-run token, the only ones ever deleted),

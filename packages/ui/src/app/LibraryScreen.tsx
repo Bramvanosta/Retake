@@ -21,6 +21,7 @@ import type { ThemeEditResult, ThemeEditView } from '@demo-studio/engine';
 import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryItem, LibraryViewAnswer } from '../server/library-ops.js';
 import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, Loading, Notice, Txt, plural } from './bits.js';
+import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
 import { LibraryImages, RenderPump } from './library-load.js';
 import type { ImageEntry, ImageWant, RenderRequest } from './library-load.js';
@@ -362,6 +363,8 @@ function CreateDialog({ slug, theme, taken, kind: firstKind, like, onClose }: { 
   const [kind, setKind] = useState(isKind(firstKind) ? firstKind : 'card');
   const [id, setId] = useState('');
   const [words, setWords] = useState('');
+  // L5.2b (review B L7): the person's words, kept in this tab only, are unsaved text the desktop app's quit question names.
+  useUnsavedMark(words.trim() ? { kind: 'component_brief', project: slug } : null);
   const [copied, setCopied] = useState<'no' | 'yes' | 'failed'>('no');
   const ids = useId();
   useEffect(() => {

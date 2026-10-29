@@ -17,9 +17,12 @@ tauri-build = { version = "=2.7.4", features = [] }
 desktop-core = { path = "core" }
 tauri = { version = "=2.12.5", features = [] }
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString", "NSURL"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAlert", "NSApplication", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSRunningApplication", "NSSavePanel", "NSView", "NSWindow"] }
 libc = "0.2"
+# L5.2b: job notifications (UNUserNotificationCenter) — already in Cargo.lock through objc2-ui-kit; no new package.
+block2 = "0.6"
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationTrigger"] }
 
 [features]
 # What the Tauri CLI sets for a production build (pnpm desktop:build): no dev server, no inspector.

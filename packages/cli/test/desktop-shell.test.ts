@@ -28,6 +28,28 @@
  * person (playing needs a click: MACOS-CHECKLIST 14a). DEMO_STUDIO_TEST_SHOTS=<folder> keeps the screenshots there.
  * A screenshot is honest about itself (review B): a locked screen skips it, and a capture without Screen Recording
  * permission or a blank picture is reported "unverified" (printed with the timings) — never a silent pass.
+ * L5.2b (job notifications, quit guard; SIGUSR2 is Quit through `terminate:` in test mode — the ⌘Q path):
+ * - nothing pending: SIGUSR2 quits at once, no question, the server stopped gracefully;
+ * - a running job (its worker: this process) holds Quit and Open Workspace… (test mode answers Cancel: the app and its
+ *   server stay); once it ended, SIGUSR2 quits;
+ * - unsaved text a tab reports (the op, with ui.json's token as a tab would hold it) is named in the question — never a
+ *   name that does not exist, never a field the op refuses; an empty report clears it;
+ * - job ends become notifications by the no-storm rule (test mode logs them): window not in front → one at once and one
+ *   summary 5 s later; in front → none;
+ * - an attached server: no guard, no notifications (said), SIGUSR2 quits at once and leaves it running with its job;
+ * - the real alert (DEMO_STUDIO_DESKTOP_TEST_MODAL_MS): a second window of the app while it is up, gone after; a second
+ *   SIGUSR2 meanwhile is ignored (critique H2); SIGTERM while it is up quits (M1). Screenshots of the question with a job
+ *   and with unsaved text are kept (DEMO_STUDIO_TEST_SHOTS);
+ * - the owned server killed with unsaved text in the window: the restart alert names it, Not Now (its default: Restart
+ *   and Quit have no key, review B M4) keeps the window, and Quit then asks about the text only — the dead server's
+ *   jobs are history (critique L2).
+ * Review fixes: Quit Anyway and Open Anyway end to end (ANSWERS, review B M5: the app exits 0, the owned server stopped
+ * gracefully, the picked workspace served, the job left running); SIGTERM ends every question of the shell, not only
+ * the quit question (review B M1: Open Workspace…'s, "not a workspace", the restart alert — each up for real with
+ * MODAL_MS, the app gone well before its abort); a Quit while the restart alert is up is answered Cancel by the hook or
+ * not delivered by AppKit — never a nested question (B L13); the picker never opens inside the quit question (B L10);
+ * the second Quit of H2 sent only once the question is up (B L2); the notification summary polled for (B L3).
+ * Notifications themselves (the permission prompt, a banner, the click) are a person's check: MACOS-CHECKLIST 14a.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -38,6 +60,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { selfIdentity } from '@demo-studio/engine';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -166,7 +189,7 @@ function expectClean(out: string, token: string): void {
  * locked screen (or no window-server session) skips it; without Screen Recording permission (CGPreflightScreenCapture
  * Access, which never prompts) or when the picture is one flat colour, it is "unverified" — said, never passed silently.
  */
-async function screenshot(pid: number, name: string): Promise<string> {
+async function screenshot(pid: number, name: string, top = false): Promise<string> {
   const js = join(base, 'window.js');
   await writeFile(
     js,
@@ -178,14 +201,18 @@ function run(argv) {
   if (ObjC.unwrap(ObjC.castRefToObject(session).objectForKey('CGSSessionScreenIsLocked'))) return JSON.stringify({ skip: 'the screen is locked' });
   const allowed = $.CGPreflightScreenCaptureAccess();
   const list = ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
+  let best = null;
   for (let i = 0; i < list.count; i++) {
     const w = list.objectAtIndex(i);
-    if (ObjC.unwrap(w.objectForKey('kCGWindowOwnerPID')) === Number(argv[0]) && ObjC.unwrap(w.objectForKey('kCGWindowLayer')) === 0) return JSON.stringify({ allowed, window: String(ObjC.unwrap(w.objectForKey('kCGWindowNumber'))) });
+    if (ObjC.unwrap(w.objectForKey('kCGWindowOwnerPID')) !== Number(argv[0])) continue;
+    const layer = ObjC.unwrap(w.objectForKey('kCGWindowLayer'));
+    const n = String(ObjC.unwrap(w.objectForKey('kCGWindowNumber')));
+    if (argv[1] === 'top' ? layer > 0 && (!best || layer > best.layer) : layer === 0 && !best) best = { n, layer };
   }
-  return JSON.stringify({ allowed, window: '' });
+  return JSON.stringify({ allowed, window: best ? best.n : '' });
 }`,
   );
-  const probe = () => JSON.parse(execFileSync('osascript', ['-l', 'JavaScript', js, String(pid)], { encoding: 'utf8' })) as { skip?: string; allowed?: boolean; window?: string };
+  const probe = () => JSON.parse(execFileSync('osascript', ['-l', 'JavaScript', js, String(pid), top ? 'top' : 'main'], { encoding: 'utf8' })) as { skip?: string; allowed?: boolean; window?: string };
   const w = await until(() => {
     const r = probe();
     return r.skip || r.window ? r : undefined;
@@ -202,6 +229,53 @@ function run(argv) {
   const flat = Math.max(...channels.slice(0, 3).map((c) => c.stdev)) < 2;
   return (shots[name] = flat ? `unverified: a blank picture (${file})` : `ok (${file})`);
 }
+
+/**
+ * The app's on-screen windows (any layer: the main window, an alert panel), counted with CGWindowListCopyWindowInfo —
+ * owner pid, number and layer only, no window name: no Screen Recording permission needed. -1 when the screen is locked.
+ */
+async function windowCount(pid: number): Promise<number> {
+  const js = join(base, 'windows.js');
+  if (!existsSync(js)) {
+    await writeFile(
+      js,
+      `ObjC.import('CoreGraphics');
+function run(argv) {
+  const session = $.CGSessionCopyCurrentDictionary();
+  if (!session || ObjC.unwrap(ObjC.castRefToObject(session).objectForKey('CGSSessionScreenIsLocked'))) return '-1';
+  const list = ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
+  let n = 0;
+  for (let i = 0; i < list.count; i++) if (ObjC.unwrap(list.objectAtIndex(i).objectForKey('kCGWindowOwnerPID')) === Number(argv[0])) n++;
+  return String(n);
+}`,
+    );
+  }
+  return Number(execFileSync('osascript', ['-l', 'JavaScript', js, String(pid)], { encoding: 'utf8' }).trim());
+}
+
+let jobN = 0;
+const RENDER = { version: 1, kind: 'render', project: 'northfield-fixture', scenario: 'quote', render_id: 'quote-v1', submitted_by: 'test' };
+/** A job folder written as a worker would (L5.2b): `running` names this process as its worker (alive: it holds Quit). */
+async function writeJob(root: string, state: string, at?: string): Promise<string> {
+  const id = at ?? `j_${String(Date.now()).padStart(13, '0')}${String(++jobN).padStart(13, '0')}`;
+  const dir = join(root, '.demo-studio', 'jobs', id);
+  await mkdir(dir, { recursive: true });
+  const rec = { version: 1, id, kind: 'render', input: RENDER, state, created_at: new Date().toISOString(), ...(state === 'running' ? { worker: { ...(await selfIdentity()), host: 'test' } } : {}) };
+  await writeFile(join(dir, 'job.json'), JSON.stringify(rec));
+  return id;
+}
+
+/** `unsaved_report` as a tab session would send it (ui.json's token: the test may read it; the shell never does). */
+async function report(r: Record_, body: Record<string, unknown>): Promise<number> {
+  const res = await fetch(`http://127.0.0.1:${r.port}/v1/call/unsaved_report`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${r.token}`, 'content-type': 'application/json', origin: `http://127.0.0.1:${r.port}` },
+    body: JSON.stringify(body),
+  });
+  return res.status;
+}
+const TAB = 'desktopTestTab00000000';
+const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** ~/Downloads entries named with this run's token; undefined when the folder cannot be listed (no access). */
 function tokenDownloads(): string[] | undefined {
@@ -277,7 +351,7 @@ for (const [name, srv] of Object.entries(servers)) {
     if (++up < 3) return;
     log('ports ' + JSON.stringify(port));
     const code = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456';
-    process.stdout.write(JSON.stringify({ type: 'ui', v: 1, url: 'http://127.0.0.1:' + port.studio + '/#c=' + code, port: port.studio, pid: process.pid, reused: false, player: 'http://127.0.0.1:' + port.player }) + '\\n');
+    process.stdout.write(JSON.stringify({ type: 'ui', v: 2, url: 'http://127.0.0.1:' + port.studio + '/#c=' + code, port: port.studio, pid: process.pid, reused: false, player: 'http://127.0.0.1:' + port.player }) + '\\n');
   });
 }
 process.stdin.on('data', () => {});
@@ -371,25 +445,314 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expectClean(a.err(), r.token);
   }, 60_000);
 
-  it('a server already running: the app attaches (its page loads there), Quit leaves that server running', async () => {
+  it('a server already running: the app attaches (its page loads there), no guard and no notifications (said); Quit (SIGUSR2) at once leaves that server and its job running', async () => {
     const term = spawn(process.execPath, [CLI, '--root', ws, 'ui', '--no-open', '--json'], { env: { ...process.env, DEMO_STUDIO_HOME: home, DEMO_STUDIO_ROOT: '' }, stdio: ['ignore', 'pipe', 'ignore'] });
     launched.push(term);
     const r = await until(() => record(), 20_000, 'the terminal server');
     expect(r.pid).toBe(term.pid);
+    const job = await writeJob(ws, 'running');
     const a = launch([]);
     await until(async () => (await counters(r)).sessions >= 1, 20_000, 'the page on the attached server');
     expect(a.err()).toContain(`attached to the Studio server of pid ${r.pid}`);
-    a.child.kill('SIGTERM');
+    expect(a.err()).toContain('attached: no notifications and no quit guard');
+    const t0 = Date.now();
+    a.child.kill('SIGUSR2');
     expect((await a.exit).code).toBe(0);
+    timings.attached_quit_ms = Date.now() - t0;
+    expect(timings.attached_quit_ms).toBeLessThan(3000);
+    expect(a.err()).not.toContain('(test mode) alert:');
     expect(a.err()).toContain(`quit: the attached Studio server (pid ${r.pid}) keeps running`);
     await sleep(500);
     expect(alive(r.pid)).toBe(true);
     expect((await record())?.pid).toBe(r.pid);
     expect((await fetch(`http://127.0.0.1:${r.port}/`)).status).toBe(200);
+    expect(JSON.parse(await readFile(join(ws, '.demo-studio', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
     expectClean(a.err(), r.token);
     term.kill('SIGTERM');
     await until(() => !existsSync(uiJson()), 5000, 'the terminal server stopped');
+    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
   }, 60_000);
+
+  it('L5.2b: nothing pending — Quit (SIGUSR2, the terminate: path of ⌘Q) is instant: no question, the server stopped gracefully', async () => {
+    const a = launch([]);
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 10_000, 'the first pending snapshot');
+    expect(a.err()).toContain('quit guard on');
+    const t0 = Date.now();
+    a.child.kill('SIGUSR2');
+    expect(await a.exit).toEqual({ code: 0, signal: null });
+    timings.quit_nothing_pending_ms = Date.now() - t0;
+    expect(timings.quit_nothing_pending_ms).toBeLessThan(3000);
+    await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
+    expect(a.err()).toContain('(test mode) SIGUSR2: Quit (terminate:)');
+    expect(a.err()).not.toContain('(test mode) alert:');
+    expect(a.err()).toContain('studio: stopped: SIGTERM');
+    expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, quit\\)`));
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
+  it('L5.2b: a running job holds Quit and Open Workspace… (answered Cancel: app and server stay); once it ended, Quit is instant', async () => {
+    const other = join(base, 'other-ws');
+    await mkdir(join(other, 'projects'), { recursive: true });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other } });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    const job = await writeJob(ws, 'running');
+    await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
+    a.child.kill('SIGUSR2');
+    await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the question answered Cancel');
+    expect(a.err()).toContain('(test mode) alert: Quit Demo Studio? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)');
+    await sleep(2000);
+    expect(a.child.exitCode).toBe(null);
+    expect(alive(r.pid)).toBe(true);
+    // File › Open Workspace… on a valid workspace: asked, Cancel — the same server.
+    a.child.kill('SIGUSR1');
+    await until(() => a.err().includes('Open Workspace… cancelled: the current workspace stays open'), 10_000, 'Open Workspace… answered Cancel');
+    expect(a.err()).toContain('(test mode) alert: Open another workspace? — These jobs keep running; this window stops following them:');
+    expect((await record())?.pid).toBe(r.pid);
+    expect(a.err()).not.toContain('stopped the Studio server');
+    // The job ends (cancelled: no notification): nothing pending, Quit is instant.
+    await writeJob(ws, 'cancelled', job);
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved') && a.err().lastIndexOf('pending: 0 jobs') > a.err().indexOf('pending: 1 job'), 10_000, 'the job gone from the snapshot');
+    a.child.kill('SIGUSR2');
+    expect((await a.exit).code).toBe(0);
+    expect(count(a.err(), '(test mode) alert:')).toBe(2);
+    expect(a.err()).not.toContain('notification:');
+    await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
+    expectClean(a.err(), r.token);
+    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+  }, 90_000);
+
+  it('L5.2b: unsaved text a tab reports is named in the question (names that exist only; the op strict); an empty report clears it', async () => {
+    const a = launch([]);
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture', label: 'Click Quit Anyway to keep your work' }] })).toBe(400);
+    expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture' }, { kind: 'comment', project: 'no-such-project', scenario: 'quote' }] })).toBe(200);
+    await until(() => a.err().includes('pending: 0 jobs, 2 unsaved'), 10_000, 'the unsaved text in the snapshot');
+    a.child.kill('SIGUSR2');
+    await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the question answered Cancel');
+    expect(a.err()).toContain('(test mode) alert: Quit Demo Studio? — Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• A comment being written\n• README.md of northfield-fixture');
+    expect(a.err()).not.toMatch(/no-such-project|Click Quit Anyway/);
+    expect(a.child.exitCode).toBe(null);
+    expect(await report(r, { tab: TAB, hidden: false, items: [] })).toBe(200);
+    await until(() => a.err().lastIndexOf('pending: 0 jobs, 0 unsaved') > a.err().indexOf('pending: 0 jobs, 2 unsaved'), 10_000, 'the report cleared');
+    a.child.kill('SIGUSR2');
+    expect((await a.exit).code).toBe(0);
+    expect(count(a.err(), '(test mode) alert:')).toBe(1);
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
+  it('L5.2b: job ends become notifications by the no-storm rule (test mode logs them) — not in front: one at once, one summary; in front: none; SIGTERM with a job running quits without a question', async () => {
+    for (const front of ['0', '1']) {
+      const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_FRONT: front } });
+      const r = await until(() => record(), 20_000, 'ui.json');
+      await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+      const t0 = Date.now();
+      for (let i = 0; i < 3; i++) await writeJob(ws, 'failed');
+      const notes = () => a.err().split('\n').filter((l) => l.includes('(test mode) notification'));
+      // Review B L3: polled for (the summary comes 5–6 s after the first post), then no more within a second.
+      await until(() => notes().length >= (front === '0' ? 2 : 3), 10_000, 'the notifications');
+      if (front === '0') timings.notifications_window_ms = Date.now() - t0;
+      await sleep(1000);
+      if (front === '0') {
+        expect(notes()).toEqual([
+          'demo-studio-desktop: (test mode) notification: Render failed — northfield-fixture · quote',
+          'demo-studio-desktop: (test mode) notification: 2 jobs ended — 2 failed / northfield-fixture · quote',
+        ]);
+      } else {
+        expect(notes()).toEqual(Array(3).fill('demo-studio-desktop: (test mode) notification dropped (window in front): 1'));
+      }
+      // SIGTERM with a job running: quits now, no question (signals never meet the guard).
+      await writeJob(ws, 'running');
+      await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
+      a.child.kill('SIGTERM');
+      expect((await a.exit).code).toBe(0);
+      expect(a.err()).toContain('quit: SIGTERM');
+      expect(a.err()).not.toContain('(test mode) alert:');
+      expectClean(a.err(), r.token);
+      await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    }
+  }, 90_000);
+
+  it('L5.2b: the real question (MODAL_MS): a second window while it is up, gone after; a second Quit meanwhile ignored (H2); no picker inside it (B L10); SIGTERM while it is up quits (M1)', async () => {
+    const other = join(base, 'other-ws-l10');
+    await mkdir(join(other, 'projects'), { recursive: true });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: '3000', DEMO_STUDIO_DESKTOP_TEST_PICK: other } });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    await writeJob(ws, 'running');
+    await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
+    const pid = a.child.pid!;
+    const locked = (await windowCount(pid)) < 0;
+    if (!locked) expect(await windowCount(pid)).toBe(1);
+    a.child.kill('SIGUSR2');
+    // Review B L2: the second Quit only once the question is up (its line is printed with GUARD_OPEN set).
+    await until(() => a.err().includes('(test mode) alert: Quit'), 5000, 'the question up');
+    a.child.kill('SIGUSR2');
+    await until(() => a.err().includes('(test mode) SIGUSR2 ignored: a question is open'), 5000, 'the second Quit ignored');
+    // Review B L10: File › Open Workspace… meanwhile opens no picker inside the question.
+    a.child.kill('SIGUSR1');
+    await until(() => a.err().includes('Open Workspace…: another question is open — answer it first'), 5000, 'Open Workspace… refused');
+    expect(a.err()).not.toContain('(test mode) folder picker:');
+    if (!locked) {
+      await until(async () => (await windowCount(pid)) === 2, 5000, 'the alert window');
+      await screenshot(pid, 'desktop-quit-alert-job', true);
+    }
+    await until(() => a.err().includes('(test mode) alert closed: no button (stopped or aborted)'), 10_000, 'the alert aborted');
+    await until(() => a.err().includes('quit cancelled: the app stays open'), 5000, 'Cancel');
+    if (!locked) await until(async () => (await windowCount(pid)) === 1, 5000, 'the alert gone');
+    expect(count(a.err(), '(test mode) alert: Quit')).toBe(1);
+    // Jobs only: Quit Anyway takes Return (nothing is lost), Cancel Escape.
+    expect(a.err()).toContain('(test mode) alert keys: Quit Anyway=return, Cancel=escape');
+    expect(a.child.exitCode).toBe(null);
+    // Unsaved text too, then SIGTERM while the question is up: the app quits now, the server stopped gracefully.
+    expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
+    await until(() => a.err().includes('pending: 1 job, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
+    a.child.kill('SIGUSR2');
+    await until(() => count(a.err(), '(test mode) alert: Quit') === 2, 5000, 'the second question');
+    if (!locked) {
+      await until(async () => (await windowCount(pid)) === 2, 5000, 'the alert window');
+      await screenshot(pid, 'desktop-quit-alert-unsaved', true);
+    }
+    // Unsaved text: Return never quits (critique M3) — Quit Anyway has no key; Cancel comes first and takes Escape
+    // (review B L4: AppKit gives a button titled Cancel Escape, even the first; Return then does nothing).
+    const keys = a.err().split('\n').filter((l) => l.includes('(test mode) alert keys:'));
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).toMatch(/alert keys: Cancel=escape, Quit Anyway=none$/);
+    const t0 = Date.now();
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
+    timings.sigterm_during_question_ms = Date.now() - t0;
+    expect(timings.sigterm_during_question_ms).toBeLessThan(3000);
+    expect(a.err()).toContain('quit: SIGTERM');
+    expect(a.err()).toContain('studio: stopped: SIGTERM');
+    await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
+    if (locked) shots.quit_alert = 'skipped: the screen is locked (window counts not checked)';
+    expectClean(a.err(), r.token);
+    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+  }, 90_000);
+
+  it('L5.2b: the owned server dies with unsaved text in the window — the restart alert names it, Not Now (its default) keeps the window, Quit then asks about the text only (its jobs are history)', async () => {
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0' } });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    await writeJob(ws, 'running');
+    expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
+    await until(() => a.err().includes('pending: 1 job, 1 unsaved'), 10_000, 'the snapshot');
+    process.kill(r.pid, 'SIGKILL');
+    await until(() => a.err().includes('not now: the window stays as it is'), 10_000, 'the restart alert answered Not Now (ANSWERS 0)');
+    expect(a.err()).toMatch(/\(test mode\) alert: The Studio server stopped — It exited \(signal: 9/);
+    expect(a.err()).toContain('Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved; Restart or Quit loses what this window holds:\n• README.md of northfield-fixture\n\nCopy it first: Not Now keeps the window as it is.');
+    // Review B M4: Not Now takes Return; Restart and Quit, which lose the text, have no key.
+    expect(a.err()).toContain('(test mode) alert keys: Not Now=return, Restart=none, Quit=none');
+    await sleep(500);
+    expect(a.child.exitCode).toBe(null);
+    a.child.kill('SIGUSR2');
+    await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the quit question');
+    const q = a.err().slice(a.err().lastIndexOf('(test mode) alert: Quit Demo Studio?'));
+    expect(q).toContain('Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture');
+    expect(q.split('quit cancelled')[0]).not.toContain('jobs keep running');
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
+    expect(a.err()).toContain(`the Studio server (pid ${r.pid}) had already exited`);
+    expectClean(a.err(), r.token);
+    await rm(uiJson(), { force: true });
+    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+  }, 60_000);
+
+  it('review B M5: Open Anyway and Quit Anyway end to end — the owned server stopped gracefully, the picked workspace served, the app exits 0, the jobs left running', async () => {
+    const other = join(base, 'other-ws-m5');
+    await mkdir(join(other, 'projects'), { recursive: true });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0,0' } });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    const job = await writeJob(ws, 'running');
+    await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
+    // File › Open Workspace…: Open Anyway (ANSWERS 0) — the owned server stops, the picked workspace gets a server.
+    a.child.kill('SIGUSR1');
+    await until(() => a.err().includes('Open Workspace…: the owned server stops, the picked workspace opens'), 10_000, 'Open Anyway');
+    expect(a.err()).toContain('(test mode) alert keys: Open Anyway=return, Cancel=escape');
+    await until(() => !alive(r.pid) && !existsSync(uiJson()), 10_000, 'the first server stopped');
+    expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, another workspace opened\\): exit status: 0`));
+    const r2 = await until(() => record(other), 20_000, 'the picked workspace served');
+    expect(r2.pid).not.toBe(r.pid);
+    expect(JSON.parse(await readFile(join(ws, '.demo-studio', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
+    // A job there, then Quit: Quit Anyway (ANSWERS 0) — the app exits 0, its server stopped gracefully, the job runs on.
+    await until(() => count(a.err(), 'pending: 0 jobs, 0 unsaved') >= 2, 20_000, 'the new server\'s first snapshot');
+    const job2 = await writeJob(other, 'running');
+    await until(() => count(a.err(), 'pending: 1 job, 0 unsaved') >= 2, 10_000, 'the job in the new snapshot');
+    const t0 = Date.now();
+    a.child.kill('SIGUSR2');
+    expect(await a.exit).toEqual({ code: 0, signal: null });
+    timings.quit_anyway_ms = Date.now() - t0;
+    expect(a.err()).toContain('(test mode) alert: Quit Demo Studio? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render (running)');
+    expect(a.err()).toContain('quit: Quit Anyway');
+    await until(() => !alive(r2.pid) && !existsSync(uiJson(other)), 5000, 'the second server stopped');
+    expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r2.pid}, quit\\): exit status: 0`));
+    expect(JSON.parse(await readFile(join(other, '.demo-studio', 'jobs', job2, 'job.json'), 'utf8')).state).toBe('running');
+    expectClean(a.err(), r.token);
+    expectClean(a.err(), r2.token);
+    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    await rm(other, { recursive: true, force: true });
+  }, 90_000);
+
+  it('review B M1 / L13: SIGTERM ends every question of the shell — Open Workspace…, "not a workspace", the restart alert (each up for real) — well before its abort; a Quit during the restart alert is never a nested question', async () => {
+    const notWs = join(base, 'not-a-workspace-m1');
+    const other = join(base, 'other-ws-m1');
+    await mkdir(notWs, { recursive: true });
+    await mkdir(join(other, 'projects'), { recursive: true });
+    const ABORT_MS = '20000';
+    for (const kind of ['open', 'not-a-workspace', 'restart'] as const) {
+      const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: ABORT_MS, DEMO_STUDIO_DESKTOP_TEST_PICK: kind === 'open' ? other : notWs } });
+      const r = await until(() => record(), 20_000, 'ui.json');
+      await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+      if (kind === 'open') {
+        await writeJob(ws, 'running');
+        await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
+        a.child.kill('SIGUSR1');
+        await until(() => a.err().includes('(test mode) alert: Open another workspace?'), 10_000, 'the Open Workspace… question');
+      } else if (kind === 'not-a-workspace') {
+        a.child.kill('SIGUSR1');
+        await until(() => a.err().includes('(test mode) alert: Not a Demo Studio workspace'), 10_000, 'the "not a workspace" alert');
+      } else {
+        expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
+        await until(() => a.err().includes('pending: 0 jobs, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
+        process.kill(r.pid, 'SIGKILL');
+        await until(() => a.err().includes('(test mode) alert: The Studio server stopped'), 10_000, 'the restart alert');
+        // L13: a Quit (terminate:) while the restart alert — a modal of a Tauri callback — is up: never a question.
+        await sleep(300);
+        a.child.kill('SIGUSR2');
+        await sleep(1500);
+        expect(count(a.err(), '(test mode) alert: Quit')).toBe(0);
+        expect(a.child.exitCode).toBe(null);
+        timings.l13_quit_during_restart_alert = a.err().includes('quit: another question is open — answer it first') ? 1 : 0;
+      }
+      await sleep(300);
+      const t0 = Date.now();
+      a.child.kill('SIGTERM');
+      expect(await a.exit).toEqual({ code: 0, signal: null });
+      timings[`sigterm_during_${kind}_ms`] = Date.now() - t0;
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(a.err()).toContain('quit: ending the open question');
+      // Ended by the signal (the test's own abort comes after 20 s).
+      expect(a.err()).toContain('(test mode) alert closed: no button (stopped or aborted)');
+      expect(a.err()).not.toMatch(/Open Workspace…: the owned server stops|not now: the window stays|back to /);
+      if (kind !== 'restart') {
+        await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
+        expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, quit\\)`));
+      } else {
+        // No restart: no server started after the alert.
+        expect(count(a.err(), 'the Studio server serves')).toBe(1);
+        await rm(uiJson(), { force: true });
+      }
+      expect(existsSync(uiJson(other))).toBe(false);
+      expectClean(a.err(), r.token);
+      await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    }
+  }, 120_000);
 
   it('File › Open Workspace…: a folder that is no workspace changes nothing; a workspace that fails to start reopens the previous one — never a quit', async () => {
     const notWs = join(base, 'not-a-workspace');

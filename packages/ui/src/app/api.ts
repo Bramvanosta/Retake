@@ -128,10 +128,18 @@ export function info<T>(): Promise<T> {
 
 /**
  * `POST /v1/call/<op>`: one op of the allow-list with its arguments; the tool's data, or a CallError. `signal` aborts
- * it (the server then stops the op: closing the request aborts its work) — a CallError `cancelled`.
+ * it (the server then stops the op: closing the request aborts its work) — a CallError `cancelled`. `keepalive`: the
+ * request outlives the page (a `pagehide` report).
  */
-export function call<T>(op: string, args: Record<string, unknown> = {}, o: { signal?: AbortSignal } = {}): Promise<T> {
-  return request<T>(`/v1/call/${encodeURIComponent(op)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args), ...(o.signal ? { signal: o.signal } : {}) });
+export function call<T>(op: string, args: Record<string, unknown> = {}, o: { signal?: AbortSignal; keepalive?: boolean } = {}): Promise<T> {
+  return request<T>(`/v1/call/${encodeURIComponent(op)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+    ...(o.signal ? { signal: o.signal } : {}),
+    // L5.2b: the unsaved report's last call on pagehide outlives the page.
+    ...(o.keepalive ? { keepalive: true } : {}),
+  });
 }
 
 export function errorText(e: unknown): string {

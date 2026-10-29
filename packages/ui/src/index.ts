@@ -52,4 +52,26 @@ export type { PlayerBundle, PreviewAllowed, WorkspaceComponent } from './player/
 export { COMPONENT_HASH_RE, PREVIEW_ALLOW_MAX, PreviewAllowList } from './server/preview-allow.js';
 export { studioWorkerEnv } from './server/worker-env.js';
 export { launchStudio } from './server/launch.js';
+export { TAB_ID_RE, UNSAVED_ITEMS_MAX, UNSAVED_KINDS, UNSAVED_OPS, UNSAVED_TABS_MAX, UnsavedBoard, UnsavedReportInput, unsavedOps } from './server/unsaved.js';
+export type { UnsavedItem, UnsavedKind } from './server/unsaved.js';
+export {
+  JOB_END_PER_MIN,
+  PENDING_GAP_MS,
+  PIPE_KINDS,
+  PIPE_LINE_MAX,
+  PIPE_LIST_MAX,
+  PIPE_OUTCOMES,
+  PIPE_POLL_MS,
+  PIPE_PROJECT_RE,
+  PIPE_REASONS,
+  PIPE_SCENARIO_RE,
+  Supervisor,
+  jobEndLine,
+  jobNames,
+  jobOutcome,
+  pendingLine,
+  pipeKind,
+  startSupervisor,
+} from './server/supervise.js';
+export type { JobEnd, PendingSnapshot, PipeJob, PipeKind, PipeOut, PipeOutcome, PipeReason, SupervisorOptions } from './server/supervise.js';
 export type { Launched } from './server/launch.js';

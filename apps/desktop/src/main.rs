@@ -16,11 +16,17 @@
 //!   studio.yaml, else the folder picker; File › Open Workspace… switches (a folder that is no workspace changes
 //!   nothing; the owned server stops first; a start that fails reopens the previous workspace — never a quit).
 //! - Printed: origins only — never the one-time URL, a capability path or the token (log filter, desktop_core::redact).
+//! - L5.2b: job notifications (notify.rs) and the quit guard (guard.rs) from the owned server's pipe lines (child.rs):
+//!   Quit / Open Workspace… with jobs running or unsaved text in the Studio asks first (nothing pending: instant);
+//!   the restart alert names the unsaved text still in the window (Not Now its default). An attached server has no
+//!   pipe: neither (said once). SIGTERM / SIGINT / SIGHUP end any question of the shell (macos::end_modals).
 
 mod child;
+mod guard;
 mod logfilter;
 mod macos;
 mod menu;
+mod notify;
 
 use desktop_core as dc;
 use std::path::{Path, PathBuf};
@@ -47,17 +53,22 @@ fn pick_message() -> String {
     format!("Choose the folder of a {} workspace (it holds studio.yaml or a projects/ folder).", app_name())
 }
 
-/// DEMO_STUDIO_DESKTOP_TEST=1: no modal dialog ever (tests), `--route` is honoured in a release build, and SIGUSR1 is
-/// File › Open Workspace… (the picker answers DEMO_STUDIO_DESKTOP_TEST_PICK once: macos.rs).
+/// DEMO_STUDIO_DESKTOP_TEST=1: no modal dialog ever (tests), `--route` is honoured in a release build, SIGUSR1 is
+/// File › Open Workspace… (the picker answers DEMO_STUDIO_DESKTOP_TEST_PICK once: macos.rs), SIGUSR2 is Quit (a real
+/// `terminate:`, L5.2b) and notifications are logged, never posted (notify.rs). Review A L2: honoured only when the
+/// process was started by another one (a test, a terminal) — never by launchd (`getppid() == 1`: a Finder or Dock
+/// launch, which a `launchctl setenv` could otherwise arm). Decided once, at launch (a parent that dies later makes
+/// launchd the parent: the mode does not change mid-run).
 pub fn test_mode() -> bool {
-    std::env::var("DEMO_STUDIO_DESKTOP_TEST").as_deref() == Ok("1")
+    static MODE: OnceLock<bool> = OnceLock::new();
+    *MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("DEMO_STUDIO_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))
 }
 
 pub fn log(msg: &str) {
     eprintln!("{BIN}: {msg}");
 }
 
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
@@ -106,6 +117,10 @@ struct Shell {
 /// on the `first` launch).
 fn open(shell: &Shell, mut candidate: Option<(PathBuf, dc::Source)>, mut note: Option<String>, first: bool) -> Option<Session> {
     loop {
+        // A signal asked to quit (an alert or the picker of this loop ended by it): no server starts.
+        if guard::QUIT_NOW.load(Ordering::SeqCst) {
+            return None;
+        }
         let (ws, source) = match candidate.take() {
             Some(c) => c,
             None => (macos::pick_folder(&note.take().unwrap_or_else(pick_message))?, dc::Source::Picker),
@@ -123,6 +138,7 @@ fn open(shell: &Shell, mut candidate: Option<(PathBuf, dc::Source)>, mut note: O
                         l.pid,
                         dc::origin(l.port)
                     ));
+                    log("attached: no notifications and no quit guard — they need a server of this app's own (stop the other server, then File › Open Workspace…)");
                 }
                 if let Some(h) = &shell.home {
                     if let Err(e) = dc::write_remembered(h, &ws) {
@@ -228,6 +244,8 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
         }
     };
     if session.server.owned() {
+        let h = app.clone();
+        session.server.on_job_end(move |e| notify::job_end(&h, e));
         let (h, pid) = (app.clone(), line.pid);
         session.server.watch(move |status, tail| {
             let h2 = h.clone();
@@ -271,21 +289,55 @@ fn pid_alive(pid: u32) -> bool {
     pid > 0 && (unsafe { libc::kill(pid as libc::pid_t, 0) } == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM))
 }
 
-/// Restart (a server this app owns, on the same workspace) or Quit.
-fn restart_or_quit(app: &AppHandle, shell: &Arc<Shell>, title: &str, text: &str, ws: PathBuf, source: dc::Source) {
-    if macos::alert(title, text, &["Restart", "Quit"]) == 0 {
+/// Restart (a server this app owns, on the same workspace) or Quit. `note` (L5.2b): the unsaved text still in the
+/// window — then Not Now leaves the window as it is (copy the text first; Quit asks again later), and it is the default
+/// button: Restart and Quit lose the text, so neither takes Return (review B M4, desktop_core::restart_buttons).
+fn restart_or_quit(app: &AppHandle, shell: &Arc<Shell>, title: &str, text: &str, note: Option<String>, ws: PathBuf, source: dc::Source) {
+    let b = dc::restart_buttons(note.is_some());
+    let text = match &note {
+        Some(n) => format!("{text}\n\n{n}"),
+        None => text.to_string(),
+    };
+    let answer = macos::ask(title, &text, &b.buttons, b.cancel, &b.destructive);
+    if guard::QUIT_NOW.load(Ordering::SeqCst) {
+        // A signal ended the alert: the exit is queued — no restart.
+        return;
+    }
+    // Ended without a button (the test's abort): what keeps everything as it is.
+    let answer = answer.unwrap_or(b.cancel);
+    if answer == b.restart {
         lock(&shell.session).take();
         match open(shell, Some((ws, source)), None, true) {
             Some(s) => show(app, shell, s),
             None => app.exit(0),
         }
+    } else if Some(answer) == b.not_now {
+        log("not now: the window stays as it is (File › Open Workspace… or Quit when done)");
     } else {
         app.exit(0);
     }
 }
 
+/// While a question of the quit guard is up, a restart alert waits (critique H2: no alert inside its alert, no new
+/// server while it decides): true when `f` was put off — run again on the main thread in 250 ms.
+fn later_while_guard_open(app: &AppHandle, f: impl FnOnce(&AppHandle) + Send + 'static) -> bool {
+    if !guard::GUARD_OPEN.load(Ordering::SeqCst) {
+        return false;
+    }
+    let h = app.clone();
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(250));
+        let h2 = h.clone();
+        let _ = h.run_on_main_thread(move || f(&h2));
+    });
+    true
+}
+
 /// A navigation found the attached server gone (review A L3).
 fn server_gone(app: &AppHandle, pid: u32) {
+    if later_while_guard_open(app, move |h| server_gone(h, pid)) {
+        return;
+    }
     let shell = app.state::<Arc<Shell>>().inner().clone();
     let current = match &*lock(&shell.session) {
         Some(x) if !x.server.owned() && x.server.line.pid == pid => Some((x.workspace.clone(), x.source)),
@@ -293,29 +345,46 @@ fn server_gone(app: &AppHandle, pid: u32) {
     };
     let Some((ws, source)) = current else { return };
     let text = format!("The Studio server this window was attached to (pid {pid}) is gone. Restart opens the workspace with a server of this app.");
-    restart_or_quit(app, &shell, "The Studio server stopped", &text, ws, source);
+    restart_or_quit(app, &shell, "The Studio server stopped", &text, None, ws, source);
 }
 
-/// The owned server exited while not being stopped: say so, Restart or Quit.
+/// The owned server exited while not being stopped: say so, Restart or Quit (and the unsaved text still in the window).
 fn server_exited(app: &AppHandle, pid: u32, status: std::process::ExitStatus, tail: String) {
     let shell = app.state::<Arc<Shell>>().inner().clone();
     let current = {
         let s = lock(&shell.session);
         match &*s {
-            Some(x) if x.server.line.pid == pid => Some((x.workspace.clone(), x.source)),
+            Some(x) if x.server.line.pid == pid => Some((x.workspace.clone(), x.source, x.server.pending())),
             _ => None,
         }
     };
-    let Some((ws, source)) = current else { return };
-    // Review A L3: its ports are nobody's now — no reload reaches them while the alert waits.
+    let Some((ws, source, pending)) = current else { return };
+    // Review A L3: its ports are nobody's now — no reload reaches them while the alert waits; set before the alert is
+    // put off for an open question too (review B L11).
     *lock(&shell.allowed) = dc::Allowed::NONE;
+    let again = tail.clone();
+    if later_while_guard_open(app, move |h| server_exited(h, pid, status, again)) {
+        return;
+    }
     log(&format!("the Studio server (pid {pid}) stopped: {status}"));
     let text = format!("It exited ({status}). Its last words:\n\n{}", if tail.is_empty() { "(none)".into() } else { tail });
-    restart_or_quit(app, &shell, "The Studio server stopped", &text, ws, source);
+    // Its jobs are history now (critique L2); the unsaved text is still in the window.
+    let note = pending.map(|mut p| {
+        p.server_gone();
+        p
+    });
+    restart_or_quit(app, &shell, "The Studio server stopped", &text, note.as_ref().and_then(dc::restart_note), ws, source);
 }
 
-/// Show the (hidden) window: the Dock icon, Window › Show Studio Window.
-fn show_window(app: &AppHandle) {
+/// The owned server's last `pending` snapshot (L5.2b: the quit guard's facts); None with no session or an attached one.
+pub(crate) fn current_pending(app: &AppHandle) -> Option<dc::Pending> {
+    let shell = app.try_state::<Arc<Shell>>()?.inner().clone();
+    let s = lock(&shell.session);
+    s.as_ref().and_then(|x| x.server.pending())
+}
+
+/// Show the (hidden) window: the Dock icon, Window › Show Studio Window, a notification's click, the quit question.
+pub(crate) fn show_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(WINDOW) {
         let _ = w.show();
         let _ = w.unminimize();
@@ -327,6 +396,11 @@ fn show_window(app: &AppHandle) {
 /// server stops before the next one starts (never two), and a start that fails or is cancelled reopens the previous
 /// workspace. Never a quit.
 fn open_other(app: &AppHandle) {
+    // Review B L10: never the picker inside another question of the shell (the quit question, a restart alert).
+    if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() {
+        log("Open Workspace…: another question is open — answer it first");
+        return;
+    }
     let shell = app.state::<Arc<Shell>>().inner().clone();
     let Some(folder) = macos::pick_folder(&pick_message()) else { return };
     let folder = std::fs::canonicalize(&folder).unwrap_or(folder);
@@ -336,6 +410,14 @@ fn open_other(app: &AppHandle) {
         macos::alert(&format!("Not a {} workspace", app_name()), &text, &["OK"]);
         return;
     }
+    // L5.2b: jobs running or unsaved text in the window — ask before the owned server stops.
+    if !guard::confirm_open_other(app) {
+        if !guard::QUIT_NOW.load(Ordering::SeqCst) {
+            log("Open Workspace… cancelled: the current workspace stays open");
+        }
+        return;
+    }
+    log("Open Workspace…: the owned server stops, the picked workspace opens");
     let old = lock(&shell.session).take();
     *lock(&shell.allowed) = dc::Allowed::NONE;
     let previous = old.as_ref().map(|o| (o.workspace.clone(), o.source));
@@ -372,8 +454,11 @@ extern "C" fn on_signal(sig: libc::c_int) {
     }
 }
 
-/// SIGTERM / SIGINT / SIGHUP quit through the event loop (critique M4): the owned server is stopped like on ⌘Q. Under
-/// DEMO_STUDIO_DESKTOP_TEST=1, SIGUSR1 is File › Open Workspace… (the gated test's way to the menu).
+/// SIGTERM / SIGINT / SIGHUP quit through the event loop (critique M4): the owned server is stopped like on ⌘Q — and
+/// with no question (L5.2b: `app.exit` never reaches the quit guard; whichever modal of the shell is up is ended —
+/// review B M1 — so a callback waiting on it returns and the queued exit runs). Under DEMO_STUDIO_DESKTOP_TEST=1,
+/// SIGUSR1 is File › Open Workspace… (the gated test's way to the menu) and SIGUSR2 is Quit through `terminate:`, the
+/// path of ⌘Q (sent from this thread, never from a Tauri callback: guard.rs), ignored while a question is up.
 fn install_signals(app: AppHandle) {
     let mut fds = [0i32; 2];
     if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
@@ -386,7 +471,7 @@ fn install_signals(app: AppHandle) {
     }
     SIGNAL_FD.store(fds[1], Ordering::SeqCst);
     let test = test_mode();
-    for sig in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP].into_iter().chain(test.then_some(libc::SIGUSR1)) {
+    for sig in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP].into_iter().chain(test.then_some(libc::SIGUSR1)).chain(test.then_some(libc::SIGUSR2)) {
         unsafe {
             libc::signal(sig, on_signal as *const () as libc::sighandler_t);
         }
@@ -401,13 +486,27 @@ fn install_signals(app: AppHandle) {
                     let _ = app.run_on_main_thread(move || open_other(&h));
                     continue;
                 }
+                libc::SIGUSR2 if test => {
+                    if guard::GUARD_OPEN.load(Ordering::SeqCst) {
+                        log("(test mode) SIGUSR2 ignored: a question is open");
+                    } else {
+                        log("(test mode) SIGUSR2: Quit (terminate:)");
+                        guard::request_terminate();
+                    }
+                    continue;
+                }
                 libc::SIGTERM => "SIGTERM",
                 libc::SIGINT => "SIGINT",
                 libc::SIGHUP => "SIGHUP",
                 _ => "a signal",
             };
             log(&format!("quit: {name}"));
+            guard::QUIT_NOW.store(true, Ordering::SeqCst);
             app.exit(0);
+            if macos::modal_up() {
+                log("quit: ending the open question");
+            }
+            macos::end_modals();
             return;
         }
     });
@@ -428,6 +527,8 @@ fn fatal(text: &str) -> ! {
 
 fn main() {
     logfilter::install();
+    // Decided now (review A L2): the parent at launch.
+    let _ = test_mode();
     let args = parse_args();
     let env = |k: &str| std::env::var(k).ok();
     let cfg = dc::launch_config(env("DEMO_STUDIO_NODE").as_deref(), env("DEMO_STUDIO_CLI").as_deref(), cfg!(debug_assertions), &launch_json());
@@ -459,6 +560,8 @@ fn main() {
             };
             let h = app.handle().clone();
             install_signals(h.clone());
+            guard::install(&h);
+            notify::install(&h);
             let shell = Arc::new(Shell { cfg, home, session: Mutex::new(None), allowed: Arc::new(Mutex::new(dc::Allowed::NONE)), route: Mutex::new(route) });
             app.manage(shell.clone());
             match open(&shell, first, None, true) {

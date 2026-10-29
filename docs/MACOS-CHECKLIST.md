@@ -1304,12 +1304,14 @@ The workspace of 13a with a capture on `highlights` (13f leaves one).
    the composer.
 5. **Window and Quit.** Close the window (red button or ⌘W): the app stays in the Dock; click the Dock icon → the same
    page, still connected. ⌘W again, then ⌘Tab to the app: no window (known); Window › Show Studio Window (⌘0) brings it
-   back. Start a capture from the Studio, then ⌘Q while it runs: the app quits at once (no prompt) and
-   the capture finishes (Recent activity in a new `studio ui` tab, or `studio jobs`) — the worker is not the app's.
-   With unsaved text in the YAML tab, ⌘Q: the text is lost without a prompt (known: BL-125).
+   back. Start a capture from the Studio, then ⌘Q while it runs: the app asks first (11. below); Quit Anyway — the app
+   quits and the capture finishes (Recent activity in a new `studio ui` tab, or `studio jobs`) — the worker is not
+   the app's.
 6. **An attached server.** In a terminal, `studio ui --no-open` on the workspace; then open the app: it shows the same
-   workspace (attached); ⌘Q leaves the terminal's server running. Ctrl-C in the terminal while the app shows it: the
-   window says to run `studio ui` again — File › Open Workspace… on the same folder gives a server the app owns.
+   workspace (attached); ⌘Q leaves the terminal's server running — with a capture running there, still no question and
+   no notification when it ends (the app has no pipe to that server: it says so in its output). Ctrl-C in the terminal
+   while the app shows it: the window says to run `studio ui` again — File › Open Workspace… on the same folder gives a
+   server the app owns.
 7. **A busy component (BL-110).** Allow a workspace component that loops forever in the preview (13f step 6's test
    component): the window freezes; the menu still opens and ⌘Q still quits.
 8. **Appearance.** System Settings → Appearance → Dark, then Light: the title bar takes the page's colour (light today:
@@ -1323,13 +1325,65 @@ The workspace of 13a with a capture on `highlights` (13f leaves one).
    and whether it asks again after a build. Started from Finder, a jobs worker the app's server starts keeps macOS's
    minimal environment for its life (≤ 60 s idle), so a job Claude submits through MCP meanwhile finds no
    `{{env:NAME}}` value either — note it if a sign-in fails that way.
-10. **Nothing left behind.** After quitting: `ls ~/Library/WebKit ~/Library/Caches ~/Library/HTTPStorages | grep -i
+10. **Notifications (L5.2b).** The built app (not `pnpm desktop:dev`: it says notifications need the built app).
+    a. *First permission prompt.* Start a dry run of `highlights`, close the window (⌘W) before it ends: when it ends,
+       macOS asks whether "Demo Studio" may send notifications (it never asks at launch). Allow → the notification
+       appears ("Dry run finished — <project> · highlights"). Note whether it asked exactly once.
+    b. *A capture ending while the app is hidden.* Start a capture, then ⌘H (or another app in front): one banner
+       when it ends; start a render with its review and leave the window closed: "Render finished", or "Render needs
+       attention — The review found errors or warnings." when the review has findings. With the window in front
+       when a job ends: no notification (the page shows it). Several jobs ending close together: one, then one summary
+       ("2 jobs ended …") about 5 s later — never a burst. A job you cancel: nothing.
+    c. *The click.* Click a banner (or the entry in Notification Center) with the window closed: the app comes to the
+       front with its window shown.
+    d. *Permission after a rebuild.* `pnpm desktop:build`, open the new app, let a job end with the window closed: still
+       allowed, no second prompt (expected: the permission is kept by bundle id, not by the ad hoc signature — note
+       what happened). System Settings › Notifications › Demo Studio → off: no more notifications, nothing else
+       changes.
+    e. *Turned on again without a relaunch (review B L9).* With them off (or "Don't Allow" answered in a), let a job end
+       with the window closed — no banner; turn them on in System Settings, let another end: the banner shows, no
+       relaunch. Console / the terminal under `desktop:dev` never shows "notifications are off" for a refusal that was
+       not yours (an error is logged with its domain and code).
+11. **The quit question (L5.2b).**
+    a. Nothing running, nothing typed: ⌘Q quits at once (no question), as before.
+    b. A capture running: ⌘Q → "Quit Demo Studio?" naming "Capture of <project> · <scenario> (running)"; Return =
+       Quit Anyway (the capture finishes); Escape = Cancel (the app stays). The same from Quit in the Dock's menu.
+    c. Typed text: edit a README (do not save), ⌘Q → the question names "README.md of <project>"; Cancel is first,
+       **Quit Anyway** red; Return does not quit; **Escape = Cancel** (review B L4: the gated test logs Cancel's key as
+       Escape and Quit Anyway's as none — check that Escape really cancels and Return does nothing). The same with a
+       scenario's YAML tab edited, a step form with a typed field, a comment being written (composer or reply), the
+       Library's "Create a component" words, a New theme… form changed, a theme colour dragged in the picker and not
+       released (review B L7). A browser tab on the app's server with typed text counts too ("this window, or a browser
+       tab on it").
+    c2. *A Studio recording (review B L5).* Start a recording from the Record screen, ⌘Q: the question adds that the
+       recording keeps its window — Quit Anyway, close the recording window, open the app again: the Record screen
+       offers the recording to save.
+    d. *Hidden window.* Type into the README, close the window (⌘W), wait 20 minutes (or longer), then ⌘Q from the Dock:
+       the question still names the README (a hidden window's report never expires).
+    e. *Logout, restart (review B M2).* With typed text, Apple menu › Log Out: the question comes first, and with a job
+       running too it says "These jobs stop when you log out"; Cancel stops the logout. With a job running and nothing
+       typed: Log Out asks ("…stop when you log out"); Restart… quits without a question (jobs alone never hold a
+       restart; the log says "the Mac restarts or shuts down"). Cancel the restart from its own dialog if it comes.
+    e2. *A second quit while the question is up (review B L2).* With the question open: Quit in the Dock's menu, then
+       Apple menu › Log Out — note what happens (expected: the question stays, or the app quits as Quit Anyway — never a
+       second question, never a hang).
+    f. File › Open Workspace… with typed text or a capture running: "Open another workspace?" first; Cancel keeps
+       everything. With the app's server killed (`kill <pid of ui.json>`) and typed text: the restart alert names the
+       text with Not Now / Restart / Quit — Not Now is the default (Return), Restart and Quit have no key (review B M4);
+       Not Now leaves the window to copy it.
+    g. In a terminal under `pnpm desktop:dev`, Ctrl-C with typed text: quits at once (signals never ask), also with a
+       question up — the quit question, Open Workspace…'s, a restart alert (review B M1) — and **with File › Open
+       Workspace…'s folder picker open** (the one case the gated test cannot show: the picker closes, the app quits).
+12. **Nothing left behind.** After quitting: `ls ~/Library/WebKit ~/Library/Caches ~/Library/HTTPStorages | grep -i
     demo-studio` prints nothing; `pnpm desktop:clean` removes the build folders (`apps/desktop/target`, ≈ 1–2 GB, and
     `apps/desktop/core/target`, ≈ 11 MB), `apps/desktop/gen/` and the app's Launch Services record.
 
-- **Expected:** steps 1–10 as written; the picker only on first launch; keys reach the page; drag & drop moves steps;
-  the Player plays; Quit never stops a running capture; nothing of the app in ~/Library.
-- **Send back:** for each step, OK or what you saw instead; whether macOS asked anything in step 9 and how often.
+- **Expected:** steps 1–12 as written; the picker only on first launch; keys reach the page; drag & drop moves steps;
+  the Player plays; Quit never stops a running capture and asks when a job runs or text is typed; one permission
+  prompt for notifications, banners only with the window not in front, a click shows the window; nothing of the app in
+  ~/Library.
+- **Send back:** for each step, OK or what you saw instead; whether macOS asked anything in steps 9 and 10 and how
+  often (10d: after a rebuild).
 
 ## Results — first pass (L1.5, 2026-10-12)
 

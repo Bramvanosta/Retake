@@ -10,8 +10,13 @@
  * CR LF README stays CR LF, and loading one is not an unsaved change. A scenario's YAML tab turns only CR LF into LF
  * (`crlfToLf`): a lone CR is not a line break to YAML, so a scenario holding one is shown read-only (the view's
  * `edit.yaml`, L4.3 review A M2) rather than saved back with a new line where the file had none.
+ *
+ * L5.2b: component-local unsaved text (a step form with typed fields, a comment being written) is not a draft — it
+ * goes with its component — but it sets a **mark** (`useUnsavedMark`) while it has some, so that `unsavedItems()` names
+ * every unsaved text of the tab (kinds and names only, never the text) for the desktop app's quit question
+ * (unsaved-report.ts). The browser's own `beforeunload` prompt stays the drafts' only (marks are not added to it).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type Eol = '\n' | '\r\n';
 
@@ -99,6 +104,72 @@ export function useDirty(key: string | undefined): boolean {
     };
   }, [key]);
   return dirty;
+}
+
+/**
+ * What the tab holds unsaved, for the quit question: kinds and names, never the text (unsaved.ts on the server; the
+ * desktop shell words each kind: desktop_core pipe.rs `UnsavedKind`). `component_brief`: the Library's "create a
+ * component" words; `new_theme`: the Themes screen's new-theme form, changed and not made yet; `theme_draft`: the theme
+ * editor's colour or background draft not written yet (review B L7).
+ */
+export interface UnsavedItem {
+  kind: 'readme' | 'yaml_draft' | 'step_form' | 'comment' | 'component_brief' | 'new_theme' | 'theme_draft';
+  project?: string;
+  scenario?: string;
+}
+
+const marks = new Map<symbol, UnsavedItem>();
+
+/** Set (or clear, with null) the mark `id` of a component's unsaved text. */
+export function setMark(id: symbol, item: UnsavedItem | null): void {
+  const before = marks.get(id);
+  if (item === null) {
+    if (!marks.delete(id)) return;
+  } else {
+    if (before && before.kind === item.kind && before.project === item.project && before.scenario === item.scenario) return;
+    marks.set(id, item);
+  }
+  for (const l of listeners) l();
+}
+
+/** A component's unsaved text, marked while `item` is not null and the component is mounted. */
+export function useUnsavedMark(item: UnsavedItem | null): void {
+  const id = useRef<symbol>(Symbol('unsaved'));
+  const kind = item?.kind;
+  const project = item?.project;
+  const scenario = item?.scenario;
+  useEffect(() => {
+    setMark(id.current, kind ? { kind, ...(project !== undefined ? { project } : {}), ...(scenario !== undefined ? { scenario } : {}) } : null);
+  }, [kind, project, scenario]);
+  useEffect(() => {
+    const mine = id.current;
+    return () => setMark(mine, null);
+  }, []);
+}
+
+/** Every unsaved text of the tab — the drafts with unsaved text and the marks — deduplicated, in a stable order. */
+export function unsavedItems(): UnsavedItem[] {
+  const all = new Map<string, UnsavedItem>();
+  const add = (i: UnsavedItem) => all.set(`${i.kind}\u0000${i.project ?? ''}\u0000${i.scenario ?? ''}`, i);
+  for (const [key, d] of drafts) {
+    if (!isDirty(d)) continue;
+    if (key.startsWith('readme:')) add({ kind: 'readme', project: key.slice(7) });
+    else if (key.startsWith('scenario:')) {
+      const rest = key.slice(9);
+      const i = rest.indexOf('/');
+      add({ kind: 'yaml_draft', project: rest.slice(0, i), scenario: rest.slice(i + 1) });
+    }
+  }
+  for (const m of marks.values()) add(m);
+  return [...all.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, i]) => i);
+}
+
+/** `f` on every change of the drafts or the marks; returns the unsubscribe. */
+export function onUnsavedChange(f: () => void): () => void {
+  listeners.add(f);
+  return () => {
+    listeners.delete(f);
+  };
 }
 
 /** Closing or reloading the tab with unsaved text asks first (the browser's own prompt). */

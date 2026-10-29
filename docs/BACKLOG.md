@@ -1882,18 +1882,19 @@ appearance.
 ### BL-125 — Desktop shell extras cut from L5.2
 *M · cut in L5.2 · builds on: L5.2, BL-106, BL-36*
 
-What the L5.2 shell (apps/desktop, DESIGN §4j) does not do:
-- **Job notifications** (cut before coding): `tauri-plugin-notification` posts through the deprecated
-  NSUserNotificationCenter (mac-notification-sys) as the app's bundle id; whether it delivers on macOS 26 cannot be
-  checked without a person, the probe itself would add the app to the system's notification settings, and the ad hoc
-  signature changes with every build. Alternatives: UNUserNotificationCenter through objc2 (a permission prompt per
-  bundle id), or the repository's `osascript display notification` (attributed to Script Editor) driven by job lines
-  on the supervised pipe.
-- **A prompt before losing unsaved text** (critique M1): WKWebView never asks before leaving a page (wry implements no
-  `beforeunload` panel), so Quit, Open Workspace… and a server restart drop an unsaved YAML / README draft that a
-  browser tab would protect. A dirty flag through the supervised pipe (as BL-106's confirm), or a page→shell request.
-- A Quit prompt while a job runs (the shell holds no job state; the shared worker finishes its jobs anyway), a Dock
-  badge / progress, recent workspaces and one window per workspace, a menu-bar item, launch at login,
+What the L5.2 shell (apps/desktop, DESIGN §4j) does not do — L5.2b added job notifications (UNUserNotificationCenter)
+and the quit / Open Workspace… / restart question for running jobs and unsaved text (the supervised pipe's `pending`
+and `job_end` lines); what remains:
+- **A notification's click opening the job's screen** (the run banner, the render, the Record screen): it shows the
+  window only — opening the screen needs a second `.eval` and a route built from the line.
+- **Guard and notifications for an attached server** (L5.2b D8): no pipe reaches a server another process started;
+  the `--supervised` child could stay alive as a relay (it already holds ui.json's token in its reuse path), poll a
+  token-gated `GET /v1/pending` and run the job watch on the shared queue, writing the same lines.
+- **More unsaved text**: the Record screen's typed words (a recording's name: not marked; L5.2b review B L7 marked
+  the Library's component words, the new-theme form and the theme editor's colour draft), the browser's `beforeunload` prompt for the
+  marks (component-local text: a step form, a comment — the drafts' only today; Playwright dismisses such a prompt and
+  e2e tests that navigate with a typed comment would hang), and a Reload item now guardable through the same question.
+- A Dock badge / progress, recent workspaces and one window per workspace, a menu-bar item, launch at login,
   `demo-studio://` deep links (`tauri-plugin-deep-link` is in the cargo cache), App Nap measurements and an
   NSProcessInfo activity while jobs run.
 - **Native pickers for the Studio's own path fields** (brand files, a scenario file): a narrow page→shell command, with
@@ -1908,13 +1909,24 @@ What the L5.2 shell (apps/desktop, DESIGN §4j) does not do:
   (L5.2 review B L5; documented in README and MACOS-CHECKLIST 14a). The file, or the server passing the worker a
   marker so a terminal client restarts it, would close it.
 - **⌘Tab to a hidden window** (L5.2 review B M3): Window › Show Studio Window (⌘0) and the Dock icon bring it back;
-  showing it when the app becomes active needs an `NSApplicationDidBecomeActiveNotification` observer (a block crate,
-  not a dependency today).
+  showing it when the app becomes active needs an `NSApplicationDidBecomeActiveNotification` observer — cheap since
+  L5.2b (`block2` is a dependency now).
 - **A hidden window keeps the page live** (review B L11): its event stream stays open, so the server's 1 s workspace
   poll and the stream's keepalive run while the app sits closed in the Dock — measure with the App Nap item above;
   pausing the stream while hidden would need a shell→page signal. Also tiny: Ctrl-C under `desktop:dev` signals the
   whole process group, and if the watcher sees the child's exit before the app's own quit, a "server stopped" alert
   can flash during the quit.
+- **One shared job watch** (L5.2b review B L15): the supervised server's `Supervisor` and the event stream's `Live`
+  each poll the queue (a running job's read checks its worker with `ps`) while a page is open; one watch feeding both
+  would halve it (the Supervisor already reads each live job once per poll).
+- **The quit question's reason by hand** (L5.2b review B M2): logout / restart / shut down are read from the quit
+  Apple event's `kAEQuitReason`; a gated test would need to send such an event (Automation permission) — checked by
+  hand (MACOS-CHECKLIST 14a). Also the picker ended by SIGTERM (review B M1): test mode never shows a real
+  NSOpenPanel (it would write the test bundle's preferences).
+- **Every job end notified** (L5.2b review B L12): past 20 `job_end` lines a minute the server counts the rest on its
+  stderr only (a summary can undercount a flood), and a 17th tab's unsaved report is refused (`busy`, retried every
+  5 s). A count line (`{"type":"job_end_dropped","n"}`) and a board without a tab cap but with a byte cap would close
+  both.
 - Windows and Linux shells (BL-37).
 
 ## Guard-rails for planned lots (no new scope)

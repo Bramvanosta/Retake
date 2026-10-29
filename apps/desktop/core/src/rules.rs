@@ -1,6 +1,7 @@
 //! What the window may load, what the child's line must say, and what the shell may print.
 //!
-//! - `parse_ui_line`: the one line `studio ui --supervised` prints — `type: "ui"`, `v: 1`, `url` exactly
+//! - `parse_ui_line`: the one line `studio ui --supervised` prints — `type: "ui"`, `v: 2` (L5.2b: the pipe lines of
+//!   pipe.rs follow it; `studio ui --json` keeps `v: 1`, which this shell refuses), `url` exactly
 //!   `http://127.0.0.1:<port>/#c=<code>`, `player` exactly `http://127.0.0.1:<other port>`; anything else is refused.
 //!   `{"type":"error","code":"no_workspace"}` (the CLI's answer for a folder that is no workspace) is told apart.
 //! - `navigation_allowed`: every frame's navigation (wry asks for all frames): only the Studio's and the player's exact
@@ -14,8 +15,8 @@
 use crate::json::{self, Json};
 use std::time::{Duration, Instant};
 
-/// The supervised line's version this shell reads (`studio ui` UI_LINE_VERSION).
-pub const UI_LINE_VERSION: u64 = 1;
+/// The supervised line's version this shell reads (`studio ui` SUPERVISED_LINE_VERSION; 2 since L5.2b).
+pub const UI_LINE_VERSION: u64 = 2;
 const LOOPBACK: &str = "http://127.0.0.1:";
 
 /// The port of an `http://127.0.0.1:<port>` URL and what follows the authority (empty, or starting with `/`, `?`, `#`).
@@ -73,9 +74,13 @@ impl std::fmt::Display for LineError {
         match self {
             LineError::NotJson(e) => write!(f, "the Studio CLI did not print its JSON line ({e})"),
             LineError::WrongType => write!(f, "the Studio CLI printed another line than the ui one"),
+            LineError::WrongVersion(Some(v)) if *v > UI_LINE_VERSION => write!(
+                f,
+                "the Studio CLI is newer than this app (line version {v}, the app reads {UI_LINE_VERSION}): rebuild the app — pnpm desktop:build in the repository"
+            ),
             LineError::WrongVersion(v) => write!(
                 f,
-                "the Studio CLI speaks line version {} and this app version {UI_LINE_VERSION}: run pnpm build (and pnpm desktop:build) in the repository",
+                "the Studio CLI is older than this app (line version {}, the app reads {UI_LINE_VERSION}): run pnpm build in the repository, then pnpm desktop:build",
                 v.map_or("none".to_string(), |v| v.to_string())
             ),
             LineError::BadUrl => write!(f, "the Studio CLI gave a URL that is not http://127.0.0.1:<port>/#c=<code>"),
@@ -335,7 +340,7 @@ mod tests {
 
     fn line(url: &str, port: u64, player: Option<&str>) -> String {
         format!(
-            r#"{{"type":"ui","v":1,"url":{},"port":{port},"pid":4242,"reused":false{}}}"#,
+            r#"{{"type":"ui","v":2,"url":{},"port":{port},"pid":4242,"reused":false{}}}"#,
             json::quote(url),
             player.map(|p| format!(r#","player":{}"#, json::quote(p))).unwrap_or_default()
         )
@@ -345,7 +350,7 @@ mod tests {
     fn the_line_of_studio_ui_supervised() {
         let ok = parse_ui_line(&line(&format!("http://127.0.0.1:4100/#c={CODE}"), 4100, Some("http://127.0.0.1:4101"))).unwrap();
         assert_eq!(ok, UiLine { url: format!("http://127.0.0.1:4100/#c={CODE}"), port: 4100, pid: 4242, reused: false, player_port: 4101 });
-        let reused = format!(r#"{{"type":"ui","v":1,"url":"http://127.0.0.1:9/#c={CODE}","port":9,"pid":1,"reused":true,"player":"http://127.0.0.1:10"}}"#);
+        let reused = format!(r#"{{"type":"ui","v":2,"url":"http://127.0.0.1:9/#c={CODE}","port":9,"pid":1,"reused":true,"player":"http://127.0.0.1:10"}}"#);
         assert!(parse_ui_line(&reused).unwrap().reused);
     }
 
@@ -373,8 +378,13 @@ mod tests {
         for bad in ["http://localhost:4101", "http://127.0.0.1:4101/", "http://127.0.0.1:4100", "https://127.0.0.1:4101", "http://127.0.0.1:4101/s/x"] {
             assert_eq!(parse_ui_line(&line(&url, 4100, Some(bad))), Err(LineError::BadPlayer), "{bad}");
         }
-        assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("\"v\":1", "\"v\":2")), Err(LineError::WrongVersion(Some(2))));
-        assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("\"v\":1,", "")), Err(LineError::WrongVersion(None)));
+        // L5.2b: `studio ui --json`'s v 1 (a CLI older than the app) and a newer line are refused, each saying what to build.
+        let v1 = parse_ui_line(&line(&url, 4100, p).replace("\"v\":2", "\"v\":1"));
+        assert_eq!(v1, Err(LineError::WrongVersion(Some(1))));
+        assert!(v1.unwrap_err().to_string().contains("run pnpm build in the repository, then pnpm desktop:build"));
+        let v3 = parse_ui_line(&line(&url, 4100, p).replace("\"v\":2", "\"v\":3"));
+        assert!(v3.unwrap_err().to_string().contains("rebuild the app — pnpm desktop:build"));
+        assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("\"v\":2,", "")), Err(LineError::WrongVersion(None)));
         assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("\"ui\"", "\"job\"")), Err(LineError::WrongType));
         assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("4242", "0")), Err(LineError::BadPid));
         assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("false", "\"no\"")), Err(LineError::BadReused));

@@ -32,6 +32,7 @@ import type { ThreadAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } fro
 import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, Notice, Txt, When, plural } from './bits.js';
 import { CommentsTab } from './CommentsTab.js';
+import { useUnsavedMark } from './drafts.js';
 import { commentsEventAction, useEvents } from './events.js';
 import { useRenders } from './Renders.js';
 import type { RendersState } from './Renders.js';
@@ -834,6 +835,8 @@ function Composer(p: { slug: string; name: string; shown: Shown; frame: number; 
   const fresh = anchor.state === 'ok' && anchor.a.frame === frame;
 
   const [text, setText] = useState('');
+  // L5.2b: a comment being written is unsaved text the desktop app's quit question names.
+  useUnsavedMark(text.trim() ? { kind: 'comment', project: p.slug, scenario: p.name } : null);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ids = useId();
@@ -1063,7 +1066,7 @@ function ThreadPanel({ slug, name, id, tick, onThread, renders, rs }: { slug: st
         </>
       )}
       {loaded.data.proposal && <ProposalCard slug={slug} name={name} th={th} p={loaded.data.proposal} rs={rs} reload={reload} />}
-      <ThreadActions slug={slug} th={th} renders={renders} reload={reload} />
+      <ThreadActions slug={slug} name={name} th={th} renders={renders} reload={reload} />
       <p className="muted small th-channels">{CHANNEL_NOTE}</p>
     </article>
   );
@@ -1086,9 +1089,10 @@ function ThreadStill({ slug, id, renderId }: { slug: string; id: string; renderI
 
 type Write = { kind: 'idle' } | { kind: 'sending'; what: string } | { kind: 'done'; words: string } | { kind: 'conflict'; words: string } | { kind: 'error'; words: string };
 
-function ThreadActions({ slug, th, renders, reload }: { slug: string; th: ThreadAnswer; renders: ScenarioRenderView[]; reload: () => void }) {
+function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name: string; th: ThreadAnswer; renders: ScenarioRenderView[]; reload: () => void }) {
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
+  useUnsavedMark(reply.trim() || note.trim() ? { kind: 'comment', project: slug, scenario: name } : null);
   const newer = th.newer_renders.filter((r) => renders.some((x) => x.render_id === r));
   const [answer, setAnswer] = useState<string>(newer[0] ?? '');
   const [write, setWrite] = useState<Write>({ kind: 'idle' });

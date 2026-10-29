@@ -269,8 +269,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   See [Recording a scenario](#recording-a-scenario).
 - **ui** serves the Studio web app of the workspace on `127.0.0.1` until Ctrl-C and opens it in the browser
   (`--no-open`: print the link only; `--port`: a fixed port; `--json`: one line `{type, v, url, port, pid, reused,
-  player}` — `player` the preview's origin; `--supervised`: `--json --no-open` for the desktop app, and it stops when its
-  stdin closes, saying why on stderr: `stopped: SIGTERM`, `stopped: stdin closed`); one server per workspace — run it
+  player}` (`v` 1) — `player` the preview's origin; `--supervised`: `--json --no-open` for the desktop app (its line says
+  `v` 2: what Quit would leave behind and the job ends follow it, one JSON line each), and it stops when its stdin
+  closes, saying why on stderr: `stopped: SIGTERM`, `stopped: stdin closed`); one server per workspace — run it
   again to reopen the running one with a new link — see [Studio app](#studio-app) and
   [Desktop app (macOS)](#desktop-app-macos).
 
@@ -3808,13 +3809,45 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   the app attaches: it opens that server's Studio and never stops it; nothing watches it either — if it stops, the
   window says to run `studio ui` again: File › Open Workspace… on the same folder gives the app a server of its own
   (and if the page reloads meanwhile, the app says the server is gone and offers Restart).
-  The jobs worker is never the app's: quitting while a capture runs lets it finish (no prompt).
+  The jobs worker is never the app's: quitting while a capture runs lets it finish.
+- **Quit asks when something would be left behind** (L5.2b). With a job of the workspace's queue running or waiting
+  (a capture, dry run, render, review, export, recording, sandbox start or reset, environment reset or hooks, queued
+  by the Studio or by Claude through MCP — a terminal's `studio run` / `render` / `export` / `record` runs in-process,
+  is no job, and is neither asked about nor notified) or unsaved text in the Studio (a README or a scenario's YAML
+  being edited, a step form's typed fields, a comment being written, the Library's "create a component" words, a
+  new-theme form, a theme colour picked and not written yet — in this window or in a browser tab on the app's server),
+  ⌘Q, Quit in the menu or the Dock ask first, naming each: jobs keep running after the app quits (it just stops
+  telling you when they end); unsaved text can no longer be saved. A recording the Studio started keeps its window:
+  the question says to close that window to end it and save it from the Record screen later. With unsaved text,
+  Cancel comes first and **Quit Anyway** is red and takes no key (Return never loses text; Escape: MACOS-CHECKLIST
+  14a); with jobs only, Quit Anyway is the default. Names are the project's and scenario's own (only ones that exist,
+  cut at 40 characters). **Logging out** asks the same, saying the jobs stop (the jobs worker ends with your session);
+  **a restart or shut down** of the Mac asks only about unsaved text — jobs alone never hold an unattended restart
+  (they stop with it). File › Open Workspace… asks the same way (Open Anyway), and when the app's server stops on its
+  own, its restart alert names the unsaved text still in the window, with **Not Now** as the default (Restart and
+  Quit, which lose it, take no key). Nothing pending: Quit is instant, as before. A job waiting with no worker to run
+  it does not count (it starts with the next job). SIGTERM / Ctrl-C quit at once and close whichever question of the
+  app is up — the quit question, Open Workspace…'s, the restart alert, "not a workspace", the folder picker (the
+  picker's case is checked by hand: MACOS-CHECKLIST 14a). A job queued from the Studio counts at once; one from Claude
+  within a second.
+- **Notifications** (L5.2b). When a job ends while the window is not in front (closed, hidden, minimised, or another
+  app active), a notification says how it ended — "Capture finished", "Render needs attention — the review found errors
+  or warnings", "Recording needs attention — ready to save on the Record screen" — with the project and scenario;
+  several ending close together come as one summary (at most one notification every 5 s); a cancelled job says
+  nothing. A click shows the window. macOS asks for permission at the first one (System Settings › Notifications ›
+  Demo Studio turns them off or on again — turned on there, the next notification shows, no relaunch needed; a refusal
+  by macOS itself is logged with its error code). Only the built app posts them (`pnpm desktop:dev` runs a bare
+  binary: it says so and posts none).
+- **An attached server** (a terminal's `studio ui` was there first) gives the app no pipe: no quit question, no
+  notifications — the app says so when it attaches. File › Open Workspace… on the same folder after stopping the other
+  server gives the app a server of its own.
+- **After `pnpm build`, run `pnpm desktop:build` too** when the CLI and the app drift apart: an app older than the CLI
+  (or the other way round) refuses to start with an alert that says which one to rebuild.
 - **The window.** Closing it hides it (the page stays connected); the Dock icon or Window › Show Studio Window (⌘0)
   shows it again (⌘Tab alone does not). The title bar takes the page's colour — light today, also in Dark mode, until
   the Studio's own dark theme. The Edit menu makes
   ⌘Z ⌘C ⌘V ⌘X ⌘A work in fields; the app binds no ⌘S, ⌘R, ⇧⌘R, ⌘B, ⌘. or ⌘Enter, so the Studio's own shortcuts work.
-  **Unsaved text is not protected:** Quit, Open Workspace… and a server restart leave the page without the prompt a
-  browser shows (WebKit in an app asks nothing): save the YAML / README first (BACKLOG BL-125).
+  The Record screen's few typed words (a recording's name) are not among the unsaved text Quit names (BACKLOG BL-125).
 - **What it keeps and prints.** No token: the page trades the one-time code for its token as in a browser and keeps it
   in the window's memory; the window's web storage is ephemeral (nothing in `~/Library`: no copy of capture media);
   the window loads only the Studio's and the preview's `127.0.0.1` origins (every navigation, every frame; none once
@@ -3828,17 +3861,21 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   lives (it exits after 60 s without a job), so a job Claude submits through MCP meanwhile runs with it too — let it
   idle out before relying on `{{env:…}}` set in a terminal (BACKLOG BL-125). macOS may ask
   whether the app may reach devices on your local network (a capture of a product on another machine), access your
-  Desktop, Documents or Downloads folder (a workspace there: the server is the app's child), or show notifications for
-  a `notify` step, naming the app; the ad hoc signature changes with every `pnpm desktop:build`, so it may ask again
-  after a build.
+  Desktop, Documents or Downloads folder (a workspace there: the server is the app's child), or show notifications (the
+  app's own job notifications, or a `notify` step), naming the app; the ad hoc signature changes with every
+  `pnpm desktop:build`, so it may ask again after a build (notification permission is kept by bundle id: expected to
+  survive a rebuild — MACOS-CHECKLIST 14a checks it).
 - **Launch Services** records each built copy of the app (even started from a terminal); keep one copy —
   `pnpm desktop:clean` removes the record with the build.
 - **Checks.** `packages/cli/test/desktop-config.test.ts` (the configuration, read statically) and
   `desktop-core.test.ts` (the shell's rules, when cargo is on PATH) run in `pnpm test`; the black-box test of the built
-  app is opt-in: `DEMO_STUDIO_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts` (≈ 35 s warm;
-  with `DEMO_STUDIO_TEST_SLOW=1`, a fixture capture on its timeline too); by hand: MACOS-CHECKLIST 14a (Finder, picker,
-  keys, drag & drop, the Player playing, Quit during a capture). Not yet: notifications, native pickers for the Studio's
-  path fields, signing and an installer (BACKLOG BL-125, BL-36).
+  app is opt-in: `DEMO_STUDIO_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts` (≈ 2 min warm: the
+  quit question, Quit Anyway / Open Anyway, SIGTERM during every question and the notification rule included,
+  notifications logged, never posted; its test mode (`DEMO_STUDIO_DESKTOP_TEST=1`) is honoured only for a binary another
+  process started — never for a Finder or Dock launch (launchd its parent), whatever `launchctl setenv` says; with
+  `DEMO_STUDIO_TEST_SLOW=1`, a fixture capture on its timeline too); by hand: MACOS-CHECKLIST 14a (Finder, picker, keys,
+  drag & drop, the Player playing, Quit during a capture, the notification permission, a banner and its click). Not
+  yet: native pickers for the Studio's path fields, signing and an installer (BACKLOG BL-125, BL-36).
 
 ## Security
 

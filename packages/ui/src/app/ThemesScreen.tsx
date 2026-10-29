@@ -12,6 +12,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { SiteListAnswer, ThemeListAnswer } from '../server/theme-ops.js';
 import { call, errorText, useCall } from './api.js';
 import { Badge, Loading, Notice, Txt, When, plural, visibleControls } from './bits.js';
+import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
 import { copyName, themeNameProblem } from './library-words.js';
 import { hrefTo } from './route.js';
@@ -252,6 +253,8 @@ function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: str
   const [images, setImages] = useState<BrandFiles | null>(null);
   const [fontFiles, setFontFiles] = useState<BrandFiles | null>(null);
   const [state, setState] = useState<{ busy?: boolean; error?: string; made?: Created }>({});
+  // L5.2b (review B L7): a form changed and not made yet is unsaved text the desktop app's quit question names.
+  useUnsavedMark(!state.made && JSON.stringify(f) !== JSON.stringify(initial) ? { kind: 'new_theme', project: slug } : null);
   const set = (k: keyof NewThemeForm) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   useEffect(() => {
     let live = true;

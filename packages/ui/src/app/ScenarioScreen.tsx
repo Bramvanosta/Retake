@@ -980,6 +980,8 @@ function StepActions({ disabled, locked, up, down, onMove, onAction }: { disable
 const PAGE = 10;
 
 function Blocks({
+  slug,
+  name,
   v,
   picked,
   setPicked,
@@ -987,6 +989,8 @@ function Blocks({
   ed,
   forms,
 }: {
+  slug: string;
+  name: string;
   v: View;
   picked: string | null;
   setPicked: (key: string) => void;
@@ -1228,7 +1232,7 @@ function Blocks({
         step={step}
         onShowYaml={onShowYaml}
         editing={ed.enabled}
-        form={step && scene && ed.enabled && forms && step.form && step.locked === undefined ? <StepForm key={step.key} forms={forms} scene={scene} step={step} ed={ed} /> : null}
+        form={step && scene && ed.enabled && forms && step.form && step.locked === undefined ? <StepForm key={step.key} slug={slug} name={name} forms={forms} scene={scene} step={step} ed={ed} /> : null}
         actions={
           step && scene && ed.enabled ? (
             <StepActions
@@ -1427,7 +1431,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
               </Notice>
             )}
             <EditBar ed={ed} />
-            <Blocks v={v} picked={picked} setPicked={setPicked} onShowYaml={onShowYaml} ed={ed} forms={forms} />
+            <Blocks slug={slug} name={name} v={v} picked={picked} setPicked={setPicked} onShowYaml={onShowYaml} ed={ed} forms={forms} />
           </>
         ) : (
           <YamlTab v={v} slug={slug} name={name} focus={focus} issues={allIssues(v)} reload={reload} onSaved={ed.ownSave} />

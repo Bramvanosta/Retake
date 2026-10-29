@@ -57,6 +57,7 @@ import { commentOps, pathFree } from './comment-ops.js';
 import { opChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
+import { UnsavedBoard, unsavedOps } from './unsaved.js';
 import { z } from 'zod';
 
 /**
@@ -87,6 +88,7 @@ import { z } from 'zod';
  * record_discard, record_save: the control panel of the headed window the worker opens; nothing reaches that window).
  * `scenario_record` and `job_cancel` stay out (a recording from the Studio is pinned: page and path, no --allow-writes,
  * the check on; it is stopped, discarded and saved through its own ops only).
+ * L5.2b: `unsaved_report` (unsaved.ts — what a tab holds unsaved, kinds and names only: the desktop app's quit question).
  * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
@@ -198,6 +200,13 @@ export interface StudioServer {
   live: Live;
   /** The run streams (`POST /v1/live`). */
   runLive: RunLive;
+  /** What the tabs hold unsaved (L5.2b: `unsaved_report`). */
+  unsaved: UnsavedBoard;
+  /**
+   * `f` runs after each op that succeeded and is not read-only (`unsaved_report` excepted): the supervised server's job
+   * watch polls at once (a Studio submit shows in the desktop shell without waiting). Returns the unsubscribe.
+   */
+  onWrite(f: () => void): () => void;
   engine: Engine;
   close(): Promise<void>;
 }
@@ -250,6 +259,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
   const forbid = () => [engine.workspace.root, homedir()];
+  const unsaved = new UnsavedBoard(engine.workspace.projectsDir);
   const tools = uiTools([
     ...indexOps(live),
     overviewOp(),
@@ -263,7 +273,9 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...libraryOps({ chain }),
     ...themeOps({ chain, player: playerNow, forbid, allow: previewAllow, leases }),
     ...recordOps({ chain }),
+    ...unsavedOps(unsaved),
   ]);
+  const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();
   const codes = new BootstrapCodes();
@@ -392,6 +404,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       return;
     }
     send(res, 200, { ok: true, summary: r.output.summary, data: capUntrusted(r.output.data), ...(r.output.images?.length ? { images: r.output.images } : {}) });
+    if (!tool.annotations.readOnlyHint && op !== 'unsaved_report') for (const f of writeListeners) f();
   };
 
   const server: Server = createServer((req, res) => {
@@ -444,6 +457,11 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     previewAllow,
     live,
     runLive,
+    unsaved,
+    onWrite: (f) => {
+      writeListeners.add(f);
+      return () => writeListeners.delete(f);
+    },
     engine,
     close: () =>
       (closed ??= (runLive.close(), Promise.all([live.close(), started.close()])).then(

@@ -25,6 +25,7 @@ import type { ThemeListAnswer, ThemePreviewAnswer } from '../server/theme-ops.js
 import { CallError, call, errorText } from './api.js';
 import type { Loaded } from './api.js';
 import { Badge, Loading, Notice, Txt, visibleControls } from './bits.js';
+import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
 import { copyName, themeNameProblem } from './library-words.js';
 import { PreviewFrame } from './PreviewFrame.js';
@@ -119,6 +120,8 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
   const busyRef = useRef(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [draft, setDraftState] = useState<Draft | null>(null);
+  // L5.2b (review B L7): a colour or background picked and not written yet is unsaved for the desktop app's quit question.
+  useUnsavedMark(draft && (draft.colors || draft.background) ? { kind: 'theme_draft', project: slug } : null);
   const [target, setTarget] = useState<PreviewTarget>('intro');
   const [rippleFollows, setRippleFollows] = useState(true);
   const v = view.state === 'ready' ? view.data : null;

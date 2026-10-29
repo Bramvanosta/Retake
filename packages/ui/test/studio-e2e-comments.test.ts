@@ -306,8 +306,11 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     // Post: the thread opens; the file is the channel studio, named by the Studio; the text shown literally.
     const text = `${INJECTED}\nSecond line.`;
     await page.getByTestId('comment-text').fill(text);
+    // L5.2b (critique M6): a comment being written is on the board of unsaved text (kind and names, never the text).
+    await expect.poll(() => studio.unsaved.items(), POLL).toEqual([{ kind: 'comment', project: 'demo', scenario: 'bits' }]);
     await page.getByTestId('post-comment').click();
     await page.waitForURL(/#\/p\/demo\/s\/bits\/comments\/c_[0-9A-HJKMNP-TV-Z]{26}$/, POLL);
+    await expect.poll(() => studio.unsaved.items(), POLL).toEqual([]);
     id = decodeURIComponent(page.url().split('/comments/')[1]);
     const thread = page.getByTestId('thread');
     await thread.waitFor(POLL);

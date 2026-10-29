@@ -15,8 +15,22 @@ function signature(j: JobRecord): string {
 export class JobsWatch {
   private known: Set<string> | undefined;
   private live = new Map<string, string>();
+  private records = new Map<string, JobRecord>();
 
   constructor(private readonly queue: FileJobQueue) {}
+
+  /** Ids of the jobs that were unfinished at the last poll (L5.2b: the desktop shell's pending snapshot). */
+  get unfinished(): string[] {
+    return [...this.live.keys()].sort();
+  }
+
+  /**
+   * The record of job `id` as the last poll read it (a job new or unfinished then; L5.2b review B L15: a reader of the
+   * changes reuses it instead of reading the job again — a running job's read checks its worker with `ps`).
+   */
+  record(id: string): JobRecord | undefined {
+    return this.records.get(id);
+  }
 
   /** Ids of the jobs that appeared or changed since the last poll (none on the first: it only takes stock). */
   async poll(): Promise<string[]> {
@@ -31,15 +45,19 @@ export class JobsWatch {
     }
     const changed: string[] = [];
     const live = new Map<string, string>();
+    const records = new Map<string, JobRecord>();
     for (const id of look) {
       const job = await this.queue.get(id).catch(() => undefined);
       if (!job) continue;
+      // The first poll reads the whole history: only its unfinished jobs are kept.
+      if (!first || !FINISHED_JOB_STATES.has(job.state)) records.set(id, job);
       const s = signature(job);
       if (!first && this.live.get(id) !== s) changed.push(id);
       if (!FINISHED_JOB_STATES.has(job.state)) live.set(id, s);
     }
     this.known = new Set(ids);
     this.live = live;
+    this.records = records;
     return changed.sort();
   }
 }

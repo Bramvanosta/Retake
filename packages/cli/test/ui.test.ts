@@ -11,6 +11,9 @@
  * stderr without any URL, and attaches (`reused`, with the player origin) to a running server without touching it; a
  * folder that is no workspace answers `{"type":"error","code":"no_workspace"}` on stdout (exit 2), which the desktop
  * shell tells from another usage error (review B L4).
+ * L5.2b: the supervised line says `v` 2 (`--json` keeps 1); after it, an owned server writes `pending` snapshots (a
+ * running job written in its workspace shows in the next one) and nothing else on stdout — stdin is still read and
+ * discarded; a reused server writes nothing after its line.
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -20,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { selfIdentity } from '@demo-studio/engine';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
 
@@ -33,6 +37,8 @@ const children: ChildProcess[] = [];
 interface Started {
   child: ChildProcess;
   line: Promise<string>;
+  /** stdout so far. */
+  out: () => string;
   exit: Promise<{ code: number | null; signal: NodeJS.Signals | null; out: string; err: string }>;
 }
 
@@ -49,7 +55,7 @@ function studio(args: string[], cwd = base, env: NodeJS.ProcessEnv = {}, stdin: 
   });
   child.stderr!.on('data', (c: Buffer) => (err += c.toString('utf8')));
   const exit = new Promise<{ code: number | null; signal: NodeJS.Signals | null; out: string; err: string }>((r) => child.on('exit', (code, signal) => r({ code, signal, out, err })));
-  return { child, line, exit };
+  return { child, line, exit, out: () => out };
 }
 
 beforeAll(async () => {
@@ -190,23 +196,39 @@ describe.skipIf(!built)('studio ui (built CLI)', () => {
     };
     const ui = () => join(ws, '.demo-studio', 'ui.json');
 
-    it('one line with v and the player origin; closing stdin stops it (exit 0, ui.json removed, the reason on stderr, no URL)', async () => {
+    it('one line with v 2 and the player origin, then pending snapshots only (a running job shows); closing stdin stops it (exit 0, ui.json removed, the reason on stderr, no URL)', async () => {
       const s = studio(['--root', ws, 'ui', '--supervised'], base, {}, 'pipe');
       const info = JSON.parse(await s.line) as { type: string; v: number; url: string; port: number; reused: boolean; player: string };
-      expect(info).toMatchObject({ type: 'ui', v: 1, reused: false });
+      expect(info).toMatchObject({ type: 'ui', v: 2, reused: false });
       expect(info.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${info.port}/#c=[A-Za-z0-9_-]{43}$`));
       expect(info.player).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
       expect(info.player).not.toBe(`http://127.0.0.1:${info.port}`);
       expect(existsSync(ui())).toBe(true);
+      const lines = () => s.out().split('\n').filter(Boolean).slice(1).map((l) => JSON.parse(l) as Record<string, unknown>);
+      const until = async (f: () => boolean, ms = 8000) => {
+        const end = Date.now() + ms;
+        while (!f() && Date.now() < end) await new Promise((r) => setTimeout(r, 50));
+        return f();
+      };
+      expect(await until(() => lines().length >= 1)).toBe(true);
+      expect(lines()[0]).toEqual({ type: 'pending', jobs: [], jobs_total: 0, unsaved: [], unsaved_total: 0 });
+      // A job running in the workspace (its worker: this process) shows in the next snapshot, within the 1 s poll.
+      const id = `j_${'0'.repeat(25)}1`;
+      await mkdir(join(ws, '.demo-studio', 'jobs', id), { recursive: true });
+      const input = { version: 1, kind: 'run', project: 'northfield-fixture', scenario: 'quote', scenario_sha256: '0'.repeat(64), mode: 'capture', run_id: '20261029-120000-quote', submitted_by: 'test' };
+      await writeFile(join(ws, '.demo-studio', 'jobs', id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input, state: 'running', created_at: new Date().toISOString(), worker: { ...(await selfIdentity()), host: 'test' } }));
+      expect(await until(() => lines().some((l) => l.jobs_total === 1))).toBe(true);
+      expect(lines().at(-1)).toEqual({ type: 'pending', jobs: [{ kind: 'capture', state: 'running', project: 'northfield-fixture', scenario: 'quote' }], jobs_total: 1, unsaved: [], unsaved_total: 0 });
       // Bytes on stdin are read and discarded: still serving.
       s.child.stdin!.write('anything\n');
       await new Promise((r) => setTimeout(r, 200));
       expect((await fetch(`http://127.0.0.1:${info.port}/`)).status).toBe(200);
       s.child.stdin!.end();
       const done = await s.exit;
+      await rm(join(ws, '.demo-studio', 'jobs', id), { recursive: true, force: true });
       expect(done.code).toBe(0);
       expect(done.err).toBe('stopped: stdin closed\n');
-      expect(done.out.trim().split('\n')).toHaveLength(1);
+      for (const l of lines()) expect(l.type).toBe('pending');
       expect(existsSync(ui())).toBe(false);
     });
 
@@ -264,7 +286,7 @@ setInterval(() => undefined, 1000);`;
       const s = studio(['--root', empty, 'ui', '--supervised'], base, {}, 'pipe');
       const done = await s.exit;
       expect(done.code).toBe(2);
-      expect(done.out).toBe('{"type":"error","v":1,"code":"no_workspace"}\n');
+      expect(done.out).toBe('{"type":"error","v":2,"code":"no_workspace"}\n');
       expect(done.err).toContain('no workspace here');
       // What an older CLI does with a flag it does not know: a usage error, nothing on stdout.
       const old = studio(['--root', ws, 'ui', '--no-such-flag'], base, {}, 'pipe');
@@ -279,7 +301,8 @@ setInterval(() => undefined, 1000);`;
       const done = await s.exit;
       expect(done.code, done.err).toBe(0);
       expect(done.err).toBe('');
-      expect(JSON.parse(done.out.trim())).toMatchObject({ type: 'ui', v: 1, reused: true, port: info.port, pid: info.pid, player: info.player });
+      expect(done.out.trim().split('\n')).toHaveLength(1);
+      expect(JSON.parse(done.out.trim())).toMatchObject({ type: 'ui', v: 2, reused: true, port: info.port, pid: info.pid, player: info.player });
       expect(alive(info.pid)).toBe(true);
       expect((await fetch(`http://127.0.0.1:${info.port}/`)).status).toBe(200);
       first.child.kill('SIGTERM');
