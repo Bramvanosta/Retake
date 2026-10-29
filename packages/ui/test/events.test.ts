@@ -140,14 +140,15 @@ describe('/v1/events', () => {
       const t = Date.now();
       const changed = s.next('workspace');
       await writeFile(join(ws, 'projects', P, 'README.md'), '# Northfield\n\nChanged in another editor.\n');
-      expect(await changed).toEqual({ projects: [P], readme: [P] });
+      expect(await changed).toEqual({ projects: [P], readme: [P], files: [] });
       expect(Date.now() - t).toBeLessThan(2000);
       const jobs = s.next('jobs');
       const q = new FileJobQueue(ws);
       const id = newJobId();
       await mkdir(join(q.dir, id), { recursive: true });
       await writeFile(join(q.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state: 'queued', created_at: new Date().toISOString() }));
-      expect(await jobs).toEqual({ changed: [id] });
+      // L5.10a fixes (review A-L7): the event names the changed jobs' projects.
+      expect(await jobs).toEqual({ changed: [id], projects: [P] });
       expect(studio.calls).toBe(calls);
     } finally {
       s.close();
@@ -199,16 +200,16 @@ describe('comment events (L4.6, T12)', () => {
       const id = 'c_01JQ4000000000000000000001';
       let changed = s.next('workspace');
       await writeThread('quote', id, '{"version":1}\n');
-      expect(await changed).toEqual({ projects: [P], readme: [], comments: [`${P}/quote`] });
+      expect(await changed).toEqual({ projects: [P], readme: [], files: [], comments: [`${P}/quote`] });
       // An entry appended (the same name renamed over): the folder's mtime moves, the event names it again.
       await new Promise((r) => setTimeout(r, 30));
       changed = s.next('workspace');
       await writeThread('quote', id, '{"version":1,"entries":[]}\n');
-      expect(await changed).toEqual({ projects: [P], readme: [], comments: [`${P}/quote`] });
+      expect(await changed).toEqual({ projects: [P], readme: [], files: [], comments: [`${P}/quote`] });
       // Another scenario's thread: that scenario only.
       changed = s.next('workspace');
       await writeThread('catalogue', 'c_01JQ4000000000000000000002', '{}\n');
-      expect(await changed).toEqual({ projects: [P], readme: [], comments: [`${P}/catalogue`] });
+      expect(await changed).toEqual({ projects: [P], readme: [], files: [], comments: [`${P}/catalogue`] });
     } finally {
       s.close();
     }
@@ -247,7 +248,7 @@ describe('library events (L4.7, critique B5)', () => {
       await cp(scaffoldDir('card'), comp, { recursive: true });
       await writeFile(join(comp, 'component.yaml'), (await readFile(join(comp, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/evented'));
       await writeFile(join(comp, 'index.tsx'), code(1));
-      expect(await changed).toEqual({ projects: [], readme: [], components: ['acme'] });
+      expect(await changed).toEqual({ projects: [], readme: [], files: [], components: ['acme'] });
       await new Promise((r) => setTimeout(r, 400));
       const before = await posterKey('acme/evented');
       expect(before).toMatch(/^[0-9a-f]{32}$/);
@@ -255,7 +256,7 @@ describe('library events (L4.7, critique B5)', () => {
       const folders = await Promise.all([join(ws, 'components'), join(ws, 'components', 'acme'), comp].map(async (d) => (await stat(d)).mtimeMs));
       changed = s.next('workspace');
       await writeFile(join(comp, 'index.tsx'), code(2));
-      expect(await changed).toEqual({ projects: [], readme: [], components: ['acme'] });
+      expect(await changed).toEqual({ projects: [], readme: [], files: [], components: ['acme'] });
       expect(await Promise.all([join(ws, 'components'), join(ws, 'components', 'acme'), comp].map(async (d) => (await stat(d)).mtimeMs))).toEqual(folders);
       const after = await posterKey('acme/evented');
       expect(after).not.toBe(before);
@@ -264,7 +265,7 @@ describe('library events (L4.7, critique B5)', () => {
       const site = join(ws, '.demo-studio', 'site', 's_01JQ4000000000000000000001');
       await mkdir(site, { recursive: true });
       await writeFile(join(site, 'site.json'), '{}\n');
-      expect(await changed).toEqual({ projects: [], readme: [], site: true });
+      expect(await changed).toEqual({ projects: [], readme: [], files: [], site: true });
     } finally {
       s.close();
       await rm(comp, { recursive: true, force: true });
@@ -309,7 +310,7 @@ describe('the index ops', () => {
         expect(await s.next('hello')).toMatchObject({ index: false, generation: null });
         const changed = s.next('workspace');
         await writeFile(join(dir, 'projects', P, 'README.md'), '# Changed\n');
-        expect(await changed).toEqual({ projects: [P], readme: [P] });
+        expect(await changed).toEqual({ projects: [P], readme: [P], files: [] });
       } finally {
         s.close();
       }

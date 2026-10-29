@@ -16,10 +16,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AuthStatusItem } from '@demo-studio/engine';
-import { call, errorText, useCall } from './api.js';
+import { call, errorText } from './api.js';
 import { Badge, Loading, Notice, Txt, visibleControls, When } from './bits.js';
 import type { BadgeTone } from './bits.js';
-import { useEvents, useProjectEvents } from './events.js';
+import { useEvents } from './events.js';
+import { reloadProject, useCast } from './project-data.js';
 
 /** A persona's stored state, in words. */
 export const STORED_WORDS: Record<string, [string, BadgeTone]> = {
@@ -253,10 +254,14 @@ export function SessionsTable({ slug, rows, onChanged, caption }: { slug: string
   );
 }
 
-/** The project page's Sessions panel: every persona × environment of the project. */
+/**
+ * The Cast's Sessions panel: every persona × environment of the project. L5.10a fixes: it reads the open project's
+ * shared `auth_status` entry (project-data.ts: re-read on the events that concern it) — its own call re-read at every
+ * event of the project, a step of a take included.
+ */
 export function SessionsPanel({ slug }: { slug: string }) {
-  const [s, reload] = useCall<{ personas: AuthStatusItem[] }>('auth_status', { project: slug }, slug);
-  useProjectEvents(slug, reload);
+  const s = useCast(slug);
+  const reload = () => reloadProject('auth_status', slug);
   return (
     <section className="card" aria-labelledby="sessions-h" data-testid="sessions-panel">
       <h2 id="sessions-h" className="card-title">

@@ -403,7 +403,7 @@ function install(): void {
   /** The status dot glyphs: a dot says nothing but its colour (a marker's ◆, a cut's ✂, a space's · say it by their shape). */
   const DOT = /[\u25cf\u2022\u2b24\u25c9]/;
   /** The state words a status colour may stand beside (the badges' and notices' vocabulary). */
-  const STATE_WORDS = new Set('failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only'.split(' '));
+  const STATE_WORDS = new Set('failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid'.split(' '));
   const saysState = (text: string) => text.toLowerCase().split(/[^\p{L}-]+/u).some((wd) => STATE_WORDS.has(wd));
   const startsWithSign = (text: string) => SIGN.test(text.trim().split(/\s+/)[0] ?? '');
 
@@ -560,6 +560,9 @@ function install(): void {
         // … or the group itself, its active descendant one of its items.
         const ad = group.getAttribute('aria-activedescendant');
         if (group.tabIndex >= 0 && group.hasAttribute('aria-activedescendant') && (!ad || group.contains(document.getElementById(ad)))) continue;
+        // … or, L5.10a fixes (review A-L6: never an empty reference), a focusable listbox with nothing selected yet: no
+        // aria-activedescendant at all, the listbox itself the tab stop (its arrows select the first option).
+        if (group.tabIndex >= 0 && group.getAttribute('role') === 'listbox' && !group.hasAttribute('aria-activedescendant') && !group.querySelector('[aria-selected="true"]')) continue;
         // … or a focusable combobox controlling the listbox with an active descendant (the focus stays in its input).
         if (group.id && [...document.querySelectorAll('[role="combobox"][aria-activedescendant]')].some((c) => (c as HTMLElement).tabIndex >= 0 && (c.getAttribute('aria-controls') ?? '').split(/\s+/).includes(group.id) && shown(c))) continue;
         // Composites of one family (same role and class, each focusable by script) sharing one tab stop: the scenes'

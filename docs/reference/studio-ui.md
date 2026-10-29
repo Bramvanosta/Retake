@@ -151,16 +151,19 @@ The legacy steps' in-flight edge `--busy-edge` (`#80858f` / `#7d828c`) is a mark
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Title bar.** The app mark and name, then the open project (a link) › the scenario (text), truncated before they
-  reach the mode switch (at 900 px too). The mode switch is centred: a link per mode when a scenario is in context (the
+- **Title bar.** The app mark and name, then the open project (L5.10a: a menu button — the workspace's projects, then
+  "All projects" → Welcome) › the scenario (text), truncated before they reach the mode switch (at 900 px too). The mode switch is centred: a link per mode when a scenario is in context (the
   route's, or the one opened last in this project while it still lists it), disabled buttons with a hint otherwise.
   It is centred on the window, under the desktop app's overlay bar too (two equal side columns around it; the window
   buttons' inset sits inside the start one). Right: the screen's context
   control (a select: Location, Take, View) and the inspector toggle (an icon button named "Inspector", pressed while
   shown). Nothing in the bar can be selected as text.
-- **Browser.** A source list: Projects, the workspace's projects, the open project's pages (Overview, README with
-  "unsaved" while dirty, Components, Themes, Record). Its foot: the workspace path, the version and the worker's pid, the
-  UI gallery link. L5.10 adds the scenes of a scenario and smart groups (Ready to render, Needs a shoot, Failed).
+- **Browser.** A source list. No project open (Welcome): Projects and the workspace's projects. A project open
+  (L5.10a, B32): **Productions** (its count) with its smart groups **Ready to render · Needs a shoot · Failed** (counts);
+  **Library** (Components, Themes); **Locations** (one row per environment, its riskiest flag in a word: production,
+  read-only, sandbox, default); **Cast** (Sessions, then each persona's session as a shape and a word); **Project**
+  (README with "unsaved" while dirty, Record a scenario). Its foot: the workspace path, the version and the worker's
+  pid, the UI gallery link. L5.10b adds the scenes of a scenario.
 - **Centre.** The only scroller: the bars never move. It starts at the top when the screen changes, and keeps its
   place when the screen moves inside itself (a thread, a frame, a run, a theme picked).
 - **Inspector.** Shown only while the screen fills it; titled sections, the inspector's field rows (a right-aligned
@@ -193,10 +196,13 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | Progress | determinate (values), indeterminate | no motion under reduced motion |
 | Toolbar | one tab stop; arrows, Home, End over its visible controls (a radio group counts once) | groups controls inside a pane (not the title bar); a menu, a segmented control or a field inside it keeps its own keys |
 | StatusBar | state, information, actions | one per window (the shell's) and samples |
-| SourceList | headed groups, nested items, current (`aria-current`, select fill + 600), a count or a flag in words | |
+| SourceList | headed groups, nested items, current (`aria-current`, select fill + 600), a count or a flag in words; L5.10a: an icon, a lead column, a value (mono), a quiet row, a test id | the label truncates first; the flag, the count and the value never wrap |
+| Facts | a `<dl>` of read-only rows, the label in the 96 px right-aligned column (L5.10a); a name goes on a `group` around it, never on the `dl` | read-only values; FieldRow stays for controls |
+| Disclosure | a native `<details>`, closed by default (L5.10a) | the one collapsible outside the inspector (the ratchet bans `<details>` elsewhere) |
+| PosterGrid | ONE listbox (L5.10a): options with `aria-selected`, the selected one the active descendant (no `aria-activedescendant` while none is), select fill + 2 px ring; as many columns as fit, 200 px at least | arrows (↑ ↓ move by the row the layout shows: three at 1440, one at 900), Home / End, Enter opens, Space selects, Escape clears; a click selects, a double-click opens; nothing selected at first |
 | InspectorSection | titled; collapsible (`<details>`) | |
 | FrameCard, PosterCard | selected (select fill + 2 px ring) or not; a button that selects or a link that goes | the picture comes from Thumb.tsx (the one image source) |
-| Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied") | one line; the explanation on demand |
+| Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied"); L5.10a: without a word, no mark (a command to copy nothing waits on) | one line; the explanation on demand |
 | EmptyState | title, text, actions | |
 | Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive | the default holds the focus; a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
@@ -204,14 +210,31 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 
 ## The screens (from the canvas)
 
-The canvas's first round (C1 / C2: the project and scenario screens L5.10 rebuilds) is older than R4: its warm light
-palette, 44 px three-column header and 23 / 17 / 12.5 px type are not the system — L5.10 takes their **layout** only,
-on R4's tokens and pane anatomy above.
+The Project and Scenario reference is **B32 (« B·3b Épure », round 3, validated)** — `B32-Projet` and `B32-Scenario`,
+layout and drawing. C1 / C2 are round 1's rejected « Script » direction: not used. The canvas says "Retake"; the
+Studio keeps `APP_NAME` (L5.13 renames).
 
-- **Welcome** (no project open) — an empty state with what to do first. L5.10.
-- **Project** — the productions as a poster grid with where each one is, smart groups in the browser, an inspector. L5.10.
-- **Scenario** — a storyboard of real frames per scene (≈ 248 × 140, three a row), the step inspector. L5.10.
-- **Scenario source** — the YAML, a View segmented control (Blocks · YAML) in the title bar's context slot. L5.10.
+- **Welcome** (no project open; R4-Welcome) — built in L5.10a: R4's identity column — the app's 128 px mark, its name,
+  version and one sentence, New project as a command to copy (no write path from the page), the projects folder —
+  beside "Recent projects" (name, slug, scenario and location counts, last run as a shape and a word, location flags in
+  words, folder; a project that does not load with its first error line); one column under 1180 px; then the search and
+  Lately; the inspector: the workspace and Claude (the MCP command to copy; under Lately when the inspector is hidden).
+  Deviations: R4's three columns become two inside the shell (the browser is R4's third); no project poster (they span
+  projects: BL-128), no "This Mac is ready" panel (no doctor op: BL-128), no Open a folder (no write path: BL-128), the
+  projects listed by name, not by recency.
+- **Project** (B32-Projet) — built in L5.10a: h1 "Productions" (or the smart group) and its count; search, Sort (Last
+  activity · Name · Length), New scenario (the Record screen); the poster grid (one listbox; each poster its capture's
+  last pictured step, its title, its state as a shape and a word, its length); a project.yaml warning line with a
+  Disclosure. The inspector: nothing selected → the project (facts, README preview and Edit / Write / Open, recent
+  runs, Lately); a production → its poster, title and file, state, facts (length, content, last take, capture, render,
+  review, location), Open and Render (opens the timeline, where Render acts until L5.11), Lately; a Location
+  (`#/p/<slug>/loc/<env>`) → its flags, pages (URL, shown as) and personas — a location route clears the selection. The
+  inspector hidden: its content under the grid, under a heading. The posters reflow (auto-fill, 200 px at least); the
+  search's label is visually hidden behind a search icon (B32). The Cast (`#/p/<slug>/cast`) hosts the Sessions panel
+  until L5.11; the browser's Cast rows put a persona's location on a second line that wraps. Deviations: the canvas's
+  Location select on this screen is cut (BL-128).
+- **Scenario** — a storyboard of real frames per scene (≈ 248 × 140, three a row), the step inspector (B32-Scenario). L5.10b.
+- **Scenario source** — the YAML, a View segmented control (Blocks · YAML) in the title bar's context slot (R4-Source). L5.10b.
 - **Shoot — prepare a take** — the checklist; a blocking hook in one line with Copy command. L5.11.
 - **Shoot — a live rehearsal / capture** — the live picture, the steps, Stop. L5.11.
 - **Shoot — record a scenario** — the Record screen in the shell. L5.11.

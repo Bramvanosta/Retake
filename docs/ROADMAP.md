@@ -80,7 +80,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
 | L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **done** (live checks: MACOS-CHECKLIST 14b) |
-| L5.10 | Studio « Épure » 2: Project and Scenario screens | M | **next** (when the user asks) |
+| L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **L5.10a done** (project side; live checks: MACOS-CHECKLIST 14c); **L5.10b next** (scenario side) |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
@@ -889,6 +889,14 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   and contrast lints, the desktop View menu on the page's command table; docs/reference/studio-ui.md. The overlay title
   bar waits for a hand probe (BL-126). Two independent reviews fixed with mutation-checked tests. Cuts: BL-126, BL-127.
   Live checks: MACOS-CHECKLIST 14b.
+
+### L5.10a — Studio « Épure » 2a: the project side (split from L5.10)
+- **Goal:** the Project screen and the project's browser from the validated B32 design, without losing anything.
+- **Done (2026-10-30, in a worktree):** `project_board` (a fast, path-free read of every scenario's state and poster),
+  state words always a shape and a word, the browser (Productions with smart groups, Library, Locations, Cast, Project),
+  Welcome, the Productions poster grid with search, sort, New scenario and inspectors; ProjectsScreen / ProjectPage
+  replaced; two product races fixed (dialog focus return, a job the Studio could miss). Two independent reviews fixed with
+  mutation-checked tests. Cuts: BL-128. L5.10b: the scenario storyboard, step inspector, scenes, YAML source, Location.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

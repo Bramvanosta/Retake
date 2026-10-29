@@ -176,7 +176,7 @@ beforeAll(async () => {
     if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) consoleErrors.push(m.text());
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
 }, 240_000);
 
 afterAll(async () => {

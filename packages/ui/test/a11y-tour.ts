@@ -142,7 +142,7 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     });
     page.on('pageerror', (e) => consoleErrors.push(String(e)));
     await page.goto(studio.launchUrl());
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
     const t: Tour = {
       ws,
       dir,

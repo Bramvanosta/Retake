@@ -90,3 +90,234 @@
   font-size: var(--ui-type-sm);
   line-height: var(--ui-lead-sm);
 }
+
+/* L5.10a: the project side — shared screen pieces */
+.sc-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-7);
+  max-width: 1200px;
+  padding: var(--ui-space-8) var(--ui-space-9);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.sc-h1 {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+}
+.sc-h2 {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.sc-h3 {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+  overflow-wrap: anywhere;
+}
+.sc-quiet {
+  margin: 0;
+  color: var(--ui-text-3);
+}
+.sc-lately-list,
+.sc-hits,
+.pr-runs,
+.pr-personas,
+.pr-warning-list,
+.wl-list {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-lately-item,
+.sc-hit,
+.pr-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  min-width: 0;
+}
+.sc-lately-what {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sc-lately-meta,
+.sc-hit-kind,
+.sc-hit-snippet {
+  color: var(--ui-text-3);
+}
+.sc-hit-snippet {
+  flex: 1 1 100%;
+}
+.sc-search {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 640px;
+}
+
+/* Welcome (R4-Welcome: the identity column beside the recent projects; one column in a narrow centre) */
+.wl-top {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: var(--ui-space-10);
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .wl-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.wl-intro {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 640px;
+  min-width: 0;
+}
+.wl-mark {
+  width: 128px;
+  height: 128px;
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-accent);
+}
+.wl-version {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-family: var(--ui-mono);
+}
+.wl-lede {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.wl-projects,
+.wl-lately {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+.wl-project {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-6);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}
+.wl-project-name {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+  overflow-wrap: anywhere;
+}
+.wl-project-line {
+  margin: 0;
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.wl-project-path {
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+
+/* The Project screen (productions) */
+.pr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4) var(--ui-space-5);
+}
+.pr-count {
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.pr-tools {
+  margin-left: auto;
+}
+.pr-tools .k-toolbar {
+  flex-wrap: wrap;
+}
+.pr-warnings,
+.pr-alert {
+  display: grid;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-pane);
+}
+.pr-alert-text {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.pr-length {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+  color: var(--ui-text-3);
+}
+.pr-title {
+  display: grid;
+  gap: var(--ui-space-1);
+}
+.pr-poster-large {
+  display: block;
+}
+.pr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+}
+/* L5.10a fixes (review B-L6): a long folder path on one line (the whole path in its tooltip) */
+.pr-path {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-readme {
+  max-height: 320px;
+  margin: 0;
+  padding: var(--ui-space-4);
+  overflow: auto;
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+  color: var(--ui-text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pr-pages {
+  display: grid;
+  gap: var(--ui-space-6);
+}
+
+/* Thumb.tsx at the poster and inspector sizes (a prop: the row size keeps app.css's look) */
+.thumb[data-size] {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+}
+.thumb[data-size] img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--ui-video);
+}
+.thumb[data-size] .thumb-words {
+  color: var(--ui-on-video);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}

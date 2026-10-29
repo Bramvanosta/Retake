@@ -39,6 +39,8 @@ export interface ScenarioCheckOptions {
   until?: string;
   /** Work an agent submits, by its channel: file references stay inside the project, unlooked-at outside (CheckContext.confined). */
   confined?: 'mcp' | 'studio';
+  /** Filled with the absolute path of every file the checks look for (CheckContext.filesRead). */
+  filesRead?: Set<string>;
 }
 
 const STATIC_PAGE_IDS = ['main', 'previous'];
@@ -102,6 +104,7 @@ class ScenarioChecker {
   ) {
     this.ctx = new CheckContext(structural, opts.project?.dir ?? inferProjectDir(opts.file));
     this.ctx.confined = opts.confined;
+    this.ctx.filesRead = opts.filesRead;
     this.maxZoom = opts.template?.motion.max_zoom ?? DEFAULT_TEMPLATE.motion.max_zoom;
   }
 

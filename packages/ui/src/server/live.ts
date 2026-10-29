@@ -7,12 +7,14 @@
  *   fs.watch): the index's reconcile (or, without node:sqlite, the same scan held in memory) and the job watch (live
  *   from the queue, critique B2). An op of the index (activity_list, search) refreshes first, so it never answers
  *   stale, and what it found goes out on the streams too.
- * - Events: `hello {api, index, generation}`, `workspace {projects, readme, scenarios?, renders?, runs?, comments?}`, `jobs {changed}`,
+ * - Events: `hello {api, index, generation}`, `workspace {projects, readme, files, scenarios?, renders?, runs?, comments?}`, `jobs {changed, projects}`
+ *   (L5.10a fixes: `projects` the projects of the changed jobs; `files` the projects whose project.yaml, sandbox.yaml or
+ *   scenario list changed),
  *   `index {generation}`, and a comment line every 15 s (proxies and idle sockets). `scenarios` names the scenario files
  *   changed (`<slug>/<name>`, an in-place save included) and `runs` the runs that started, progressed, finished or went
  *   away, each with its scenario (L4.2, critique B1): a scenario screen re-reads only for its own file and its own
  *   scenario's runs starting or finishing — a running run's progress is a `run_status` read, never a whole view.
- *   `renders` (L4.5 part E) names the projects whose renders/ folder changed: a render list re-reads for its project.
+ *   `renders` (L4.5 part E) names the projects whose renders/ or review/ folder changed: a render list or a board re-reads for its project.
  *   `comments` (L4.6) names the scenarios whose comment threads changed (`<slug>/<scenario>`, only when there are
  *   any): a Comments screen and a timeline re-read for their own scenario only.
  *   L4.7 (critique B5): `themes` names the theme folders of templates_dir whose files changed, `components` the
@@ -29,7 +31,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@demo-studio/engine';
+import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@demo-studio/engine';
 import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@demo-studio/engine';
 
 import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
@@ -147,12 +149,17 @@ export class Live {
     this.recSources = recNext;
     if (this.closed) return;
     const w = workspaceChanges(keys);
-    // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released).
+    // L4.5 part E: the projects whose renders/ folder changed (a render written, a version reserved or released), or
+    // their review/ (L5.10a fixes: a review run from a terminal).
     const renders = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'renders' && k.project !== undefined).map((k) => k.project as string))].sort();
+    // L5.10a fixes: the projects whose project.yaml, sandbox.yaml or scenario list changed — always sent (empty: none),
+    // so a page tells "a file no list names" from "a runs folder that changed with no run told yet".
+    const files = [...new Set(keys.map(sourceKey).filter((k) => k.kind === 'project' && k.project !== undefined).map((k) => k.project as string))].sort();
     if (w.projects.length || Object.keys(lib).length || records.length) {
       this.send('workspace', {
         projects: w.projects,
         readme: w.readme,
+        files,
         ...(w.scenarios.length ? { scenarios: w.scenarios } : {}),
         ...(renders.length ? { renders } : {}),
         ...(runs.length ? { runs } : {}),
@@ -164,7 +171,11 @@ export class Live {
         ...(records.length ? { records } : {}),
       });
     }
-    if (changed.length) this.send('jobs', { changed });
+    if (changed.length) {
+      // L5.10a fixes (review A-L7): the projects of the changed jobs, so an open project's board ignores another one's.
+      const projects = [...new Set(changed.map((id) => this.jobs.record(id)).map((j) => (j ? jobProject(j.input) : undefined)).filter((x): x is string => typeof x === 'string'))].sort();
+      this.send('jobs', { changed, projects });
+    }
     if (keys.length && generation !== undefined) this.send('index', { generation });
   }
 

@@ -1962,7 +1962,8 @@ and `job_end` lines); what remains:
 
 - A `Tooltip` (hover and focus; the checker cannot reach hover-only text: BL-122) and a `Toast`.
 - A `Tabs` component (the scenario's Blocks / YAML become a View segmented control in L5.10 instead); a `Disclosure`
-  tree for the browser's smart groups and a scenario's scenes (L5.10 needs it: move it there if wanted).
+  tree for the browser's smart groups and a scenario's scenes (L5.10a built a plain `Disclosure`; the groups are always
+  shown).
 - An appearance switch inside the app (the system's only today), density options, Increase Contrast and forced-colour
   token sets (BL-122).
 - Visual regression snapshots of the gallery (no committed images today; the tours and the checker are the guard).
@@ -1975,6 +1976,27 @@ and `job_end` lines); what remains:
   both widths on the old frame, and a layout overflow does not depend on the appearance; one more audit per station,
   ≈ 40, was not worth it then).
 - An IME composition test in a real input method (the palette's `isComposing` guard is tested with a synthetic event).
+
+### BL-128 — « Épure » 2 extras cut from L5.10a (the project side)
+*S–M · cut in L5.10a · builds on: L5.10a*
+
+- Welcome: a poster per project (R4-Welcome draws one; posters span projects: a thumbnail fetch keyed by project and
+  run), the "This Mac is ready" panel (an engine `doctor` op), New project and Open a folder from the page (no write
+  path; a page → desktop bridge: BL-125's narrow command).
+- The Project screen: the canvas's Location select (a meaning to define on a project), component and theme counts in
+  the browser, Show in Finder, a poster made from the render's frames, "Render outdated" from the plan signature
+  instead of the file's bytes and theme name (render-words `sameVersion` today: a theme folder's edit or a project
+  setting is not seen), Render acting from the inspector (it opens the
+  timeline: L5.11 makes it act), Locations as a page of their own (an inspector today), a production's Lately from an
+  `activity_list {scenario}` filter (filtered on the page from the project's newest 20 today).
+- The Cast rebuilt on the kit (it hosts the legacy Sessions panel: L5.11's preflight rebuilds it) and the README editor
+  (legacy until L5.12).
+- `timelineRun` (the scenario screen's Render / Open timeline) takes a capture whose frames were kept as "no video":
+  the board counts it (video or kept frames) — one rule for both.
+- Left after the L5.10a fixes: a type-ahead in the poster listbox; the `workspace` event says a run started or ended
+  but not which project file changed beyond project.yaml / sandbox.yaml / the scenario list (hooks/ is not watched: a
+  hook edit reaches the board at its next read — a focus, another event); Welcome's "Recent projects" are listed by name, not by
+  recency; the Recent activity (`Lately`) still re-reads on every job event (a render's progress).
 
 ## Guard-rails for planned lots (no new scope)
 

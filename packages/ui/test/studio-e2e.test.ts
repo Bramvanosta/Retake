@@ -76,6 +76,15 @@ async function watch(ctx: BrowserContext): Promise<void> {
 const pwned = (p: Page) => p.evaluate(() => (window as unknown as { __pwned?: unknown }).__pwned ?? null);
 const csp = (p: Page) => p.evaluate(() => (window as unknown as { __csp: number }).__csp);
 const textarea = () => page.locator('#readme-text');
+/** L5.10a: back to Welcome through the title bar's project menu (or the address when no project is open). */
+async function toWelcome(p: Page): Promise<void> {
+  const menu = p.getByRole('banner').getByRole('button', { name: /./ }).filter({ has: p.locator('.k-btn-label') }).first();
+  if (await menu.count()) {
+    await menu.click();
+    await p.getByRole('menuitem', { name: 'All projects' }).click();
+  } else await p.goto(`${studio.url}#/`);
+  await p.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+}
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-'));
@@ -101,6 +110,9 @@ beforeAll(async () => {
     ].join('\n'),
   );
   await writeFile(join(hostile, 'README.md'), HOSTILE_README);
+  // L5.10a: a production whose title is markup and a right-to-left override (the poster, the inspector).
+  await mkdir(join(hostile, 'scenarios'), { recursive: true });
+  await writeFile(join(hostile, 'scenarios', 'evil.yaml'), `version: 1\nvideo: evil\ntitle: {text: ${JSON.stringify(HOSTILE_NAME)}}\nscenes:\n  - id: a\n    page: app\n    open: /\n    steps:\n      - hold: 1\n`);
   const folder = join(ws, 'projects', HOSTILE_FOLDER);
   await mkdir(folder, { recursive: true });
   await writeFile(join(folder, 'project.yaml'), `version: 1\nname: "<svg onload=window.__pwned='folder'>"\nenvironments: {}\n`);
@@ -131,7 +143,7 @@ describe('the Studio in Chromium', () => {
   it('bootstrap: the one-time code becomes a session; the address bar keeps no secret', async () => {
     const url = studio.launchUrl();
     await page.goto(url);
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
     expect(page.url()).toBe(studio.url);
     expect(await page.evaluate(() => sessionStorage.getItem('demo-studio.token'))).toBe(studio.token);
     // The same link in another tab: already spent, and the new tab holds no token.
@@ -150,12 +162,13 @@ describe('the Studio in Chromium', () => {
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(4);
     const fixture = cards.filter({ hasText: 'Northfield (fixture)' });
-    await fixture.locator('.badge', { hasText: 'production' }).first().waitFor();
+    await fixture.getByText(/production/).first().waitFor();
     const text = await fixture.innerText();
     expect(text).toMatch(/\d+ scenarios/);
-    expect(text).toContain('read-only');
-    expect(text).toContain('sandbox');
-    expect(text).toMatch(/Last dry run:\s*quote\s*failed/);
+    // Each flagged environment with its flag words exactly (review B-M3: its name alone must not satisfy the check).
+    expect(text).toContain('production: production · read-only');
+    expect(text).toContain('sandbox: sandbox');
+    expect(text).toMatch(/Last dry run failed\s*·\s*quote/);
     const broken = cards.filter({ hasText: 'Broken project' });
     expect(await broken.innerText()).toContain('This project does not load');
     // The sidebar lists them too, the current screen marked.
@@ -166,19 +179,21 @@ describe('the Studio in Chromium', () => {
 
   it('a project: README as text, environments, scenarios, recent runs', async () => {
     await page.getByTestId('project-card').filter({ hasText: 'Northfield (fixture)' }).getByRole('link').click();
-    await page.getByRole('heading', { level: 1, name: 'Northfield (fixture)' }).waitFor();
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
     expect(page.url()).toBe(`${studio.url}#/p/${FIXTURE}`);
     const disk = await readFile(readmeFile(), 'utf8');
     expect(await page.getByTestId('readme-preview').textContent()).toBe(disk.split('\n').slice(0, 40).join('\n'));
     await page.getByRole('heading', { name: 'Recent runs' }).waitFor();
     await page.getByText('20261017').or(page.getByText('dry run ·').first()).first().waitFor();
-    expect(await page.locator('table.pages').count()).toBeGreaterThan(0);
     await shot('02-project');
+    // L5.10a: a location's pages, display URLs and flags are in the inspector (the browser's Locations row).
+    await page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: /^local/ }).click();
+    await page.getByTestId('location-pages').waitFor();
+    expect(await page.getByTestId('location-pages').locator('.k-facts').count()).toBeGreaterThan(0);
   });
 
   it('search (the index): hits as one types, each a link to its project; recent activity from the history', async () => {
-    await page.getByRole('link', { name: 'Projects', exact: true }).first().click();
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+    await toWelcome(page);
     const activity = page.getByTestId('activity');
     await activity.getByTestId('activity-item').first().waitFor(POLL);
     expect(await activity.innerText()).toMatch(/capture of catalogue[\s\S]*by Claude/);
@@ -193,7 +208,7 @@ describe('the Studio in Chromium', () => {
     await page.getByTestId('search-empty').waitFor(POLL);
     await page.getByRole('searchbox').fill('quote');
     await hits.filter({ hasText: 'scenario' }).first().getByRole('link').click();
-    await page.getByRole('heading', { level: 1, name: 'Northfield (fixture)' }).waitFor();
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
     expect(await page.getByTestId('connection').getAttribute('data-updates')).toBe('stream');
     await shot('02b-project-activity');
   });
@@ -265,7 +280,7 @@ describe('the Studio in Chromium', () => {
     for (let i = 0; i < 7; i++) {
       const t = await context.newPage();
       await t.goto(studio.launchUrl());
-      await t.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+      await t.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
       tabs.push(t);
     }
     expect(studio.streams).toBe(1);
@@ -299,7 +314,7 @@ describe('the Studio in Chromium', () => {
   });
 
   it('hostile names, URLs, errors and README text are shown as text: no script runs, no CSP report, no link from data', async () => {
-    await page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: 'Projects', exact: true }).click();
+    await toWelcome(page);
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(4);
     const hostileCard = cards.filter({ hasText: 'gnp.exe' });
@@ -316,11 +331,28 @@ describe('the Studio in Chromium', () => {
     expect(await page.getByRole('alert').innerText()).toContain("<iframe src=javascript:window.__pwned='error'>");
     // The hostile project: name, page URL, display URL and README.
     await page.goto(`${studio.url}#/p/hostile`);
-    await page.getByRole('heading', { level: 1 }).filter({ hasText: 'gnp.exe' }).waitFor();
-    const main = await page.locator('main').innerText();
-    expect(main).toContain('https://app.staging.example.com/<svg/onload=window.__pwned=7>');
-    expect(await page.getByTestId('readme-preview').textContent()).toBe(HOSTILE_README);
+    await page.getByRole('banner').getByRole('button').filter({ hasText: 'gnp.exe' }).waitFor();
+    // The production's title on its poster and in the inspector: text, the override a visible mark (L5.10a).
+    const poster = page.locator('[role="option"][data-id="evil"]');
+    await poster.waitFor();
+    expect(await poster.locator('.k-card-title').innerText()).toBe('<img src=x onerror="window.__pwned=\'name\'"> [U+202E]gnp.exe');
+    await poster.click();
+    expect(await page.locator('.sh-inspector .pr-title h3').innerText()).toBe('<img src=x onerror="window.__pwned=\'name\'"> [U+202E]gnp.exe');
+    await poster.click();
+    await page.keyboard.press('Escape');
+    // The README preview is text; its right-to-left override a visible mark (L5.10a: through Txt, like every text from
+    // data — a raw override in the preview could reorder what it shows; the editor below keeps the exact bytes).
+    expect(await page.getByTestId('readme-preview').textContent()).toBe(HOSTILE_README.replace('\u202E', '[U+202E]'));
     await shot('07-hostile-project');
+    // The location's page URL and display URL: text in the inspector (L5.10a) — reached with a production selected,
+    // no Escape first (review B-M1: the location route shows the location).
+    await poster.click();
+    await page.locator('.sh-inspector .pr-title h3').waitFor();
+    await page.goto(`${studio.url}#/p/hostile/loc/staging`);
+    await page.getByTestId('location-pages').waitFor();
+    const main = await page.locator('.sh-inspector').innerText();
+    expect(main).toContain('https://app.staging.example.com/<svg/onload=window.__pwned=7>');
+    await page.goto(`${studio.url}#/p/hostile`);
     await page.getByRole('link', { name: 'Edit the README' }).click();
     await textarea().waitFor();
     expect(await textarea().inputValue()).toBe(HOSTILE_README);
@@ -328,7 +360,9 @@ describe('the Studio in Chromium', () => {
     expect(await pwned(page)).toBeNull();
     expect(dialogs).toEqual([]);
     expect(await csp(page)).toBe(0);
-    expect(await page.locator('img, iframe, svg, object, embed').count()).toBe(0);
+    // (The kit's own icons and state shapes — classes k-icon and k-mark-svg, the kit's own — are aria-hidden SVG drawn
+    // by the Studio, never from data; the __pwned and CSP checks above stay the real guard.)
+    expect(await page.locator('img, iframe, svg:not(.k-icon):not(.k-mark-svg), object, embed').count()).toBe(0);
     expect(await page.locator('script').count()).toBe(1);
     const hrefs = await page.locator('a[href]').evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? ''));
     expect(hrefs.length).toBeGreaterThan(0);

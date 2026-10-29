@@ -4,7 +4,7 @@
  * state on the left, information, the actions on the right; a labelled region), `SourceList` (the browser: a `nav` of
  * headed groups of links, the current one `aria-current="page"` with the selection fill and weight 600, nested items,
  * a count or a flag in words), `InspectorSection` (a titled section, collapsible as a native `<details>`),
- * `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
+ * `Facts` (L5.10a: read-only rows), `Disclosure` (L5.10a: a native `<details>`), `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
  * polite "Copied").
  */
 import { useId, useLayoutEffect, useRef, useState } from 'react';
@@ -13,6 +13,8 @@ import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
 import { Txt, shown } from '../bits.js';
 import { Button } from './Button.js';
+import { Icon } from './Icon.js';
+import type { IconName } from './Icon.js';
 import { StatusMark } from './marks.js';
 import type { MarkState } from './marks.js';
 
@@ -108,6 +110,18 @@ export interface SourceItem {
   childrenLabel?: string;
   /** A class kept for older tests and styles (L5.9: the browser keeps `nav-link`). */
   className?: string;
+  /** L5.10a: an icon before the label (decorative: the label names the row). */
+  icon?: IconName;
+  /** L5.10a: a value on the right in mono (a length, a count in words). */
+  value?: string;
+  /** L5.10a: a quieter row (text-3): a secondary entry. */
+  quiet?: boolean;
+  /** L5.10a: a lead column before the label (a number, mono). */
+  lead?: string;
+  /** A test id kept from an older screen (`library-link`). */
+  testId?: string;
+  /** L5.10a fixes (review B-L1): a second line under the label that wraps (never cut: what tells two rows apart). */
+  detail?: ReactNode;
 }
 
 export interface SourceGroup {
@@ -122,9 +136,19 @@ function SourceItems({ items, label, depth }: { items: SourceItem[]; label?: str
     <ul className={`k-source-items k-source-depth-${depth}`} aria-label={label}>
       {items.map((i) => (
         <li key={i.key}>
-          <a href={hrefTo(i.to)} className={`k-source-item${i.current ? ' is-current' : ''}${i.className ? ` ${i.className}` : ''}`} aria-current={i.current ? 'page' : undefined}>
-            <span className="k-source-label">{shown(i.label)}</span>
+          <a href={hrefTo(i.to)} className={`k-source-item${i.current ? ' is-current' : ''}${i.quiet ? ' is-quiet' : ''}${i.className ? ` ${i.className}` : ''}`} aria-current={i.current ? 'page' : undefined} data-testid={i.testId}>
+            {i.icon && <Icon name={i.icon} className="k-source-icon" />}
+            {i.lead !== undefined && <span className="k-source-lead k-mono">{shown(i.lead)}</span>}
+            {i.detail !== undefined ? (
+              <span className="k-source-text">
+                <span className="k-source-label">{shown(i.label)}</span>
+                <span className="k-source-detail">{shown(i.detail)}</span>
+              </span>
+            ) : (
+              <span className="k-source-label">{shown(i.label)}</span>
+            )}
             {i.flag && <span className="k-source-flag">{shown(i.flag)}</span>}
+            {i.value !== undefined && <span className="k-source-count k-mono">{shown(i.value)}</span>}
             {i.count !== undefined && <span className="k-source-count k-mono">{shown(i.count)}</span>}
           </a>
           {i.children && i.children.length > 0 && <SourceItems items={i.children} depth={depth + 1} {...(i.childrenLabel ? { label: i.childrenLabel } : {})} />}
@@ -167,6 +191,44 @@ export function InspectorSection({ title, children, collapsible, defaultOpen = t
   );
 }
 
+/** L5.10a: read-only facts — a `<dl>` of rows, the label in the 96 px right-aligned column (the inspector's look). */
+export function Facts({ rows, label }: { rows: Array<{ key: string; label: ReactNode; value: ReactNode }>; label?: string }) {
+  const list = (
+    <dl className="k-facts">
+      {rows.map((r) => (
+        <div key={r.key} className="k-facts-row">
+          <dt className="k-facts-label">{shown(r.label)}</dt>
+          <dd className="k-facts-value">{shown(r.value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+  // A name goes on a group around the list (review A-L6: a `dl` has no role that takes one).
+  return label ? (
+    <div role="group" aria-label={label} className="k-facts-group">
+      {shown(list)}
+    </div>
+  ) : (
+    list
+  );
+}
+
+/**
+ * L5.10a: a disclosure — a native `<details>` with its summary (the platform's keyboard and state; closed by default).
+ * The one place a collapsible lives outside the inspector (the ratchet bans `<details>` outside the kit: critique M5).
+ */
+export function Disclosure({ summary, children, defaultOpen = false }: { summary: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
+  return (
+    <details className="k-disclosure" open={defaultOpen}>
+      <summary className="k-disclosure-summary">
+        <Icon name="chevron-right" className="k-disclosure-chevron" />
+        {shown(summary)}
+      </summary>
+      <div className="k-disclosure-body">{shown(children)}</div>
+    </details>
+  );
+}
+
 export function EmptyState({ title, children, actions, level = 2 }: { title: ReactNode; children?: ReactNode; actions?: ReactNode; level?: 2 | 3 }) {
   const id = useId();
   const H = level === 2 ? 'h2' : 'h3';
@@ -183,8 +245,11 @@ export function EmptyState({ title, children, actions, level = 2 }: { title: Rea
 
 export type BlockerFix = { label: string; onClick: () => void } | { copy: string; label?: string };
 
-/** One line: what blocks (a state word and a sentence), and the one action that unblocks it. */
-export function Blocker({ state = 'attention', word, children, fix }: { state?: MarkState; word: string; children: ReactNode; fix: BlockerFix }) {
+/**
+ * One line: what blocks (a state word and a sentence), and the one action that unblocks it. L5.10a: without `word`, the
+ * same line with no state mark — a command to copy that nothing waits on (Welcome's New project, Claude's set-up).
+ */
+export function Blocker({ state = 'attention', word, children, fix }: { state?: MarkState; word?: string; children: ReactNode; fix: BlockerFix }) {
   const [copied, setCopied] = useState(false);
   const run = () => {
     if ('copy' in fix) {
@@ -196,7 +261,7 @@ export function Blocker({ state = 'attention', word, children, fix }: { state?: 
   };
   return (
     <div className="k-blocker">
-      <StatusMark state={state} word={word} />
+      {word !== undefined && <StatusMark state={state} word={word} />}
       <span className="k-blocker-text">{shown(children)}</span>
       {'copy' in fix && <Txt className="k-blocker-code k-mono" text={fix.copy} />}
       <Button size="sm" icon={'copy' in fix ? 'copy' : undefined} onClick={run}>

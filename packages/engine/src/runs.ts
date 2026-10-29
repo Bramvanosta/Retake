@@ -37,7 +37,7 @@ const RUN_RECORD_MAX = 32 * 1024 * 1024;
  * A run.json: only a regular file within the cap (the runner never writes anything else) — a link (leading out of the
  * project, review A L3) or a FIFO is skipped like a folder without run.json.
  */
-async function readRecord(file: string): Promise<{ record?: RunRecord; newer?: string }> {
+export async function readRecord(file: string): Promise<{ record?: RunRecord; newer?: string }> {
   let value: unknown;
   try {
     const st = await lstat(file);

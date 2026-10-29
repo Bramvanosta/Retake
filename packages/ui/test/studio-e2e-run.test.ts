@@ -179,7 +179,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
     page = await context.newPage();
     watch(page);
     await page.goto(studio.launchUrl());
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
   }, 120_000);
 
   afterAll(async () => {
@@ -328,7 +328,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
       const tab = await context.newPage();
       watch(tab);
       await tab.goto(studio.launchUrl());
-      await tab.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+      await tab.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
       await tab.goto(page.url());
       return tab;
     };
@@ -376,7 +376,8 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
     await page.route('**/v1/call/auth_login', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: job }) }));
     await page.route('**/v1/call/job_list', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { jobs: [job], worker: null } }) }));
     await page.route('**/v1/call/sign_in_cancel', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: job.id, kind: 'auth_login', state: 'cancelled' } }) }));
-    await page.goto(`${studio.url}#/p/${P}`);
+    // L5.10a: the Sessions panel lives on the Cast (the project page it was on is the poster grid now).
+    await page.goto(`${studio.url}#/p/${P}/cast`);
     const panel = page.getByTestId('sessions-panel');
     await expect.poll(() => panel.innerText(), RUN).toContain('never signed in');
     const row = panel.locator('[data-testid="session-row"][data-persona="owner"]');

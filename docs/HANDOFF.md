@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-29, end of lot **L5.9 (Studio « Épure » 1: design system, shell, Geist)** — phases 1–4 are
-done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1, L5.2,
-L5.2b, L5.5 – L5.9 done). **Next: L5.10 (Studio « Épure » 2: Project and Scenario), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-30, end of **L5.10a (Studio « Épure » 2, the project side)** — phases 1–4 are done (phases
+3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1, L5.2, L5.2b, L5.5 –
+L5.9, L5.10a done). **Next: L5.10b (the scenario side: storyboard, step inspector, scenes, YAML source, Location).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,31 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-128); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-129); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.9)
+## State (after L5.10a)
+- **L5.10a done (2026-10-30)** — L5.10 is split in two (the critique sized it L): the project side first. A Studio-only
+  READ op `project_board` (engine `project-board.ts`: one pass over the runs grouped by scenario, its own stat-keyed
+  caches with a 60 s TTL that also re-stat the files the checks read, one renders read and one memoised queue pass per
+  call, never through `scenarios.view`; path-free, titles under `untrusted`; 40 scenarios ≈ 0.2 s cold / 4 ms warm,
+  3000 jobs 13–15 ms warm). State words and smart groups from a pure table (`board-words.ts`, always a shape and a
+  word, consistent with the scenario screen's `sameVersion`). The project's browser: Productions with Ready to render /
+  Needs a shoot / Failed, Library, Locations, Cast (session state), Project (README, Record); the project list moved to a
+  title-bar menu and the Welcome screen (R4 layout). The Productions screen (B32): a poster-grid listbox (arrows, Enter
+  opens, one tab stop, auto-fill — readable at 900 px), search and sort, New scenario, inspectors for the project, a
+  production (Open / Render, Lately) and a location. One shared store (`project-data.ts`): one read of each op per
+  project open, re-reads on events only (a 24-step terminal dry run: 4 board reads; a broken project.yaml: 2 reads in
+  5 s). ProjectsScreen / ProjectPage deleted. Two product bugs found and fixed on the way: the kit's Sheet / palette
+  gave focus back on a late native `close` event (Enter could reopen the previous dialog — the L5.9 kit e2e flake), and
+  the jobs watch marked a job folder listed before its job.json as known and never read it again (a job could stay
+  "queued" for good in the Studio — the studio-e2e-render flake under load). Tests on the Mac: **3921 — 3836 pass, 84
+  skipped, 1 failure in the one full run** (that jobs-watch miss, then fixed with a deterministic regression test; the
+  file 10/10 and 5/5 under load); `pnpm test:slow` 65/65; the gated acceptances (Chrome, run, record, themes,
+  scenario-run) run once each, green. Requirements: 656 tracked — 615 done (R-UI-35 – R-UI-37 added), 27 partial, 8
+  todo, 6 n/a-here. Live checks for the user: MACOS-CHECKLIST 14c.
 - **L5.9 done (2026-10-29)**: the Studio's design system and new shell (BL-124, first lot). One token file
   (`packages/ui/src/app/tokens.ts` → generated, committed `tokens.css`, kept in sync by a test): the kit's `--ui-*` set
   from the canvas in dark and light, and the legacy palette (light identical to L4.9 — 0 computed-style differences —,
@@ -488,7 +507,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.10 (Studio « Épure » 2: Project and Scenario) per the roadmap**, only when the user asks (L5.9 is done). **Decided
+**Next: L5.10b (the scenario side of Épure 2) per the roadmap** (L5.10a is done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1416,6 +1435,16 @@ sandbox, a hook step and compact results through Claude Code).
   Files: ui `src/app/{tokens.ts,tokens.css,brand.ts,screens.css,GalleryScreen.tsx}`, `ui-kit/`, `shell/`,
   `scripts/{gen-tokens,kit-ratchet,ratchet}.ts`, `fonts/`; desktop `src/{main,menu}.rs`; docs/reference/studio-ui.md.
   No new dependency (the Geist files are assets, OFL). Cuts: BL-126, BL-127.
+- **L5.10a done** (the project side of Épure 2; R-UI-35 – R-UI-37). Planned from B32-Projet / R4-Welcome (C1 / C2 were
+  round 1's rejected direction — studio-ui.md corrected), criticised (`project_board` on the 16-entry scenario-view cache
+  evicting the open scenario; the lot sized L → split), built in a worktree (board read, state words, store, kit rows /
+  Facts / Disclosure / PosterGrid, shell browser and routes, Welcome / Productions / Cast screens), 24 e2e files migrated
+  under a guard comparing titles, `expect` counts and test ids with HEAD, reviewed by two reviewers (a read loop on an
+  errored op — ~1560 calls in 5 s —, a board read per take step, a location inspector hidden by a selection, a grid
+  collapsing at 900 px, loosened migrated assertions…) and fixed with mutation-checked tests. Files: engine
+  `project-board.ts`, `index-db/jobs-watch.ts`; core `checks/context.ts` (`filesRead`); ui `project-data.ts`,
+  `board-words.ts`, `WelcomeScreen.tsx`, `ProductionsScreen.tsx`, `CastScreen.tsx`, `shell/`, `ui-kit/` (Sheet,
+  CommandPalette, cards, panes, fields). Cuts: BL-128.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1683,6 +1712,17 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.10a:
+- Project data comes from `project-data.ts` (one entry per project: project_get, project_board, auth_status; stable
+  subscriptions, first read in an effect, errored entries retried with a backoff or on an event). Screens never call
+  those ops themselves; tests count reads (`studio-e2e-board-reads.test.ts`).
+- `project_board` must stay off `scenarios.view` (its 16-entry LRU holds the open scenario). Its caches are stat-keyed
+  with a 60 s TTL; the `workspace` event carries `files`, the `jobs` event `projects`.
+- E2e migrations of a screen rebuild run the guard (`l510/guard` in the lot's scratch notes: titles, `expect` counts,
+  test ids vs HEAD); state words carry a word the a11y checker knows ("valid" was added to its list).
+- A dialog that closes itself gives focus back at once and ignores its own late `close` event; JobsWatch keeps a job id
+  unknown until its job.json can be read.
+
 Notes from L5.9:
 - Colours live in `tokens.ts` only: run `pnpm -F @demo-studio/ui gen:tokens` after a change (a test compares the
   committed `tokens.css`). New screens use the kit (`src/app/ui-kit/`) and `--ui-*` tokens; legacy screens sit in

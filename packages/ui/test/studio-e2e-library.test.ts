@@ -125,7 +125,7 @@ beforeAll(async () => {
     if (m) rendered.push({ op: m[1], body: r.postData() ?? '' });
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
 }, 120_000);
 
 afterAll(async () => {

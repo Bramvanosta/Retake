@@ -32,6 +32,8 @@ export type StudioEvent =
       type: 'workspace';
       projects: string[];
       readme: string[];
+      /** L5.10a fixes: projects whose project.yaml, sandbox.yaml or scenario list changed (absent from an older server). */
+      files?: string[];
       scenarios?: string[];
       renders?: string[];
       runs?: RunEvent[];
@@ -45,7 +47,7 @@ export type StudioEvent =
       /** L4.8: recordings whose files changed or whose folder appeared or went (`<slug>/<rec_id>`). */
       records?: string[];
     }
-  | { type: 'jobs'; changed: string[] }
+  | { type: 'jobs'; changed: string[]; /** L5.10a fixes: the projects of the changed jobs (absent from an older server). */ projects?: string[] }
   | { type: 'index'; generation: number }
   | { type: 'resync' };
 
@@ -201,6 +203,17 @@ export function useEventMode(): EventMode {
     };
   }, []);
   return m;
+}
+
+/**
+ * L5.10a fixes (review A-L5): a `workspace` event that only says unfinished runs progressed (a step of a take) — nothing
+ * a project list, a card or an overview shows changed.
+ */
+export function onlyRunProgress(e: StudioEvent): boolean {
+  if (e.type !== 'workspace') return false;
+  const runs = Array.isArray(e.runs) ? e.runs : [];
+  const lists = [e.readme, e.scenarios, e.renders, e.comments, e.themes, e.components, e.records];
+  return runs.length > 0 && runs.every((r) => r.change === 'progress') && [e.files, ...lists].every((l) => !Array.isArray(l) || l.length === 0) && e.site !== true;
 }
 
 /** Call `fn` when a project's files changed (any of them), or after a reconnection. */

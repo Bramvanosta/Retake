@@ -43,9 +43,35 @@ const at = (hash: string) => `${t.studio.url}#${hash}`;
 describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 part C)', () => {
   it('projects, a project with its Sessions panel, the README\'s conflict panel', async () => {
     const { page } = t;
-    let r = await station(t, 'projects', () => go(page, at('/'), 'h1:text("Projects")'));
+    // L5.10a: Welcome; the Project screen with nothing selected (the project inspector), a production selected, a
+    // smart group, a location in the inspector; the Cast (the Sessions panel).
+    let r = await station(t, 'welcome', () => go(page, at('/'), 'h2:text("Projects")'));
     expect(r.findings, r.report).toEqual([]);
-    r = await station(t, 'project', () => go(page, at(`/p/${N}`), '[data-testid="sessions-panel"] [data-testid="session-row"]'));
+    r = await station(t, 'productions', () => go(page, at('/p/demo'), '[role="option"] [data-testid="thumb"][data-state="ok"]'));
+    expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'production-selected', async () => {
+      await go(page, at('/p/demo'), '[role="option"][data-id="bits"]');
+      await page.locator('[role="option"][data-id="bits"]').click();
+      await page.getByTestId('scenario-link').waitFor(POLL);
+    });
+    expect(r.findings, r.report).toEqual([]);
+    // L5.10a fixes (review B-M2): the desktop app's narrowest window, 900 px — the posters reflow beside the inspector.
+    r = await station(
+      t,
+      'production-selected-900',
+      async () => {
+        await go(page, at('/p/demo'), '[role="option"][data-id="bits"]');
+        await page.locator('[role="option"][data-id="bits"]').click();
+        await page.getByTestId('scenario-link').waitFor(POLL);
+      },
+      { schemes: [{ scheme: 'dark', widths: [900] }, { scheme: 'light', widths: [900] }] },
+    );
+    expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'group', () => go(page, at(`/p/${N}/g/shoot`), '[role="option"]'));
+    expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'location', () => go(page, at(`/p/${N}/loc/local`), '[data-testid="location-pages"]'));
+    expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'project', () => go(page, at(`/p/${N}/cast`), '[data-testid="sessions-panel"] [data-testid="session-row"]'));
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'readme-conflict', async () => {
       await go(page, at(`/p/${N}/readme`), 'main textarea');

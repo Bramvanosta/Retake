@@ -9,7 +9,8 @@
  *   (Enter / ↓ / ↑ open it on the first or last item, arrows, typeahead, Enter chooses, Escape and Tab close it with the
  *   focus back on the trigger, a click on the open trigger closes it: L9, outside click), the sheet (the focus on the
  *   default, a destructive default falls back to Cancel, Escape cancels, focus back; ⚑ a sheet its owner keeps open
- *   stays in step when the platform closes it: A-L1), the palette (filter, ↑ ↓ move `aria-activedescendant` with a 3 px
+ *   stays in step when the platform closes it: A-L1; ⚑ the focus goes back at once, a late `close` event never
+ *   takes it from where it moved since — sheet and palette), the palette (filter, ↑ ↓ move `aria-activedescendant` with a 3 px
  *   cue: M1, Enter runs, Escape gives the focus back — to the centre pane when a command took the opener away: A-L6;
  *   "Nothing matches" in the tree: A-L5; nothing while an input method composes: A-L9);
  * - the shell — ⌘K (a Mac) / Ctrl+K (elsewhere, outside a text field: B-L3) opens its palette in a browser tab and a
@@ -49,7 +50,7 @@ async function open(ctx: BrowserContext): Promise<Page> {
   p.on('pageerror', (e) => errors.push(String(e)));
   p.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()));
   await p.goto(studio.launchUrl());
-  await p.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+  await p.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
   return p;
 }
 
@@ -73,9 +74,18 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
+/**
+ * The gallery, mounted afresh: a test never inherits the last one's open sheet, palette or answers (`#/ui` → `#/ui` is a
+ * same-document navigation that keeps the screen, so the way goes through Projects).
+ */
 const gallery = async (p = page) => {
+  if (new URL(p.url()).hash === '#/ui') {
+    await p.goto(`${studio.url}#/`);
+    await p.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+  }
   await p.goto(`${studio.url}#/ui`);
   await p.getByTestId('gallery').waitFor(POLL);
+  expect(await p.locator('dialog[open]').count()).toBe(0);
 };
 const focused = (p = page) => p.evaluate(() => {
   const a = document.activeElement as HTMLElement | null;
@@ -323,6 +333,62 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await sheet.waitFor({ state: 'hidden' });
   });
 
+  it('⚑ the focus goes back when a sheet or the palette closes, at once: a late close event never takes it from where it has moved since', async () => {
+    await gallery();
+    const col = page.getByTestId('scope-dark');
+    // A dialog's close event is a task of its own that a loaded machine delivers late: hold it back, then let it land.
+    type Held = Window & { __hold?: AbortController; __held?: Promise<EventTarget> };
+    const hold = (selector: string) => page.evaluate((sel) => {
+      const w = window as Held;
+      const ac = new AbortController();
+      w.__hold = ac;
+      w.__held = new Promise((resolve) => window.addEventListener('close', (e) => {
+        if (!(e.target as Element).matches(sel)) return;
+        e.stopImmediatePropagation();
+        ac.abort();
+        resolve(e.target!);
+      }, { capture: true, signal: ac.signal }));
+    }, selector);
+    const land = () => page.evaluate(async () => {
+      const w = window as Held;
+      const target = await Promise.race([w.__held!, new Promise<null>((r) => setTimeout(() => r(null), 5000))]);
+      w.__hold!.abort();
+      target?.dispatchEvent(new Event('close'));
+      return target ? (target as HTMLElement).getAttribute('aria-label') ?? (target as HTMLElement).textContent!.slice(0, 17) : 'no close event';
+    });
+    const discard = col.getByRole('button', { name: 'Discard the take…' });
+    const render = col.getByRole('button', { name: 'Render the take…' });
+    await hold('dialog[role=alertdialog]');
+    await discard.click();
+    const sheet = page.getByRole('alertdialog', { name: 'Discard the take?' });
+    await sheet.waitFor(POLL);
+    await sheet.getByRole('button', { name: 'Discard' }).click();
+    await sheet.waitFor({ state: 'hidden' });
+    expect(await discard.evaluate((el) => el === document.activeElement)).toBe(true);
+    // The user moves on before the event lands: it leaves the focus there, and Return opens the sheet focused.
+    await render.focus();
+    expect(await land()).toBe('Discard the take?');
+    expect(await render.evaluate((el) => el === document.activeElement)).toBe(true);
+    await page.keyboard.press('Enter');
+    const busy = page.getByRole('dialog', { name: 'Rendering the take' });
+    await busy.waitFor(POLL);
+    expect(await sheet.isVisible()).toBe(false);
+    await busy.getByRole('button', { name: 'Stop rendering' }).click();
+    await busy.waitFor({ state: 'hidden' });
+    expect(await render.evaluate((el) => el === document.activeElement)).toBe(true);
+    // The palette alike.
+    await hold('dialog.k-palette');
+    const opener = col.getByRole('button', { name: /Open the palette/ });
+    await opener.click();
+    await page.getByRole('combobox', { name: 'Command' }).waitFor(POLL);
+    await page.keyboard.press('Escape');
+    await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
+    expect(await opener.evaluate((el) => el === document.activeElement)).toBe(true);
+    await render.focus();
+    expect(await land()).toBe('Command palette');
+    expect(await render.evaluate((el) => el === document.activeElement)).toBe(true);
+  });
+
   it('palette: the focus in the combobox; typing filters; ↑ ↓ move the active option (a 3 px cue); Enter runs it; Escape gives the focus back', async () => {
     await gallery();
     const col = page.getByTestId('scope-dark');
@@ -350,7 +416,6 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await page.keyboard.press('Enter');
     await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
     expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: hello');
-    // (The focus comes back on the dialog's close event, a task after it closes.)
     await expect.poll(() => opener.evaluate((el) => el === document.activeElement), POLL).toBe(true);
     await page.keyboard.press('Enter');
     await box.waitFor(POLL);
@@ -368,7 +433,7 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await box.waitFor(POLL);
     await box.fill('projects');
     await page.keyboard.press('Enter');
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
     await expect.poll(() => page.evaluate(() => document.activeElement?.id), POLL).toBe('main');
     // … and so does hiding the inspector with the focus inside it.
     await gallery();
@@ -389,7 +454,7 @@ describe('the shell (L5.9 part E)', () => {
     await box.waitFor(POLL);
     await box.fill('projects');
     await page.keyboard.press('Enter');
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
     // Review B-L3: in a text field Ctrl+K is the field's (on a Mac "delete to the end of the line"); on a Mac it never
     // opens the palette at all — ⌘K does.
     await gallery();
@@ -443,7 +508,7 @@ describe('the shell (L5.9 part E)', () => {
 
   it('the modes follow the scenario in context (or say there is none); the centre keeps its scroll inside a screen, starts at the top of a new one', async () => {
     await page.goto(`${studio.url}#/`);
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
     const modes = page.getByRole('navigation', { name: 'Mode' });
     expect(await modes.getByRole('button', { disabled: true }).count()).toBe(4);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'mode-edit' } })));
@@ -457,11 +522,13 @@ describe('the shell (L5.9 part E)', () => {
     expect(await modes.getByRole('link', { name: 'Review' }).getAttribute('aria-current')).toBe('page');
     // On the project's own page the scenario opened last stays in context.
     await page.goto(`${studio.url}#/p/${P}`);
-    await page.getByRole('heading', { level: 1, name: 'Northfield (fixture)' }).waitFor(POLL);
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
     expect(await modes.getByRole('link', { name: 'Shoot' }).getAttribute('href')).toBe(`#/p/${P}/s/quote/run`);
     expect(await modes.locator('[aria-current]').count()).toBe(0);
-    // One current page in the browser: Overview, not also its project's row (review A-L9).
-    expect(await page.locator('.sh-browser [aria-current="page"]').allInnerTexts()).toEqual(['Overview']);
+    // One current page in the browser: Productions (L5.10a: the open project's tree), nothing else (review A-L9).
+    expect(await page.locator('.sh-browser [aria-current="page"] .k-source-label').allInnerTexts()).toEqual(['Productions']);
+    // …and one current row whatever its content (review B-M3: a stray aria-current without a label child counts too).
+    expect(await page.locator('.sh-browser [aria-current="page"]').count()).toBe(1);
     // The centre pane: scrolled inside the comments screen, a thread address keeps the scroll; a new screen starts at 0.
     await page.goto(`${studio.url}#/p/${P}/s/quote/comments`);
     await page.locator('main h1').waitFor(POLL);
@@ -494,6 +561,78 @@ describe('the shell (L5.9 part E)', () => {
     expect(box.status).toBe(700);
     expect(box.sw).toBeLessThanOrEqual(900);
     await page.setViewportSize({ width: 1280, height: 900 });
+  });
+});
+
+describe('L5.10a: the productions listbox and the project shell', () => {
+  it('⚑ the poster grid is ONE tab stop: arrows move the selection (a row is three), Home / End, Enter opens, Escape clears; a click selects, a double-click opens', async () => {
+    // Wide enough for the gallery's half column to hold three posters (review B-M2: as many columns as fit).
+    await page.setViewportSize({ width: 2200, height: 900 });
+    await gallery();
+    const col = page.getByTestId('scope-dark');
+    const grid = col.getByRole('listbox', { name: /Sample productions/ });
+    const selected = () => grid.locator('[role="option"][aria-selected="true"]').allInnerTexts();
+    const columns = () => grid.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    // Nothing selected: no aria-activedescendant at all (review A-L6: never an empty reference).
+    expect(await grid.getAttribute('aria-activedescendant')).toBeNull();
+    expect(await columns()).toBe(3);
+    await grid.focus();
+    await page.keyboard.press('ArrowRight');
+    expect((await selected())[0]).toMatch(/^Request a quote/);
+    expect(await grid.getAttribute('aria-activedescendant')).toBe(await grid.locator('[role="option"]').first().getAttribute('id'));
+    await page.keyboard.press('ArrowDown');
+    expect((await selected())[0]).toMatch(/^Reports/);
+    await page.keyboard.press('ArrowUp');
+    expect((await selected())[0]).toMatch(/^Request a quote/);
+    await page.keyboard.press('End');
+    expect((await selected())[0]).toMatch(/^Reports/);
+    await page.keyboard.press('Home');
+    await page.keyboard.press('ArrowRight');
+    expect((await selected())[0]).toMatch(/^Manage the catalogue/);
+    // The selected option carries the fill and the 2 px ring (more than colour).
+    expect(await grid.locator('[aria-selected="true"]').evaluate((el) => getComputedStyle(el).boxShadow)).toMatch(/2px/);
+    await page.keyboard.press('Enter');
+    expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: open catalogue');
+    await page.keyboard.press('Escape');
+    expect(await selected()).toEqual([]);
+    // One tab stop: Tab leaves the grid at once (no option is a stop).
+    expect(await grid.locator('[role="option"][tabindex]').count()).toBe(0);
+    await grid.focus();
+    await page.keyboard.press('Tab');
+    expect(await grid.evaluate((el) => el.contains(document.activeElement))).toBe(false);
+    await grid.locator('[role="option"]').nth(2).click();
+    expect((await selected())[0]).toMatch(/^Sign up/);
+    await grid.locator('[role="option"]').nth(3).dblclick();
+    expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: open reports');
+    // Narrower: one poster a row — ↓ moves by the row the layout shows, one.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect.poll(columns).toBe(1);
+    await grid.locator('[role="option"]').first().click();
+    await page.keyboard.press('ArrowDown');
+    expect((await selected())[0]).toMatch(/^Manage the catalogue/);
+  });
+
+  it('the open project: its tree in the browser (Productions and its groups, Library, Locations, Cast, Project); the title bar\'s project menu goes to another project or Welcome', async () => {
+    await page.goto(`${studio.url}#/p/${P}`);
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
+    const nav = page.getByRole('navigation', { name: 'Studio' });
+    await expect.poll(() => nav.getByRole('link', { name: /^Needs a shoot/ }).count(), POLL).toBe(1);
+    for (const name of [/^Productions/, /^Ready to render/, /^Failed/, /^Components/, /^Themes/, /^local/, /^Sessions/, /^README/, /^Record a scenario/]) expect(await nav.getByRole('link', { name }).count(), String(name)).toBe(1);
+    expect(await nav.getByRole('heading').allInnerTexts()).toEqual(['Library', 'Locations', 'Cast', 'Project']);
+    // A location's flags in words; a persona's session as a shape and a word.
+    expect(await nav.getByRole('link', { name: /^production/ }).innerText()).toMatch(/production$/);
+    await expect.poll(async () => (await nav.locator('.k-source-item.is-quiet').allInnerTexts()).join('|'), POLL).toMatch(/supplier/);
+    expect(await nav.locator('.k-source-item.is-quiet .k-mark-word').first().innerText()).toMatch(/\w/);
+    // A smart group: the grid filtered, its row current.
+    await nav.getByRole('link', { name: /^Needs a shoot/ }).click();
+    await page.getByRole('heading', { level: 1, name: 'Needs a shoot' }).waitFor(POLL);
+    expect(await page.locator('.sh-browser [aria-current="page"] .k-source-label').allInnerTexts()).toEqual(['Needs a shoot']);
+    // The project menu.
+    const menu = page.getByRole('banner').getByRole('button', { name: 'Northfield (fixture)' });
+    await menu.click();
+    await page.getByRole('menuitem', { name: 'All projects' }).click();
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+    expect(page.url()).toMatch(/#\/$/);
   });
 });
 

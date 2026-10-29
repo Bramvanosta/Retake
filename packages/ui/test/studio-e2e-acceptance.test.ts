@@ -186,11 +186,13 @@ afterAll(async () => {
 describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the installed Google Chrome (L4.9 part D)', () => {
   it('projects → highlights; a hold changed in the form (one line); a dry run watched live; a capture', async () => {
     await page.goto(studio.launchUrl());
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
     await check('projects', true);
     await page.locator('main').getByRole('link', { name: 'Northfield (fixture)' }).first().click();
     await page.waitForURL(`**#/p/${P}`);
-    await page.locator('main').getByRole('link', { name: S, exact: true }).first().click();
+    // L5.10a: the poster selects, the inspector's Open opens.
+    await page.locator(`[role="option"][data-id="${S}"]`).click();
+    await page.getByTestId('scenario-link').click();
     await page.waitForURL(`**#/p/${P}/s/${S}`);
     await page.getByTestId('blocks').waitFor(POLL);
     await shot('1-blocks');

@@ -1,13 +1,10 @@
 {
-  "Activity.tsx": 24,
   "CommentsScreen.tsx": 230,
   "CommentsTab.tsx": 3,
   "Inspector.tsx": 64,
   "LibraryScreen.tsx": 245,
   "LiveView.tsx": 14,
   "PreviewFrame.tsx": 2,
-  "ProjectPage.tsx": 58,
-  "ProjectsScreen.tsx": 20,
   "ProposalPanel.tsx": 67,
   "ReadmeEditor.tsx": 39,
   "RecordScreen.tsx": 274,

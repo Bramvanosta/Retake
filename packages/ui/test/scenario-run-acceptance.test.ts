@@ -70,7 +70,7 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
       if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) consoleErrors.push(m.text());
     });
     await page.goto(studio.launchUrl());
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
   }, 180_000);
 
   afterAll(async () => {

@@ -14,6 +14,11 @@ export class CheckContext {
    * outside the project is never told.
    */
   confined: 'mcp' | 'studio' | undefined = undefined;
+  /**
+   * L5.10a fixes (review A-M1): when set, every file a check looks for is added (absolute path) — a caller memoising the
+   * result (the Studio's project board) re-checks them before it trusts its memo.
+   */
+  filesRead: Set<string> | undefined = undefined;
 
   constructor(
     /** Issues of the structural (schema) pass: semantic checks skip broken subtrees. */
@@ -58,6 +63,7 @@ export class CheckContext {
       this.out.push(issue('error', path, `${what} "${rel}" resolves outside ${where} folder: ${this.confined === 'studio' ? 'from the Studio' : 'through MCP'} only files of the project folder are read`));
       return;
     }
+    this.filesRead?.add(abs);
     let isFile = false;
     try {
       isFile = existsSync(abs) && statSync(abs).isFile() && (!this.confined || isInside(realpathSync(dir), realpathSync(abs)));

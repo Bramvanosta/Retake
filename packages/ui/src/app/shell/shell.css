@@ -207,3 +207,12 @@
   align-items: center;
   gap: var(--ui-space-3);
 }
+
+/* L5.10a fixes (review B-M1): an inspector the person hid, shown in place in the centre pane (ShellSlot inline) */
+.sh-inline-slot {
+  display: grid;
+  margin-top: var(--ui-space-8);
+  border-top: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}

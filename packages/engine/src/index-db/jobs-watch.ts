@@ -46,16 +46,23 @@ export class JobsWatch {
     const changed: string[] = [];
     const live = new Map<string, string>();
     const records = new Map<string, JobRecord>();
+    // L5.10 flake fix: ids listed with no job.json to read yet — enqueue() makes the folder before it writes job.json —
+    // stay unknown, so the next poll looks at them again (known, they were never read again: a job queued and finished
+    // between two polls, or with a poll in that window, was never told).
+    const unread = new Set<string>();
     for (const id of look) {
       const job = await this.queue.get(id).catch(() => undefined);
-      if (!job) continue;
+      if (!job) {
+        unread.add(id);
+        continue;
+      }
       // The first poll reads the whole history: only its unfinished jobs are kept.
       if (!first || !FINISHED_JOB_STATES.has(job.state)) records.set(id, job);
       const s = signature(job);
       if (!first && this.live.get(id) !== s) changed.push(id);
       if (!FINISHED_JOB_STATES.has(job.state)) live.set(id, s);
     }
-    this.known = new Set(ids);
+    this.known = new Set(ids.filter((id) => !unread.has(id)));
     this.live = live;
     this.records = records;
     return changed.sort();

@@ -202,6 +202,14 @@ describe('the checker (L4.9 part A)', () => {
     await page.emulateMedia({ colorScheme: 'light' });
   });
 
+  it('L5.10a fixes (review A-L6): reachable — a focusable listbox with nothing selected and no aria-activedescendant is its own tab stop; with a selection it needs the attribute; unfocusable, never', async () => {
+    const grid = (attrs: string, sel = 'false') => `<ul role="listbox" aria-label="Productions" ${attrs}><li role="option" id="p1" aria-selected="${sel}">One</li><li role="option" id="p2" aria-selected="false">Two</li></ul>`;
+    expect(of((await audit(grid('tabindex="0"'))).findings, 'reachable')).toEqual([]);
+    expect(of((await audit(grid('tabindex="0"', 'true'))).findings, 'reachable').map((f) => f.el)).toEqual(['li#p1', 'li#p2']);
+    expect(of((await audit(grid('tabindex="0" aria-activedescendant="p1"', 'true'))).findings, 'reachable')).toEqual([]);
+    expect(of((await audit(grid(''))).findings, 'reachable').map((f) => f.el)).toEqual(['li#p1', 'li#p2']);
+  });
+
   it('⚑ L5.9 (critique M1): reachable — the options of a listbox a focusable combobox controls with aria-activedescendant are reached (the palette); without it they are not', async () => {
     const palette = (attrs: string) => `<label>Command <input role="combobox" aria-expanded="true" aria-controls="lb" ${attrs}></label><ul id="lb" role="listbox" aria-label="Commands"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul>`;
     expect(of((await audit(palette('aria-activedescendant="o1"'))).findings, 'reachable')).toEqual([]);

@@ -18,6 +18,14 @@ import type { ImageCap, ImageFormat, MissingReason, ThumbEntry, ThumbFetch } fro
 export const THUMB_W = 160;
 export const THUMB_H = 90;
 
+/**
+ * L5.10a: the sizes a picture is drawn at (critique M9: a prop only — the legacy screens keep the row size and its
+ * classes): a row (160 × 90), a poster (248 × 140: the Project screen's grid, 100 % of its column) and the inspector's
+ * (280 × 158). The attributes give the box its ratio before the picture comes (no layout shift).
+ */
+export type ThumbSize = 'row' | 'poster' | 'inspector';
+const SIZES: Record<ThumbSize, [number, number]> = { row: [THUMB_W, THUMB_H], poster: [248, 140], inspector: [280, 158] };
+
 interface ThumbsCtx {
   loader: ThumbLoader;
   observe(el: Element, on: (visible: boolean) => void): () => void;
@@ -75,7 +83,7 @@ function useEntry(loader: ThumbLoader, run: string, key: string): ThumbEntry | u
 }
 
 /** The picture of the run's step `runKey` (the run's own key), or why there is none. */
-export function Thumb({ run, runKey, alt }: { run: string; runKey: string; alt: string }) {
+export function Thumb({ run, runKey, alt, size = 'row' }: { run: string; runKey: string; alt: string; size?: ThumbSize }) {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('Thumb outside ThumbsProvider');
   const box = useRef<HTMLDivElement>(null);
@@ -96,9 +104,9 @@ export function Thumb({ run, runKey, alt }: { run: string; runKey: string; alt: 
   }, [ctx, run, runKey]);
   const ok = entry?.state === 'ok' && jpegDataUrl(entry.base64) !== null ? entry : null;
   return (
-    <div ref={box} className="thumb" data-testid="thumb" data-state={ok ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
+    <div ref={box} className="thumb" data-testid="thumb" data-size={size === 'row' ? undefined : size} data-state={ok ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
       {ok ? (
-        <Jpeg base64={ok.base64} max={THUMB_DATA_MAX} width={THUMB_W} height={THUMB_H} alt={alt} />
+        <Jpeg base64={ok.base64} max={THUMB_DATA_MAX} width={SIZES[size][0]} height={SIZES[size][1]} alt={alt} />
       ) : (
         <span className="thumb-words">{entry?.state === 'missing' ? REASON[entry.reason] : 'Loading the picture…'}</span>
       )}
@@ -123,9 +131,9 @@ export function Jpeg({ base64, max, width, height, alt }: { base64: string; max:
 }
 
 /** The same box with words instead of a picture (a step the run cannot picture). */
-export function NoThumb({ children }: { children: ReactNode }) {
+export function NoThumb({ children, size = 'row' }: { children: ReactNode; size?: ThumbSize }) {
   return (
-    <div className="thumb thumb-none" data-testid="thumb" data-state="none">
+    <div className="thumb thumb-none" data-testid="thumb" data-size={size === 'row' ? undefined : size} data-state="none">
       <span className="thumb-words">{children}</span>
     </div>
   );

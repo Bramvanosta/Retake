@@ -22,6 +22,23 @@ export interface ScenarioContext {
 
 /** The last scenario opened per project in this tab. */
 const lastScenario = new Map<string, string>();
+/** L5.10a: a production selected on the Project screen becomes the scenario in context (the modes act on it). */
+let version = 0;
+const watchers = new Set<() => void>();
+export function rememberScenario(slug: string, scenario: string): void {
+  if (lastScenario.get(slug) === scenario) return;
+  lastScenario.set(slug, scenario);
+  version++;
+  for (const w of [...watchers]) w();
+}
+/** Re-renders the caller when a remembered scenario changes (useSyncExternalStore's subscribe / snapshot). */
+export const contextWatch = {
+  subscribe(fn: () => void): () => void {
+    watchers.add(fn);
+    return () => watchers.delete(fn);
+  },
+  version: () => version,
+};
 
 /** The project a route belongs to, or null. */
 export function slugOf(route: Route): string | null {

@@ -104,7 +104,7 @@ beforeAll(async () => {
     requests.push({ op: m[1], at: Date.now(), body });
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
 }, 60_000);
 
 afterAll(async () => {

@@ -11,9 +11,9 @@
  * elsewhere, outside a text field: review B-L3) and nothing else (the browser keeps its own keys). While a modal dialog
  * is open the shell's commands wait (critique M5).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import type { ProjectSummary } from '@demo-studio/engine';
+import type { AuthStatus, ProjectBoardView, ProjectSummary, ProjectView } from '@demo-studio/engine';
 import { call, useConnection } from '../api.js';
 import type { Connection, Loaded } from '../api.js';
 import { Txt } from '../bits.js';
@@ -23,9 +23,11 @@ import { useEventMode, useEvents } from '../events.js';
 import type { EventMode } from '../events.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
-import { Button, CommandPalette, COMMAND_EVENT, IconButton, LinkButton, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
-import type { Command, MarkState, MenuCommand, SourceItem } from '../ui-kit/index.js';
-import { MODES, modeOf, modeTarget, scenarioInContext, screenKey, slugOf } from './modes.js';
+import { Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
+import type { Command, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
+import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../board-words.js';
+import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
+import { MODES, contextWatch, modeOf, modeTarget, scenarioInContext, screenKey, slugOf } from './modes.js';
 import type { Mode } from './modes.js';
 import { SlotContext } from './slots.js';
 import type { SlotHost, SlotName } from './slots.js';
@@ -79,40 +81,102 @@ function inTextField(t: EventTarget | null): boolean {
   return t instanceof HTMLElement && (t.isContentEditable || t.matches('textarea, select, input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"], [type="range"])'));
 }
 
-const PROJECT_ROUTES = new Set<Route['name']>(['project', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'library', 'themes', 'record']);
+const PROJECT_ROUTES = new Set<Route['name']>(['project', 'group', 'location', 'cast', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'library', 'themes', 'record']);
 
-/** The browser's items: Projects, the projects of the workspace, and the open one's pages. */
-function browserItems(route: Route, projects: ProjectSummary[], readmeDirty: boolean): SourceItem[] {
-  const open = PROJECT_ROUTES.has(route.name) ? slugOf(route) : null;
-  const page = (key: string, to: Route, label: string, current: boolean, flag?: ReactNode): SourceItem => ({ key, to, label, current, className: 'nav-link', ...(flag ? { flag } : {}) });
+interface OpenProject {
+  view: Loaded<ProjectView>;
+  board: Loaded<ProjectBoardView>;
+  cast: Loaded<AuthStatus>;
+}
+
+/** Welcome's browser: Projects and the projects of the workspace. */
+function workspaceTree(route: Route, projects: ProjectSummary[]): SourceGroup[] {
   return [
     {
-      key: 'projects',
-      to: { name: 'projects' },
-      label: 'Projects',
-      current: route.name === 'projects',
-      className: 'nav-link',
-      childrenLabel: 'Projects of the workspace',
-      children: projects.map((p) => ({
-        key: p.slug,
-        to: { name: 'project', slug: p.slug },
-        label: <Txt text={p.name} />,
-        // Open, its Overview child is the current page (one aria-current: review A-L9).
-        current: false,
-        className: 'nav-link',
-        ...(p.error ? { flag: 'does not load' } : {}),
-        ...(open === p.slug
-          ? {
-              children: [
-                page('overview', { name: 'project', slug: p.slug }, 'Overview', route.name === 'project'),
-                page('readme', { name: 'readme', slug: p.slug }, 'README', route.name === 'readme', readmeDirty ? 'unsaved' : undefined),
-                page('library', { name: 'library', slug: p.slug }, 'Components', route.name === 'library'),
-                page('themes', { name: 'themes', slug: p.slug }, 'Themes', route.name === 'themes'),
-                page('record', { name: 'record', slug: p.slug }, 'Record', route.name === 'record'),
-              ],
-            }
-          : {}),
-      })),
+      key: 'workspace',
+      items: [
+        {
+          key: 'projects',
+          to: { name: 'projects' },
+          label: 'Projects',
+          icon: 'folder',
+          current: route.name === 'projects',
+          className: 'nav-link',
+          childrenLabel: 'Projects of the workspace',
+          children: projects.map((p) => ({ key: p.slug, to: { name: 'project', slug: p.slug }, label: <Txt text={p.name} />, current: false, className: 'nav-link', ...(p.error ? { flag: 'does not load' } : {}) })),
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * L5.10a: an open project's browser (B32): Productions and its smart groups, the Library, the Locations (environments
+ * with their flags in words), the Cast (each persona's session: a shape and a word), the Project's README and Record.
+ */
+function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: boolean): SourceGroup[] {
+  const board = d.board.state === 'ready' ? d.board.data : null;
+  const view = d.view.state === 'ready' ? d.view.data : null;
+  const counts = board ? groupCounts(board.scenarios) : null;
+  const total = board ? (board.truncated?.total ?? board.scenarios.length) : view?.scenarios.length;
+  const row = (key: string, to: Route, label: ReactNode, current: boolean, extra: Partial<SourceItem> = {}): SourceItem => ({ key, to, label, current, className: 'nav-link', ...extra });
+  const personas = d.cast.state === 'ready' ? d.cast.data.personas : [];
+  const manyEnvs = new Set(personas.map((p) => p.env)).size > 1;
+  return [
+    {
+      key: 'productions',
+      label: 'Productions',
+      items: [
+        row('productions', { name: 'project', slug }, 'Productions', route.name === 'project', {
+          icon: 'film',
+          ...(total !== undefined ? { count: total } : {}),
+          childrenLabel: 'Smart groups',
+          children: BOARD_GROUPS.map((g) => row(`g-${g}`, { name: 'group', slug, group: g }, GROUP_LABEL[g], route.name === 'group' && route.group === g, counts ? { count: counts[g] } : {})),
+        }),
+      ],
+    },
+    {
+      key: 'library',
+      heading: 'Library',
+      label: 'Library',
+      items: [row('library', { name: 'library', slug }, 'Components', route.name === 'library', { icon: 'components', testId: 'library-link' }), row('themes', { name: 'themes', slug }, 'Themes', route.name === 'themes', { icon: 'theme' })],
+    },
+    {
+      key: 'locations',
+      heading: 'Locations',
+      label: 'Locations',
+      items: view
+        ? view.environments.map((e) => {
+            const flags = envFlagWord(e, e.name === view.default_env);
+            return row(`loc-${e.name}`, { name: 'location', slug, env: e.name }, <Txt text={e.name} />, route.name === 'location' && route.env === e.name, { icon: 'location', ...(flags ? { flag: flags } : {}) });
+          })
+        : [],
+    },
+    {
+      key: 'cast',
+      heading: 'Cast',
+      label: 'Cast',
+      items: [
+        row('cast', { name: 'cast', slug }, 'Sessions', route.name === 'cast', {
+          icon: 'person',
+          ...(d.cast.state === 'ready' ? { count: personas.length } : {}),
+          childrenLabel: 'Personas',
+          children: personas.map((p) => {
+            const c = castState(p);
+            // Several locations: each one under its persona's name, on a line that wraps (review B-L1: never cut off).
+            return row(`p-${p.env}-${p.persona}`, { name: 'cast', slug }, <Txt text={p.persona} />, false, { quiet: true, flag: <StatusMark state={c.state} word={c.word} />, ...(manyEnvs ? { detail: <Txt text={p.env} /> } : {}) });
+          }),
+        }),
+      ],
+    },
+    {
+      key: 'project',
+      heading: 'Project',
+      label: 'Project',
+      items: [
+        row('readme', { name: 'readme', slug }, 'README', route.name === 'readme', { icon: 'report', ...(readmeDirty ? { flag: 'unsaved' } : {}) }),
+        row('record', { name: 'record', slug }, 'Record a scenario', route.name === 'record', { icon: 'record' }),
+      ],
     },
   ];
 }
@@ -126,6 +190,10 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const openSlug = PROJECT_ROUTES.has(route.name) ? slugOf(route) : null;
   const readmeDirty = useDirty(readmeKey(openSlug ?? ''));
   const project = openSlug !== null ? projects.find((p) => p.slug === openSlug) : undefined;
+  // L5.10a: the open project's shared reads (the browser and the screens read the same entries).
+  const open: OpenProject = { view: useProjectView(openSlug), board: useBoard(openSlug), cast: useCast(openSlug) };
+  useProjectDataEvents(openSlug);
+  useSyncExternalStore(contextWatch.subscribe, contextWatch.version);
   const ctx = scenarioInContext(route, undefined, project?.scenarios);
   const mode = modeOf(route, ctx);
   const inApp = useMemo(() => studioShell() !== null, []);
@@ -151,7 +219,6 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     setClaims((c) => ({ ...c, [name]: c[name] + 1 }));
     return () => setClaims((c) => ({ ...c, [name]: c[name] - 1 }));
   }, []);
-  const host = useMemo<SlotHost>(() => ({ targets, claim }), [targets, claim]);
   // One stable ref callback per slot (a new function each render would detach and re-attach it every time).
   const slotRefs = useMemo(() => {
     const at = (name: SlotName) => (el: HTMLElement | null) => setTargets((t) => (t[name] === el ? t : { ...t, [name]: el }));
@@ -160,6 +227,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const hasInspector = claims.inspector > 0;
   const [inspectorOff, setInspectorOff] = useState(false);
   const inspectorShown = hasInspector && !inspectorOff;
+  const host = useMemo<SlotHost>(() => ({ targets, claim, hidden: { inspector: inspectorOff } }), [targets, claim, inspectorOff]);
   const inspector = useRef<HTMLElement>(null);
   /** Shows or hides the inspector; hiding it with the focus inside moves the focus to the centre pane (review A-L6). */
   const toggleInspector = useCallback(() => {
@@ -223,26 +291,30 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     const go = (r: Route) => () => {
       location.hash = hrefTo(r);
     };
-    const out: Command[] = [{ id: 'go-projects', label: 'Projects', group: 'Go to', run: go({ name: 'projects' }) }];
+    const out: Command[] = [{ id: 'go-projects', label: 'All projects', hint: 'the Welcome screen', group: 'Go to', run: go({ name: 'projects' }) }];
     if (ctx) {
       for (const m of MODES) out.push({ id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, group: 'Go to', ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
     }
     if (project) {
-      for (const [id, label, r] of [
-        ['overview', 'Overview', { name: 'project', slug: project.slug }],
-        ['readme', 'README', { name: 'readme', slug: project.slug }],
-        ['library', 'Components', { name: 'library', slug: project.slug }],
-        ['themes', 'Themes', { name: 'themes', slug: project.slug }],
-        ['record', 'Record', { name: 'record', slug: project.slug }],
-      ] as Array<[string, string, Route]>) {
-        out.push({ id: `page-${id}`, label, hint: project.name, group: 'Go to', run: go(r) });
-      }
+      const slug = project.slug;
+      const pages: Array<[string, string, Route]> = [
+        ['productions', 'Productions', { name: 'project', slug }],
+        ...BOARD_GROUPS.map((g): [string, string, Route] => [`g-${g}`, GROUP_LABEL[g], { name: 'group', slug, group: g }]),
+        ['library', 'Components', { name: 'library', slug }],
+        ['themes', 'Themes', { name: 'themes', slug }],
+        ['cast', 'Cast', { name: 'cast', slug }],
+        ['readme', 'README', { name: 'readme', slug }],
+        ['record', 'Record a scenario', { name: 'record', slug }],
+      ];
+      if (open.view.state === 'ready') for (const e of open.view.data.environments) pages.push([`loc-${e.name}`, `Location ${e.name}`, { name: 'location', slug, env: e.name }]);
+      for (const [id, label, r] of pages) out.push({ id: `page-${id}`, label, hint: project.name, group: 'Go to', run: go(r) });
+      for (const name of project.scenarios) out.push({ id: `open-${name}`, label: `Open ${name}`, hint: 'scenario', group: 'Scenarios', run: go({ name: 'scenario', slug, scenario: name, tab: 'blocks' }) });
     }
     for (const p of projects) out.push({ id: `project-${p.slug}`, label: p.name, hint: 'project', group: 'Projects', run: go({ name: 'project', slug: p.slug }) });
     out.push({ id: 'go-ui', label: 'UI gallery', hint: 'every component of the design system', group: 'Go to', run: go({ name: 'ui' }) });
     if (hasInspector) out.push({ id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', group: 'Commands', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
     return out;
-  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector]);
+  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view]);
 
   const conn = CONNECTION[connection];
   return (
@@ -262,9 +334,14 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
                 <span className="sh-crumb-sep" aria-hidden="true">
                   ›
                 </span>
-                <LinkButton to={{ name: 'project', slug: project.slug }} variant="ghost" size="sm">
-                  <Txt text={project.name} />
-                </LinkButton>
+                <Menu
+                  label="Projects"
+                  text={<Txt text={project.name} />}
+                  items={[...projects.map((p) => ({ id: `p:${p.slug}`, label: p.name })), 'separator', { id: 'all', label: 'All projects' }]}
+                  onSelect={(id) => {
+                    location.hash = hrefTo(id === 'all' ? { name: 'projects' } : { name: 'project', slug: id.slice(2) });
+                  }}
+                />
                 {ctx && 'scenario' in route && (
                   <>
                     <span className="sh-crumb-sep" aria-hidden="true">
@@ -285,7 +362,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           </div>
         </header>
         <aside className="sh-browser sidebar" aria-label="Browser">
-          <SourceList label="Studio" groups={[{ key: 'studio', items: browserItems(route, projects, readmeDirty) }]} />
+          <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />
           <div className="sh-browser-foot">
             <p className="sh-foot-line">
               <span className="sh-foot-label">Workspace</span>

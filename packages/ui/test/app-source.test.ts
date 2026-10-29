@@ -42,7 +42,7 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, CommandPalette, EmptyState, FieldRow, FrameCard, InspectorSection, Kbd, LinkButton, Menu, Progress, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
+import { Blocker, Button, CommandPalette, Disclosure, EmptyState, Facts, FieldRow, FrameCard, InspectorSection, Kbd, LinkButton, Menu, PosterGrid, Progress, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -130,7 +130,7 @@ function code(text: string): string {
 describe('the app builds no HTML from data (source lint)', () => {
   it('no raw-HTML, eval or src= API in src/app; every href is hrefTo(...) or a literal "#…"', async () => {
     const files = await appSources();
-    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['main.tsx', 'ReadmeEditor.tsx', 'ProjectsScreen.tsx', 'shell/AppShell.tsx', 'ui-kit/Button.tsx']));
+    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['main.tsx', 'ReadmeEditor.tsx', 'WelcomeScreen.tsx', 'shell/AppShell.tsx', 'ui-kit/Button.tsx']));
     for (const [f, text] of files) {
       const src = linted(f, code(text));
       for (const [re, why] of BANNED) expect(re.test(src), `${f}: ${why} (${re})`).toBe(false);
@@ -902,6 +902,7 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rec-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
   { file: 'ui-kit/panes.tsx', tag: 'div', attrs: { role: '"toolbar"', onKeyDown: '{rove}' }, line: '<div role="toolbar"', why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop' },
   { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
+  { file: 'ui-kit/cards.tsx', tag: 'li', attrs: { role: '"option"', 'data-index': '{n}' }, line: '<li', why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does' },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
 
@@ -1420,6 +1421,11 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(LinkButton, { to: { name: 'projects' }, children: K('lbtn') }),
       createElement(Toolbar, { label: 'Tools', children: K('tool') }),
       createElement(Kbd, { keys: [K('kbd')] }),
+      // L5.10a: the project side's kit additions.
+      createElement(Facts, { rows: [{ key: 'a', label: K('factl'), value: K('factv') }] }),
+      createElement(Disclosure, { summary: K('dsum'), children: K('dbody') }),
+      createElement(PosterGrid, { label: 'Productions', items: [{ id: 'a', picture: K('ppic'), title: K('ptitle'), meta: K('pmeta') }], selected: 'a', onSelect: go, onOpen: go }),
+      createElement(SourceList, { label: 'Browser 2', groups: [{ key: 'g', items: [{ key: 'r', to: { name: 'projects' }, label: 'Row', value: K('svalue'), lead: K('slead'), icon: 'film', quiet: true, current: true }] }] }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
@@ -1430,7 +1436,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool'];
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead'];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -1448,5 +1454,80 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       expect(kitBareText('Planted.tsx', `export const X = () => (${line});`), line).toEqual([]);
     }
     expect(kitBareText('Planted.tsx', 'export const X = () => (<ul>{xs.map((x) => <li key={x}>{x}</li>)}</ul>);')).toEqual(['Planted.tsx:1 {x}']);
+  });
+});
+
+// ── L5.10a: the project side (Welcome, the Project screen, the Cast, Lately) ─────────────────────────────────────────
+
+/** The rebuilt project-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
+const PROJECT_SIDE = ['WelcomeScreen.tsx', 'ProductionsScreen.tsx', 'CastScreen.tsx', 'Activity.tsx'];
+/** The ops the project side may call: reads only (the write path is unchanged: critique §7.3). */
+const PROJECT_SIDE_OPS = new Set(['project_get', 'project_board', 'auth_status', 'projects_overview', 'engine_info', 'run_list', 'run_status', 'run_thumbs', 'activity_list', 'search']);
+
+/** The op names a source passes to call / useCall (a literal first argument; anything else is reported as such). */
+function opsCalled(text: string): string[] {
+  const out: string[] = [];
+  for (const m of code(text).matchAll(/\b(?:call|useCall)\s*(?:<[^>]*>)?\(\s*([^,)]*)/g)) out.push(/^'[a-z_]+'$/.test(m[1].trim()) ? m[1].trim().slice(1, -1) : `(not a literal: ${m[1].trim()})`);
+  return out;
+}
+
+describe('L5.10a: the project side', () => {
+  it('the routes: a smart group, a location, the Cast; ids inert strings; hrefTo round-trips', () => {
+    expect(parseRoute('#/p/northfield-fixture/g/ready')).toEqual({ name: 'group', slug: 'northfield-fixture', group: 'ready' });
+    expect(parseRoute('#/p/n/g/shoot/')).toEqual({ name: 'group', slug: 'n', group: 'shoot' });
+    expect(parseRoute('#/p/n/g/failed')).toEqual({ name: 'group', slug: 'n', group: 'failed' });
+    expect(parseRoute('#/p/n/g/other')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/g/')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/loc/local')).toEqual({ name: 'location', slug: 'n', env: 'local' });
+    expect(parseRoute('#/p/n/loc/%3Cimg%3E')).toEqual({ name: 'location', slug: 'n', env: '<img>' });
+    expect(parseRoute('#/p/n/loc/a/b')).toMatchObject({ name: 'not-found' });
+    expect(parseRoute('#/p/n/cast')).toEqual({ name: 'cast', slug: 'n' });
+    expect(parseRoute('#/p/n/cast/x')).toMatchObject({ name: 'not-found' });
+    for (const slug of ['northfield-fixture', '<img src=x>', 'a/b', '\u202Egnp.exe']) {
+      for (const r of [{ name: 'group', slug, group: 'ready' }, { name: 'location', slug, env: slug }, { name: 'cast', slug }] as const) {
+        const h = hrefTo(r);
+        expect(h.startsWith('#/p/')).toBe(true);
+        expect(parseRoute(h)).toEqual(r);
+      }
+    }
+    // A group the address cannot hold falls back to the project.
+    expect(hrefTo({ name: 'group', slug: 'n', group: 'x' as 'ready' })).toBe('#/p/n');
+  });
+
+  it('⚑ every value from data is text: each JSX child of the project-side screens goes through Txt / shown / a kit slot (a planted bare title fails it)', async () => {
+    const files = (await appSources()).filter(([f]) => PROJECT_SIDE.includes(f));
+    expect(files.map(([f]) => f).sort()).toEqual([...PROJECT_SIDE].sort());
+    expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    // The review's mutation: the poster title rendered bare.
+    const productions = files.find(([f]) => f === 'ProductionsScreen.tsx')![1];
+    const planted = productions.replace('title: <Txt text={posterTitle(s)} />,', 'title: <span>{posterTitle(s)}</span>,');
+    expect(planted).not.toBe(productions);
+    expect(kitBareText('ProductionsScreen.tsx', planted)).toEqual([expect.stringContaining('{posterTitle(s)}')]);
+  });
+
+  it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; the replaced files are gone', async () => {
+    const table = await readTable();
+    const found = await ratchetFindings();
+    for (const f of [...PROJECT_SIDE, 'shell/AppShell.tsx']) {
+      expect(table[f], f).toBeUndefined();
+      expect(found.get(f) ?? [], f).toEqual([]);
+    }
+    const names = (await appSources()).map(([f]) => f);
+    for (const gone of ['ProjectsScreen.tsx', 'ProjectPage.tsx']) {
+      expect(names).not.toContain(gone);
+      expect(table[gone], gone).toBeUndefined();
+    }
+  });
+
+  it('⚑ the project side only reads: the ops it calls are read ops (a planted scenario_save fails it); project_board is a Studio read', async () => {
+    const files = (await appSources()).filter(([f]) => [...PROJECT_SIDE, 'project-data.ts', 'board-words.ts'].includes(f));
+    const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
+    expect(called.length).toBeGreaterThan(5);
+    expect(called.filter(([f, op]) => !PROJECT_SIDE_OPS.has(op) && !(f === 'project-data.ts' && op === '(not a literal: e.op)'))).toEqual([]);
+    expect(opsCalled("call('scenario_save', { project })")).toEqual(['scenario_save']);
+    expect(opsCalled('call(e.op, { project: e.slug })')).toEqual(['(not a literal: e.op)']);
+    // project-data.ts reads by its own op table (e.op): the table holds the three reads only.
+    const store = files.find(([f]) => f === 'project-data.ts')![1];
+    expect(/export type ProjectOp = 'project_get' \| 'project_board' \| 'auth_status';/.test(store)).toBe(true);
   });
 });

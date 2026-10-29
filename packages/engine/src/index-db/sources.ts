@@ -1,7 +1,7 @@
 /**
  * What the workspace index and the Studio's event stream watch (L4.1, critique C2): a bounded stat poll — never a
  * recursive fs.watch (no FSEvents flood from a capture's frames, deterministic tests). One scan stats, per project,
- * project.yaml (+ sandbox.yaml) and the scenarios/ folder, README.md, the runs/ and renders/ folders (+ the run.json
+ * project.yaml (+ sandbox.yaml) and the scenarios/ folder, README.md, the runs/, renders/ and review/ folders (+ the run.json
  * of the runs it was told are unfinished), and the workspace's history.jsonl: a few stats per project, nothing read.
  *
  * A source is a key (`project:<slug>`, `readme:<slug>`, `runs:<slug>`, `renders:<slug>`, `scenario:<slug>/<name>`,
@@ -99,7 +99,9 @@ export async function scanSources(ws: WorkspaceConfig, unfinished: ReadonlyMap<s
     const runs = [await sig(join(dir, 'runs'))];
     for (const id of unfinished.get(slug) ?? []) runs.push(`${id}=${await sig(join(dir, 'runs', id, 'run.json'))}`);
     out.set(`runs:${slug}`, runs.join('|'));
-    out.set(`renders:${slug}`, await sig(join(dir, 'renders')));
+    // L5.10a fixes (review A-L4): review/ too — a review run from a terminal swaps review/<id> in by a rename (no job,
+    // no renders/ change): a board or a render list re-reads its verdict.
+    out.set(`renders:${slug}`, `${await sig(join(dir, 'renders'))}|${await sig(join(dir, 'review'))}`);
     for (const [name, files] of await scenarioFiles(join(dir, 'scenarios'))) {
       out.set(`scenario:${slug}/${name}`, (await Promise.all(files.map((f) => sig(join(dir, 'scenarios', f))))).join('|'));
     }

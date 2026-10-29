@@ -179,7 +179,7 @@ beforeAll(async () => {
     if (new URL(r.url()).pathname.startsWith('/v1/call/')) void r.text().then((t) => answers.push(t), () => undefined);
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
 }, 120_000);
 
 afterAll(async () => {

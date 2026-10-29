@@ -37,6 +37,9 @@ import { RunDataCache } from './run-data.js';
 import { RunThumbs } from './run-thumbs.js';
 import type { RunThumbsView } from './run-thumbs.js';
 import { ScenarioViews } from './scenario-view.js';
+import { ProjectBoards } from './project-board.js';
+import { checkRunId } from './refs.js';
+import type { ProjectBoardView, RunPoster } from './project-board.js';
 import type { ScenarioView } from './scenario-view.js';
 import { submitEnvResetJob, submitHooksJob } from './jobs/hooks-job.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job.js';
@@ -230,6 +233,12 @@ export interface Engine {
      * (default true) only reports what would go and how much it frees. Whatever a queued or running job names is kept.
      */
     prune(project: string, req?: Omit<PruneRequest, 'busy'>): Promise<PruneResult>;
+    /**
+     * The Studio's Project screen in one read (L5.10a, project-board.ts): every scenario's file facts, running / last
+     * take, capture (current or not), dry run, newest render and its review, render job, length and poster — one pass
+     * over the runs, one renders readdir, one queue read; memos apart from `scenarios.view`'s. Path-free.
+     */
+    board(project: string): Promise<ProjectBoardView>;
   };
   scenarios: {
     get(project: string, name: string): Promise<ScenarioText>;
@@ -284,6 +293,8 @@ export interface Engine {
      * dry-run screenshots, error screenshots, the frame on screen at a capture step's end. Made in memory, never stored.
      */
     thumbs(project: string, runId: string, keys: readonly string[], opts?: { signal?: AbortSignal }): Promise<RunThumbsView>;
+    /** A run's poster (L5.10a): its timeline's last step with a picture (run_thumbs takes `key`) and its scenes' length. */
+    poster(project: string, runId: string): Promise<RunPoster>;
   };
   jobs: {
     get(id: string): Promise<JobRecord>;
@@ -634,6 +645,16 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     },
     runs: runData,
   });
+  // L5.10a: the Project screen's board, its memos apart from the views' (critique H1: never evict the open scenario's).
+  const boards = new ProjectBoards({
+    ws,
+    queue,
+    project,
+    overlay: async (slug, run) => {
+      const job = await queue.ofRun(slug, run.id);
+      return (job ? overlaid(run.status, job) : undefined) ?? run.status;
+    },
+  });
   const runStatusWithJob = async (slug: string, runId: string): Promise<RunStatusWithJob> => {
     const view: RunStatusWithJob = await runStatus(await project(slug), runId);
     const job = await queue.ofRun(slug, runId);
@@ -670,6 +691,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       pid: process.pid,
       features: [
         'projects',
+        'projects.board',
         'scenarios',
         'scenarios.from_script',
         'scenarios.view',
@@ -735,6 +757,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         const named = active.map((j) => JSON.stringify(j.input)).join('\n');
         return pruneProject(p, { ...req, busy: (id) => named.includes(`"${id}"`) });
       },
+      board: (slug) => boards.board(slug),
     },
     scenarios: {
       get: async (slug, name) => getScenario(await project(slug), name),
@@ -796,6 +819,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return runStatusWithJob(slug, runId);
       },
       thumbs: async (slug, runId, keys, o = {}) => runThumbs.thumbs((await project(slug)).dir, slug, runId, keys, o),
+      poster: async (slug, runId) => boards.poster(await project(slug), checkRunId(runId)),
     },
     jobs: {
       get: getJob,

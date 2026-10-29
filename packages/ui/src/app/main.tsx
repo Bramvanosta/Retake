@@ -1,6 +1,6 @@
 /**
  * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
- * event stream per browser) and the screens inside the shell — Projects (with search and recent activity), a project,
+ * event stream per browser) and the screens inside the shell — Welcome (L5.10a: the projects, search and recent activity), a project's productions (L5.10a: the poster grid, its smart groups and locations; the Cast),
  * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
  * is the second line. L5.9: the screens sit in the design system's shell (shell/AppShell.tsx: title bar with the mode
@@ -11,15 +11,16 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { info, setToken, useCall, useConnection } from './api.js';
-import { startEvents, useEvents } from './events.js';
+import { onlyRunProgress, startEvents, useEvents } from './events.js';
 import { Notice, Txt } from './bits.js';
 import { APP_NAME } from './brand.js';
 import { dirtyDrafts, guardUnload } from './drafts.js';
 import { startUnsavedReport } from './unsaved-report.js';
 import { CommentsScreen } from './CommentsScreen.js';
 import { LibraryScreen } from './LibraryScreen.js';
-import { ProjectPage } from './ProjectPage.js';
-import { ProjectsScreen } from './ProjectsScreen.js';
+import { CastScreen } from './CastScreen.js';
+import { ProductionsScreen } from './ProductionsScreen.js';
+import { WelcomeScreen } from './WelcomeScreen.js';
 import { ReadmeEditor } from './ReadmeEditor.js';
 import { RecordScreen } from './RecordScreen.js';
 import { RunScreen } from './RunScreen.js';
@@ -49,7 +50,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -58,9 +59,10 @@ function Studio() {
   useEffect(() => guardUnload(), []);
   // L5.2b: what the tab holds unsaved, for the desktop app's quit question (kinds and names only).
   useEffect(() => startUnsavedReport(), []);
-  // A project added, removed or changed on disk (or a reconnection): the list and the sidebar read it again.
+  // A project added, removed or changed on disk (or a reconnection): the list and the sidebar read it again — not a
+  // step of a take (L5.10a fixes: nothing the list holds changed; the shell re-rendered at every step).
   useEvents((e) => {
-    if ((e.type === 'workspace' && e.projects.length > 0) || e.type === 'resync') reloadList();
+    if ((e.type === 'workspace' && e.projects.length > 0 && !onlyRunProgress(e)) || e.type === 'resync') reloadList();
   });
   const first = useRef(true);
   useEffect(() => {
@@ -72,8 +74,12 @@ function Studio() {
   if (connection === 'ended') return <Ended />;
   return (
     <AppShell route={route} list={list}>
-      {route.name === 'projects' && <ProjectsScreen list={list} />}
-      {route.name === 'project' && <ProjectPage key={route.slug} slug={route.slug} />}
+      {route.name === 'projects' && <WelcomeScreen list={list} />}
+      {(route.name === 'project' || route.name === 'group' || route.name === 'location') && (
+        // One element for the three (keyed by the project): a smart group or a location keeps the search and the selection.
+        <ProductionsScreen key={route.slug} slug={route.slug} {...(route.name === 'group' ? { group: route.group } : {})} {...(route.name === 'location' ? { env: route.env } : {})} />
+      )}
+      {route.name === 'cast' && <CastScreen key={route.slug} slug={route.slug} />}
       {route.name === 'readme' && <ReadmeEditor key={route.slug} slug={route.slug} />}
       {route.name === 'scenario' && <ScenarioScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} tab={route.tab} />}
       {route.name === 'run' && <RunScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.run ? { run: route.run } : {})} />}

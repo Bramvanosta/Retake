@@ -18,7 +18,7 @@ export function unsavedFor(value: string, baseline: string, item: UnsavedItem | 
   return item !== null && value !== baseline ? item : null;
 }
 
-export type FieldLayout = 'stack' | 'row';
+export type FieldLayout = 'stack' | 'row' | 'inline';
 
 interface TextCommon {
   label: ReactNode;
@@ -39,10 +39,10 @@ interface TextCommon {
   name?: string;
 }
 
-function Frame({ id, label, hint, error, layout, children }: { id: string; label: ReactNode; hint?: ReactNode; error?: ReactNode; layout: FieldLayout; children: ReactNode }) {
+function Frame({ id, label, hint, error, layout, labelHidden, children }: { id: string; label: ReactNode; hint?: ReactNode; error?: ReactNode; layout: FieldLayout; labelHidden?: boolean; children: ReactNode }) {
   return (
-    <div className={`k-field k-field-${layout}`}>
-      <label className="k-field-label" htmlFor={id}>
+    <div className={`k-field k-field-${layout}${labelHidden ? ' k-field-bare' : ''}`}>
+      <label className={labelHidden ? 'k-field-label k-sr' : 'k-field-label'} htmlFor={id}>
         {shown(label)}
       </label>
       <div className="k-field-body">
@@ -64,21 +64,30 @@ function Frame({ id, label, hint, error, layout, children }: { id: string; label
 
 const describedBy = (id: string, hint: ReactNode, error: ReactNode) => [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
 
-export function TextField({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, type = 'text', onKeyDown }: TextCommon & { type?: 'text' | 'search' | 'url' | 'email'; onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void }) {
+/**
+ * L5.10a fixes (review B-L4, B-L6): a search keeps its limits (`maxLength`, no autocomplete, no spell check), and its
+ * label may be visually hidden (`labelHidden`: still the input's name) with a search icon in the field.
+ */
+export function TextField({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, type = 'text', onKeyDown, maxLength, autoComplete, spellCheck, labelHidden }: TextCommon & { type?: 'text' | 'search' | 'url' | 'email'; onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void; maxLength?: number; autoComplete?: string; spellCheck?: boolean; labelHidden?: boolean }) {
   useUnsavedMark(unsavedFor(value, baseline, unsaved));
   const own = useId();
   const fid = id ?? own;
+  const icon = labelHidden && type === 'search';
   return (
-    <Frame id={fid} label={label} hint={hint} error={error} layout={layout}>
+    <Frame id={fid} label={label} hint={hint} error={error} layout={layout} labelHidden={labelHidden}>
+      {icon && <Icon name="search" className="k-input-icon" />}
       <input
         id={fid}
         name={name}
         type={type}
-        className={mono ? 'k-input k-mono' : 'k-input'}
+        className={`${mono ? 'k-input k-mono' : 'k-input'}${icon ? ' k-input-with-icon' : ''}`}
         value={value}
         placeholder={placeholder}
         disabled={disabled}
         readOnly={readOnly}
+        maxLength={maxLength}
+        autoComplete={autoComplete}
+        spellCheck={spellCheck}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(fid, hint, error)}
         onChange={(e) => onChange(e.currentTarget.value)}

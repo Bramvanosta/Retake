@@ -49,7 +49,7 @@ import { Live } from './live.js';
 import { startPlayerServer } from './player.js';
 import { PreviewAllowList } from './preview-allow.js';
 import type { PlayerServer } from './player.js';
-import { OWN_OPS, PreviewLeases, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
+import { OWN_OPS, PreviewLeases, boardOp, editOps, indexOps, liveOps, overviewOp, renderOps, runOps, scenarioOps, timelineOps } from './ops.js';
 import { libraryOps } from './library-ops.js';
 import { themeOps } from './theme-ops.js';
 import { recordOps } from './record-ops.js';
@@ -263,6 +263,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const tools = uiTools([
     ...indexOps(live),
     overviewOp(),
+    boardOp(),
     ...scenarioOps(),
     ...runOps(),
     ...editOps(chain),

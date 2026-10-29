@@ -1434,6 +1434,40 @@ too).
   nothing reacts behind an open sheet.
 - **Send back:** for each step, OK or what you saw instead (a screenshot of anything unreadable, with the appearance).
 
+## 14c. The Project screen, Welcome and the project browser in the app and in Safari (L5.10a)
+
+The automated checks run in Chromium; WKWebView's keyboard and its focus are only reached here. `pnpm build`, the
+desktop app (or Safari on `studio ui`'s link), the workspace of 13a with at least one capture; dark, then light.
+"Keyboard navigation" on for steps 3 and 4, then off for step 4 again.
+
+1. **Welcome.** No project open: the app's mark, name, version and one sentence beside "Recent projects" (one column
+   under 1180 px); "Copy command" for `studio new <slug>` copies it (paste it in a terminal); each project's row with
+   its scenario count, last run as a shape and a word, its locations' flags in words; the inspector's Workspace facts
+   and Claude's "Copy command".
+2. **The project's browser and menu.** Open a project: the browser shows Productions (its count), Ready to render ·
+   Needs a shoot · Failed (counts), Library, Locations (a flag in a word), Cast (each persona with a shape and a word),
+   README, Record a scenario; the title bar's project name opens a menu (the other projects, All projects → Welcome).
+3. **The poster grid by keyboard.** Tab reaches the grid once (one stop); → selects the first poster, ↓ the one below,
+   Home / End; the inspector follows (poster, facts, Open, Render); Return opens the scenario; back, Escape clears the
+   selection (the inspector shows the project again); Tab from the grid goes on to the inspector. VoiceOver reads the
+   selected poster's title, its state word and its length.
+4. **The same with "Keyboard navigation" off.** Tab still reaches the grid and its arrows still move (the grid is one
+   focusable listbox, not buttons); Open and Render are links (Tab reaches them).
+5. **A smart group and a location.** Needs a shoot: the grid filtered, its row current in the browser; with a poster
+   selected, a location row: the inspector shows its flags, pages (URL, shown as) and personas (no Escape first);
+   Sessions: the Cast page with the Sessions panel; the Cast rows show each persona's location on a second line.
+6. **The narrowest window and the inspector hidden.** Make the window 900 px wide: the posters reflow (one a row,
+   titles and state words readable, no sideways scroll). Hide the inspector (⌥⌘I): the project's facts, README and
+   recent runs — or the selected production, or a location's pages — show under the grid; ⌥⌘I again brings the pane
+   back.
+7. **Pictures and words.** Posters show the capture's last pictured step (sharp enough at 2×; letterboxed, never
+   stretched); a production never shot says "Not shot yet" in the picture's place and "Draft · not shot yet" under it;
+   in light and dark every state word is readable; a take that failed shows its error screenshot.
+
+- **Expected:** as written; nothing selected when the screen opens; no picture fetched for posters off screen until
+  scrolled to; while a take runs from a terminal the screen updates its poster's words without flicker.
+- **Send back:** for each step, OK or what you saw instead (a screenshot, with the appearance).
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

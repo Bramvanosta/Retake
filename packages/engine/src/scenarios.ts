@@ -159,7 +159,7 @@ function trustIssue(p: PositionedTrustProblem): ValidationIssue {
 export async function validateScenarioText(
   project: LoadedProject,
   yaml: string,
-  opts: { env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel } = {},
+  opts: { env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> } = {},
 ): Promise<ValidateResult> {
   if (opts.name !== undefined) checkScenarioName(opts.name);
   const file = join(project.dir, 'scenarios', `${opts.name ?? 'untitled'}.yaml`);
@@ -170,6 +170,7 @@ export async function validateScenarioText(
     ...(opts.until !== undefined ? { until: opts.until } : {}),
     template: await templateOf(project),
     ...(opts.agent ? { confined: opts.via ?? 'mcp' } : {}),
+    ...(opts.filesRead ? { filesRead: opts.filesRead } : {}),
   });
   const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
   return { ok: !hasErrors(issues), issues };

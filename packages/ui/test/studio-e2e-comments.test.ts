@@ -213,7 +213,7 @@ beforeAll(async () => {
   page.on('requestfinished', done);
   page.on('requestfailed', done);
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
 }, 240_000);
 
 afterAll(async () => {

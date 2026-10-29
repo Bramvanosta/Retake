@@ -49,6 +49,8 @@ export type { FrameIndex, PageSource } from './run-data.js';
 export { RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, RUN_THUMBS_RESPONSE_MAX, RunThumbs, SCREENSHOT_MAX, Semaphore, THUMB_BASE64_MAX, THUMB_CACHE_BYTES } from './run-thumbs.js';
 export type { RunThumb, RunThumbsOptions, RunThumbsView, ThumbMissingReason, ThumbSource } from './run-thumbs.js';
 export { ScenarioViews, VIEW_ISSUES_MAX, VIEW_RUNS_MAX, VIEW_STEPS_MAX } from './scenario-view.js';
+export { BOARD_RUNS_WINDOW, BOARD_SCENARIOS_MAX, BOARD_TITLE_MAX, FILE_FACTS_TTL_MS, ProjectBoards } from './project-board.js';
+export type { BoardRun, BoardScenario, ProjectBoardContext, ProjectBoardView, RunPoster } from './project-board.js';
 export type { EditAbility, SceneFacts, ScenarioEnvironmentFacts, ScenarioRunChoice, ScenarioSource, ScenarioView, ScenarioViewContext, StepBinding } from './scenario-view.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
@@ -141,7 +143,7 @@ export {
   submitRenderJob,
 } from './jobs/render-job.js';
 export type { InlineReview, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
-export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, scenarioRenders, withoutPaths } from './renders.js';
+export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
 export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine, submitExportJob } from './jobs/export-job.js';

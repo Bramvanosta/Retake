@@ -207,7 +207,7 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     // Every pointer press from here on is counted (a trusted event: the test's own mouse would be one).
     await page.goto(at('/'));
     await page.reload();
-    await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+    await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
     await page.evaluate(() => {
       (window as unknown as { __pointer: number }).__pointer = 0;
       window.addEventListener('pointerdown', (e) => e.isTrusted && (window as unknown as { __pointer: number }).__pointer++, true);
@@ -224,7 +224,11 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await tabTo(page, 'main a[href="#/p/demo"]');
     await page.keyboard.press('Enter');
     await page.waitForURL('**#/p/demo');
-    await tabTo(page, 'main a[href="#/p/demo/s/bits"]');
+    // L5.10a: the productions are ONE listbox (one tab stop): Home selects the first poster (bits: the newest
+    // activity), Enter opens it.
+    await tabTo(page, 'ul.k-posters[role="listbox"]');
+    await page.keyboard.press('Home');
+    await expect.poll(() => page.evaluate(() => document.querySelector('[role="option"][aria-selected="true"]')?.getAttribute('data-id') ?? null), POLL).toBe('bits');
     await page.keyboard.press('Enter');
     await page.waitForURL('**#/p/demo/s/bits');
 

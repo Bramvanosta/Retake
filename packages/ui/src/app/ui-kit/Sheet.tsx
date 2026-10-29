@@ -2,8 +2,10 @@
  * L5.9: the sheet — a confirmation that drops from under the title bar: a native `<dialog>` opened with `showModal()`
  * (the top layer, the page behind inert, Escape cancels), `role="alertdialog"` when it confirms something destructive.
  * The default action holds the focus on open (Return chooses it) — but an action that loses work is NEVER the default
- * (L5.2b): a destructive default falls back to the cancel action. The focus goes back to where it was on close. The
- * sheet follows its `open` prop even when the platform closes the dialog itself (review A-L1).
+ * (L5.2b): a destructive default falls back to the cancel action. The focus goes back to where it was on close — at
+ * once, never on the dialog's `close` event: that event is a task of its own, and under load it lands after the user
+ * (or another sheet) has moved the focus on, which it would steal back. The sheet follows its `open` prop even when the
+ * platform closes the dialog itself (review A-L1).
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -37,6 +39,8 @@ export function Sheet({ open, title, children, actions, onAction, destructive }:
   openNow.current = open;
   // Bumped when the platform closes the dialog while its owner still holds it open (below).
   const [resync, setResync] = useState(0);
+  // The `close` events still to come of closings this sheet made itself (already answered when it closed).
+  const ownCloses = useRef(0);
   const giveBack = () => {
     const back = opener.current;
     opener.current = null;
@@ -49,10 +53,18 @@ export function Sheet({ open, title, children, actions, onAction, destructive }:
       if (!opener.current) opener.current = document.activeElement as HTMLElement | null;
       d.showModal();
       d.querySelector<HTMLElement>('[data-default="yes"]')?.focus();
-    } else if (!open && d.open) d.close();
-    else if (!open && opener.current) giveBack();
+    } else if (!open && d.open) {
+      ownCloses.current += 1;
+      d.close();
+      giveBack();
+    } else if (!open && opener.current) giveBack();
   }, [open, resync]);
   const onClose = () => {
+    // The late event of a closing of its own: the focus went back when it closed.
+    if (ownCloses.current > 0) {
+      ownCloses.current -= 1;
+      return;
+    }
     // A close event of an earlier closing that lands after the sheet opened again: not this one's.
     if (ref.current?.open) return;
     // Review A-L1: the platform may close a modal dialog by itself (Chromium's close watcher lets a page refuse Escape

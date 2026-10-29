@@ -374,6 +374,28 @@ describe('the activity feed and the job watch (critique B2)', () => {
       ix.close();
     }
   });
+
+  it('a job folder listed before its job.json is looked at again: its later states are never missed (L5.10 flake fix)', async () => {
+    // enqueue() makes the folder, then writes job.json atomically: a poll in between lists the id with nothing to read.
+    const queue = new FileJobQueue(ws);
+    const watch = new JobsWatch(queue);
+    await watch.poll();
+    const job = await queue.enqueue({ version: 1, kind: 'render', project: P, scenario: 'quote', run_id: '20261016-090000-catalogue', timeline_sha256: 'a'.repeat(64), render_id: 'quote-v9', overrides: {}, submitted_by: 'test' });
+    const file = join(queue.dir, job.id, 'job.json');
+    const text = await readFile(file, 'utf8');
+    await rm(file);
+    try {
+      expect(await watch.poll()).toEqual([]);
+      expect(await watch.poll()).toEqual([]);
+      // job.json lands, already failed (queued and failed between two polls): told once, then history.
+      await writeFile(file, JSON.stringify({ ...JSON.parse(text), state: 'failed', finished_at: '2026-10-18T10:00:02.000Z', error: { code: 'internal', message: 'failed' } }));
+      expect(await watch.poll()).toEqual([job.id]);
+      expect(watch.record(job.id)?.state).toBe('failed');
+      expect(await watch.poll()).toEqual([]);
+    } finally {
+      await rm(join(queue.dir, job.id), { recursive: true, force: true });
+    }
+  });
 });
 
 describe('the activity feed reads a finished job once (review B L1)', () => {

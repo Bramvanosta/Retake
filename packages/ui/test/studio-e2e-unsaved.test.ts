@@ -59,7 +59,7 @@ beforeAll(async () => {
     if (r.url().endsWith('/v1/call/unsaved_report')) bodies.push(r.postData() ?? '');
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
 }, 60_000);
 
 afterAll(async () => {

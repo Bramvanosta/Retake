@@ -607,7 +607,7 @@ function notReachedWhy(run: RunData): string {
 }
 
 /** Where a capture's step picture comes from: its page's kept frames, else its video (null: neither). */
-async function capturePicture(run: RunData, ev: TimelineEvent, seen: Map<string, ThumbSource | null>): Promise<ThumbSource | null> {
+export async function capturePicture(run: RunData, ev: TimelineEvent, seen: Map<string, ThumbSource | null>): Promise<ThumbSource | null> {
   const src = run.pageSource(ev);
   if (!src) return null;
   const known = seen.get(src.track);

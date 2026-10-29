@@ -3,7 +3,8 @@
  * `aria-controls`, `aria-activedescendant`: the focus stays in the input) and a listbox of options in labelled groups.
  * Typing filters (case-folded: every word of the query in the label or hint, labels starting with it first); ↑ ↓ move the
  * active option (its cue: the selection fill and a 3 px bar, more than colour), Enter runs it, a click runs it, Escape
- * closes; the focus goes back to where it was (to the centre pane, `#main`, when that is gone).
+ * closes; the focus goes back to where it was (to the centre pane, `#main`, when that is gone) — at once when the palette
+ * closes itself, never on its late `close` event (a task that, under load, lands after the focus has moved on).
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
@@ -43,6 +44,14 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
   // Closed, it holds no option (a hidden `[role=option][aria-selected]` would answer a screen's own queries).
   const hits = useMemo(() => (open ? filterCommands(commands, query) : []), [open, commands, query]);
   const optId = (c: Command) => `${base}-o-${c.id}`;
+  // The `close` events still to come of closings the palette made itself (the focus went back when it closed).
+  const ownCloses = useRef(0);
+  const giveBack = () => {
+    const back = opener.current;
+    opener.current = null;
+    // A "Go to" command often unmounts the opener: the focus goes to the centre pane then (review A-L6).
+    (back && back.isConnected ? back : document.getElementById('main'))?.focus();
+  };
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -52,7 +61,11 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
       setActive(0);
       d.showModal();
       input.current?.focus();
-    } else if (!open && d.open) d.close();
+    } else if (!open && d.open) {
+      ownCloses.current += 1;
+      d.close();
+      giveBack();
+    }
   }, [open]);
   useEffect(() => {
     if (active >= hits.length) setActive(Math.max(0, hits.length - 1));
@@ -81,13 +94,14 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
     }
   };
   const onDialogClose = () => {
-    // A close event of an earlier closing that lands after the palette opened again: not this one's (it would take the
-    // opener away from the closing to come).
+    if (ownCloses.current > 0) {
+      ownCloses.current -= 1;
+      return;
+    }
+    // The platform closed it (an Escape the page may not refuse). A close event of an earlier closing that lands after
+    // the palette opened again is not this one's (it would take the opener away from the closing to come).
     if (ref.current?.open) return;
-    const back = opener.current;
-    opener.current = null;
-    // A "Go to" command often unmounts the opener: the focus goes to the centre pane then (review A-L6).
-    (back && back.isConnected ? back : document.getElementById('main'))?.focus();
+    giveBack();
   };
   const groups = [...new Set(hits.map((c) => c.group))];
   const current = hits[active];

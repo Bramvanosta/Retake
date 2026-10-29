@@ -83,7 +83,7 @@ beforeAll(async () => {
   page = await context.newPage();
   page.on('dialog', (d) => void d.dismiss());
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
 }, 60_000);
 
 afterAll(async () => {

@@ -6,6 +6,7 @@
  * - `activity_list`: unfinished jobs, live from the queue (derived states included), then finished jobs and CLI
  *   commands from the history — ids, kinds, states and times only (no product text: history lines carry none).
  * - `search`: projects (name, slug, README), scenarios, runs and renders matching every word as a prefix.
+ * - `project_board` (L5.10a): the Project screen's poster grid, smart groups and inspector in one read (boardOp).
  * - `projects_overview`: what the Projects screen's cards show beyond project_list — every project's environment flags
  *   (project_get's) and last run (run_list's) — in one call (review B L2: a card per project made two calls each, at
  *   every focus and reconnection).
@@ -263,6 +264,28 @@ export function overviewOp(): ToolDef {
         }),
       );
       return { summary: plural(projects.length, 'project'), data: { projects } };
+    },
+  };
+  return op as unknown as ToolDef;
+}
+
+const BoardInput = z.strictObject({ project });
+
+/**
+ * project_board (L5.10a): the Project screen's read — engine projects.board (every scenario's file facts, takes,
+ * capture "current", render and review, render job, length, poster), path-free, the video titles under `untrusted`.
+ * Its memos are the board's own: reading it never evicts the open scenario screen's view (critique H1).
+ */
+export function boardOp(): ToolDef {
+  const op: ToolDef<typeof BoardInput> = {
+    name: 'project_board',
+    title: 'Project board',
+    description: "Every scenario of a project for the Studio's Project screen: file facts, running and last take, capture, render and review, length and poster.",
+    input: BoardInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      const v = await engine.projects.board(a.project);
+      return { summary: `${a.project}: ${plural(v.scenarios.length, 'scenario')}${v.truncated ? ` of ${v.truncated.total}` : ''}`, data: v as unknown as Record<string, unknown> };
     },
   };
   return op as unknown as ToolDef;
@@ -896,4 +919,4 @@ export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] 
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', 'project_board', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS] as const;

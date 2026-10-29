@@ -1970,7 +1970,7 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   flags and last run in one call, for the Projects screen — and, since L4.2, `scenario_blocks`, `run_thumbs`, the own
   op `scenario_run` and the MCP tool `run_cancel` (§4d); since L4.3 the MCP tool `scenario_validate` and the own op
   `scenario_edit` (§4e); since L4.4 the MCP tools `auth_status` and `auth_login` (NARROWED: `mode` headed only, `wait_s`
-  0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); since L5.2b the own op `unsaved_report`
+  0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); L5.10a the own READ op `project_board` (§4l); since L5.2b the own op `unsaved_report`
   (what a tab holds unsaved, kinds and names only: the desktop app's quit question, §4j); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
@@ -4197,6 +4197,8 @@ the gallery, every new screen) has none, and `pnpm -F @demo-studio/ui ratchet` l
 raises one; the product's name (`/Demo\s+Studio/i`) is written only in brand.ts among all the app's sources and
 bundle.ts (A-L8).
 
+L5.10a (§4l) adds SourceList rows, Facts, Disclosure, PosterGrid and Thumb sizes to the kit.
+
 **Tests.** `kit-static.test.ts` (react-dom/server: each component's elements, roles and states; the unsaved-mark
 parser check; `defaultAction`; the palette's filter; the menu commands' allow-list); `studio-e2e-kit.test.ts`
 (Chromium, ≈ 5 s: appearance switching live, the kit's keys, a toolbar holding a menu, radios and a URL field (A-M2), a
@@ -4206,6 +4208,127 @@ load at 1440 × 900 and 1280 × 800: B-M1); the tours (`studio-e2e-a11y*.test.ts
 1280 + 1440 with its Tab walk and in light at 1280; the gallery in both at both widths); desktop-config (the page
 commands, the parity with `MENU_COMMANDS`, one init script, two evals); `studio-e2e-comments-chrome` (gated: the centre
 pane scrolls, the page never does, the browser stays under the title bar).
+
+## 4l. The Project screen, Welcome and the project browser (L5.10a)
+
+R-UI-35 – R-UI-37. « Épure » 2, the project side (L5.10 was split: L5.10b builds the Scenario side — storyboard, step
+inspector, scenes browser, YAML source, Location select). Reference: B32-Projet (« B·3b Épure », round 3, validated)
+and R4-Welcome, layout and drawing; the product's name stays `APP_NAME`. Built from the lot's plan corrected by its
+critique (H1 the board's own read, H2 the cuts, M2 the store's invalidation, M3 the words, M4 every capability's home,
+M5 Disclosure, M6 the listbox, M8 the migration guard, M9 Thumb sizes). Cuts: BL-128.
+
+**`project_board {project}`** (ui `server/ops.ts` boardOp; engine `projects.board`, `project-board.ts`). A Studio-own
+READ op (in `OWN_OPS`, never an MCP tool), path-free, the video titles under `untrusted` (capped at 200 characters).
+Per scenario of `project_get.scenarios` (at most `BOARD_SCENARIOS_MAX` = 200; past it `truncated`): file facts
+(parsed, ok, errors, warnings, the content counts: scenes, cards, interstitials, steps, hooks; its environment when the
+project has it, else the project's default — an environment the project lacks only under `untrusted.env`, capped;
+the theme a render of today's file uses, `theme`; its sha256), the running take, the last finished take (status, partial words "failed at step 3
+of proposal", its job), the **capture** (the newest succeeded capture with its pictures — video or kept frames — and
+whether today's file still films it: `current` true when the file is unchanged or only its edit changed, false when the
+filmed part changed, null without a snapshot), the newest complete dry run, the newest succeeded landscape render with
+its review (renders.ts `renderView`, shared with `scenario_renders`), a newer failed render, the render job queued or
+running (its fraction, reviewing), the length (the render's, else the capture's scenes summed) and the poster (a failed
+take newer than the capture: its error screenshot when it has one; else the capture's — else the dry run's — last step
+with a picture: `runs.poster`, run_thumbs takes its key). The render shown is the newest succeeded landscape one that
+shows today's file (sameVersion's rule with today's theme: the same capture, file bytes and theme, no override), else
+the newest one — an older matching render is never hidden behind a newer override. Strings from run.json pass only
+with their shape (an environment name, an ISO time; a scene id through `stepRef`). **Never through
+`scenarios.view`** (critique H1: its 16-entry memos thrash past 16 scenarios and a board read would evict the open
+scenario screen's entries): ONE pass over the runs folder newest first (the newest 300 run.json re-checked by their
+stat; the older ones — finished, they do not change — summed up per scenario once per project and held while their ids
+stay the same, ids joining at the head added to it: a never-run scenario no longer walks the folder at each read), file
+facts memoised by the file's stat and the project files' signatures (project.yaml, sandbox.yaml, hooks/, studio.yaml,
+the project theme's folder and template.yaml; 512 entries), each entry holding the files its checks looked for (core
+`CheckContext.filesRead`: own media, data, SQL…) re-statted before it is trusted, and expiring after 60 s (the scenario
+view's text TTL) — a removed asset shows at once; "current" by (capture, snapshot stat, file hash), posters by the run
+folder's and timeline's stat through the board's own `RunDataCache`, render records by their stat, report.json by its
+stat (renders.ts); one renders readdir and ONE pass over the job queue per call (each job.json memoised by its stat:
+jobs are never pruned; the running take's job comes from the same pass — a take from a terminal has none, no second
+pass). The jobs the board shows (`jobs`: render and review jobs only — a take's progress is the page's `run_status`,
+never a board read). Measured (board-ops.test.ts): a 40-scenario copy with 30 runs cold 168 ms, warm 4 ms; the
+fixture (16) warm 3 – 4 ms; 3000 jobs of another project in the queue warm 13 – 15 ms (154 ms before the memo). A test
+proves a board read leaves the scenario views' memo untouched (no text, binding or run-list recompute).
+
+**State words** (pure `board-words.ts`, every row tested). `productionState` → a mark AND a word (StatusMark; each word
+carries a state word the checker's colour-only rule knows) and a smart group, first match wins: a file that cannot be
+read / has errors (▲, no group); a take running ("Capture running · step 7 of 18", "Capture · queued"); a render job
+("Render running · 40 %", "Render queued", "Review running"); a take that failed or was interrupted after the capture
+(✕ "Failed at step 3 of proposal", "Interrupted": Failed); "Last take: status invalid" (a status the runner never
+writes); a render that failed after the capture (✕ Failed); the capture no longer current (◆ "Script changed since the
+shoot": Needs a shoot); a render of this capture on this file with today's theme — render-words `sameVersion`, the
+scenario screen's own rule (critique M3) — with its review ("Rendered · clean / 2 warnings / 1 error / review pending / review running /
+review stopped"); no snapshot ("Ready to render · cannot tell if current": Ready); a render of another take or file
+(◆ "Render outdated": Ready); none (◌ "Shot · ready to render": Ready); no capture: a cancelled take, a passed dry run,
+or nothing ("Draft · not shot yet") — Needs a shoot. A newer cancelled or `until` take leaves the capture's words.
+
+**The store** (`project-data.ts`). One module-level entry per (op, project) for `project_get`, `project_board` and
+`auth_status` — one call in flight, a reload asked meanwhile runs once after it, read through `useSyncExternalStore`
+by the shell's browser, the screens and the Cast's Sessions panel alike: opening a project costs one read of each (an
+e2e counts them, and a focus re-reads each once). The subscription is stable per entry and reads nothing; the first
+reader of an entry (or one coming back to the project) reads it in an effect, so a re-render, another reader joining
+or a change of screen inside the project reads nothing. An entry in error is read again on an event, a focus, a Retry
+or after 2 s, then 4 s… (at most 60 s) while someone reads it — never in a loop (reviews A-H1 / B-H1: an inline
+subscription had re-read all three at every re-render of the shell, one read per step of a take and ~300 a second on a
+broken project.yaml). `boardEventAction` (pure, tested): a reconnection re-reads all; a run of the project that
+appeared, changed status or went away, a scenario file or a render file (renders/ or review/: a review run from a
+terminal) re-reads the board; the README the project; the project's project.yaml, sandbox.yaml or scenario list (the
+`workspace` event's `files`) all three — another change of the project no list names is its runs folder before a run
+is told: the board (an older server without `files`: all three); a run that only progressed nothing (the Project
+screen asks `run_status` for the takes it shows running); a `jobs` event re-reads the board at most every 2 s, only for
+a job it shows or one it never saw — and not for another project's job when the event names the jobs' projects
+(`projects`); the Cast at most every 10 s, only for this project's jobs. The project list (main.tsx) and Welcome's
+overview ignore a `workspace` event that only says runs progressed (`onlyRunProgress`). Measured
+(studio-e2e-board-reads): a 24-step dry run from a terminal with the Project screen and the Cast open — project_board 4,
+project_get 0, auth_status 0 on each (one of each per step before); a broken project.yaml over 5 s — 2 of each
+(~1560 before); six arrow keys in the poster grid — one activity_list (the production inspector's Lately mounting),
+then nothing.
+
+**Routes and the shell.** `#/p/<slug>/g/<ready|shoot|failed>` (a smart group: the grid filtered),
+`#/p/<slug>/loc/<env>` (the Project screen with that location in its inspector — no new screen, critique H2),
+`#/p/<slug>/cast` (the Cast: today's Sessions panel until L5.11). One `ProductionsScreen` element, keyed by the
+project, serves the project, its groups and its locations (the search stays; a location route clears the selection —
+selecting a production afterwards shows it: the newest wins; a production the search or the group hides is no longer
+selected). With the inspector hidden (its toggle, ⌥⌘I) what it shows — the project's facts, README and recent runs, a
+production, a location's pages — is rendered in place under the grid (`ShellSlot inline`, under a heading of its own);
+Welcome's workspace and Claude likewise. The browser shows the
+open project's tree (§ studio-ui.md: Productions + groups with counts, Library, Locations, Cast, Project); the title
+bar's project is a Menu (the workspace's projects, All projects → Welcome); the palette adds the project's pages, its
+locations and "Open <scenario>". A production selected becomes the scenario in context (modes.ts `rememberScenario`:
+the modes act on it).
+
+**Screens.** Welcome (`WelcomeScreen.tsx`, `projects_overview` in one call as before; R4-Welcome's layout: an
+identity column — the app's 128 px mark, name, version, New project, the projects folder — beside "Recent projects",
+one column in a narrow centre; posters cut), the Project
+screen (`ProductionsScreen.tsx`: the poster grid as ONE listbox — the kit's `PosterGrid`, critique M6 —, the project /
+production / location inspectors, the recent runs kept for the "written by a newer version" rows), the Cast
+(`CastScreen.tsx`), Lately and the search rebuilt on the kit (`Activity.tsx`; a production's Lately filters the
+project's activity on the page). ProjectsScreen.tsx and ProjectPage.tsx are gone; every capability of theirs has a
+home (README variants and its notice, warnings, environments' pages and display URLs, personas, the library link
+`library-link`, Record `record-link`, scenario links `scenario-link` = the inspector's Open, the Sessions panel, recent
+runs, activity, the "cannot be opened" state).
+
+**Kit additions** (gallery entries, kit-static, the hostile-SSR slots, studio-e2e-kit): SourceList rows (icon, lead,
+value, quiet, test id, a `detail` second line that wraps — a persona's location), Facts (a name goes on a `group`
+around the `dl`), Disclosure, PosterGrid (as many columns as fit, 200 px at least — three at 1440, one at the desktop
+app's 900 px; ↑ ↓ move by the layout's computed row; no `aria-activedescendant` while nothing is selected), the
+`inline` field layout, TextField `maxLength` / `autoComplete` / `spellCheck` / `labelHidden` (a search icon), Txt
+`title` (a tooltip, controls made visible), LinkButton `testId`, Blocker without a word (no mark), icons film /
+components / location / person; Thumb sizes by a prop only (`size`: row, poster, inspector — critique M9: the legacy
+screens keep the row size and its classes).
+
+**Tests.** board-ops.test.ts (the op: allow-list, zod refusals, path-free, untrusted title; the facts through a
+capture, a render and its review, a newer capture, a failure, a filmed change; budgets; the views' memo untouched),
+board-words.test.ts (every row; never colour alone; the event table), app-source (the routes; every JSX child of the
+project-side screens through Txt / a kit slot; no ratchet row; read ops only), kit-static, studio-e2e-kit (the
+listbox's keys, the project tree and menu), studio-e2e (Welcome, the inspector's README and recent runs, a location's
+pages, a hostile production title), studio-e2e-editor (one read of each per project open), the tours (Welcome, the
+Project screen with nothing / a production selected — also at 900 px —, a group, a location, the Cast),
+studio-e2e-board-reads (the read counts above; another project's job; the inspector hidden; 900 px; the lows). The
+migrated e2e files keep every test title, assertion count and test id (a scratch guard compared them with HEAD).
+Expectations changed on purpose: the README preview shows a bidi control as a visible mark (`[U+202E]`, through Txt
+like every text from data — the editor keeps the exact bytes); the checker's state words gained "valid" (a persona's
+session; "invalid" was there, "validate" / "validation" stay out); its reachable rule accepts a focusable listbox with
+nothing selected and no `aria-activedescendant` (a checker self-test).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

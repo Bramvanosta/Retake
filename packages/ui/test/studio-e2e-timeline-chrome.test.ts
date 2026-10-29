@@ -44,7 +44,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function openTimeline(studio: StudioServer, project: string, scenario: string): Promise<Page> {
   const page = await (await browser.newContext({ viewport: { width: 1360, height: 900 } })).newPage();
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
   await page.goto(`${studio.url}#/p/${encodeURIComponent(project)}/s/${encodeURIComponent(scenario)}/timeline`);
   await page.getByTestId('tracks').waitFor();
   return page;

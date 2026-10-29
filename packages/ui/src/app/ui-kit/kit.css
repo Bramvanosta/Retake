@@ -211,6 +211,7 @@
 .k-card:focus-visible,
 .k-menu-item:focus-visible,
 .k-section-title:focus-visible,
+.k-disclosure-summary:focus-visible,
 .k-palette-input:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: 2px;
@@ -350,6 +351,29 @@
   grid-template-columns: var(--ui-label-w) minmax(0, 1fr);
   align-items: baseline;
   gap: var(--ui-space-6);
+}
+.k-field-inline {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+/* L5.10a fixes: a field whose label is visually hidden (a search with its icon) */
+.k-field-bare {
+  grid-template-columns: minmax(0, 1fr);
+}
+.k-field-bare .k-field-body {
+  position: relative;
+}
+.k-input-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--ui-space-4);
+  transform: translateY(-50%);
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+.k-input.k-input-with-icon {
+  padding-left: calc(var(--ui-space-4) * 2 + 14px);
 }
 .k-field-label {
   color: var(--ui-text-3);
@@ -598,6 +622,9 @@
   padding: 0;
   list-style: none;
 }
+.k-source-items > li {
+  min-width: 0;
+}
 .k-source-depth-1 {
   margin-top: var(--ui-space-1);
   padding-left: var(--ui-space-5);
@@ -606,6 +633,7 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-3);
+  min-width: 0;
   min-height: 28px;
   padding: var(--ui-space-1) var(--ui-space-4);
   border-radius: var(--ui-radius-control);
@@ -625,20 +653,53 @@
   font-weight: var(--ui-weight-strong);
 }
 .k-source-label {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* L5.10a fixes (review B-L1): a label with a second line that wraps (a persona's location) */
+.k-source-text {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.k-source-detail {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+  overflow-wrap: anywhere;
+}
 .k-source-flag,
 .k-source-count {
+  flex: none;
   margin-left: auto;
   color: var(--ui-text-3);
   font-weight: var(--ui-weight-regular);
+  white-space: nowrap;
 }
 .k-source-item.is-current .k-source-flag,
 .k-source-item.is-current .k-source-count {
   color: var(--ui-text-2);
+}
+/* L5.10a: rows with an icon, a lead column, a quieter tone */
+.k-source-icon {
+  flex: none;
+  color: var(--ui-text-3);
+}
+.k-source-item.is-current .k-source-icon {
+  color: var(--ui-text-strong);
+}
+.k-source-lead {
+  flex: none;
+  min-width: var(--ui-space-6);
+  color: var(--ui-text-3);
+}
+.k-source-item.is-quiet {
+  color: var(--ui-text-3);
+}
+.k-source-item.is-quiet.is-current {
+  color: var(--ui-text-strong);
 }
 
 /* Inspector sections */
@@ -662,6 +723,59 @@ summary.k-section-title {
 .k-section-body {
   display: grid;
   gap: var(--ui-space-4);
+}
+
+/* L5.10a: facts (read-only rows, the label column of the inspector) */
+.k-facts {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+}
+.k-facts-row {
+  display: grid;
+  grid-template-columns: var(--ui-label-w) minmax(0, 1fr);
+  gap: var(--ui-space-5);
+  align-items: baseline;
+}
+.k-facts-label {
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  text-align: right;
+}
+.k-facts-value {
+  min-width: 0;
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  overflow-wrap: anywhere;
+}
+
+/* L5.10a: disclosure (a native details) */
+.k-disclosure {
+  min-width: 0;
+}
+.k-disclosure-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.k-disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+.k-disclosure[open] > .k-disclosure-summary .k-disclosure-chevron {
+  transform: rotate(90deg);
+}
+.k-disclosure-body {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-3);
 }
 
 /* Empty state */
@@ -780,6 +894,28 @@ summary.k-section-title {
 }
 .k-card-meta {
   color: var(--ui-text-3);
+}
+/* L5.10a: the productions listbox (one tab stop; the selected option's fill and ring) */
+.k-posters {
+  display: grid;
+  /* L5.10a fixes (review B-M2): as many columns as fit (three at 1440 px; two, then one, in a narrow window) */
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--ui-space-8) var(--ui-space-7);
+  margin: 0;
+  padding: var(--ui-space-1);
+  list-style: none;
+  border-radius: var(--ui-radius-card);
+}
+.k-posters:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.k-poster .k-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-1) var(--ui-space-4);
+  min-width: 0;
 }
 
 /* Menu (a popover in the top layer) */

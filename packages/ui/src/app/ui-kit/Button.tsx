@@ -60,9 +60,9 @@ export function Button({ variant = 'secondary', size = 'md', icon, kbd, busy, re
   );
 }
 
-export function LinkButton({ to, variant = 'secondary', size = 'md', icon, children, current }: { to: Route; variant?: Exclude<ButtonVariant, 'destructive' | 'record'>; size?: ButtonSize; icon?: IconName; children: ReactNode; current?: boolean }) {
+export function LinkButton({ to, variant = 'secondary', size = 'md', icon, children, current, testId }: { to: Route; variant?: Exclude<ButtonVariant, 'destructive' | 'record'>; size?: ButtonSize; icon?: IconName; children: ReactNode; current?: boolean; testId?: string }) {
   return (
-    <a href={hrefTo(to)} className={cls(variant, size)} aria-current={current ? 'page' : undefined}>
+    <a href={hrefTo(to)} className={cls(variant, size)} aria-current={current ? 'page' : undefined} data-testid={testId}>
       {icon && <Icon name={icon} />}
       <span className="k-btn-label">{shown(children)}</span>
     </a>

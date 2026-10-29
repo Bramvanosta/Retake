@@ -191,7 +191,7 @@ beforeAll(async () => {
     requests.push({ op: m[1], at: Date.now(), body });
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
 }, 180_000);
 
 afterAll(async () => {
@@ -205,8 +205,10 @@ afterAll(async () => {
 describe('the scenario screen in Chromium', () => {
   it('the project page links each scenario; quote as blocks: scenes, URLs, captions, steps, chips, hooks, what stops a run', async () => {
     await page.goto(`${studio.url}#/p/${P}`);
-    await page.getByRole('heading', { level: 1, name: 'Northfield (fixture)' }).waitFor();
-    await page.getByTestId('scenario-link').filter({ hasText: /^quote$/ }).click();
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
+    // L5.10a: a poster selects (the inspector shows it), its Open opens it.
+    await page.locator('[role="option"][data-id="quote"]').click();
+    await page.getByTestId('scenario-link').click();
     await page.getByRole('heading', { level: 1, name: 'quote' }).waitFor();
     expect(page.url()).toBe(`${studio.url}#/p/${P}/s/quote`);
     expect(await page.title()).toBe('quote · Scenario · Demo Studio');
@@ -416,7 +418,7 @@ describe('the scenario screen in Chromium', () => {
   it('a 1,200-step scenario: interactive under ≈ 5 s, one view read, pictures only for rows on screen, ≤ 24 keys a call', async () => {
     expect(LONG_SCENES * LONG_PER).toBe(1200);
     await page.goto(`${studio.url}#/p/${P}`);
-    await page.getByRole('heading', { level: 1, name: 'Northfield (fixture)' }).waitFor();
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
     await sleep(300);
     const t0 = Date.now();
     await page.evaluate(() => {

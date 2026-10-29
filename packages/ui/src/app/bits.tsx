@@ -15,9 +15,9 @@ export function visibleControls(text: string): string {
 }
 
 /** A string from the server, isolated and with its direction controls made visible. */
-export function Txt({ text, className, ...rest }: { text: string; className?: string; 'aria-current'?: 'page' }) {
+export function Txt({ text, className, title, ...rest }: { text: string; className?: string; 'aria-current'?: 'page'; /** L5.10a fixes: the full text in a tooltip (controls made visible too). */ title?: string }) {
   return (
-    <bdi className={className} {...rest}>
+    <bdi className={className} {...(title !== undefined ? { title: visibleControls(title) } : {})} {...rest}>
       {visibleControls(text)}
     </bdi>
   );

@@ -21,7 +21,9 @@ import {
   Blocker,
   Button,
   CommandPalette,
+  Disclosure,
   EmptyState,
+  Facts,
   FieldRow,
   FrameCard,
   Icon,
@@ -34,6 +36,7 @@ import {
   MENU_COMMANDS,
   Menu,
   PosterCard,
+  PosterGrid,
   Progress,
   Segmented,
   SegmentedLinks,
@@ -158,6 +161,49 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     const sel = html(createElement(FrameCard, { picture: createElement('span', null, 'pic'), number: 3, title: 'Checkout', meta: '4 steps', selected: true, onSelect: noop }));
     expect(sel).toMatch(/^<button type="button" class="k-card k-card-frame is-selected" aria-pressed="true">/);
     expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', to: { name: 'project', slug: 'q' } }))).toMatch(/^<a href="#\/p\/q" class="k-card k-card-poster">/);
+  });
+
+  it('L5.10a: the productions listbox — one tab stop, options with aria-selected, the active one named by aria-activedescendant; none selected: no aria-activedescendant at all (review A-L6)', () => {
+    const items = [
+      { id: 'quote', picture: 'p1', title: 'Quote', meta: createElement(StatusMark, { state: 'warn', word: 'Render outdated' }) },
+      { id: 'catalogue', picture: 'p2', title: 'Catalogue' },
+    ];
+    const none = html(createElement(PosterGrid, { label: 'Productions', items, selected: null, onSelect: noop, onOpen: noop }));
+    expect(none).toMatch(/^<ul class="k-posters" role="listbox" aria-label="Productions" tabindex="0">/);
+    expect(none).not.toContain('aria-activedescendant');
+    expect(none.match(/role="option"/g)).toHaveLength(2);
+    expect(none.match(/aria-selected="false"/g)).toHaveLength(2);
+    const sel = html(createElement(PosterGrid, { label: 'Productions', items, selected: 'catalogue', onSelect: noop, onOpen: noop }));
+    const active = /aria-activedescendant="([^"]+)"/.exec(sel)?.[1];
+    expect(active).toBeTruthy();
+    expect(sel).toContain(`<li id="${active}" data-index="1" data-id="catalogue" role="option" aria-selected="true" class="k-card k-card-poster k-poster is-selected">`);
+    // ⚑ The state is a word in the option's text (never colour alone).
+    expect(sel).toContain('<span class="k-mark-word">Render outdated</span>');
+    expect(sel).not.toMatch(/tabindex="0"[^>]*role="option"|role="option"[^>]*tabindex/);
+  });
+
+  it('L5.10a: facts (a dl of rows), a disclosure (a native details, closed), source rows with an icon, a lead, a value, a quiet tone and a test id', () => {
+    expect(html(createElement(Facts, { rows: [{ key: 'l', label: 'Length', value: '1:00.0' }] }))).toBe('<dl class="k-facts"><div class="k-facts-row"><dt class="k-facts-label">Length</dt><dd class="k-facts-value">1:00.0</dd></div></dl>');
+    // A named list: the name on a group around it (review A-L6: a dl takes no name), never on the dl.
+    const named = html(createElement(Facts, { label: 'Page console', rows: [{ key: 'u', label: 'URL', value: 'x' }] }));
+    expect(named).toMatch(/^<div role="group" aria-label="Page console" class="k-facts-group"><dl class="k-facts">/);
+    expect(named).not.toMatch(/<dl[^>]*aria-label/);
+    const d = html(createElement(Disclosure, { summary: 'Show', children: 'x' }));
+    expect(d).toMatch(/^<details class="k-disclosure"><summary class="k-disclosure-summary"><svg[^>]*aria-hidden="true"/);
+    expect(d).toContain('Show</summary><div class="k-disclosure-body">x</div></details>');
+    const row = html(createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'Sessions', icon: 'person', lead: '1', value: '0:09.4', quiet: true, testId: 'cast-link', current: false }] }] }));
+    expect(row).toContain('<a href="#/p/n/cast" class="k-source-item is-quiet" data-testid="cast-link"><svg class="k-icon k-source-icon"');
+    expect(row).toContain('<span class="k-source-lead k-mono">1</span><span class="k-source-label">Sessions</span><span class="k-source-count k-mono">0:09.4</span>');
+    for (const name of ['film', 'components', 'location', 'person'] as const) expect(ICON_NAMES).toContain(name);
+  });
+
+  it('L5.10a fixes: a source row with a second line that wraps (review B-L1); a search keeps maxLength, no autocomplete, no spell check, its label visually hidden with an icon (B-L4, B-L6)', () => {
+    const row = html(createElement(SourceList, { label: 'Studio', groups: [{ key: 'g', items: [{ key: 'a', to: { name: 'cast', slug: 'n' }, label: 'supplier', detail: 'signed-in', current: false }] }] }));
+    expect(row).toContain('<span class="k-source-text"><span class="k-source-label">supplier</span><span class="k-source-detail">signed-in</span></span>');
+    const f = html(createElement(TextField, { label: 'Search productions', type: 'search', value: '', onChange: noop, unsaved: null, labelHidden: true, maxLength: 200, autoComplete: 'off', spellCheck: false }));
+    expect(f).toMatch(/<label class="k-field-label k-sr" for="[^"]+">Search productions<\/label>/);
+    expect(f).toMatch(/<svg class="k-icon k-input-icon"[^>]*aria-hidden="true"/);
+    expect(f).toMatch(/<input [^>]*type="search"[^>]*maxLength="200"[^>]*autoComplete="off"[^>]*spellCheck="false"/);
   });
 });
 

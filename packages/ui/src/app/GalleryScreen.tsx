@@ -16,7 +16,9 @@ import {
   Blocker,
   Button,
   CommandPalette,
+  Disclosure,
   EmptyState,
+  Facts,
   FieldRow,
   FrameCard,
   IconButton,
@@ -26,6 +28,7 @@ import {
   MARK_STATES,
   Menu,
   PosterCard,
+  PosterGrid,
   Progress,
   Segmented,
   SegmentedLinks,
@@ -76,6 +79,7 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [note, setNote] = useState('');
   const [take, setTake] = useState('2');
   const [card, setCard] = useState(1);
+  const [poster, setPoster] = useState<string | null>(null);
   const [pressed, setPressed] = useState(true);
   const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -234,8 +238,16 @@ function Column({ appearance }: { appearance: Appearance }) {
               key: 'lib',
               heading: 'Library',
               items: [
-                { key: 'ui', to: { name: 'ui' }, label: 'Components', current: true, count: 24 },
-                { key: 'p', to: { name: 'projects' }, label: 'Themes', current: false, flag: 'unsaved' },
+                { key: 'ui', to: { name: 'ui' }, label: 'Components', icon: 'components', current: true, count: 24 },
+                { key: 'p', to: { name: 'projects' }, label: 'Themes', icon: 'theme', current: false, flag: 'unsaved' },
+              ],
+            },
+            {
+              key: 'loc',
+              heading: 'Locations',
+              items: [
+                { key: 'l1', to: { name: 'projects' }, label: 'local', icon: 'location', current: false, flag: 'default' },
+                { key: 'l2', to: { name: 'projects' }, label: 'Scene 1', lead: '1', value: '0:09.4', current: false, quiet: true },
               ],
             },
           ]}
@@ -259,6 +271,36 @@ function Column({ appearance }: { appearance: Appearance }) {
             <FrameCard key={n} picture={<Frame />} number={n} title={n === 1 ? 'Open the catalogue' : 'Pick a size'} meta={`${n + 2} steps`} selected={card === n} onSelect={() => setCard(n)} />
           ))}
           <PosterCard picture={<Frame />} title="Quote" meta="4 scenes · 1 min 12 s" to={{ name: 'projects' }} />
+        </div>
+      </Section>
+      <Section title="Productions (a listbox)">
+        <div className="gl-pane">
+          <PosterGrid
+            label={`Sample productions (${name})`}
+            selected={poster}
+            onSelect={setPoster}
+            onOpen={(id) => setAnswer(`open ${id}`)}
+            items={[
+              { id: 'quote', picture: <Frame />, title: 'Request a quote', meta: <StatusMark state="ok" word="Rendered · clean" /> },
+              { id: 'catalogue', picture: <Frame />, title: 'Manage the catalogue', meta: <StatusMark state="warn" word="Render outdated" /> },
+              { id: 'signup', picture: <Frame />, title: 'Sign up', meta: <StatusMark state="idle" word="Draft · not shot yet" /> },
+              { id: 'reports', picture: <Frame />, title: 'Reports', meta: <StatusMark state="fail" word="Failed at step 3 of export" /> },
+            ]}
+          />
+        </div>
+      </Section>
+      <Section title="Facts and disclosure">
+        <div className="gl-pane">
+          <Facts
+            rows={[
+              { key: 'len', label: 'Length', value: '1:00.0' },
+              { key: 'content', label: 'Content', value: '4 scenes · 2 cards · 25 steps' },
+              { key: 'take', label: 'Last take', value: <StatusMark state="ok" word="Capture succeeded" /> },
+            ]}
+          />
+          <Disclosure summary="2 warnings in project.yaml">
+            <span>environments.staging: no display URL</span>
+          </Disclosure>
         </div>
       </Section>
       <Section title="Blocker">

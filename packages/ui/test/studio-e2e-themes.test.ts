@@ -167,7 +167,7 @@ beforeAll(async () => {
     if (m) ops.push({ op: m[1], body: r.postData() ?? '', at: Date.now() });
   });
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor();
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
 }, 120_000);
 
 afterAll(async () => {
@@ -383,7 +383,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
   }, 60_000);
 
   it('⚑ only theme_edit / theme_copy / theme_create wrote themes, never on a starter; no model call; no site op', async () => {
-    const reads = new Set(['engine_info', 'auth_status', 'project_list', 'project_get', 'run_list', 'job_list', 'activity_list', 'projects_overview', 'search', 'theme_list', 'theme_view', 'theme_preview', 'timeline_leave', 'site_list', 'brand_files', 'scenario_blocks']);
+    const reads = new Set(['engine_info', 'auth_status', 'project_list', 'project_get', 'project_board', 'run_list', 'job_list', 'activity_list', 'projects_overview', 'search', 'theme_list', 'theme_view', 'theme_preview', 'timeline_leave', 'site_list', 'brand_files', 'scenario_blocks']);
     // L5.2b review B L7: a colour draft or a changed new-theme form reports unsaved text (kinds only; it writes no file).
     reads.add('unsaved_report');
     const writes = [...new Set(ops.map((o) => o.op))].filter((op) => !reads.has(op));

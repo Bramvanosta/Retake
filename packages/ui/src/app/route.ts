@@ -11,15 +11,23 @@
  * library in the project's theme or another, and one component's detail (L4.7 part D1), `#/p/<slug>/themes[/<theme>]` the
  * theme list and one theme's editor (L4.7 part D2), `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
  * recent recordings, or one recording, live then reviewed (L4.8). `#/ui` the design system's gallery (L5.9).
+ * L5.10a: `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` the Project
+ * screen with a location in its inspector, `#/p/<slug>/cast` the Cast (the personas' sessions).
  * A slug, a scenario name, a run id, a comment or render id is whatever
  * the address bar holds, percent-decoded and capped — the server checks it (`project_get` / `scenario_blocks` refuse anything but a slug); here it is only ever a text node or an
  * argument. `hrefTo` is the only way the app builds an `href` (the source lint test enforces it).
  */
 export type ScenarioTab = 'blocks' | 'yaml';
+/** L5.10a: the Project screen's smart groups. */
+export type ProductionGroup = 'ready' | 'shoot' | 'failed';
+const GROUPS: readonly string[] = ['ready', 'shoot', 'failed'];
 
 export type Route =
   | { name: 'projects' }
   | { name: 'project'; slug: string }
+  | { name: 'group'; slug: string; group: ProductionGroup }
+  | { name: 'location'; slug: string; env: string }
+  | { name: 'cast'; slug: string }
   | { name: 'readme'; slug: string }
   | { name: 'scenario'; slug: string; scenario: string; tab: ScenarioTab }
   | { name: 'run'; slug: string; scenario: string; run?: string }
@@ -52,6 +60,15 @@ export function parseRoute(hash: string): Route {
   const m = /^\/p\/([^/]+)(\/readme)?\/?$/.exec(path);
   const slug = m ? decode(m[1]) : null;
   if (m && slug !== null) return m[2] ? { name: 'readme', slug } : { name: 'project', slug };
+  // L5.10a: a smart group of the Project screen, a location (the Project screen with it in the inspector), the Cast.
+  const g = /^\/p\/([^/]+)\/(?:g\/([^/]+)|loc\/([^/]+)|(cast))\/?$/.exec(path);
+  const gSlug = g ? decode(g[1]) : null;
+  if (g && gSlug !== null) {
+    if (g[2] !== undefined && GROUPS.includes(g[2])) return { name: 'group', slug: gSlug, group: g[2] as ProductionGroup };
+    const env = g[3] !== undefined ? decode(g[3]) : null;
+    if (env !== null) return { name: 'location', slug: gSlug, env };
+    if (g[4]) return { name: 'cast', slug: gSlug };
+  }
   const s = /^\/p\/([^/]+)\/s\/([^/]+)(\/yaml)?\/?$/.exec(path);
   const sSlug = s ? decode(s[1]) : null;
   const scenario = s ? decode(s[2]) : null;
@@ -121,6 +138,12 @@ export function hrefTo(r: Route): string {
       return `#/p/${encodeURIComponent(r.slug)}`;
     case 'readme':
       return `#/p/${encodeURIComponent(r.slug)}/readme`;
+    case 'group':
+      return GROUPS.includes(r.group) ? `#/p/${encodeURIComponent(r.slug)}/g/${r.group}` : `#/p/${encodeURIComponent(r.slug)}`;
+    case 'location':
+      return `#/p/${encodeURIComponent(r.slug)}/loc/${encodeURIComponent(r.env)}`;
+    case 'cast':
+      return `#/p/${encodeURIComponent(r.slug)}/cast`;
     case 'scenario':
       return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}${r.tab === 'yaml' ? '/yaml' : ''}`;
     case 'run':

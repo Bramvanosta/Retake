@@ -93,7 +93,7 @@ beforeAll(async () => {
   context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   page = await context.newPage();
   await page.goto(studio.launchUrl());
-  await page.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+  await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
 });
 
 afterAll(async () => {
@@ -155,8 +155,9 @@ describe('the README editor keeps the bytes it was given (review B M1, M3, L6, L
     expect(await readFile(join(ws, 'projects', 'in-link', 'docs', 'product.md'), 'utf8')).toBe('# Product doc, edited in the Studio\n');
     // Linked out: the project opens (its card and page are not a dead end), the README is never read.
     await page.goto(`${studio.url}#/p/out-link`);
-    await page.getByRole('heading', { level: 1, name: 'out-link' }).waitFor(POLL);
-    expect(await page.locator('main').innerText()).toContain('README.md cannot be edited here');
+    await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
+    // L5.10a: the README's notice is in the project inspector.
+    await expect.poll(() => page.locator('.sh-inspector').innerText(), POLL).toContain('README.md cannot be edited here');
     await page.getByRole('link', { name: 'Open the README' }).click();
     await page.getByTestId('readme-readonly').waitFor(POLL);
     expect(await page.getByTestId('readme-readonly').innerText()).toContain('symbolic link leading out of the project folder');
@@ -194,8 +195,10 @@ describe('the Projects screen (review B L2)', () => {
     await page.goto(`${studio.url}#/`);
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(6);
-    await cards.filter({ hasText: 'Northfield (fixture)' }).locator('.badge', { hasText: 'production' }).first().waitFor(POLL);
-    expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last dry run:\s*quote/);
+    await cards.filter({ hasText: 'Northfield (fixture)' }).getByText(/production/).first().waitFor(POLL);
+    expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last dry run failed\s*·\s*quote/);
+    // The flag words exactly, not the environment's name (review B-M3).
+    expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toContain('production: production · read-only');
     await sleep(1000);
     const ops: string[] = [];
     const seen = (r: { url(): string }) => r.url().includes('/v1/call/') && ops.push(r.url().split('/v1/call/')[1]);
@@ -210,6 +213,29 @@ describe('the Projects screen (review B L2)', () => {
     expect(ops).toContain('projects_overview');
     expect(ops.filter((o) => o === 'project_get' || o === 'run_list')).toEqual([]);
     expect(ops.length).toBeLessThanOrEqual(6);
+  });
+
+  it('L5.10a: opening a project reads it once — one project_get, one project_board, one auth_status (the browser and the screen share them); a focus re-reads each once', async () => {
+    await page.goto(`${studio.url}#/`);
+    await page.getByTestId('project-card').first().waitFor(POLL);
+    await sleep(500);
+    const ops: string[] = [];
+    const seen = (r: { url(): string }) => r.url().includes('/v1/call/') && ops.push(r.url().split('/v1/call/')[1]);
+    page.on('request', seen);
+    try {
+      await page.getByTestId('project-card').filter({ hasText: 'Northfield (fixture)' }).getByRole('link').click();
+      await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor(POLL);
+      await page.locator('[role="option"]').first().waitFor(POLL);
+      await sleep(1000);
+      const count = (op: string) => ops.filter((o) => o === op).length;
+      expect([count('project_get'), count('project_board'), count('auth_status')]).toEqual([1, 1, 1]);
+      ops.length = 0;
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await sleep(1500);
+      expect([count('project_get'), count('project_board'), count('auth_status')]).toEqual([1, 1, 1]);
+    } finally {
+      page.off('request', seen);
+    }
   });
 });
 
@@ -246,7 +272,7 @@ describe('the editor and the live updates when things go wrong (review B M4)', (
     const tab = await context.newPage();
     try {
       await tab.goto(studio.launchUrl());
-      await tab.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+      await tab.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
       await openEditor(FIXTURE, tab);
       await textarea(tab).click();
       await tab.keyboard.type(' unsaved');
@@ -269,7 +295,7 @@ describe('the editor and the live updates when things go wrong (review B M4)', (
       while (studio.streams < 4) held.push(await holdStream());
       const tab = await other.newPage();
       await tab.goto(studio.launchUrl());
-      await tab.getByRole('heading', { level: 1, name: 'Projects' }).waitFor(POLL);
+      await tab.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
       await expect.poll(() => tab.getByTestId('connection').getAttribute('data-updates'), POLL).toBe('polling');
       expect(await tab.getByTestId('connection').innerText()).toContain('updates every 3 s');
       await openEditor(FIXTURE, tab);

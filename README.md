@@ -3346,12 +3346,13 @@ running: the MCP server keeps working without it.
 
 - **The window (L5.9).** A fixed window of panes: the title bar (the open project › scenario, and the pipeline
   *Script · Shoot · Edit · Review* as the way between a scenario's screens — its blocks, its Run screen, its timeline,
-  its frame comments), the browser on the left (the projects and the open one's pages; the workspace, the version and
-  the worker at its foot), the screen in the centre (it scrolls; the bars stay), an inspector on the right where a
+  its frame comments), the browser on the left (the projects, or the open project's productions, library, locations,
+  cast and README; the workspace, the version and the worker at its foot), the screen in the centre (it scrolls; the bars stay), an inspector on the right where a
   screen has one, and the status bar (the connection, *live updates*, the worker, what a command answered). **Dark by
   default, following your system's appearance** (System Settings › Appearance: Light gives the light one, at once).
   **⌘K** opens the command palette (on a Mac; Ctrl+K elsewhere, outside a text field — on a Mac Ctrl+K stays a field's
-  "delete to the end of the line"): go to a project, a page, a mode, the UI gallery. The *UI gallery* (the
+  "delete to the end of the line"): go to a project, a page, a smart group, a location, a scenario ("Open quote"), a
+  mode, the UI gallery. The *UI gallery* (the
   browser's foot, or ⌘K) shows every component of the Studio's design system in both appearances
   ([docs/reference/studio-ui.md](docs/reference/studio-ui.md)). The screens move onto that design one by one
   (L5.10 – L5.12); until then each keeps its content inside the new window.
@@ -3362,10 +3363,26 @@ running: the MCP server keeps working without it.
   `packages/ui/test/legacy-controls.json` with `pnpm -F @demo-studio/ui ratchet` (the count of controls, roles, classes
   and tokens it still draws by hand; a row only goes down).
 
-- **Projects.** Every project of the workspace: its scenario count, its environments with *production*, *read-only*
-  and *sandbox* badges, its last run; a project whose `project.yaml` does not load is listed with its first problem. A
-  project shows its README, environments (pages, the URLs the video shows, personas), scenarios, recent runs and
-  recent activity.
+- **Welcome and the projects (L5.10a).** With no project open, Welcome shows the app (its mark, name and version, New
+  project, the projects folder) beside *Recent projects*: every project of the workspace with its
+  scenario and location counts, its last run (a shape and a word), its locations' *production*, *read-only* and
+  *sandbox* flags in words, its folder; a project whose `project.yaml` does not load is listed with its first problem.
+  New project is a command to copy (`studio new <slug>`). The title bar's project name is a menu: another project, or
+  *All projects* (Welcome).
+- **The Project screen (L5.10a).** *Productions*: a poster per scenario — its capture's last pictured step, its title,
+  its state as a shape and a word (*Draft · not shot yet*, *Shot · ready to render*, *Script changed since the shoot*,
+  *Rendered · clean*, *Render outdated*, *Failed at step 3 of proposal*…) and its length — with a search, a sort and
+  *New scenario*. The grid is one keyboard stop: the arrows move, Return opens, Escape clears. Nothing selected, the
+  inspector shows the project (its README, recent runs, recent activity); a selected production shows its length,
+  content, last take, capture, render, review and location, *Open* and *Render* (the timeline). The posters reflow to
+  the window (three a row at 1440 px, one at the desktop app's narrowest). The browser holds the open project:
+  Productions and its smart groups *Ready to render*, *Needs a shoot*, *Failed*; the Library (Components, Themes); the
+  Locations (clicking one shows its pages, the URLs the video shows and its personas in the inspector, even with a
+  production selected); the Cast (each persona's session, its location under it; *Sessions* opens the Sessions panel);
+  README and Record a scenario. With the inspector hidden (its button, ⌥⌘I in the app), what it shows moves under the
+  grid. It reads the project in one call (`project_board`) and re-reads it only when something of the project changed
+  — never at every step of a running take, never in a loop when `project.yaml` does not load (it tries again after 2 s,
+  then 4 s…).
 - **Search and recent activity.** A search box finds projects (name, slug, README words), scenarios, runs and renders
   as you type (every word as a prefix); *Recent activity* lists the jobs that wait or run (with their progress; one
   whose worker died says *interrupted*) and then what finished — Claude's jobs and your `studio run` / `render`

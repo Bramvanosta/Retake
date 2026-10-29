@@ -6,7 +6,7 @@
  * scenario controls (captions, display URLs, page titles quoted by warnings) is kept under `untrusted`.
  */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile } from '@demo-studio/core';
@@ -375,16 +375,91 @@ function readJsonPlain(file: string): Record<string, unknown> | undefined {
 const n0 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** report.json read and summed up, by path, while its stat holds (L5.10a fixes, review A-L3: every board read). */
+const REPORT_MEMO_MAX = 512;
+const reportMemo = new Map<string, { sig: string; r: { counts: Record<string, unknown>; at: string } | undefined }>();
+/** Counter for tests: report.json files read. */
+export const reportReads = { n: 0 };
+
+function reportOf(file: string): { counts: Record<string, unknown>; at: string } | undefined {
+  let sig = '-';
+  try {
+    const s = lstatSync(file);
+    sig = `${s.ino}:${s.size}:${s.mtimeMs}`;
+  } catch {
+    /* none */
+  }
+  const held = reportMemo.get(file);
+  if (held && held.sig === sig) return held.r;
+  reportReads.n++;
+  const r = sig === '-' ? undefined : readJsonPlain(file);
+  const out =
+    r && r.version === 1 && Array.isArray(r.findings)
+      ? { counts: (r.counts ?? {}) as Record<string, unknown>, at: typeof (r.review as Record<string, unknown> | undefined)?.created_at === 'string' ? ((r.review as Record<string, unknown>).created_at as string) : '' }
+      : undefined;
+  reportMemo.delete(file);
+  reportMemo.set(file, { sig, r: out });
+  while (reportMemo.size > REPORT_MEMO_MAX) reportMemo.delete(reportMemo.keys().next().value as string);
+  return out;
+}
+
 /** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
 function reportSummary(projectDir: string, id: string, since: string): { summary: RenderReviewSummary; at: string } | undefined {
-  const r = readJsonPlain(join(projectDir, 'review', id, 'report.json'));
-  if (!r || r.version !== 1 || !Array.isArray(r.findings)) return undefined;
-  const at = typeof (r.review as Record<string, unknown> | undefined)?.created_at === 'string' ? ((r.review as Record<string, unknown>).created_at as string) : '';
+  const r = reportOf(join(projectDir, 'review', id, 'report.json'));
+  if (!r) return undefined;
+  const at = r.at;
   // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.
   if (at && at < since) return undefined;
-  const c = (r.counts ?? {}) as Record<string, unknown>;
+  const c = r.counts;
   const counts = { error: n0(c.error), warning: n0(c.warning), info: n0(c.info) };
   return { summary: { state: counts.error > 0 ? 'errors' : counts.warning > 0 ? 'warnings' : 'clean', counts, ...(at ? { created_at: at } : {}) }, at };
+}
+
+/** renders/<file> as a render record of its own id (version 1, a creation time), or undefined. */
+export function readRenderRecord(projectDir: string, file: string): RenderRecord | undefined {
+  const r = readJsonPlain(join(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
+  return r && r.version === 1 && r.id === file.slice(0, -5) && RENDER_ID_RE.test(r.id) && typeof r.created_at === 'string' ? r : undefined;
+}
+
+const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
+
+/**
+ * One render record as the Studio lists it (path-free): its review from a standalone review job, its own render job's
+ * inline review, or review/<id>/report.json. `renderJobs`: the project's render jobs of this scenario (newest first);
+ * `reviewJobs`: its queued or running review jobs. Shared by the render list and the project board (L5.10a).
+ */
+export function renderView(projectDir: string, r: RenderRecord, renderJobs: readonly JobRecord[], reviewJobs: readonly JobRecord[]): ScenarioRenderView {
+  let review: RenderReviewSummary = { state: 'none' };
+  const standalone = reviewJobs.find((j) => j.input.kind === 'review' && j.input.render_id === r.id);
+  const job = renderJobs.find((j) => j.input.kind === 'render' && j.input.render_id === r.id && j.created_at <= r.created_at);
+  const report = r.status === 'succeeded' ? reportSummary(projectDir, r.id, r.created_at) : undefined;
+  if (standalone) review = { state: standalone.state === 'running' ? 'running' : 'queued', job: standalone.id };
+  else if (job && !FINISHED_JOB_STATES.has(job.state)) review = { state: 'running', job: job.id };
+  else {
+    const inline = job?.result?.kind === 'render' ? (job.result as RenderJobResult).review : undefined;
+    const stopped = inline && (inline.state === 'failed' || inline.state === 'cancelled') && (!report || (job?.finished_at ?? '') > report.at) ? inline.state : undefined;
+    if (stopped) review = { state: stopped };
+    else if (report) review = report.summary;
+  }
+  const status = r.status === 'failed' || r.status === 'cancelled' ? r.status : 'succeeded';
+  return {
+    render_id: r.id,
+    status,
+    created_at: r.created_at,
+    run_id: typeof r.run_id === 'string' && RUN_ID_RE.test(r.run_id) ? r.run_id : 'unknown',
+    theme: typeof r.template === 'string' && TEMPLATE_NAME_RE.test(r.template) ? r.template : 'unknown',
+    variant: r.variant === 'vertical' || r.variant === 'square' ? r.variant : 'landscape',
+    duration_s: n0(r.duration_s),
+    width: n0(r.width),
+    height: n0(r.height),
+    size_bytes: n0(r.size_bytes),
+    edit: { from: r.edit?.from === 'scenario' ? 'scenario' : 'run', ...(r.edit?.from === 'scenario' && typeof r.edit.sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.edit.sha256) ? { sha256: r.edit.sha256 } : {}) },
+    fps: n0(r.fps),
+    overrides: r.overrides && typeof r.overrides === 'object' ? Object.keys(r.overrides).filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined).sort() : [],
+    ...(r.plan && typeof r.plan === 'object' ? { plan_sha256: memoPlanSignature(r) } : {}),
+    ...(typeof r.template_sha256 === 'string' && /^[0-9a-f]{16}$/.test(r.template_sha256) ? { theme_sha256: r.template_sha256 } : {}),
+    review,
+  };
 }
 
 /** A scenario's render jobs and renders, path-free (the Studio's render queue and list). */
@@ -400,45 +475,11 @@ export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, 
   const files = (await readdir(join(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
   const records: RenderRecord[] = [];
   for (const f of files) {
-    const r = readJsonPlain(join(project.dir, 'renders', f)) as unknown as RenderRecord | undefined;
-    if (r && r.version === 1 && r.id === f.slice(0, -5) && RENDER_ID_RE.test(r.id) && typeof r.created_at === 'string') records.push(r);
+    const r = readRenderRecord(project.dir, f);
+    if (r) records.push(r);
   }
   records.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
-  const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
-
-  const renders: ScenarioRenderView[] = records.slice(0, SCENARIO_RENDERS_MAX).map((r) => {
-    let review: RenderReviewSummary = { state: 'none' };
-    const standalone = reviewJobs.find((j) => j.input.kind === 'review' && j.input.render_id === r.id);
-    const job = renderJobs.find((j) => j.input.kind === 'render' && j.input.render_id === r.id && j.created_at <= r.created_at);
-    const report = r.status === 'succeeded' ? reportSummary(project.dir, r.id, r.created_at) : undefined;
-    if (standalone) review = { state: standalone.state === 'running' ? 'running' : 'queued', job: standalone.id };
-    else if (job && !FINISHED_JOB_STATES.has(job.state)) review = { state: 'running', job: job.id };
-    else {
-      const inline = job?.result?.kind === 'render' ? (job.result as RenderJobResult).review : undefined;
-      const stopped = inline && (inline.state === 'failed' || inline.state === 'cancelled') && (!report || (job?.finished_at ?? '') > report.at) ? inline.state : undefined;
-      if (stopped) review = { state: stopped };
-      else if (report) review = report.summary;
-    }
-    const status = r.status === 'failed' || r.status === 'cancelled' ? r.status : 'succeeded';
-    return {
-      render_id: r.id,
-      status,
-      created_at: r.created_at,
-      run_id: typeof r.run_id === 'string' && RUN_ID_RE.test(r.run_id) ? r.run_id : 'unknown',
-      theme: typeof r.template === 'string' && TEMPLATE_NAME_RE.test(r.template) ? r.template : 'unknown',
-      variant: r.variant === 'vertical' || r.variant === 'square' ? r.variant : 'landscape',
-      duration_s: n0(r.duration_s),
-      width: n0(r.width),
-      height: n0(r.height),
-      size_bytes: n0(r.size_bytes),
-      edit: { from: r.edit?.from === 'scenario' ? 'scenario' : 'run', ...(r.edit?.from === 'scenario' && typeof r.edit.sha256 === 'string' && /^[0-9a-f]{64}$/.test(r.edit.sha256) ? { sha256: r.edit.sha256 } : {}) },
-      fps: n0(r.fps),
-      overrides: r.overrides && typeof r.overrides === 'object' ? Object.keys(r.overrides).filter((k) => k !== 'theme' && OVERRIDE_KEY.test(k) && (r.overrides as Record<string, unknown>)[k] !== undefined).sort() : [],
-      ...(r.plan && typeof r.plan === 'object' ? { plan_sha256: memoPlanSignature(r) } : {}),
-      ...(typeof r.template_sha256 === 'string' && /^[0-9a-f]{16}$/.test(r.template_sha256) ? { theme_sha256: r.template_sha256 } : {}),
-      review,
-    };
-  });
+  const renders: ScenarioRenderView[] = records.slice(0, SCENARIO_RENDERS_MAX).map((r) => renderView(project.dir, r, renderJobs, reviewJobs));
 
   const jobs: ScenarioRenderJobView[] = [];
   for (const j of [...renderJobs].reverse()) {
