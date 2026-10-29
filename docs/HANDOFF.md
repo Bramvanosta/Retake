@@ -454,8 +454,9 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 ## Next lot
 **Next: L5.9 (Studio « Épure » 1) per the roadmap**, only when the user asks (L5.2 is done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
-captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and L5.4 (ROADMAP
-"L5.9 – L5.15"). L5.2's shell is ready for the redesign: one `TITLE_BAR` switch for the integrated title bar, the menu from one
+then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
+2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
+L5.4 (ROADMAP "L5.9 – L5.15"). In progress first: L5.2b (the desktop app's job notifications and a quit confirmation). L5.2's shell is ready for the redesign: one `TITLE_BAR` switch for the integrated title bar, the menu from one
 command table (⌘R, ⇧⌘R, ⌘B, ⌘. left free), no forced appearance; the sheets' design (a confirm through the supervised
 pipe) is in DESIGN §4j, not built. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test

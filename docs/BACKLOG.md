@@ -530,6 +530,8 @@ Developer ID signing and notarisation of the macOS app and every bundled executa
   buildable offline here (not in the pnpm store). Tauri kept. What L5.2 built is the shell only: it runs the
   repository's CLI with the Node.js that built it (launch.json), is signed ad hoc, never installed; the bundled Node /
   engine / Chromium, the `studio` command on the PATH, signing, notarisation and the updater stay here.
+- **Scheduled (2026-10-29):** as lot L5.16, right after the rename (L5.13), so the app ships under its final name;
+  ffmpeg is bundled too (an LGPL build of our own with VideoToolbox).
 
 ### BL-37 — Windows and Linux support
 *L · proposed in review · builds on: L4.1, L1.6*

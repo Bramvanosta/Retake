@@ -83,6 +83,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
+| L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | todo — right after L5.13 |
 | L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
 | L5.15 | Renders on the GPU with a lighter load | S | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
@@ -824,8 +825,8 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
 ### L5.9 – L5.15 — Studio « Épure », the rename, captures first (decided 2026-10-29, after L5.2)
 The founder validated a Studio redesign (BL-124: a dark, pro three-pane app following the system's appearance, the
 pipeline Script · Shoot · Edit · Review as the navigation; the design canvas and every decision are linked there) and
-the name Retake (no trademark or domain check: the tool is distributed locally). Order: **L5.2 → L5.9 → L5.10 →
-L5.11 → L5.12 → L5.13 → L5.14 → L5.15 → L5.3 → L5.4**, so the phase 5 acceptance runs once, on the final UI in the
+the name Retake (no trademark or domain check: the tool is distributed locally). Order: **L5.2 → L5.2b → L5.9 → L5.10 →
+L5.11 → L5.12 → L5.13 → L5.16 → L5.14 → L5.15 → L5.3 → L5.4**, so the phase 5 acceptance runs once, on the final UI in the
 desktop app. Requirements are written when each lot starts (R-UI-02 is amended by BL-124: dark by default and
 following the system, the Geist pair and the blue accent kept, a red reserved for recording).
 
@@ -853,6 +854,19 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
 - **L5.13 — Rename to Retake (M).** Everything at once, no alias (decided 2026-10-29): the command (`retake`), package
   names, the MCP server's name, the skills and plugin, the docs, the desktop app's name and identifier (defined in one
   place by L5.2) and the "two takes" icon; the `studio` command and the old names are gone after it.
+- **L5.16 — The standalone app (L; decided 2026-10-29, right after the rename so it ships under the final name).** BL-36
+  as a lot: one DMG installs everything on a new Mac (Apple Silicon), nothing else to install — Node and the engine
+  (our packages only, no repository), the CLI (the app installs the command on the PATH, a launcher running the
+  bundled Node), the MCP server (registered in Claude Code / Claude Desktop from the app at first run), Chromium for
+  captures, the headless shell and Remotion's compositor for renders, ffmpeg / ffprobe (our own relocatable LGPL build
+  with VideoToolbox, libvpx and ProRes — Homebrew's links Homebrew libraries and is GPL with x264; Remotion's has no
+  filters), and later the queue's Postgres (L5.14). A first run (workspace, studio home, screen and notification
+  permissions, CLI and MCP offered). Developer ID signing of every embedded executable with the hardened runtime and
+  the entitlements Node / Chromium need, notarisation, a DMG through Tauri's bundler, and a signed updater with its
+  own feed (L5.14, L5.15 and later lots reach installed Macs as updates). The signing identity, notarisation
+  credentials, updater key and feed URL come from the environment at release time, never from the repository.
+  Needs from the user: approved downloads (ffmpeg sources), their own signing / notarisation run or an explicit go,
+  where the updater feed lives.
 - **L5.14 — Captures first (L).** BL-117 carrying BL-116: the queue's state on pg-boss over an embedded Postgres, and a
   capture running first, heavy jobs waiting for the takes.
 - **L5.15 — Renders on the GPU (S).** BL-114: angle and VideoToolbox, a lighter concurrency, measured against today.
