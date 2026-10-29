@@ -22,7 +22,8 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
 
 - **2026-10-29 — Studio redesign « Épure » and the name Retake, in principle.** Validated through a four-round design
   exercise (BL-124): a dark, pro editing-suite Studio that follows the system's light appearance, and the name Retake
-  with the "two takes" mark. The name waits for a trademark and domain check; nothing changes in the locked MVP.
+  with the "two takes" mark. No trademark or domain check: the tool is distributed locally. The redesign and the
+  rename come right after L5.2 (decided 2026-10-29: lots L5.9 – L5.13); the desktop shell (L5.2) is built ready for them.
 - **2026-10-28 — Captures first.** The load under a take is what must be controlled; renders and other heavy jobs are
   background work whose duration does not matter, and wait for (or pause during) the takes (BL-116). A render's file
   size is not a concern; renders on the GPU (angle) are accepted (BL-114). The job queue moves to pg-boss over an
@@ -1609,7 +1610,7 @@ editor with a live preview, undo / redo and *Use in this scenario*):
   again at the same path keeps the old one's shown versions for `restore` (they were on disk there once).
 
 ### BL-114 — Renders on the GPU, with a lighter load
-*S · measured 2026-10-28 (M4, fixture `quote`, 60 s of 1080p video)*
+*S · measured 2026-10-28 (M4, fixture `quote`, 60 s of 1080p video) · lot L5.15 (2026-10-29)*
 
 A render costs far more than a capture: 430 cpu-s for 60 s of video (7.2 cpu-s per video second against 0.85 for a
 take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurrency of 7. Chromium's page renderers take
@@ -1638,7 +1639,8 @@ take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurren
   conversion — to profile). Previews and stills (`preview.ts`) open their own browser: same options there.
 
 ### BL-117 — The job queue on pg-boss over an embedded Postgres
-*L · decided in principle 2026-10-28 · amends ADR-1 · builds on: L3.1, L4.1, L4.4, L4.8 · carries BL-116*
+*L · decided in principle 2026-10-28 · amends ADR-1 · builds on: L3.1, L4.1, L4.4, L4.8 · carries BL-116 · lot L5.14
+(2026-10-29)*
 
 Replace the file queue's state (`packages/engine/src/jobs/`, ≈ 5,800 lines with the job kinds; `FileJobQueue` used by
 `engine.ts`, `renders.ts`, `reviews.ts`, `record.ts`, the index's `jobs-watch.ts` and the Studio server's live
@@ -1705,7 +1707,7 @@ from the embedded package, in TMPDIR). ADR-1 and DESIGN's queue sections rewritt
 drained before the switch (a local tool: no migration of queued jobs).
 
 ### BL-116 — Captures first: heavy jobs wait for the takes
-*M · decided 2026-10-28 · builds on: L3.1 (job queue), L4.4 (pause) · replaces BL-89's direction*
+*M · decided 2026-10-28 · builds on: L3.1 (job queue), L4.4 (pause) · replaces BL-89's direction · lot L5.14 (2026-10-29)*
 
 The load under a take is what must be controlled: a loaded machine shows in the take (fewer frames during motion,
 freezes the edit has to cut, more kicked frames). Renders, exports, reviews and previews are background work whose
@@ -1821,7 +1823,8 @@ the job's phase (no live worker while it runs, or the same phase for 5 min). If 
 (`review:frames` → ffmpeg, `review:sheets` …), the worker's log, and whether a cancel reaches it.
 
 ### BL-124 — Studio redesign « Épure » and the Retake name
-*L–XL · design validated 2026-10-29 · builds on: L4.9 · amends R-UI-02 · overlaps BL-120, BL-122 and L5.2*
+*L–XL · design validated 2026-10-29 · lots L5.9 – L5.13, right after L5.2 · builds on: L4.9 · amends R-UI-02 ·
+overlaps BL-120, BL-122 and L5.2*
 
 The founder validated a new Studio design through four rounds on a design canvas (private:
 `https://claude.ai/artifact/FhBXE6GvhbPsbpg592GfnR`; one page per round, decisions noted on it). Two reference
@@ -1850,9 +1853,9 @@ appearance.
   this.
 - **Name and mark.** "Retake": the take you redo — the video re-shoots itself at each release. The mark "two takes"
   (declension "Nette"): the previous take as a blue outline behind, the new one in front with a play triangle, on an
-  ink plate; the command becomes `retake`. Before adopting it: a trademark and domain check. Also considered: Cue (its
+  ink plate; the command becomes `retake`. No trademark or domain check (local distribution). Also considered: Cue (its
   command collides with an existing open-source configuration language's CLI), Dolly, Stand-in. The rename touches the
-  CLI binary, package and MCP server names, the skills and the docs — a lot of its own, after the redesign.
+  CLI binary, package and MCP server names, the skills and the docs — a lot of its own, right after the redesign lots, both after L5.2.
 - **A possible split.** (1) A reference note `docs/reference/studio-ui.md`: tokens, type scale, pane anatomy and the
   screens, exported from the canvas. (2) Shell, tokens, dark and light. (3) Project and Scenario. (4) Shoot (prepare,
   live, record). (5) Edit and Review. (6) Library and Theme editor. (7) The rename. The menu bar and the sheets land

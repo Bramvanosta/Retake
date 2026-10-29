@@ -428,7 +428,11 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.2 (Tauri desktop shell) per the roadmap**, only when the user asks (phase 4 is done). Pending
+**Next: L5.2 (Tauri desktop shell) per the roadmap**, only when the user asks (phase 4 is done). **Then, decided
+2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
+captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and L5.4 (ROADMAP
+"L5.9 – L5.15"). L5.2's shell is built ready for the redesign: integrated title bar, native menu bar on the commands
+of ⌘K, sheets, the system's appearance. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
 document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
 (L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import

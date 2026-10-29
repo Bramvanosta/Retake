@@ -18,7 +18,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
   it narrowed L1.3 and filled L5.1), L5.1 done (2026-10-12); then, as the user asked: L1.3 (done 2026-10-12) → L1.2
   (done 2026-10-13) → L1.6 (done 2026-10-13) → L1.7 (done 2026-10-13) → L1.8 (done 2026-10-14) → L1.4 (done 2026-10-17), stopping before phase 3 (L3.1).
 - **MVP scope is locked** (2026-10-12) to the lots in this file. Any new idea goes to `docs/BACKLOG.md` (unprioritised)
-  instead of a lot.
+  instead of a lot. The founder adds lots from it: L5.5 – L5.8 (2026-10-26, field feedback), L5.9 – L5.15
+  (2026-10-29: the Studio redesign and the rename, captures first, renders on the GPU).
 - **Goal for now: a local tool for our own use** (2026-10-12). Commercialisation (plans, licences, cloud, marketplace)
   is a future topic, parked in `docs/BACKLOG.md`; voice-over is an evolution there too (the MVP keeps a silent track).
 - The tool stays generic: no client/brand/person names in code, docs, fixtures, templates or test data. The market
@@ -77,6 +78,13 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
+| L5.9 | Studio « Épure » 1: reference note, tokens, dark and light, app shell, the Geist pair bundled | S–M | todo — after L5.2 |
+| L5.10 | Studio « Épure » 2: Project and Scenario screens | M | todo |
+| L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
+| L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
+| L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
+| L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
+| L5.15 | Renders on the GPU with a lighter load | S | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -812,6 +820,34 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   installed Chrome (projects → blocks → run → timeline switch with preview → render + review → comment → proposal
   applied). Two independent reviews fixed with mutation-checked rules. Cuts: BL-120 – BL-123. Live checks:
   MACOS-CHECKLIST 13j.
+
+### L5.9 – L5.15 — Studio « Épure », the rename, captures first (decided 2026-10-29, after L5.2)
+The founder validated a Studio redesign (BL-124: a dark, pro three-pane app following the system's appearance, the
+pipeline Script · Shoot · Edit · Review as the navigation; the design canvas and every decision are linked there) and
+the name Retake (no trademark or domain check: the tool is distributed locally). Order: **L5.2 → L5.9 → L5.10 →
+L5.11 → L5.12 → L5.13 → L5.14 → L5.15 → L5.3 → L5.4**, so the phase 5 acceptance runs once, on the final UI in the
+desktop app. Requirements are written when each lot starts (R-UI-02 is amended by BL-124: dark by default and
+following the system, the Geist pair and the blue accent kept, a red reserved for recording).
+
+- **L5.9 — Épure 1: foundations (S–M).** `docs/reference/studio-ui.md` (tokens, type scale 13 / 15 / 20, pane
+  anatomy, the screens, exported from the canvas); the tokens in the Studio's CSS with the dark and light appearances;
+  the app shell (title bar with the centred mode switch, left browser, inspector, status bar with the actions), wired
+  to the hooks L5.2 leaves (integrated title bar, menu-bar command table, system appearance); the Geist pair bundled
+  (BL-120). Screens keep their content inside the new shell.
+- **L5.10 — Épure 2: Project and Scenario (M).** The two reference screens of the canvas: productions as a poster grid
+  with smart groups and an inspector; the scenario as a storyboard of real frames per scene, the step inspector, the
+  YAML source.
+- **L5.11 — Épure 3: Shoot (M).** Prepare a take (the checklist, a blocking hook in one line with Copy command), the
+  live rehearsal or capture, the Record screen.
+- **L5.12 — Épure 4: Edit, Review and the rest (M–L).** The timeline and live preview, frame comments with Claude's
+  proposal, the review report and exports, the component library, the theme editor, the ⌘K palette, the confirmation
+  sheets; the accessibility items of BL-122 that come with them (the dark appearance, reduced motion).
+- **L5.13 — Rename to Retake (M).** The command (`retake`), package names, the MCP server's name, the skills and plugin,
+  the docs, the desktop app's name and identifier (defined in one place by L5.2) and the "two takes" icon; the old
+  `studio` command kept as an alias for a while.
+- **L5.14 — Captures first (L).** BL-117 carrying BL-116: the queue's state on pg-boss over an embedded Postgres, and a
+  capture running first, heavy jobs waiting for the takes.
+- **L5.15 — Renders on the GPU (S).** BL-114: angle and VideoToolbox, a lighter concurrency, measured against today.
 
 ### L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
