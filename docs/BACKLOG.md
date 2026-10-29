@@ -20,6 +20,9 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
 
 ## Decisions taken
 
+- **2026-10-29 — Studio redesign « Épure » and the name Retake, in principle.** Validated through a four-round design
+  exercise (BL-124): a dark, pro editing-suite Studio that follows the system's light appearance, and the name Retake
+  with the "two takes" mark. The name waits for a trademark and domain check; nothing changes in the locked MVP.
 - **2026-10-28 — Captures first.** The load under a take is what must be controlled; renders and other heavy jobs are
   background work whose duration does not matter, and wait for (or pause during) the takes (BL-116). A render's file
   size is not a concern; renders on the GPU (angle) are accepted (BL-114). The job queue moves to pg-boss over an
@@ -1816,6 +1819,44 @@ that as `running`). Not reproduced: a run with the cache moved away bundled in �
 42.9 s (2026-10-29), warm runs take ≈ 36 s; the job's phase was not recorded then. The acceptance now fails fast with
 the job's phase (no live worker while it runs, or the same phase for 5 min). If it comes back: the phase it stopped at
 (`review:frames` → ffmpeg, `review:sheets` …), the worker's log, and whether a cancel reaches it.
+
+### BL-124 — Studio redesign « Épure » and the Retake name
+*L–XL · design validated 2026-10-29 · builds on: L4.9 · amends R-UI-02 · overlaps BL-120, BL-122 and L5.2*
+
+The founder validated a new Studio design through four rounds on a design canvas (private:
+`https://claude.ai/artifact/FhBXE6GvhbPsbpg592GfnR`; one page per round, decisions noted on it). Two reference
+screens, Project and Scenario, then thirteen more: Welcome (no project open), Scenario source (YAML), Shoot — prepare a
+take, a live rehearsal, record a scenario —, Edit (timeline and live preview), Review — frame comments with Claude's
+proposal, the review report and exports —, Library, Theme editor, a confirmation sheet, the ⌘K palette and the light
+appearance.
+
+- **Layout.** A pro three-pane app (references: Final Cut Pro, Logic Pro). The title bar carries the
+  pipeline as a centred segmented control, Script · Shoot · Edit · Review: one way to navigate, replacing the
+  breadcrumb, the tabs and the inline links. Left, a browser: Productions with smart groups (Ready to render, Needs a
+  shoot, Failed), Library, Locations, Cast — or, inside a scenario, its scenes with their lengths. Centre, the content
+  (a poster grid of productions, a storyboard of real frames per scene). Right, the inspector. A status bar holds the
+  actions — Rehearse, Capture, Render — on every screen.
+- **Drawing.** Panes separated by surface tone only (centre ≈ #111214, panes ≈ #18191c), hairlines inside lists only;
+  three type sizes (13 / 15 / 20 px) and two weights, sentence case; mono only for timecodes and ids, tabular numbers;
+  one blue accent for selection and the primary action, red only for Capture and recording; a state is a shape and a
+  word; storyboard frames ≈ 248 × 140, three per row; inspector labels in one right-aligned column, switches for
+  modifiers. The light appearance follows the system with the same layout and a mapped palette.
+- **Behaviour.** State in short words, the explanation on demand: a capture blocked by a hook to approve says so in one
+  line with Copy command. Paths, run ids and the worker's state live in the inspector and the status bar, not in
+  titles. Real frames wherever a step appears. The same UI on the web and in the desktop app; in the app the menu bar
+  carries the commands and sheets replace modal pages; ⌘K everywhere.
+- **R-UI-02 amended.** Dark by default and following the system (it said light), the Geist pair kept (BL-120), one blue
+  accent kept plus a red reserved for recording. R-UI-03 unchanged; the dark appearance item of BL-122 becomes part of
+  this.
+- **Name and mark.** "Retake": the take you redo — the video re-shoots itself at each release. The mark "two takes"
+  (declension "Nette"): the previous take as a blue outline behind, the new one in front with a play triangle, on an
+  ink plate; the command becomes `retake`. Before adopting it: a trademark and domain check. Also considered: Cue (its
+  command collides with an existing open-source configuration language's CLI), Dolly, Stand-in. The rename touches the
+  CLI binary, package and MCP server names, the skills and the docs — a lot of its own, after the redesign.
+- **A possible split.** (1) A reference note `docs/reference/studio-ui.md`: tokens, type scale, pane anatomy and the
+  screens, exported from the canvas. (2) Shell, tokens, dark and light. (3) Project and Scenario. (4) Shoot (prepare,
+  live, record). (5) Edit and Review. (6) Library and Theme editor. (7) The rename. The menu bar and the sheets land
+  with the desktop shell (L5.2).
 
 ## Guard-rails for planned lots (no new scope)
 
