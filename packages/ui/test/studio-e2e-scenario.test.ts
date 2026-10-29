@@ -356,7 +356,7 @@ describe('the scenario screen in Chromium', () => {
     await writeRun(project(), { ...capture('20261023-130000-catalogue'), scenario: 'catalogue', snapshot: undefined, video: false });
     await sleep(1500);
     expect(ops('scenario_blocks', t1)).toHaveLength(0);
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('15-scenario-running');
     // The run finishes: one re-read, no banner.
     const t2 = Date.now();
@@ -517,7 +517,7 @@ describe('the scenario screen in Chromium', () => {
     await capture.click({ force: true });
     await sleep(300);
     expect(ops('scenario_run', t0)).toHaveLength(0);
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('20-scenario-run-blocked');
     // blocks: a dry run from the screen.
     await page.goto(`${studio.url}#/p/${P}/s/blocks`);
@@ -536,7 +536,7 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.getByTestId('running').innerText()).toContain(runId!);
     expect(await page.getByTestId('run-dry').isDisabled()).toBe(true);
     expect(await page.getByTestId('blockers-dry-run').innerText()).toContain('waits for the run of this scenario to finish');
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('21-scenario-run-queued');
     const t1 = Date.now();
     await page.getByTestId('run-cancel').click();
@@ -598,7 +598,7 @@ describe('the scenario screen in Chromium', () => {
     // The source stays the capture; the failed run is named above the pictures.
     expect(await page.getByTestId('source-line').innerText()).toContain('20261020-090000-down');
     expect(await page.locator('.notice', { hasText: 'Newer runs stopped early' }).innerText()).toContain(`${runId} (failed at step 1 of one, no pictures)`);
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('23-scenario-run-failed');
     const job = await jobOf(runId);
     await raw(studio.port, 'POST', '/v1/call/run_cancel', { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify({ project: P, run_id: runId }));

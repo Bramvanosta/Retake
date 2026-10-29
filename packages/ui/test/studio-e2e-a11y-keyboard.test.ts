@@ -180,7 +180,8 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
         await go(page, at(`/p/${N}/themes/${TOUR_THEME}`), `h1:has-text("${TOUR_THEME}")`);
         await page.locator('[data-testid="theme-editor"][data-editable="yes"]').waitFor(POLL);
       },
-      { exemptMax: 4 },
+      // (L5.9: + the shell's four Mode buttons, disabled with no scenario in context.)
+      { exemptMax: 8 },
     );
     expect(r.findings, r.report).toEqual([]);
     expect(await page.getByTestId('theme-editor').getAttribute('data-editable')).toBe('yes');

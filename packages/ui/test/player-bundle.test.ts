@@ -179,7 +179,11 @@ describe('the preview bundle', () => {
   it('⚑ lint: nothing in src/app or src/player loosens the frame sandbox', async () => {
     const SRC = join(import.meta.dirname, '..', 'src');
     const files: string[] = [];
-    for (const d of ['app', 'player']) for (const f of await readdir(join(SRC, d))) files.push(join(SRC, d, f));
+    // Recursive: the kit and the shell live in sub-folders of src/app (L5.9).
+    for (const d of ['app', 'player']) {
+      for (const e of await readdir(join(SRC, d), { recursive: true, withFileTypes: true })) if (e.isFile()) files.push(join(e.parentPath, e.name));
+    }
+    expect(files.some((f) => f.includes('ui-kit'))).toBe(true);
     for (const f of files) {
       const text = await readFile(f, 'utf8');
       expect(text, f).not.toMatch(/allow-(same-origin|top-navigation|popups|forms|downloads|modals|pointer-lock|presentation|storage-access)/);

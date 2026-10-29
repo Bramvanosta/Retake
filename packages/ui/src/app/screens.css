@@ -1,0 +1,92 @@
+/*
+ * L5.9: the layout of the screens built from the kit (the gallery today; L5.10 – L5.12's rebuilt screens next) —
+ * `--ui-*` tokens only, like kit.css (a lint); the components' own look stays in kit.css.
+ */
+
+/* The UI gallery (#/ui) */
+.gl {
+  display: grid;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-8);
+  color: var(--ui-text);
+}
+.gl-head {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.gl-h1 {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+}
+.gl-lede {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.gl-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--ui-space-6);
+}
+.gl-column {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-8);
+  min-width: 0;
+  padding: var(--ui-space-7);
+  border-radius: var(--ui-radius-card);
+}
+.gl-scope {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.gl-section {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.gl-title {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.gl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.gl-row > .k-field,
+.gl-row > .k-switch-row,
+.gl-row > .k-progress,
+.gl-row > .k-statusbar,
+.gl-row > .k-source,
+.gl-row > .k-blocker,
+.gl-row > .k-empty,
+.gl-pane,
+.gl-cards {
+  flex: 1 1 100%;
+}
+.gl-pane {
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-pane);
+}
+.gl-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--ui-card-w), 100%), 1fr));
+  gap: var(--ui-space-4);
+}
+.gl-answer {
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}

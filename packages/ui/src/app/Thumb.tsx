@@ -36,7 +36,8 @@ export function ThumbsProvider({ fetch, children }: { fetch: ThumbFetch; childre
         (entries) => {
           for (const e of entries) callbacks.get(e.target)?.(e.isIntersecting);
         },
-        { rootMargin: '200px 0px' },
+        // L5.9: the shell's centre pane is the scroller — its margin, not the window's (the pane clips what is below).
+        { root: document.getElementById('main'), rootMargin: '200px 0px' },
       ));
     return {
       loader,

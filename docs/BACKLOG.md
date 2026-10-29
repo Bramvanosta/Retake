@@ -1097,7 +1097,8 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
   a workspace switcher (one server per workspace).
 - ~~The themes and component gallery of SPEC §12 (R-UI-06 is L4.7)~~ — built in L4.7 (the library and theme screens;
   extras in BL-113); ~~the Geist fonts and the visual identity (R-UI-02, L4.9)~~ — L4.9: the palette closed (every
-  colour a token, one accent) and the Geist pair named first in the font stacks; the font files are BL-120.
+  colour a token, one accent) and the Geist pair named first in the font stacks; the font files are BL-120 (bundled in
+  L5.9).
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
   from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `studio ui` terminal or the Tauri shell's
@@ -1785,7 +1786,11 @@ BT.601 → limited BT.709) is ≈ 40 % of its CPU (2.2 of 5.05 cpu-s per 900 fra
 BT.601 instead of converting) saves ≈ 3 cpu-s a take, checked against players and the colour tests.
 
 ### BL-120 — The Geist pair bundled
-*S · cut in L4.9 · builds on: L4.9*
+*S · cut in L4.9 · builds on: L4.9 · **done in L5.9***
+
+*Done in L5.9 (R-UI-02):* the official variable woff2 pair and its OFL 1.1 licence in `packages/ui/fonts`, served from
+memory by the Studio at `/fonts/<file>`, declared by the generated tokens.css; the checker waits for the fonts before it
+measures (DESIGN §4i, §4k). What follows is the item as it was cut.
 
 The Studio names `'Geist'` and `'Geist Mono'` first in its font stacks by local family name only (app.css `--font`,
 `--mono`; DESIGN §4i): a Mac with the fonts installed shows them in Chrome and Firefox, everything else falls back to
@@ -1811,7 +1816,8 @@ stay black box — the server's `/v1/info` counters, process tables, lsof and wi
 *M · cut in L4.9 · builds on: L4.9*
 
 - Reflow below 1280 px wide and at 200 % zoom (the Studio is desktop-class; two narrow media queries only).
-- Target sizes ≥ 24 px everywhere; forced colours and macOS Increase Contrast; a dark appearance for the Studio.
+- Target sizes ≥ 24 px everywhere; forced colours and macOS Increase Contrast; ~~a dark appearance for the Studio~~ —
+  L5.9: dark by default and following the system, every legacy screen mapped and toured in dark (DESIGN §4k).
 - `prefers-reduced-motion` once anything animates (nothing does today; library loops play on Play only).
 - A live region announcing the selected step (BL-79 residue); automated screen-reader runs (VoiceOver scripting).
 - The checker's limits (found by the L4.9 review, each probed): contrast over a picture is measured over black and white
@@ -1928,6 +1934,47 @@ and `job_end` lines); what remains:
   5 s). A count line (`{"type":"job_end_dropped","n"}`) and a board without a tab cap but with a byte cap would close
   both.
 - Windows and Linux shells (BL-37).
+
+### BL-126 — Desktop shell extras cut from L5.9
+*M · cut in L5.9 · builds on: L5.9, L5.2 · see BL-125*
+
+- **The integrated (overlay) title bar.** `TITLE_BAR = Overlay { buttons: (16, 18) }` with the page's 48 px bar under
+  it: the page's side is built and tested (`__studioShell`, `html[data-titlebar]`, an 80 px inset, no selectable text
+  in the bar; studio-e2e-kit), the window drag is not. A probe, half a day, by hand: does WKWebView (macOS 26) honour
+  `app-region: drag` / `-webkit-app-region: drag` (stated "no" in L5.2, never measured)? If not, a native drag band —
+  an NSEvent local monitor on the main window (`block2` is a dependency) passing a press in the top 48 pt to the page
+  and calling `performWindowDragWithEvent:` once the pointer moved ≥ 3 pt. Pass criteria (DESIGN §4j, critique H2): a
+  drag from the bar's empty area or a mode button moves the window and never navigates; no stuck `:active`, no text
+  selection or step drag on the next hover (WebKit must get its mouse-up: AppKit's tracking loop takes it; a synthetic
+  one only outside the webview's bounds); the next click works; a `<select>` in the bar opens; a double-click on the
+  empty bar zooms as macOS does, never on a control; menu, sheets and full screen (the inset following it) unaffected.
+  Any criterion failing keeps the standard bar. L5.9 did not run it: every criterion needs a real window drag, which an
+  unattended run cannot post (Accessibility permission).
+- **Menu state from the page**: Capture / Render greyed when the page cannot run them (server→shell `state` lines on
+  the supervised pipe, or a narrow page→shell request); L5.9 keeps every item enabled and answers in the page.
+- **The Scenario menu** — Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘. — and the status bar's actions: L5.11, when
+  they act (critique M6), through the same `Item::Page` table and `MENU_COMMANDS`.
+- The inset following full screen (the buttons hidden: the 80 px could go), and native confirmation sheets through the
+  pipe (BL-106 amended, unchanged).
+
+### BL-127 — Design-system extras cut from L5.9
+*S–M · cut in L5.9 · builds on: L5.9*
+
+- A `Tooltip` (hover and focus; the checker cannot reach hover-only text: BL-122) and a `Toast`.
+- A `Tabs` component (the scenario's Blocks / YAML become a View segmented control in L5.10 instead); a `Disclosure`
+  tree for the browser's smart groups and a scenario's scenes (L5.10 needs it: move it there if wanted).
+- An appearance switch inside the app (the system's only today), density options, Increase Contrast and forced-colour
+  token sets (BL-122).
+- Visual regression snapshots of the gallery (no committed images today; the tours and the checker are the guard).
+- WebKit conventions met in L5.9's scratch WebKit run (DESIGN §4k): radios that stop at the last enabled segment
+  instead of wrapping, a dialog opened by a click giving the focus back to nothing (WebKit does not focus a clicked
+  button: the opener could be remembered by the click's target), and the CSP `style-src-attr` report WebKit makes for
+  every `<select>` it draws (nothing the app writes; a console line in Safari and the app).
+- The kit e2e and the tours in WebKit and Firefox (BL-121).
+- The light appearance toured at 1440 too (L5.9's review B-L9: light is toured at 1280 only — L4.9 proved its values at
+  both widths on the old frame, and a layout overflow does not depend on the appearance; one more audit per station,
+  ≈ 40, was not worth it then).
+- An IME composition test in a real input method (the palette's `isComposing` guard is tested with a synthetic event).
 
 ## Guard-rails for planned lots (no new scope)
 

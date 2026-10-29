@@ -55,6 +55,7 @@ node scripts/requirements.mjs --check-cites                   # fails when an ev
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)
+pnpm -F @demo-studio/ui gen:tokens                             # regenerate the Studio's tokens.css from tokens.ts (dark + light); `ratchet` lowers the kit-only counts
 pnpm desktop:build                                             # the macOS app (apps/desktop, Rust + Tauri, offline: CARGO_NET_OFFLINE=true); desktop:dev / desktop:test / desktop:clean
 ```
 
@@ -66,7 +67,7 @@ pnpm desktop:build                                             # the macOS app (
   command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
   scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker · `packages/mcp` the MCP
   server (`studio mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the Studio web app and its
-  server (`studio ui`) · `apps/desktop` the macOS app (Tauri shell around `studio ui --supervised`) · `skills/` the Claude skills and plugin root.
+  server (`studio ui`; design system in `src/app/ui-kit` + `tokens.ts`, reference `docs/reference/studio-ui.md`) · `apps/desktop` the macOS app (Tauri shell around `studio ui --supervised`) · `skills/` the Claude skills and plugin root.
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

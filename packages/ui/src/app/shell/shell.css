@@ -1,0 +1,209 @@
+/*
+ * L5.9: the shell's frame (AppShell.tsx): a fixed window of panes, separated by tone only — the title bar (48), the
+ * browser (240), the centre pane (the one scroller), the inspector (320, while a screen fills it), the status bar (34).
+ * `--ui-*` tokens only (a lint). Under the desktop app's overlay title bar the bar's left keeps the window buttons' room
+ * (--ui-titlebar-inset: 80px, set by html[data-titlebar='overlay'] in tokens.css; 0 on the web) and nothing in it can be
+ * selected or dragged as content.
+ */
+.sh-app {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--ui-browser-w) minmax(0, 1fr);
+  grid-template-rows: var(--ui-titlebar-h) minmax(0, 1fr) var(--ui-statusbar-h);
+  grid-template-areas:
+    'title title'
+    'browser main'
+    'status status';
+  height: 100%;
+  overflow: hidden;
+  background: var(--ui-canvas);
+  color: var(--ui-text);
+}
+.sh-app[data-inspector='shown'] {
+  grid-template-columns: var(--ui-browser-w) minmax(0, 1fr) var(--ui-inspector-w);
+  grid-template-areas:
+    'title title title'
+    'browser main inspector'
+    'status status status';
+}
+
+/* Skip to content: the first Tab stop, shown while focused (clear of the window buttons). */
+.sh-skip {
+  position: absolute;
+  z-index: 20;
+  top: -60px;
+  left: calc(var(--ui-titlebar-inset) + var(--ui-space-4));
+}
+.sh-skip:focus-within {
+  top: var(--ui-space-4);
+}
+
+/* Title bar: the mode switch centred on the WINDOW (the canvas's left: 50%), whatever the window buttons' inset — two
+   equal side columns around it (review B-L1), the inset inside the start one, so neither side runs under it. */
+.sh-titlebar {
+  grid-area: title;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--ui-space-5);
+  min-width: 0;
+  padding: 0;
+  background: var(--ui-pane);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.sh-titlebar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  padding-left: calc(var(--ui-titlebar-inset) + var(--ui-space-6));
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* The mode switch's segments as the canvas pads them (16 px a side). */
+.sh-titlebar-centre .k-seg-item {
+  padding: 0 var(--ui-space-6);
+}
+.sh-titlebar-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  padding-right: var(--ui-space-5);
+}
+.sh-slot-context {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+.sh-appmark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--ui-radius-segment);
+  background: var(--ui-accent);
+}
+.sh-appname {
+  flex: none;
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+}
+.sh-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  overflow: hidden;
+}
+.sh-crumbs .k-btn {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+}
+.sh-crumbs .k-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sh-crumb-sep {
+  color: var(--ui-text-3);
+}
+.sh-crumb-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ui-text-2);
+}
+
+/* Browser */
+.sh-browser {
+  grid-area: browser;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+  min-height: 0;
+  padding: var(--ui-space-5) var(--ui-space-4) var(--ui-space-5);
+  background: var(--ui-pane);
+  color: var(--ui-text-2);
+  overflow-y: auto;
+}
+.sh-browser-foot {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin-top: auto;
+  padding: var(--ui-space-4) var(--ui-space-4) 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.sh-foot-line {
+  margin: 0;
+  min-width: 0;
+}
+.sh-foot-label {
+  display: block;
+  font-weight: var(--ui-weight-strong);
+}
+.sh-foot-path {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.sh-foot-link {
+  justify-self: start;
+  color: var(--ui-link);
+  text-decoration: none;
+}
+.sh-foot-link:hover {
+  text-decoration: underline;
+}
+.sh-foot-link[aria-current='page'] {
+  font-weight: var(--ui-weight-strong);
+  text-decoration: underline;
+}
+.sh-foot-link:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-kbd);
+}
+
+/* Centre pane: the one scroller */
+.sh-main {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.sh-main:focus {
+  outline: none;
+}
+
+/* Inspector */
+.sh-inspector {
+  grid-area: inspector;
+  min-height: 0;
+  background: var(--ui-pane);
+  color: var(--ui-text);
+  overflow-y: auto;
+}
+
+/* Status bar */
+.sh-statusbar-wrap {
+  grid-area: status;
+  min-width: 0;
+}
+.sh-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+.sh-slot-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+}

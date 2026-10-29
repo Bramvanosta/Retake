@@ -61,6 +61,24 @@ describe('static app from memory', () => {
     expect(Object.keys(index.headers).filter((k) => k.startsWith('access-control-'))).toEqual([]);
   });
 
+  it('L5.9: the bundled Geist pair at /fonts/<file> (font/woff2, the files\' bytes, from memory); the stylesheet names those two URLs only; the document preloads them and names its colour schemes', async () => {
+    for (const file of ['Geist-Variable.woff2', 'GeistMono-Variable.woff2']) {
+      const r = await raw(studio.port, 'GET', `/fonts/${file}`);
+      expect(r.status, file).toBe(200);
+      expect(r.headers['content-type']).toBe('font/woff2');
+      expect(r.headers.etag).toBeTruthy();
+      expect(r.headers['content-security-policy']).toBe(studioCsp(studio.player.origin));
+      const assets = await buildUi();
+      expect(assets.get(`/fonts/${file}`)!.bytes.equals(await readFile(join(REPO, 'packages', 'ui', 'fonts', file))), file).toBe(true);
+      expect(INDEX_HTML).toContain(`<link rel="preload" href="/fonts/${file}" as="font" type="font/woff2" crossorigin>`);
+    }
+    for (const path of ['/fonts/LICENSE.txt', '/fonts/', '/fonts/../package.json', '/fonts/Geist-Variable.woff']) expect((await raw(studio.port, 'GET', path)).status, path).toBe(404);
+    const css = (await buildUi()).get('/app.css')!.bytes.toString('utf8');
+    expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1].replace(/["']/g, ''))).toEqual(['/fonts/Geist-Variable.woff2', '/fonts/GeistMono-Variable.woff2']);
+    expect(INDEX_HTML).toContain('<meta name="color-scheme" content="dark light">');
+    expect(INDEX_HTML).toContain('<title>Demo Studio</title>');
+  });
+
   it('the bundle: no eval, no node built-in, under 700 KB; the document has no inline script or style', async () => {
     const t = Date.now();
     const assets = await buildUi();

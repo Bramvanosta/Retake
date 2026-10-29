@@ -11,6 +11,7 @@
  *   in a scene at normal speed and in a scene at 2×; zoom fit and in; "Show in timeline" (a step's route);
  * - a take encoded as the capture encodes (libx264, H.264): Playwright's Chromium cannot play it — the real message
  *   (critique B14), no frame, the tracks and the scrubber still working, the codec and the slow-scrub note shown.
+ * - L5.9 (review B-M1): inside the shell at 1440 × 900 and 1280 × 800, as many track rows show on load as before it.
  * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -159,6 +160,40 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await shot('timeline-open');
     expect(await csp()).toBe(0);
   }, 120_000);
+
+  it('⚑ L5.9 (review B-M1): inside the shell, at 1440 × 900 and 1280 × 800, as many track rows show on load as before it (the preview sizes from the centre pane)', async () => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    for (const [width, height] of [
+      [1440, 900],
+      [1280, 800],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto(`${studio.url}#/p/demo/s/bits/timeline/${RUN}`);
+      await page.getByTestId('tracks').waitFor();
+      // Measured once the screen has settled (the preview loaded, nothing left to arrive above the tracks).
+      await expect.poll(async () => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
+      await expect.poll(() => page.evaluate(() => document.getElementById('main')!.scrollTop), POLL).toBe(0);
+      // Before the shell (L4.9) the page began at the window's top and the preview was min(44vh, 460px) tall (the
+      // inspector beside it at most 150 px taller: the stage moves with the preview), the rest of the screen the same
+      // (review B: 0 computed-style differences): a row showed when its top cleared the window's bottom. Now: when it
+      // clears the centre pane's.
+      const rows = await page.evaluate(() => {
+        const pane = document.getElementById('main')!.getBoundingClientRect();
+        const preview = document.querySelector('.tl-preview')!.getBoundingClientRect().height;
+        const before = Math.min(0.44 * innerHeight, 460) - preview;
+        const tops = [...document.querySelectorAll('[data-testid="tracks"] .tl-row')].map((r) => r.getBoundingClientRect().top - pane.top);
+        const tracks = document.querySelector('[data-testid="tracks"]')!.getBoundingClientRect().top - pane.top;
+        return { now: tops.filter((t) => t < pane.height - 8).length, then: tops.filter((t) => t + before < innerHeight - 8).length, seen: pane.height - tracks, seenThen: innerHeight - (tracks + before), preview };
+      });
+      await shot(`timeline-shell-dark-${width}`);
+      const why = `${width}×${height}: ${JSON.stringify(rows)}`;
+      expect(rows.now, why).toBeGreaterThanOrEqual(rows.then);
+      // … and as much of the tracks' height (to the pixel).
+      expect(rows.seen, why).toBeGreaterThanOrEqual(rows.seenThen - 1);
+    }
+    await page.setViewportSize({ width: 1360, height: 900 });
+    await page.emulateMedia({ colorScheme: 'light' });
+  });
 
   it('muted at first; Unmute asks the frame; clicks, a scrubber drag and the keys show exactly the plan\'s frames', async () => {
     const mute = page.getByTestId('mute');

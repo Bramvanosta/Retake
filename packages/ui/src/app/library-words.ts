@@ -10,6 +10,7 @@
 import type { ThemeEditView } from '@demo-studio/engine';
 import type { LibraryItem } from '../server/library-ops.js';
 import type { StudioEvent } from './events.js';
+import { APP_NAME } from './brand.js';
 
 /** The kinds in the library's order (core COMPONENT_KINDS). */
 export const KIND_ORDER = ['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition'] as const;
@@ -120,7 +121,7 @@ export const kindHeading = (k: string, n = 2): string => (isKind(k) ? KIND_WORDS
 
 /** The source badge: a word (never colour alone) and what it means. Never "made with Claude": nobody can tell. */
 export const SOURCE_WORDS: Record<LibraryItem['source'], { badge: string; title: string }> = {
-  builtin: { badge: 'Built-in', title: 'Ships with Demo Studio.' },
+  builtin: { badge: 'Built-in', title: `Ships with ${APP_NAME}.` },
   workspace: { badge: 'Workspace', title: "Made in this workspace's components folder (by you or with Claude). Its code runs only in the render browser, never in the Studio." },
 };
 

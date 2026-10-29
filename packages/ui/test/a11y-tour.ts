@@ -8,6 +8,8 @@
  * worker; headless Chromium. `station()` visits one state at 1280 then 1440 wide once nothing is loading (a station still
  * loading after 30 s is a finding) and runs the checker on it: every rule, a budget of unmeasured and of exempt texts,
  * the Tab walk at 1280 (its cap per station; a truncated walk is a finding) and the arrows across a shared tab stop.
+ * L5.9: in both appearances — dark (the default, following the system) at 1280 and 1440 with the walk, then light at
+ * 1280 (its values are L4.9's, proven at both widths then) — and the colour-only rule must have status tokens to watch.
  * Whatever `startTour` started is closed again when it throws.
  */
 import { createHash } from 'node:crypto';
@@ -16,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
+import type { Appearance } from '../src/app/tokens.js';
 import { createEngine } from '@demo-studio/engine';
 import type { Engine } from '@demo-studio/engine';
 import type { EditPlan } from '@demo-studio/editor';
@@ -31,6 +34,11 @@ export const RUN = '20260101-120000-bits';
 export const THREAD = 'c_01JAAAAAAAAAAAAAAAAAAAAAAA';
 export const THREAD2 = 'c_01JBBBBBBBBBBBBBBBBBBBBBBB';
 export const WIDTHS = [1280, 1440] as const;
+/** The appearances a station is checked in, each at its widths (the walk: the first width of the first). */
+export const SCHEMES: Array<{ scheme: Appearance; widths: readonly number[] }> = [
+  { scheme: 'dark', widths: WIDTHS },
+  { scheme: 'light', widths: [1280] },
+];
 export const POLL = { timeout: 30_000 };
 const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
 /** The workspace's own theme (editable in the Studio). */
@@ -122,7 +130,7 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     const w = await mcp.comments.reply('demo', THREAD, 'A plainer caption, and a note for the team.', { proposal: { scenario_yaml: PROPOSED, scenario_hash: sha(BITS_TEXT) } });
     const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
-    const context = await browser.newContext({ viewport: { width: WIDTHS[0], height: 900 }, colorScheme: 'light' });
+    const context = await browser.newContext({ viewport: { width: WIDTHS[0], height: 900 }, colorScheme: 'dark' });
     await context.addInitScript(() => {
       (window as unknown as { __csp: number }).__csp = 0;
       document.addEventListener('securitypolicyviolation', () => (window as unknown as { __csp: number }).__csp++);
@@ -163,7 +171,10 @@ export async function go(page: Page, url: string, ready: string): Promise<void> 
 }
 
 export interface StationResult {
+  /** The audits at the first appearance (dark), by width. */
   audits: Record<number, Audit>;
+  /** Every audit, `<scheme>@<width>`. */
+  all: Record<string, Audit>;
   walk?: TabWalk;
 }
 
@@ -176,6 +187,10 @@ export interface StationOptions {
   unmeasuredMax?: number;
   /** Texts of disabled controls that may be exempt — default 10 (a state whose controls are off on purpose says more). */
   exemptMax?: number;
+  /** The appearances and widths (default SCHEMES). */
+  schemes?: Array<{ scheme: Appearance; widths: readonly number[] }>;
+  /** A busy element the station holds on purpose (a write in flight): not waited for, and still busy at every audit. */
+  busy?: string;
 }
 
 /**
@@ -185,33 +200,43 @@ export interface StationOptions {
  */
 export async function station(t: Tour, name: string, reach: () => Promise<void>, o: StationOptions = {}): Promise<{ findings: Finding[]; report: string; result: StationResult }> {
   const { page } = t;
-  await page.setViewportSize({ width: WIDTHS[0], height: 900 });
+  const schemes = o.schemes ?? SCHEMES;
+  await page.emulateMedia({ colorScheme: schemes[0].scheme });
+  await page.setViewportSize({ width: schemes[0].widths[0], height: 900 });
   await reach();
-  const result: StationResult = { audits: {} };
+  const result: StationResult = { audits: {}, all: {} };
   const findings: Finding[] = [];
-  for (const width of WIDTHS) {
-    await page.setViewportSize({ width, height: 900 });
-    const loading = await settle(page);
-    if (loading.length) findings.push({ rule: 'contrast', el: 'loading', detail: `@${width} still loading after ${POLL.timeout / 1000} s: ${loading.join('; ')}` });
-    const a = await auditPage(page);
-    result.audits[width] = a;
-    findings.push(...a.findings.map((f) => ({ ...f, detail: `@${width} ${f.detail}` })));
-    const over = a.stats.unmeasured.length - (o.unmeasuredMax ?? 0);
-    if (over > 0) findings.push({ rule: 'contrast', el: 'unmeasured', detail: `@${width} ${a.stats.unmeasured.length} texts unmeasured (budget ${o.unmeasuredMax ?? 0}): ${a.stats.unmeasured.slice(0, 6).join('; ')}` });
-    if (a.stats.exempt > (o.exemptMax ?? 10)) findings.push({ rule: 'contrast', el: 'exempt', detail: `@${width} ${a.stats.exempt} texts exempt as disabled (budget ${o.exemptMax ?? 10}): the state toured is not the one a person edits` });
-    if (SHOTS) {
-      await mkdir(SHOTS, { recursive: true });
-      await page.screenshot({ path: join(SHOTS, `a11y-${name}-${width}.png`), fullPage: true });
-    }
-    if (width === WIDTHS[0] && o.walk !== false) {
-      result.walk = await tabWalk(page, { max: o.walkMax ?? WALK_MAX });
-      findings.push(...result.walk.findings.map((f) => ({ ...f, detail: `@${width} ${f.detail}` })));
+  for (const [si, { scheme, widths }] of schemes.entries()) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const [wi, width] of widths.entries()) {
+      const at = `${scheme}@${width}`;
+      await page.setViewportSize({ width, height: 900 });
+      const loading = await settle(page, POLL.timeout, o.busy ?? null);
+      if (loading.length) findings.push({ rule: 'contrast', el: 'loading', detail: `${at} still loading after ${POLL.timeout / 1000} s: ${loading.join('; ')}` });
+      if (o.busy && (await page.locator(`${o.busy}[aria-busy="true"]`).count()) === 0) findings.push({ rule: 'contrast', el: o.busy, detail: `${at} the busy state toured ended before its audit` });
+      const a = await auditPage(page);
+      result.all[at] = a;
+      if (si === 0) result.audits[width] = a;
+      findings.push(...a.findings.map((f) => ({ ...f, detail: `${at} ${f.detail}` })));
+      if (a.stats.statusTokens === 0) findings.push({ rule: 'colour-only', el: 'document', detail: `${at} the colour-only rule found no status token to watch` });
+      const over = a.stats.unmeasured.length - (o.unmeasuredMax ?? 0);
+      if (over > 0) findings.push({ rule: 'contrast', el: 'unmeasured', detail: `${at} ${a.stats.unmeasured.length} texts unmeasured (budget ${o.unmeasuredMax ?? 0}): ${a.stats.unmeasured.slice(0, 6).join('; ')}` });
+      if (a.stats.exempt > (o.exemptMax ?? 10)) findings.push({ rule: 'contrast', el: 'exempt', detail: `${at} ${a.stats.exempt} texts exempt as disabled (budget ${o.exemptMax ?? 10}): the state toured is not the one a person edits` });
+      if (SHOTS) {
+        await mkdir(SHOTS, { recursive: true });
+        await page.screenshot({ path: join(SHOTS, `a11y-${name}-${scheme}-${width}.png`) });
+      }
+      if (si === 0 && wi === 0 && o.walk !== false) {
+        result.walk = await tabWalk(page, { max: o.walkMax ?? WALK_MAX });
+        findings.push(...result.walk.findings.map((f) => ({ ...f, detail: `${at} ${f.detail}` })));
+      }
     }
   }
-  const a = result.audits[WIDTHS[0]];
-  const families = [...new Set(Object.values(result.audits).flatMap((x) => x.stats.families))];
+  await page.emulateMedia({ colorScheme: schemes[0].scheme });
+  const first = Object.values(result.all)[0];
+  const families = [...new Set(Object.values(result.all).flatMap((x) => x.stats.families))];
   for (const f of families) findings.push(...(await familyWalk(page, f)));
-  t.log.push(`${name}: ${a.stats.texts} texts (${a.stats.overMedia} over media, ${a.stats.unmeasured.length} unmeasured, ${a.stats.exempt} exempt), ${a.stats.placeholders} placeholders, ${a.stats.controls} controls named, ${a.stats.selected} selected states compared (${a.stats.selectedAlone} alone), ${result.walk ? `${result.walk.stops} Tab stops${result.walk.frames ? ` (${result.walk.frames} frames)` : ''}` : 'no walk'}${families.length ? `, ${families.length} shared tab stop${families.length > 1 ? 's' : ''} crossed` : ''}; ${findings.length} findings`);
+  t.log.push(`${name}: ${first.stats.texts} texts (${first.stats.overMedia} over media, ${first.stats.unmeasured.length} unmeasured, ${first.stats.exempt} exempt), ${first.stats.placeholders} placeholders, ${first.stats.controls} controls named, ${first.stats.selected} selected states compared (${first.stats.selectedAlone} alone), ${first.stats.statusTokens} status colours watched, ${result.walk ? `${result.walk.stops} Tab stops${result.walk.frames ? ` (${result.walk.frames} frames)` : ''}` : 'no walk'}${families.length ? `, ${families.length} shared tab stop${families.length > 1 ? 's' : ''} crossed` : ''}, ${Object.keys(result.all).join(' ')}; ${findings.length} findings`);
   return { findings, report: `${name}:\n${formatFindings(findings)}`, result };
 }
 

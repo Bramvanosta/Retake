@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-29, end of **L5.2b (the desktop app's job notifications and quit confirmation)** — phases
-1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.8 done). **Next: L5.9 (Studio « Épure » 1), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-29, end of lot **L5.9 (Studio « Épure » 1: design system, shell, Geist)** — phases 1–4 are
+done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1, L5.2,
+L5.2b, L5.5 – L5.9 done). **Next: L5.10 (Studio « Épure » 2: Project and Scenario), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,32 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-126); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-128); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.2b)
+## State (after L5.9)
+- **L5.9 done (2026-10-29)**: the Studio's design system and new shell (BL-124, first lot). One token file
+  (`packages/ui/src/app/tokens.ts` → generated, committed `tokens.css`, kept in sync by a test): the kit's `--ui-*` set
+  from the canvas in dark and light, and the legacy palette (light identical to L4.9 — 0 computed-style differences —,
+  dark mapped; `--accent-fill`, `--accent-strong-fill`, `--tooltip-bg` split from roles one value could not serve).
+  **Dark by default, following the system**; every existing screen passes the L4.9 checker in dark through the
+  mapping alone (no route left light). Geist and Geist Mono bundled (`packages/ui/fonts`, OFL licence beside them,
+  served from memory at `/fonts/*`, preloaded; BL-120 done). The kit (`src/app/ui-kit/`, 23 components, no new
+  dependency: native `<select>`, modal `<dialog>` for Sheet and the ⌘K palette, `popover` for Menu): every piece of
+  text it did not write goes through `Txt` / `visibleControls` (a hostile SSR test over 50 slots), text inputs require
+  `unsaved` (L5.2b's mark). The shell (`src/app/shell/`): a title bar with the mode switch Script · Shoot · Edit ·
+  Review centred on the window (disabled with no scenario), a left browser, an inspector slot, a status bar with an
+  actions slot (filled in L5.11); the centre pane is the only scroller (`--main-h`). The gallery `#/ui` shows every
+  component in both appearances. Lints: kit-only ratchet (`test/legacy-controls.json`, per-file counts only go down;
+  `pnpm -F @demo-studio/ui ratchet` lowers them), contrast in both appearances, the name only in `brand.ts`, no vh in
+  sizes. The desktop app's View menu gains ⌘K, ⌘1–4, ⌥⌘I (one table shared with the page, parity-tested); ⌘R, ⇧⌘R, ⌘B
+  stay free for L5.11; the overlay title bar is not shipped (its probe needs a hand drag: BL-126, the page-side contract
+  is). Tests on the Mac: **3842 — 3757 pass, 84 skipped, 1 failure in the one full run** (a sandbox lint that read
+  `src/app` non-recursively hit the new folders — made recursive, so it covers the kit too, mutation-checked);
+  `pnpm test:slow` 65/65. Requirements: 653 tracked — 612 done, 27 partial, 8 todo, 6 n/a-here (R-UI-02 done as
+  amended, R-UI-30 – R-UI-34 done, R-DSK-03 partial: the overlay). Live checks for the user: MACOS-CHECKLIST 14b.
 - **L5.2b done (2026-10-29, asked by the user after L5.2)**: the desktop app asks before quitting and tells when jobs
   end. The page reports unsaved text to its own server (token-gated op `unsaved_report`: README, YAML drafts, step
   forms, comment composer / replies / notes, the Library's component brief, the new-theme form, theme colour drafts;
@@ -72,7 +92,7 @@ automatically with themeable components, and let Claude operate everything throu
   native pickers for the Studio's path fields, keychain glue → BL-125). Live checks for the user: MACOS-CHECKLIST 14a.
 - **L4.9 done (2026-10-29)** — phase 4 is done. The Studio's identity and accessibility pass: one closed palette (every
   app.css colour a `:root` token, same values; one blue accent, the violet kept as a categorical token), Geist / Geist
-  Mono named first by local family name (nothing bundled or downloaded: BL-120; a machine without them gets the old
+  Mono named first by local family name (bundled since L5.9: BL-120 done; a machine without them got the old
   stacks). Fixes: the theme editor's sideways scroll (`.chips legend` beat `.sr-only`), placeholder contrast (2.35:1 in
   WebKit), `.pd-mark` contrast, a selected state carried by colour alone (a 3 px accent bar on the selected step, the
   current run step and thread row; an accent edge on chips and pressed buttons), the timeline's selected segment and
@@ -468,7 +488,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.9 (Studio « Épure » 1) per the roadmap**, only when the user asks (L5.2 is done). **Decided
+**Next: L5.10 (Studio « Épure » 2: Project and Scenario) per the roadmap**, only when the user asks (L5.9 is done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1385,6 +1405,17 @@ sandbox, a hook step and compact results through Claude Code).
   mutation-checked tests (≈ 75 mutations, all killed). Files: ui `server/{supervise,unsaved}.ts`,
   `app/unsaved-report.ts`, `drafts.ts` marks; engine `JobsWatch.unfinished` / `record`; cli `ui.ts`; desktop
   `src/{guard,notify,macos,child,main}.rs`, core `{pipe,words,notify,config}.rs`. Cuts: BL-125 trimmed.
+- **L5.9 done** (Studio « Épure » 1; R-UI-02 as amended, R-UI-30 – R-UI-34 done, R-DSK-03 partial). Planned from the
+  founder's canvas (copied for the lot: tokens, type scale 13 / 15 / 20, pane anatomy), criticised (the checker's
+  colour-only rule going blind on the new token files, a native drag band leaving WebKit "pressed", dark for legacy
+  screens bigger than planned, the library-free kit untested in WebKit), built in parts in a worktree (A tokens + fonts,
+  B / C the kit and its overlays, D the shell, E gallery + lints + tours, F desktop menu, G docs), reviewed by two
+  reviewers (the palette printing names without Txt, a toolbar stealing arrows from menus and fields, a ratchet missing
+  role-based controls, the timeline losing its track rows in the shorter centre pane…) and fixed with mutation-checked
+  tests. A scratch WebKit run of the kit e2e: 9/9 once macOS's Tab / radio / click-focus conventions are allowed for.
+  Files: ui `src/app/{tokens.ts,tokens.css,brand.ts,screens.css,GalleryScreen.tsx}`, `ui-kit/`, `shell/`,
+  `scripts/{gen-tokens,kit-ratchet,ratchet}.ts`, `fonts/`; desktop `src/{main,menu}.rs`; docs/reference/studio-ui.md.
+  No new dependency (the Geist files are assets, OFL). Cuts: BL-126, BL-127.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1652,6 +1683,22 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.9:
+- Colours live in `tokens.ts` only: run `pnpm -F @demo-studio/ui gen:tokens` after a change (a test compares the
+  committed `tokens.css`). New screens use the kit (`src/app/ui-kit/`) and `--ui-*` tokens; legacy screens sit in
+  `@layer legacy` (app.css) and the ratchet in `test/legacy-controls.json` may only go down (`pnpm -F @demo-studio/ui
+  ratchet` after removing legacy controls). The reference for L5.10 – L5.12 is docs/reference/studio-ui.md (C1 / C2
+  give layout only; the R4 boards the drawing).
+- The centre pane (`#main`) is the only scroller: IntersectionObservers and test scrolls target it; sizes derive from
+  `--main-h` (no `vh`, also inside min / max / clamp).
+- The app's name is `APP_NAME` in `brand.ts` (a lint refuses "Demo Studio" elsewhere in the app; server / player
+  comments and one server test title are left for L5.13).
+- Page commands come from `MENU_COMMANDS` (`commands.ts`), mirrored by the desktop menu table (parity test), dispatched
+  as `studio:command` (ids only, ignored while a modal dialog is open); in a browser tab only ⌘K (Ctrl+K off a Mac,
+  outside text fields) is bound.
+- WebKit: Tab skips buttons unless macOS keyboard navigation is on, radios do not wrap, a click does not focus a button
+  — the kit's focus return falls back to `#main`; Safari / the app are checked by hand (MACOS-CHECKLIST 14b).
+
 Notes from L5.2b:
 - The supervised pipe is one-way and line-framed (`"\n"+line+"\n"`, ≤ 8 KB): `pending` (coalesced 250 ms,
   latest-wins) and `job_end` (≤ 20 a minute); console output goes to stderr in supervised mode. The shell keeps the last

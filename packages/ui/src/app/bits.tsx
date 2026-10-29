@@ -23,6 +23,16 @@ export function Txt({ text, className, ...rest }: { text: string; className?: st
   );
 }
 
+/**
+ * L5.9 (review A-M1): what the kit shows in a slot it did not write — a label, a hint, a row, a status word. A string
+ * goes through `Txt` (whoever passed it: a project name and a Studio word look the same to the kit); an element (a
+ * caller's own `<Txt>`, an icon, a composition) and a number are shown as they are. A lint keeps every slot of the kit
+ * on it.
+ */
+export function shown(node: ReactNode): ReactNode {
+  return typeof node === 'string' ? <Txt text={node} /> : node;
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n.toLocaleString('en')} ${n === 1 ? one : many}`;
 }

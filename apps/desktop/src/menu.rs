@@ -2,11 +2,17 @@
 //! style switch.
 //!
 //! - `MENUS`: every item of the menu bar, in order. A `Cmd` is the shell's own command (id, label, accelerator,
-//!   enabled) handled in main.rs `on_menu_event`; a `Std` is a macOS standard item (Edit's undo / copy / paste…, which
-//!   reach the page's fields). The redesign's command palette maps its commands onto this table (DESIGN §4j). The shell
-//!   binds no Studio shortcut: ⌘R, ⇧⌘R, ⌘B, ⌘., ⌘S and ⌘Enter stay the page's (desktop-config.test.ts pins it).
-//! - `TITLE_BAR`: the standard macOS title bar today; `Overlay` lets the page draw under a transparent title bar with
-//!   the window buttons inset (the page must then provide the drag region and a left inset: DESIGN §4j).
+//!   enabled) handled in main.rs `on_menu_event`; a `Page` is one of the page's commands (L5.9: the View menu's
+//!   Command Palette ⌘K, the modes Script · Shoot · Edit · Review ⌘1 – ⌘4, the inspector ⌥⌘I), sent to the page as a
+//!   `studio:command` event by `page_command_js` — its id one of the page's MENU_COMMANDS (ui-kit/commands.ts; a static
+//!   test compares the two lists), always enabled (a command the page cannot run says so in its status bar); a `Std` is
+//!   a macOS standard item (Edit's undo / copy / paste…, which reach the page's fields). ⌘R, ⇧⌘R, ⌘B (Rehearse, Capture,
+//!   Render: L5.11), ⌘., ⌘S and ⌘Enter stay the page's (desktop-config.test.ts pins it).
+//! - `TITLE_BAR`: the standard macOS title bar (L5.9 shipped it: the overlay's drag band is BL-126); `Overlay` lets the
+//!   page draw under a transparent title bar with the window buttons inset. `SHELL_FLAG_JS`, a constant main-frame init
+//!   script, tells the page which one it is under (`window.__studioShell`): the page then keeps the buttons' room (80 px
+//!   for the overlay) and binds no shortcut of its own (the menu's accelerators send the commands: a key never acts
+//!   twice). Nothing goes from the page to the shell.
 
 use tauri::menu::{AboutMetadata, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, LogicalPosition, TitleBarStyle, WebviewWindowBuilder, Wry};
@@ -38,6 +44,8 @@ pub enum Std {
 pub enum Item {
     /// id, label, accelerator, enabled.
     Cmd { id: &'static str, label: &'static str, accelerator: Option<&'static str>, enabled: bool },
+    /// A page command: id (one of the page's MENU_COMMANDS), label, accelerator.
+    Page { id: &'static str, label: &'static str, accelerator: Option<&'static str> },
     Std(Std),
     Separator,
 }
@@ -49,7 +57,21 @@ pub const MENUS: &[(&str, &[Item])] = &[
     // ⌘Z ⌘C ⌘V ⌘X ⌘A in the page's fields. No Reload item (critique M1: WKWebView never asks before leaving unsaved
     // text; ⌘R stays free for the redesign's Rehearse).
     ("Edit", &[Item::Std(Std::Undo), Item::Std(Std::Redo), Item::Separator, Item::Std(Std::Cut), Item::Std(Std::Copy), Item::Std(Std::Paste), Item::Std(Std::SelectAll)]),
-    ("View", &[Item::Std(Std::FullScreen)]),
+    (
+        "View",
+        &[
+            Item::Page { id: "palette", label: "Command Palette…", accelerator: Some("CmdOrCtrl+K") },
+            Item::Separator,
+            Item::Page { id: "mode-script", label: "Script", accelerator: Some("CmdOrCtrl+1") },
+            Item::Page { id: "mode-shoot", label: "Shoot", accelerator: Some("CmdOrCtrl+2") },
+            Item::Page { id: "mode-edit", label: "Edit", accelerator: Some("CmdOrCtrl+3") },
+            Item::Page { id: "mode-review", label: "Review", accelerator: Some("CmdOrCtrl+4") },
+            Item::Separator,
+            Item::Page { id: "inspector", label: "Show or Hide Inspector", accelerator: Some("Alt+CmdOrCtrl+I") },
+            Item::Separator,
+            Item::Std(Std::FullScreen),
+        ],
+    ),
     // ⌘0 brings back a window closed with ⌘W (review B M3: the Dock icon is the only other way; ⌘Tab shows no window).
     ("Window", &[Item::Std(Std::Minimize), Item::Std(Std::Zoom), Item::Separator, Item::Cmd { id: SHOW_WINDOW, label: "Show Studio Window", accelerator: Some("CmdOrCtrl+0"), enabled: true }]),
 ];
@@ -62,6 +84,7 @@ pub fn build(app: &AppHandle, name: &str) -> tauri::Result<Menu<Wry>> {
             .map(|i| -> tauri::Result<Box<dyn IsMenuItem<Wry>>> {
                 Ok(match i {
                     Item::Cmd { id, label, accelerator, enabled } => Box::new(MenuItem::with_id(app, *id, *label, *enabled, *accelerator)?),
+                    Item::Page { id, label, accelerator } => Box::new(MenuItem::with_id(app, *id, *label, true, *accelerator)?),
                     Item::Separator => Box::new(PredefinedMenuItem::separator(app)?),
                     Item::Std(s) => Box::new(match s {
                         Std::About => PredefinedMenuItem::about(app, None, Some(AboutMetadata { name: Some(name.into()), version: Some(env!("CARGO_PKG_VERSION").into()), ..Default::default() }))?,
@@ -101,8 +124,21 @@ pub enum TitleBar {
     Overlay { buttons: (f64, f64) },
 }
 
-/// THE switch: the redesign sets `TitleBar::Overlay { buttons: (16.0, 20.0) }` (DESIGN §4j).
+/// THE switch. L5.9 keeps the standard bar: an overlay needs a native drag band whose WebKit edge cases were not
+/// proven (DESIGN §4j, BACKLOG BL-126); `TitleBar::Overlay { buttons: (16.0, 18.0) }` is the value that waits for it.
 pub const TITLE_BAR: TitleBar = TitleBar::Standard;
+
+/// The page's flag (main frame only, before the page's own scripts): which title bar it is under.
+pub const SHELL_FLAG_JS: &str = match TITLE_BAR {
+    TitleBar::Standard => "window.__studioShell = Object.freeze({ titleBar: 'standard' });",
+    TitleBar::Overlay { .. } => "window.__studioShell = Object.freeze({ titleBar: 'overlay' });",
+};
+
+/// The script that sends a page command, for a `Page` id of `MENUS` only (anything else: None).
+pub fn page_command_js(id: &str) -> Option<String> {
+    let known = MENUS.iter().flat_map(|(_, items)| items.iter()).any(|i| matches!(i, Item::Page { id: p, .. } if *p == id));
+    known.then(|| format!("window.dispatchEvent(new CustomEvent('studio:command', {{ detail: {{ id: {} }} }}))", desktop_core::json::quote(id)))
+}
 
 pub fn title_bar(b: WebviewWindowBuilder<'_, Wry, AppHandle>) -> WebviewWindowBuilder<'_, Wry, AppHandle> {
     match TITLE_BAR {

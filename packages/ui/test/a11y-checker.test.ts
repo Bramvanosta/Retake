@@ -175,6 +175,41 @@ describe('the checker (L4.9 part A)', () => {
     expect(of(r.findings, 'colour-only').map((f) => f.el)).toEqual(['span#lone']);
   });
 
+  it('⚑ L5.9 (critique H1): colour-only sees the kit\'s status tokens wherever they are declared — a dark default rule, a light @media block, a scope, a cascade layer — resolved on the element\'s own scope', async () => {
+    const TOKENS = "<style>:root,[data-appearance='dark']{--ui-fail:#ff7b72;--ui-ok:#4cd27a}@media (prefers-color-scheme: light){:root{--ui-fail:#d93a30;--ui-ok:#1a8d4c}}[data-appearance='light']{--ui-fail:#d93a30;--ui-ok:#1a8d4c}@layer legacy{:root{--ui-warn:#f2b84b}}</style>";
+    const dot = (id: string, token: string) => `<span id="${id}" style="display:inline-block;width:8px;height:8px;background:var(${token})"></span>`;
+    for (const scheme of ['dark', 'light'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      let r = await audit(`${TOKENS}<p>${dot('root-fail', '--ui-fail')}</p><div data-appearance="light"><p>${dot('scoped-fail', '--ui-fail')}</p></div><div data-appearance="dark"><p>${dot('dark-ok', '--ui-ok')}</p></div><p>${dot('layer-warn', '--ui-warn')}</p>`);
+      expect(of(r.findings, 'colour-only').map((f) => f.el), `${scheme}: ${formatFindings(r.findings)}`).toEqual(['span#root-fail', 'span#scoped-fail', 'span#dark-ok', 'span#layer-warn']);
+      expect(r.stats.statusTokens).toBeGreaterThanOrEqual(3);
+      // Review A-L7: an SVG mark drawn in currentColor (outside a control), and the recording / idle / waiting families,
+      // are watched too.
+      const svg = (id: string, token: string) => `<svg id="${id}" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" style="color:var(${token})"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>`;
+      const MORE = "<style>:root{--ui-recording:#3d2523;--ui-idle:#a3a9b4;--ui-waiting:#7a7f89}[data-appearance='light']{--ui-recording:#f2d4d1}</style>";
+      r = await audit(`${TOKENS}${MORE}<p>${svg('svg-fail', '--ui-fail')}</p><p>${dot('rec', '--ui-recording')}</p><p>${dot('idle', '--ui-idle')}</p><p>${dot('wait', '--ui-waiting')}</p><p><button type="button">${svg('btn-icon', '--ui-fail')} Delete</button></p><div data-appearance="light"><p>x</p></div>`);
+      expect(of(r.findings, 'colour-only').map((f) => f.el), `${scheme}: ${formatFindings(r.findings)}`).toEqual(['svg#svg-fail', 'span#rec', 'span#idle', 'span#wait']);
+      // A scope's own colours count among the watched (its recording tint differs from the root's in both schemes).
+      const withScope = r.stats.statusTokens;
+      r = await audit(`${TOKENS}${MORE}<p>x</p>`);
+      expect(withScope).toBeGreaterThan(r.stats.statusTokens);
+      r = await audit(`${TOKENS}<p>${svg('svg-ok', '--ui-ok')} Ready</p>`);
+      expect(of(r.findings, 'colour-only'), formatFindings(r.findings)).toEqual([]);
+      // The same marks beside a state word pass.
+      r = await audit(`${TOKENS}<p>${dot('a', '--ui-fail')} Failed</p><div data-appearance="light"><p>${dot('b', '--ui-fail')} Failed</p></div><div data-appearance="dark"><p>${dot('c', '--ui-ok')} Ready</p></div>`);
+      expect(of(r.findings, 'colour-only'), formatFindings(r.findings)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+  });
+
+  it('⚑ L5.9 (critique M1): reachable — the options of a listbox a focusable combobox controls with aria-activedescendant are reached (the palette); without it they are not', async () => {
+    const palette = (attrs: string) => `<label>Command <input role="combobox" aria-expanded="true" aria-controls="lb" ${attrs}></label><ul id="lb" role="listbox" aria-label="Commands"><li role="option" id="o1" aria-selected="true">One</li><li role="option" id="o2" aria-selected="false">Two</li></ul>`;
+    expect(of((await audit(palette('aria-activedescendant="o1"'))).findings, 'reachable')).toEqual([]);
+    expect(of((await audit(palette(''))).findings, 'reachable').map((f) => f.el)).toEqual(['li#o1', 'li#o2']);
+    expect(of((await audit(palette('aria-activedescendant="o1" tabindex="-1"'))).findings, 'reachable').map((f) => f.el)).toEqual(['input', 'li#o1', 'li#o2']);
+    expect(of((await audit(palette('aria-activedescendant="o1"').replace('aria-controls="lb"', 'aria-controls="other"'))).findings, 'reachable').map((f) => f.el)).toEqual(['li#o1', 'li#o2']);
+  });
+
   it('headings: one h1, no level skipped', async () => {
     let r = await audit('<h1 id="two">Again</h1>');
     expect(of(r.findings, 'headings').map((f) => f.detail)).toEqual(['2 level-1 headings (one expected)']);

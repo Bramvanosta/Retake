@@ -12,7 +12,8 @@ import { useEvents } from './events.js';
 import type { Loaded } from './api.js';
 import { Badge, EnvFlags, Loading, Notice, plural, RunState, Txt, When } from './bits.js';
 import { hrefTo } from './route.js';
-import type { ProjectList } from './Shell.js';
+import type { ProjectList } from './shell/AppShell.js';
+import { APP_NAME } from './brand.js';
 
 /** projects_overview's answer: per project, its environment flags and last run (or why it does not open). */
 interface Overview {
@@ -24,7 +25,7 @@ function LastRun({ extras }: { extras: CardExtras | undefined }) {
   if (!extras || extras.error) return null;
   const r = extras.last_run;
   if (!r) return <span className="muted">No run yet</span>;
-  if (r.newer) return <span className="muted">Last run written by a newer Demo Studio</span>;
+  if (r.newer) return <span className="muted">Last run written by a newer {APP_NAME}</span>;
   return (
     <span className="last-run">
       Last {r.mode === 'dry' ? 'dry run' : 'capture'}: <Txt text={r.scenario} /> <RunState status={r.status} /> <When iso={r.finished_at ?? r.started_at} />

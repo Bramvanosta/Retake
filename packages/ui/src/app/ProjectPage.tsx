@@ -12,6 +12,7 @@ import { useProjectEvents } from './events.js';
 import { Badge, EnvFlags, Loading, Notice, plural, RunState, Txt, When } from './bits.js';
 import { hrefTo } from './route.js';
 import { SessionsPanel } from './Sessions.js';
+import { APP_NAME } from './brand.js';
 
 const README_PREVIEW_LINES = 40;
 
@@ -83,7 +84,7 @@ function RecentRuns({ slug }: { slug: string }) {
         <li key={r.id}>
           {r.newer ? (
             <span className="muted">
-              <Txt className="mono" text={r.id} />: written by a newer Demo Studio
+              <Txt className="mono" text={r.id} />: written by a newer {APP_NAME}
             </span>
           ) : (
             <>

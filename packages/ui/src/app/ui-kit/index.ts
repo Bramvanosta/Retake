@@ -1,0 +1,27 @@
+/**
+ * L5.9: the Studio's design system (docs/reference/studio-ui.md, DESIGN §4k) — built in-house on React and the
+ * platform (native controls, `<dialog>`, `popover`): no component library. Screens use these (a source lint keeps new
+ * screens on the kit and lets the legacy count only go down); `kit.css` reads the `--ui-*` tokens of tokens.ts.
+ */
+export { Button, IconButton, Kbd, LinkButton } from './Button.js';
+export type { ButtonProps, ButtonSize, ButtonVariant, IconButtonProps } from './Button.js';
+export { Icon, ICON_NAMES } from './Icon.js';
+export type { IconName } from './Icon.js';
+export { Segmented, SegmentedLinks } from './Segmented.js';
+export type { SegmentLink, SegmentOption } from './Segmented.js';
+export { Switch } from './Switch.js';
+export { FieldRow, Select, TextArea, TextField, unsavedFor } from './fields.js';
+export type { FieldLayout, SelectOption } from './fields.js';
+export { MARK_STATES, Progress, StatusMark, Timecode, formatTimecode, spokenTimecode } from './marks.js';
+export type { MarkState } from './marks.js';
+export { Blocker, EmptyState, InspectorSection, SourceList, StatusBar, Toolbar } from './panes.js';
+export type { BlockerFix, SourceGroup, SourceItem } from './panes.js';
+export { FrameCard, PosterCard } from './cards.js';
+export { Menu } from './Menu.js';
+export type { MenuEntry, MenuItemDef } from './Menu.js';
+export { Sheet, defaultAction } from './Sheet.js';
+export type { SheetAction } from './Sheet.js';
+export { CommandPalette, filterCommands } from './CommandPalette.js';
+export type { Command } from './CommandPalette.js';
+export { COMMAND_EVENT, MENU_COMMANDS, isMenuCommand, modalOpen, studioShell } from './commands.js';
+export type { MenuCommand, StudioShellFlag } from './commands.js';

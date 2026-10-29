@@ -55,6 +55,7 @@ import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
 import { Picture } from './Thumb.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX } from './thumbs.js';
+import { APP_NAME } from './brand.js';
 
 const CARD_W = 320;
 const CARD_H = 180;
@@ -402,7 +403,7 @@ function CreateDialog({ slug, theme, taken, kind: firstKind, like, onClose }: { 
         Create a component with Claude
       </h2>
       <p className="small">
-        The Studio writes no code and calls no model: copy this prompt into Claude Code (with the Demo Studio plugin). The new component appears here when its folder is written.
+        The Studio writes no code and calls no model: copy this prompt into Claude Code (with the {APP_NAME} plugin). The new component appears here when its folder is written.
       </p>
       <fieldset className="chips">
         <legend className="label">Kind</legend>
@@ -677,7 +678,7 @@ function Facts({ d, item }: { d: LibraryComponentAnswer; item: LibraryItem }) {
       </dd>
       <dt>Kit</dt>
       <dd data-testid="lib-kit">
-        Kit API {d.kit.needs}: {d.kit.compatible ? `works with this Demo Studio (kit API ${d.kit.provided})` : `this Demo Studio provides kit API ${d.kit.provided} — it does not load`}
+        Kit API {d.kit.needs}: {d.kit.compatible ? `works with this ${APP_NAME} (kit API ${d.kit.provided})` : `this ${APP_NAME} provides kit API ${d.kit.provided} — it does not load`}
       </dd>
       {d.duration && (
         <>
@@ -904,7 +905,8 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
         (entries) => {
           for (const e of entries) callbacks.get(e.target)?.(e.isIntersecting);
         },
-        { rootMargin: '100px 0px' },
+        // L5.9: the shell's centre pane is the scroller (as Thumb.tsx).
+        { root: document.getElementById('main'), rootMargin: '100px 0px' },
       ));
     return {
       observe(el: Element, on: (v: boolean) => void) {

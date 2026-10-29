@@ -192,9 +192,12 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
             let (allowed, h) = (shell.allowed.clone(), app.clone());
             // No theme set: the window is the system's appearance (DarkAqua in Dark mode: alerts, the picker, menus)
             // and WebKit gives the page its `prefers-color-scheme`, but the standard title bar takes the colour of the
-            // page's top (WKWebView, macOS 26: review B M2) — light today, the Studio pins `color-scheme: light`. The
-            // title bar's style is menu::TITLE_BAR.
+            // page's top (WKWebView, macOS 26: review B M2) — since L5.9 the page follows the system (dark by default,
+            // its `color-scheme` declared) and its title bar zone is the same pane colour in both. The title bar's
+            // style is menu::TITLE_BAR; the main-frame init script tells the page which one it is under
+            // (menu::SHELL_FLAG_JS, a constant: no data from anywhere).
             let built = menu::title_bar(WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External(url)))
+                .initialization_script(menu::SHELL_FLAG_JS)
                 .title(&title)
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(900.0, 600.0)
@@ -544,7 +547,12 @@ fn main() {
         .on_menu_event(|app, event| match event.id().as_ref() {
             menu::OPEN_WORKSPACE => open_other(app),
             menu::SHOW_WINDOW => show_window(app),
-            _ => {}
+            // L5.9: a page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
+            id => {
+                if let (Some(js), Some(w)) = (menu::page_command_js(id), app.get_webview_window(WINDOW)) {
+                    let _ = w.eval(js);
+                }
+            }
         })
         .on_window_event(|window, event| {
             // Close / ⌘W hides: the page and its event stream stay; the Dock icon or ⌘0 shows it again.

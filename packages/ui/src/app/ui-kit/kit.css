@@ -1,0 +1,968 @@
+/*
+ * L5.9: the kit's look (docs/reference/studio-ui.md, DESIGN §4k). Rules for `.k-*` classes only, `--ui-*` tokens only
+ * (tokens.css; a lint fails a legacy token, a colour literal, a font size, line height, weight or radius that is not a
+ * token). Unlayered: it wins over app.css (the `legacy` layer) whatever the order, so a kit component looks the same in
+ * a legacy screen. Three type sizes (13 / 15 / 20), weights 400 and 600, a 2 px focus ring in --ui-ring everywhere.
+ */
+
+/* A scope (the gallery's columns, a legacy route kept light): its own surface and text. */
+.k-scope {
+  background: var(--ui-canvas);
+  color: var(--ui-text);
+}
+
+.k-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.k-mono {
+  font-family: var(--ui-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-icon {
+  flex: none;
+  width: var(--ui-icon);
+  height: var(--ui-icon);
+}
+
+.k-hint {
+  display: block;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-error {
+  display: block;
+  color: var(--ui-danger-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-error-word {
+  font-weight: var(--ui-weight-strong);
+}
+.k-why {
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+
+/* Buttons */
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-3);
+  height: var(--ui-control-h);
+  padding: 0 var(--ui-space-5);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.k-btn:hover {
+  background: var(--ui-raised-hi);
+  text-decoration: none;
+}
+.k-btn-sm {
+  height: var(--ui-control-sm);
+  padding: 0 var(--ui-space-4);
+}
+.k-btn-lg {
+  height: var(--ui-control-lg);
+  padding: 0 var(--ui-space-6);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.k-btn-primary,
+.k-btn-primary:hover {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.k-btn-ghost {
+  background: transparent;
+  color: var(--ui-text-2);
+}
+.k-btn-ghost:hover {
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+.k-btn-destructive,
+.k-btn-destructive:hover {
+  background: var(--ui-danger);
+  color: var(--ui-on-accent);
+}
+.k-btn-record,
+.k-btn-record:hover {
+  background: var(--ui-record-tint);
+  color: var(--ui-text);
+}
+.k-btn-record.is-recording {
+  background: var(--ui-recording);
+  color: var(--ui-text);
+}
+.k-record-mark {
+  color: var(--ui-record);
+}
+.k-btn:disabled,
+.k-btn:disabled:hover {
+  background: var(--ui-raised);
+  color: var(--ui-text-3);
+  cursor: default;
+}
+.k-btn-ghost:disabled,
+.k-btn-ghost:disabled:hover {
+  background: transparent;
+}
+.k-btn:disabled .k-record-mark {
+  color: var(--ui-text-3);
+}
+.k-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ui-track);
+  border-top-color: var(--ui-text);
+  border-radius: 50%;
+  animation: k-spin 0.9s linear infinite;
+}
+@keyframes k-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.k-iconbtn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--ui-control-h);
+  height: var(--ui-control-h);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-control);
+  background: transparent;
+  color: var(--ui-text-2);
+  cursor: pointer;
+}
+.k-iconbtn-sm {
+  width: var(--ui-control-sm);
+  height: var(--ui-control-sm);
+}
+.k-iconbtn:hover {
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+.k-iconbtn.is-pressed {
+  background: var(--ui-raised-hi);
+  color: var(--ui-text-strong);
+  box-shadow: inset 0 -2px 0 var(--ui-ring);
+}
+.k-iconbtn:disabled {
+  color: var(--ui-text-3);
+  background: transparent;
+  cursor: default;
+}
+
+.k-kbd-group {
+  display: inline-flex;
+  gap: var(--ui-space-1);
+}
+.k-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-kbd);
+  color: var(--ui-text-2);
+  font-family: var(--ui-mono);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-regular);
+}
+
+/* The focus ring: one look for every kit control. */
+.k-btn:focus-visible,
+.k-iconbtn:focus-visible,
+.k-input:focus-visible,
+.k-select-input:focus-visible,
+.k-seg-input:focus-visible,
+.k-seg-links .k-seg-item:focus-visible,
+.k-switch-input:focus-visible,
+.k-source-item:focus-visible,
+.k-card:focus-visible,
+.k-menu-item:focus-visible,
+.k-section-title:focus-visible,
+.k-palette-input:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-control);
+}
+
+/* Segmented control */
+.k-seg {
+  display: inline-flex;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  /* A sunken well (the canvas's R4 segmented control: the canvas tone in dark, a grey under the pane in light). */
+  border-radius: var(--ui-radius-seg);
+  background: var(--ui-well);
+  min-width: 0;
+}
+.k-seg-item {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  height: var(--ui-control-sm);
+  padding: 0 var(--ui-space-5);
+  border: 0;
+  border-radius: var(--ui-radius-segment);
+  background: transparent;
+  color: var(--ui-text-2);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-regular);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.k-seg-sm .k-seg-item {
+  height: 22px;
+  padding: 0 var(--ui-space-4);
+}
+.k-seg-item:hover {
+  color: var(--ui-text);
+  text-decoration: none;
+}
+.k-seg-item.is-current {
+  background: var(--ui-raised-hi);
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+  box-shadow: 0 1px 2px var(--ui-shadow);
+}
+.k-seg-item:disabled {
+  color: var(--ui-text-3);
+  cursor: default;
+}
+/* The radio covers its segment: one box takes the click, the focus ring and the label. */
+.k-seg-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  appearance: none;
+  border: 0;
+  border-radius: var(--ui-radius-segment);
+  background: transparent;
+  cursor: pointer;
+}
+.k-seg-input:disabled {
+  cursor: default;
+}
+.k-seg-item:has(.k-seg-input:disabled) {
+  color: var(--ui-text-3);
+}
+
+/* Switch */
+.k-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-6);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+}
+.k-switch-text {
+  display: grid;
+  gap: var(--ui-space-1);
+}
+.k-switch {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+}
+.k-switch-input {
+  display: block;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  appearance: none;
+  border: 0;
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-track);
+  cursor: pointer;
+}
+.k-switch-input:checked {
+  background: var(--ui-accent);
+}
+.k-switch-input:disabled {
+  background: var(--ui-raised);
+  cursor: default;
+}
+.k-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ui-knob);
+  pointer-events: none;
+  transition: transform 0.12s ease-out;
+}
+.k-switch-input:checked + .k-switch-knob {
+  transform: translateX(14px);
+}
+.k-switch-input:disabled + .k-switch-knob {
+  background: var(--ui-text-3);
+}
+
+/* Fields */
+.k-field {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.k-field-row {
+  grid-template-columns: var(--ui-label-w) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--ui-space-6);
+}
+.k-field-label {
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-regular);
+}
+.k-field-row > .k-field-label {
+  text-align: right;
+}
+.k-field-body {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.k-input {
+  width: 100%;
+  min-width: 0;
+  height: var(--ui-control-h);
+  padding: 0 var(--ui-space-4);
+  border: 1px solid var(--ui-field-line);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-field);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-input.k-mono {
+  font-family: var(--ui-mono);
+}
+.k-textarea {
+  height: auto;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  resize: vertical;
+}
+.k-input::placeholder {
+  color: var(--ui-text-3);
+  opacity: 1;
+}
+.k-input[aria-invalid='true'] {
+  border-color: var(--ui-fail);
+}
+.k-input:disabled,
+.k-input[readonly] {
+  background: var(--ui-pane);
+  color: var(--ui-text-2);
+}
+.k-select {
+  position: relative;
+  display: inline-grid;
+  min-width: 0;
+}
+.k-select-input {
+  width: 100%;
+  height: var(--ui-control-h);
+  padding: 0 var(--ui-space-9) 0 var(--ui-space-4);
+  border: 0;
+  border-radius: var(--ui-radius-control);
+  appearance: none;
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+}
+.k-select-input:disabled {
+  color: var(--ui-text-3);
+  cursor: default;
+}
+.k-select-chevron {
+  position: absolute;
+  right: var(--ui-space-4);
+  top: 50%;
+  margin-top: -8px;
+  color: var(--ui-text-2);
+  pointer-events: none;
+}
+
+/* Status marks: a shape and a word */
+.k-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  color: var(--ui-text-2);
+}
+.k-mark-shape {
+  flex: none;
+  display: inline-block;
+  width: var(--ui-mark);
+  height: var(--ui-mark);
+  border-radius: 50%;
+}
+.k-mark-ok {
+  background: var(--ui-ok);
+}
+.k-mark-recording {
+  background: var(--ui-record);
+}
+.k-mark-running {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ui-ring);
+  border-right-color: transparent;
+}
+.k-mark-idle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ui-idle);
+}
+.k-mark-waiting {
+  width: 10px;
+  height: 10px;
+  border: 2px dashed var(--ui-waiting);
+}
+.k-mark-warn {
+  border-radius: 0;
+  background: var(--ui-warn);
+  transform: rotate(45deg);
+}
+.k-mark-svg {
+  flex: none;
+}
+.k-mark-attention {
+  color: var(--ui-warn);
+}
+.k-mark-fail {
+  color: var(--ui-fail);
+}
+
+.k-timecode {
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-timecode-total {
+  color: var(--ui-text-3);
+}
+
+.k-progress {
+  display: grid;
+  gap: var(--ui-space-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-progress-value {
+  color: var(--ui-text-3);
+}
+.k-progress-track {
+  position: relative;
+  height: 4px;
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-track);
+  overflow: hidden;
+}
+.k-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-accent);
+}
+.k-progress-track.is-indeterminate .k-progress-fill {
+  width: 30%;
+  animation: k-slide 1.4s ease-in-out infinite;
+}
+@keyframes k-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-progress-track.is-indeterminate .k-progress-fill {
+    width: 100%;
+    animation: none;
+  }
+  .k-spinner {
+    animation: none;
+  }
+  .k-switch-knob {
+    transition: none;
+  }
+}
+
+/* Toolbar, status bar */
+.k-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.k-statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  min-width: 0;
+  height: var(--ui-statusbar-h);
+  padding: 0 var(--ui-space-5);
+  background: var(--ui-pane);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-statusbar-state,
+.k-statusbar-info {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-statusbar-info {
+  color: var(--ui-text-3);
+}
+.k-statusbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  margin-left: auto;
+}
+
+/* Source list (the browser) */
+.k-source {
+  display: grid;
+  gap: var(--ui-space-6);
+}
+.k-source-heading {
+  margin: 0 0 var(--ui-space-2);
+  padding: 0 var(--ui-space-4);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.k-source-items {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.k-source-depth-1 {
+  margin-top: var(--ui-space-1);
+  padding-left: var(--ui-space-5);
+}
+.k-source-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-height: 28px;
+  padding: var(--ui-space-1) var(--ui-space-4);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  text-decoration: none;
+}
+.k-source-item:hover {
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  text-decoration: none;
+}
+.k-source-item.is-current {
+  background: var(--ui-select);
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+}
+.k-source-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-source-flag,
+.k-source-count {
+  margin-left: auto;
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+}
+.k-source-item.is-current .k-source-flag,
+.k-source-item.is-current .k-source-count {
+  color: var(--ui-text-2);
+}
+
+/* Inspector sections */
+.k-section {
+  display: grid;
+  gap: var(--ui-space-5);
+  padding: var(--ui-space-6);
+  border-bottom: 1px solid var(--ui-hairline);
+}
+.k-section-title {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+  cursor: default;
+}
+summary.k-section-title {
+  cursor: pointer;
+}
+.k-section-body {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+/* Empty state */
+.k-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-10) var(--ui-space-8);
+  border: 1px dashed var(--ui-field-line);
+  border-radius: var(--ui-radius-card);
+  text-align: center;
+}
+.k-empty-title {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.k-empty-text {
+  max-width: 420px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+
+/* Blocker: one line */
+.k-blocker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-5);
+  min-width: 0;
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-pane);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-blocker-text {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.k-blocker-code {
+  max-width: 100%;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-kbd);
+  color: var(--ui-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cards */
+.k-card {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  padding: var(--ui-space-3);
+  border: 0;
+  border-radius: var(--ui-radius-card);
+  background: transparent;
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.k-card:hover {
+  background: var(--ui-pane);
+  text-decoration: none;
+}
+.k-card.is-selected {
+  background: var(--ui-select);
+  box-shadow: inset 0 0 0 2px var(--ui-ring);
+}
+.k-card-picture {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  aspect-ratio: 16 / 9;
+}
+.k-card-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.k-card-poster .k-card-title {
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.k-card-number {
+  position: absolute;
+  left: var(--ui-space-3);
+  top: var(--ui-space-3);
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-card-title {
+  font-weight: var(--ui-weight-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-card-meta {
+  color: var(--ui-text-3);
+}
+
+/* Menu (a popover in the top layer) */
+.k-menu {
+  position: fixed;
+  inset: auto;
+  min-width: 200px;
+  margin: 0;
+  padding: var(--ui-space-2);
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  box-shadow: 0 12px 32px var(--ui-shadow);
+}
+.k-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  width: 100%;
+  height: var(--ui-control-h);
+  padding: 0 var(--ui-space-4);
+  border: 0;
+  border-radius: var(--ui-radius-segment);
+  background: transparent;
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.k-menu-item:hover,
+.k-menu-item:focus-visible {
+  background: var(--ui-select);
+  color: var(--ui-text-strong);
+}
+.k-menu-item.is-danger {
+  color: var(--ui-danger-text);
+}
+.k-menu-item:disabled {
+  color: var(--ui-text-3);
+  background: transparent;
+  cursor: default;
+}
+.k-menu-label {
+  flex: 1;
+}
+.k-menu-sep {
+  height: 1px;
+  margin: var(--ui-space-2) var(--ui-space-3);
+  background: var(--ui-hairline);
+}
+
+/* Sheet: drops from under the title bar */
+.k-sheet {
+  width: min(var(--ui-overlay-w), calc(100% - 32px));
+  margin: var(--ui-titlebar-h) auto auto;
+  padding: var(--ui-space-8);
+  border: 1px solid var(--ui-hairline);
+  border-top: 0;
+  border-radius: 0 0 var(--ui-radius-overlay) var(--ui-radius-overlay);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  box-shadow: 0 16px 40px var(--ui-shadow);
+}
+.k-sheet::backdrop {
+  background: var(--ui-backdrop);
+}
+.k-sheet-title {
+  margin: 0 0 var(--ui-space-4);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.k-sheet-text {
+  color: var(--ui-text-2);
+}
+.k-sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-space-4);
+  margin-top: var(--ui-space-8);
+}
+
+/* Command palette */
+.k-palette {
+  width: min(var(--ui-overlay-w), calc(100% - 32px));
+  /* A modal dialog is fixed: its percentages are the window's (no vh in a height: the lint). */
+  max-height: min(70%, 520px);
+  margin: 12vh auto auto;
+  padding: 0;
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-overlay);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  box-shadow: 0 24px 60px var(--ui-shadow);
+  overflow: hidden;
+}
+.k-palette[open] {
+  display: flex;
+  flex-direction: column;
+}
+.k-palette::backdrop {
+  background: var(--ui-backdrop);
+}
+.k-palette-input {
+  width: 100%;
+  height: var(--ui-control-lg);
+  margin: 0;
+  padding: var(--ui-space-6) var(--ui-space-7);
+  box-sizing: content-box;
+  border: 0;
+  border-bottom: 1px solid var(--ui-hairline);
+  border-radius: 0;
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.k-palette-input:focus-visible {
+  outline-offset: -2px;
+  border-radius: var(--ui-radius-overlay) var(--ui-radius-overlay) 0 0;
+}
+.k-palette-input::placeholder {
+  color: var(--ui-text-3);
+  opacity: 1;
+}
+.k-palette-list {
+  overflow-y: auto;
+  padding: var(--ui-space-3);
+}
+.k-palette-heading {
+  padding: var(--ui-space-4) var(--ui-space-4) var(--ui-space-2);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.k-palette-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-5);
+  min-height: 34px;
+  padding: 0 var(--ui-space-4);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+}
+.k-palette-option.is-active {
+  background: var(--ui-select);
+  color: var(--ui-text-strong);
+  box-shadow: inset 3px 0 0 var(--ui-ring);
+}
+.k-palette-label {
+  flex: 1;
+  min-width: 0;
+}
+.k-palette-hint {
+  color: var(--ui-text-3);
+}
+.k-palette-option.is-active .k-palette-hint {
+  color: var(--ui-text-2);
+}
+.k-palette-none {
+  margin: 0;
+  padding: 0 var(--ui-space-7);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+/* Empty, it stays in the accessibility tree (a live region that leaves it drops its next words: review A-L5), out of sight. */
+.k-palette-none:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

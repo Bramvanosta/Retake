@@ -8,16 +8,22 @@
  * that does not parse; the run preflight; a failed dry run; the capture's sessions confirmation (a native modal dialog,
  * walked inside: focus moves in, Escape closes it, focus returns); blocks of a take with its inspector; the timeline with a segment selected;
  * Comments (a list, a thread with Claude's proposal and its diff, none yet); the timeline previewing the proposal
- * (switches greyed). Each must have no finding (the report printed otherwise). No CSP violation, no console error.
+ * (switches greyed); L5.9 (review A-L2): the steps while a write is in flight (held, audited busy). Each must have no
+ * finding (the report printed otherwise). No CSP violation, no console error.
  * Part 2 (library, themes, Record, the keyboard path) is studio-e2e-a11y-keyboard.test.ts.
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves full-page screenshots of every state at both widths.
+ * L5.9: every state in dark (the default, following the system) at 1280 and 1440, and in light at 1280; ⚑ the UI gallery
+ * (every component of the design system, both appearances side by side) in dark and light at both widths, and its
+ * sheet (a modal alertdialog walked inside: focus in, Escape, focus back), menu (a popover: items named and reached)
+ * and command palette (a modal dialog walked inside; its options reached through the combobox) open in each scope.
+ * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots of every state (the viewport: the shell's panes scroll themselves).
  */
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
+import type { Route } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hasTool } from '../../editor/test/render-helpers.js';
 import { dialogCheck } from './a11y.js';
-import { N, POLL, RUN, THREAD, go, startTour, station } from './a11y-tour.js';
+import { N, POLL, RUN, THREAD, WIDTHS, go, startTour, station } from './a11y-tour.js';
 import type { Tour } from './a11y-tour.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -50,6 +56,50 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       await page.getByTestId('conflict').waitFor(POLL);
     });
     expect(r.findings, r.report).toEqual([]);
+  }, 180_000);
+
+  it('⚑ L5.9 (review A-L2): the steps while a write is in flight — the text keeps its contrast (a dashed edge, no fade)', async () => {
+    const { page } = t;
+    // The write is held until the audits are done (then it goes through: the step moves back on the next station's reload).
+    await go(page, at(`/p/${N}/s/quote`), '[data-testid="step"]');
+    // A step's words without its number (the numbers follow the order).
+    const unnumbered = (text: string) => text.split('\n').filter((l) => !/^\d+$/.test(l.trim())).join('|');
+    const before = (await page.locator('[data-testid="step"]').allInnerTexts()).map(unnumbered);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((r) => (release = r));
+    let passed: Promise<void> = Promise.resolve();
+    const hold = (route: Route) => {
+      passed = held.then(() => route.continue());
+      return passed;
+    };
+    await page.route('**/v1/call/scenario_edit', hold);
+    try {
+      const r = await station(
+        t,
+        'blocks-in-flight',
+        async () => {
+          await go(page, at(`/p/${N}/s/quote`), '[data-testid="step"]');
+          await page.locator('[data-testid="step"]').nth(1).click();
+          await page.getByTestId('inspector').waitFor(POLL);
+          await page.keyboard.press('Alt+ArrowDown');
+          await page.locator('[data-testid="blocks"][aria-busy="true"]').waitFor(POLL);
+        },
+        // Every control is off while the write is in flight (that is the state): their texts are exempt.
+        { busy: '[data-testid="blocks"]', walk: false, exemptMax: 40 },
+      );
+      expect(r.findings, r.report).toEqual([]);
+      expect(await page.locator('[data-testid="step"]').first().evaluate((el) => [getComputedStyle(el).borderTopStyle, getComputedStyle(el.closest('.steps')!).opacity])).toEqual(['dashed', '1']);
+    } finally {
+      release();
+      await passed;
+      await page.unroute('**/v1/call/scenario_edit', hold);
+    }
+    // The step moved; moved back where it was (the next stations read the scenario as written).
+    const order = async () => (await page.locator('[data-testid="step"]').allInnerTexts()).map(unnumbered);
+    await expect.poll(async () => (await order())[2] === before[1], POLL).toBe(true);
+    await expect.poll(() => page.locator('[data-testid="blocks"]').getAttribute('aria-busy'), POLL).toBe('false');
+    await page.keyboard.press('Alt+ArrowUp');
+    await expect.poll(order, POLL).toEqual(before);
   }, 180_000);
 
   it('blocks with a step selected, YAML, a YAML file that does not parse', async () => {
@@ -126,4 +176,44 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);
     expect(t.consoleErrors).toEqual([]);
   }, 180_000);
+
+  it('⚑ L5.9: the UI gallery in dark and light at both widths; its sheet, menu and palette open in each scope', async () => {
+    const { page } = t;
+    const both = [
+      { scheme: 'dark' as const, widths: WIDTHS },
+      { scheme: 'light' as const, widths: WIDTHS },
+    ];
+    let r = await station(t, 'gallery', () => go(page, at('/ui'), '[data-testid="gallery"]'), { schemes: both, exemptMax: 24 });
+    expect(r.findings, r.report).toEqual([]);
+    expect(r.result.audits[1280].stats.texts).toBeGreaterThan(150);
+    expect(r.result.walk!.stops).toBeGreaterThan(80);
+    for (const scope of ['dark', 'light'] as const) {
+      const col = page.getByTestId(`scope-${scope}`);
+      r = await station(t, `gallery-sheet-${scope}`, async () => {
+        await col.getByRole('button', { name: 'Discard the take…' }).click();
+        await page.locator('dialog.k-sheet[open]').waitFor(POLL);
+      }, { schemes: both, exemptMax: 24 });
+      expect(r.findings, r.report).toEqual([]);
+      expect(r.result.walk!.stops).toBe(2);
+      await page.keyboard.press('Escape');
+      await page.locator('dialog.k-sheet[open]').waitFor({ state: 'detached' });
+      expect(await dialogCheck(page, col.getByRole('button', { name: 'Discard the take…' }), () => page.keyboard.press('Enter'))).toEqual([]);
+      r = await station(t, `gallery-menu-${scope}`, async () => {
+        await col.getByRole('button', { name: 'Take', exact: true }).click();
+        await col.getByRole('menuitem', { name: 'Duplicate' }).waitFor(POLL);
+      }, { schemes: both, walk: false, exemptMax: 24 });
+      expect(r.findings, r.report).toEqual([]);
+      await page.keyboard.press('Escape');
+      r = await station(t, `gallery-palette-${scope}`, async () => {
+        await col.getByRole('button', { name: 'Open the palette' }).click();
+        await page.locator('dialog.k-palette[open]').waitFor(POLL);
+      }, { schemes: both, exemptMax: 24 });
+      expect(r.findings, r.report).toEqual([]);
+      expect(r.result.walk!.stops).toBe(1);
+      await page.keyboard.press('Escape');
+      await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
+    }
+    expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);
+    expect(t.consoleErrors).toEqual([]);
+  }, 240_000);
 });

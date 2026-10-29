@@ -341,16 +341,17 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     }
     console.log(`viewer latency (render_frame → frame shown), 4K encode ${encodeMs} ms:\n  ${lines.join('\n  ')}`);
 
-    // The sidebar is sticky: in a real viewport scroll of a tall page it stays at the top of the viewport (a full-page
-    // screenshot draws it where the scroll left it — an artifact of the capture, not of the page).
+    // L5.9: the shell is a fixed window of panes — the centre pane scrolls a tall screen, the page itself never does, and
+    // the browser stays where it is, under the title bar (a full-page screenshot shows the viewport: the panes scroll).
     await page.goto(`${studio.url}#/p/${P}/s/${S}/comments/${ids.thread}`);
     await page.getByTestId('thread').waitFor(POLL);
     await page.getByTestId('filter-all').check();
-    const tall = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    const tall = await page.evaluate(() => { const m = document.getElementById('main')!; return m.scrollHeight - m.clientHeight; });
     expect(tall).toBeGreaterThan(200);
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect.poll(() => page.evaluate(() => window.scrollY), POLL).toBeGreaterThan(200);
-    expect(Math.abs(await page.locator('.sidebar').evaluate((el) => el.getBoundingClientRect().top))).toBeLessThan(1);
+    await page.evaluate(() => { const m = document.getElementById('main')!; m.scrollTop = m.scrollHeight; });
+    await expect.poll(() => page.evaluate(() => document.getElementById('main')!.scrollTop), POLL).toBeGreaterThan(200);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(Math.abs((await page.locator('.sidebar').evaluate((el) => el.getBoundingClientRect().top)) - 48)).toBeLessThan(1);
     await shot('8-scrolled');
 
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);

@@ -3344,6 +3344,24 @@ skill triggers, and that no real brand or person is named — is the live check 
 the same engine and the same tools Claude uses over MCP, through the engine's local HTTP API, and needs nothing else
 running: the MCP server keeps working without it.
 
+- **The window (L5.9).** A fixed window of panes: the title bar (the open project › scenario, and the pipeline
+  *Script · Shoot · Edit · Review* as the way between a scenario's screens — its blocks, its Run screen, its timeline,
+  its frame comments), the browser on the left (the projects and the open one's pages; the workspace, the version and
+  the worker at its foot), the screen in the centre (it scrolls; the bars stay), an inspector on the right where a
+  screen has one, and the status bar (the connection, *live updates*, the worker, what a command answered). **Dark by
+  default, following your system's appearance** (System Settings › Appearance: Light gives the light one, at once).
+  **⌘K** opens the command palette (on a Mac; Ctrl+K elsewhere, outside a text field — on a Mac Ctrl+K stays a field's
+  "delete to the end of the line"): go to a project, a page, a mode, the UI gallery. The *UI gallery* (the
+  browser's foot, or ⌘K) shows every component of the Studio's design system in both appearances
+  ([docs/reference/studio-ui.md](docs/reference/studio-ui.md)). The screens move onto that design one by one
+  (L5.10 – L5.12); until then each keeps its content inside the new window.
+- **Fonts.** The Studio bundles the Geist and Geist Mono variable fonts (SIL Open Font License 1.1: the licence is
+  `packages/ui/fonts/LICENSE.txt`, beside the files) and serves them itself — no font is fetched from the internet.
+  After changing a colour in `packages/ui/src/app/tokens.ts`, `pnpm -F @demo-studio/ui gen:tokens` writes
+  `tokens.css` again (a test fails while it is stale). A screen moved onto the design system lowers its row of
+  `packages/ui/test/legacy-controls.json` with `pnpm -F @demo-studio/ui ratchet` (the count of controls, roles, classes
+  and tokens it still draws by hand; a row only goes down).
+
 - **Projects.** Every project of the workspace: its scenario count, its environments with *production*, *read-only*
   and *sandbox* badges, its last run; a project whose `project.yaml` does not load is listed with its first problem. A
   project shows its README, environments (pages, the URLs the video shows, personas), scenarios, recent runs and
@@ -3357,7 +3375,7 @@ running: the MCP server keeps working without it.
 - **Live updates.** A change on disk — a README edited in your editor, a run Claude started, a new project — shows in
   every open Studio tab within about a second (the server polls the workspace while a tab is open, never otherwise).
   The browser keeps one update stream to the server whatever the number of tabs (the others hear from it); the status
-  line at the bottom of the sidebar says *live updates*, or *updates every 3 s* when it falls back to polling.
+  line in the status bar says *live updates*, or *updates every 3 s* when it falls back to polling.
 - **README editor.** Plain text (no Markdown preview), saved with Save or Cmd/Ctrl+S as an atomic write of
   `README.md`. If the file changes on disk while it is open (your editor, a terminal, Claude: the update stream says
   so), the editor loads the new
@@ -3717,7 +3735,7 @@ running: the MCP server keeps working without it.
   node load code from the workspace (`NODE_OPTIONS` naming a file, `NODE_PATH` / `DYLD_*` / `LD_*` entries inside it),
   and with `DEMO_STUDIO_HOME` kept (your signed-in profiles). Secrets that an automated sign-in reads with `{{env:…}}`
   come from that environment, as for `studio worker` typed in the same terminal. Claude's MCP server starts the worker
-  with the same clean environment, so whoever starts it — Claude or the Studio — it never carries more: the sidebar,
+  with the same clean environment, so whoever starts it — Claude or the Studio — it never carries more: the browser's foot,
   `studio jobs` and `studio doctor` say who started it (*worker running (pid 4242, started by the Studio)*). `studio ui` itself
   runs with the same cleaned `PATH`, like `studio mcp`.
 - **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
@@ -3803,6 +3821,10 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   the current folder's `studio.yaml`, else a folder picker; File › Open Workspace… (⌘O) switches (the server of the
   first one stops before the next starts). A folder that is not a workspace changes nothing, and if the new one cannot
   start, the previous one opens again.
+- **The menu bar (L5.9).** View › Command Palette… (⌘K), Script ⌘1, Shoot ⌘2, Edit ⌘3, Review ⌘4 (the scenario in
+  context; with none, the status bar says so), Show or Hide Inspector (⌥⌘I), Enter Full Screen. The window follows the
+  system's appearance (dark or light) with the Studio. ⌘R, ⇧⌘R and ⌘B (Rehearse, Capture, Render) arrive with the Shoot
+  screens (L5.11). The title bar is the standard macOS one for now (an integrated one: BACKLOG BL-126).
 - **One server per workspace, as `studio ui`.** When no server serves the workspace, the app's server is its own:
   Quit (⌘Q, or SIGTERM / Ctrl-C under `pnpm desktop:dev`) stops it, and if the app crashes the server sees its pipe
   close and stops too — no server is left holding `ui.json`. When one already serves it (a terminal's `studio ui`),

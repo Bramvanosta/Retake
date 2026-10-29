@@ -1,0 +1,210 @@
+/**
+ * L5.9: the panes' pieces — `Toolbar` (one tab stop, the arrows / Home / End rove across its controls — never into a
+ * popover or a menu, and never taking the keys a menu, a radio group or a field inside it handles: review A-M2), `StatusBar` (the
+ * state on the left, information, the actions on the right; a labelled region), `SourceList` (the browser: a `nav` of
+ * headed groups of links, the current one `aria-current="page"` with the selection fill and weight 600, nested items,
+ * a count or a flag in words), `InspectorSection` (a titled section, collapsible as a native `<details>`),
+ * `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
+ * polite "Copied").
+ */
+import { useId, useLayoutEffect, useRef, useState } from 'react';
+import type { FocusEvent, KeyboardEvent, ReactNode } from 'react';
+import { hrefTo } from '../route.js';
+import type { Route } from '../route.js';
+import { Txt, shown } from '../bits.js';
+import { Button } from './Button.js';
+import { StatusMark } from './marks.js';
+import type { MarkState } from './marks.js';
+
+const ROVING = 'button:not(:disabled), a[href], select:not(:disabled), input:not(:disabled), textarea:not(:disabled)';
+/** Where a control is not one of the toolbar's stops: a popover (a menu's items, open or not), a menu, hidden content. */
+const NOT_A_STOP = '[popover], [role="menu"], [hidden], dialog, details:not([open]) > :not(summary)';
+/** Fields that keep their own arrows (and Home / End): every text-entry input, a slider, a select, a text area. */
+const OWN_KEYS = 'select, textarea, [contenteditable=""], [contenteditable="true"], input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"])';
+
+/** The toolbar's stops in order: its visible controls outside popovers and menus; of a radio group, the checked radio (else its first). */
+function stops(bar: HTMLElement): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const groups = new Set<string>();
+  for (const el of bar.querySelectorAll<HTMLElement>(ROVING)) {
+    const off = el.closest(NOT_A_STOP);
+    if (off && bar.contains(off)) continue;
+    if (el instanceof HTMLInputElement && el.type === 'radio') {
+      if (groups.has(el.name)) continue;
+      groups.add(el.name);
+      const peers = [...bar.querySelectorAll<HTMLInputElement>('input[type="radio"]:not(:disabled)')].filter((r) => r.name === el.name);
+      out.push(peers.find((r) => r.checked) ?? peers[0]);
+      continue;
+    }
+    out.push(el);
+  }
+  return out;
+}
+
+export function Toolbar({ label, children }: { label: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const current = useRef(0);
+  const items = () => (ref.current ? stops(ref.current) : []);
+  const sync = () => {
+    const all = items();
+    if (current.current >= all.length) current.current = Math.max(0, all.length - 1);
+    // A radio that is not its group's stop is reached by the group's own arrows, never by Tab.
+    for (const r of ref.current?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? []) if (!all.includes(r)) r.tabIndex = -1;
+    all.forEach((el, i) => (el.tabIndex = i === current.current ? 0 : -1));
+  };
+  useLayoutEffect(sync);
+  const onFocus = (e: FocusEvent<HTMLDivElement>) => {
+    const i = items().indexOf(e.target as HTMLElement);
+    if (i >= 0 && i !== current.current) {
+      current.current = i;
+      sync();
+    }
+  };
+  const rove = (e: KeyboardEvent<HTMLDivElement>) => {
+    // A control inside handled the key (a menu's trigger or items, a field): theirs (review A-M2).
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target as HTMLElement;
+    // A field keeps its arrows, Home and End; a radio group keeps its arrows (they move its choice).
+    if (t.matches(OWN_KEYS)) return;
+    const arrow = e.key.startsWith('Arrow');
+    if (arrow && t instanceof HTMLInputElement && t.type === 'radio') return;
+    const all = items();
+    const i = all.indexOf(t);
+    if (i < 0) return;
+    const next = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % all.length : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + all.length) % all.length : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    current.current = next;
+    sync();
+    all[next].focus();
+  };
+  return (
+    <div role="toolbar" aria-label={label} className="k-toolbar" ref={ref} onKeyDown={rove} onFocus={onFocus}>
+      {shown(children)}
+    </div>
+  );
+}
+
+export function StatusBar({ state, info, actions, label = 'Status' }: { state: ReactNode; info?: ReactNode; actions?: ReactNode; label?: string }) {
+  return (
+    <div className="k-statusbar" role="region" aria-label={label}>
+      <div className="k-statusbar-state">{shown(state)}</div>
+      {info && <div className="k-statusbar-info">{shown(info)}</div>}
+      <div className="k-statusbar-actions">{shown(actions)}</div>
+    </div>
+  );
+}
+
+export interface SourceItem {
+  key: string;
+  to: Route;
+  label: ReactNode;
+  current: boolean;
+  /** A count (tabular figures) or a flag in words ("unsaved", "does not load"). */
+  count?: number;
+  flag?: ReactNode;
+  children?: SourceItem[];
+  /** The nested list's name ("Projects of the workspace"). */
+  childrenLabel?: string;
+  /** A class kept for older tests and styles (L5.9: the browser keeps `nav-link`). */
+  className?: string;
+}
+
+export interface SourceGroup {
+  key: string;
+  heading?: ReactNode;
+  items: SourceItem[];
+  label?: string;
+}
+
+function SourceItems({ items, label, depth }: { items: SourceItem[]; label?: string; depth: number }) {
+  return (
+    <ul className={`k-source-items k-source-depth-${depth}`} aria-label={label}>
+      {items.map((i) => (
+        <li key={i.key}>
+          <a href={hrefTo(i.to)} className={`k-source-item${i.current ? ' is-current' : ''}${i.className ? ` ${i.className}` : ''}`} aria-current={i.current ? 'page' : undefined}>
+            <span className="k-source-label">{shown(i.label)}</span>
+            {i.flag && <span className="k-source-flag">{shown(i.flag)}</span>}
+            {i.count !== undefined && <span className="k-source-count k-mono">{shown(i.count)}</span>}
+          </a>
+          {i.children && i.children.length > 0 && <SourceItems items={i.children} depth={depth + 1} {...(i.childrenLabel ? { label: i.childrenLabel } : {})} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SourceList({ label, groups }: { label: string; groups: SourceGroup[] }) {
+  return (
+    <nav className="k-source" aria-label={label}>
+      {groups.map((g) => (
+        <div key={g.key} className="k-source-group">
+          {g.heading && <h2 className="k-source-heading">{shown(g.heading)}</h2>}
+          <SourceItems items={g.items} depth={0} {...(g.label ? { label: g.label } : {})} />
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+export function InspectorSection({ title, children, collapsible, defaultOpen = true }: { title: ReactNode; children: ReactNode; collapsible?: boolean; defaultOpen?: boolean }) {
+  const id = useId();
+  if (collapsible) {
+    return (
+      <details className="k-section" open={defaultOpen}>
+        <summary className="k-section-title">{shown(title)}</summary>
+        <div className="k-section-body">{shown(children)}</div>
+      </details>
+    );
+  }
+  return (
+    <section className="k-section" aria-labelledby={id}>
+      <h3 id={id} className="k-section-title">
+        {shown(title)}
+      </h3>
+      <div className="k-section-body">{shown(children)}</div>
+    </section>
+  );
+}
+
+export function EmptyState({ title, children, actions, level = 2 }: { title: ReactNode; children?: ReactNode; actions?: ReactNode; level?: 2 | 3 }) {
+  const id = useId();
+  const H = level === 2 ? 'h2' : 'h3';
+  return (
+    <section className="k-empty" aria-labelledby={id}>
+      <H id={id} className="k-empty-title">
+        {shown(title)}
+      </H>
+      {children && <div className="k-empty-text">{shown(children)}</div>}
+      {actions && <div className="k-empty-action">{shown(actions)}</div>}
+    </section>
+  );
+}
+
+export type BlockerFix = { label: string; onClick: () => void } | { copy: string; label?: string };
+
+/** One line: what blocks (a state word and a sentence), and the one action that unblocks it. */
+export function Blocker({ state = 'attention', word, children, fix }: { state?: MarkState; word: string; children: ReactNode; fix: BlockerFix }) {
+  const [copied, setCopied] = useState(false);
+  const run = () => {
+    if ('copy' in fix) {
+      void navigator.clipboard?.writeText(fix.copy).then(
+        () => setCopied(true),
+        () => setCopied(false),
+      );
+    } else fix.onClick();
+  };
+  return (
+    <div className="k-blocker">
+      <StatusMark state={state} word={word} />
+      <span className="k-blocker-text">{shown(children)}</span>
+      {'copy' in fix && <Txt className="k-blocker-code k-mono" text={fix.copy} />}
+      <Button size="sm" icon={'copy' in fix ? 'copy' : undefined} onClick={run}>
+        {shown('copy' in fix ? (fix.label ?? 'Copy command') : fix.label)}
+      </Button>
+      <span className="k-sr" role="status">
+        {copied ? 'Copied' : ''}
+      </span>
+    </div>
+  );
+}

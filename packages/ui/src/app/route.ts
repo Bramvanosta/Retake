@@ -10,7 +10,7 @@
  * (L4.6 part D2: planned in memory, nothing written), `#/p/<slug>/library[/<theme>[/<namespace>/<name>]]` the component
  * library in the project's theme or another, and one component's detail (L4.7 part D1), `#/p/<slug>/themes[/<theme>]` the
  * theme list and one theme's editor (L4.7 part D2), `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
- * recent recordings, or one recording, live then reviewed (L4.8).
+ * recent recordings, or one recording, live then reviewed (L4.8). `#/ui` the design system's gallery (L5.9).
  * A slug, a scenario name, a run id, a comment or render id is whatever
  * the address bar holds, percent-decoded and capped — the server checks it (`project_get` / `scenario_blocks` refuse anything but a slug); here it is only ever a text node or an
  * argument. `hrefTo` is the only way the app builds an `href` (the source lint test enforces it).
@@ -29,6 +29,7 @@ export type Route =
   | { name: 'library'; slug: string; theme?: string; component?: string }
   | { name: 'themes'; slug: string; theme?: string }
   | { name: 'record'; slug: string; rec?: string }
+  | { name: 'ui' }
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
@@ -47,6 +48,7 @@ function decode(s: string): string | null {
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '');
   if (path === '' || path === '/') return { name: 'projects' };
+  if (path === '/ui' || path === '/ui/') return { name: 'ui' };
   const m = /^\/p\/([^/]+)(\/readme)?\/?$/.exec(path);
   const slug = m ? decode(m[1]) : null;
   if (m && slug !== null) return m[2] ? { name: 'readme', slug } : { name: 'project', slug };
@@ -113,6 +115,8 @@ export function hrefTo(r: Route): string {
     case 'projects':
     case 'not-found':
       return '#/';
+    case 'ui':
+      return '#/ui';
     case 'project':
       return `#/p/${encodeURIComponent(r.slug)}`;
     case 'readme':

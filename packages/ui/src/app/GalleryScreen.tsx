@@ -1,0 +1,355 @@
+/**
+ * L5.9: the UI gallery (`#/ui`) — every component of the design system (ui-kit/) in its states, in both appearances side
+ * by side (`data-appearance` scopes: the top layer of a sheet, a menu or the palette opened in a column inherits its
+ * tokens), plus the shell's own panes filled (the inspector and the status bar's actions). Built from the kit only (a
+ * lint); the accessibility checker tours it (studio-e2e-a11y.test.ts) and the kit's behaviours are tested on it
+ * (studio-e2e-kit.test.ts). Its text fields are no one's work: `unsaved={null}`. A second toolbar holds a menu, a
+ * segmented control and a URL field (review A-M2: the arrows stay theirs).
+ */
+import { useState } from 'react';
+import type { ReactNode } from 'react';
+import type { Appearance } from './tokens.js';
+import { POSTER_DATA_MAX } from './thumbs.js';
+import { Picture } from './Thumb.js';
+import { ShellSlot } from './shell/slots.js';
+import {
+  Blocker,
+  Button,
+  CommandPalette,
+  EmptyState,
+  FieldRow,
+  FrameCard,
+  IconButton,
+  InspectorSection,
+  Kbd,
+  LinkButton,
+  MARK_STATES,
+  Menu,
+  PosterCard,
+  Progress,
+  Segmented,
+  SegmentedLinks,
+  Select,
+  Sheet,
+  SourceList,
+  StatusBar,
+  StatusMark,
+  Switch,
+  TextArea,
+  TextField,
+  Timecode,
+  Toolbar,
+} from './ui-kit/index.js';
+import type { ButtonVariant, Command, MarkState } from './ui-kit/index.js';
+
+/** A 32 × 18 grey picture (PNG): the cards' frame. */
+const FRAME_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAACAAAAASCAIAAAC1qksFAAABtklEQVR42q3TVW4cURSE4bMcx05MM2YaZmZmZmaP2U7MJK839dRq9b2PdwOfSr9UtLKp+bWlXVPp/+wYN/bMWwdW1ZF958S5d+be13gOdb5jQ+DUFNJYIjpbzOBImFwpsztt9Wbt/rwzWHSHy95o1R+vB5PNUKoVyXRiuV6iMEiVRpnKJFebEfTVbd1vtWF917S5b9k+tKmPHbunLugHWu+R3n9iDJ6Zw1prVG+PG51J6BZPxubLOQIFV6jkiVR8sVog0YAeTrej2W48308Wh+nyOFud5utzwnauju1cHdu5OrazerF5TijD1VGGq6MMV0cZVi+3Lwi6Ir1URpFeKqNIL5WRpy80FqXWstK5JGzn6tjO1bGdq2M7q9d614QyXB1luDrKcHWUYfXG4JagK9JLZRTppTKK9FIZefpq96rev2kO7wjbuTq2c3Vs5+rYzurt8QOJOhTKsHp3+o9EHQq6PH1rdN+Z/O3NHknUobCd1QeLZxJ1KJRh9dHylUQdCro8fX/+NDx/GV+8kahDYTurT68+SNShUIbV5zdfJOpQ0OXpJ5fvs+vPxe03iToUtrP68v7nP8P2dLcYjGN9AAAAAElFTkSuQmCC';
+
+const WORDS: Record<MarkState, string> = { ok: 'Ready', running: 'Running', waiting: 'Waiting', idle: 'Idle', warn: 'Warning', attention: 'Blocked', fail: 'Failed', recording: 'Recording' };
+const VARIANTS: Array<[ButtonVariant, string]> = [
+  ['primary', 'Render'],
+  ['secondary', 'Rehearse'],
+  ['ghost', 'Duplicate'],
+  ['destructive', 'Delete take'],
+];
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="gl-section">
+      <h3 className="gl-title">{title}</h3>
+      <div className="gl-row">{children}</div>
+    </section>
+  );
+}
+
+function Frame() {
+  return <Picture format="png" base64={FRAME_PNG} max={POSTER_DATA_MAX} width={248} height={140} alt="" />;
+}
+
+function Column({ appearance }: { appearance: Appearance }) {
+  const name = appearance === 'dark' ? 'Dark' : 'Light';
+  const [seg, setSeg] = useState<'blocks' | 'yaml' | 'both'>('blocks');
+  const [on, setOn] = useState(true);
+  const [off, setOff] = useState(false);
+  const [title, setTitle] = useState('Checkout in three steps');
+  const [note, setNote] = useState('');
+  const [take, setTake] = useState('2');
+  const [card, setCard] = useState(1);
+  const [pressed, setPressed] = useState(true);
+  const [sheet, setSheet] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [answer, setAnswer] = useState('none yet');
+  const [fit, setFit] = useState<'fit' | 'fill'>('fit');
+  const [link, setLink] = useState('https://example.com/a');
+  const commands: Command[] = [
+    { id: 'projects', label: 'Projects', group: 'Go to', run: () => (location.hash = '#/') },
+    { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', run: () => setAnswer('UI gallery') },
+    { id: 'hello', label: 'Say hello', group: 'Commands', hint: 'writes the last answer', run: () => setAnswer('hello') },
+    { id: 'inspector', label: 'Toggle the sample inspector', group: 'Commands', kbd: ['⌥', '⌘', 'I'], run: () => setAnswer('inspector') },
+  ];
+  return (
+    <div className="k-scope gl-column" data-appearance={appearance} data-testid={`scope-${appearance}`}>
+      <h2 className="gl-scope">{name}</h2>
+      <Section title="Buttons">
+        {VARIANTS.map(([v, label]) => (
+          <Button key={v} variant={v}>
+            {label}
+          </Button>
+        ))}
+        <Button variant="record">Capture</Button>
+        <Button variant="record" recording>
+          Stop recording
+        </Button>
+        <Button size="sm">Small</Button>
+        <Button size="lg" variant="primary">
+          Large
+        </Button>
+        <Button icon="plus">Add a scene</Button>
+        <Button kbd={['⌘', 'K']} variant="ghost">
+          Commands
+        </Button>
+        <Button busy>Saving…</Button>
+        <Button disabled why="Open a scenario first">
+          Render
+        </Button>
+        <LinkButton to={{ name: 'projects' }}>All projects</LinkButton>
+      </Section>
+      <Section title="Icon buttons and key caps">
+        <IconButton icon="inspector" label={`Inspector (${name})`} pressed={pressed} onClick={() => setPressed((p) => !p)} />
+        <IconButton icon="undo" label="Undo" />
+        <IconButton icon="redo" label="Redo" disabled />
+        <IconButton icon="more" label="More" size="sm" />
+        <Kbd keys={['⇧', '⌘', 'R']} />
+      </Section>
+      <Section title="Segmented controls">
+        <Segmented
+          label={`View (${name})`}
+          value={seg}
+          onChange={setSeg}
+          options={[
+            { value: 'blocks', label: 'Blocks' },
+            { value: 'yaml', label: 'YAML' },
+            { value: 'both', label: 'Both', disabled: true },
+          ]}
+        />
+        <SegmentedLinks
+          label={`Sample places (${name})`}
+          items={[
+            { key: 'g', label: 'Gallery', to: { name: 'ui' }, current: true },
+            { key: 'p', label: 'Projects', to: { name: 'projects' }, current: false },
+          ]}
+        />
+        <SegmentedLinks
+          label={`Sample modes (${name})`}
+          hint="Open a scenario to choose a mode"
+          items={[
+            { key: 's', label: 'Script', to: null, current: false },
+            { key: 'e', label: 'Edit', to: null, current: false },
+          ]}
+        />
+      </Section>
+      <Section title="Switches">
+        <Switch label="Captions" hint="Burned into the video" checked={on} onChange={setOn} />
+        <Switch label="Cursor trail" checked={off} onChange={setOff} />
+        <Switch label="Sound" checked={false} onChange={() => undefined} disabled />
+      </Section>
+      <Section title="Fields">
+        <TextField label="Title" value={title} onChange={setTitle} unsaved={null} />
+        <TextField label="Note" value={note} onChange={setNote} unsaved={null} placeholder="A word for the team" hint="Shown under the step" />
+        <TextField label="Target" value="#checkout" onChange={() => undefined} unsaved={null} mono error="No element matches this selector" />
+        <TextField label="Run id" value="20260101-120000-bits" onChange={() => undefined} unsaved={null} mono readOnly layout="row" />
+        <Select
+          label="Take"
+          value={take}
+          onChange={setTake}
+          layout="row"
+          options={[
+            { value: '1', label: 'Take 1' },
+            { value: '2', label: 'Take 2' },
+          ]}
+        />
+        <FieldRow label="Zoom">
+          <Segmented
+            label={`Zoom (${name})`}
+            size="sm"
+            value="1"
+            onChange={() => undefined}
+            options={[
+              { value: '1', label: '1×' },
+              { value: '2', label: '1.4×' },
+            ]}
+          />
+        </FieldRow>
+        <TextArea label="Caption" value="Every frame carries its number." onChange={() => undefined} unsaved={null} rows={2} />
+      </Section>
+      <Section title="Status marks">
+        {MARK_STATES.map((s) => (
+          <StatusMark key={s} state={s} word={WORDS[s]} />
+        ))}
+      </Section>
+      <Section title="Time and progress">
+        <Timecode seconds={49} total={72} frame={1470} />
+        <Progress label="Rendering" value={64} valueText="64 %" />
+        <Progress label="Preparing the browser" />
+      </Section>
+      <Section title="Toolbar">
+        <Toolbar label={`Step tools (${name})`}>
+          <IconButton icon="plus" label="Add a step" />
+          <IconButton icon="copy" label="Duplicate the step" />
+          <IconButton icon="close" label="Remove the step" />
+          <Button size="sm">Open timeline</Button>
+        </Toolbar>
+        <Toolbar label={`Take tools (${name})`}>
+          <IconButton icon="plus" label="Add a take" />
+          <Menu label={`More take tools (${name})`} icon="more" items={[{ id: 'first', label: 'Make it the first' }, { id: 'last', label: 'Make it the last' }]} onSelect={(id) => setAnswer(id)} />
+          <Segmented label={`Fit (${name})`} size="sm" value={fit} onChange={setFit} options={[{ value: 'fit', label: 'Fit' }, { value: 'fill', label: 'Fill' }]} />
+          <TextField label="Link" type="url" value={link} onChange={setLink} unsaved={null} layout="row" />
+          <IconButton icon="close" label="Remove the take" />
+        </Toolbar>
+      </Section>
+      <Section title="Status bar">
+        <StatusBar
+          label={`Sample status (${name})`}
+          state={<StatusMark state="ok" word="Connected" />}
+          info="worker idle"
+          actions={
+            <>
+              <Button size="sm" variant="ghost">
+                Rehearse
+              </Button>
+              <Button size="sm" variant="record">
+                Capture
+              </Button>
+            </>
+          }
+        />
+      </Section>
+      <Section title="Source list">
+        <SourceList
+          label={`Sample browser (${name})`}
+          groups={[
+            {
+              key: 'lib',
+              heading: 'Library',
+              items: [
+                { key: 'ui', to: { name: 'ui' }, label: 'Components', current: true, count: 24 },
+                { key: 'p', to: { name: 'projects' }, label: 'Themes', current: false, flag: 'unsaved' },
+              ],
+            },
+          ]}
+        />
+      </Section>
+      <Section title="Inspector sections">
+        <div className="gl-pane">
+          <InspectorSection title="Step">
+            <FieldRow label="Action">
+              <span>click</span>
+            </FieldRow>
+          </InspectorSection>
+          <InspectorSection title="Advanced" collapsible defaultOpen={false}>
+            <span>Retries and timeouts</span>
+          </InspectorSection>
+        </div>
+      </Section>
+      <Section title="Cards">
+        <div className="gl-cards">
+          {[1, 2].map((n) => (
+            <FrameCard key={n} picture={<Frame />} number={n} title={n === 1 ? 'Open the catalogue' : 'Pick a size'} meta={`${n + 2} steps`} selected={card === n} onSelect={() => setCard(n)} />
+          ))}
+          <PosterCard picture={<Frame />} title="Quote" meta="4 scenes · 1 min 12 s" to={{ name: 'projects' }} />
+        </div>
+      </Section>
+      <Section title="Blocker">
+        <Blocker word="Blocked" fix={{ copy: 'pnpm fixture' }}>
+          The setup hook needs the fixture running.
+        </Blocker>
+      </Section>
+      <Section title="Empty state">
+        <EmptyState title="No scenario yet" level={3} actions={<Button variant="primary">New scenario</Button>}>
+          Write the steps of a demo; the Studio films them.
+        </EmptyState>
+      </Section>
+      <Section title="Menu, sheet, palette">
+        <Menu
+          label={`Take actions (${name})`}
+          text="Take"
+          items={[{ id: 'dup', label: 'Duplicate', kbd: ['⌘', 'D'] }, { id: 'rename', label: 'Rename…' }, { id: 'export', label: 'Export', disabled: true }, 'separator', { id: 'delete', label: 'Delete take', danger: true }]}
+          onSelect={(id) => setAnswer(id)}
+        />
+        <Button onClick={() => setSheet(true)}>Discard the take…</Button>
+        <Button onClick={() => setBusy(true)}>Render the take…</Button>
+        <Button onClick={() => setPalette(true)} kbd={['⌘', 'K']}>
+          Open the palette
+        </Button>
+        <span className="gl-answer" data-testid={`answer-${appearance}`}>
+          Last answer: {answer}
+        </span>
+        <Sheet
+          open={sheet}
+          destructive
+          title="Discard the take?"
+          actions={[
+            { id: 'cancel', label: 'Cancel', isCancel: true },
+            { id: 'discard', label: 'Discard', variant: 'destructive', isDefault: true },
+          ]}
+          onAction={(id) => {
+            setSheet(false);
+            setAnswer(id);
+          }}
+        >
+          Its frames and its timeline go; the scenario stays.
+        </Sheet>
+        <Sheet
+          open={busy}
+          title="Rendering the take"
+          actions={[
+            { id: 'wait', label: 'Keep waiting', isCancel: true, isDefault: true },
+            { id: 'stop', label: 'Stop rendering', variant: 'destructive' },
+          ]}
+          onAction={(id) => {
+            setAnswer(id);
+            if (id === 'stop') setBusy(false);
+          }}
+        >
+          The render goes on while this stays open; Escape keeps waiting.
+        </Sheet>
+        <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
+      </Section>
+    </div>
+  );
+}
+
+export function GalleryScreen() {
+  return (
+    <div className="gl" data-testid="gallery">
+      <header className="gl-head">
+        <h1 className="gl-h1">UI gallery</h1>
+        <p className="gl-lede">Every component of the Studio's design system, in the dark and the light appearance.</p>
+      </header>
+      <div className="gl-columns">
+        <Column appearance="dark" />
+        <Column appearance="light" />
+      </div>
+      <ShellSlot name="inspector">
+        <InspectorSection title="Gallery">
+          <FieldRow label="Components">
+            <span>24</span>
+          </FieldRow>
+          <FieldRow label="Appearances">
+            <span>dark and light</span>
+          </FieldRow>
+        </InspectorSection>
+        <InspectorSection title="About the inspector" collapsible defaultOpen={false}>
+          <span>Hidden with the focus inside, it hands the focus to the centre pane.</span>
+        </InspectorSection>
+      </ShellSlot>
+      <ShellSlot name="actions">
+        <Button size="sm" variant="ghost" onClick={() => document.getElementById('main')?.scrollTo({ top: 0 })}>
+          Back to top
+        </Button>
+      </ShellSlot>
+    </div>
+  );
+}

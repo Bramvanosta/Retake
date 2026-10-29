@@ -3,13 +3,17 @@
  * event stream per browser) and the screens inside the shell — Projects (with search and recent activity), a project,
  * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
- * is the second line.
+ * is the second line. L5.9: the screens sit in the design system's shell (shell/AppShell.tsx: title bar with the mode
+ * switch, browser, centre pane, inspector, status bar), the `#/ui` gallery shows every component of the kit (ui-kit/);
+ * the desktop app's overlay title bar (`window.__studioShell`, a main-frame init script of the shell) moves the title
+ * bar's content clear of the window buttons (`html[data-titlebar]`), nothing else; the product's name is brand.ts's.
  */
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { info, setToken, useCall, useConnection } from './api.js';
 import { startEvents, useEvents } from './events.js';
 import { Notice, Txt } from './bits.js';
+import { APP_NAME } from './brand.js';
 import { dirtyDrafts, guardUnload } from './drafts.js';
 import { startUnsavedReport } from './unsaved-report.js';
 import { CommentsScreen } from './CommentsScreen.js';
@@ -25,9 +29,15 @@ import { TimelineScreen } from './TimelineScreen.js';
 import { hrefTo, parseRoute } from './route.js';
 import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
-import { Shell } from './Shell.js';
-import type { ProjectList } from './Shell.js';
+import { AppShell } from './shell/AppShell.js';
+import type { ProjectList } from './shell/AppShell.js';
+import { GalleryScreen } from './GalleryScreen.js';
+import { studioShell } from './ui-kit/index.js';
+import './tokens.css';
 import './app.css';
+import './ui-kit/kit.css';
+import './shell/shell.css';
+import './screens.css';
 
 function useRoute(): Route {
   const [route, set] = useState(() => parseRoute(location.hash));
@@ -39,7 +49,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Projects', project: 'Project', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -54,14 +64,14 @@ function Studio() {
   });
   const first = useRef(true);
   useEffect(() => {
-    document.title = `${route.name === 'themes' && route.theme ? `${route.theme} · ` : ''}${route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · Demo Studio`;
+    document.title = `${route.name === 'themes' && route.theme ? `${route.theme} · ` : ''}${route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · ${APP_NAME}`;
     // Back on the projects: read them again (the first load is useCall's own).
     if (route.name === 'projects' && !first.current) reloadList();
     first.current = false;
   }, [route, reloadList]);
   if (connection === 'ended') return <Ended />;
   return (
-    <Shell route={route} list={list}>
+    <AppShell route={route} list={list}>
       {route.name === 'projects' && <ProjectsScreen list={list} />}
       {route.name === 'project' && <ProjectPage key={route.slug} slug={route.slug} />}
       {route.name === 'readme' && <ReadmeEditor key={route.slug} slug={route.slug} />}
@@ -79,6 +89,7 @@ function Studio() {
       {route.name === 'library' && <LibraryScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} {...(route.component ? { component: route.component } : {})} />}
       {route.name === 'themes' && <ThemesScreen key={route.slug} slug={route.slug} {...(route.theme ? { theme: route.theme } : {})} />}
       {route.name === 'record' && <RecordScreen key={route.slug} slug={route.slug} {...(route.rec ? { rec: route.rec } : {})} />}
+      {route.name === 'ui' && <GalleryScreen />}
       {route.name === 'not-found' && (
         <div className="screen">
           <h1>Nothing here</h1>
@@ -87,7 +98,7 @@ function Studio() {
           </p>
         </div>
       )}
-    </Shell>
+    </AppShell>
   );
 }
 
@@ -100,7 +111,7 @@ function Ended() {
   const drafts = dirtyDrafts();
   return (
     <main className="ended" data-testid="session-ended">
-      <h1>Demo Studio</h1>
+      <h1>{APP_NAME}</h1>
       <Notice tone="warning" role="alert" title="This Studio session ended">
         <p>
           Run <code>studio ui</code> again in a terminal: it opens a new session. A Studio link works once, in one tab.
@@ -149,7 +160,7 @@ function App({ code }: { code: string | null }) {
   if (boot.kind === 'error') {
     return (
       <main className="ended">
-        <h1>Demo Studio</h1>
+        <h1>{APP_NAME}</h1>
         <Notice tone="danger" role="alert" title="The Studio could not start">
           <p>{boot.message}</p>
         </Notice>
@@ -165,6 +176,9 @@ function App({ code }: { code: string | null }) {
   }
   return <Studio />;
 }
+
+// Under the desktop app's overlay title bar (DESIGN §4j): the title bar keeps the window buttons' room.
+if (studioShell()?.titleBar === 'overlay') document.documentElement.dataset.titlebar = 'overlay';
 
 const code = takeCodeFromUrl();
 const root = document.getElementById('root');

@@ -3,7 +3,7 @@
  * gate (Host → Origin / Sec-Fetch-Site → route / method → token → content type / size), every answer with the strict
  * CSP and no CORS header.
  *
- * Routes: `/`, `/app.js`, `/app.css` (static, from memory, no token); `POST /v1/session` (a one-time bootstrap code →
+ * Routes: `/`, `/app.js`, `/app.css`, `/fonts/<file>` (L5.9: the bundled Geist pair) (static, from memory, no token); `POST /v1/session` (a one-time bootstrap code →
  * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops + L5.2's `counters`: sessions
  * redeemed, event streams open, player media bytes read and range requests — numbers only, what the desktop shell's
  * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `studio ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log

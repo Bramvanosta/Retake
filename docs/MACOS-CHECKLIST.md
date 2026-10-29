@@ -1385,6 +1385,55 @@ The workspace of 13a with a capture on `highlights` (13f leaves one).
 - **Send back:** for each step, OK or what you saw instead; whether macOS asked anything in steps 9 and 10 and how
   often (10d: after a rebuild).
 
+## 14b. The new Studio window in the app and in Safari: dark / light, the menu, the kit's overlays (L5.9)
+
+What the tests cannot reach: the automated checks run in Chromium (and one scratch WebKit run, outside WKWebView and
+without macOS's keyboard settings); the desktop app is only started and screenshotted. `pnpm build`, `pnpm
+desktop:build` (or `pnpm desktop:dev`); the workspace of 13a. The title bar is the standard one (L5.9 kept it: the
+integrated one waits, BACKLOG BL-126). System Settings › Keyboard › "Keyboard navigation" on for steps 4 – 6 (WebKit
+then puts buttons in the Tab order; without it Tab reaches fields and links only — the Studio's skip link and buttons
+too).
+
+1. **Appearance.** System Settings › Appearance › Dark: the app's window, its title bar and the Studio are dark (panes
+   in two tones, no white flash at launch); switch to Light with the app open: everything turns light at once, no
+   reload, the typed text of a README still there; Auto follows the evening switch. The same in Safari and Chrome on
+   `studio ui`'s link.
+2. **Fonts.** The Studio's text is Geist (a geometric sans; Safari too, where L4.9 showed the system font) and ids /
+   timecodes Geist Mono, with no network (Wi-Fi off, open a new `studio ui` link: same fonts).
+3. **The window's panes.** Projects → a project → `highlights`: the title bar says the project › highlights; the mode
+   switch's Script is current; Shoot, Edit, Review go to the Run screen, the timeline, the comments; the browser keeps
+   the project's pages; a long screen scrolls in the centre only (the bars stay); a thread picked in Comments keeps the
+   scroll; going to another screen starts at the top. Resize the window to its minimum width (900): the scenario name
+   is cut before the mode switch, nothing overlaps.
+4. **The menu's commands.** View › Command Palette… and ⌘K: the palette opens, focus in its field; type "read", Return
+   → the README. ⌘1 – ⌘4 on a scenario go to its modes; on Projects the status bar says "Open a scenario first". ⌥⌘I on
+   the UI gallery hides and shows its inspector. With a field focused (the search box) ⌘K and ⌘1 still act (the menu
+   wins; the field keeps its text). With a dialog open (the gallery's "Discard the take…", or Record's Discard) ⌘K and
+   ⌘1 do nothing. ⌘R, ⇧⌘R, ⌘B do nothing in the app (L5.11).
+5. **The kit's overlays in WKWebView** (UI gallery, both columns). Take ▾: the menu opens under the button (above it
+   near the bottom), ↓ ↑ move, a letter jumps ("r" → Rename…), Return chooses ("Last answer: rename"), Escape closes
+   with the focus back on Take, a click outside closes, a click on Take while open closes it. "Discard the take…": the
+   sheet drops under the title bar, the page behind does not react to clicks, Cancel has the focus (Return = Cancel),
+   Escape cancels, the focus comes back. "Open the palette": ↑ ↓ move the highlighted command (a blue bar at its
+   left), Return runs it, Escape closes.
+6. **VoiceOver** (⌘F5) on the palette: typing then ↓ reads each highlighted command ("Say hello, writes the last
+   answer"); on the mode switch: "Script, current page, link"; on a status mark: its word ("Ready").
+7. **Light and dark columns.** In the gallery each column keeps its own appearance whatever the system's; a menu opened
+   in the light column is light in a dark window. A sheet or the palette dims the page behind it in Safari too (the veil
+   is declared on `::backdrop` itself: Safari 17 does not pass it the page's tokens).
+8. **Keys in Safari (a browser tab).** ⌘K opens the palette; in the README editor Ctrl+K deletes to the end of the line
+   and opens nothing (macOS's text binding); a Japanese or Chinese input method composing a word in the palette: Return
+   confirms the word, it runs no command. The gallery's second toolbar ("Take tools"): → from ⋯ goes on to Fit, ↓ on ⋯
+   opens its menu and the arrows stay in it; ← → on Fit / Fill change the choice; in the Link field ← → move the caret.
+9. **A sheet that keeps waiting.** Gallery › "Render the take…": Escape, Escape again at once — the sheet stays (it says
+   "Keep waiting"), "Stop rendering" closes it, the focus back on its button; it opens again.
+10. **The mode switch** sits in the middle of the window (measure: the same gap to both window edges), project open or
+   not; with the integrated title bar (BL-126) too, once it ships.
+
+- **Expected:** as written; no white flash; the menu's keys act once (never twice: the page binds none in the app);
+  nothing reacts behind an open sheet.
+- **Send back:** for each step, OK or what you saw instead (a screenshot of anything unreadable, with the appearance).
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

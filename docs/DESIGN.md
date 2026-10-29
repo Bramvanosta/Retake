@@ -3554,6 +3554,9 @@ always with words; the violet never means "interactive"; dark tokens for video a
 by local family name only (no `@font-face`, no file, no network). A Mac with the fonts installed shows them in Chrome and
 Firefox (this one has Geist Mono, not Geist); Safari never exposes installed fonts to a page. Text widths, and so a
 layout's overflow verdict, can differ per machine until the files are bundled (BL-120).
+*L5.9:* bundled — the official variable woff2 pair in `packages/ui/fonts` with its SIL OFL 1.1 `LICENSE.txt` beside it
+(unmodified), declared by tokens.css's two `@font-face` (`font-display: swap`), served from memory by the Studio's own
+origin (§4k); the palette moved to `tokens.ts` (one file, dark and light); app.css is the `legacy` cascade layer.
 
 **Fixes the checks found.** `::placeholder { color: var(--muted); opacity: 1 }` (WebKit's default read 2.35:1 on the
 three search fields; Firefox's adds opacity .54). The theme editor's hidden `legend` widened the page at 1280 and 1440:
@@ -3567,8 +3570,8 @@ border and an inset line), a pressed button (`aria-pressed`: the timeline zoom, 
 accent border and inset line; the nav link (weight 600), the tab (a 2 px underline), the timeline radio (weight and a
 filled dot) and segment (an inside outline and weight) already had one. Accepted below 4.5:1, transient or inactive
 only (stated in app.css, a lint holds opacity to these five): disabled controls (.5), a dragged step (.45), the steps
-during a write (.75), a switched-off timeline group (.55, its radios `aria-disabled`), an unset colour well (.35, no
-text). The 1.5:1 field borders (`--line-strong`) are accepted: every field has a visible label, the border is not the
+during a write (.75; L5.9 review A-L2: replaced by a dashed `--busy-edge`, the text unfaded — four states since), a
+switched-off timeline group (.55, its radios `aria-disabled`), an unset colour well (.35, no text). The 1.5:1 field borders (`--line-strong`) are accepted: every field has a visible label, the border is not the
 only way to find it (WCAG 1.4.11 asks 3:1 only of what identifies a control).
 
 **The checker** (`packages/ui/test/a11y.ts`, a test helper, no dependency; unit tests `a11y-checker.test.ts`, each rule
@@ -3635,7 +3638,7 @@ token classified — static for the pairs within each set and within one rule; a
 of another set is the tours' to measure; the one `::placeholder` rule; no outline removed (`none`, `0`, `hidden`,
 `!important` too), made transparent (`outline-color: transparent`, a transparent outline anywhere) without a ring in its
 place, and every focus ring (`:focus`, `:focus-visible`, `:focus-within`) drawn in `--accent` or `--accent-strong` (the
-skip link's target `main:focus` excepted); opacity below 1 only on the five accepted states; a TypeScript-parser pass
+skip link's target `main:focus` excepted); opacity below 1 only on the five accepted states (four since L5.9); a TypeScript-parser pass
 over every `.tsx`: a user-input handler (any `on…` but focus, change, form, load and media events — `onClickCapture`,
 `onContextMenu`, `onWheel`, drag and drop included) only on a native control (`button`, `input`, `select`, `textarea`,
 `summary`, `a` with a real `href`) or an element with a control role, a literal or roving tabIndex 0 and, for a click,
@@ -3874,7 +3877,12 @@ system's appearance (DarkAqua in Dark mode — alerts, the picker and menus foll
 `prefers-color-scheme`, but the standard title bar takes the colour of the page's top (WKWebView on macOS 26, measured
 by review B M2): light today, because the Studio pins `color-scheme: light` (app.css). Nothing in the shell changes
 that — no `.theme()`, no `NSRequiresAquaSystemAppearance`; the redesign's dark / light tokens under
-`prefers-color-scheme` (BL-124) carry the bar with them. Keychain: nothing (secrets stay `{{keychain:…}}` references
+`prefers-color-scheme` (BL-124) carry the bar with them. *L5.9:* View now holds the page's commands (Command Palette…
+⌘K, Script · Shoot · Edit · Review ⌘1 – ⌘4, Show or Hide Inspector ⌥⌘I) before Enter Full Screen, so the shell's own
+keys are ⌘O and ⌘0 and the page's are those six (below, *Commands*); app.css no longer pins light — the page's
+`color-scheme` follows the system's appearance (dark by default, light when the system asks: §4k), the window's chrome,
+alerts and menus still follow the system (no theme set), so the two agree, and the standard title bar takes the page's
+top colour in either. Keychain: nothing (secrets stay `{{keychain:…}}` references
 resolved by the worker).
 
 **The quit guard (L5.2b, `src/guard.rs`).** `applicationShouldTerminate:` added at launch to the class of NSApp's
@@ -3960,22 +3968,39 @@ and says so once); test mode never calls it. No osascript fallback. Permission i
 ad hoc signature: expected to survive a rebuild (MACOS-CHECKLIST 14a checks it); the test bundle id never asks; the
 rename (L5.13) changes the bundle id → one new prompt.
 
-**Prepared for the redesign (BACKLOG BL-124; nothing of it built).**
-- *Title bar.* `src/menu.rs` `TITLE_BAR` is the one switch: `TitleBar::Standard` today; the redesign sets
-  `TitleBar::Overlay { buttons: (x, y) }` (transparent title bar, no title text, the window buttons at that point).
-  The page must then keep a left inset of ≈ 80 px clear at the top for the buttons and mark its drag zone; WKWebView
-  honours no `app-region` and Tauri's `data-tauri-drag-region` needs the page's IPC (refused), so the shell adds a
-  native transparent drag strip (an NSView over the webview's top band that calls `performWindowDragWithEvent`) whose
-  height the page matches.
-- *Commands.* The redesign's ⌘K registry maps onto `MENUS`: each Studio command (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B,
-  Stop ⌘.) becomes a table entry with a page target; on a click the shell dispatches
-  `window.dispatchEvent(new CustomEvent('studio:command', {detail: {id}}))` with an id from its own table only — one
-  way, no data from the page, no IPC, no page→shell path (the `.eval` count of desktop-config.test.ts moves to 2). Not
-  added in L5.2: no Studio command exists yet, and the page would not listen.
-- *Menu state* (review B L10): the table's `enabled` is static. Graying Capture or Render by the page's state needs
-  state flowing to the shell, which the one-way dispatch above cannot carry: either server→shell lines on the
-  supervised pipe (`{"type":"state",…}`, the server knowing the page's state through its own ops) or a narrow
-  page→shell request. L5.9 decides; until then a command the page cannot run answers in the page.
+**Prepared for the redesign (BACKLOG BL-124); L5.9 built the commands and the page's side of the title bar.**
+- *Title bar.* `src/menu.rs` `TITLE_BAR` is the one switch — **`TitleBar::Standard`, kept by L5.9**;
+  `TitleBar::Overlay { buttons: (16, 18) }` (transparent title bar, no title text, the window buttons inside the
+  page's 48 px bar) waits for a native drag band (BL-126). The page's side is built and tested: a constant main-frame
+  init script (`menu::SHELL_FLAG_JS`, `initialization_script`, never the all-frames variant) sets
+  `window.__studioShell = {titleBar: 'standard' | 'overlay'}`; main.tsx turns `overlay` into `html[data-titlebar]`,
+  which gives `--ui-titlebar-inset: 80px` (the bar's content and the skip link clear of the buttons) — nothing else
+  moves, and the flag only changes layout and key binding (a forged flag in a browser tab only moves the layout; the
+  sandboxed Player is cross-origin and can neither read it nor send commands). The title bar has no selectable text.
+  *The drag band's pass criteria* (critique H2; a probe time-boxed to half a day, all by hand with real drags):
+  (1) a drag from the bar's empty area moves the window; (2) a press-drag starting on a mode button moves the window and
+  does not navigate; (3) after any band drag no `:active` state stays stuck and a hover over the steps list starts no
+  text selection or step drag (WebKit must get its mouse-up: `performWindowDragWithEvent:` runs AppKit's own tracking
+  loop, which takes it — a synthetic mouse-up, if needed, outside the webview's bounds so no click fires); (4) the next
+  click works; (5) a `<select>` in the bar still opens; (6) a double-click on the empty bar zooms as macOS does, never on
+  a control; (7) it coexists with the menu, sheets and full screen (the inset in full screen: the buttons are gone).
+  L5.9 did not run the probe — every criterion needs a real window drag, which an unattended run cannot post (no
+  Accessibility permission) — so it ships the standard bar (critique H2's cut line); whether WKWebView honours
+  `app-region: drag` was not measured either (it was stated "no" in L5.2). BL-126 holds the probe and the band.
+- *Commands (L5.9).* `MENUS` has `Item::Page` entries — View: Command Palette… ⌘K, Script ⌘1, Shoot ⌘2, Edit ⌘3,
+  Review ⌘4, Show or Hide Inspector ⌥⌘I, then Enter Full Screen. A click (or the accelerator) runs
+  `menu::page_command_js(id)`: for a `Page` id of the table only, `window.dispatchEvent(new CustomEvent('studio:command',
+  {detail: {id}}))` with the id JSON-quoted — one way, no data from the page, no IPC (the `.eval` count is 2: the
+  `--route` setter and this). The page's ids are ONE list (`ui-kit/commands.ts` `MENU_COMMANDS`), compared with the
+  table's `Page` ids by desktop-config.test.ts; the page accepts those ids only, and ignores them while a modal dialog
+  is open (the palette's own ⌘K closes it: critique M5). Under the app the page binds no key itself (the accelerators
+  send the commands: a key never acts twice); in a browser tab it binds ⌘K only on a Mac (never Ctrl+K: a text field's
+  "delete to the end of the line" there), Ctrl+K elsewhere outside a text field, and nothing while an input method
+  composes or a modal other than the palette waits (L5.9 review B-L3); ⌘R, ⌘1 – 4, ⌥⌘I stay the browser's. Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B and Stop ⌘. come with L5.11, when they act (critique M6: a menu item
+  that only opened a screen would lie); until then the shell binds none of them.
+- *Menu state* (review B L10) — **decided in L5.9: static.** Every page command is always enabled; a command the page
+  cannot run answers in the page's status bar ("Open a scenario first", "This screen has no inspector"). State flowing
+  to the shell (server→shell `state` lines or a narrow page→shell request) is BL-126.
 - *Native confirmation sheets* (BL-106 amended; one message shape, the same there): the server asks through the
   supervised pipe — `{"type":"confirm","id","text","buttons"}` on the child's stdout (`buttons`: the labels, the first
   the default, the last the cancel); the shell shows a sheet on the window (NSAlert `beginSheetModalForWindow`, the
@@ -4031,6 +4056,156 @@ A M2); no secret in the output; nothing in `~/Library` and no Launch Services re
 `DEMO_STUDIO_TEST_SLOW=1` a fixture capture on its timeline: `player_media_bytes_read > 0`). By eye: the screenshots the
 test keeps (`DEMO_STUDIO_TEST_SHOTS`): a locked screen skips them, a capture without Screen Recording permission or a
 flat picture is printed "unverified" (review B). By hand: MACOS-CHECKLIST 14a.
+
+## 4k. The Studio's design system and shell (L5.9)
+
+R-UI-02 (amended by BL-124), R-UI-30 – R-UI-34, R-DSK-03. « Épure » 1: the foundations the screens are rebuilt from in
+L5.10 – L5.12 — one token file for dark and light, a kit of accessible components built in-house, the app shell, a
+gallery audited by the L4.9 checker, a source lint keeping screens on the kit, the Geist pair bundled. The look itself is
+docs/reference/studio-ui.md (exported from the validated canvas). Built in parts A – G from the lot's plan corrected by
+its critique (H1 – H4, M1 – M7). Cuts: BL-126 (desktop extras: the overlay title bar's drag band, menu state, the
+Scenario menu's place in L5.11), BL-127 (kit extras).
+
+**Tokens.** `packages/ui/src/app/tokens.ts` is the one file: `UI_COLOURS` (the kit's `--ui-*`, dark and light from the
+canvas), `LEGACY_COLOURS` (the L4.9 palette: light exactly as L4.9, dark mapped onto the semantic set; three role
+splits where one token could not be both in dark — `--accent-fill` / `--accent-strong-fill` for the primary button
+under white text, `--tooltip-bg` for the timeline's tooltip that read `--fg`), `UI_STATIC` / `LEGACY_STATIC` (type
+13 / 15 / 20 with 18 / 22 / 26 leading, weights 400 / 600, spacing, radii, pane sizes; `--main-h`, the centre pane's
+height, for the legacy rules that used `100vh`), `FONT_FILES`. `tokens.css` is generated (`pnpm -F @demo-studio/ui
+gen:tokens`, committed, a test compares it): the two `@font-face`, the appearance-free tokens on `:root`, then
+`:root, [data-appearance='dark'] { color-scheme: dark; … }` (dark by default: no preference or dark),
+`@media (prefers-color-scheme: light) { :root { color-scheme: light; … } }` (light only when the system asks), and the
+`[data-appearance]` scopes repeated after it (a scope always wins: the gallery's columns). Nothing in the page switches
+the appearance (BL-127). The desktop window sets no theme: its chrome, alerts and menus follow the system's appearance
+(§4j), and the page's `color-scheme` follows the system too, so they always agree; the standard title bar takes the page's
+top colour (review B-M2). The document declares `<meta name="color-scheme" content="dark light">` (no white flash) and
+preloads both fonts. `tokens.css` also declares the dialogs' veils (`--ui-backdrop`, `--backdrop`) on `::backdrop` itself
+in each appearance and scope: Safari 17 and Firefox 120 (UI_TARGETS) do not inherit custom properties into it (review
+A-L9). `--main-h` is written from `--ui-titlebar-h` + `--ui-statusbar-h` in tokens.ts (review B-L7).
+
+**Fonts.** `packages/ui/fonts/Geist-Variable.woff2` (sha256 `206f01ed…a706`, 69,560 bytes) and
+`GeistMono-Variable.woff2` (`55419aa0…972b`, 71,104 bytes), the official OFL release, unmodified, with `LICENSE.txt`
+(SIL OFL 1.1, `930853ee…9137`) beside them; `buildUi` reads them once and serves `/fonts/<file>` from memory as
+`font/woff2` with an ETag (the static route; CSP `font-src 'self'` unchanged; esbuild leaves the two URLs to the server:
+`external: ['/fonts/*']`). The package's `files` lists `fonts`. The licence names the font's authors and the OFL's
+site: the one third-party text the generic-names rule lets in, verbatim (the OFL requires it). The checker's `settle`
+waits for `document.fonts.ready` (critique M3: an audit never measures the fallback's widths).
+
+**Layers.** app.css (the legacy screens) is the cascade layer `legacy`; the kit's `ui-kit/kit.css`, the shell's
+`shell/shell.css` and the rebuilt screens' `screens.css` are unlayered, so a kit component keeps its look inside a
+legacy screen whatever the order and specificity (critique M4: app.css's global `:focus-visible` would have redrawn
+the kit's ring in another colour). Directions are one-way: app.css reads no `--ui-*` token, the kit, the shell and the
+new screens read nothing else.
+
+**The kit** (`packages/ui/src/app/ui-kit/`, `index.ts` exports it): Button (primary, secondary, ghost, destructive,
+record; sm / md / lg; icon, key caps, busy, a disabled reason read through `aria-describedby`), LinkButton, IconButton
+(`aria-pressed`, one label), Kbd, Icon (a table of 23 stroke icons, `aria-hidden` SVG), Segmented (a fieldset of native
+radios covering their segments) and SegmentedLinks (`aria-current`; a missing place is a disabled button with a hint),
+Switch (a native checkbox `role="switch"` drawn as the track), TextField / TextArea / Select / FieldRow, StatusMark (a
+shape and a word, eight states), Timecode (spoken form in hidden text), Progress, Toolbar (roving tab stop), StatusBar,
+SourceList, InspectorSection, FrameCard / PosterCard (one control: a pressed button or a link), Blocker (one line, one
+fix: a button or Copy with a polite "Copied"), EmptyState, Sheet, Menu, CommandPalette. Every text prop is a React node,
+and **every slot that shows text the kit did not write renders a string through `<Txt>`** (`shown()`, bits.tsx: a
+`<bdi>` with its direction controls made visible) — palette entries and hints, menu items, sheet titles and bodies,
+source-list rows and flags, status words, labels, hints, errors, cards; a `<select>`'s options and key caps through
+`visibleControls` (an `<option>` cannot hold a `<bdi>`); Progress's `aria-valuetext` too (review A-M1: a project named
+with U+202E read reversed in ⌘K). Every control native; the ring 2 px `--ui-ring`. **Toolbar** (review A-M2): its stops
+are its visible controls outside a popover or a menu (a closed menu's items are not stops), a radio group counting once
+(its checked radio); it leaves a key that a control inside handled (`defaultPrevented`), the arrows of a radio group, and
+every key of a text-entry field, a slider or a select to them. **Sheet** (review A-L1): it follows its `open` prop even
+when the platform closes the dialog itself (Chromium lets a page refuse Escape once per user activation) — that close is
+the cancel action, and a sheet its owner keeps open shows again; a late close event of an earlier closing is ignored.
+**Switch:** named by its label alone (`aria-labelledby`), the hint its description (A-L3). **SegmentedLinks:** the reason
+is rendered whenever a segment is off, so no `aria-describedby` dangles (A-L4). **CommandPalette:** "Nothing matches"
+stays in the accessibility tree while empty (A-L5), no empty `aria-activedescendant`, no command while an input method
+composes, the focus back to the opener or to `#main` when a command took the opener away (A-L6). **The unsaved mark:** TextField and
+TextArea take a REQUIRED `unsaved: UnsavedItem | null` and call `useUnsavedMark(unsavedFor(value, baseline,
+unsaved))` (L5.2b's drafts.ts) — a parser test checks the call and the prop; `null` is for no one's text (a search, the
+gallery's samples: critique L6). An error is said in words starting "Error:" (the red edge is never the only cue).
+**No dependency (decided with evidence).** Select is the native `<select>`; Menu is a `popover="auto"` list opened
+through `popoverTarget` (the top layer above `overflow: hidden` panes, light dismiss and Escape from the platform; a
+click on the open trigger closes it: critique L9) with roving focus, typeahead, ↓ / ↑ to open on the first / last item,
+placed under its trigger by `popover.ts` (`position: fixed`, flipped above near the bottom, re-placed on scroll and
+resize); Sheet and CommandPalette are `<dialog>.showModal()` (inert page, Escape, focus back to the opener). Their
+behaviours pass in Chromium (studio-e2e-kit) and in one scratch WebKit-2370 run (H4, by `executablePath`, not
+committed): 9 / 9 once three WebKit conventions are allowed for — Tab skips buttons while macOS keyboard navigation is
+off, radios stop at the last enabled one instead of wrapping, a click does not focus a button (so a dialog opened by a
+click has no opener to give the focus back to) — and its console noise: WebKit reports a CSP `style-src-attr`
+violation for every `<select>` it draws (the legacy screens' too; nothing the app writes). Raw, 5 / 9. The desktop app's
+WKWebView is checked by hand (MACOS-CHECKLIST 14b). A sheet's Return default is never a destructive action
+(`defaultAction` falls back to the cancel action: L5.2b's rule); a palette's active option has the selection fill and
+a 3 px `--ui-ring` bar (critique M1). Commands (`commands.ts`): `MENU_COMMANDS`, `studioShell()`, `modalOpen()`.
+
+**The shell** (`shell/AppShell.tsx`, kit-only; `modes.ts`, `slots.tsx`; the title bar a grid of two equal side
+columns around the mode switch, so it is centred on the window under the overlay inset too — review B-L1): a fixed
+window of panes (title bar 48, browser
+240, centre — the one scroller —, inspector 320, status bar 34); DOM order = Tab order (Skip to content — a kit Button,
+clear of the window buttons —, title bar, browser, centre, inspector, status bar). Title bar: the app mark and
+`APP_NAME` (`brand.ts`, the one place the page names the product; a lint), project › scenario truncated before the mode
+switch, the mode switch centred (Script → the scenario's blocks, Shoot → its Run screen (and Record), Edit → its
+timeline (and a proposal's preview), Review → its comments; the scenario in context is the route's or the one opened
+last in that project while the project still lists it — review B-L8; none → four disabled buttons and a hint), the context slot and the inspector toggle. Browser: a
+SourceList "Studio" keeping L4.1's words (Projects, "Projects of the workspace", Overview, README with "unsaved",
+Components, Themes) plus Record, the class `sidebar` and the foot (workspace path, version, worker pid, UI gallery).
+Inspector: shown only while a screen renders `<ShellSlot name="inspector">` (a portal); the legacy screens render none
+and keep the whole centre. Status bar: `data-testid="connection"` (a StatusMark, worker idle / running, live updates
+or updates every 3 s), a polite line for a command's answer, the `actions` slot (empty on legacy screens: Rehearse /
+Capture / Render act from L5.11 — critique M6). The centre scrolls to the top only when the screen's identity
+(route name, project, scenario) changes (critique M2); when the old screen took the focused control with it, the focus
+lands on `#main` (A-L6; not on a load's first screen, where Tab starts at the top), as it does when the inspector is
+hidden with the focus inside. One `aria-current` in the browser (Overview, not also its project's row: A-L9).
+Commands: §4j; the shell's palette lists places (projects, the
+open project's pages, the modes of the scenario in context, the gallery) and the inspector toggle.
+
+**Legacy screens in dark.** Every screen not rebuilt yet keeps its content in the centre pane, in both appearances,
+through the legacy palette's dark values alone (no per-screen CSS): the two tours pass in dark at 1280 and 1440 and in
+light at 1280 with no finding, so no route is kept light (critique H3's fallback, `<main data-appearance="light">`,
+was not needed). Two collisions the first dark tour found, fixed in tokens.ts: `--info-soft` had the value of
+`--accent-soft` (the checker read the timeline radios' selection tint as an "info" mark) and `--ui-recording` that of
+`--danger-soft`; a lint now forbids any token sharing a status family's colour.
+
+**The gallery** (`#/ui`, `GalleryScreen.tsx`, kit-only; reached by the browser's foot and ⌘K): every component in its
+states, a dark and a light column (`data-appearance` scopes; the top layer of a sheet, menu or palette opened in a column
+inherits its tokens), the inspector and actions slots filled. Toured in dark and light at 1280 and 1440, plus its
+sheet, menu and palette open in each scope.
+
+**The checker (a11y.ts).** `colour-only` collects status tokens from every rule of `:root` or a `[data-appearance]`
+scope, inside `@media` and cascade layers too, resolved on each element's own scope, and watches the kit's families
+(`--ui-ok`, `--ui-warn`, `--ui-fail`, `--ui-record`, `--ui-recording`, `--ui-danger`, `--ui-idle`, `--ui-waiting`) —
+before, the dark default's selector would have left it watching nothing, silently (critique H1); the tours assert it
+watches ≥ 1 colour at every station (counted over the root and every scope: review A-L7). An `<svg>` outside a control
+is a mark drawn in its colour (its `currentColor` paths), checked like a sign in text. `settle` takes a busy element a
+station holds on purpose (the steps while a write is in flight: A-L2). `reachable`
+accepts the options of a listbox that a focusable combobox controls with `aria-activedescendant` (the palette: M1).
+
+**Lints** (app-source.test.ts): colour literals only in tokens.css / tokens.ts; tokens.css = tokensCss(); its only URLs
+the two fonts; every token defined is used and every one used defined; contrast of every pair in both appearances (the
+legacy sets, the kit's text × surfaces and marks × surfaces, the switch's knob × track and track × pane: M7); focus
+rings in `--accent`, `--accent-strong` or `--ui-ring`; no `vh` in a height, inside `min()` / `max()` / `clamp()` too
+(review B-M1: the timeline's preview is `clamp(160px, calc(var(--main-h) * 0.44 - 46px), 460px)` — L4.9's 44vh less the
+two bars — so as many track rows show on load as before the shell; the palette, a fixed dialog, takes `70%` of the
+window); opacity below 1 on four states (the steps in flight keep their colours: a dashed `--busy-edge`, A-L2); sizes,
+weights and radii of the kit, shell and new screens from `--ui-*` only; the kit's text through `<Txt>` (a parser pass
+over every JSX child of `ui-kit/`, and an SSR render planting a hostile string in 50 slots of 23 components);
+**screens stay on the kit** (review A-M3: `scripts/kit-ratchet.ts`) — outside `ui-kit/`, a native control or disclosure
+(`button`, `input`, `select`, `textarea`, `dialog`, `progress`, `meter`, `details`, `summary`, `label`), a widget role
+(31: button, checkbox, radio, tab, slider, switch, menuitem, option, combobox…) or a role that is not a literal, a kit
+class (`k-…` but `k-sr`, `k-mono`, `k-scope`), any app.css class, or a legacy token written in the TypeScript is counted
+per file against `packages/ui/test/legacy-controls.json` (29 legacy files today): a count may only stay or go **down**
+(≤ its row, so a rebase over another lowering never conflicts; a row above HEAD's fails), a file without a row (the shell,
+the gallery, every new screen) has none, and `pnpm -F @demo-studio/ui ratchet` lowers the rows when they drop and never
+raises one; the product's name (`/Demo\s+Studio/i`) is written only in brand.ts among all the app's sources and
+bundle.ts (A-L8).
+
+**Tests.** `kit-static.test.ts` (react-dom/server: each component's elements, roles and states; the unsaved-mark
+parser check; `defaultAction`; the palette's filter; the menu commands' allow-list); `studio-e2e-kit.test.ts`
+(Chromium, ≈ 5 s: appearance switching live, the kit's keys, a toolbar holding a menu, radios and a URL field (A-M2), a
+sheet whose owner refuses Escape (A-L1), the shell's palette and commands, ⌘K / Ctrl+K by platform (B-L3), M5, the modes,
+M2, a long name at 900 px, the overlay contract and the centred switch (B-L1)); `studio-e2e-timeline` (the track rows on
+load at 1440 × 900 and 1280 × 800: B-M1); the tours (`studio-e2e-a11y*.test.ts`, ≈ 15 s each: 31 states, each in dark at
+1280 + 1440 with its Tab walk and in light at 1280; the gallery in both at both widths); desktop-config (the page
+commands, the parity with `MENU_COMMANDS`, one init script, two evals); `studio-e2e-comments-chrome` (gated: the centre
+pane scrolls, the page never does, the browser stays under the title bar).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

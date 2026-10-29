@@ -21,9 +21,10 @@
  * element with a control role, a literal or roving tabIndex 0 and, for a click, a key handler (five reasoned
  * exceptions, keyed by exact attributes and their source line), no spread onto a non-native element, no <a> without a
  * real href, no positive tabIndex; no outline removed, transparent or faded without an accent ring in its place, and
- * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the five accepted states; no colour
+ * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the accepted states (four since L5.9); no colour
  * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
+import { execFileSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createElement } from 'react';
@@ -40,6 +41,11 @@ import { hrefTo, parseRoute } from '../src/app/route.js';
 import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
+import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
+import { Blocker, Button, CommandPalette, EmptyState, FieldRow, FrameCard, InspectorSection, Kbd, LinkButton, Menu, Progress, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
+import { STATUS_TOKENS } from './a11y.js';
+import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
+import type { Appearance } from '../src/app/tokens.js';
 
 const APP = join(REPO, 'packages', 'ui', 'src', 'app');
 
@@ -104,6 +110,9 @@ const FRAME_LOOSE = /allow-(?:same-origin|top-navigation|popups|forms|downloads|
 /** A source as the lint reads it: Thumb.tsx without its one allowed image source, PreviewFrame.tsx without its one frame (each checked on its own). */
 function linted(f: string, src: string): string {
   if (f === THUMB_FILE) return src.replace(THUMB_SRC, '<img ');
+  // L5.9: tokens.css's two font faces (their URLs are pinned by the palette lint).
+  if (f === 'tokens.css') return src.replace(/^ {2}src: url\('\/fonts\/[\w-]+\.woff2'\) format\('woff2'\);$/gm, '');
+  if (f === 'tokens.ts') return src.replace("\\n  src: url('/fonts/${f.file}') format('woff2');", '');
   if (f === FRAME_FILE) return src.replace(FRAME_TAG, '<span').replace(FRAME_SRC, 'data-frame-src');
   return src;
 }
@@ -121,7 +130,7 @@ function code(text: string): string {
 describe('the app builds no HTML from data (source lint)', () => {
   it('no raw-HTML, eval or src= API in src/app; every href is hrefTo(...) or a literal "#…"', async () => {
     const files = await appSources();
-    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['main.tsx', 'ReadmeEditor.tsx', 'ProjectsScreen.tsx', 'Shell.tsx']));
+    expect(files.map(([f]) => f)).toEqual(expect.arrayContaining(['main.tsx', 'ReadmeEditor.tsx', 'ProjectsScreen.tsx', 'shell/AppShell.tsx', 'ui-kit/Button.tsx']));
     for (const [f, text] of files) {
       const src = linted(f, code(text));
       for (const [re, why] of BANNED) expect(re.test(src), `${f}: ${why} (${re})`).toBe(false);
@@ -781,12 +790,13 @@ function cssRules(text: string): CssRule[] {
 }
 
 const appCss = () => readFile(join(APP, 'app.css'), 'utf8');
-/** The :root tokens, name → value. */
-function tokensOf(rules: CssRule[]): Map<string, string> {
-  const root = rules.filter((r) => r.selector === ':root');
-  expect(root, 'one :root block').toHaveLength(1);
-  return new Map(root[0].decls.filter(([k]) => k.startsWith('--')));
+/** L5.9: the kit's and the shell's stylesheets — every .css of the app but app.css (legacy) and tokens.css (generated). */
+async function kitCss(): Promise<Array<[string, string]>> {
+  return (await appSources()).filter(([f]) => f.endsWith('.css') && f !== 'app.css' && f !== 'tokens.css');
 }
+const APPEARANCES: Appearance[] = ['dark', 'light'];
+/** The tokens of one appearance, name → value: tokens.ts, the one token file (L5.9). */
+const tokensOf = (a: Appearance): Map<string, string> => tokenMap(a);
 
 /** A colour written as a literal (hex or a colour function); named colours are matched as whole values / words. */
 const COLOUR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i;
@@ -796,25 +806,57 @@ const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.t
 
 /** Text tokens × the backgrounds they may sit on: every pair reaches 4.5:1 (the static contrast guarantee). */
 const TEXT_ON_LIGHT = ['fg', 'fg-soft', 'hook-fg', 'tint-fg', 'muted', 'accent', 'accent-strong', 'danger', 'warning', 'info', 'success', 'input-fg'];
-const LIGHT_BG = ['bg', 'surface', 'sidebar', 'subtle', 'field-off', 'unusable', 'link-hover', 'code-bg', 'faint', 'hover', 'thumb-stripe', 'outro-tint', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'warning-faint', 'info-soft', 'success-soft', 'input-tint', 'card-tint', 'veil'];
+// (L5.9: the names say "light" from L4.9; the sets hold by role in both appearances.)
+const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'unusable', 'link-hover', 'code-bg', 'faint', 'hover', 'thumb-stripe', 'outro-tint', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'warning-faint', 'info-soft', 'success-soft', 'input-tint', 'card-tint', 'veil'];
 const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
   { text: TEXT_ON_LIGHT, on: LIGHT_BG },
-  { text: ['on-ink', 'on-ink-muted', 'on-ink-link'], on: ['ink', 'ink-soft', 'fg', 'ink-veil'] },
-  { text: ['on-accent'], on: ['accent', 'accent-strong'] },
+  // L5.9 (critique H3): a tooltip's background is its own token (--fg is text, and light in dark); primary fills too.
+  { text: ['on-ink', 'on-ink-muted', 'on-ink-link'], on: ['ink', 'ink-soft', 'tooltip-bg', 'ink-veil'] },
+  { text: ['on-accent'], on: ['accent-fill', 'accent-strong-fill'] },
   { text: ['ink'], on: ['mark-on-video'] },
 ];
 /** Pairs of those sets that never meet (a rule declaring one together still fails). */
-const NOT_MEANT: Array<[string, string, string]> = [['on-ink-link', 'ink-veil', 'the link colour is for tooltips on --fg; the veil over a stale frame carries --on-ink text only']];
+const NOT_MEANT: Array<[string, string, string]> = [['on-ink-link', 'ink-veil', 'the link colour is for tooltips on --tooltip-bg; the veil over a stale frame carries --on-ink text only']];
 /** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead). */
-const NON_TEXT_BG = ['accent-clear', 'accent-fade', 'success-fade', 'backdrop', 'danger', 'muted', 'online'];
+const NON_TEXT_BG = ['accent-clear', 'accent-fade', 'success-fade', 'backdrop', 'danger', 'muted'];
+/** The kit's backgrounds that carry no text: marks (status, the switch's track and knob, a progress fill), the sheet's backdrop. */
+const UI_NON_TEXT_BG = ['ui-backdrop', 'ui-ring', 'ui-ok', 'ui-warn', 'ui-fail', 'ui-record', 'ui-idle', 'ui-waiting', 'ui-track', 'ui-knob', 'ui-hairline', 'ui-text-3'];
 /** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
 const OVER_MEDIA = ['veil', 'ink-veil'];
 /** Non-text marks at 3:1 (WCAG 1.4.11): the focus ring on the light surfaces, the comment region on video, the status dots. */
 const NON_TEXT_PAIRS: Array<[string, string[]]> = [
-  ['accent', ['bg', 'surface', 'sidebar', 'subtle', 'hover', 'tint', 'accent-soft']],
+  ['accent', ['bg', 'surface', 'subtle', 'hover', 'tint', 'accent-soft']],
+  ['accent-strong', ['bg', 'surface', 'accent-soft']],
   ['mark-on-video', ['ink']],
-  ['online', ['sidebar', 'surface']],
-  ['danger', ['sidebar', 'surface']],
+  ['danger', ['surface']],
+  // L5.9 (review A-L2): the in-flight steps' dashed edge, on a step's every background (rest, hover, selected).
+  ['busy-edge', ['surface', 'bg', 'accent-soft']],
+];
+
+/**
+ * L5.9: the kit's pairs (`--ui-*`), in both appearances — text at 4.5:1 on every surface it may sit on; marks (the focus
+ * ring, status marks, the switch's knob and track, the accent fill as a mark) at 3:1 where they stand.
+ * Accepted below 3:1 and stated (DESIGN §4k): --ui-hairline (decorative, inside lists), --ui-field-line (a field's
+ * edge: every field has a visible label and the focus ring), --ui-select against --ui-pane (a selected row adds weight
+ * 600 or a 2 px ring: the checker's `selected` rule), --ui-waiting on raised surfaces (never drawn there).
+ */
+const UI_TEXT = ['text', 'text-2', 'text-3', 'text-strong', 'link', 'danger-text'];
+const UI_SURFACES = ['canvas', 'pane', 'raised', 'raised-hi', 'field', 'well', 'overlay', 'select'];
+const UI_TEXT_PAIRS: Array<[string, string[]]> = [
+  ...UI_TEXT.map((t): [string, string[]] => [t, UI_SURFACES]),
+  ['on-accent', ['accent', 'danger']],
+  ['on-video', ['video']],
+  ['text', ['kbd', 'record-tint', 'recording']],
+  ['text-2', ['kbd']],
+];
+const UI_MARK_PAIRS: Array<[string, string[]]> = [
+  ...['ring', 'ok', 'warn', 'fail', 'record', 'idle'].map((m): [string, string[]] => [m, ['canvas', 'pane', 'overlay', 'select', 'field']]),
+  ['ring', ['raised']],
+  ['waiting', ['canvas', 'pane', 'overlay']],
+  ['knob', ['track']],
+  ['track', ['canvas', 'pane', 'overlay']],
+  ['accent', ['canvas', 'pane', 'overlay']],
+  ['record', ['record-tint', 'recording']],
 ];
 
 type RGBA = [number, number, number, number];
@@ -858,6 +900,8 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'ScenarioScreen.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{drag.drop}' }, line: '<p', why: 'the drop target of a step dragged into an empty scene; the keyboard moves steps with Alt+↑ / Alt+↓' },
   { file: 'TimelineInspector.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"tl-radios"', onKeyDown: '{roveKeys}' }, line: 'className="tl-radios" role="radiogroup"', why: 'the roving arrow keys of a radio group; its checked radio holds the tab stop' },
   { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rec-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
+  { file: 'ui-kit/panes.tsx', tag: 'div', attrs: { role: '"toolbar"', onKeyDown: '{rove}' }, line: '<div role="toolbar"', why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop' },
+  { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
 
@@ -937,7 +981,7 @@ function tsColourLiterals(src: string): string[] {
 
 /** The focus lint: an outline removed / hidden / transparent with no accent ring in its place; a focus ring not in --accent or --accent-strong. */
 function focusLint(rules: CssRule[]): string[] {
-  const RING = new Set(['accent', 'accent-strong']);
+  const RING = new Set(['accent', 'accent-strong', 'ui-ring']);
   const out: string[] = [];
   for (const r of rules) {
     const focus = /:focus/.test(r.selector);
@@ -952,7 +996,7 @@ function focusLint(rules: CssRule[]): string[] {
       if (/^(?:-?[\d.]+(?:px)?|auto)$/.test(v)) continue;
       const vars = [...v.matchAll(/var\(--([\w-]+)\)/g)].map((m) => m[1]);
       if (vars.length === 0 && !/^\s*(?:-?[\d.]+px\s*)+$/.test(v)) out.push(`${r.selector}: ${k} ${v} — its colour is not a token`);
-      for (const t of vars) if (!RING.has(t)) out.push(`${r.selector}: ${k} in --${t} (a focus ring is --accent or --accent-strong)`);
+      for (const t of vars) if (!RING.has(t)) out.push(`${r.selector}: ${k} in --${t} (a focus ring is --accent, --accent-strong or --ui-ring)`);
     }
   }
   return out;
@@ -962,40 +1006,88 @@ function focusLint(rules: CssRule[]): string[] {
 const VAR_REF = /var\((--[\w-]+)/g;
 
 /** The faded states app.css accepts (its header): inactive or transient only. */
-const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".blocks[aria-busy='true'] .steps", ".tl-radios[aria-disabled='true'] .tl-radio", ".th-color input[type='color'].is-unset"];
+const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".tl-radios[aria-disabled='true'] .tl-radio", ".th-color input[type='color'].is-unset"];
 
-describe('the closed palette, the fonts, contrast by token (L4.9 part B)', () => {
-  it('⚑ no colour literal outside :root (hex, colour functions, named colours); no var() fallback; no font file or URL', async () => {
+describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
+  it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
     const rules = cssRules(await appCss());
     expect(rules.length).toBeGreaterThan(400);
     const bad: string[] = [];
-    for (const r of rules) {
-      if (r.selector === ':root') continue;
-      for (const [k, v] of r.decls) {
-        if (colourIn(v)) bad.push(`${r.selector} { ${k}: ${v} }`);
-        if (/var\(--[\w-]+\s*,/.test(v)) bad.push(`${r.selector} { ${k}: ${v} } (a fallback)`);
-        if (/url\(/.test(v)) bad.push(`${r.selector} { ${k}: ${v} } (a URL)`);
+    for (const [f, text] of [['app.css', await appCss()] as [string, string], ...(await kitCss())]) {
+      for (const r of cssRules(text)) {
+        for (const [k, v] of r.decls) {
+          if (colourIn(v)) bad.push(`${f}: ${r.selector} { ${k}: ${v} }`);
+          if (/var\(--[\w-]+\s*,/.test(v)) bad.push(`${f}: ${r.selector} { ${k}: ${v} } (a fallback)`);
+          if (/url\(/.test(v)) bad.push(`${f}: ${r.selector} { ${k}: ${v} } (a URL)`);
+        }
       }
+      expect(text, f).not.toMatch(/@font-face|@import/);
     }
     expect(bad).toEqual([]);
-    expect(await appCss()).not.toMatch(/@font-face|@import/);
-    // Every :root value is a literal colour, a length or a font list (no token built from another).
-    for (const [k, v] of tokensOf(rules)) expect(v.includes('var('), k).toBe(false);
+    // Every token value is a literal colour, a length or a font list (no token built from another).
+    for (const a of APPEARANCES) for (const [k, v] of tokensOf(a)) expect(v.includes('var('), `${a} ${k}`).toBe(false);
     // The lint catches each kind of literal (planted).
     for (const v of ['#123456', '#fff', 'rgb(1, 2, 3)', 'rgba(0,0,0,.5)', 'hsl(0 0% 0%)', 'oklch(0.5 0.1 200)', 'white', '1px solid red', 'linear-gradient(90deg, var(--a), black)', 'color-mix(in srgb, var(--a), var(--b))']) expect(colourIn(v), v).toBe(true);
     for (const v of ['var(--accent)', 'transparent', 'currentColor', 'inherit', '1px solid var(--line)', 'nowrap', 'pre-line', 'redirect']) expect(colourIn(v), v).toBe(false);
   });
 
-  it('⚑ every var(--x) of app.css and the app sources is a :root token, and every token is used', async () => {
+  it('⚑ tokens.css is tokens.ts written out (generated: pnpm -F @demo-studio/ui gen:tokens); its only URLs are the two bundled fonts', async () => {
+    const file = await readFile(join(APP, 'tokens.css'), 'utf8');
+    expect(file, 'tokens.css is stale: run pnpm -F @demo-studio/ui gen:tokens').toBe(tokensCss());
+    expect([...file.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual(["'/fonts/Geist-Variable.woff2'", "'/fonts/GeistMono-Variable.woff2'"]);
+    expect(file.match(/@font-face/g)).toHaveLength(2);
+    // Dark by default (no preference), light only when the system asks for it; the scopes after the media block.
+    expect(file.indexOf("color-scheme: dark")).toBeLessThan(file.indexOf('@media (prefers-color-scheme: light)'));
+    // (Twice: the tokens, then the dialogs' veils on ::backdrop.)
+    expect(file.match(/@media[^{]*/g)).toEqual(['@media (prefers-color-scheme: light) ', '@media (prefers-color-scheme: light) ']);
+    expect(file.lastIndexOf("[data-appearance='dark'] {")).toBeGreaterThan(file.indexOf('@media'));
+    expect(file.lastIndexOf("[data-appearance='light'] {")).toBeGreaterThan(file.indexOf('@media'));
+    // Both appearances define the same colour tokens, each a colour the contrast lint can read.
+    expect([...colourTokens('dark').keys()]).toEqual([...colourTokens('light').keys()]);
+    for (const a of APPEARANCES) for (const [k, v] of colourTokens(a)) expect(rgbaOf(v), `${a} ${k}: ${v}`).toBeDefined();
+    // The fonts beside their licence (SIL OFL 1.1: the files unmodified, the licence with them).
+    const fonts = await readdir(join(APP, '..', '..', 'fonts'));
+    expect(fonts.sort()).toEqual(['Geist-Variable.woff2', 'GeistMono-Variable.woff2', 'LICENSE.txt']);
+    expect(await readFile(join(APP, '..', '..', 'fonts', 'LICENSE.txt'), 'utf8')).toContain('SIL Open Font License, Version 1.1');
+    // The lint sees a hand edit (planted).
+    expect(file.replace('--ui-canvas: #111214', '--ui-canvas: #111215')).not.toBe(tokensCss());
+    // Review B-L7: the centre pane's height is the window less the two bars, from their own tokens.
+    const t = tokenMap('dark');
+    const bars = ['--ui-titlebar-h', '--ui-statusbar-h'].map((n) => Number(/^(\d+)px$/.exec(t.get(n) ?? '')?.[1]));
+    expect(t.get('--main-h')).toBe(`calc(100dvh - ${bars[0] + bars[1]}px)`);
+    // Review A-L9: the veils are declared on ::backdrop itself in each appearance (Safari 17 and Firefox 120 do not
+    // inherit custom properties into it).
+    for (const sel of ['::backdrop', "[data-appearance='light'] ::backdrop", "[data-appearance='dark'] ::backdrop"]) {
+      expect(file, sel).toMatch(new RegExp(`^${sel.replace(/[[\]()'.*]/g, '\\$&')} \\{\\n  --ui-backdrop: rgba\\([^)]*\\);\\n  --backdrop: rgba`, 'm'));
+    }
+    expect(file).toMatch(/@media \(prefers-color-scheme: light\) \{\n {2}::backdrop \{\n {4}--ui-backdrop: rgba\(22, 24, 29, 0\.35\);/);
+    // No other token shares a status family's colour in an appearance: the checker's colour-only rule reads a colour
+    // back to its family (a selection tint equal to --info-soft read as "info": L5.9's first dark tour).
+    const status = (n: string) => STATUS_TOKENS.some((p) => n === p || n.startsWith(`${p}-`));
+    for (const a of APPEARANCES) {
+      const m = colourTokens(a);
+      const taken = new Map([...m].filter(([n]) => status(n)).map(([n, v]) => [v.toLowerCase(), n]));
+      expect([...m].filter(([n, v]) => !status(n) && taken.has(v.toLowerCase())).map(([n, v]) => `${a}: ${n} ${v} = ${taken.get(v.toLowerCase())}`)).toEqual([]);
+    }
+  });
+
+  it('⚑ every var(--x) of the stylesheets and the app sources is a token, every token is used; app.css reads no --ui-* token, the kit and the shell nothing else', async () => {
     const text = await appCss();
     const rules = cssRules(text);
-    const tokens = tokensOf(rules);
+    const tokens = tokensOf('dark');
     const used = new Set<string>();
+    const kit = await kitCss();
     // (Any custom-property character: `var(--accent_strong)` is not read as --accent.)
-    for (const r of rules) if (r.selector !== ':root') for (const [, v] of r.decls) for (const m of v.matchAll(VAR_REF)) used.add(m[1]);
+    for (const r of rules) for (const [, v] of r.decls) for (const m of v.matchAll(VAR_REF)) used.add(m[1]);
     expect([...'1px solid var(--accent_strong)'.matchAll(VAR_REF)].map((m) => m[1])).toEqual(['--accent_strong']);
+    expect([...used].filter((u) => u.startsWith('--ui-')), 'app.css reads a --ui-* token (legacy screens do not half-migrate)').toEqual([]);
+    for (const [f, css] of kit) {
+      const own = cssRules(css).flatMap((r) => r.decls.flatMap(([, v]) => [...v.matchAll(VAR_REF)].map((m) => m[1])));
+      expect(own.filter((u) => !u.startsWith('--ui-')), `${f} reads a legacy token`).toEqual([]);
+      for (const u of own) used.add(u);
+    }
     for (const [f, src] of await appSources()) {
-      if (f.endsWith('.css')) continue;
+      if (f.endsWith('.css') || f === 'tokens.ts') continue;
       for (const m of code(src).matchAll(/var\((--[\w-]+)|getPropertyValue\('(--[\w-]+)'\)/g)) used.add(m[1] ?? m[2]);
     }
     expect([...used].filter((u) => !tokens.has(u)), 'used but not defined').toEqual([]);
@@ -1004,8 +1096,8 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B)', () =>
     expect(used.has('--ink')).toBe(true);
   });
 
-  it('⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor\'s defaults (theme data, not the Studio\'s chrome)', async () => {
-    const THEME_DATA = new Set(['ThemeEditor.tsx', 'ThemesScreen.tsx', 'theme-words.ts']);
+  it('⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor\'s defaults (theme data, not the Studio\'s chrome) and tokens.ts', async () => {
+    const THEME_DATA = new Set(['ThemeEditor.tsx', 'ThemesScreen.tsx', 'theme-words.ts', 'tokens.ts']);
     for (const [f, src] of await appSources()) {
       if (f.endsWith('.css') || THEME_DATA.has(f)) continue;
       expect(tsColourLiterals(code(src)), `${f}: a colour literal`).toEqual([]);
@@ -1015,54 +1107,72 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B)', () =>
     for (const line of ["const t = 'red flag';", "getPropertyValue('--ink')", "className=\"tan-line\"", "const words = 'a white page';", "href=\"#abc\"", "'#main'"]) expect(tsColourLiterals(line), line).toEqual([]);
   });
 
-  it('⚑ the Geist pair first in the font stacks, local names only; the body and code use them', async () => {
+  it('⚑ the Geist pair first in the font stacks (bundled, BL-120); the body, code and the kit use them', async () => {
     const rules = cssRules(await appCss());
-    const tokens = tokensOf(rules);
-    expect(tokens.get('--font')!.split(',')[0].trim()).toBe("'Geist'");
-    expect(tokens.get('--mono')!.split(',')[0].trim()).toBe("'Geist Mono'");
-    expect(tokens.get('--font')).toMatch(/sans-serif$/);
-    expect(tokens.get('--mono')).toMatch(/monospace$/);
+    const tokens = tokensOf('dark');
+    for (const [sans, mono] of [['--font', '--mono'], ['--ui-font', '--ui-mono']]) {
+      expect(tokens.get(sans)!.split(',')[0].trim()).toBe("'Geist'");
+      expect(tokens.get(mono)!.split(',')[0].trim()).toBe("'Geist Mono'");
+      expect(tokens.get(sans)).toMatch(/sans-serif$/);
+      expect(tokens.get(mono)).toMatch(/monospace$/);
+    }
     const fonts = rules.flatMap((r) => r.decls.filter(([k]) => k === 'font' || k === 'font-family').map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
     expect(fonts.find((d) => d.startsWith('body '))).toBe('body { font: 14px/1.5 var(--font) }');
     for (const d of fonts) expect(/var\(--(?:font|mono)\)|: inherit \}$/.test(d), d).toBe(true);
+    for (const [f, css] of await kitCss()) {
+      for (const r of cssRules(css)) for (const [k, v] of r.decls) if (k === 'font' || k === 'font-family') expect(/var\(--ui-(?:font|mono)\)|^inherit$/.test(v), `${f}: ${r.selector} { ${k}: ${v} }`).toBe(true);
+    }
   });
 
-  it('⚑ every text token on every background it may sit on reaches 4.5:1 (alpha composited); marks reach 3:1', async () => {
+  it('⚑ every text token on every background it may sit on reaches 4.5:1 (alpha composited), marks 3:1 — in dark and in light', async () => {
     const rules = cssRules(await appCss());
-    const tokens = tokensOf(rules);
     const fails: string[] = [];
-    for (const set of CONTRAST_SETS) {
-      for (const t of set.text) {
-        for (const b of set.on) {
-          if (NOT_MEANT.some(([x, y]) => x === t && y === b)) continue;
-          const r = worstRatio(tokens, t, b);
-          if (!(r >= 4.5)) fails.push(`--${t} on --${b}: ${r.toFixed(2)}:1`);
+    for (const a of APPEARANCES) {
+      const tokens = tokensOf(a);
+      for (const set of CONTRAST_SETS) {
+        for (const t of set.text) {
+          for (const b of set.on) {
+            if (NOT_MEANT.some(([x, y]) => x === t && y === b)) continue;
+            const r = worstRatio(tokens, t, b);
+            if (!(r >= 4.5)) fails.push(`${a}: --${t} on --${b}: ${r.toFixed(2)}:1`);
+          }
+        }
+      }
+      for (const [mark, on] of NON_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, mark, b) >= 3)) fails.push(`${a}: --${mark} (a mark) on --${b}: ${worstRatio(tokens, mark, b).toFixed(2)}:1`);
+      // The kit's set.
+      for (const [t, on] of UI_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, `ui-${t}`, `ui-${b}`) >= 4.5)) fails.push(`${a}: --ui-${t} on --ui-${b}: ${worstRatio(tokens, `ui-${t}`, `ui-${b}`).toFixed(2)}:1`);
+      for (const [m, on] of UI_MARK_PAIRS) for (const b of on) if (!(worstRatio(tokens, `ui-${m}`, `ui-${b}`) >= 3)) fails.push(`${a}: --ui-${m} (a mark) on --ui-${b}: ${worstRatio(tokens, `ui-${m}`, `ui-${b}`).toFixed(2)}:1`);
+      // Every pair a rule declares together, excuses or not.
+      for (const [f, css] of [['app.css', rules] as [string, CssRule[]], ...(await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])]) {
+        for (const r of css) {
+          const fg = r.decls.filter(([k]) => k === 'color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
+          const bg = r.decls.filter(([k]) => k === 'background' || k === 'background-color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
+          for (const t of fg) for (const b of bg) if (!(worstRatio(tokens, t, b) >= 4.5)) fails.push(`${a}: ${f} ${r.selector}: --${t} on --${b}: ${worstRatio(tokens, t, b).toFixed(2)}:1`);
         }
       }
     }
-    for (const [mark, on] of NON_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, mark, b) >= 3)) fails.push(`--${mark} (a mark) on --${b}: ${worstRatio(tokens, mark, b).toFixed(2)}:1`);
     expect(fails).toEqual([]);
-    // Every pair a rule declares together, excuses or not.
-    for (const r of rules) {
-      const fg = r.decls.filter(([k]) => k === 'color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
-      const bg = r.decls.filter(([k]) => k === 'background' || k === 'background-color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
-      for (const t of fg) for (const b of bg) expect(worstRatio(tokens, t, b), `${r.selector}: --${t} on --${b}`).toBeGreaterThanOrEqual(4.5);
-    }
     // Every token used as a text colour is a text token; every background token is classified.
-    const texts = new Set(CONTRAST_SETS.flatMap((x) => x.text));
-    const backs = new Set([...CONTRAST_SETS.flatMap((x) => x.on), ...NON_TEXT_BG]);
-    for (const r of rules) {
-      for (const [k, v] of r.decls) {
-        for (const m of v.matchAll(/var\(--([a-z0-9-]+)\)/g)) {
-          if (k === 'color') expect(texts.has(m[1]), `${r.selector}: color --${m[1]} is not a text token`).toBe(true);
-          if (k === 'background' || k === 'background-color') expect(backs.has(m[1]), `${r.selector}: background --${m[1]} is not classified`).toBe(true);
+    const texts = new Set([...CONTRAST_SETS.flatMap((x) => x.text), ...UI_TEXT_PAIRS.map(([t]) => `ui-${t}`)]);
+    const backs = new Set([...CONTRAST_SETS.flatMap((x) => x.on), ...NON_TEXT_BG, ...UI_TEXT_PAIRS.flatMap(([, on]) => on.map((b) => `ui-${b}`)), ...UI_NON_TEXT_BG]);
+    for (const [f, css] of [['app.css', rules] as [string, CssRule[]], ...(await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])]) {
+      for (const r of css) {
+        for (const [k, v] of r.decls) {
+          for (const m of v.matchAll(/var\(--([a-z0-9-]+)\)/g)) {
+            // (An icon's colour is a mark's: the record symbol, the attention triangle, the failure cross — 3:1 pairs.)
+            const glyph = /^\.k-(?:record-mark|mark-attention|mark-fail)$/.test(r.selector) && UI_MARK_PAIRS.some(([mk]) => `ui-${mk}` === m[1]);
+            if (k === 'color') expect(texts.has(m[1]) || glyph, `${f}: ${r.selector}: color --${m[1]} is not a text token`).toBe(true);
+            if (k === 'background' || k === 'background-color') expect(backs.has(m[1]), `${f}: ${r.selector}: background --${m[1]} is not classified`).toBe(true);
+          }
         }
       }
     }
-    // The lint fails a pale text token (planted), and an unreadable token is a failure, not a skip.
-    const planted = new Map(tokens).set('--muted', '#8b919b');
-    expect(worstRatio(planted, 'muted', 'surface')).toBeLessThan(4.5);
-    expect(Number.isNaN(worstRatio(new Map(tokens).set('--muted', 'grey'), 'muted', 'surface'))).toBe(true);
+    // The lint fails a pale text token (planted) in either appearance, and an unreadable token is a failure, not a skip.
+    expect(worstRatio(new Map(tokensOf('light')).set('--muted', '#8b919b'), 'muted', 'surface')).toBeLessThan(4.5);
+    expect(worstRatio(new Map(tokensOf('dark')).set('--muted', '#565d69'), 'muted', 'surface')).toBeLessThan(4.5);
+    expect(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', '#6f747e'), 'ui-text-3', 'ui-raised')).toBeLessThan(4.5);
+    expect(worstRatio(new Map(tokensOf('light')).set('--ui-track', '#cfd1d6'), 'ui-knob', 'ui-track')).toBeLessThan(3);
+    expect(Number.isNaN(worstRatio(new Map(tokensOf('dark')).set('--muted', 'grey'), 'muted', 'surface'))).toBe(true);
   });
 
   it('⚑ placeholders take the app\'s own colour at full opacity (WebKit\'s default reads 2.35:1)', async () => {
@@ -1073,14 +1183,22 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B)', () =>
     expect(decls.get('color')).toMatch(/^var\(--[a-z-]+\)$/);
     expect(TEXT_ON_LIGHT).toContain(decls.get('color')!.slice(6, -1));
     expect(decls.get('opacity')).toBe('1');
-    // No other rule fades or recolours a placeholder.
+    // No other rule of app.css fades or recolours a placeholder; the kit's one rule uses its own text token at full opacity.
     expect(rules.filter((r) => r.selector.includes('placeholder') && r !== ph[0]).map((r) => r.selector)).toEqual([]);
+    for (const [f, css] of await kitCss()) {
+      for (const r of cssRules(css).filter((x) => x.selector.includes('placeholder'))) {
+        expect(new Map(r.decls).get('color'), `${f}: ${r.selector}`).toBe('var(--ui-text-3)');
+        expect(new Map(r.decls).get('opacity'), `${f}: ${r.selector}`).toBe('1');
+      }
+    }
   });
 
-  it('⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong (the skip link\'s target excepted)', async () => {
+  it('⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong / --ui-ring (the skip link\'s target excepted)', async () => {
     const rules = cssRules(await appCss());
+    expect(focusLint(rules)).toEqual([]);
     // main is focused by the skip link (tabIndex -1) to move the reading point, never to show a control.
-    expect(focusLint(rules)).toEqual(['main:focus: outline none, no ring in its place']);
+    const kit = await kitCss();
+    expect(kit.flatMap(([, css]) => focusLint(cssRules(css)))).toEqual(['.sh-main:focus: outline none, no ring in its place']);
     // The lint catches each planted way of hiding a ring.
     for (const [rule, what] of [
       ['button:focus-visible { outline: none !important }', 'no ring in its place'],
@@ -1093,16 +1211,25 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B)', () =>
       ['button:focus { outline: none; box-shadow: 0 0 0 2px var(--line) }', '--line'],
       ['button:focus { outline: none; box-shadow: none }', 'no ring in its place'],
       ['.chip:focus-within { outline: 2px solid currentColor }', 'not a token'],
+      ['.k-button:focus-visible { outline: 2px solid var(--ui-hairline) }', '--ui-hairline'],
     ] as const) {
       expect(focusLint(cssRules(rule)).join(' | '), rule).toContain(what);
     }
-    for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
+    for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }', '.k-button:focus-visible { outline: 2px solid var(--ui-ring) }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
   });
 
-  it('⚑ opacity below 1 only on the five accepted states (a disabled control, a dragged step, steps in flight, a switched-off group, an unset colour well)', async () => {
+  it('⚑ opacity below 1 only on the four accepted states (a disabled control, a dragged step, a switched-off group, an unset colour well); none in the kit', async () => {
     const rules = cssRules(await appCss());
     const faded = rules.filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => r.selector);
     expect(faded.sort()).toEqual([...OPACITY_ACCEPTED].sort());
+    for (const [f, css] of await kitCss()) expect(cssRules(css).filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => `${f}: ${r.selector}`)).toEqual([]);
+  });
+
+  it('⚑ L5.9: heights follow the shell\'s centre pane (--main-h), never the viewport — no vh in a height, inside min() / max() / clamp() too (review B-M1)', async () => {
+    const vh = (rules: CssRule[]) => rules.flatMap((r) => r.decls.filter(([k, v]) => /^(?:min-|max-)?height$/.test(k) && /\d(?:d|s|l)?vh\b/.test(v)).map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
+    expect(vh(cssRules(await appCss()))).toEqual([]);
+    for (const [f, css] of await kitCss()) expect(vh(cssRules(css)), f).toEqual([]);
+    expect(vh(cssRules('.x { max-height: calc(100vh - 32px) } .y { height: 100dvh } .z { height: min(44vh, 460px) } .w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) } .v { height: max(var(--main-h), 10px) }'))).toEqual(['.x { max-height: calc(100vh - 32px) }', '.y { height: 100dvh }', '.z { height: min(44vh, 460px) }', '.w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) }']);
   });
 });
 
@@ -1151,5 +1278,175 @@ describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
     for (const line of ['<button onClick={go}>x</button>', '<a href="#x" onClick={go}>x</a>', '<div role="button" tabIndex={0} onClick={go} onKeyDown={k}>x</div>', '<input {...p} />', '<ul role="listbox" tabIndex={0} onKeyDown={k} />', '<ul role="listbox" tabIndex={on ? 0 : -1} onKeyDown={k} />', '<img onLoad={a} onError={b} alt="" />', '<details onToggle={t} />', '<dialog onClose={c} onCancel={d} />', '<video onTimeUpdate={t} onEnded={e} />']) {
       expect(jsxControls('Planted.tsx', `export const X = () => (${line});`), line).toEqual([]);
     }
+  });
+});
+
+// ── L5.9 part E: screens stay on the kit (review A-M3: scripts/kit-ratchet.ts, the table in legacy-controls.json) ─────
+
+/** A legacy screen's row as committed at HEAD (none outside a git checkout, or before the table existed). */
+function headTable(): Record<string, number> | null {
+  try {
+    return JSON.parse(execFileSync('git', ['show', 'HEAD:packages/ui/test/legacy-controls.json'], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })) as Record<string, number>;
+  } catch {
+    return null;
+  }
+}
+
+describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint with a ratchet)', () => {
+  it('no native control, widget role, kit class, app.css class or legacy token outside ui-kit/ but the legacy screens\' counted ones (each count ≤ its row; the rows only go down)', async () => {
+    const table = await readTable();
+    const found = await ratchetFindings();
+    const over = [...found].filter(([f, x]) => x.length > (table[f] ?? 0)).map(([f, x]) => `${f}: ${x.length} findings, the table allows ${table[f] ?? 0} (${x.slice(0, 4).join('; ')})`);
+    expect(over).toEqual([]);
+    // The shell and the gallery are kit-only: no row, nothing found.
+    for (const f of [...found.keys()].filter((x) => x.startsWith('shell/') || x === 'GalleryScreen.tsx')) {
+      expect(table[f], f).toBeUndefined();
+      expect(found.get(f), f).toEqual([]);
+    }
+    // A row never goes up: not above the committed table's (pnpm -F @demo-studio/ui ratchet only lowers rows).
+    const head = headTable();
+    if (head) expect(Object.entries(table).filter(([f, n]) => n > (head[f] ?? 0)).map(([f]) => f)).toEqual([]);
+    // Planted, in a file without a row: each kind found.
+    const ctx = { appClasses: new Set(['button', 'primary', 'card']), tokens: new Set(['--danger-soft', '--accent']) };
+    const planted = (line: string) => offKit('New.tsx', `export const X = () => (${line});`, ctx);
+    expect(planted('<button type="button">Go</button>')).toEqual(['New.tsx:1 <button>']);
+    expect(planted('<div role="switch" />')).toEqual(['New.tsx:1 role switch']);
+    expect(planted('<a href="#/" className="k-btn k-btn-primary">Go</a>')).toEqual(['New.tsx:1 class k-btn', 'New.tsx:1 class k-btn-primary']);
+    // The review's mutation: an ad-hoc button on a legacy colour, a link dressed as a legacy button.
+    expect(planted('<div role="button" tabIndex={0} onClick={go} onKeyDown={go} style={{ background: \'var(--danger-soft)\' }}>Ad hoc</div>')).toEqual(['New.tsx:1 role button', 'New.tsx:1 legacy token --danger-soft']);
+    expect(planted('<a href={hrefTo(r)} className="button primary">Go</a>')).toEqual(['New.tsx:1 legacy class button', 'New.tsx:1 legacy class primary']);
+    expect(planted("<div role={on ? 'tab' : undefined} />")).toEqual([expect.stringContaining('(not a literal)')]);
+    expect(planted('<div role={`tab`} />')).toEqual([expect.stringContaining('(not a literal)')]);
+    expect(planted('<div className={on ? \'card\' : `k-panel ${x}`} />')).toEqual(['New.tsx:1 legacy class card', 'New.tsx:1 class k-panel']);
+    for (const tag of ['progress', 'meter', 'details', 'summary', 'label']) expect(planted(`<${tag} />`), tag).toEqual([`New.tsx:1 <${tag}>`]);
+    for (const role of ['checkbox', 'radio', 'tab', 'slider', 'option', 'menuitemradio', 'spinbutton']) expect(planted(`<div role="${role}" />`), role).toEqual([`New.tsx:1 role ${role}`]);
+    expect(offKit('New.tsx', "const c = getComputedStyle(el).getPropertyValue('--accent');", ctx)).toEqual(['New.tsx:1 legacy token --accent']);
+    // The kit's utilities, a kit component, a --ui-* token, a non-widget role, a CLI flag in a string: nothing.
+    expect(planted('<span className="k-sr k-mono">x</span>')).toEqual([]);
+    expect(planted('<Button variant="primary">Go</Button>')).toEqual([]);
+    expect(planted('<div role="region" style={{ color: \'var(--ui-text-2)\' }} title="studio render --review" />')).toEqual([]);
+    // app.css's classes are read from its selectors.
+    expect([...appCssClasses('.a, .b > .c:hover { x: 1 } @media (max-width: 9px) { .d.e { y: 2 } } /* .f */')].sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
+  it('the kit, the shell and the new screens\' stylesheets: sizes, weights and radii from --ui-* tokens only', async () => {
+    const SIZED = new Set(['font-size', 'line-height', 'font-weight', 'border-radius', 'letter-spacing']);
+    const bad: string[] = [];
+    const lint = (f: string, css: string) => {
+      for (const r of cssRules(css)) for (const [k, v] of r.decls) if (SIZED.has(k) && !/^(?:(?:var\(--ui-[\w-]+\)|0|50%|inherit)\s*)+$/.test(v)) bad.push(`${f}: ${r.selector} { ${k}: ${v} }`);
+    };
+    const kit = await kitCss();
+    expect(kit.map(([f]) => f).sort()).toEqual(['screens.css', 'shell/shell.css', 'ui-kit/kit.css']);
+    for (const [f, css] of kit) lint(f, css);
+    expect(bad).toEqual([]);
+    lint('planted.css', '.k-x { font-size: 14px; border-radius: 3px; font-weight: 650 } .k-y { border-radius: 0 0 var(--ui-radius-overlay) var(--ui-radius-overlay) }');
+    expect(bad).toEqual(['planted.css: .k-x { font-size: 14px }', 'planted.css: .k-x { border-radius: 3px }', 'planted.css: .k-x { font-weight: 650 }']);
+  });
+
+  it('the product\'s name lives in brand.ts: never written in the app\'s sources (the screens, the kit, the shell, the gallery) or bundle.ts', async () => {
+    const files = await appSources();
+    files.push(['../bundle.ts', await readFile(join(APP, '..', 'bundle.ts'), 'utf8')]);
+    // Any case, any run of spaces (a JSX text wrapped across lines, a no-break space) — review A-L8.
+    const NAME = /Demo\s+Studio/i;
+    expect(files.filter(([f, text]) => f !== 'brand.ts' && NAME.test(code(text))).map(([f]) => f)).toEqual([]);
+    expect(files.find(([f]) => f === 'brand.ts')![1]).toContain("export const APP_NAME = 'Demo Studio';");
+    for (const planted of ['<p>Demo\n        Studio</p>', "'demo studio'", 'Demo\u00a0Studio']) expect(NAME.test(code(planted)), planted).toBe(true);
+    expect(NAME.test(code("import { x } from '@demo-studio/core';"))).toBe(false);
+  });
+});
+
+// ── L5.9 review A-M1: the kit shows text it did not write through Txt ───────────────────────────────────────────────
+
+/** What a kit slot may hold as a JSX child: an element, a literal, `shown(…)` / `visibleControls(…)` / a kit formatter, a `.map` of elements. */
+const KIT_TEXT_CALLS = new Set(['shown', 'visibleControls', 'formatTimecode']);
+
+/** The JSX children of a kit source that show a value bare — not through `shown` (Txt), `<Txt>` or `visibleControls` (a parser pass). */
+function kitBareText(file: string, text: string): string[] {
+  const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const ok = (e: ts.Expression): boolean => {
+    if (ts.isParenthesizedExpression(e)) return ok(e.expression);
+    if (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e)) return true;
+    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) || ts.isNumericLiteral(e) || e.kind === ts.SyntaxKind.NullKeyword) return true;
+    if (ts.isConditionalExpression(e)) return ok(e.whenTrue) && ok(e.whenFalse);
+    if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) return ok(e.right);
+    if (ts.isCallExpression(e)) {
+      const c = e.expression;
+      if (ts.isIdentifier(c) && KIT_TEXT_CALLS.has(c.text)) return true;
+      // A list of elements: the elements' own children are visited.
+      if (ts.isPropertyAccessExpression(c) && c.name.text === 'map') return true;
+    }
+    return false;
+  };
+  const out: string[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isJsxExpression(n) && n.expression && (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent)) && !ok(n.expression)) {
+      out.push(`${file}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1} {${n.expression.getText(src)}}`);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+/** A right-to-left isolate, built at run time like RLO. */
+const RLI = String.fromCharCode(0x2067);
+/** A hostile string for a kit slot: markup, a marker, an override and an isolate. */
+const K = (n: string) => `${H(n)}${RLI}x`;
+
+describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)', () => {
+  it('every slot of every kit component: a planted string lands in a <bdi> with its direction controls made visible (an <option> and key caps: visible marks)', () => {
+    const go = () => undefined;
+    const els = [
+      createElement(CommandPalette, { open: true, onClose: go, commands: [{ id: 'a', label: K('plabel'), hint: K('phint'), group: K('pgroup'), run: go }] }),
+      createElement(Menu, { label: 'More', text: K('mtext'), items: [{ id: 'x', label: K('mitem') }], onSelect: go }),
+      createElement(Select, { label: K('slabel'), hint: K('shint'), value: 'v', options: [{ value: 'v', label: K('opt') }], onChange: go }),
+      createElement(Sheet, { open: false, title: K('stitle'), actions: [{ id: 'c', label: K('saction'), isCancel: true }], onAction: go, children: K('sbody') }),
+      createElement(SourceList, { label: 'Browser', groups: [{ key: 'g', heading: K('sheading'), items: [{ key: 'r', to: { name: 'projects' }, label: K('srow'), flag: K('sflag'), current: false, count: 3 }] }] }),
+      createElement(StatusMark, { state: 'ok', word: K('status') }),
+      createElement(StatusBar, { state: K('bstate'), info: K('binfo'), actions: K('bactions') }),
+      createElement(FrameCard, { picture: K('cpic'), number: K('cnum'), title: K('ctitle'), meta: K('cmeta'), onSelect: go }),
+      createElement(Switch, { label: K('wlabel'), hint: K('whint'), checked: false, onChange: go }),
+      createElement(TextField, { label: K('flabel'), hint: K('fhint'), error: K('ferror'), value: 'x', onChange: go, unsaved: null }),
+      createElement(TextArea, { label: K('alabel'), value: 'x', onChange: go, unsaved: null }),
+      createElement(FieldRow, { label: K('rlabel'), hint: K('rhint'), children: K('rchild') }),
+      createElement(Segmented, { label: K('seglegend'), value: 'a', options: [{ value: 'a', label: K('seg') }], onChange: go }),
+      createElement(SegmentedLinks, { label: 'Mode', hint: K('seghint'), items: [{ key: 'a', label: K('link'), to: null, current: false }, { key: 'b', label: K('link2'), to: { name: 'projects' }, current: false }] }),
+      createElement(EmptyState, { title: K('etitle'), children: K('etext'), actions: K('eactions') }),
+      createElement(InspectorSection, { title: K('ititle'), children: K('ibody') }),
+      createElement(InspectorSection, { title: K('ctitle2'), collapsible: true, children: K('cbody2') }),
+      createElement(Progress, { label: K('prog'), valueText: K('progv'), value: 1 }),
+      createElement(Blocker, { word: K('blword'), fix: { label: K('blfix'), onClick: go }, children: K('bltext') }),
+      createElement(Button, { disabled: true, why: K('why'), children: K('btn') }),
+      createElement(LinkButton, { to: { name: 'projects' }, children: K('lbtn') }),
+      createElement(Toolbar, { label: 'Tools', children: K('tool') }),
+      createElement(Kbd, { keys: [K('kbd')] }),
+    ];
+    const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
+    const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
+    expect(raw, "a raw direction control").toEqual([]);
+    expect(html).not.toMatch(/<img|onerror="/);
+    const places = placesOf(html);
+    const marks = new Set(['opt', 'kbd']);
+    // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
+    const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
+    expect(wrong, JSON.stringify(wrong)).toEqual([]);
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool'];
+    const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
+    expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
+    // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
+    for (const n of marks) expect(html, n).toContain(`PAGE-${n}[U+202E]gnp[U+2067]x`);
+  });
+
+  it('a source lint: every JSX child of the kit goes through shown / <Txt> / visibleControls (a planted bare value fails it)', async () => {
+    const kit = (await appSources()).filter(([f]) => f.startsWith('ui-kit/') && f.endsWith('.tsx'));
+    expect(kit.length).toBeGreaterThan(10);
+    expect(kit.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    for (const line of ['<span>{c.label}</span>', '<span>{title}</span>', '<p>{on ? label : <b />}</p>', '<p>{on && hint}</p>', '<p>{`${a} b`}</p>', '<p>{a ?? b}</p>', '<p>{format(a)}</p>']) {
+      expect(kitBareText('Planted.tsx', `export const X = () => (${line});`), line).toHaveLength(1);
+    }
+    for (const line of ['<span>{shown(c.label)}</span>', '<span><Txt text={c.label} /></span>', '<option>{visibleControls(o.label)}</option>', '<p>{on ? shown(a) : null}</p>', '<p>{on && <b />}</p>', '<ul>{xs.map((x) => <li key={x}>{shown(x)}</li>)}</ul>', '<p>{"word"}</p>']) {
+      expect(kitBareText('Planted.tsx', `export const X = () => (${line});`), line).toEqual([]);
+    }
+    expect(kitBareText('Planted.tsx', 'export const X = () => (<ul>{xs.map((x) => <li key={x}>{x}</li>)}</ul>);')).toEqual(['Planted.tsx:1 {x}']);
   });
 });

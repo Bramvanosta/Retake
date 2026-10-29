@@ -14,8 +14,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "fonts"
   ],
+  "scripts": {
+    "gen:tokens": "tsx scripts/gen-tokens.ts",
+    "ratchet": "tsx scripts/ratchet.ts"
+  },
   "dependencies": {
     "@demo-studio/components": "workspace:*",
     "@demo-studio/core": "workspace:*",

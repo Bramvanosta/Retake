@@ -20,7 +20,8 @@
  * only behind the bundle check and never in test mode; no `terminate:` from a Tauri closure (critique H1) — the test
  * hook sends it from its signal thread, and only while no question is up (GUARD_OPEN, H2), the restart alerts wait for
  * an open question, signals set QUIT_NOW before `app.exit` (M1), a panic in the hook answers Now (L7); still no
- * osascript, one `.eval`, one Command, no capability. Review fixes: every shell modal counted while it runs and ended by
+ * osascript, one `.eval` (L5.9: two — the `--route` setter and a menu table's page command — and one constant
+ * main-frame init script), one Command, no capability. Review fixes: every shell modal counted while it runs and ended by
  * a signal only while AppKit runs one (B M1), the hook answering Cancel while one is up (B L13), no picker inside a
  * question (B L10), the dead server's ports refused before its alert waits (B L11), test mode never for a launchd
  * launch (A L2), and the pipe's enum lists the same in TypeScript and Rust (B L8).
@@ -29,6 +30,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { COMMAND_EVENT, MENU_COMMANDS } from '../../ui/src/app/ui-kit/commands.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
@@ -83,7 +85,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(src).not.toMatch(/#\[tauri::command\]|invoke_handler|generate_handler!|\.plugin\(|open_devtools|\bdevtools\(/);
   });
 
-  it('the window: ephemeral WebKit store, WebKit drag & drop, every download cancelled, every capture denied, no new-window handler, one eval, one Command (node)', () => {
+  it('the window: ephemeral WebKit store, WebKit drag & drop, every download cancelled, every capture denied, no new-window handler, one init script and two evals, one Command (node)', () => {
     const src = rustSources();
     expect(src).toContain('.incognito(true)');
     expect(src).toContain('.disable_drag_drop_handler()');
@@ -97,8 +99,12 @@ describe('desktop shell configuration (L5.2, static)', () => {
     // Review A L2: every media-capture request denied.
     expect(src).toContain('.on_permission_request(|_, _| PermissionResponse::Deny)');
     expect(src).not.toMatch(/PermissionResponse::(?:Allow|Default)/);
-    expect(src).not.toMatch(/on_new_window|on_web_resource_request|register_uri_scheme_protocol|initialization_script/);
-    expect(src.match(/\.eval\(/g)).toHaveLength(1);
+    expect(src).not.toMatch(/on_new_window|on_web_resource_request|register_uri_scheme_protocol|initialization_script_for_all_frames/);
+    // L5.9: one init script, main frame only, a constant (the page's title-bar flag); two evals (--route; a page command).
+    expect(src.match(/initialization_script\(/g)).toHaveLength(1);
+    expect(src).toContain('.initialization_script(menu::SHELL_FLAG_JS)');
+    expect(src.match(/\.eval\(/g)).toHaveLength(2);
+    expect(src).toContain('if let (Some(js), Some(w)) = (menu::page_command_js(id), app.get_webview_window(WINDOW)) {\n                    let _ = w.eval(js);');
     expect(src.match(/Command::new\(/g)).toHaveLength(1);
     expect(src).toContain('Command::new(&cfg.node)');
     expect(src).not.toMatch(/"sh"|"\/bin\/sh"|"bash"|"-c"|osascript/);
@@ -278,9 +284,10 @@ describe('desktop shell configuration (L5.2, static)', () => {
   it('prepared for the redesign: one command table, no Studio shortcut bound, one title-bar switch, no forced theme, name and id in one place', () => {
     const menu = read('src/menu.rs');
     const accelerators = [...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) => m[1]);
-    expect(accelerators).toEqual(['CmdOrCtrl+O', 'CmdOrCtrl+0']);
+    // L5.9: the View menu's page commands (⌘K, ⌘1 – ⌘4, ⌥⌘I); Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B come with L5.11.
+    expect(accelerators).toEqual(['CmdOrCtrl+O', 'CmdOrCtrl+K', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+4', 'Alt+CmdOrCtrl+I', 'CmdOrCtrl+0']);
     const src = rustSources();
-    expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(1);
+    expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(2);
     expect(src).toContain('menu::SHOW_WINDOW => show_window(app),');
     expect(src).not.toMatch(/\.reload\(|"reload"|CmdOrCtrl\+(?:Shift\+)?(?:R|B|S|Period|\.|Enter)"/);
     expect(menu).toMatch(/^pub const TITLE_BAR: TitleBar = TitleBar::Standard;$/m);
@@ -292,5 +299,20 @@ describe('desktop shell configuration (L5.2, static)', () => {
     }
     expect(read('Cargo.toml')).toMatch(/^name = "demo-studio-desktop"$/m);
     expect(read('src/main.rs')).toContain('pub const BIN: &str = env!("CARGO_PKG_NAME");');
+  });
+
+  it('⚑ L5.9: the menu\'s page commands are the page\'s MENU_COMMANDS (one list each side, compared); the flag script is a constant', () => {
+    const menu = read('src/menu.rs');
+    const page = [...menu.matchAll(/Item::Page \{ id: "([^"]+)", label: "[^"]+", accelerator: Some\("[^"]+"\) \}/g)].map((m) => m[1]);
+    expect(page.sort()).toEqual([...MENU_COMMANDS].sort());
+    expect(page).toHaveLength(MENU_COMMANDS.length);
+    // The dispatch: only a Page id of MENUS, JSON-quoted into one constant shape.
+    expect(menu).toContain("known.then(|| format!(\"window.dispatchEvent(new CustomEvent('studio:command', {{ detail: {{ id: {} }} }}))\", desktop_core::json::quote(id)))");
+    expect(menu).toContain('matches!(i, Item::Page { id: p, .. } if *p == id)');
+    expect(menu).toContain(`TitleBar::Standard => "window.__studioShell = Object.freeze({ titleBar: 'standard' });",`);
+    expect(menu).toContain(`TitleBar::Overlay { .. } => "window.__studioShell = Object.freeze({ titleBar: 'overlay' });",`);
+    expect(menu).toContain(`CustomEvent('${COMMAND_EVENT}'`);
+    // Planted: an id the page does not know would fail the comparison.
+    expect([...page, 'rehearse'].sort()).not.toEqual([...MENU_COMMANDS].sort());
   });
 });

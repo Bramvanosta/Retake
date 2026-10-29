@@ -1,103 +1,30 @@
 /*
- * The Studio's look (L4.1, closed in L4.9): calm, precise, light, its own — no video theme's colour reaches the chrome
- * (theme colours appear only in swatches, posters and the sandboxed preview).
- * - Every colour is a token of :root below; rules use var(--…) only (a lint fails a colour literal anywhere else, an
- *   undefined or unused token, and a text / background pair under 4.5:1).
- * - One accent, blue: the only interactive or selected colour. Four status families (danger, warning, info, success)
+ * The Studio's legacy look (L4.1, closed in L4.9; L5.9: dark and light): the screens L5.10 – L5.12 rebuild from the kit
+ * (ui-kit/, kit.css). Calm, precise, its own — no video theme's colour reaches the chrome (theme colours appear only in
+ * swatches, posters and the sandboxed preview).
+ * - Every colour is a token of tokens.css (generated from tokens.ts: one file, dark and light); rules use var(--…) only
+ *   (a lint fails a colour literal anywhere else, an undefined or unused token, a `--ui-*` token here — legacy screens
+ *   do not half-migrate — and a text / background pair under 4.5:1 in either appearance).
+ * - The whole file is the cascade layer `legacy`: the kit's rules (unlayered) win over these whatever their order or
+ *   specificity, so a kit component inside a legacy screen keeps its own look (critique M4).
+ * - One accent, blue: the only interactive or selected colour (text and rings: --accent / --accent-strong; fills under
+ *   white text: --accent-fill / --accent-strong-fill). Four status families (danger, warning, info, success)
  *   always come with words: a badge says what its colour means, colour is never the only cue (a diff row keeps its
  *   + / − sign, a status dot its word). A selected, current, pressed or checked state shows more than a tint: a heavier
  *   weight, a filled marker, or an accent bar / edge of ≥ 2 px (≥ 3:1 against its background). One categorical tint
- *   (violet: input actions, card segments) carries words too and never means "interactive". The dark tokens and the
+ *   (violet: input actions, card segments) carries words too and never means "interactive". The ink tokens and the
  *   marks are for video surfaces and tooltips only.
- * - Fonts: the Geist pair named first, by local family name only (no file, no network); system fallbacks after.
- *   Bundling the files is BL-120.
+ * - Fonts: the bundled Geist pair (tokens.css declares the faces, served by the Studio's own origin); system fallbacks after.
  * - Text keeps 4.5:1 on its background (3:1 at 24 px, or 18.66 px bold); every control shows a focus ring; placeholders
  *   use --muted at full opacity. Accepted below 4.5:1, transient or inactive only: a disabled control (opacity .5,
- *   WCAG exempts inactive controls), a step being dragged (.45), the steps while a write is in flight (.75), a
- *   switched-off group of the timeline (.55), an unset colour well of the theme editor (.35, no text: its field says
- *   "not set"). A lint holds opacity below 1 to these five. Focus rings are --accent or --accent-strong, never
+ *   WCAG exempts inactive controls), a step being dragged (.45), a switched-off group of the timeline (.55), an unset
+ *   colour well of the theme editor (.35, no text: its field says "not set"). A lint holds opacity below 1 to these
+ *   four. The steps while a write is in flight keep their colours (L5.9, review A-L2: a dashed --busy-edge instead). Focus rings are --accent or --accent-strong, never
  *   transparent (a lint).
+ * - Heights follow the shell's centre pane (--main-h), never the viewport (a lint: no vh in a height, inside min() /
+ *   max() / clamp() too — review B-M1).
  */
-:root {
-  /* Surfaces and neutral tints */
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --sidebar: #fbfbfc;
-  --subtle: #fafbfc;
-  --field-off: #f9fafb;
-  --unusable: #f7f8fa;
-  --link-hover: #f6f8fb;
-  --code-bg: #f4f5f7;
-  --faint: #f3f4f6;
-  --hover: #f1f3f6;
-  --thumb-stripe: #f1f2f5;
-  --outro-tint: #eef1f4;
-  --tint: #eef0f3;
-  --thumb-bg: #eceef2;
-  --hook-tint: #e9edf1;
-  /* Text */
-  --fg: #16181d;
-  --fg-soft: #262a31;
-  --hook-fg: #2f3b47;
-  --tint-fg: #3c4350;
-  --muted: #565d69;
-  /* Lines */
-  --line: #e2e5ea;
-  --line-strong: #cfd4dc;
-  --hook-line: #9aa6b2;
-  /* The one accent */
-  --accent: #2357d9;
-  --accent-strong: #1b45ad;
-  --accent-soft: #eaf0fd;
-  --accent-line: #b8cbf5;
-  --accent-line-soft: #c6d4f6;
-  --accent-line-strong: #8eaaf0;
-  --accent-fade: rgba(35, 87, 217, 0.28);
-  --accent-clear: rgba(35, 87, 217, 0);
-  --on-accent: #ffffff;
-  /* Status families (always with words) */
-  --danger: #b42318;
-  --danger-soft: #fdecea;
-  --danger-line: #f2c3bd;
-  --danger-line-strong: #e7b4ae;
-  --warning: #8a5300;
-  --warning-soft: #fdf3e1;
-  --warning-faint: #fffdf8;
-  --warning-line: #efd6a8;
-  --warning-line-soft: #efd9ad;
-  --warning-mark: #e8b04a;
-  --info: #1f5fae;
-  --info-soft: #e8f1fb;
-  --info-line: #c4d9f3;
-  --success: #1d6b3a;
-  --success-soft: #e6f4ea;
-  --success-line: #bfe0c9;
-  --success-fade: rgba(29, 107, 58, 0.18);
-  --online: #2e9a5a;
-  /* The categorical tint: input actions, card segments (always with words) */
-  --input-tint: #f1ebfb;
-  --input-fg: #5b3a99;
-  --card-tint: #f4effc;
-  --card-line: #dccff3;
-  /* Video surfaces, tooltips, dialogs */
-  --ink: #16181d;
-  --ink-soft: #1c1f24;
-  --ink-veil: rgba(22, 24, 29, 0.75);
-  --on-ink: #ffffff;
-  --on-ink-muted: #c9ced8;
-  --on-ink-link: #9cc0ff;
-  --veil: rgba(255, 255, 255, 0.92);
-  --backdrop: rgba(22, 24, 29, 0.35);
-  --mark-on-video: #ffd43b;
-  --mark-edge: rgba(0, 0, 0, 0.6);
-  --brand-shine: rgba(255, 255, 255, 0.28);
-  /* Shape and type */
-  --radius: 8px;
-  --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: light;
-}
-
+@layer legacy {
 * {
   box-sizing: border-box;
 }
@@ -186,150 +113,12 @@ bdi {
   overflow-wrap: anywhere;
 }
 
-/* Frame */
-.app {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  min-height: 100%;
-}
-.skip {
-  position: absolute;
-  left: 8px;
-  top: -40px;
-  z-index: 10;
-  padding: 6px 10px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--accent);
-  font: inherit;
-}
-.skip:focus {
-  top: 8px;
-}
-.sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 18px 12px 14px;
-  border-right: 1px solid var(--line);
-  background: var(--sidebar);
-  overflow-y: auto;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 8px;
-  font-weight: 650;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-}
-.brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--accent);
-  box-shadow: inset -6px -6px 0 var(--brand-shine);
-}
-.nav,
-.nav ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.nav-projects {
-  margin-top: 2px !important;
-}
-.nav-projects > li > .nav-link {
-  padding-left: 18px;
-}
-.nav-sub > li > .nav-link {
-  padding-left: 32px;
-  font-size: 13px;
-}
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  color: var(--fg);
-}
-.nav-link:hover {
-  background: var(--tint);
-  text-decoration: none;
-}
-.nav-link.current {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: 600;
-}
-.nav-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.nav-flag {
-  margin-left: auto;
-  flex: none;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--warning);
-}
-.sidebar-foot {
-  margin-top: auto;
-  display: grid;
-  gap: 8px;
-  padding: 10px 8px 0;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  color: var(--muted);
-}
-.workspace {
-  display: grid;
-}
-.workspace .path {
-  font-size: 11.5px;
-  color: var(--fg);
-}
+/* The frame is the shell's (shell/shell.css); the legacy screens fill its centre pane. */
 .label {
   display: block;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
-}
-.status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 2px;
-  background: var(--muted);
-}
-.dot-online {
-  background: var(--online);
-}
-.dot-offline,
-.dot-ended {
-  background: var(--danger);
-}
-
-main {
-  min-width: 0;
-}
-main:focus {
-  outline: none;
 }
 .screen {
   max-width: 1180px;
@@ -594,12 +383,12 @@ h1 {
   text-decoration: none;
 }
 .button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
   color: var(--on-accent);
 }
 .button.primary:hover {
-  background: var(--accent-strong);
+  background: var(--accent-strong-fill);
 }
 .button.quiet {
   border-color: transparent;
@@ -657,7 +446,7 @@ textarea:focus-visible {
   gap: 6px;
 }
 .readme-input {
-  min-height: calc(100vh - 290px);
+  min-height: calc(var(--main-h) - 290px);
   padding: 14px 16px;
 }
 .editor-bar {
@@ -724,13 +513,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 900px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    position: static;
-    height: auto;
-  }
   .columns,
   .compare {
     grid-template-columns: 1fr;
@@ -911,7 +693,7 @@ textarea:focus-visible {
 .inspector {
   position: sticky;
   top: 16px;
-  max-height: calc(100vh - 32px);
+  max-height: calc(var(--main-h) - 32px);
   overflow-y: auto;
 }
 .inspector-body {
@@ -1296,7 +1078,7 @@ textarea:focus-visible {
   margin-top: 4px;
 }
 .yaml-input {
-  min-height: calc(100vh - 340px);
+  min-height: calc(var(--main-h) - 340px);
   padding: 12px 14px;
   font: 12.5px/1.55 var(--mono);
   white-space: pre;
@@ -1361,8 +1143,11 @@ textarea:focus-visible {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
-.blocks[aria-busy='true'] .steps {
-  opacity: 0.75;
+/* A write in flight: a dashed edge on every step (a mark at 3:1) and the progress cursor; the text keeps its colours. */
+.blocks[aria-busy='true'] .step {
+  border-style: dashed;
+  border-color: var(--busy-edge);
+  cursor: progress;
 }
 .step-actions {
   display: flex;
@@ -1761,8 +1546,10 @@ textarea:focus-visible {
 }
 .tl-preview {
   position: relative;
-  /* Its height sets its width (the aspect ratio is the video's): the preview, the transport and the tracks fit a laptop screen. */
-  height: min(44vh, 460px);
+  /* Its height sets its width (the aspect ratio is the video's): the preview, the transport and the tracks fit a laptop
+     screen. L5.9 (review B-M1): sized from the centre pane, not the viewport — 0.44 × the pane less 46 px is L4.9's
+     44vh less the two bars' 82 px, so as many track rows show on load as before the shell. */
+  height: clamp(160px, calc(var(--main-h) * 0.44 - 46px), 460px);
   max-width: 100%;
   background: var(--ink);
   border-radius: 6px;
@@ -2018,7 +1805,7 @@ textarea:focus-visible {
   max-width: 280px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: var(--fg);
+  background: var(--tooltip-bg);
   color: var(--on-ink);
   font-size: 12px;
   white-space: normal;
@@ -2075,7 +1862,7 @@ textarea:focus-visible {
   }
 }
 .tl-inspector {
-  max-height: calc(min(44vh, 460px) + 150px);
+  max-height: calc(clamp(160px, calc(var(--main-h) * 0.44 - 46px), 460px) + 150px);
   overflow-y: auto;
   padding: 0 14px 12px;
 }
@@ -2385,7 +2172,7 @@ textarea:focus-visible {
   padding: 0;
   display: grid;
   gap: 6px;
-  max-height: 70vh;
+  max-height: calc(var(--main-h) - 200px);
   overflow-y: auto;
 }
 .cl-item > a {
@@ -3620,4 +3407,5 @@ textarea:focus-visible {
   .rec-start-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
 }

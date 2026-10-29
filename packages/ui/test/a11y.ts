@@ -17,7 +17,7 @@
  *   `alt`.
  * - `reachable` — an element with an interactive role the keyboard cannot reach, native or not (tabIndex < 0) and not
  *   the item of a composite whose tab stop is one of its own items, or the composite itself with an active descendant
- *   inside it. Composites of one family sharing one tab stop (the scenes' step lists) are listed in `stats.families`:
+ *   inside it, or a listbox that a focusable combobox controls with `aria-activedescendant` (L5.9: the palette). Composites of one family sharing one tab stop (the scenes' step lists) are listed in `stats.families`:
  *   `familyWalk` proves with the arrow keys that the stop reaches each of them.
  * - `focus-ring` (tabWalk) — each Tab stop must show a real indicator on the element, its active option or one of its
  *   two nearest visible ancestors, focused vs blurred: an outline, shadow or border part of ≥ 3:1 against what it is
@@ -25,8 +25,10 @@
  *   — a transparent outline, a faint shadow, a 1 % tint fail; the focused element must not be entirely covered (its
  *   centre and four inner corners under another element); text that shows only while focused (a pin's tooltip) is
  *   contrast-checked then. A walk that never comes back to its first stop before its cap is a finding (`walk`).
- * - `colour-only` — the status families (every `:root` token of `--danger*`, `--warning*`, `--info*`, `--success*`,
- *   `--online*`) on a background, border, outline, shadow, a glyph-only text's colour or a `::before` / `::after`: a mark
+ * - `colour-only` — the status families (every token of `--danger*`, `--warning*`, `--info*`, `--success*`,
+ *   `--online*` and the kit's `--ui-ok*`, `--ui-warn*`, `--ui-fail*`, `--ui-record*`, `--ui-danger*`, declared by any rule
+ *   of `:root` or of a `[data-appearance]` scope — inside `@media` or a cascade layer too — and resolved on the element's
+ *   own scope: L5.9, critique H1) on a background, border, outline, shadow, a glyph-only text's colour or a `::before` / `::after`: a mark
  *   with no letters (a dot, a bar, a ●) needs a state word in its own or its row's visible text — never any word, never a
  *   label only a screen reader hears; a glyph other than a dot (◆ ✂ · ✓) says it by its shape; rows (of a table, a list,
  *   a listbox) that differ from their siblings by a status colour (diff rows) must start with a sign (+ − ✓ ✗ …) or say a
@@ -74,6 +76,8 @@ export interface AuditStats {
   selectedAlone: number;
   /** Composite families sharing one tab stop (a CSS selector each): `familyWalk` must reach every group of each. */
   families: string[];
+  /** L5.9: status colours the colour-only rule resolved on the document's root (0 means it watched nothing). */
+  statusTokens: number;
 }
 
 export interface Audit {
@@ -82,7 +86,7 @@ export interface Audit {
 }
 
 export interface AuditOptions {
-  /** The status colour families of `:root` the colour-only rule watches (default: the Studio's four families + online). */
+  /** The status colour families the colour-only rule watches (default: the Studio's four families + online, and the kit's). */
   status?: string[];
   /** Skip the accessibility-tree rule (a browser without CDP). */
   noTree?: boolean;
@@ -96,7 +100,7 @@ export interface TabWalk {
 }
 
 /** The status families: every `:root` token named so, or starting with the name and a dash. */
-export const STATUS_TOKENS = ['--danger', '--warning', '--info', '--success', '--online'];
+export const STATUS_TOKENS = ['--danger', '--warning', '--info', '--success', '--online', '--ui-ok', '--ui-warn', '--ui-fail', '--ui-record', '--ui-recording', '--ui-danger', '--ui-idle', '--ui-waiting'];
 /** The Tab walk's default cap: nearly four times the largest screen measured (the library: 104 stops). */
 export const WALK_MAX = 400;
 
@@ -507,7 +511,7 @@ function install(): void {
 
   const audit = (o: { status: string[] }) => {
     const out: Found[] = [];
-    const stats = { texts: 0, overMedia: 0, placeholders: 0, exempt: 0, unmeasured: [] as string[], selected: 0, selectedAlone: 0, families: [] as string[] };
+    const stats = { texts: 0, overMedia: 0, placeholders: 0, exempt: 0, unmeasured: [] as string[], selected: 0, selectedAlone: 0, families: [] as string[], statusTokens: 0 };
     contrastIn(document.body, stats, out);
 
     // Placeholders: the app's own ::placeholder colour (and opacity) on the field.
@@ -556,6 +560,8 @@ function install(): void {
         // … or the group itself, its active descendant one of its items.
         const ad = group.getAttribute('aria-activedescendant');
         if (group.tabIndex >= 0 && group.hasAttribute('aria-activedescendant') && (!ad || group.contains(document.getElementById(ad)))) continue;
+        // … or a focusable combobox controlling the listbox with an active descendant (the focus stays in its input).
+        if (group.id && [...document.querySelectorAll('[role="combobox"][aria-activedescendant]')].some((c) => (c as HTMLElement).tabIndex >= 0 && (c.getAttribute('aria-controls') ?? '').split(/\s+/).includes(group.id) && shown(c))) continue;
         // Composites of one family (same role and class, each focusable by script) sharing one tab stop: the scenes'
         // step lists; familyWalk proves the arrows cross them.
         if (group.hasAttribute('tabindex') && typeof group.className === 'string' && group.className.trim()) {
@@ -569,10 +575,17 @@ function install(): void {
       out.push({ rule: 'reachable', el: desc(el), text: (el.textContent ?? '').trim().slice(0, 40), detail: `role ${el.getAttribute('role')} with no tab stop (tabIndex ${h.tabIndex}) and no composite whose own item holds one` });
     }
 
-    // Colour-only: the status families on a mark with no state word, or on rows that differ by it alone.
-    const tokens = new Map<string, string>();
-    const rootStyle = getComputedStyle(document.documentElement);
+    // Colour-only: the status families on a mark with no state word, or on rows that differ by it alone. The token
+    // names come from every rule of `:root` or of a `[data-appearance]` scope (in @media and cascade layers too); their
+    // colours are resolved on the element's own scope (a dark page may hold a light column: the gallery).
     const names = new Set<string>();
+    const collect = (rules: CSSRuleList) => {
+      for (const r of rules) {
+        if (r instanceof CSSStyleRule) {
+          if (/:root|\[data-appearance/.test(r.selectorText)) for (const n of r.style) if (n.startsWith('--') && o.status.some((p) => n === p || n.startsWith(`${p}-`))) names.add(n);
+        } else if ('cssRules' in r) collect((r as CSSGroupingRule).cssRules);
+      }
+    };
     for (const sheet of document.styleSheets) {
       let rules: CSSRuleList;
       try {
@@ -580,19 +593,32 @@ function install(): void {
       } catch {
         continue;
       }
-      for (const r of rules) if (r instanceof CSSStyleRule && r.selectorText === ':root') for (const n of r.style) if (n.startsWith('--')) names.add(n);
+      collect(rules);
     }
-    for (const n of names) {
-      const fam = o.status.find((p) => n === p || n.startsWith(`${p}-`));
-      const c = parse(rootStyle.getPropertyValue(n).trim());
-      if (fam && c && c[3] > 0) tokens.set(css(c), fam);
-    }
+    const scopeMaps = new Map<Element, Map<string, string>>();
+    const tokensFor = (el: Element): Map<string, string> => {
+      const scope = el.closest('[data-appearance]') ?? document.documentElement;
+      let m = scopeMaps.get(scope);
+      if (!m) {
+        m = new Map<string, string>();
+        const st = getComputedStyle(scope);
+        for (const n of names) {
+          const fam = o.status.find((p) => n === p || n.startsWith(`${p}-`))!;
+          const c = parse(st.getPropertyValue(n).trim());
+          if (c && c[3] > 0) m.set(css(c), fam);
+        }
+        scopeMaps.set(scope, m);
+      }
+      return m;
+    };
+    let tokens = tokensFor(document.documentElement);
     const famOf = (v: string) => {
       const c = parse(v);
       return c && c[3] > 0.1 ? tokens.get(css(c)) : undefined;
     };
     /** The families on an element's own box (or glyph-only text), and on its ::before / ::after. */
     const hitsOf = (el: Element): { own: string[]; pseudo: string[]; all: string } => {
+      tokens = tokensFor(el);
       const own = new Set<string>();
       const pseudo = new Set<string>();
       let hits = own;
@@ -605,7 +631,10 @@ function install(): void {
         if (glyph) add(famOf(cs.color));
       };
       const text = [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.nodeValue ?? '').join('').trim();
-      look(getComputedStyle(el), text !== '' && !/[\p{L}\p{N}]/u.test(text));
+      // An <svg> mark draws in its colour (currentColor paths: review A-L7) — a glyph, like a sign in text; inside a
+      // control it is the control's icon (its words say what it does, as a badge's or a button's own words do).
+      const svgMark = el.tagName.toLowerCase() === 'svg' && !el.closest('button, a[href], [role="button"], [role="link"], [role="menuitem"], [role="option"], [role="tab"]');
+      look(getComputedStyle(el), svgMark || (text !== '' && !/[\p{L}\p{N}]/u.test(text)));
       hits = pseudo;
       for (const which of ['::before', '::after']) {
         const pc = getComputedStyle(el, which);
@@ -615,7 +644,7 @@ function install(): void {
       }
       return { own: [...own].sort(), pseudo: [...pseudo].sort(), all: [...new Set([...own, ...pseudo])].sort().join(', ') };
     };
-    if (tokens.size > 0) {
+    if (names.size > 0) {
       const hitCache = new Map<Element, ReturnType<typeof hitsOf>>();
       const hitsCached = (e: Element) => {
         let h = hitCache.get(e);
@@ -656,6 +685,10 @@ function install(): void {
         if (differs && !startsWithSign(text) && !saysState(text)) out.push({ rule: 'colour-only', el: desc(el), text: text.slice(0, 40), detail: `${hits.all}: differs from its siblings by colour only (no sign, no state word)` });
       }
     }
+    // The status colours watched, in every appearance scope the page holds (review A-L7: not the root's alone).
+    tokensFor(document.documentElement);
+    for (const scope of document.querySelectorAll('[data-appearance]')) tokensFor(scope);
+    stats.statusTokens = new Set([...scopeMaps.values()].flatMap((m) => [...m.keys()])).size;
 
     // Selected / current / pressed: more than colour against an unselected peer.
     for (const el of document.querySelectorAll('[aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-current]:not([aria-current="false"]), .selected, .is-selected, .current, .is-current, .is-checked')) {
@@ -930,6 +963,8 @@ export async function tabWalk(page: Page, o: { max?: number } = {}): Promise<Tab
   await page.evaluate(() => {
     window.__a11y.resetStops();
     (document.activeElement as HTMLElement | null)?.blur();
+    // (L5.9: the centre pane scrolls, not the window.)
+    document.getElementById('main')?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   });
   const findings: Finding[] = [];
@@ -1011,24 +1046,27 @@ export async function dialogCheck(page: Page, opener: Locator, open: () => Promi
   return problems;
 }
 
-/** What still says it is loading: the app's busy markers and its `<Loading>` messages (a status starting "Loading"). */
-function stillLoading(): string[] {
-  const busy = [...document.querySelectorAll('[aria-busy="true"], [data-loading="yes"]')];
+/** What still says it is loading: the app's busy markers and its `<Loading>` messages (a status starting "Loading"); `toured`: a busy state the tour holds on purpose. */
+function stillLoading(toured: string | null): string[] {
+  const busy = [...document.querySelectorAll('[aria-busy="true"], [data-loading="yes"]')].filter((e) => !toured || !e.matches(toured));
   const loading = [...document.querySelectorAll('[role="status"]')].filter((e) => /^\s*Loading\b/.test(e.textContent ?? ''));
   return [...busy, ...loading].map((e) => `${e.tagName.toLowerCase()}${e.getAttribute('data-testid') ? `[data-testid=${e.getAttribute('data-testid')}]` : ''} "${(e.textContent ?? '').trim().slice(0, 40)}"`);
 }
 
 /**
  * Nothing busy or loading on the page, then a frame painted. Waits up to `timeout` ms; returns what was still loading
- * then (the caller makes it a finding: an audit of a half-loaded screen is not an audit).
+ * then (the caller makes it a finding: an audit of a half-loaded screen is not an audit). `toured`: the selector of a
+ * busy element the tour holds on purpose (L5.9, review A-L2: the steps while a write is in flight) — not waited for.
  */
-export async function settle(page: Page, timeout = 30_000): Promise<string[]> {
+export async function settle(page: Page, timeout = 30_000, toured: string | null = null): Promise<string[]> {
   const until = Date.now() + timeout;
-  let left = await page.evaluate(stillLoading);
+  let left = await page.evaluate(stillLoading, toured);
   while (left.length > 0 && Date.now() < until) {
     await page.waitForTimeout(100);
-    left = await page.evaluate(stillLoading);
+    left = await page.evaluate(stillLoading, toured);
   }
+  // L5.9 (critique M3): the bundled fonts swap in once loaded — measure the page in them, not in the fallback.
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   return left;
 }

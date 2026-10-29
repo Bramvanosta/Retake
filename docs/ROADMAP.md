@@ -79,8 +79,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
-| L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **next** (when the user asks) |
-| L5.10 | Studio « Épure » 2: Project and Scenario screens | M | todo |
+| L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **done** (live checks: MACOS-CHECKLIST 14b) |
+| L5.10 | Studio « Épure » 2: Project and Scenario screens | M | **next** (when the user asks) |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
@@ -851,7 +851,7 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   live rehearsal or capture, the Record screen.
 - **L5.12 — Épure 4: Edit, Review and the rest (M–L).** The timeline and live preview, frame comments with Claude's
   proposal, the review report and exports, the component library, the theme editor, the ⌘K palette, the confirmation
-  sheets; the accessibility items of BL-122 that come with them (the dark appearance, reduced motion).
+  sheets; the accessibility items of BL-122 that come with them (reduced motion; the dark appearance came in L5.9).
 - **L5.13 — Rename to Retake (M).** Everything at once, no alias (decided 2026-10-29): the command (`retake`), package
   names, the MCP server's name, the skills and plugin, the docs, the desktop app's name and identifier (defined in one
   place by L5.2) and the "two takes" icon; the `studio` command and the old names are gone after it.
@@ -880,6 +880,15 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   off), owned vs attached servers, graceful quit vs crash with no orphan, a minimal menu from one table, ready for
   L5.9 (title-bar switch, free shortcuts, no forced appearance). A preview-frame race found through the app fixed in
   the product. Two independent reviews fixed with mutation-checked tests. Cuts: BL-125. Live checks: MACOS-CHECKLIST 14a.
+
+### L5.9 — Studio « Épure » 1: foundations and the design system (M)
+- **Goal:** the redesign's foundations — tokens, a component kit, the new shell — with today's screens inside it.
+- **Done (2026-10-29, in a worktree):** one token file for dark and light (dark by default, following the system; light
+  identical to L4.9), Geist and Geist Mono bundled, a 23-component accessible kit built in-house, the shell with the
+  centred mode switch, browser, inspector and status bar, the gallery `#/ui` in both appearances, the kit-only ratchet
+  and contrast lints, the desktop View menu on the page's command table; docs/reference/studio-ui.md. The overlay title
+  bar waits for a hand probe (BL-126). Two independent reviews fixed with mutation-checked tests. Cuts: BL-126, BL-127.
+  Live checks: MACOS-CHECKLIST 14b.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
