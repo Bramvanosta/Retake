@@ -1,0 +1,37 @@
+# The desktop shell (L5.2, DESIGN §4j): a Tauri window on the workspace's own `studio ui --supervised` server.
+# Not a pnpm package: built by `pnpm desktop:dev` / `pnpm desktop:build` (scripts/desktop.mjs) with `cargo --locked`
+# (`--offline` when CARGO_NET_OFFLINE=true). Rust stays optional for `pnpm build` and `pnpm test`.
+# MSRV 1.90 (tauri 2.12's rust-version). Cargo.lock is committed: the build is reproducible.
+[package]
+name = "demo-studio-desktop"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+license = "UNLICENSED"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+desktop-core = { path = "core" }
+tauri = { version = "=2.12.5", features = [] }
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAlert", "NSApplication", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSRunningApplication", "NSSavePanel", "NSView", "NSWindow"] }
+libc = "0.2"
+
+[features]
+# What the Tauri CLI sets for a production build (pnpm desktop:build): no dev server, no inspector.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+# Small debug builds (critique L1): line tables for our crate, none for dependencies.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+strip = true
+lto = "thin"

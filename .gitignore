@@ -24,3 +24,7 @@ fixtures/*/public/build/
 !projects/*/assets/*.webm
 **/test-output/
 **/.tmp/
+# the desktop shell (L5.2): cargo build folders and the schemas tauri-build generates
+apps/desktop/target/
+apps/desktop/core/target/
+apps/desktop/gen/

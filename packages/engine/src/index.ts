@@ -276,7 +276,7 @@ export type {
 } from './comments.js';
 export { PROPOSAL_ROWS_MAX, buildProposal, checkProposedText, diffRows, proposalRowsProblem, rebuildProposal } from './comment-proposals.js';
 export type { BuiltProposal, ProposalInput } from './comment-proposals.js';
-export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, FRAME_SRC_RE, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders, studioCsp } from './http/gate.js';
+export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, FRAME_SRC_RE, PERMISSIONS_POLICY, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders, studioCsp } from './http/gate.js';
 export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, readPrivateToken, stableToken } from './http/token-file.js';
 export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from './http/gate.js';
 export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';

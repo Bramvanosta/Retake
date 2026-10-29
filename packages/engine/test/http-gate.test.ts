@@ -271,6 +271,8 @@ describe('security headers and error statuses', () => {
       expect(r.headers['referrer-policy']).toBe('no-referrer');
       expect(r.headers['cross-origin-opener-policy']).toBe('same-origin');
       expect(r.headers['cross-origin-resource-policy']).toBe('same-origin');
+      // L5.2 (critique L5): no camera / microphone / screen / location for the page and its frames.
+      expect(r.headers['permissions-policy']).toBe('camera=(), microphone=(), display-capture=(), geolocation=()');
     }
     expect(securityHeaders('api')['Cache-Control']).toBe('no-store');
     expect(securityHeaders('static')['Cache-Control']).toBe('no-cache');

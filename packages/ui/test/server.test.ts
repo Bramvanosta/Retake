@@ -90,6 +90,19 @@ describe('/v1/info and the session', () => {
     expect((await raw(studio.port, 'GET', '/v1/info')).status).toBe(401);
   });
 
+  it('/v1/info counters (L5.2, critique H3): sessions redeemed, streams open, player media — numbers only, a redeemed code counts once', async () => {
+    type Counters = { sessions: number; streams: number; player_media_bytes_read: number; player_range_requests: number };
+    const counters = async () => (await raw(studio.port, 'GET', '/v1/info', auth())).json<{ data: { counters: Counters } }>().data.counters;
+    const before = await counters();
+    expect(Object.keys(before).sort()).toEqual(['player_media_bytes_read', 'player_range_requests', 'sessions', 'streams']);
+    for (const v of Object.values(before)) expect(Number.isInteger(v) && v >= 0).toBe(true);
+    const code = studio.mintCode();
+    expect((await raw(studio.port, 'POST', '/v1/session', json, JSON.stringify({ code }))).status).toBe(200);
+    expect((await raw(studio.port, 'POST', '/v1/session', json, JSON.stringify({ code }))).status).toBe(401);
+    expect((await counters()).sessions).toBe(before.sessions + 1);
+    expect(studio.sessions).toBe(before.sessions + 1);
+  });
+
   it('a bootstrap code gives the token once; a cross-site attempt is refused before the code is spent', async () => {
     const code = studio.mintCode();
     const site = await raw(studio.port, 'POST', '/v1/session', { ...json, 'sec-fetch-site': 'same-site', origin: `http://127.0.0.1:${studio.port + 1}` }, JSON.stringify({ code }));
@@ -113,8 +126,9 @@ describe('/v1/info and the session', () => {
     expect((await raw(studio.port, 'POST', '/v1/bootstrap', json, '{}')).status).toBe(401);
     const r = await raw(studio.port, 'POST', '/v1/bootstrap', { ...auth(), ...json }, '{}');
     expect(r.status).toBe(200);
-    const { code, url } = r.json<{ code: string; url: string }>();
+    const { code, url, player } = r.json<{ code: string; url: string; player: string }>();
     expect(url).toBe(`${studio.url}#c=${code}`);
+    expect(player).toBe(studio.player.origin);
     expect((await raw(studio.port, 'POST', '/v1/session', json, JSON.stringify({ code }))).status).toBe(200);
   });
 });

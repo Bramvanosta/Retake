@@ -4,8 +4,9 @@
  * CSP and no CORS header.
  *
  * Routes: `/`, `/app.js`, `/app.css` (static, from memory, no token); `POST /v1/session` (a one-time bootstrap code →
- * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops); `POST /v1/bootstrap` (a new code,
- * for a second `studio ui`); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
+ * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops + L5.2's `counters`: sessions
+ * redeemed, event streams open, player media bytes read and range requests — numbers only, what the desktop shell's
+ * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `studio ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
  * and live picture: run-live.ts); `POST /v1/call/<op>` — the MCP tool of
  * that name, or one of the Studio's own reads (ops.ts: activity_list, search, projects_overview), run through the
  * same SDK-free `callTool` the MCP server uses (zod parse, trust, untrusted caps, typed errors), for the ops of
@@ -180,6 +181,8 @@ export interface StudioServer {
   readonly calls: number;
   /** Event streams open now (at most EVENT_STREAMS_MAX). */
   readonly streams: number;
+  /** One-time codes redeemed for the token (`POST /v1/session` answered 200; L5.2). */
+  readonly sessions: number;
   /**
    * Requests that came from another site (Sec-Fetch-Site cross-site / same-site, or Origin `null`): the gate refuses
    * them; tests assert the preview frame sent none.
@@ -267,6 +270,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   let port = 0;
   let calls = 0;
   let crossSite = 0;
+  let sessions = 0;
   /** The player origin, once it listens: the one origin a Studio page may frame. */
   let frameSrc: string | undefined;
   const headers = (kind: 'api' | 'static') => securityHeaders(kind, frameSrc ? { frameSrc } : {});
@@ -326,7 +330,9 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       return;
     }
     if (g.path === '/v1/info') {
-      send(res, 200, { ok: true, data: { ...engine.info(), http_api: ENGINE_HTTP_API, ops: UI_OPS } });
+      const p = playerNow();
+      const counters = { sessions, streams: live.streamCount, player_media_bytes_read: p.mediaBytesRead, player_range_requests: p.rangeRequests };
+      send(res, 200, { ok: true, data: { ...engine.info(), http_api: ENGINE_HTTP_API, ops: UI_OPS, counters } });
       return;
     }
     if (g.path === '/v1/events') {
@@ -342,14 +348,19 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (g.path === '/v1/session') {
       const body = await jsonBody(req, res, SMALL_BODY_MAX);
       if (!body) return;
-      if (typeof body.code === 'string' && codes.redeem(body.code)) send(res, 200, { ok: true, token });
+      if (typeof body.code === 'string' && codes.redeem(body.code)) {
+        sessions++;
+        send(res, 200, { ok: true, token });
+      }
       else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run studio ui again');
       return;
     }
     if (g.path === '/v1/bootstrap') {
       if (!(await jsonBody(req, res, SMALL_BODY_MAX))) return;
       const code = codes.mint();
-      send(res, 200, { ok: true, code, url: `http://127.0.0.1:${port}/#c=${code}` });
+      // The player origin (L5.2): a desktop shell attaching to this server allows navigations to it (no secret: the
+      // capabilities under it are).
+      send(res, 200, { ok: true, code, url: `http://127.0.0.1:${port}/#c=${code}`, player: playerNow().origin });
       return;
     }
     // POST /v1/call/<op>
@@ -421,6 +432,9 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     },
     get streams() {
       return live.streamCount;
+    },
+    get sessions() {
+      return sessions;
     },
     get crossSite() {
       return crossSite;

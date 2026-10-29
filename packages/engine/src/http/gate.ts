@@ -217,6 +217,9 @@ export function studioCsp(frameSrc?: string): string {
   return STUDIO_CSP.replace("font-src 'self';", `font-src 'self'; frame-src ${frameSrc};`);
 }
 
+/** The Studio's Permissions-Policy (L5.2): every powerful feature off, for the page and every frame it holds. */
+export const PERMISSIONS_POLICY = 'camera=(), microphone=(), display-capture=(), geolocation=()';
+
 /**
  * Headers of every response: the CSP and its companions; API answers are never cached, static ones revalidated.
  * `frameSrc`: the player origin a Studio page may frame (studioCsp).
@@ -229,6 +232,10 @@ export function securityHeaders(kind: 'api' | 'static', o: { frameSrc?: string }
     'Referrer-Policy': 'no-referrer',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Resource-Policy': 'same-origin',
+    // L5.2 (critique L5): asks for no camera, microphone, screen or location for the page and its frames — what Chromium
+    // browsers enforce. Whether WKWebView enforces the header is unverified: the desktop shell denies every capture
+    // request itself and its Info.plist names no camera / microphone / location use (review A L2).
+    'Permissions-Policy': PERMISSIONS_POLICY,
     'Cache-Control': kind === 'api' ? 'no-store' : 'no-cache',
   };
 }

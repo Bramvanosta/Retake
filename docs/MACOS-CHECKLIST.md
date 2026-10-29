@@ -1280,6 +1280,57 @@ and no test hears a screen reader. The workspace of 13a with a capture, a render
 - **Send back:** for each step, OK or what you saw / heard instead (the screen, the control, the browser); a screenshot
   of anything unreadable or without a ring.
 
+## 14a. The desktop app (L5.2)
+
+What the automated tests cannot reach: the gated test (`DEMO_STUDIO_TEST_DESKTOP=1`, README "Desktop app (macOS)")
+starts the built binary directly with a test bundle id, never from Finder, never with a click or a key; it proves the
+page loaded through the server's counters and looks at a screenshot. Needs Rust (`cargo`) and the Xcode command line
+tools. `pnpm build`, then `pnpm desktop:build` (prints the path of `Demo Studio.app` under `apps/desktop/target/`).
+The workspace of 13a with a capture on `highlights` (13f leaves one).
+
+1. **Finder launch, picker, remembered workspace.** Move `~/.demo-studio/desktop.json` aside if it exists. Double-click
+   the app in Finder (from `apps/desktop/target/release/bundle/`; do not copy it to Applications for this check). The
+   folder picker opens: choose a folder that is not a workspace (your Desktop) → it says so and asks again; choose the
+   workspace → the Studio window opens on Projects, "Connected · live updates". ⌘Q, open the app again: no picker, the
+   same workspace. File › Open Workspace… (⌘O) on a folder that is not a workspace: an alert says so and the current
+   workspace stays open and connected (the app never quits here). File › Open Workspace… on another workspace: it
+   opens; the first one's server is gone (`ls <first>/.demo-studio/ui.json`: no such file).
+2. **Keys.** In the search field: type, ⌘A, ⌘C, ⌘X, ⌘V, ⌘Z (the text comes back). On `highlights` → Blocks: ⌘Z after a
+   step move puts the step back (the Studio's undo, not the field's). YAML tab: an edit, ⌘S saves (the Studio's own
+   shortcut: the app binds no ⌘S, ⌘R, ⇧⌘R, ⌘B, ⌘. or ⌘Enter). Comments: ⌘Enter sends.
+3. **Drag & drop.** Blocks: drag a step to another place in its scene, then to another scene — it moves (WebKit's own
+   drag & drop: the app turns Tauri's handler off). Drop a file from Finder on the window: nothing happens.
+4. **The Player.** The timeline of `highlights`: Play — the capture plays with its captions; Frame ▶ steps; Comment opens
+   the composer.
+5. **Window and Quit.** Close the window (red button or ⌘W): the app stays in the Dock; click the Dock icon → the same
+   page, still connected. ⌘W again, then ⌘Tab to the app: no window (known); Window › Show Studio Window (⌘0) brings it
+   back. Start a capture from the Studio, then ⌘Q while it runs: the app quits at once (no prompt) and
+   the capture finishes (Recent activity in a new `studio ui` tab, or `studio jobs`) — the worker is not the app's.
+   With unsaved text in the YAML tab, ⌘Q: the text is lost without a prompt (known: BL-125).
+6. **An attached server.** In a terminal, `studio ui --no-open` on the workspace; then open the app: it shows the same
+   workspace (attached); ⌘Q leaves the terminal's server running. Ctrl-C in the terminal while the app shows it: the
+   window says to run `studio ui` again — File › Open Workspace… on the same folder gives a server the app owns.
+7. **A busy component (BL-110).** Allow a workspace component that loops forever in the preview (13f step 6's test
+   component): the window freezes; the menu still opens and ⌘Q still quits.
+8. **Appearance.** System Settings → Appearance → Dark, then Light: the title bar takes the page's colour (light today:
+   the Studio pins a light page until the redesign's dark / light tokens, BL-124); alerts, the folder picker and the
+   menus follow the system. Note anything else that does not follow.
+9. **Network and prompts (critique M8).** A capture of a product on another machine of your local network started from
+   the app: macOS may ask whether "Demo Studio" may find devices on the local network — note whether it asked, and
+   whether it asks again after `pnpm desktop:build` (the ad hoc signature changes with each build). A scenario with a
+   `notify` step: whether a prompt names the app. A workspace in Desktop, Documents or Downloads (step 1's picks):
+   macOS may ask whether "Demo Studio" may access that folder (the server is the app's child) — note whether it asked
+   and whether it asks again after a build. Started from Finder, a jobs worker the app's server starts keeps macOS's
+   minimal environment for its life (≤ 60 s idle), so a job Claude submits through MCP meanwhile finds no
+   `{{env:NAME}}` value either — note it if a sign-in fails that way.
+10. **Nothing left behind.** After quitting: `ls ~/Library/WebKit ~/Library/Caches ~/Library/HTTPStorages | grep -i
+    demo-studio` prints nothing; `pnpm desktop:clean` removes the build folders (`apps/desktop/target`, ≈ 1–2 GB, and
+    `apps/desktop/core/target`, ≈ 11 MB), `apps/desktop/gen/` and the app's Launch Services record.
+
+- **Expected:** steps 1–10 as written; the picker only on first launch; keys reach the page; drag & drop moves steps;
+  the Player plays; Quit never stops a running capture; nothing of the app in ~/Library.
+- **Send back:** for each step, OK or what you saw instead; whether macOS asked anything in step 9 and how often.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

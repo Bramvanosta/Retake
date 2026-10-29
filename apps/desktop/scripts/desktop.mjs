@@ -1,0 +1,193 @@
+#!/usr/bin/env node
+/**
+ * The desktop shell's commands (L5.2; README "Desktop app (macOS)") — `pnpm desktop:<command>`:
+ *
+ * - `dev [--root <workspace>] [--route '#/p/…']` — a debug build, run with this Node.js and the repository's built CLI
+ *   (DEMO_STUDIO_NODE / DEMO_STUDIO_CLI: a debug build honours them).
+ * - `build [--out <folder>]` — a release build assembled into `<productName>.app` (Info.plist, icon, launch.json naming
+ *   this Node.js and the repository's CLI), signed ad hoc (`codesign -s -`): a local app, never installed anywhere —
+ *   move it yourself if you want it in Applications. `--id` (tests only) gives it another bundle id under the
+ *   app's own (`<identifier>.<suffix>`).
+ * - `test` — the shell's rules (apps/desktop/core: no dependency, seconds).
+ * - `clean` — the build folders (the shell's ≈ 1–2 GB, the rules crate's ≈ 10 MB), Tauri's generated `gen/` and the
+ *   built app's Launch Services record.
+ *
+ * Cargo always runs with `--locked` (Cargo.lock is committed), with `--offline` when CARGO_NET_OFFLINE=true or
+ * `--offline` is passed (a machine whose cargo cache lacks a crate: `cargo fetch --locked` once with a network). The
+ * build folders are CARGO_TARGET_DIR when set, else apps/desktop/target (the shell) and apps/desktop/core/target (the
+ * rules crate, also what desktop-core.test.ts builds) — inside the checkout, git-ignored, one set per checkout or
+ * worktree. Rust is never needed by `pnpm build` or `pnpm test`.
+ */
+import { spawn, spawnSync } from 'node:child_process';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO = resolve(APP_DIR, '..', '..');
+const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
+// The binary's name has one place: Cargo.toml `name` (the shell's log prefix is the same constant: main.rs BIN).
+const BIN = /^name = "([^"]+)"/m.exec(readFileSync(join(APP_DIR, 'Cargo.toml'), 'utf8'))[1];
+// The app's name and bundle id have one place: tauri.conf.json (productName, identifier); the shell reads the name there too.
+const CONF = JSON.parse(readFileSync(join(APP_DIR, 'tauri.conf.json'), 'utf8'));
+const PRODUCT = CONF.productName;
+export const BUNDLE_ID = CONF.identifier;
+const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+
+const [command, ...rest] = process.argv.slice(2);
+const flag = (name) => {
+  const i = rest.indexOf(name);
+  if (i < 0) return undefined;
+  const v = rest[i + 1];
+  rest.splice(i, 2);
+  return v;
+};
+const offline = process.env.CARGO_NET_OFFLINE === 'true' || (rest.includes('--offline') && (rest.splice(rest.indexOf('--offline'), 1), true));
+const target = process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(APP_DIR, 'target');
+const coreTarget = process.env.CARGO_TARGET_DIR ? resolve(process.env.CARGO_TARGET_DIR) : join(APP_DIR, 'core', 'target');
+const CORE = join(APP_DIR, 'core', 'Cargo.toml');
+
+function fail(message, code = 1) {
+  process.stderr.write(`desktop: ${message}\n`);
+  process.exit(code);
+}
+
+function cargo(args, manifest = join(APP_DIR, 'Cargo.toml'), dir = target) {
+  const env = { ...process.env, CARGO_TARGET_DIR: dir, ...(offline ? { CARGO_NET_OFFLINE: 'true' } : {}) };
+  const r = spawnSync('cargo', [...args, '--locked', ...(offline ? ['--offline'] : []), '--manifest-path', manifest], { stdio: 'inherit', env });
+  if (r.error && r.error.code === 'ENOENT') fail('the desktop shell needs Rust (cargo on PATH) and the Xcode command line tools: README › Desktop app (macOS)', 2);
+  if (r.status !== 0) {
+    fail(`cargo ${args[0]} failed${offline ? ' (offline: a crate missing from the cargo cache needs `cargo fetch --locked` once with a network)' : ''}`, r.status ?? 1);
+  }
+}
+
+function needMac() {
+  if (process.platform !== 'darwin') fail('the desktop shell is macOS only for now (BACKLOG BL-37)', 2);
+}
+
+function needCli() {
+  if (!existsSync(CLI)) fail('run pnpm build first (the app runs packages/cli/dist/bin.js)', 2);
+  if (Number(process.versions.node.split('.')[0]) < 22) fail(`Node.js 22 or later runs the Studio; this is ${process.version}`, 2);
+}
+
+function version() {
+  return /^version = "([^"]+)"/m.exec(readFileSync(join(APP_DIR, 'Cargo.toml'), 'utf8'))[1];
+}
+
+const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+export function infoPlist(id, v) {
+  const entries = {
+    CFBundleDevelopmentRegion: 'en',
+    CFBundleDisplayName: PRODUCT,
+    CFBundleExecutable: BIN,
+    CFBundleIconFile: 'icon',
+    CFBundleIdentifier: id,
+    CFBundleInfoDictionaryVersion: '6.0',
+    CFBundleName: PRODUCT,
+    CFBundlePackageType: 'APPL',
+    CFBundleShortVersionString: v,
+    CFBundleVersion: v,
+    LSApplicationCategoryType: 'public.app-category.developer-tools',
+    LSMinimumSystemVersion: '13.0',
+    // macOS asks before a process of the app reaches the local network (a capture of a product on another machine of
+    // the network: the worker and its browser are the app's children — critique M8).
+    NSLocalNetworkUsageDescription: `${PRODUCT} captures web apps you point it at, which may run on your local network.`,
+  };
+  const body = Object.entries(entries)
+    .map(([k, v2]) => `\t<key>${k}</key>\n\t<string>${xml(v2)}</string>`)
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+${body}
+\t<key>NSHighResolutionCapable</key>
+\t<true/>
+</dict>
+</plist>
+`;
+}
+
+function run(cmd, args) {
+  const r = spawnSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'] });
+  if (r.status !== 0) fail(`${cmd} failed`);
+}
+
+/** icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). */
+function icns(out) {
+  const work = mkdtempSync(join(tmpdir(), 'demo-studio-icon-'));
+  try {
+    const set = join(work, 'icon.iconset');
+    mkdirSync(set);
+    const src = join(APP_DIR, 'icons', 'icon.png');
+    for (const size of [16, 32, 128, 256, 512]) {
+      run('sips', ['-z', String(size), String(size), src, '--out', join(set, `icon_${size}x${size}.png`)]);
+      run('sips', ['-z', String(size * 2), String(size * 2), src, '--out', join(set, `icon_${size}x${size}@2x.png`)]);
+    }
+    run('iconutil', ['-c', 'icns', set, '-o', out]);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+async function build() {
+  needMac();
+  needCli();
+  const out = resolve(flag('--out') ?? join(target, 'release', 'bundle'));
+  const id = flag('--id') ?? BUNDLE_ID;
+  if (id !== BUNDLE_ID && !(id.startsWith(`${BUNDLE_ID}.`) && /^[a-z0-9-]{1,32}$/.test(id.slice(BUNDLE_ID.length + 1)))) fail(`--id must be ${BUNDLE_ID}.<suffix> (tests)`, 2);
+  if (/^\/Applications(\/|$)/.test(out)) fail('the app is built in the repository (or --out), never into /Applications', 2);
+  cargo(['build', '--release', '--features', 'custom-protocol']);
+  const { stableNodePath } = await import(pathToFileURL(join(REPO, 'packages', 'mcp', 'dist', 'index.js')).href);
+  const app = join(out, `${PRODUCT}.app`);
+  rmSync(app, { recursive: true, force: true });
+  mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });
+  mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true });
+  writeFileSync(join(app, 'Contents', 'Info.plist'), infoPlist(id, version()));
+  copyFileSync(join(target, 'release', BIN), join(app, 'Contents', 'MacOS', BIN));
+  chmodSync(join(app, 'Contents', 'MacOS', BIN), 0o755);
+  icns(join(app, 'Contents', 'Resources', 'icon.icns'));
+  // What the app runs (README): this Node.js (by a path that survives a patch upgrade) and this repository's CLI.
+  writeFileSync(join(app, 'Contents', 'Resources', 'launch.json'), `${JSON.stringify({ version: 1, node: stableNodePath(process.execPath), cli: CLI }, null, 2)}\n`);
+  // Ad hoc: a local signature (no identity, no entitlement) so macOS runs the bundle as one app.
+  run('codesign', ['--force', '--sign', '-', app]);
+  process.stdout.write(`${app}\n`);
+}
+
+function dev() {
+  needMac();
+  needCli();
+  cargo(['build']);
+  const child = spawn(join(target, 'debug', BIN), rest, { stdio: 'inherit', env: { ...process.env, DEMO_STUDIO_NODE: process.execPath, DEMO_STUDIO_CLI: CLI } });
+  for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, () => child.kill(s));
+  child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
+}
+
+function clean() {
+  const app = join(target, 'release', 'bundle', `${PRODUCT}.app`);
+  if (process.platform === 'darwin' && existsSync(app) && existsSync(LSREGISTER)) spawnSync(LSREGISTER, ['-u', app], { stdio: 'ignore' });
+  if (existsSync(target)) cargo(['clean']);
+  if (existsSync(coreTarget)) cargo(['clean'], CORE, coreTarget);
+  rmSync(join(APP_DIR, 'gen'), { recursive: true, force: true });
+}
+
+if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+  switch (command) {
+    case 'dev':
+      dev();
+      break;
+    case 'build':
+      await build();
+      break;
+    case 'test':
+      cargo(['test'], CORE, coreTarget);
+      break;
+    case 'clean':
+      clean();
+      break;
+    default:
+      fail('usage: node apps/desktop/scripts/desktop.mjs dev|build|test|clean', 2);
+  }
+}

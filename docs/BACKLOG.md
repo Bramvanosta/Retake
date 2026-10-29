@@ -525,6 +525,11 @@ Developer ID signing and notarisation of the macOS app and every bundled executa
   with Electron (Node and Chromium built in, an all-TypeScript app) when L5.2 is detailed. Unsigned is enough for our
   own use; distributing needs every executable signed and notarised, and the Remotion licence reviewed for a
   redistributed tool (R-V2-08).
+- **Electron compared at L5.2's design (2026-10-29):** the Tauri shell is 7.9 MB (release, stripped, thin LTO) and
+  builds offline from the cargo cache; Electron bundles Chromium (≈ 200 MB before our own binaries) and was not even
+  buildable offline here (not in the pnpm store). Tauri kept. What L5.2 built is the shell only: it runs the
+  repository's CLI with the Node.js that built it (launch.json), is signed ad hoc, never installed; the bundled Node /
+  engine / Chromium, the `studio` command on the PATH, signing, notarisation and the updater stay here.
 
 ### BL-37 — Windows and Linux support
 *L · proposed in review · builds on: L4.1, L1.6*
@@ -1459,6 +1464,12 @@ needs a person stays in the terminal — a capture whose hooks need approval (th
 the `studio run …` command), hook edits and files holding a secret reference or an outside file (read-only with why,
 BL-95), and an approval at run time for hooks an agent wrote or changed (the L4.3 residue). A presence primitive the
 page cannot forge would open them: a prompt in the `studio ui` terminal, or the Tauri shell's OS dialog (L5.2).
+**Amended in L5.2 (the shell exists; nothing of this is built):** the primitive's shape — the server asks through the
+supervised pipe (`{"type":"confirm","id","text","buttons"}` on the stdout of `studio ui --supervised`; `buttons` the
+labels, the first the default, the last the cancel), the shell shows a native sheet / NSAlert (the text as plain text,
+those labels as the app's own buttons), the answer goes back on the child's stdin (`{"type":"confirmed","id","button"}`,
+the index pressed; the same shape as DESIGN §4j); the page can neither raise one nor answer it (it has no IPC and no access to the
+pipe); a browser tab keeps the terminal prompt. Today `--supervised` reads and discards its stdin. DESIGN §4j.
 Residue documented in L4.4: the capture's session confirmation (`sessions_ack`) is a guard against a wasted take, not
 presence — a page script can send it; the run's own preflight stays the authority and stops before filming a persona
 it can check (a `check`, or never signed in); one without a `check` is used as saved and fails only when a page lands on
@@ -1521,6 +1532,8 @@ The preview frame is a cross-origin `sandbox="allow-scripts"` iframe on a second
 - **WebKit has no process isolation for sandboxed cross-origin frames:** in Safari (and Tauri's WKWebView, L5.2) a busy
   component — a long loop in its render — freezes the whole Studio tab until it returns; Chromium runs the frame in its
   own process. A message flood is still stopped by the page's budget in every browser (MACOS-CHECKLIST 13f).
+  Confirmed for the desktop app's WKWebView (L5.2): the frame shares the window's web process, so a busy allowed
+  component freezes the window; the app's menu stays native and ⌘Q still quits (MACOS-CHECKLIST 14a).
 - DNS prefetch (the `X-DNS-Prefetch-Control` header is honoured by Chrome only) and WebRTC (the constructors deleted in
   the frame; a CSP `webrtc 'block'` once browsers have it) — as BL-72 for renders.
 - The player origin's port taken by another local account first (as BL-79's Studio port); capability URLs readable by
@@ -1789,6 +1802,8 @@ needs a WebKit build matching the pinned Playwright (a download) or a tour pinne
 Playwright's BiDi channel once Playwright and the installed Firefox agree (today `network.addDataCollector` is unknown
 to Firefox 137); Safari through `safaridriver`, which needs an admin setting. The checker's name rule would use an aria
 snapshot there (no CDP), and its Tab walk needs Safari's "Press Tab to highlight each item".
+L5.2: WKWebView has no WebDriver on macOS (tauri-driver is Linux / Windows only): the desktop shell's automated checks
+stay black box — the server's `/v1/info` counters, process tables, lsof and window screenshots (desktop-shell.test.ts).
 
 ### BL-122 — Accessibility beyond the L4.9 pass
 *M · cut in L4.9 · builds on: L4.9*
@@ -1862,6 +1877,44 @@ appearance.
   live, record). (5) Edit and Review. (6) Library and Theme editor. (7) The rename. The menu bar and the sheets land
   with the desktop shell (L5.2).
 
+### BL-125 — Desktop shell extras cut from L5.2
+*M · cut in L5.2 · builds on: L5.2, BL-106, BL-36*
+
+What the L5.2 shell (apps/desktop, DESIGN §4j) does not do:
+- **Job notifications** (cut before coding): `tauri-plugin-notification` posts through the deprecated
+  NSUserNotificationCenter (mac-notification-sys) as the app's bundle id; whether it delivers on macOS 26 cannot be
+  checked without a person, the probe itself would add the app to the system's notification settings, and the ad hoc
+  signature changes with every build. Alternatives: UNUserNotificationCenter through objc2 (a permission prompt per
+  bundle id), or the repository's `osascript display notification` (attributed to Script Editor) driven by job lines
+  on the supervised pipe.
+- **A prompt before losing unsaved text** (critique M1): WKWebView never asks before leaving a page (wry implements no
+  `beforeunload` panel), so Quit, Open Workspace… and a server restart drop an unsaved YAML / README draft that a
+  browser tab would protect. A dirty flag through the supervised pipe (as BL-106's confirm), or a page→shell request.
+- A Quit prompt while a job runs (the shell holds no job state; the shared worker finishes its jobs anyway), a Dock
+  badge / progress, recent workspaces and one window per workspace, a menu-bar item, launch at login,
+  `demo-studio://` deep links (`tauri-plugin-deep-link` is in the cargo cache), App Nap measurements and an
+  NSProcessInfo activity while jobs run.
+- **Native pickers for the Studio's own path fields** (brand files, a scenario file): a narrow page→shell command, with
+  BL-106's presence primitive.
+- **Watching an attached server** (critique M2): when another process already serves the workspace, the app attaches
+  and nothing watches that server; if it stops, the window shows "run studio ui again" — File › Open Workspace… (the
+  same folder) starts a server the app owns; a navigation (a reload) after it stopped is refused and offers Restart
+  (L5.2 review A L3). A watcher (pid + port) that restarts it at once, and the page's wording inside the app.
+- A per-workspace environment file for Finder launches (`{{env:}}` references resolve from launchd's environment,
+  which holds none of the shell's variables). The same holds for the shared jobs worker a Finder-launched app's server
+  starts: it keeps that minimal environment until it idles out (60 s), so MCP jobs submitted meanwhile run with it
+  (L5.2 review B L5; documented in README and MACOS-CHECKLIST 14a). The file, or the server passing the worker a
+  marker so a terminal client restarts it, would close it.
+- **⌘Tab to a hidden window** (L5.2 review B M3): Window › Show Studio Window (⌘0) and the Dock icon bring it back;
+  showing it when the app becomes active needs an `NSApplicationDidBecomeActiveNotification` observer (a block crate,
+  not a dependency today).
+- **A hidden window keeps the page live** (review B L11): its event stream stays open, so the server's 1 s workspace
+  poll and the stream's keepalive run while the app sits closed in the Dock — measure with the App Nap item above;
+  pausing the stream while hidden would need a shell→page signal. Also tiny: Ctrl-C under `desktop:dev` signals the
+  whole process group, and if the watcher sees the child's exit before the app's own quit, a "server stopped" alert
+  can flash during the quit.
+- Windows and Linux shells (BL-37).
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -1874,7 +1927,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run. *Applied in L1.7:* the automated sign-in tab is exempt while it is on its persona's sign-in page (its writes there are recorded `exempt`, `via: sign-in`; what the page it lands on sends is guarded); the session check only reads, so it is guarded like the capture pages and passes; the product clock is installed after both (they run on the real time). Token refreshes from capture pages go in `read_only.allow`.
 - **L1.8** — Keep host paths out of the sandbox manifest, so the same file runs on a laptop, a VPS or in CI. *Why:* A cloud or CI sandbox (BL-05, BL-08) can then reuse the manifest unchanged.
 - **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI. *Moved to L4.1* (L3.1 has no HTTP API: the MCP server is stdio only). *Applied in L4.1:* the engine's gate (DESIGN §4c) — 127.0.0.1 only, Host (421), Origin and Sec-Fetch-Site (403), no CORS at all (no `Access-Control-*` header, a preflight always fails), a bearer token per Studio launch (a one-time bootstrap code in the link, never the token in a URL), a stable token for MCP over HTTP; the asset server is L4.2's.
-- **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1. *Applied in L4.1:* `/v1` with `GET /v1/info` (engine info, `http_api: 1`, the allowed ops) and `<workspace>/.demo-studio/ui.json` (0600, claimed exclusively; the Tauri shell reads it in L5.2).
+- **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1. *Applied in L4.1:* `/v1` with `GET /v1/info` (engine info, `http_api: 1`, the allowed ops) and `<workspace>/.demo-studio/ui.json` (0600, claimed exclusively). *L5.2:* the Tauri shell does not read it — it runs `studio ui --supervised`, whose reuse of ui.json gives it a one-time URL (and the player origin) without the token.
 - **L3.1** — Make job payloads serialisable (kind, project ref, relative paths plus hashes, options) and use a worker interface that pulls jobs. Run the worker in a separate process, at least in tests. *Why:* This makes ADR-1's 'remote worker later' real rather than a paper interface, and a pulling worker works behind NAT (BL-05, BL-06). *Applied in L3.1:* core `JobInputSchema` (v1: slugs, scenario names + the sha256 of their bytes, reserved run ids, approvals as fingerprints; never a path, session or secret), a file queue under `<workspace>/.demo-studio/jobs/`, one worker per workspace in its own process (`worker.lock`) that claims jobs; tested in a separate process.
 - **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70). *L3.6:* comment threads hold ids only (render id, run id; paths rebuilt from ids, never read from a file); render and run records unchanged (BL-70).
 - **L3.1** — Writes from the UI and MCP carry `if-match: <hash>`. All file writes are atomic (temp file then rename). The engine watches the workspace for outside edits. *Why:* Under ADR-2, Claude, the UI and the engine already write the same files, and sync would add another writer. *Applied in L3.1:* `if_match` (sha256 of the bytes written) on `scenario_save` and `project_update_readme`, atomic writes, a must-not-exist create; watching the workspace moves to L4.1. *Applied in L4.1:* a bounded stat poll of the workspace while a Studio tab is open (no recursive fs.watch), told to the page as events; the README editor saves with `if_match` and shows a conflict.
@@ -1887,7 +1940,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it. *Applied in L4.4:* the worker's live channel records carry `{v, kind}` (`kind: 'frame'` today) so an input channel can be added as a separate authenticated route beside `GET /v1/frames` (DESIGN §4f); nothing of it is built (BL-105).
 - **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110). *L4.6:* the Comments screen the same way — Chromium, a gated installed-Chrome acceptance on the fixture, Safari and Firefox by hand (MACOS-CHECKLIST 13g); its frames are server-made JPEGs, so every browser shows the same exact frame. *L4.9:* the in-repo accessibility checker (a11y.ts: contrast, names, reachable roles, real focus indicators, colour never alone, a selected state more than colour, headings, no sideways scroll) on two screen tours and a keyboard-only path in Chromium, the R-ACC4-01 acceptance in the installed Chrome, one WebKit run by hand from a cached build; Safari, Firefox and VoiceOver by hand (MACOS-CHECKLIST 13j); automating them is BL-121.
-- **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI.
+- **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI. *Applied in L5.2:* the shell runs `studio ui --supervised` and opens its one-time URL; it holds no token and never reads ui.json (the CLI's own reuse decides owned / attached); its Rust is process supervision, the menu, two native dialogs and a navigation allow-list (DESIGN §4j).
 
 ## Recorder precisions (L3.4 / L4.8)
 

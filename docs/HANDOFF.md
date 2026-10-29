@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-29, end of lot **L4.9 (Studio acceptance, accessibility pass)** — phases 1–4
-are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j). **Next: L5.2 (Tauri desktop
-shell), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-29, end of lot **L5.2 (Tauri desktop shell, macOS)** — phases 1–4
+are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
+L5.2, L5.5 – L5.8 done). **Next: L5.9 (Studio « Épure » 1), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,36 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-124); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-126); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.9)
+## State (after L5.2)
+- **L5.2 done (2026-10-29)**: the macOS desktop app (`apps/desktop`, Tauri 2.12.5, built offline from the local crate
+  cache with `--locked`; `pnpm desktop:dev|build|test|clean`). The shell spawns `studio ui --supervised` (= `--json
+  --no-open`; stops when its stdin closes, so an app crash leaves no orphan; its JSON line gains `v` and `player`) and
+  opens the one-time URL in a WKWebView window: incognito (nothing written to ~/Library), Tauri's drag & drop handler
+  off (block drag & drop works), navigation held to the Studio and Player origins (redirects, window.open, _blank,
+  data: / blob: / custom schemes refused), downloads cancelled, every permission request denied, no IPC capability for
+  the page. The shell never reads the token; capability URLs are redacted from every log; Quit stops only a server the
+  app started (SIGTERM, stdin closed at 1 s, SIGKILL at 5 s), never an attached one nor the shared worker. Workspace:
+  `--root`, DEMO_STUDIO_ROOT, `desktop.json`, the current folder, then a folder picker; Node / CLI pinned at build in
+  `launch.json` (env overrides in debug builds only; release scrubs NODE_OPTIONS / DYLD_*). Menu from one table (Edit
+  items, File › Open Workspace…, Window › Show Studio Window ⌘0; ⌘R, ⇧⌘R, ⌘B, ⌘., ⌘S, ⌘Enter left to the page),
+  `TITLE_BAR` one switch (Standard now, Overlay ready for L5.9), no forced theme (the window chrome follows the page's
+  `color-scheme`, light today). The security rules live in a zero-dependency crate (`apps/desktop/core`, 21 tests in
+  ≈ 1.5 s, run by vitest when cargo and the Xcode tools are there, skipped otherwise). The gated acceptance
+  (`DEMO_STUDIO_TEST_DESKTOP=1 DEMO_STUDIO_TEST_SLOW=1 npx vitest run packages/cli/test/desktop-shell.test.ts`) builds
+  the .app, checks owned vs attached servers, a hostile page and Player, graceful quit vs crash, a capture and the
+  timeline's media in the window, and ~/Library / ~/Downloads / LaunchServices left as found: 10/10 green after a
+  product fix — the preview frame dropped a plan answered before its first React effects (WKWebView fires the frame's
+  load first): the timeline preview stayed on "Loading the preview…" in about half the app's launches; now a store read
+  with `useSyncExternalStore`, with a Chromium regression test in the default suite. Tests on the Mac: **3763 — 3686
+  pass, 76 skipped, 1 failure in the one full run** (studio-e2e-render's "a newer failure shows in the Render bar", an
+  L4.5 test that enqueues a job then overwrites it while a worker may claim it — green 2/2 alone); `pnpm test:slow`
+  65/65. Requirements: 647 tracked — 606 done, 27 partial, 8 todo, 6 n/a-here (R-DSK-02 partial: notifications,
+  native pickers for the Studio's path fields, keychain glue → BL-125). Live checks for the user: MACOS-CHECKLIST 14a.
 - **L4.9 done (2026-10-29)** — phase 4 is done. The Studio's identity and accessibility pass: one closed palette (every
   app.css colour a `:root` token, same values; one blue accent, the violet kept as a categorical token), Geist / Geist
   Mono named first by local family name (nothing bundled or downloaded: BL-120; a machine without them gets the old
@@ -428,11 +452,12 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.2 (Tauri desktop shell) per the roadmap**, only when the user asks (phase 4 is done). **Then, decided
+**Next: L5.9 (Studio « Épure » 1) per the roadmap**, only when the user asks (L5.2 is done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and L5.4 (ROADMAP
-"L5.9 – L5.15"). L5.2's shell is built ready for the redesign: integrated title bar, native menu bar on the commands
-of ⌘K, sheets, the system's appearance. Pending
+"L5.9 – L5.15"). L5.2's shell is ready for the redesign: one `TITLE_BAR` switch for the integrated title bar, the menu from one
+command table (⌘R, ⇧⌘R, ⌘B, ⌘. left free), no forced appearance; the sheets' design (a confirm through the supervised
+pipe) is in DESIGN §4j, not built. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
 document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
 (L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
@@ -1322,6 +1347,18 @@ sandbox, a hook step and compact results through Claude Code).
   mutation-checked rules (≈ 100 mutations over the lot, all killed). Files: ui `app.css`, `LiveView.tsx`; tests
   `a11y.ts`, `a11y-tour.ts`, `a11y-checker.test.ts`, `studio-e2e-a11y*.test.ts`, `studio-e2e-acceptance.test.ts`,
   `app-source.test.ts`; editor test helper `linkSharedCache` (15 test files). No new dependency. Cuts: BL-120 – BL-123.
+- **L5.2 done** (Tauri desktop shell; R-ARCH-11, R-DSK-01, R-DEC-07 done, R-DSK-02 partial). Planned with probes (tauri
+  2.12.5 resolves offline to 406 crates, release binary 7.9 MB; the real Studio loads in a WKWebView window), criticised
+  (Tauri's drag handler swallowing block drag & drop, WebKit's persistent store writing capture media into ~/Library,
+  keep-alive passing for "the page loaded"), built in parts in a worktree (supervised CLI, the shell, lifecycle, tests
+  and docs; notifications cut), reviewed by two reviewers (downloads not cancelled, a navigation guard no test failed
+  without, Open Workspace quitting the app on a refused folder, `pnpm test` red without the Xcode tools…) and fixed with
+  mutation-checked tests (≈ 35 mutations over the lot). A gated-acceptance flake was a product race in the preview
+  frame (fixed: `frame-store.ts`). Files: `apps/desktop` (src: main, child, menu, logfilter, macos; core crate: rules,
+  config, json; scripts/desktop.mjs), cli `commands/ui.ts` (`--supervised`), engine `http/gate.ts`
+  (Permissions-Policy), ui `server/{launch,player,studio}.ts` (counters, `player`), `player/frame-store.ts`; tests
+  `desktop-{config,core,shell}.test.ts`, `player-preview` / `player-protocol` additions. New dependency: the Rust crates
+  of apps/desktop only (Tauri, offline cache), none in the pnpm workspace. Cuts: BL-125.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1589,6 +1626,23 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.2:
+- `studio ui --supervised` is the shell's only contract: one JSON line (`v`, `url`, `player`, …), stop on stdin EOF /
+  SIGTERM with `stopped: <reason>` on stderr; exit 2 is preceded by `{"type":"error","code":"no_workspace"}` (an exit
+  2 without it means an older CLI: `pnpm build`). `/v1/info` gains token-gated counters (`sessions`, `streams`,
+  `player_media_bytes_read`, `player_range_requests`) used by the gated test as proof the page and the Player loaded.
+- Rust never runs in `pnpm build`; `pnpm test` runs the core crate's tests only when cargo, a recent rustc and
+  `xcode-select -p` are there (checked before cargo, so no Command Line Tools dialog). Cargo always `--locked`;
+  `CARGO_NET_OFFLINE=true` for offline. Build folders: see README (≈ 1–2 GB per target dir; `pnpm desktop:clean`).
+- The app is never installed by the tooling; the gated test launches the binary inside the .app directly and
+  unregisters it from LaunchServices (`lsregister -u`, its own path only); it asserts ~/Library and ~/Downloads unchanged.
+- The window chrome follows the page's `color-scheme` (app.css pins light today; L5.9's dark / light tokens change it);
+  `TITLE_BAR` in `src/main.rs` switches to the overlay title bar; the app name and bundle id live in tauri.conf.json.
+- The preview frame's plan goes through `frame-store.ts` (`latest()` + `useSyncExternalStore`): never hold a React
+  setter taken in an effect for a message that can arrive before it (WKWebView fires the frame's load first).
+- A Finder-launched app gets launchd's minimal environment (no `{{env:}}` values; the shared worker it starts keeps it
+  until it idles out): README, MACOS-CHECKLIST 14a, BL-125.
+
 Notes from L4.9:
 - Every app.css colour lives in `:root`; the lints fail on a literal elsewhere, an undefined or unused token, a text /
   background token pair under 4.5:1, a missing `::placeholder` colour, an outline removed without the accent ring, and a

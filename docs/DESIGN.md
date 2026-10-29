@@ -1975,6 +1975,14 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
   code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
   it. `studio ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
+  L5.2: each answer has `player` (the player origin; `/v1/bootstrap` answers it too — no secret, the capabilities under
+  it are), undefined from an older server; `studio ui --json` prints it with `v: 1`; `studio ui --supervised` (§4j).
+  `/v1/info` adds `counters` — `sessions` (codes redeemed), `streams` (event streams open), `player_media_bytes_read`
+  (bytes of registered files read to answer GET requests — read, not sent: an aborted response counts its read-ahead;
+  review B L9), `player_range_requests` (GET answers 206) — numbers only, what the desktop shell's black-box test asserts; every answer carries
+  `Permissions-Policy: camera=(), microphone=(), display-capture=(), geolocation=()` (Chromium browsers enforce it;
+  whether WKWebView does is unverified — the desktop shell denies every media-capture request itself and its Info.plist
+  names no camera / microphone / location use: §4j).
 - The page (`src/app/`): reads `#c=<code>` and removes it with `history.replaceState` before anything else (a route
   fragment stays), trades it at `/v1/session`, keeps the token in sessionStorage, sends it as a header (`credentials:
   'omit'`); no token or a 401 → "This Studio session ended — run `studio ui` again" (no input asks for a token), with
@@ -3132,6 +3140,10 @@ frame}` it refuses a plan URL that is not `Q/m/<cap>/plan/…` and a plan whose 
 under `Q/m/<cap>/`, loads the plan's component ids (editor `usedComponentIds`, shared with the render's
 `planComponentIds`) — a missing or throwing one is `missing` (`loaded.missing` + a warning; its kind's scaffold draws)
 — then mounts the Player (`initiallyMuted`, no controls, no click / space / double-click handling, key = the load).
+What it mounts is a tiny external store (`frame-store.ts`) the React tree reads with `useSyncExternalStore` (L5.2): a
+`load` answered before the tree's first effects ran is kept and shown — WKWebView fires the frame's load event (hence the
+hello) before React's first render, and a setter taken in an effect lost the plan in about half the desktop runs (the
+Player never mounted, no `<video>`, *Loading the preview…* for good).
 `settled {frame}` once paused at that frame with no delayRender handle left, every `<video>` at readyState ≥ 2 and not
 seeking, `document.fonts.status === 'loaded'` and every image complete, for two polls (30 ms) in a row — the Player
 itself waits for nothing (critique B8). Preview mode (editor `remotion/preview-mode.ts`, `PreviewContext`, set only by
@@ -3668,6 +3680,178 @@ frames looked at: `docs/requirements.json` (R-ACC4-01).
 from a cached Playwright build (`executablePath`, not committed: the build belongs to another tool) after the fixes:
 1,624 texts, no contrast or placeholder failure, no sideways scroll; WebKit's page errors were Playwright's screenshot
 style refused by the CSP and the sandboxed preview's Fullscreen permission message (BL-121).
+
+## 4j. Desktop shell (L5.2)
+
+`apps/desktop`: a Tauri 2.12 app (Rust; wry 0.57 / WKWebView) that shows the workspace's own Studio server. Not a pnpm
+package and not in `tsc -b`: `scripts/desktop.mjs` runs cargo (`--locked`; `--offline` with CARGO_NET_OFFLINE=true).
+MSRV 1.90 for the shell (Tauri's); the rules crate `apps/desktop/core` declares none (it needs Rust 1.70). The BACKLOG
+guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glue.
+
+**Process model.**
+- The app runs `node <cli> --root <workspace> ui --supervised` (`Command::new`, no shell; the child gets the app's
+  environment, nothing added — a release build removes what makes Node.js or the linker load code: `NODE_OPTIONS`,
+  `NODE_PATH`, `NODE_REPL_EXTERNAL_MODULE`, `DYLD_*`, `LD_PRELOAD` / `LD_LIBRARY_PATH` / `LD_AUDIT`, which a Finder
+  launch would take from `launchctl setenv` (review A L4; `desktop-core` `child_env_dropped`). Not an allow-list: an
+  automated sign-in's `{{env:NAME}}` secrets reach the worker through that environment) with three pipes, reads its
+  first stdout line (≤ 30 s, ≤ 64 KB) and checks it
+  (`desktop-core` `parse_ui_line`: `type: "ui"`, `v: 1` — another version is refused with "pnpm build and pnpm
+  desktop:build", `url` exactly `http://127.0.0.1:<port>/#c=<43 chars>`, `player` exactly `http://127.0.0.1:<other
+  port>`; no `player` = an older running server → refused with "stop it and open the workspace again").
+- `--supervised` (cli `ui.ts`): `--json --no-open`, the stdin watcher installed before the server starts; stdin's end
+  (or error), SIGTERM / SIGINT stop it through the same close path (ui.json released), then `stopped: <reason>` on
+  stderr. Nothing is written on stdout after the line, so a parent gone is seen as stdin's end (no EPIPE path). Bytes
+  on stdin are read and discarded (no protocol yet; see the confirm design below). A folder that is no workspace
+  prints `{"type":"error","v":1,"code":"no_workspace"}` before exiting 2 (review B L4: an older CLI without
+  `--supervised` also exits 2, with no line — the app then says to run `pnpm build` and `pnpm desktop:build`).
+- **Owned** (`reused: false`): the app holds the only write end of the child's stdin — the app's death (crash, SIGKILL)
+  is the child's EOF. Quit (menu, ⌘Q, SIGTERM / SIGINT / SIGHUP through a self-pipe handler that asks the event loop
+  to exit; the stop runs on `RunEvent::Exit`): SIGTERM, the stdin closed after 1 s if it still runs, SIGKILL at 5 s
+  (`desktop-core` `stop_child`; `studio ui` stops in ≈ 10–20 ms on SIGTERM). An unexpected exit while owned → the
+  window's allowed origins are emptied at once (review A L3: the freed ports may be bound by another local process,
+  whose page a reload must not load), then an alert with its status and last stderr lines (8 KB, sanitised), Restart /
+  Quit.
+- **Attached** (`reused: true`: a terminal `studio ui` or another app serves the workspace): the child printed and
+  exits; the app opens that server's Studio, never stops it and does not watch it (BL-125); a navigation to its
+  origins once its pid is gone (`kill(pid, 0)`, `desktop-core` `navigation_decision` → `ServerGone`) is refused, the
+  origins are emptied and the same Restart / Quit alert offers a server of the app's own (review A L3).
+- **The shell holds no token and never reads ui.json**: it asks the CLI, whose reuse (`launchStudio`) mints a code
+  through the file's token; the one-time URL (valid 60 s, single use) is in the app's memory only, handed to the
+  webview, never printed, never on a command line. The page keeps its token in its own sessionStorage.
+- The jobs worker is detached and shared (`studio mcp`, the CLI): Quit never stops it; it finishes and idle-exits.
+
+**The window.** `WebviewUrl::External(<one-time URL>)` — not a Tauri custom protocol: the gate accepts only the
+server's own Origin, the CSP's `connect-src 'self'` and `frame-src <player>` need the real loopback origins, and a
+page under `devUrl` / `frontendDist` would be a Tauri *local* origin that reaches app commands without a capability.
+- `.incognito(true)`: an ephemeral WebKit data store — no cache of capture media (the player serves them `immutable`),
+  no per-port storage piling up (the port is new each launch), nothing in `~/Library` (tested). Nothing is lost: the
+  token is in sessionStorage, the Studio uses no other storage.
+- `.disable_drag_drop_handler()`: Tauri's handler answers every native drag without calling WebKit, which would kill
+  the Studio's HTML5 block drag & drop (L4.3). Finder file drops go to WebKit, which the Studio ignores.
+- `on_navigation` (wry asks for every frame): allowed = the Studio's and the player's exact origins
+  (`desktop-core` `navigation_allowed`, on the serialised URL: lower-case scheme, `127.0.0.1`, the exact port, no
+  userinfo) and `about:blank` / `about:srcdoc`; anything else is cancelled and logged by its origin. No new-window
+  handler: wry's default refuses (`window.open` → null, `target=_blank` cancelled). Known residue (review A L1):
+  tauri-runtime-wry's wrapper allows a URL it cannot parse (`url.parse().map(handler).unwrap_or(true)`) without
+  asking the handler; no WebKit URL reaching it was found (an invalid-punycode host became `about:blank`).
+- `on_download` answers false to every event (review A M1): without a download handler wry answers *Allow* to a
+  response WebKit cannot show, and WebKit saved it into `~/Downloads` (probe of 2026-10-29: a Studio-origin
+  `<a download>` and an attachment frame each wrote a file). With the handler, every download — `<a download>`, an
+  attachment, the main frame or a frame — goes to wry's download delegate and is cancelled; the shell logs "refused a
+  download of <origin>".
+- `on_permission_request` denies everything (review A L2: wry grants a media-capture request when no handler is set),
+  and the Info.plist names no camera / microphone / location use (WebKit then exposes no `navigator.mediaDevices`:
+  probe). The server's Permissions-Policy header (§4c) is not relied on here: whether WKWebView enforces it is
+  unverified.
+- No IPC for the page: no `capabilities/`, no inline capability, no `#[tauri::command]`, no plugin, `withGlobalTauri`
+  false (Tauri still injects `__TAURI_INTERNALS__`; every invoke is refused: probe of 2026-10-29). Devtools only in
+  debug builds (the release build sets `tauri/custom-protocol`).
+- Close / ⌘W hides the window (`CloseRequested` prevented; the page and its event stream stay); `RunEvent::Reopen`
+  (the Dock icon) or Window › Show Studio Window (⌘0, review B M3) shows it. ⌘Tab back to the app with the window
+  hidden shows none (an `NSApplicationDidBecomeActive` observer needs a block crate the shell does not depend on:
+  BL-125). While hidden the page keeps its event stream, so the server's 1 s workspace poll and keepalive go on
+  (BL-125: measure with App Nap). No Reload item (critique M1: WKWebView implements no `beforeunload` panel — wry's UI
+  delegate has none — so a reload, Quit, Open Workspace… or a restart drops unsaved YAML / README text: BL-125).
+- `--route '#/…'` (debug builds, or DEMO_STUDIO_DESKTOP_TEST=1): once the page has removed `#c=` from its URL, the
+  app sets `location.hash` (the only `.eval`; `route_ok`: `#/` + `[A-Za-z0-9/_.-]{0,200}`) — how the black-box test
+  reaches a timeline without input automation.
+
+**Workspace and launch config.** `--root` → DEMO_STUDIO_ROOT → `<studio home>/desktop.json` (`{version: 1,
+workspace}`, 0600, written atomically after a start succeeded; studio home as the CLI computes it) → the current
+folder's `studio.yaml` → NSOpenPanel (folders only). The CLI's `no_workspace` line = not a workspace → the picker
+again with that message; Cancel → quit (first launch only). File › Open Workspace… (review B M1) checks the folder
+first (`desktop-core` `is_workspace`: a `studio.yaml` or a `projects/` folder, the CLI's rule): not a workspace → an
+alert, nothing changes; otherwise the owned server stops before the next starts (never two), and a start that fails
+or is cancelled reopens the previous workspace — Open Workspace… never quits the app.
+`Contents/Resources/launch.json` (`{version: 1, node, cli}`, written by `desktop:build`: `stableNodePath(execPath)`,
+the repository's `packages/cli/dist/bin.js`); `DEMO_STUDIO_NODE` / `DEMO_STUDIO_CLI` win in debug builds only (a
+Finder launch never takes them from `launchctl setenv`); both absolute, regular files, else an alert with the fix.
+Under DEMO_STUDIO_DESKTOP_TEST=1 no modal is ever shown (alerts print and answer their last button; the picker
+answers DEMO_STUDIO_DESKTOP_TEST_PICK once, then cancels) and SIGUSR1 is File › Open Workspace… (the gated test's way
+to the menu without input automation).
+
+**Output.** fd 2 is a pipe read by a filter thread (`logfilter.rs`) before the real stderr: `desktop-core` `sanitize`
+(every URL cut to its origin, `#c=…`, `Bearer …` and any run of ≥ 40 base64url characters hidden, control and bidi
+characters replaced, ≤ 1000 characters a line), ≤ 50 lines a second, and Tauri's `__TAURI_INVOKE_KEY__ expected … but
+received <frame text>` lines (a page frame posting to the IPC handler wry registers for all frames) dropped and
+counted. The child's stderr is forwarded through it (`studio: …`). `finish()` drains it on exit. A panic writes its
+sanitised message straight to the real stderr (review B L7: an abort in an AppKit callback would kill the process
+before the filter thread prints it). Every line the shell prints starts with the binary's name (`main.rs` `BIN` =
+Cargo.toml `name`).
+
+**Native glue.** `objc2-app-kit` (default features off: its defaults want a crate not in the cache): NSOpenPanel and
+NSAlert on the main thread. The menu is built from one table (`src/menu.rs` `MENUS`: an item is a shell command `{id,
+label, accelerator, enabled}`, a macOS standard item or a separator): App (About, Hide, Hide Others, Show All, Quit) ·
+File (Open Workspace… ⌘O, Close Window ⌘W) · Edit (Undo, Redo, Cut, Copy, Paste, Select All — they reach the page's
+fields) · View (Enter Full Screen) · Window (Minimize, Zoom, Show Studio Window ⌘0). Only ⌘O and ⌘0 are the shell's;
+⌘S, ⌘Enter, ⌘R, ⇧⌘R, ⌘B and ⌘. are left to the page (desktop-config.test.ts). No theme is set: the window is the
+system's appearance (DarkAqua in Dark mode — alerts, the picker and menus follow it) and WebKit gives the page its
+`prefers-color-scheme`, but the standard title bar takes the colour of the page's top (WKWebView on macOS 26, measured
+by review B M2): light today, because the Studio pins `color-scheme: light` (app.css). Nothing in the shell changes
+that — no `.theme()`, no `NSRequiresAquaSystemAppearance`; the redesign's dark / light tokens under
+`prefers-color-scheme` (BL-124) carry the bar with them. Keychain: nothing (secrets stay `{{keychain:…}}` references
+resolved by the worker). Notifications: cut (BL-125).
+
+**Prepared for the redesign (BACKLOG BL-124; nothing of it built).**
+- *Title bar.* `src/menu.rs` `TITLE_BAR` is the one switch: `TitleBar::Standard` today; the redesign sets
+  `TitleBar::Overlay { buttons: (x, y) }` (transparent title bar, no title text, the window buttons at that point).
+  The page must then keep a left inset of ≈ 80 px clear at the top for the buttons and mark its drag zone; WKWebView
+  honours no `app-region` and Tauri's `data-tauri-drag-region` needs the page's IPC (refused), so the shell adds a
+  native transparent drag strip (an NSView over the webview's top band that calls `performWindowDragWithEvent`) whose
+  height the page matches.
+- *Commands.* The redesign's ⌘K registry maps onto `MENUS`: each Studio command (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B,
+  Stop ⌘.) becomes a table entry with a page target; on a click the shell dispatches
+  `window.dispatchEvent(new CustomEvent('studio:command', {detail: {id}}))` with an id from its own table only — one
+  way, no data from the page, no IPC, no page→shell path (the `.eval` count of desktop-config.test.ts moves to 2). Not
+  added in L5.2: no Studio command exists yet, and the page would not listen.
+- *Menu state* (review B L10): the table's `enabled` is static. Graying Capture or Render by the page's state needs
+  state flowing to the shell, which the one-way dispatch above cannot carry: either server→shell lines on the
+  supervised pipe (`{"type":"state",…}`, the server knowing the page's state through its own ops) or a narrow
+  page→shell request. L5.9 decides; until then a command the page cannot run answers in the page.
+- *Native confirmation sheets* (BL-106 amended; one message shape, the same there): the server asks through the
+  supervised pipe — `{"type":"confirm","id","text","buttons"}` on the child's stdout (`buttons`: the labels, the first
+  the default, the last the cancel); the shell shows a sheet on the window (NSAlert `beginSheetModalForWindow`, the
+  text as plain text, those labels as the app's own buttons) and writes `{"type":"confirmed","id","button"}` (the index
+  pressed) to the child's stdin; the server matches the id and continues. The page can neither raise one (it has no
+  IPC; a server op may ask on its behalf, and the server decides when to) nor answer it (the answer comes only from
+  the pipe the shell holds). In a browser tab (no supervisor) the same request falls back to the terminal prompt.
+- *Name.* "Demo Studio" is tauri.conf.json `productName` and the bundle id its `identifier` — the one place each: the
+  shell reads the name from the generated context (`package_info().name`), `desktop.mjs` reads both from the file
+  (Info.plist, the `.app` name, the plist's texts). The binary's name is Cargo.toml `name` (`main.rs` `BIN`, the log
+  prefix; `desktop.mjs` and the gated test read it from Cargo.toml). The rename changes those values.
+
+**Build.** `desktop:build`: `cargo build --release --locked --features custom-protocol` (thin LTO, stripped: 7.9 MB
+binary) → `<target>/release/bundle/Demo Studio.app` (Info.plist with `NSLocalNetworkUsageDescription` — the worker and
+its browser are the app's children, so macOS names the app in a local-network prompt —, the icon made by `sips` +
+`iconutil` from `icons/icon.png`, rasterised once from `icons/icon.svg`: the Studio's brand mark), `launch.json`,
+`codesign --force --sign -` (ad hoc, no entitlement). Never copied to /Applications. Launch Services records each
+built copy even when its binary is started directly: `desktop:clean` unregisters it. Disk (measured 2026-10-29): the
+build folders are inside the checkout unless CARGO_TARGET_DIR is set — `apps/desktop/target` (≈ 1 GB for a debug
+build, dependencies without debug info; ≈ 0.85 GB for a release one; one per checkout or worktree) and
+`apps/desktop/core/target` (≈ 11 MB, also what `desktop-core.test.ts` builds), plus Tauri's generated `gen/`; all
+git-ignored, all removed by `desktop:clean` (review B L3).
+
+**Tests.** `desktop-config.test.ts` (default suite, static: tauri.conf.json, no capability anywhere, the window's
+builder calls, one `.eval`, one `Command::new`, the dependency allow-list and Tauri features, `--locked`, no
+/Applications, ad hoc signature, the menu table's accelerators, `TITLE_BAR`, the name in one place);
+`desktop-core.test.ts` (default suite: `cargo test` of `apps/desktop/core`, a crate with no dependency — 21 tests,
+≈ 1.6 s warm; skipped with the reason in its title on Windows, on macOS without the Xcode command line tools —
+`xcode-select -p`, checked before cargo runs so the `cc` shim never opens their install dialog —, without rustc /
+cargo, or with a Rust older than 1.70: review B M4); `desktop-shell.test.ts` (gated `DEMO_STUDIO_TEST_DESKTOP=1`,
+cargo probed only then: one release build
+with the test bundle id `local.demo-studio.desktop.test`, the binary started directly; owned server = its child,
+argv without secret, two listeners on 127.0.0.1; the page loaded = `/v1/info` counters `sessions ≥ 1`, `streams ≥ 1`;
+SIGTERM = the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`); SIGKILL = no orphan; attached = the
+terminal's server survives Quit; Open Workspace… (SIGUSR1) on a folder that is no workspace keeps the app, its server
+and its page; a hostile launch — a copy of the app whose launch.json runs a fake `studio ui --supervised` serving an
+adversarial page and a sandboxed "player" — proves no request reaches a foreign port (iframe, redirect, srcdoc frame,
+octal host, `target=_blank`, `window.open`, top-level location), data: / blob: / custom-scheme navigations refused,
+both downloads cancelled and nothing in `~/Downloads` (files named with a per-run token, the only ones ever deleted),
+every invoke refused and the player frame's IPC message dropped, no `mediaDevices`, no NODE_OPTIONS in the child (review
+A M2); no secret in the output; nothing in `~/Library` and no Launch Services record left; with
+`DEMO_STUDIO_TEST_SLOW=1` a fixture capture on its timeline: `player_media_bytes_read > 0`). By eye: the screenshots the
+test keeps (`DEMO_STUDIO_TEST_SHOTS`): a locked screen skips them, a capture without Screen Recording permission or a
+flat picture is printed "unverified" (review B). By hand: MACOS-CHECKLIST 14a.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

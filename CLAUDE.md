@@ -36,7 +36,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~14 min on the Mac; run `pnpm build` first; 66 skip by default: 42 slow (incl. 3 Claude CLI), 8 installed Chrome, 7 Postgres, 7 Docker, 1 old Node, 1 headed)
+pnpm test                            # = vitest run, full suite (~14 min on the Mac; run `pnpm build` first; 73 skip by default: 42 slow (incl. 3 Claude CLI), 8 installed Chrome, 7 desktop app, 7 Postgres, 7 Docker, 1 old Node, 1 headed)
 pnpm test:pg                         # the 7 Postgres tests on a throwaway demo-studio-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
 pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin, phase-3 and Studio acceptances (~13 min)
 DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)
@@ -55,6 +55,7 @@ node scripts/requirements.mjs --check-cites                   # fails when an ev
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)
+pnpm desktop:build                                             # the macOS app (apps/desktop, Rust + Tauri, offline: CARGO_NET_OFFLINE=true); desktop:dev / desktop:test / desktop:clean
 ```
 
 ## Where things live
@@ -65,7 +66,7 @@ node packages/cli/dist/bin.js ui                               # the Studio web 
   command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
   scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker · `packages/mcp` the MCP
   server (`studio mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the Studio web app and its
-  server (`studio ui`) · `skills/` the Claude skills and plugin root.
+  server (`studio ui`) · `apps/desktop` the macOS app (Tauri shell around `studio ui --supervised`) · `skills/` the Claude skills and plugin root.
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

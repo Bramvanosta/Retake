@@ -20,13 +20,14 @@
  * - It starts only in the frame document (review A L2): its own capability path (boot.js runs first there), framed
  *   directly by the Studio page — never in a child frame or another page that loads it.
  */
-import { createElement as h, useEffect, useState } from 'react';
+import { createElement as h, useSyncExternalStore } from 'react';
 import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Player } from '@remotion/player';
 import type { PlayerRef } from '@remotion/player';
 import { ComponentPreview, DemoVideo, ModulesContext, PreviewContext, usedComponentIds } from 'ds:composition';
 import { bundle, defaults, held, loaders, scaffolds } from 'ds:modules';
+import { latest } from './frame-store.js';
 import { LIST_MAX, PROTOCOL_VERSION, clip, isPreviewDisplayText, parseParentMessage } from './protocol.js';
 import type { FrameMessage, ParentMessage } from './protocol.js';
 
@@ -97,8 +98,9 @@ let player: PlayerRef | null = null;
 let generation = 0;
 let reports = 0;
 let rate: 0.5 | 1 | 2 = 1;
-let mount: ((m: Mounted | null) => void) | null = null;
 let mounted: Mounted | null = null;
+/** What the Player shows (frame-store.ts: a plan mounted before the tree subscribed is kept). */
+const shown = latest<Mounted | null>(null);
 let settleTarget: number | null = null;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let settledStreak = 0;
@@ -232,7 +234,7 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
   const Video = (vp: Record<string, unknown>) => h(ModulesContext.Provider, { value: modules }, h(PreviewContext.Provider, { value: previewMode }, h(Composition, vp)));
   const frame = Math.min(m.frame, plan.durationInFrames - 1);
   mounted = { gen, plan, Video, props, loop: isPreview, frame };
-  mount?.(mounted);
+  shown.set(mounted);
   send({
     type: 'loaded',
     frames: plan.durationInFrames,
@@ -304,7 +306,7 @@ function onParent(data: unknown): void {
       return;
     case 'rate':
       rate = m.rate;
-      if (mounted) mount?.({ ...mounted });
+      if (mounted) shown.set({ ...mounted });
       return;
     case 'mute':
       if (m.muted) player?.mute();
@@ -313,7 +315,7 @@ function onParent(data: unknown): void {
     case 'clear':
       generation++;
       mounted = null;
-      mount?.(null);
+      shown.set(null);
       return;
   }
 }
@@ -358,13 +360,8 @@ function attach(ref: PlayerRef | null): void {
 }
 
 function App() {
-  const [m, setM] = useState<Mounted | null>(mounted);
-  useEffect(() => {
-    mount = setM;
-    return () => {
-      mount = null;
-    };
-  }, []);
+  // Read again once subscribed: a `load` the Studio answered before this tree's first effects still mounts (L5.2).
+  const m = useSyncExternalStore(shown.subscribe, shown.get);
   if (!m) return null;
   return h(Player, {
     key: m.gen,

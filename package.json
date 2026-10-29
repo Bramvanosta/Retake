@@ -15,7 +15,11 @@
     "test:slow": "DEMO_STUDIO_TEST_SLOW=1 vitest run packages/cli/test/catalogue-acceptance.test.ts packages/editor/test/loop-real.test.ts packages/mcp/test/fixture-acceptance.test.ts packages/mcp/test/authoring-acceptance.test.ts packages/mcp/test/record-acceptance.test.ts packages/mcp/test/theme-acceptance.test.ts packages/mcp/test/phase3-acceptance.test.ts packages/mcp/test/plugin.test.ts packages/ui/test/scenario-run-acceptance.test.ts packages/ui/test/studio-e2e-themes-acceptance.test.ts packages/ui/test/studio-e2e-record-acceptance.test.ts",
     "studio": "node packages/cli/dist/bin.js",
     "fixture": "node fixtures/wholesale/server.mjs",
-    "req": "node scripts/requirements.mjs"
+    "req": "node scripts/requirements.mjs",
+    "desktop:dev": "node apps/desktop/scripts/desktop.mjs dev",
+    "desktop:build": "node apps/desktop/scripts/desktop.mjs build",
+    "desktop:test": "node apps/desktop/scripts/desktop.mjs test",
+    "desktop:clean": "node apps/desktop/scripts/desktop.mjs clean"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -1,0 +1,18 @@
+# The desktop shell's security and lifecycle rules (L5.2): pure Rust, no dependency, so `cargo test --offline --locked`
+# builds and runs in seconds on any machine with Rust — the default test suite runs it when cargo is on PATH
+# (packages/cli/test/desktop-core.test.ts). The shell (../) depends on it by path. No `rust-version` (review B M4):
+# it needs Rust 1.70 (`is_some_and`), not Tauri's 1.90, so an older toolchain never turns `pnpm test` red.
+[package]
+name = "desktop-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+# Its own workspace: built alone it needs no registry (the shell's Tauri tree is not resolved).
+[workspace]
+
+[dependencies]
+
+[profile.dev]
+debug = 0

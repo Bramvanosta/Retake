@@ -71,14 +71,14 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.8 | Record screen | M | **done** (live checks: MACOS-CHECKLIST 13i) |
 | L4.9 | Studio acceptance, accessibility pass | S | **done** — phase 4 done (live checks: MACOS-CHECKLIST 13j) |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
-| L5.2 | Tauri desktop shell (macOS) | M | **next** (when the user asks) |
+| L5.2 | Tauri desktop shell (macOS) | M | **done** (live checks: MACOS-CHECKLIST 14a) |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
 | L5.6 | Field feedback: capture reliability (all missing targets, `type` focus and value checks, dead clicks, download retries, mail diagnostics) | M | **done** (2026-10-26) |
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
-| L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | todo — after L5.2 |
+| L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **next** (when the user asks) |
 | L5.10 | Studio « Épure » 2: Project and Scenario screens | M | todo |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
@@ -857,7 +857,16 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   capture running first, heavy jobs waiting for the takes.
 - **L5.15 — Renders on the GPU (S).** BL-114: angle and VideoToolbox, a lighter concurrency, measured against today.
 
-### L5.2 – L5.4, L6
+### L5.2 — Tauri desktop shell (macOS) (M)
+- **Goal:** the Studio as a macOS app, with the same UI and no new trust surface.
+- **Done (2026-10-29, in a worktree):** `apps/desktop` (Tauri 2.12.5, built offline, ad hoc signed, never installed by
+  the tooling) supervising `studio ui --supervised` and opening its one-time URL in an incognito WKWebView window
+  (navigation held to the Studio and Player origins, downloads cancelled, permissions denied, no IPC, the drag handler
+  off), owned vs attached servers, graceful quit vs crash with no orphan, a minimal menu from one table, ready for
+  L5.9 (title-bar switch, free shortcuts, no forced appearance). A preview-frame race found through the app fixed in
+  the product. Two independent reviews fixed with mutation-checked tests. Cuts: BL-125. Live checks: MACOS-CHECKLIST 14a.
+
+### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

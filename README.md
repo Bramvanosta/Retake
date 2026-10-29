@@ -186,6 +186,7 @@ studio prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, rende
 studio mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
 studio mcp --http [--port N] [--rotate-token] [--json] # the same MCP server over HTTP on 127.0.0.1 (--print-config --http: its registration)
 studio ui [--port N] [--no-open] [--json]             # the Studio web app on 127.0.0.1 until Ctrl-C (Studio app)
+studio ui --supervised                                # for the desktop app: --json --no-open, stops when its stdin closes
 studio jobs [--project P] [--state S] [--limit N] [--json]   # jobs Claude started (dry runs, captures, hooks…)
 studio jobs status <id> [--json] · studio jobs cancel <id>   # one job; cancel it (teardown and rollbacks still run)
 ```
@@ -267,8 +268,11 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   files stay in `<project>/.demo-studio/records/` (the newest 20). The access is the environment's own, as a run.
   See [Recording a scenario](#recording-a-scenario).
 - **ui** serves the Studio web app of the workspace on `127.0.0.1` until Ctrl-C and opens it in the browser
-  (`--no-open`: print the link only; `--port`: a fixed port; `--json`: one line `{type, url, port, pid, reused}`); one
-  server per workspace — run it again to reopen the running one with a new link — see [Studio app](#studio-app).
+  (`--no-open`: print the link only; `--port`: a fixed port; `--json`: one line `{type, v, url, port, pid, reused,
+  player}` — `player` the preview's origin; `--supervised`: `--json --no-open` for the desktop app, and it stops when its
+  stdin closes, saying why on stderr: `stopped: SIGTERM`, `stopped: stdin closed`); one server per workspace — run it
+  again to reopen the running one with a new link — see [Studio app](#studio-app) and
+  [Desktop app (macOS)](#desktop-app-macos).
 
 Exit codes: `0` success, `1` validation errors or a failed/cancelled run or hook (or a failed doctor check), `2`
 invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a session, running js hooks or starting,
@@ -3766,6 +3770,76 @@ running: the MCP server keeps working without it.
   through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
   stays in the terminal.
 
+## Desktop app (macOS)
+
+`apps/desktop` is a small Mac app around the same Studio (L5.2): a window on the workspace's own Studio server, the
+native menu, a workspace picker, a clean stop. It is the browser tab of `studio ui` without the browser — nothing of
+the Studio is rebuilt in it, and its Rust is only OS glue (Tauri 2, macOS's own WebKit).
+
+```sh
+pnpm build                     # the app runs this repository's built CLI
+pnpm desktop:dev [--root <workspace>]      # a debug build, started from the terminal (its output: origins only)
+pnpm desktop:build             # apps/desktop/target/release/bundle/Demo Studio.app (ad hoc signed, never installed)
+pnpm desktop:test              # the shell's rules (apps/desktop/core: seconds)
+pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the app's Launch Services record
+```
+
+- **Needs** Rust (`cargo` on PATH, Rust 1.90 or later) and the Xcode command line tools — for these commands only:
+  `pnpm build` and `pnpm test` never need Rust (`pnpm test` runs the shell's rules when Rust 1.70+ and the command line
+  tools are there, and skips them, saying why, otherwise). Cargo runs with `--locked` (Cargo.lock is committed); set
+  `CARGO_NET_OFFLINE=true` (or pass `--offline`) to build from the cargo cache only (`cargo fetch --locked` once with a
+  network fills it).
+- **Disk.** The build folders are inside the checkout (git-ignored), one set per checkout or worktree:
+  `apps/desktop/target` (≈ 1 GB for a debug build, ≈ 0.85 GB for a release one) and `apps/desktop/core/target`
+  (≈ 11 MB, also built by `pnpm test`). Set `CARGO_TARGET_DIR` to put them elsewhere; `pnpm desktop:clean` removes
+  them (and Tauri's generated `apps/desktop/gen/`).
+- **What it runs.** `pnpm desktop:build` writes into the app the Node.js that built it (by a path that survives a patch
+  upgrade, as the plugin's config) and this repository's `packages/cli/dist/bin.js`: the app runs `node bin.js --root
+  <workspace> ui --supervised`. A `git pull` + `pnpm build` updates what the app runs at its next start; a moved
+  repository or a removed Node.js gives an alert with the fix (`pnpm desktop:build` again). `pnpm desktop:dev` passes
+  them through `DEMO_STUDIO_NODE` / `DEMO_STUDIO_CLI` instead (only a debug build reads those).
+- **Which workspace.** `--root`, else `DEMO_STUDIO_ROOT`, else the last one opened (`<studio home>/desktop.json`), else
+  the current folder's `studio.yaml`, else a folder picker; File › Open Workspace… (⌘O) switches (the server of the
+  first one stops before the next starts). A folder that is not a workspace changes nothing, and if the new one cannot
+  start, the previous one opens again.
+- **One server per workspace, as `studio ui`.** When no server serves the workspace, the app's server is its own:
+  Quit (⌘Q, or SIGTERM / Ctrl-C under `pnpm desktop:dev`) stops it, and if the app crashes the server sees its pipe
+  close and stops too — no server is left holding `ui.json`. When one already serves it (a terminal's `studio ui`),
+  the app attaches: it opens that server's Studio and never stops it; nothing watches it either — if it stops, the
+  window says to run `studio ui` again: File › Open Workspace… on the same folder gives the app a server of its own
+  (and if the page reloads meanwhile, the app says the server is gone and offers Restart).
+  The jobs worker is never the app's: quitting while a capture runs lets it finish (no prompt).
+- **The window.** Closing it hides it (the page stays connected); the Dock icon or Window › Show Studio Window (⌘0)
+  shows it again (⌘Tab alone does not). The title bar takes the page's colour — light today, also in Dark mode, until
+  the Studio's own dark theme. The Edit menu makes
+  ⌘Z ⌘C ⌘V ⌘X ⌘A work in fields; the app binds no ⌘S, ⌘R, ⇧⌘R, ⌘B, ⌘. or ⌘Enter, so the Studio's own shortcuts work.
+  **Unsaved text is not protected:** Quit, Open Workspace… and a server restart leave the page without the prompt a
+  browser shows (WebKit in an app asks nothing): save the YAML / README first (BACKLOG BL-125).
+- **What it keeps and prints.** No token: the page trades the one-time code for its token as in a browser and keeps it
+  in the window's memory; the window's web storage is ephemeral (nothing in `~/Library`: no copy of capture media);
+  the window loads only the Studio's and the preview's `127.0.0.1` origins (every navigation, every frame; none once
+  its server stopped), cancels every download, grants no camera, microphone or screen, the page gets no command of the
+  app, and the app's output names origins only — never the one-time link, a preview capability or the token. A built
+  app passes the Studio server your environment without `NODE_OPTIONS`, `NODE_PATH` and the linker's `DYLD_*` /
+  `LD_*` variables (nothing set with `launchctl setenv` makes it load code).
+- **From Finder**, the app gets macOS's minimal environment, not your shell's: `{{env:NAME}}` references of a scenario
+  find nothing there (use `{{keychain:…}}` references, or start the app from a terminal with `pnpm desktop:dev`);
+  ffmpeg is still found in Homebrew's folders. A jobs worker the app's server starts keeps that environment while it
+  lives (it exits after 60 s without a job), so a job Claude submits through MCP meanwhile runs with it too — let it
+  idle out before relying on `{{env:…}}` set in a terminal (BACKLOG BL-125). macOS may ask
+  whether the app may reach devices on your local network (a capture of a product on another machine), access your
+  Desktop, Documents or Downloads folder (a workspace there: the server is the app's child), or show notifications for
+  a `notify` step, naming the app; the ad hoc signature changes with every `pnpm desktop:build`, so it may ask again
+  after a build.
+- **Launch Services** records each built copy of the app (even started from a terminal); keep one copy —
+  `pnpm desktop:clean` removes the record with the build.
+- **Checks.** `packages/cli/test/desktop-config.test.ts` (the configuration, read statically) and
+  `desktop-core.test.ts` (the shell's rules, when cargo is on PATH) run in `pnpm test`; the black-box test of the built
+  app is opt-in: `DEMO_STUDIO_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts` (≈ 35 s warm;
+  with `DEMO_STUDIO_TEST_SLOW=1`, a fixture capture on its timeline too); by hand: MACOS-CHECKLIST 14a (Finder, picker,
+  keys, drag & drop, the Player playing, Quit during a capture). Not yet: notifications, native pickers for the Studio's
+  path fields, signing and an installer (BACKLOG BL-125, BL-36).
+
 ## Security
 
 - **The Studio server** (`studio ui`) listens on `127.0.0.1` only and checks every request in a fixed order before
@@ -3775,7 +3849,9 @@ running: the MCP server keeps working without it.
   (no CORS: a preflight always fails), the bearer token (a header, never a cookie or a URL), `application/json` (a
   `<form>` cannot send it) and a 2 MiB body cap. Every answer carries a strict Content-Security-Policy (scripts,
   styles and fetches from the server itself only; no inline script, no `eval`; the page may frame one origin, the
-  preview's below, and nothing may frame it). No secret is in the app's files; the token comes from the one-time code
+  preview's below, and nothing may frame it) and a Permissions-Policy asking that the camera, microphone, screen
+  capture and location stay off for the page and its frames (L5.2: Chromium browsers enforce it; the desktop app
+  denies them itself). No secret is in the app's files; the token comes from the one-time code
   (see [Studio app](#studio-app)).
 - **The timeline preview** (L4.5) plays in its own origin: a second `127.0.0.1` port of the same `studio ui` process
   that serves only the preview frame, its script and the files of the take being previewed (the capture, the theme's
@@ -3948,6 +4024,8 @@ packages/engine       the engine API the CLI and the MCP server share: workspace
                       index (src/index-db/: node:sqlite, the stat poll, the job watch)
 packages/mcp          the MCP server (`studio mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
                       results, --print-config, the SDK-free tool layer (callTool) the Studio shares
+apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pnpm package) running `studio ui
+                      --supervised` and showing it; core/ holds its rules (no dependency); scripts/desktop.mjs
 packages/ui           the Studio web app (`studio ui`): a React app bundled in memory by esbuild and its server — the
                       engine's /v1 HTTP API behind the engine's gate (engine src/http/), an allow-list of the MCP tools,
                       the event stream and the index reads (src/server/live.ts, ops.ts); the scenario screen
@@ -3995,7 +4073,7 @@ committing them.
 | 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
 | 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | **Done, pending the live run** (automated acceptance in [docs/ACCEPTANCE-phase3.md](docs/ACCEPTANCE-phase3.md): on one empty workspace, a project from a README, a scenario from a script and page inspections, a theme from brand files, a workspace component, capture → render → review clean, a person's frame comment → scenario fix → re-capture → render → resolve, zero approvals; the same loop by Claude itself in Claude Code is `docs/MACOS-CHECKLIST.md` step 12j) — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP; L3.3: page inspections and a script-table skeleton for Claude's authoring; L3.4: recording a scenario a person performs (`studio record`, `scenario_record`); L3.5: themes from brand inputs and from a site URL (`template_create_from_brand`, `template_from_site`, contrast checked); L3.6: frame comments (`studio comment`, anchors on the plan's steps and markers, `comments_list` / `comment_reply` / `comment_resolve`); L3.7: the Claude skills (scenario, theme, component) and the Claude Code plugin that bundles them with the server; L3.8: the phase 3 acceptance, and a warning when the scenario changed since the run was captured (a render shows the run as captured) |
 | 4 | Studio web app (scenario blocks, timeline, frame comments) | In progress — L4.1: `studio ui` serves the Studio on 127.0.0.1 behind the engine's HTTP gate (one-time link, token, allow-list of the MCP tools): the Projects screen with search and recent activity (the workspace index), the README editor, live updates; `studio mcp --http` |
-| 5 | macOS desktop shell, iOS Simulator runner | Planned |
+| 5 | macOS desktop shell, iOS Simulator runner | In progress — L5.2: the desktop app (`pnpm desktop:build`, [Desktop app (macOS)](#desktop-app-macos)) |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |
 
 The macOS verification pass and its fixes are done (lots L1.5 and L5.1, results at the end of

@@ -6,6 +6,11 @@
  * folder that is not a workspace is a usage error naming --root. L4.2 (critique B5): its PATH is sanitised like
  * `studio mcp`'s — an `ffmpeg` an agent wrote in the workspace (`bin/`, `node_modules/.bin/`) is never what the
  * thumbnails run.
+ * L5.2: `--supervised` (the desktop shell's child) prints the line with `v` and the player origin, stops when its stdin
+ * closes — also when the parent holding the pipe is killed, after or during the start (critique M3) — says why on
+ * stderr without any URL, and attaches (`reused`, with the player origin) to a running server without touching it; a
+ * folder that is no workspace answers `{"type":"error","code":"no_workspace"}` on stdout (exit 2), which the desktop
+ * shell tells from another usage error (review B L4).
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -31,8 +36,8 @@ interface Started {
   exit: Promise<{ code: number | null; signal: NodeJS.Signals | null; out: string; err: string }>;
 }
 
-function studio(args: string[], cwd = base, env: NodeJS.ProcessEnv = {}): Started {
-  const child = spawn(process.execPath, [BIN, ...args], { cwd, env: { ...process.env, DEMO_STUDIO_HOME: join(base, 'home'), DEMO_STUDIO_ROOT: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+function studio(args: string[], cwd = base, env: NodeJS.ProcessEnv = {}, stdin: 'ignore' | 'pipe' = 'ignore'): Started {
+  const child = spawn(process.execPath, [BIN, ...args], { cwd, env: { ...process.env, DEMO_STUDIO_HOME: join(base, 'home'), DEMO_STUDIO_ROOT: '', ...env }, stdio: [stdin, 'pipe', 'pipe'] });
   children.push(child);
   let out = '';
   let err = '';
@@ -62,8 +67,9 @@ afterAll(async () => {
 describe.skipIf(!built)('studio ui (built CLI)', () => {
   it('serves, prints one JSON line, reuses the running server, stops on SIGTERM and removes ui.json', async () => {
     const first = studio(['--root', ws, 'ui', '--no-open', '--json']);
-    const info = JSON.parse(await first.line) as { type: string; url: string; port: number; pid: number; reused: boolean };
-    expect(info).toMatchObject({ type: 'ui', reused: false, pid: first.child.pid });
+    const info = JSON.parse(await first.line) as { type: string; url: string; port: number; pid: number; reused: boolean; player: string };
+    expect(info).toMatchObject({ type: 'ui', v: 1, reused: false, pid: first.child.pid });
+    expect(info.player).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     expect(info.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${info.port}/#c=[A-Za-z0-9_-]{43}$`));
     const file = join(ws, '.demo-studio', 'ui.json');
     expect((await stat(file)).mode & 0o777).toBe(0o600);
@@ -83,7 +89,7 @@ describe.skipIf(!built)('studio ui (built CLI)', () => {
     expect(second.code, second.err).toBe(0);
     expect(second.err).toBe('');
     const again = JSON.parse(second.out.trim()) as { url: string; port: number; pid: number; reused: boolean };
-    expect(again).toMatchObject({ reused: true, port: info.port, pid: first.child.pid });
+    expect(again).toMatchObject({ reused: true, port: info.port, pid: first.child.pid, player: info.player });
     expect(again.url).not.toBe(info.url);
 
     first.child.kill('SIGTERM');
@@ -166,5 +172,118 @@ describe.skipIf(!built)('studio ui (built CLI)', () => {
     expect(existsSync(marker), 'the workspace’s ffmpeg ran').toBe(false);
     first.child.kill('SIGTERM');
     expect((await first.exit).code).toBe(0);
+  });
+
+  describe('--supervised (L5.2)', () => {
+    const alive = (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const gone = async (pid: number, file: string, ms = 5000) => {
+      const end = Date.now() + ms;
+      while (Date.now() < end && (alive(pid) || existsSync(file))) await new Promise((r) => setTimeout(r, 50));
+      return !alive(pid) && !existsSync(file);
+    };
+    const ui = () => join(ws, '.demo-studio', 'ui.json');
+
+    it('one line with v and the player origin; closing stdin stops it (exit 0, ui.json removed, the reason on stderr, no URL)', async () => {
+      const s = studio(['--root', ws, 'ui', '--supervised'], base, {}, 'pipe');
+      const info = JSON.parse(await s.line) as { type: string; v: number; url: string; port: number; reused: boolean; player: string };
+      expect(info).toMatchObject({ type: 'ui', v: 1, reused: false });
+      expect(info.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${info.port}/#c=[A-Za-z0-9_-]{43}$`));
+      expect(info.player).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      expect(info.player).not.toBe(`http://127.0.0.1:${info.port}`);
+      expect(existsSync(ui())).toBe(true);
+      // Bytes on stdin are read and discarded: still serving.
+      s.child.stdin!.write('anything\n');
+      await new Promise((r) => setTimeout(r, 200));
+      expect((await fetch(`http://127.0.0.1:${info.port}/`)).status).toBe(200);
+      s.child.stdin!.end();
+      const done = await s.exit;
+      expect(done.code).toBe(0);
+      expect(done.err).toBe('stopped: stdin closed\n');
+      expect(done.out.trim().split('\n')).toHaveLength(1);
+      expect(existsSync(ui())).toBe(false);
+    });
+
+    it('SIGTERM: stopped: SIGTERM on stderr', async () => {
+      const s = studio(['--root', ws, 'ui', '--supervised'], base, {}, 'pipe');
+      await s.line;
+      s.child.kill('SIGTERM');
+      const done = await s.exit;
+      expect(done.code).toBe(0);
+      expect(done.err).toBe('stopped: SIGTERM\n');
+      expect(existsSync(ui())).toBe(false);
+    });
+
+    const parentScript = `const { spawn } = require('node:child_process');
+const c = spawn(process.execPath, [process.argv[1], '--root', process.argv[2], 'ui', '--supervised'], { stdio: ['pipe', 'pipe', 'pipe'] });
+process.stdout.write('P' + c.pid + '\\n');
+c.stdout.on('data', (d) => process.stdout.write('L' + d));
+setInterval(() => undefined, 1000);`;
+    const parent = () => {
+      const p = spawn(process.execPath, ['-e', parentScript, BIN, ws], { env: { ...process.env, DEMO_STUDIO_HOME: join(base, 'home'), DEMO_STUDIO_ROOT: '' }, stdio: ['ignore', 'pipe', 'ignore'] });
+      children.push(p);
+      let out = '';
+      const seen = (re: RegExp) =>
+        new Promise<RegExpExecArray>((r) => {
+          const check = () => {
+            const m = re.exec(out);
+            if (m) r(m);
+          };
+          p.stdout!.on('data', (c: Buffer) => ((out += c.toString('utf8')), check()));
+          check();
+        });
+      return { p, seen };
+    };
+
+    it('the parent killed (SIGKILL) while it serves: no orphan — the server stops, ui.json removed', async () => {
+      const { p, seen } = parent();
+      const pid = Number((await seen(/P(\d+)\n/))[1]);
+      await seen(/L\{/);
+      expect(alive(pid) && existsSync(ui())).toBe(true);
+      p.kill('SIGKILL');
+      expect(await gone(pid, ui()), 'the supervised server outlived its parent').toBe(true);
+    });
+
+    it('the parent killed 50 ms after spawning it (during the start, critique M3): no listener and no ui.json left', async () => {
+      const { p, seen } = parent();
+      const pid = Number((await seen(/P(\d+)\n/))[1]);
+      await new Promise((r) => setTimeout(r, 50));
+      p.kill('SIGKILL');
+      expect(await gone(pid, ui(), 8000), 'the supervised server outlived its parent').toBe(true);
+    });
+
+    it('a folder that is no workspace: the no_workspace line on stdout, exit 2; an unknown option: exit 2 with no line', async () => {
+      const empty = join(base, 'not-a-workspace');
+      await mkdir(empty, { recursive: true });
+      const s = studio(['--root', empty, 'ui', '--supervised'], base, {}, 'pipe');
+      const done = await s.exit;
+      expect(done.code).toBe(2);
+      expect(done.out).toBe('{"type":"error","v":1,"code":"no_workspace"}\n');
+      expect(done.err).toContain('no workspace here');
+      // What an older CLI does with a flag it does not know: a usage error, nothing on stdout.
+      const old = studio(['--root', ws, 'ui', '--no-such-flag'], base, {}, 'pipe');
+      const o = await old.exit;
+      expect([o.code, o.out]).toEqual([2, '']);
+    });
+
+    it('a server already runs: reused with the player origin, exit 0, the first server untouched', async () => {
+      const first = studio(['--root', ws, 'ui', '--no-open', '--json']);
+      const info = JSON.parse(await first.line) as { port: number; pid: number; player: string };
+      const s = studio(['--root', ws, 'ui', '--supervised'], base, {}, 'pipe');
+      const done = await s.exit;
+      expect(done.code, done.err).toBe(0);
+      expect(done.err).toBe('');
+      expect(JSON.parse(done.out.trim())).toMatchObject({ type: 'ui', v: 1, reused: true, port: info.port, pid: info.pid, player: info.player });
+      expect(alive(info.pid)).toBe(true);
+      expect((await fetch(`http://127.0.0.1:${info.port}/`)).status).toBe(200);
+      first.child.kill('SIGTERM');
+      expect((await first.exit).code).toBe(0);
+    });
   });
 });

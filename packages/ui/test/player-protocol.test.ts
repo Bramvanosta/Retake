@@ -5,12 +5,15 @@
  * - ⚑ a message from another window is ignored; the first message from the frame disarms the window listener: a hello
  *   with a port connects, anything else stops the preview (critique B2);
  * - ⚑ over the port, an invalid message or one over the budget stops it: the port is closed, the frame removed;
- * - frames are bounded by the last `loaded`; a reloaded frame re-arms the listener and its new hello replaces the port.
+ * - frames are bounded by the last `loaded`; a reloaded frame re-arms the listener and its new hello replaces the port;
+ * - ⚑ L5.2: the frame's store of what the Player shows (src/player/frame-store.ts) keeps a value set before anything
+ *   subscribed (the frame side of the race the Chromium test in player-preview.test.ts forces).
  */
 import { MessageChannel } from 'node:worker_threads';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FLOOD_MESSAGES_PER_S, FloodBudget, TEXT_MAX, clip, parseFrameMessage, parseHello, parseParentMessage } from '../src/player/protocol.js';
 import { STOP_FLOOD, STOP_INVALID, connectPreview } from '../src/player/parent.js';
+import { latest } from '../src/player/frame-store.js';
 import type { FrameMessage } from '../src/player/protocol.js';
 
 describe('protocol messages', () => {
@@ -204,5 +207,24 @@ describe('connectPreview (the Studio page side)', () => {
     c.close();
     a.port1.close();
     b.port1.close();
+  });
+});
+
+describe('the frame store (L5.2)', () => {
+  it('⚑ a value set before any subscriber is kept; subscribers hear each set until they unsubscribe', () => {
+    const shown = latest<{ gen: number } | null>(null);
+    const plan = { gen: 1 };
+    // The plan mounts before the tree subscribed (WebKit's order): nothing hears it, but it is the value read after.
+    shown.set(plan);
+    expect(shown.get()).toBe(plan);
+    let heard = 0;
+    const off = shown.subscribe(() => heard++);
+    shown.set({ gen: 2 });
+    expect(heard).toBe(1);
+    expect(shown.get()).toEqual({ gen: 2 });
+    off();
+    shown.set(null);
+    expect(heard).toBe(1);
+    expect(shown.get()).toBeNull();
   });
 });

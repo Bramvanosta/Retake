@@ -456,7 +456,9 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
 ## 12. Studio app (web UI, then the Tauri desktop shell)
 
 A client of the same packages (the MCP keeps working without it). Served locally by `studio ui`; the Tauri app
-(phase 5, macOS) wraps the same UI.
+(phase 5, macOS) wraps the same UI. Built in L5.2 (`apps/desktop`, `pnpm desktop:build`): a window on the workspace's
+own `studio ui --supervised` server, the native menu, a workspace picker, Quit stopping the server it owns — the same
+UI, Rust only for OS glue, no token in the shell (README "Desktop app (macOS)", DESIGN §4j).
 - **Projects**: list, README editor, themes & component gallery (previews rendered with the project theme, and a short
   animated preview per component so motion can be judged without a render). Built in L4.7 part D1 (the library screen,
   `#/p/<slug>/library`): the grid by kind with each component's poster in the selected theme (a switcher), filters,

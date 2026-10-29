@@ -214,6 +214,11 @@ export interface PlayerServer {
   readonly scopes: number;
   /** Requests received (tests). */
   readonly requests: number;
+  /** Bytes of registered files read to answer GET requests (L5.2: the desktop shell's acceptance proves the frame
+   * requested its media; a response the client aborts still counts its read-ahead; no secret). */
+  readonly mediaBytesRead: number;
+  /** GET range requests of registered files answered 206 (L5.2: a media element streamed them; a HEAD is not one). */
+  readonly rangeRequests: number;
   /** Revoke the capability and stop listening. */
   close(): Promise<void>;
 }
@@ -273,6 +278,8 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
   let scopes: Map<string, Scope> | null = new Map();
   let port = 0;
   let requests = 0;
+  let mediaBytesRead = 0;
+  let rangeRequests = 0;
   let origin = '';
 
   /** A scope, made on its first use (the least recently used one dropped beyond PLAYER_SCOPES_MAX). */
@@ -365,8 +372,12 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
       res.end();
       return;
     }
+    if (range) rangeRequests++;
     const stream = createReadStream('', { fd, start, end, autoClose: true });
     stream.on('error', () => res.destroy());
+    // Bytes read for the response (review B L9: not "sent" — the read-ahead of a response the frame aborts counts too;
+    // counting completed writes instead gave 0 under WKWebView, whose media requests never saw a write complete).
+    stream.on('data', (c) => (mediaBytesRead += c.length));
     res.on('close', () => stream.destroy());
     stream.pipe(res);
   };
@@ -485,6 +496,12 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     },
     get requests() {
       return requests;
+    },
+    get mediaBytesRead() {
+      return mediaBytesRead;
+    },
+    get rangeRequests() {
+      return rangeRequests;
     },
     close: () =>
       (closed ??= new Promise<void>((done) => {

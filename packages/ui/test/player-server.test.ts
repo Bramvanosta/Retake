@@ -144,6 +144,7 @@ describe('the player origin', () => {
   it('media: Range, HEAD, ETag, immutable caching, CORS only here; unknown capability / id / name and traversal 404', async () => {
     const url = player.register(join(dirs.run, 'capture.mp4'), [dirs.run])!;
     const path = pathOf(url);
+    const [bytes0, ranges0] = [player.mediaBytesRead, player.rangeRequests];
     const full = await get(path, { origin: 'null' });
     expect(full.status).toBe(200);
     expect(Buffer.from(full.body, 'latin1').length).toBeGreaterThan(0);
@@ -159,7 +160,11 @@ describe('the player origin', () => {
     expect((await get(path, { range: 'bytes=20000-' })).status).toBe(416);
     const head = await get(path, {}, 'HEAD');
     expect([head.status, head.body]).toEqual([200, '']);
+    expect((await get(path, { range: 'bytes=0-9' }, 'HEAD')).status).toBe(206);
     expect((await get(path, { 'if-none-match': String(full.headers.etag) })).status).toBe(304);
+    // L5.2 (critique H3, review B L9): the bytes read for GET answers and the GET 206 answers are counted (HEAD — even
+    // with a Range —, 304 and 416 read no media).
+    expect([player.mediaBytesRead - bytes0, player.rangeRequests - ranges0]).toEqual([10000 + 100 + 10, 2]);
     const cap = capOf(url);
     const id = path.split('/')[3];
     const other = 'A'.repeat(43);

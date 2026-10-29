@@ -47,7 +47,7 @@ const PACKAGE_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 export const PLAYER_DIR = join(PACKAGE_DIR, 'src', 'player');
 export const FRAME_ENTRY = join(PLAYER_DIR, 'frame-main.tsx');
 export const BOOT_ENTRY = join(PLAYER_DIR, 'boot.ts');
-const FRAME_SOURCES = ['boot.ts', 'frame-main.tsx', 'protocol.ts'];
+const FRAME_SOURCES = ['boot.ts', 'frame-main.tsx', 'frame-store.ts', 'protocol.ts'];
 
 const KIT_MODULE = '@demo-studio/components/kit';
 /** Bare modules a component may import (compile.ts ALLOWED_IMPORTS). */

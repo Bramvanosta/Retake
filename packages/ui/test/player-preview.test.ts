@@ -8,7 +8,9 @@
  * - in Chromium, the Studio page framing the sandboxed preview: the frame loads a theme's intro as a `component-preview`
  *   (ComponentPreview, looping), settles, and draws the theme — a draft background colour shows in its pixels;
  * - ⚑ a workspace component the person has not allowed is not in the frame's bundle (its bytes absent) and the frame says
- *   its stand-in draws instead.
+ *   its stand-in draws instead;
+ * - ⚑ L5.2: a `load` answered between the frame's first React render and its effects (WebKit's order: the desktop shell's
+ *   stuck "Loading the preview…") still mounts the Player and settles — the order forced here in Chromium.
  */
 import { execFileSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -159,10 +161,13 @@ describe('the forbid scan of a component preview (checkPreviewSpec)', () => {
 
 type Msg = { type: string; frames?: number; frame?: number; warnings?: string[]; missing?: string[]; message?: string };
 
-/** Frame a preview URL in the Studio page, load its plan, and collect the frame's messages (the protocol's parent side). */
-async function frameIt(d: { frame_url: string; plan_url: string }, frame = 0): Promise<void> {
-  await page.evaluate(
-    ({ frameUrl, planUrl, at }) => {
+/**
+ * Frame a preview URL in the Studio page, load its plan, and collect the frame's messages (the protocol's parent side).
+ * `loadAfter`: ms between the frame's hello and the `load` answer (default: at once).
+ */
+async function frameIt(d: { frame_url: string; plan_url: string }, frame = 0, o: { on?: Page; loadAfter?: number } = {}): Promise<void> {
+  await (o.on ?? page).evaluate(
+    ({ frameUrl, planUrl, at, after }) => {
       document.querySelector('iframe#probe')?.remove();
       const w = window as unknown as { __msgs: unknown[]; __port?: MessagePort };
       w.__msgs = [];
@@ -176,21 +181,24 @@ async function frameIt(d: { frame_url: string; plan_url: string }, frame = 0): P
         window.removeEventListener('message', onHello);
         w.__port = e.ports[0];
         w.__port.onmessage = (m) => w.__msgs.push(m.data);
-        w.__port.postMessage({ v: 1, type: 'load', plan_url: planUrl, frame: at });
+        const port = w.__port;
+        const load = () => port.postMessage({ v: 1, type: 'load', plan_url: planUrl, frame: at });
+        if (after > 0) setTimeout(load, after);
+        else load();
       };
       window.addEventListener('message', onHello);
       iframe.src = frameUrl;
       document.body.appendChild(iframe);
     },
-    { frameUrl: d.frame_url, planUrl: d.plan_url, at: frame },
+    { frameUrl: d.frame_url, planUrl: d.plan_url, at: frame, after: o.loadAfter ?? 0 },
   );
 }
 
-const msgs = () => page.evaluate(() => (window as unknown as { __msgs: Msg[] }).__msgs);
-async function waitFor(type: string, ms = 30_000): Promise<Msg> {
+const msgs = (on = page) => on.evaluate(() => (window as unknown as { __msgs: Msg[] }).__msgs);
+async function waitFor(type: string, ms = 30_000, on = page): Promise<Msg> {
   const end = Date.now() + ms;
   for (;;) {
-    const all = await msgs();
+    const all = await msgs(on);
     const errors = all.filter((m) => m.type === 'error');
     if (errors.length) throw new Error(`the frame reported: ${errors.map((e) => e.message).join('; ')}`);
     const m = all.find((x) => x.type === type);
@@ -252,5 +260,34 @@ describe.skipIf(!canRun)('the preview frame plays a component preview (Chromium)
     // Its own magenta never shows: the card scaffold draws.
     const [r, g, b] = await colourAt(0.5, 0.5, 'held');
     expect(r > 200 && g < 80 && b > 200).toBe(false);
+  });
+
+  it("⚑ L5.2: a load answered before the frame's first React effects still mounts the Player and settles", async () => {
+    // WebKit fires the frame's load event — hence its hello — before React's first render of the frame, and the Studio
+    // answers `load` at once: the plan could mount after that render but before its effects (frame-store.ts). Forced
+    // here: the frame's React scheduler (its MessageChannel pings, `postMessage(null)`) is slowed by 500 ms a ping for
+    // its first 2 s — the tree renders at ~0.5 s, runs its effects at ~1 s — and the parent answers the hello 0.7 s late.
+    const slow = await page.context().newPage();
+    try {
+      await slow.addInitScript(() => {
+        if (!/^\/s\/[A-Za-z0-9_-]{43}\/frame$/.test(location.pathname)) return;
+        const start = performance.now();
+        const post = MessagePort.prototype.postMessage;
+        MessagePort.prototype.postMessage = function (this: MessagePort, ...args: Parameters<MessagePort['postMessage']>) {
+          if (args[0] === null && performance.now() - start < 2000) {
+            setTimeout(() => Reflect.apply(post, this, args), 500);
+            return;
+          }
+          Reflect.apply(post, this, args);
+        } as MessagePort['postMessage'];
+      });
+      await slow.goto(new URL(studio.url).origin);
+      const d = await preview({ theme: 'editorial', target: 'intro' });
+      await frameIt(d, d.frame, { on: slow, loadAfter: 700 });
+      expect((await waitFor('loaded', 30_000, slow)).frames).toBe(d.frames);
+      expect((await waitFor('settled', 30_000, slow)).frame).toBe(d.frame);
+    } finally {
+      await slow.close();
+    }
   });
 });

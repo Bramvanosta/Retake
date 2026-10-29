@@ -523,7 +523,8 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .description('the Studio web app of the workspace, on 127.0.0.1 until Ctrl-C (one server per workspace: run again to reopen it)')
     .option('--port <n>', 'listen on this port (default: a free one)')
     .option('--no-open', 'do not open a browser; print the link only')
-    .option('--json', 'print one JSON line {type, url, port, pid, reused} on stdout and nothing else')
+    .option('--json', 'print one JSON line {type, v, url, port, pid, reused, player} on stdout and nothing else')
+    .option('--supervised', 'for the desktop app: --json --no-open, and stop when stdin closes (the parent quit or died)')
     .action(action((u, g, o: UiCommandOptions) => uiCommand(u, g, o)));
 
   const jobs = program.command('jobs').description('jobs an MCP client (Claude) started: dry runs, captures, hooks, resets, sign-ins, sandboxes');
