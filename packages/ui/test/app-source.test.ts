@@ -14,13 +14,23 @@
  * D2: the theme editor's live frame is the second page passing a checked URL to PreviewFrame (the same literal lines).
  * L4.8 part 5: the Record screen renders page text only through Txt — its views rendered (react-dom/server) with a
  * hostile string in every page field: each one inside a <bdi>, no raw direction control, no markup; its words module
- * never reads page text; the record route.
+ * never reads page text; the record route. L4.9 part B: the palette closed (no colour literal outside app.css's :root,
+ * every var() defined and every token used, no fallback), the Geist pair named first, every text / background token pair
+ * at 4.5:1 (the static contrast guarantee), placeholders coloured by the app, and real controls — a TypeScript-parser
+ * pass: a user-input handler (any `on…` but focus, change, load and media events) only on a native control or an
+ * element with a control role, a literal or roving tabIndex 0 and, for a click, a key handler (five reasoned
+ * exceptions, keyed by exact attributes and their source line), no spread onto a non-native element, no <a> without a
+ * real href, no positive tabIndex; no outline removed, transparent or faded without an accent ring in its place, and
+ * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the five accepted states; no colour
+ * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { contrastRatio } from '@demo-studio/components/kit';
 import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
 import { RecordingBody, StartForm } from '../src/app/RecordScreen.js';
 import type { RecordingUi } from '../src/app/RecordScreen.js';
@@ -728,3 +738,418 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
   });
 });
 
+
+// ── L4.9 part B: the closed palette, the fonts, contrast by token, real controls ─────────────────────────────────────
+
+interface CssRule {
+  selector: string;
+  media?: string;
+  decls: Array<[string, string]>;
+}
+
+/** app.css as rules (comments stripped; @media blocks walked). */
+function cssRules(text: string): CssRule[] {
+  const src = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out: CssRule[] = [];
+  const walk = (s: string, media?: string) => {
+    let i = 0;
+    for (;;) {
+      const open = s.indexOf('{', i);
+      if (open < 0) return;
+      const prelude = s.slice(i, open).trim();
+      let depth = 1;
+      let j = open + 1;
+      for (; j < s.length && depth > 0; j++) {
+        if (s[j] === '{') depth++;
+        else if (s[j] === '}') depth--;
+      }
+      const body = s.slice(open + 1, j - 1);
+      if (prelude.startsWith('@')) walk(body, prelude);
+      else {
+        const decls = body
+          .split(';')
+          .map((d) => d.trim())
+          .filter(Boolean)
+          .map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()] as [string, string]);
+        out.push({ selector: prelude, ...(media ? { media } : {}), decls });
+      }
+      i = j;
+    }
+  };
+  walk(src);
+  return out;
+}
+
+const appCss = () => readFile(join(APP, 'app.css'), 'utf8');
+/** The :root tokens, name → value. */
+function tokensOf(rules: CssRule[]): Map<string, string> {
+  const root = rules.filter((r) => r.selector === ':root');
+  expect(root, 'one :root block').toHaveLength(1);
+  return new Map(root[0].decls.filter(([k]) => k.startsWith('--')));
+}
+
+/** A colour written as a literal (hex or a colour function); named colours are matched as whole values / words. */
+const COLOUR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i;
+const NAMED_COLOURS = 'aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen canvas canvastext linktext visitedtext activetext buttonface buttontext field fieldtext highlight highlighttext graytext mark marktext accentcolor accentcolortext'.split(' ');
+const NAMED_COLOUR = new RegExp(`(?:^|[\\s,(])(?:${NAMED_COLOURS.join('|')})(?=$|[\\s,)])`, 'i');
+const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.test(value);
+
+/** Text tokens × the backgrounds they may sit on: every pair reaches 4.5:1 (the static contrast guarantee). */
+const TEXT_ON_LIGHT = ['fg', 'fg-soft', 'hook-fg', 'tint-fg', 'muted', 'accent', 'accent-strong', 'danger', 'warning', 'info', 'success', 'input-fg'];
+const LIGHT_BG = ['bg', 'surface', 'sidebar', 'subtle', 'field-off', 'unusable', 'link-hover', 'code-bg', 'faint', 'hover', 'thumb-stripe', 'outro-tint', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'warning-faint', 'info-soft', 'success-soft', 'input-tint', 'card-tint', 'veil'];
+const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
+  { text: TEXT_ON_LIGHT, on: LIGHT_BG },
+  { text: ['on-ink', 'on-ink-muted', 'on-ink-link'], on: ['ink', 'ink-soft', 'fg', 'ink-veil'] },
+  { text: ['on-accent'], on: ['accent', 'accent-strong'] },
+  { text: ['ink'], on: ['mark-on-video'] },
+];
+/** Pairs of those sets that never meet (a rule declaring one together still fails). */
+const NOT_MEANT: Array<[string, string, string]> = [['on-ink-link', 'ink-veil', 'the link colour is for tooltips on --fg; the veil over a stale frame carries --on-ink text only']];
+/** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead). */
+const NON_TEXT_BG = ['accent-clear', 'accent-fade', 'success-fade', 'backdrop', 'danger', 'muted', 'online'];
+/** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
+const OVER_MEDIA = ['veil', 'ink-veil'];
+/** Non-text marks at 3:1 (WCAG 1.4.11): the focus ring on the light surfaces, the comment region on video, the status dots. */
+const NON_TEXT_PAIRS: Array<[string, string[]]> = [
+  ['accent', ['bg', 'surface', 'sidebar', 'subtle', 'hover', 'tint', 'accent-soft']],
+  ['mark-on-video', ['ink']],
+  ['online', ['sidebar', 'surface']],
+  ['danger', ['sidebar', 'surface']],
+];
+
+type RGBA = [number, number, number, number];
+function rgbaOf(v: string | undefined): RGBA | undefined {
+  if (!v) return undefined;
+  const hex = /^#([0-9a-f]{6})$/i.exec(v.trim());
+  if (hex) return [0, 2, 4].map((i) => Number.parseInt(hex[1].slice(i, i + 2), 16)).concat(1) as RGBA;
+  const m = /^rgba\(([^)]+)\)$/.exec(v.trim());
+  if (!m) return undefined;
+  const p = m[1].split(',').map(Number);
+  return p.length === 4 && p.every((x) => !Number.isNaN(x)) ? (p as RGBA) : undefined;
+}
+const hexOf = (c: RGBA) => `#${c.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join('')}`;
+const overOpaque = (top: RGBA, base: RGBA): RGBA => [0, 1, 2].map((i) => top[i] * top[3] + base[i] * (1 - top[3])).concat(1) as RGBA;
+const GREYS = Array.from({ length: 11 }, (_x, i): RGBA => [i * 25.5, i * 25.5, i * 25.5, 1]);
+
+/** The worst ratio of text token `t` on background token `b` (a translucent background composited over its bases). */
+function worstRatio(tokens: Map<string, string>, t: string, b: string): number {
+  const fg = rgbaOf(tokens.get(`--${t}`));
+  const bg = rgbaOf(tokens.get(`--${b}`));
+  if (!fg || !bg || fg[3] !== 1) return Number.NaN;
+  const bases = bg[3] === 1 ? [bg] : (OVER_MEDIA.includes(b) ? GREYS : [rgbaOf(tokens.get('--surface'))!, rgbaOf(tokens.get('--bg'))!]).map((base) => overOpaque(bg, base));
+  // contrastRatio takes hex only: undefined (an unreadable token) is a failure, never a skip.
+  return Math.min(...bases.map((base) => contrastRatio(hexOf(fg), hexOf(base)) ?? Number.NaN));
+}
+
+/** Any `on…` handler but these makes an element a control (user input): focus, change, form, load and media events. */
+const NOT_INPUT = /^on(?:Focus|Blur|Change|Input|BeforeInput|Load|Error|Scroll|Submit|Reset|Invalid|Toggle|Close|Cancel|Select|Composition\w+|Animation\w+|Transition\w+|LoadStart|LoadedData|LoadedMetadata|CanPlay|CanPlayThrough|Play|Playing|Pause|Ended|TimeUpdate|Seeked|Seeking|Waiting|Stalled|Suspend|Emptied|DurationChange|RateChange|VolumeChange|Progress|Abort)(?:Capture)?$/;
+const isHandler = (k: string) => /^on[A-Z]/.test(k) && !NOT_INPUT.test(k);
+const NATIVE = new Set(['button', 'input', 'select', 'textarea', 'summary']);
+const CONTROL_ROLE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'option', 'menuitem', 'slider', 'spinbutton', 'textbox', 'searchbox', 'combobox', 'listbox']);
+/** Roles a click activates: Enter / Space must too (a key handler beside the click). */
+const CLICK_ROLE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'option', 'menuitem']);
+/**
+ * The deliberate exceptions, each with its reason: keyed by file, tag, every listed attribute's exact source text, and a
+ * piece of the element's source line (a new element of the same kind is not excused).
+ */
+const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<string, string>; line: string; why: string }> = [
+  { file: 'CommentsScreen.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: 'the region drag on the frame; its keyboard alternative is the four % fields' },
+  { file: 'ScenarioScreen.tsx', tag: 'li', attrs: { role: '"option"', 'data-testid': '"step"', id: '{optId}' }, line: '<li', why: 'an option of the steps listbox, which holds the tab stop (aria-activedescendant); its drag moves are Alt+↑ / Alt+↓ by keyboard' },
+  { file: 'ScenarioScreen.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{drag.drop}' }, line: '<p', why: 'the drop target of a step dragged into an empty scene; the keyboard moves steps with Alt+↑ / Alt+↓' },
+  { file: 'TimelineInspector.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"tl-radios"', onKeyDown: '{roveKeys}' }, line: 'className="tl-radios" role="radiogroup"', why: 'the roving arrow keys of a radio group; its checked radio holds the tab stop' },
+  { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rec-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
+];
+const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
+
+interface JsxFinding {
+  file: string;
+  line: number;
+  what: string;
+}
+
+/** A tab stop the keyboard reaches: a literal 0, or a roving expression one of whose branches is 0. */
+function tabStop(init: ts.JsxAttributeValue | undefined): boolean {
+  if (!init) return false;
+  if (ts.isStringLiteral(init)) return init.text === '0';
+  if (!ts.isJsxExpression(init) || !init.expression) return false;
+  const zero = (e: ts.Expression): boolean => {
+    while (ts.isParenthesizedExpression(e)) e = e.expression;
+    if (ts.isNumericLiteral(e)) return e.text === '0';
+    if (ts.isConditionalExpression(e)) return zero(e.whenTrue) || zero(e.whenFalse);
+    return false;
+  };
+  return zero(init.expression);
+}
+
+/** The real-controls pass over one TSX source (TypeScript's parser: attributes as written, not regexes). */
+function jsxControls(file: string, text: string): JsxFinding[] {
+  const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out: JsxFinding[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+      const tag = n.tagName.getText(src);
+      if (/^[a-z]/.test(tag)) {
+        const list = n.attributes.properties.filter(ts.isJsxAttribute);
+        const attrs = new Map(list.map((a) => [a.name.getText(src), a.initializer ? a.initializer.getText(src) : 'true']));
+        const start = n.getStart(src);
+        const line = src.getLineAndCharacterOfPosition(start).line + 1;
+        const lineText = text.split('\n')[line - 1] ?? '';
+        const href = attrs.get('href');
+        const realHref = href !== undefined && !/^\{\s*(?:undefined|null)\s*\}$|^""$/.test(href);
+        const native = NATIVE.has(tag) || (tag === 'a' && realHref);
+        const handlers = [...attrs.keys()].filter(isHandler);
+        if (handlers.length > 0 && !native) {
+          const role = /^"([a-z]+)"$/.exec(attrs.get('role') ?? '')?.[1];
+          const stop = tabStop(list.find((a) => a.name.getText(src) === 'tabIndex')?.initializer);
+          const keys = handlers.some((h) => /^onKey(?:Down|Up)/.test(h));
+          const clickOnly = handlers.some((h) => /^on(?:Click|DoubleClick)/.test(h)) && !keys && role !== undefined && CLICK_ROLE.has(role);
+          const real = role !== undefined && CONTROL_ROLE.has(role) && stop && !clickOnly;
+          const excused = REAL_CONTROL_EXCEPTIONS.some((x) => x.file === file && x.tag === tag && Object.entries(x.attrs).every(([k, v]) => attrs.get(k) === v) && lineText.includes(x.line));
+          if (!real && !excused) out.push({ file, line, what: `<${tag}> with ${handlers.join(', ')} is not a control (${role === undefined || !CONTROL_ROLE.has(role) ? 'no control role' : !stop ? 'no tab stop (tabIndex 0 or a roving 0)' : 'a click with no key handler'})` });
+        }
+        if (n.attributes.properties.some(ts.isJsxSpreadAttribute) && !native && !SPREAD_EXCEPTIONS.some((x) => x.file === file && x.tag === tag)) out.push({ file, line, what: `a spread onto <${tag}> (props the lint cannot see)` });
+        if (tag === 'a' && !realHref) out.push({ file, line, what: '<a> without href' });
+        const ti = /^\{(-?\d+)\}$|^"(-?\d+)"$/.exec(attrs.get('tabIndex') ?? '');
+        if (ti && Number(ti[1] ?? ti[2]) > 0) out.push({ file, line, what: `tabIndex ${ti[1] ?? ti[2]} (a positive tab order)` });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+/** Colour literals in TypeScript source: a hex of 3, 4, 6 or 8 digits, a colour function, a named colour (a string's whole value, or a border's colour) — an href's "#…" excepted. */
+function tsColourLiterals(src: string): string[] {
+  // The CSS named colours (the system colours — field, mark, canvas … — are everyday words in TypeScript, never a colour there).
+  const named = new RegExp(`^(?:${NAMED_COLOURS.slice(0, NAMED_COLOURS.indexOf('canvas')).join('|')})$`, 'i');
+  const out: string[] = [];
+  for (const m of src.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g)) {
+    const v = m[2].trim();
+    if (/href\s*[=:]\s*\{?\s*$/.test(src.slice(Math.max(0, m.index! - 12), m.index))) continue;
+    const words = v.split(/[\s,()]+/).filter(Boolean);
+    if (words.some((w) => /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(w))) out.push(v);
+    else if (/\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i.test(v)) out.push(v);
+    else if (named.test(v) || (/^[\d.]+px\s+(?:solid|dashed|dotted|double)\s+\S+$/i.test(v) && named.test(words.at(-1)!))) out.push(v);
+  }
+  return out;
+}
+
+/** The focus lint: an outline removed / hidden / transparent with no accent ring in its place; a focus ring not in --accent or --accent-strong. */
+function focusLint(rules: CssRule[]): string[] {
+  const RING = new Set(['accent', 'accent-strong']);
+  const out: string[] = [];
+  for (const r of rules) {
+    const focus = /:focus/.test(r.selector);
+    const removed = r.decls.some(([k, v]) => (k === 'outline' || k === 'outline-style' || k === 'outline-width') && /^(?:(?:none|0|0px|hidden)\s*)+(?:!important)?$/.test(v));
+    const transparent = r.decls.some(([k, v]) => (k === 'outline' || k === 'outline-color') && /\btransparent\b/.test(v));
+    if (transparent) out.push(`${r.selector}: a transparent outline (a ring nobody sees)`);
+    const shadow = r.decls.find(([k, v]) => k === 'box-shadow' && v !== 'none');
+    if (removed && !shadow) out.push(`${r.selector}: outline none, no ring in its place`);
+    if (!focus && !removed) continue;
+    for (const [k, v] of r.decls) {
+      if (!(k === 'outline' || k === 'outline-color' || k === 'box-shadow') || /^(?:(?:none|0|0px|hidden)\s*)+(?:!important)?$/.test(v) || /\btransparent\b/.test(v)) continue;
+      if (/^(?:-?[\d.]+(?:px)?|auto)$/.test(v)) continue;
+      const vars = [...v.matchAll(/var\(--([\w-]+)\)/g)].map((m) => m[1]);
+      if (vars.length === 0 && !/^\s*(?:-?[\d.]+px\s*)+$/.test(v)) out.push(`${r.selector}: ${k} ${v} — its colour is not a token`);
+      for (const t of vars) if (!RING.has(t)) out.push(`${r.selector}: ${k} in --${t} (a focus ring is --accent or --accent-strong)`);
+    }
+  }
+  return out;
+}
+
+/** A var() reference: any custom-property character (an underscore or a capital is part of the name). */
+const VAR_REF = /var\((--[\w-]+)/g;
+
+/** The faded states app.css accepts (its header): inactive or transient only. */
+const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".blocks[aria-busy='true'] .steps", ".tl-radios[aria-disabled='true'] .tl-radio", ".th-color input[type='color'].is-unset"];
+
+describe('the closed palette, the fonts, contrast by token (L4.9 part B)', () => {
+  it('⚑ no colour literal outside :root (hex, colour functions, named colours); no var() fallback; no font file or URL', async () => {
+    const rules = cssRules(await appCss());
+    expect(rules.length).toBeGreaterThan(400);
+    const bad: string[] = [];
+    for (const r of rules) {
+      if (r.selector === ':root') continue;
+      for (const [k, v] of r.decls) {
+        if (colourIn(v)) bad.push(`${r.selector} { ${k}: ${v} }`);
+        if (/var\(--[\w-]+\s*,/.test(v)) bad.push(`${r.selector} { ${k}: ${v} } (a fallback)`);
+        if (/url\(/.test(v)) bad.push(`${r.selector} { ${k}: ${v} } (a URL)`);
+      }
+    }
+    expect(bad).toEqual([]);
+    expect(await appCss()).not.toMatch(/@font-face|@import/);
+    // Every :root value is a literal colour, a length or a font list (no token built from another).
+    for (const [k, v] of tokensOf(rules)) expect(v.includes('var('), k).toBe(false);
+    // The lint catches each kind of literal (planted).
+    for (const v of ['#123456', '#fff', 'rgb(1, 2, 3)', 'rgba(0,0,0,.5)', 'hsl(0 0% 0%)', 'oklch(0.5 0.1 200)', 'white', '1px solid red', 'linear-gradient(90deg, var(--a), black)', 'color-mix(in srgb, var(--a), var(--b))']) expect(colourIn(v), v).toBe(true);
+    for (const v of ['var(--accent)', 'transparent', 'currentColor', 'inherit', '1px solid var(--line)', 'nowrap', 'pre-line', 'redirect']) expect(colourIn(v), v).toBe(false);
+  });
+
+  it('⚑ every var(--x) of app.css and the app sources is a :root token, and every token is used', async () => {
+    const text = await appCss();
+    const rules = cssRules(text);
+    const tokens = tokensOf(rules);
+    const used = new Set<string>();
+    // (Any custom-property character: `var(--accent_strong)` is not read as --accent.)
+    for (const r of rules) if (r.selector !== ':root') for (const [, v] of r.decls) for (const m of v.matchAll(VAR_REF)) used.add(m[1]);
+    expect([...'1px solid var(--accent_strong)'.matchAll(VAR_REF)].map((m) => m[1])).toEqual(['--accent_strong']);
+    for (const [f, src] of await appSources()) {
+      if (f.endsWith('.css')) continue;
+      for (const m of code(src).matchAll(/var\((--[\w-]+)|getPropertyValue\('(--[\w-]+)'\)/g)) used.add(m[1] ?? m[2]);
+    }
+    expect([...used].filter((u) => !tokens.has(u)), 'used but not defined').toEqual([]);
+    expect([...tokens.keys()].filter((t) => !used.has(t)), 'defined but never used').toEqual([]);
+    // The live picture's letterbox reads --ink (the app holds no colour of its own).
+    expect(used.has('--ink')).toBe(true);
+  });
+
+  it('⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor\'s defaults (theme data, not the Studio\'s chrome)', async () => {
+    const THEME_DATA = new Set(['ThemeEditor.tsx', 'ThemesScreen.tsx', 'theme-words.ts']);
+    for (const [f, src] of await appSources()) {
+      if (f.endsWith('.css') || THEME_DATA.has(f)) continue;
+      expect(tsColourLiterals(code(src)), `${f}: a colour literal`).toEqual([]);
+    }
+    // The lint catches each kind (planted), and leaves words and tokens alone.
+    for (const line of ["g.fillStyle = '#16181d';", "const c = '#16181dcc';", "const c = '#abcd';", "style={{ color: 'red' }}", "style={{ background: 'White' }}", 'const c = `hsl(210 40% 20%)`;', "const c = 'rgba(0, 0, 0, .5)';", "const c = 'oklch(0.5 0.1 200)';", "border: '1px solid black'"]) expect(tsColourLiterals(line), line).not.toEqual([]);
+    for (const line of ["const t = 'red flag';", "getPropertyValue('--ink')", "className=\"tan-line\"", "const words = 'a white page';", "href=\"#abc\"", "'#main'"]) expect(tsColourLiterals(line), line).toEqual([]);
+  });
+
+  it('⚑ the Geist pair first in the font stacks, local names only; the body and code use them', async () => {
+    const rules = cssRules(await appCss());
+    const tokens = tokensOf(rules);
+    expect(tokens.get('--font')!.split(',')[0].trim()).toBe("'Geist'");
+    expect(tokens.get('--mono')!.split(',')[0].trim()).toBe("'Geist Mono'");
+    expect(tokens.get('--font')).toMatch(/sans-serif$/);
+    expect(tokens.get('--mono')).toMatch(/monospace$/);
+    const fonts = rules.flatMap((r) => r.decls.filter(([k]) => k === 'font' || k === 'font-family').map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
+    expect(fonts.find((d) => d.startsWith('body '))).toBe('body { font: 14px/1.5 var(--font) }');
+    for (const d of fonts) expect(/var\(--(?:font|mono)\)|: inherit \}$/.test(d), d).toBe(true);
+  });
+
+  it('⚑ every text token on every background it may sit on reaches 4.5:1 (alpha composited); marks reach 3:1', async () => {
+    const rules = cssRules(await appCss());
+    const tokens = tokensOf(rules);
+    const fails: string[] = [];
+    for (const set of CONTRAST_SETS) {
+      for (const t of set.text) {
+        for (const b of set.on) {
+          if (NOT_MEANT.some(([x, y]) => x === t && y === b)) continue;
+          const r = worstRatio(tokens, t, b);
+          if (!(r >= 4.5)) fails.push(`--${t} on --${b}: ${r.toFixed(2)}:1`);
+        }
+      }
+    }
+    for (const [mark, on] of NON_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, mark, b) >= 3)) fails.push(`--${mark} (a mark) on --${b}: ${worstRatio(tokens, mark, b).toFixed(2)}:1`);
+    expect(fails).toEqual([]);
+    // Every pair a rule declares together, excuses or not.
+    for (const r of rules) {
+      const fg = r.decls.filter(([k]) => k === 'color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
+      const bg = r.decls.filter(([k]) => k === 'background' || k === 'background-color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
+      for (const t of fg) for (const b of bg) expect(worstRatio(tokens, t, b), `${r.selector}: --${t} on --${b}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // Every token used as a text colour is a text token; every background token is classified.
+    const texts = new Set(CONTRAST_SETS.flatMap((x) => x.text));
+    const backs = new Set([...CONTRAST_SETS.flatMap((x) => x.on), ...NON_TEXT_BG]);
+    for (const r of rules) {
+      for (const [k, v] of r.decls) {
+        for (const m of v.matchAll(/var\(--([a-z0-9-]+)\)/g)) {
+          if (k === 'color') expect(texts.has(m[1]), `${r.selector}: color --${m[1]} is not a text token`).toBe(true);
+          if (k === 'background' || k === 'background-color') expect(backs.has(m[1]), `${r.selector}: background --${m[1]} is not classified`).toBe(true);
+        }
+      }
+    }
+    // The lint fails a pale text token (planted), and an unreadable token is a failure, not a skip.
+    const planted = new Map(tokens).set('--muted', '#8b919b');
+    expect(worstRatio(planted, 'muted', 'surface')).toBeLessThan(4.5);
+    expect(Number.isNaN(worstRatio(new Map(tokens).set('--muted', 'grey'), 'muted', 'surface'))).toBe(true);
+  });
+
+  it('⚑ placeholders take the app\'s own colour at full opacity (WebKit\'s default reads 2.35:1)', async () => {
+    const rules = cssRules(await appCss());
+    const ph = rules.filter((r) => /(^|,\s*)::placeholder$/.test(r.selector));
+    expect(ph).toHaveLength(1);
+    const decls = new Map(ph[0].decls);
+    expect(decls.get('color')).toMatch(/^var\(--[a-z-]+\)$/);
+    expect(TEXT_ON_LIGHT).toContain(decls.get('color')!.slice(6, -1));
+    expect(decls.get('opacity')).toBe('1');
+    // No other rule fades or recolours a placeholder.
+    expect(rules.filter((r) => r.selector.includes('placeholder') && r !== ph[0]).map((r) => r.selector)).toEqual([]);
+  });
+
+  it('⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong (the skip link\'s target excepted)', async () => {
+    const rules = cssRules(await appCss());
+    // main is focused by the skip link (tabIndex -1) to move the reading point, never to show a control.
+    expect(focusLint(rules)).toEqual(['main:focus: outline none, no ring in its place']);
+    // The lint catches each planted way of hiding a ring.
+    for (const [rule, what] of [
+      ['button:focus-visible { outline: none !important }', 'no ring in its place'],
+      ['button:focus-visible { outline: 0 none }', 'no ring in its place'],
+      ['button:focus-visible { outline-style: hidden }', 'no ring in its place'],
+      ['button:focus-visible { outline: 2px solid transparent }', 'transparent'],
+      ['.x:focus { outline-color: transparent }', 'transparent'],
+      ['.x { outline: 1px solid transparent }', 'transparent'],
+      ['button:focus-visible { outline: 2px solid var(--accent-soft) }', '--accent-soft'],
+      ['button:focus { outline: none; box-shadow: 0 0 0 2px var(--line) }', '--line'],
+      ['button:focus { outline: none; box-shadow: none }', 'no ring in its place'],
+      ['.chip:focus-within { outline: 2px solid currentColor }', 'not a token'],
+    ] as const) {
+      expect(focusLint(cssRules(rule)).join(' | '), rule).toContain(what);
+    }
+    for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
+  });
+
+  it('⚑ opacity below 1 only on the five accepted states (a disabled control, a dragged step, steps in flight, a switched-off group, an unset colour well)', async () => {
+    const rules = cssRules(await appCss());
+    const faded = rules.filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => r.selector);
+    expect(faded.sort()).toEqual([...OPACITY_ACCEPTED].sort());
+  });
+});
+
+describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
+  it('⚑ handlers only on native controls or a role with a tab stop; no spread onto a non-native element; <a> has href; no positive tabIndex', async () => {
+    const files = (await appSources()).filter(([f]) => f.endsWith('.tsx'));
+    expect(files.length).toBeGreaterThan(20);
+    const found = files.flatMap(([f, text]) => jsxControls(f, text));
+    expect(found).toEqual([]);
+    // Each exception still excuses exactly one element (a stale one is removed from the list, not kept as a blanket pass).
+    for (const x of REAL_CONTROL_EXCEPTIONS) {
+      const text = files.find(([f]) => f === x.file)?.[1] ?? '';
+      const without = REAL_CONTROL_EXCEPTIONS.filter((y) => y !== x);
+      const saved = REAL_CONTROL_EXCEPTIONS.splice(0, REAL_CONTROL_EXCEPTIONS.length, ...without);
+      try {
+        expect(jsxControls(x.file, text).length, `${x.file} <${x.tag}> ${x.line}`).toBe(1);
+      } finally {
+        REAL_CONTROL_EXCEPTIONS.splice(0, REAL_CONTROL_EXCEPTIONS.length, ...saved);
+      }
+    }
+    // The lint catches each planted case.
+    for (const [line, what] of [
+      ['<span onClick={go}>x</span>', 'not a control'],
+      ['<div role="button" onClick={go}>x</div>', 'not a control'],
+      ['<label onClick={go}>x</label>', 'not a control'],
+      ['<video onKeyDown={go} />', 'not a control'],
+      ['<div {...props} />', 'a spread'],
+      ['<a onClick={go}>x</a>', 'without href'],
+      ['<button tabIndex={2}>x</button>', 'positive tab order'],
+      ['<li role="option" onClick={go}>x</li>', 'not a control'],
+      ['<div role="button" tabIndex={-1} onClick={go} onKeyDown={k}>x</div>', 'no tab stop'],
+      ['<div role="button" tabIndex={n} onClick={go} onKeyDown={k}>x</div>', 'no tab stop'],
+      ['<div role="button" tabIndex={0} onClick={go}>x</div>', 'no key handler'],
+      ['<div onClickCapture={go}>x</div>', 'not a control'],
+      ['<div onContextMenu={go}>x</div>', 'not a control'],
+      ['<div onWheel={go}>x</div>', 'not a control'],
+      ['<span onDragStart={go} draggable>x</span>', 'not a control'],
+      ['<p onDrop={go}>x</p>', 'not a control'],
+      ['<a href={undefined} onClick={go}>x</a>', 'without href'],
+    ] as const) {
+      const r = jsxControls('Planted.tsx', `export const X = () => (${line});`);
+      expect(r.map((x) => x.what).join(' | '), line).toContain(what);
+    }
+    // An exception's look-alike in the same file (other attributes) is not excused.
+    expect(jsxControls('ScenarioScreen.tsx', 'export const X = () => (<li role="option" data-testid="step" onClick={go}>x</li>);').map((x) => x.what)).toEqual([expect.stringContaining('not a control')]);
+    for (const line of ['<button onClick={go}>x</button>', '<a href="#x" onClick={go}>x</a>', '<div role="button" tabIndex={0} onClick={go} onKeyDown={k}>x</div>', '<input {...p} />', '<ul role="listbox" tabIndex={0} onKeyDown={k} />', '<ul role="listbox" tabIndex={on ? 0 : -1} onKeyDown={k} />', '<img onLoad={a} onError={b} alt="" />', '<details onToggle={t} />', '<dialog onClose={c} onCancel={d} />', '<video onTimeUpdate={t} onEnded={e} />']) {
+      expect(jsxControls('Planted.tsx', `export const X = () => (${line});`), line).toEqual([]);
+    }
+  });
+});

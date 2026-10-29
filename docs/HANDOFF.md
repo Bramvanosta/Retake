@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-28, end of lot **L4.8 (Record screen)** — phases 1–3
-are done (phase 3 pending the user's live runs, MACOS-CHECKLIST 12c–12j), phase 4 is under way (L4.1 – L4.8 done).
-**Next: L4.9 (Studio acceptance, accessibility pass), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-10-29, end of lot **L4.9 (Studio acceptance, accessibility pass)** — phases 1–4
+are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j). **Next: L5.2 (Tauri desktop
+shell), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,29 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-120); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-124); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L4.8)
+## State (after L4.9)
+- **L4.9 done (2026-10-29)** — phase 4 is done. The Studio's identity and accessibility pass: one closed palette (every
+  app.css colour a `:root` token, same values; one blue accent, the violet kept as a categorical token), Geist / Geist
+  Mono named first by local family name (nothing bundled or downloaded: BL-120; a machine without them gets the old
+  stacks). Fixes: the theme editor's sideways scroll (`.chips legend` beat `.sr-only`), placeholder contrast (2.35:1 in
+  WebKit), `.pd-mark` contrast, a selected state carried by colour alone (a 3 px accent bar on the selected step, the
+  current run step and thread row; an accent edge on chips and pressed buttons), the timeline's selected segment and
+  stacked comment pins hiding the focus ring. An in-repo checker (`packages/ui/test/a11y.ts`, no new dependency) over
+  Chromium: contrast incl. text over media and translucent layers, names (CDP), reachability, a real focus ring, the
+  selected rule, colour-only cues, headings, overflow, dialogs (focus in, Escape, focus back); app-source lints
+  (colours only in `:root`, every `var()` defined and every token used, token-pair contrast, placeholder, outline,
+  real controls via the TypeScript parser). Two tours (23 states at 1280 and 1440, a keyboard-only path with zero
+  pointer events) in the default suite; the R-ACC4-01 acceptance in the installed Chrome (projects → blocks edit → dry
+  run watched → capture → timeline layout switch with the preview verified → render + review → comment → Claude's
+  proposal applied → resolve; 3/3 in ≈ 78 s, 17 audits, 0 findings). One scratch WebKit-2370 run: 14 screens, 0
+  contrast failures. Tests on the Mac: **3740 — 3671 pass, 69 skipped, 0 failures** (≈ 17 min); `pnpm test:slow`
+  65/65. Requirements: 647 tracked — 603 done, 27 partial, 9 todo, 8 n/a-here (R-UI-02 partial: Geist sans not
+  bundled). Live checks for the user: MACOS-CHECKLIST 13j (Safari, Firefox, VoiceOver, greyscale).
 - **L4.8 done (2026-10-28)**: the Studio's Record screen (`#/p/<slug>/record[/<rec_id>]`, "Record a scenario" on the
   project and scenario screens). The person clicks through the site in a **real headed browser window** opened by the
   worker (full size, Cmd-Tab between it and the Studio); the Studio is the control panel — no input forwarding (why not:
@@ -411,7 +428,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L4.9 (Studio acceptance, accessibility pass) per the roadmap**, only when the user asks. Pending
+**Next: L5.2 (Tauri desktop shell) per the roadmap**, only when the user asks (phase 4 is done). Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
 document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
 (L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
@@ -1290,6 +1307,17 @@ sandbox, a hook step and compact results through Claude Code).
   `record-files.ts`, `record-studio.ts`, `record.ts`, jobs `queue.ts` / `worker.ts` / `record-job.ts`; ui
   `server/record-ops.ts`, `record-watch.ts`, `RecordScreen.tsx`, `record-words.ts`; fixture RecordLab (a far section,
   `?hostile=1`). No new dependency. Cuts: BL-118, BL-119.
+- **L4.9 done** (identity + accessibility pass + Studio acceptance; R-UI-03, R-ACC4-01 done, R-UI-02 partial — the
+  Geist pair is named, not bundled). Planned with a prototype checker over 14 screens (already clean in Chromium on
+  contrast / names / focus / headings; real findings: the theme editor's sideways scroll, WebKit placeholders at
+  2.35:1, `.pd-mark`, an open palette), criticised (the overflow fix did not fix it, text over media measured against
+  the card behind, a focus rule that was a tautology, nothing guarding the token move), built in parts in a worktree
+  (A checker, B fixes + palette + lints, C two tours + keyboard path, D the Chrome acceptance, E docs), reviewed by two
+  reviewers (the editable theme editor never audited, a selected state carried by colour, a Tab walk cut silently at
+  80, half-loaded screens audited, an Undo race that flaked the keyboard path under load…) and fixed with
+  mutation-checked rules (≈ 100 mutations over the lot, all killed). Files: ui `app.css`, `LiveView.tsx`; tests
+  `a11y.ts`, `a11y-tour.ts`, `a11y-checker.test.ts`, `studio-e2e-a11y*.test.ts`, `studio-e2e-acceptance.test.ts`,
+  `app-source.test.ts`; editor test helper `linkSharedCache` (15 test files). No new dependency. Cuts: BL-120 – BL-123.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1557,6 +1585,22 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L4.9:
+- Every app.css colour lives in `:root`; the lints fail on a literal elsewhere, an undefined or unused token, a text /
+  background token pair under 4.5:1, a missing `::placeholder` colour, an outline removed without the accent ring, and a
+  handler on a non-native element outside four reasoned exceptions. A selected state needs more than colour (weight, a
+  ≥ 2 px mark at 3:1, a 3:1 fill or a marker).
+- The tours (`studio-e2e-a11y.test.ts`, `studio-e2e-a11y-keyboard.test.ts`, ≈ 21 s each) audit an editable workspace
+  theme (`tour-theme`), wait for loading `role=status` messages, treat a truncated Tab walk or a still-loading station
+  as a finding, and wait for Undo to be enabled before ⌘Z (StepEditing drops ⌘Z while saving: BL-122).
+- The acceptance: `DEMO_STUDIO_TEST_SLOW=1 DEMO_STUDIO_TEST_CHROME=1 npx vitest run
+  packages/ui/test/studio-e2e-acceptance.test.ts` (installed Chrome for H.264; not in test:slow, like the other Chrome
+  tests). Its render wait fails fast with the job's phase; a once-seen cold-cache hang did not reproduce (BL-123).
+- Tests that link the repo's shared render cache use `linkSharedCache(root)` (editor/test/render-helpers.ts), which
+  creates `REPO/.demo-studio/cache` first — a fresh clone or worktree no longer depends on test order.
+- WebKit-2370 (cached, not Playwright 1.56.1's 2215) launches through `executablePath`; Firefox does not drive (BiDi).
+  Neither is in the suite (BL-121); Safari / Firefox / VoiceOver are MACOS-CHECKLIST 13j.
+
 Notes from L4.8:
 - A Studio recording is the person's only when its job exists with `submitted_by: 'ui'` and is the job its `meta.json`
   names; otherwise it is read-only. Studio record jobs never auto-save; Save writes a new file only and sends back the

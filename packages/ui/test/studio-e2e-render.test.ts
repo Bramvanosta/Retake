@@ -14,7 +14,7 @@
  * same file with other options is another version — its findings never seek the preview; a copy of the same plan does;
  * a render that failed after them is said in the Render bar.
  */
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -25,7 +25,7 @@ import type { JobRecord } from '@demo-studio/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { SHARED_CACHE, hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { takeWorkspace, writeTake } from './timeline-take.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -70,8 +70,7 @@ beforeAll(async () => {
   });
   await writeTake(dir, 'tiny', { run: RUN, text: TEXT, timeline: t, codec: 'vp9', seconds: 2 });
   // The render shares the repository's bundle cache (no rebundle per test file).
-  await mkdir(join(ws, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(ws, '.demo-studio', 'cache'));
+  await linkSharedCache(ws);
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
   const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });

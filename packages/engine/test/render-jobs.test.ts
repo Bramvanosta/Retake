@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, historyFile, jobsDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES, hasTool, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -61,8 +61,7 @@ beforeAll(async () => {
   await writeFile(timelineFile, JSON.stringify(t, null, 2));
   makeColourCapture(join(runDir, 'capture.mp4'));
   // The renders share the repository's bundle cache (no rebundle per test file).
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await linkSharedCache(root);
   renders = join(dir, 'renders');
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
   queue = new FileJobQueue(root);

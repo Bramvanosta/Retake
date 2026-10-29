@@ -102,6 +102,8 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
   /** The frame size the picture is laid out for, and the streak of frames of a new height. */
   const layout = useRef<Size | null>(null);
   const pending = useRef<Size & { n: number }>({ w: 0, h: 0, n: 0 });
+  /** The letterbox colour: the palette's --ink (app.css), read once (the app holds no colour literal). */
+  const ink = useRef<string | null>(null);
 
   const paint = useCallback((image: CanvasImageSource, f: LiveFrame) => {
     const c = canvas.current;
@@ -109,7 +111,9 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
     if (!c || !g) return;
     layout.current = nextLayout(layout.current, pending.current, f);
     const { x, y, dw, dh } = placeFrame(layout.current, f);
-    g.fillStyle = '#16181d';
+    // Cached only once readable (an empty value, before the stylesheet applies, is read again next frame).
+    if (!ink.current) ink.current = getComputedStyle(c).getPropertyValue('--ink').trim() || null;
+    if (ink.current) g.fillStyle = ink.current;
     g.fillRect(0, 0, W, H);
     g.drawImage(image, x, y, dw, dh);
     drawn.current++;

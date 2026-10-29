@@ -7,14 +7,14 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REVIEW_IMAGE_BASE64_MAX, createEngine, runWorker } from '../src/index.js';
 import type { Engine, RenderJobResult } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES, hasTool, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -59,8 +59,7 @@ beforeAll(async () => {
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(join(dir, 'scenarios', `${SCENARIO}.yaml`), TEXT);
   makeColourCapture(join(runDir, 'capture.mp4'), 2);
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await linkSharedCache(root);
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
 }, LONG);
 

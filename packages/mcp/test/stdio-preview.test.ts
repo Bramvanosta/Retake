@@ -8,7 +8,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -17,7 +17,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { LIBRARY_DIR } from '@demo-studio/components';
 import { readWorkerLock } from '@demo-studio/engine';
 import { REPO } from '../../engine/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES, hasTool } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -64,8 +64,7 @@ beforeAll(async () => {
   await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects', 'demo'), { recursive: true });
   await writeFile(join(root, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await linkSharedCache(root);
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],

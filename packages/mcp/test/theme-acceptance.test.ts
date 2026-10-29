@@ -22,7 +22,7 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { parseYaml } from '@demo-studio/core';
 import { readWorkerLock } from '@demo-studio/engine';
 import { REPO } from '../../engine/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
 
@@ -104,8 +104,7 @@ describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and
     await mkdir(join(root, 'brand'), { recursive: true });
     await cp(join(TEMPLATES, 'motion', 'fonts', 'SpaceGrotesk-Bold.ttf'), join(root, 'brand', 'Quill-Display-Bold.ttf'));
     for (const w of ['Regular', 'SemiBold', 'Bold']) await cp(join(TEMPLATES, 'default', 'fonts', `Inter-${w}.ttf`), join(root, 'brand', `Quill-Text-${w}.ttf`));
-    await mkdir(join(root, '.demo-studio'), { recursive: true });
-    await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+    await linkSharedCache(root);
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],

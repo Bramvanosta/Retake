@@ -9,7 +9,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -18,7 +18,7 @@ import { renderVideo } from '@demo-studio/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES, hasTool, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
 import { REPO } from './helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -89,8 +89,7 @@ beforeAll(async () => {
   t.scenario = 'synthetic';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
   makeColourCapture(join(runDir, 'capture.mp4'), 12);
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await linkSharedCache(root);
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });
   queue = new FileJobQueue(root);
 }, LONG);

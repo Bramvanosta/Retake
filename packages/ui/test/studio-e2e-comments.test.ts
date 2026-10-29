@@ -33,7 +33,7 @@
  */
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -45,7 +45,7 @@ import type { Engine } from '@demo-studio/engine';
 import type { EditPlan, RenderRecord } from '@demo-studio/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { SHARED_CACHE, hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { BITS_TEXT, bitsTimeline, bitsVideo, readBits, takeWorkspace, writeTake } from './timeline-take.js';
 import { parseTimecode, timeExample } from '../src/app/comment-words.js';
 
@@ -179,8 +179,7 @@ beforeAll(async () => {
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   // Part D2's Apply and re-render renders for real: the repository's bundle cache (no rebundle per test file).
-  await mkdir(join(ws, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(ws, '.demo-studio', 'cache'));
+  await linkSharedCache(ws);
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
   const v = await studio.engine.timeline.view({ project: 'demo', scenario: 'bits' });
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);

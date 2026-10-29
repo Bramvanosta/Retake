@@ -3518,6 +3518,157 @@ the Mac (2026-10-28): Stop → checked ≈ 10 s, Save 0.18 s, dry run ≈ 24 s, 
 for a 25 s video. The real window with a person switching to the Studio is MACOS-CHECKLIST 13i: `drive` is an
 in-process hook, so no automated test has a person's Cmd-Tab.
 
+## 4i. The Studio's identity and accessibility (L4.9)
+
+R-UI-02, R-UI-03, R-ACC4-01. A pass, not a redesign: the L4.1 contract (tokens, 4.5:1, words on badges, focus rings)
+made checked by a machine, the gaps it found fixed, the palette closed, the Geist pair named, and the one end-to-end
+acceptance SPEC §14.4 asks for. Built in five parts (A checker, B fixes / palette / lints, C tours, D acceptance, E docs)
+from the lot's plan corrected by its critique (H1–H4, M1–M6). Cuts: BL-120 (the Geist files), BL-121 (Safari / Firefox
+automated), BL-122 (accessibility beyond the pass).
+
+**A closed palette.** Every colour of the Studio is a token of `:root` in `packages/ui/src/app/app.css` (≈ 70, in
+families: surfaces and neutral tints, text, lines, the one blue accent, four status families, one categorical violet
+for input actions and card segments, video surfaces / tooltips / marks); rules use `var(--…)` only. The move kept every
+value: a computed-style snapshot of every tour state before and after (colours, borders, outlines, shadows, opacity,
+placeholders — scratch, not committed) differed only by the fixes below and the fonts. The live picture's letterbox
+reads `--ink` (LiveView.tsx). Theme colours appear only in swatches, posters and the sandboxed preview: the chrome never
+reads a theme. Rules stated in app.css's header: one accent, the only interactive or selected colour; status colours
+always with words; the violet never means "interactive"; dark tokens for video and tooltips only.
+
+**Fonts.** `--font: 'Geist', -apple-system, …, sans-serif` and `--mono: 'Geist Mono', ui-monospace, …, monospace`,
+by local family name only (no `@font-face`, no file, no network). A Mac with the fonts installed shows them in Chrome and
+Firefox (this one has Geist Mono, not Geist); Safari never exposes installed fonts to a page. Text widths, and so a
+layout's overflow verdict, can differ per machine until the files are bundled (BL-120).
+
+**Fixes the checks found.** `::placeholder { color: var(--muted); opacity: 1 }` (WebKit's default read 2.35:1 on the
+three search fields; Firefox's adds opacity .54). The theme editor's hidden `legend` widened the page at 1280 and 1440:
+`.chips legend { width: 100% }` beat `.sr-only` on specificity — now `.chips legend:not(.sr-only)`, and `.sr-only`
+gained `margin: -1px; padding: 0; border: 0; clip-path: inset(50%)`. The proposal diff's whitespace marks (`.pd-mark`,
+`#8a6d00` at opacity .85 ≈ 3.7:1) → `--warning`, opaque. The timeline's selected segment hid its focus ring (its
+selection outline overrode `:focus-visible`): focused and selected now shows the ring outside, the selection inside.
+The selected state, colour alone until the review (a tint and a 1.6:1 border): the selected step, the current run step
+and the current thread row get a 3 px `--accent` bar inside on the left (5:1), a filter chip a 2 px accent edge (its
+border and an inset line), a pressed button (`aria-pressed`: the timeline zoom, the step palette, a contact sheet) an
+accent border and inset line; the nav link (weight 600), the tab (a 2 px underline), the timeline radio (weight and a
+filled dot) and segment (an inside outline and weight) already had one. Accepted below 4.5:1, transient or inactive
+only (stated in app.css, a lint holds opacity to these five): disabled controls (.5), a dragged step (.45), the steps
+during a write (.75), a switched-off timeline group (.55, its radios `aria-disabled`), an unset colour well (.35, no
+text). The 1.5:1 field borders (`--line-strong`) are accepted: every field has a visible label, the border is not the
+only way to find it (WCAG 1.4.11 asks 3:1 only of what identifies a control).
+
+**The checker** (`packages/ui/test/a11y.ts`, a test helper, no dependency; unit tests `a11y-checker.test.ts`, each rule
+fired by a planted case and silent on its twin, its maths = `contrastRatio`'s; the review's probes it now catches are among them, the others are BL-122):
+- `contrast` — every visible text node's element, every control's value (a submit button's too) and every quoted
+  `::before` / `::after` content against what is painted under it: every ancestor's background composited from the page
+  up, each ancestor's opacity applied as a group (the text and what is under it faded together over what lies below —
+  a dark card at .5 over white reads ≈ 3.4:1, not 17:1); a gradient counts its worst stop; an image background is
+  *unmeasured* (counted, budgeted per station, never passed); a colour the checker cannot read (`oklch()`, `lab()` …;
+  `color(srgb …)`, what `color-mix()` computes to, is read) is a finding, never transparent; media (`img`, `video`,
+  `canvas`, `iframe`) inside the text's opaque box and under it (`elementsFromPoint` when on screen) → only the layers
+  above the media, composited over black and over white, the worse kept (no translucent layer between → unmeasured).
+  4.5:1, 3:1 at 24 px or 18.66 px bold. Exempt and counted (a budget per station: 10 by default): the text of a
+  disabled control itself — never the rest of a disabled container.
+- `placeholder` — the field's `::placeholder` colour times its own opacity, on the field's background.
+- `name` — Chromium's accessibility tree (CDP): a control role with no name, or named only by its placeholder or title;
+  in the page: a focusable element inside `aria-hidden`, an `<img>` with no `alt`.
+- `reachable` — an interactive role (native or not) with tabIndex < 0 that is not the item of a composite whose tab
+  stop is one of its own items, or the composite itself with an `aria-activedescendant` inside it (an unrelated
+  `tabindex="0"` in the group does not count). Composites of one family (same role and class, each script-focusable)
+  sharing one stop — the scenes' step lists — are listed, and `familyWalk` proves with ArrowDown that the stop reaches
+  every group of the family.
+- `focus-ring` (`tabWalk`) — Tab from the top (inside an open modal dialog: its own controls) until it comes back to a
+  stop; each stop must show a real indicator, focused vs blurred, on the element if visible, its active option or its two
+  nearest visible ancestors: outline, shadow or border parts of ≥ 3:1 against what they are drawn on (an outline outside
+  the box on what is around it; a border also against its unfocused colour) adding up to ≥ 2 CSS px, or a background
+  change of ≥ 3:1; the browser's own `auto` ring passes. A transparent outline, a 1.1:1 shadow, a 1 % tint, a parent
+  tint fail. The focused element must not be entirely covered (its centre and four inner corners under another
+  element). Text shown only while focused (a pin's tooltip) is contrast-checked then. A walk that reaches its cap (400
+  stops by default, per station; the largest screen, the library, has 104) without coming back is a finding (`walk`).
+- `colour-only` — the status families (every `:root` token named `--danger*`, `--warning*`, `--info*`, `--success*`,
+  `--online*`: soft, line and mark tones too) on a background, border, outline, shadow, the colour of a glyph-only text,
+  or a `::before` / `::after`: a mark with no letters needs a state word (the badges' vocabulary — failed, running,
+  connected, ended, added …) in its own or its row's visible text — never any word, and a label only a screen reader
+  hears is no word for a sighted person who cannot tell the colours apart; a glyph other than a dot (◆, ✂, ·, ✓)
+  says it by its shape. A row (table, list, listbox) that differs from its siblings by a status colour starts with a
+  sign (+ − ✓ ✗ …) or says a state word: a diff row keeps its +/−.
+- `selected` — every selected, current, pressed or checked state (`aria-selected`, `aria-pressed`, `aria-checked` off
+  native inputs, `aria-current` on a link or control, the classes `selected`, `is-selected`, `current`, `is-current`,
+  `is-checked`) is compared with an unselected peer (same tag, role and first class, up to four levels up; not one
+  holding the focus): it must differ by more than colour — a weight ≥ 200 heavier, an underline, a mark (border, outline,
+  shadow) ≥ 2 px thicker on one side at ≥ 3:1 against both backgrounds, a fill ≥ 3:1 from the peer's, a
+  `::before` / `::after` marker or a marker child — on itself or its matching children, two levels down.
+- `headings` (one level-1 heading, `h1` or `role="heading"`, hidden ones not counted; no level skipped) and `overflow`
+  (no sideways scroll of the page or of `main`).
+- `dialogCheck` — a native dialog is modal (`:modal`: `showModal()`, not `show()`), takes focus on open, closes on
+  Escape and gives focus back to its opener.
+- `settle` — a station is audited once nothing says it is loading (`aria-busy`, `data-loading="yes"`, a `role="status"`
+  starting "Loading"), within 30 s; still loading then is a finding, not a half audit.
+Limits (BL-122): Chromium only (CDP); over media only black and white are composited; hover-only content is not
+reached; `filter`, `mix-blend-mode`, `-webkit-text-fill-color`, `display: contents` text, a dark sibling layer painted
+under the text (not an ancestor) and text clipped by an `overflow: hidden` panel are not measured; label-in-name is not
+checked; a ring clipped by an `overflow: hidden` ancestor still counts.
+
+**Static lints** (`app-source.test.ts`, the main contrast guarantee for the pairs it can see): no colour literal outside
+`:root` (hex, colour functions, named colours; values only, comments stripped), no `var()` fallback, no URL or
+`@font-face`; every `var(--x)` of app.css and the app sources defined (any custom-property character: `--accent_strong`
+is not read as `--accent`), every token used; colour literals in the app's TypeScript (hex of 3, 4, 6 or 8 digits, colour
+functions, named colours) only in the theme editor's defaults (theme data); the Geist pair first and every font
+declaration through the two tokens; every text token × every background it may sit on ≥ 4.5:1 (translucent backgrounds
+composited — over every grey for the veils laid on video), marks ≥ 3:1 (the focus ring, the comment region on video,
+the status dots), every pair a rule declares together, every `color` token classified as text and every background
+token classified — static for the pairs within each set and within one rule; a text token on an ancestor's background
+of another set is the tours' to measure; the one `::placeholder` rule; no outline removed (`none`, `0`, `hidden`,
+`!important` too), made transparent (`outline-color: transparent`, a transparent outline anywhere) without a ring in its
+place, and every focus ring (`:focus`, `:focus-visible`, `:focus-within`) drawn in `--accent` or `--accent-strong` (the
+skip link's target `main:focus` excepted); opacity below 1 only on the five accepted states; a TypeScript-parser pass
+over every `.tsx`: a user-input handler (any `on…` but focus, change, form, load and media events — `onClickCapture`,
+`onContextMenu`, `onWheel`, drag and drop included) only on a native control (`button`, `input`, `select`, `textarea`,
+`summary`, `a` with a real `href`) or an element with a control role, a literal or roving tabIndex 0 and, for a click,
+a key handler — five reasoned exceptions keyed by their exact attributes and source line (the comment frame's region
+drag, the step options of the listbox, the empty scene's drop target, the timeline's radio group keys, the record insert
+form's Escape) — no spread onto a non-native element (Txt's typed `aria-current` excepted), no `<a>` without a real
+`href`, no positive tabIndex.
+
+**The tours** (default suite, Chromium; `a11y-tour.ts` sets up a scratch workspace: the fixture project with its failed
+dry run, the synthetic bits take with a render, two threads (one with a region and Claude's proposal — an in-process
+`mcp` engine, as `comment_reply` makes one), a scenario that does not parse, a project whose persona cannot sign in by
+itself, and the workspace's own editable theme `tour-theme`, a copy of editorial in its templates folder; whatever it
+started is closed again when it throws). Every state is checked at 1280 and 1440 wide once settled, its Tab walk at
+1280 (dialogs walked inside), the arrows across each shared tab stop; each must have no finding.
+`studio-e2e-a11y.test.ts` (15 states, ≈ 15 s): projects, a project with its Sessions panel loaded (its rows), the
+README's 409 conflict, blocks with a step selected, YAML, a YAML parse error, the run preflight, a failed dry run, the
+capture's sessions confirmation (dialog), blocks of a take with its inspector, the timeline with a segment selected,
+Comments (a list with the viewer, a thread with its region and the proposal's diff, none yet), the timeline previewing
+the proposal (its switches off: an exempt budget of 45). `studio-e2e-a11y-keyboard.test.ts` (9 states + the keyboard
+path, ≈ 20 s; the fixture on free ports): the Record start form, a recording live with its draft (the record job
+in-process, Playwright playing the window), done, its Discard dialog; the library (every card walked: 104 stops) and its
+Create with Claude dialog, a component once its About, Slots and Params have loaded, the themes, the theme editor on
+`tour-theme` with its fields enabled (147 texts, 2 exempt, 66 Tab stops; read-only it showed 76 of 77 texts exempt and 26
+stops; no sideways scroll at either width); then a keyboard-only path with a trusted-pointer counter at 0: Skip to content
+→ demo → bits → the steps listbox (arrows select, the inspector follows) → Alt+↓ moves a step (the file changes exactly)
+→ once the move has landed (Undo enabled) ⌘Z (exact bytes) → Open timeline → `]` / `[` → the Layout radios (arrows,
+Space writes one line, the preview re-plans) → ⌘Z → Comments → the thread → a reply typed and sent (channel `studio`).
+Not reached by either (gap of R-UI-03): a failed review verdict, a proposal stale or undone, hover-only tooltips,
+posters loaded in the library.
+
+**The R-ACC4-01 acceptance** (`studio-e2e-acceptance.test.ts`, gated by `DEMO_STUDIO_TEST_SLOW=1` and
+`DEMO_STUDIO_TEST_CHROME=1`, Google Chrome installed; not in `pnpm test:slow`, like the other installed-Chrome tests):
+the fixture product on free ports, the Studio starting its own worker (the lock's live worker killed at the end, its
+start time checked), every action a click or a key: Projects → highlights → a hold changed in the inspector form
+(exactly that line) → Dry run watched live → Capture → Open timeline → the quotes segment's layout switched (one line,
+the preview settled on the same frame with other pixels; two "before" pictures first, ~0 % apart) → ⌘Z (exact bytes,
+the view back on its first hash before the next click) → switched and kept → Render and its verdict (the wait fails
+fast, with the job's phase, when the render job runs with no live worker or shows the same phase for 5 min; bound
+600 s) → Comment at the playhead with a region typed in the four fields → Post (a `studio` thread) → a proposal (as
+`comment_reply` makes one; no model) → Apply (exact bytes) → Resolve; the checker on all 11 stages at 1280 and on six
+at 1440 (projects, blocks-edited, timeline, rendered, comment-composer, proposal): 17 audits. Its run on the Mac and the
+frames looked at: `docs/requirements.json` (R-ACC4-01).
+
+**By hand**: Safari, Firefox, VoiceOver and the keyboard in Safari (MACOS-CHECKLIST 13j). One WebKit run of 14 screens
+from a cached Playwright build (`executablePath`, not committed: the build belongs to another tool) after the fixes:
+1,624 texts, no contrast or placeholder failure, no sideways scroll; WebKit's page errors were Playwright's screenshot
+style refused by the CSP and the sandboxed preview's Fullscreen permission message (BL-121).
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

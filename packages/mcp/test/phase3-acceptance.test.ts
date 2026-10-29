@@ -27,7 +27,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -38,7 +38,7 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { flowYaml, parseYaml, scenarioChangedMessage } from '@demo-studio/core';
 import { readWorkerLock } from '@demo-studio/engine';
 import { REPO } from '../../engine/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const TSX = pathToFileURL(join(REPO, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;
@@ -401,8 +401,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README â†’ project â†
     // The user's font files (the starters' OFL fonts under other names): a display face, a text family.
     await cp(join(TEMPLATES, 'motion', 'fonts', 'SpaceGrotesk-Bold.ttf'), join(root, 'brand', 'Roastery-Display-Bold.ttf'));
     for (const w of ['Regular', 'SemiBold', 'Bold']) await cp(join(TEMPLATES, 'default', 'fonts', `Inter-${w}.ttf`), join(root, 'brand', `Roastery-Text-${w}.ttf`));
-    await mkdir(join(root, '.demo-studio'), { recursive: true });
-    await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+    await linkSharedCache(root);
     // The session's folder is the workspace (engine_info checks it), tsx loaded by its path.
     const transport = new StdioClientTransport({
       command: process.execPath,

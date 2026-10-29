@@ -3718,6 +3718,19 @@ running: the MCP server keeps working without it.
 - **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
   right-to-left override characters are shown as visible marks (`[U+202E]`).
 
+- **Keyboard, screen readers, browsers (L4.9).** Every screen works from the keyboard: *Skip to content* first, a
+  visible focus ring on every control, the steps of a scene as one list you move through with the arrow keys
+  (Alt+↓ / Alt+↑ moves a step, ⌘Z undoes), `[` / `]` and the arrow keys on the timeline, dialogs that take the focus,
+  close on Escape and give it back. Controls are real buttons, fields and links with names; badges carry words and a
+  diff row keeps its + / − (a colour is never the only cue); a selected step, row, chip or pressed button shows an accent
+  bar or edge, not a tint alone; text keeps a 4.5:1 contrast. The look is the Studio's own — one blue accent, a closed
+  palette, nothing from a video theme — and names the Geist pair first (shown where those fonts are installed; Safari
+  shows system fonts; bundling the files is BL-120). In Safari turn on Settings → Advanced → *Press Tab to highlight
+  each item* to reach buttons with Tab. The checks are automated in Chromium (`packages/ui/test/a11y.ts` and its two
+  screen tours); the end-to-end acceptance runs in the installed Chrome, opt-in:
+  `DEMO_STUDIO_TEST_SLOW=1 DEMO_STUDIO_TEST_CHROME=1 npx vitest run packages/ui/test/studio-e2e-acceptance.test.ts`;
+  Safari, Firefox and VoiceOver are checked by hand (MACOS-CHECKLIST 13j).
+
 - **One server per workspace.** The running server is named in `<workspace>/.demo-studio/ui.json` (mode 600: its pid,
   port and API token); `studio ui` again opens that one with a new link and exits (with `--port N` naming another port,
   it says the running server keeps its own). Ctrl-C stops the server and removes the file. A `.demo-studio/` folder

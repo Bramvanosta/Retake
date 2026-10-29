@@ -23,7 +23,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readWorkerLock } from '@demo-studio/engine';
 import { REPO } from '../../engine/test/helpers.js';
-import { SHARED_CACHE } from '../../editor/test/render-helpers.js';
+import { linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -87,8 +87,7 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
       yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
     );
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
-    await mkdir(join(root, '.demo-studio'), { recursive: true });
-    await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+    await linkSharedCache(root);
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],

@@ -578,6 +578,14 @@ A client of the same packages (the MCP keeps working without it). Served locally
   verified, are read-only. Accepted with a Playwright-driven window (the quote flow recorded with every
   insert and a pick, saved, dry-run, captured and rendered with the caption, zoom and marker where placed); a person's
   headed recording is MACOS-CHECKLIST 13i. Cut: BL-118; recording through the live picture: BL-25.
+- **Identity and accessibility** (L4.9): a closed palette (every colour a named token, one blue accent, status colours
+  always with words, nothing from a video theme), the Geist pair named first in the font stacks (the files: BL-120);
+  real controls with names, 4.5:1 text, a selected state shown by more than a tint, a focus ring on every control
+  (every screen's Tab order walked), a keyboard-only path through blocks, timeline and comments. Accepted in L4.9 by an
+  in-repo checker on two screen tours and that keyboard-only path in Chromium at 1280 and 1440 wide, and the
+  §14.4 acceptance on the fixture in the installed Chrome (projects → blocks edit → dry run watched → capture →
+  timeline switch with the live preview → render and review → frame comment → a proposal applied); Safari, Firefox and
+  VoiceOver by hand (MACOS-CHECKLIST 13j). DESIGN §4i.
 
 ## 13. Security
 

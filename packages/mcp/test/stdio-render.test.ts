@@ -17,7 +17,7 @@ import { editReplannedMessage, scenarioChangedMessage } from '@demo-studio/core'
 import { readWorkerLock } from '@demo-studio/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { SHARED_CACHE, TEMPLATES, hasTool, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -59,8 +59,7 @@ beforeAll(async () => {
   t.scenario = 'synthetic';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
   makeColourCapture(join(runDir, 'capture.mp4'));
-  await mkdir(join(ws, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(ws, '.demo-studio', 'cache'));
+  await linkSharedCache(ws);
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', ws, 'mcp'],

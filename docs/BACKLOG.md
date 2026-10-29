@@ -1085,7 +1085,8 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
 - Creating, renaming and configuring projects from the Studio (project.yaml stays a hand edit or `project_create`);
   a workspace switcher (one server per workspace).
 - ~~The themes and component gallery of SPEC §12 (R-UI-06 is L4.7)~~ — built in L4.7 (the library and theme screens;
-  extras in BL-113); the Geist fonts and the visual identity (R-UI-02, L4.9).
+  extras in BL-113); ~~the Geist fonts and the visual identity (R-UI-02, L4.9)~~ — L4.9: the palette closed (every
+  colour a token, one accent) and the Geist pair named first in the font stacks; the font files are BL-120.
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
   from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `studio ui` terminal or the Tauri shell's
@@ -1150,7 +1151,7 @@ the lot's own cuts:
   shows the `studio run …` command); the sandbox reset, `until` and hooks of a dry run from the Studio (pinned out by
   `scenario_run`, critique B11) — L4.4 kept both out: approvals BL-106, the dry run's options BL-105.
 - Per-step source slices in the payload (the page slices the text by offsets); a live region announcing the selected
-  step (the option's accessible name carries it; screen readers are checked by hand, L4.9).
+  step (the option's accessible name carries it; screen readers are checked by hand: MACOS-CHECKLIST 13j, BL-122).
 
 Residues documented in L4.2:
 - One worker serves the workspace in the environment of the client that started it. Since the review fixes every
@@ -1335,7 +1336,7 @@ Residues documented in L4.3:
   that line (a flow map) is refused; the form locks a field that holds one.
 - A move back by hand gives the same value but not always the same bytes (about 2 % in the review's fuzz: a blank
   line or a column-0 comment does not travel with a step); undo is byte-exact.
-- The edit's live region and errors are tested in Chromium only; VoiceOver is checked by hand (L4.9).
+- The edit's live region and errors are tested in Chromium only; VoiceOver is checked by hand (MACOS-CHECKLIST 13j).
 
 - **Value:** The whole scenario editable from the Studio; one undo history for both tabs; edits of files holding
   sign-in references once a person's presence can be proved.
@@ -1763,6 +1764,59 @@ A small gain stays on the current path: the capture encoder's `scale=…:flags=l
 BT.601 → limited BT.709) is ≈ 40 % of its CPU (2.2 of 5.05 cpu-s per 900 frames) — a cheaper conversion (or tagging
 BT.601 instead of converting) saves ≈ 3 cpu-s a take, checked against players and the colour tests.
 
+### BL-120 — The Geist pair bundled
+*S · cut in L4.9 · builds on: L4.9*
+
+The Studio names `'Geist'` and `'Geist Mono'` first in its font stacks by local family name only (app.css `--font`,
+`--mono`; DESIGN §4i): a Mac with the fonts installed shows them in Chrome and Firefox, everything else falls back to
+the system fonts, and Safari never exposes installed fonts to a page. Bundling the official OFL-1.1 release files
+(variable woff2, ≈ 2 × 70 KB, with OFL.txt beside them) under the ui package, served from memory by the Studio like
+`/app.css` (the CSP already allows `font-src 'self'`), `@font-face` with `font-display: swap`, needs one download the
+person approves. Then R-UI-02 → done, and the tour's text widths no longer depend on the machine's fonts.
+
+### BL-121 — Safari and Firefox in the automated suite
+*S–M · cut in L4.9 · builds on: L4.9*
+
+The L4.9 checker and tours run in Playwright's Chromium (and the installed Chrome for the acceptance); WebKit was run
+once by hand from a cached build that belongs to another tool (webkit-2370 through `executablePath`: 14 screens, 0
+contrast or overflow finding after the fixes), Firefox and Safari are by hand (MACOS-CHECKLIST 13j). Automating them
+needs a WebKit build matching the pinned Playwright (a download) or a tour pinned to a known build; Firefox through
+Playwright's BiDi channel once Playwright and the installed Firefox agree (today `network.addDataCollector` is unknown
+to Firefox 137); Safari through `safaridriver`, which needs an admin setting. The checker's name rule would use an aria
+snapshot there (no CDP), and its Tab walk needs Safari's "Press Tab to highlight each item".
+
+### BL-122 — Accessibility beyond the L4.9 pass
+*M · cut in L4.9 · builds on: L4.9*
+
+- Reflow below 1280 px wide and at 200 % zoom (the Studio is desktop-class; two narrow media queries only).
+- Target sizes ≥ 24 px everywhere; forced colours and macOS Increase Contrast; a dark appearance for the Studio.
+- `prefers-reduced-motion` once anything animates (nothing does today; library loops play on Play only).
+- A live region announcing the selected step (BL-79 residue); automated screen-reader runs (VoiceOver scripting).
+- The checker's limits (found by the L4.9 review, each probed): contrast over a picture is measured over black and white
+  only (a mid-grey picture under a thin veil can be worse); `filter` and `mix-blend-mode`, `-webkit-text-fill-color`, text
+  of a `display: contents` element, and a dark sibling layer painted under the text (an absolutely placed box that is not
+  an ancestor) are not measured — `elementsFromPoint` per text would find the last; text clipped by an `overflow: hidden`
+  panel passes the overflow rule (page and `main` only); label-in-name (`aria-label="Delete"` on a button that reads
+  "Save") is not checked; text that shows only on hover is not reached; a ring clipped by an `overflow: hidden` ancestor
+  still counts as a ring; a status glyph other than a dot (▲ in two colours) passes the colour-only rule by its shape; an
+  axe-class rule set if the in-repo rules stop sufficing.
+- The UI component boundaries (inputs' borders `--line-strong` on white ≈ 1.5:1) meet WCAG 1.4.11 through their labels
+  and focus ring, not their border; a stronger field border if wanted.
+- ⌘Z is dropped without a word while an edit is still in flight: StepEditing's `undo` (and the timeline inspector's
+  pick) return early while `busyRef` is set — from the write until the reloaded view lands — so a quick ⌘Z after a move
+  does nothing and says nothing (the L4.9 review reproduced it under load; the tests now wait for Undo to be enabled).
+  Queue the undo until the write lands, or say "Saving… undo in a moment" in the live region.
+
+### BL-123 — A render job's inline review that once never finished
+*S · found in L4.9 · builds on: L4.5*
+
+The first green-path run of the R-ACC4-01 acceptance (a fresh worktree, the shared render cache just created empty)
+sat 600 s with the render's review `running`: the render record existed, its job had not finished (renders.ts reads
+that as `running`). Not reproduced: a run with the cache moved away bundled in ≈ 3 s and rendered and reviewed in
+42.9 s (2026-10-29), warm runs take ≈ 36 s; the job's phase was not recorded then. The acceptance now fails fast with
+the job's phase (no live worker while it runs, or the same phase for 5 min). If it comes back: the phase it stopped at
+(`review:frames` → ffmpeg, `review:sheets` …), the worker's log, and whether a cancel reaches it.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.
@@ -1787,7 +1841,7 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 - **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `demo-studio-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
 - **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it. *Applied in L4.4:* the worker's live channel records carry `{v, kind}` (`kind: 'frame'` today) so an input channel can be added as a separate authenticated route beside `GET /v1/frames` (DESIGN §4f); nothing of it is built (BL-105).
-- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110). *L4.6:* the Comments screen the same way — Chromium, a gated installed-Chrome acceptance on the fixture, Safari and Firefox by hand (MACOS-CHECKLIST 13g); its frames are server-made JPEGs, so every browser shows the same exact frame.
+- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110). *L4.6:* the Comments screen the same way — Chromium, a gated installed-Chrome acceptance on the fixture, Safari and Firefox by hand (MACOS-CHECKLIST 13g); its frames are server-made JPEGs, so every browser shows the same exact frame. *L4.9:* the in-repo accessibility checker (a11y.ts: contrast, names, reachable roles, real focus indicators, colour never alone, a selected state more than colour, headings, no sideways scroll) on two screen tours and a keyboard-only path in Chromium, the R-ACC4-01 acceptance in the installed Chrome, one WebKit run by hand from a cached build; Safari, Firefox and VoiceOver by hand (MACOS-CHECKLIST 13j); automating them is BL-121.
 - **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI.
 
 ## Recorder precisions (L3.4 / L4.8)

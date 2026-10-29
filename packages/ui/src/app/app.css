@@ -1,29 +1,100 @@
 /*
- * The Studio's look (L4.1): calm, precise, light; one blue accent; the system font stack (the Geist pair and the full
- * identity are R-UI-02, L4.9 — bundled then, never from a CDN). Text colours keep a 4.5:1 contrast on their
- * backgrounds; badges carry words, colour is never the only cue; every control shows a focus ring.
+ * The Studio's look (L4.1, closed in L4.9): calm, precise, light, its own — no video theme's colour reaches the chrome
+ * (theme colours appear only in swatches, posters and the sandboxed preview).
+ * - Every colour is a token of :root below; rules use var(--…) only (a lint fails a colour literal anywhere else, an
+ *   undefined or unused token, and a text / background pair under 4.5:1).
+ * - One accent, blue: the only interactive or selected colour. Four status families (danger, warning, info, success)
+ *   always come with words: a badge says what its colour means, colour is never the only cue (a diff row keeps its
+ *   + / − sign, a status dot its word). A selected, current, pressed or checked state shows more than a tint: a heavier
+ *   weight, a filled marker, or an accent bar / edge of ≥ 2 px (≥ 3:1 against its background). One categorical tint
+ *   (violet: input actions, card segments) carries words too and never means "interactive". The dark tokens and the
+ *   marks are for video surfaces and tooltips only.
+ * - Fonts: the Geist pair named first, by local family name only (no file, no network); system fallbacks after.
+ *   Bundling the files is BL-120.
+ * - Text keeps 4.5:1 on its background (3:1 at 24 px, or 18.66 px bold); every control shows a focus ring; placeholders
+ *   use --muted at full opacity. Accepted below 4.5:1, transient or inactive only: a disabled control (opacity .5,
+ *   WCAG exempts inactive controls), a step being dragged (.45), the steps while a write is in flight (.75), a
+ *   switched-off group of the timeline (.55), an unset colour well of the theme editor (.35, no text: its field says
+ *   "not set"). A lint holds opacity below 1 to these five. Focus rings are --accent or --accent-strong, never
+ *   transparent (a lint).
  */
 :root {
+  /* Surfaces and neutral tints */
   --bg: #f6f7f9;
   --surface: #ffffff;
   --sidebar: #fbfbfc;
+  --subtle: #fafbfc;
+  --field-off: #f9fafb;
+  --unusable: #f7f8fa;
+  --link-hover: #f6f8fb;
+  --code-bg: #f4f5f7;
+  --faint: #f3f4f6;
+  --hover: #f1f3f6;
+  --thumb-stripe: #f1f2f5;
+  --outro-tint: #eef1f4;
+  --tint: #eef0f3;
+  --thumb-bg: #eceef2;
+  --hook-tint: #e9edf1;
+  /* Text */
   --fg: #16181d;
+  --fg-soft: #262a31;
+  --hook-fg: #2f3b47;
+  --tint-fg: #3c4350;
   --muted: #565d69;
+  /* Lines */
   --line: #e2e5ea;
   --line-strong: #cfd4dc;
+  --hook-line: #9aa6b2;
+  /* The one accent */
   --accent: #2357d9;
   --accent-strong: #1b45ad;
   --accent-soft: #eaf0fd;
+  --accent-line: #b8cbf5;
+  --accent-line-soft: #c6d4f6;
+  --accent-line-strong: #8eaaf0;
+  --accent-fade: rgba(35, 87, 217, 0.28);
+  --accent-clear: rgba(35, 87, 217, 0);
+  --on-accent: #ffffff;
+  /* Status families (always with words) */
   --danger: #b42318;
   --danger-soft: #fdecea;
+  --danger-line: #f2c3bd;
+  --danger-line-strong: #e7b4ae;
   --warning: #8a5300;
   --warning-soft: #fdf3e1;
+  --warning-faint: #fffdf8;
+  --warning-line: #efd6a8;
+  --warning-line-soft: #efd9ad;
+  --warning-mark: #e8b04a;
   --info: #1f5fae;
   --info-soft: #e8f1fb;
+  --info-line: #c4d9f3;
   --success: #1d6b3a;
   --success-soft: #e6f4ea;
+  --success-line: #bfe0c9;
+  --success-fade: rgba(29, 107, 58, 0.18);
+  --online: #2e9a5a;
+  /* The categorical tint: input actions, card segments (always with words) */
+  --input-tint: #f1ebfb;
+  --input-fg: #5b3a99;
+  --card-tint: #f4effc;
+  --card-line: #dccff3;
+  /* Video surfaces, tooltips, dialogs */
+  --ink: #16181d;
+  --ink-soft: #1c1f24;
+  --ink-veil: rgba(22, 24, 29, 0.75);
+  --on-ink: #ffffff;
+  --on-ink-muted: #c9ced8;
+  --on-ink-link: #9cc0ff;
+  --veil: rgba(255, 255, 255, 0.92);
+  --backdrop: rgba(22, 24, 29, 0.35);
+  --mark-on-video: #ffd43b;
+  --mark-edge: rgba(0, 0, 0, 0.6);
+  --brand-shine: rgba(255, 255, 255, 0.28);
+  /* Shape and type */
   --radius: 8px;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light;
 }
 
@@ -44,7 +115,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font: 14px/1.5 var(--font);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -98,9 +169,18 @@ kbd {
   position: absolute;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
+}
+/* Placeholders: the app's own colour at full opacity (WebKit's default reads 2.35:1, Firefox's adds opacity .54). */
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 bdi {
   overflow-wrap: anywhere;
@@ -153,7 +233,7 @@ bdi {
   height: 18px;
   border-radius: 5px;
   background: var(--accent);
-  box-shadow: inset -6px -6px 0 rgba(255, 255, 255, 0.28);
+  box-shadow: inset -6px -6px 0 var(--brand-shine);
 }
 .nav,
 .nav ul {
@@ -181,7 +261,7 @@ bdi {
   color: var(--fg);
 }
 .nav-link:hover {
-  background: #eef0f3;
+  background: var(--tint);
   text-decoration: none;
 }
 .nav-link.current {
@@ -238,7 +318,7 @@ bdi {
   background: var(--muted);
 }
 .dot-online {
-  background: #2e9a5a;
+  background: var(--online);
 }
 .dot-offline,
 .dot-ended {
@@ -364,8 +444,8 @@ h1 {
   font-weight: 600;
   line-height: 19px;
   white-space: nowrap;
-  background: #eef0f3;
-  color: #3c4350;
+  background: var(--tint);
+  color: var(--tint-fg);
 }
 .badge-danger {
   background: var(--danger-soft);
@@ -405,15 +485,15 @@ h1 {
 }
 .notice-info {
   background: var(--info-soft);
-  border-color: #c4d9f3;
+  border-color: var(--info-line);
 }
 .notice-warning {
   background: var(--warning-soft);
-  border-color: #efd6a8;
+  border-color: var(--warning-line);
 }
 .notice-danger {
   background: var(--danger-soft);
-  border-color: #f2c3bd;
+  border-color: var(--danger-line);
 }
 
 /* Project page */
@@ -435,7 +515,7 @@ h1 {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: 13px/1.55 var(--mono);
-  color: #262a31;
+  color: var(--fg-soft);
 }
 .envs,
 .runs,
@@ -510,13 +590,13 @@ h1 {
   white-space: nowrap;
 }
 .button:hover {
-  background: #f1f3f6;
+  background: var(--hover);
   text-decoration: none;
 }
 .button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .button.primary:hover {
   background: var(--accent-strong);
@@ -525,6 +605,12 @@ h1 {
   border-color: transparent;
   background: transparent;
   color: var(--accent-strong);
+}
+/* A pressed toggle (L4.9): a 2 px accent edge (its border and an inset line), not a tint alone. */
+.button[aria-pressed='true'],
+.sheet-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .button.small {
   min-height: 26px;
@@ -555,7 +641,7 @@ textarea {
   resize: vertical;
 }
 textarea[readonly] {
-  background: #f9fafb;
+  background: var(--field-off);
 }
 textarea:focus-visible {
   outline-offset: 0;
@@ -601,7 +687,7 @@ textarea:focus-visible {
   gap: 10px;
   padding: 14px 16px;
   margin-bottom: 14px;
-  border: 1px solid #f2c3bd;
+  border: 1px solid var(--danger-line);
   border-left: 4px solid var(--danger);
   border-radius: var(--radius);
   background: var(--surface);
@@ -788,7 +874,7 @@ textarea:focus-visible {
 .copyable {
   user-select: all;
   overflow-wrap: anywhere;
-  background: #f1f3f6;
+  background: var(--hover);
   border-radius: 4px;
   padding: 1px 4px;
 }
@@ -798,7 +884,7 @@ textarea:focus-visible {
   padding: 10px 12px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
-  background: #fafbfc;
+  background: var(--subtle);
   min-width: 0;
 }
 .from-page-title {
@@ -851,7 +937,7 @@ textarea:focus-visible {
   gap: 4px;
 }
 .hint {
-  color: #3c4350;
+  color: var(--tint-fg);
 }
 .args {
   display: grid;
@@ -874,12 +960,12 @@ textarea:focus-visible {
 .comment {
   margin: 0;
   font: 12.5px/1.5 var(--mono);
-  color: #3c4350;
+  color: var(--tint-fg);
 }
 .source-slice {
   padding: 8px 10px;
   border-radius: 6px;
-  background: #f4f5f7;
+  background: var(--code-bg);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 240px;
@@ -1026,15 +1112,17 @@ textarea:focus-visible {
   cursor: pointer;
 }
 .step:hover {
-  background: #f6f7f9;
+  background: var(--bg);
 }
 .step.selected {
   background: var(--accent-soft);
-  border-color: #b8cbf5;
+  border-color: var(--accent-line);
+  /* More than a tint (L4.9): an accent bar on the left, 3 px at 5:1, survives greyscale. */
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .steps:focus-visible .step.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), inset 3px 0 0 var(--accent);
 }
 .step-body {
   display: grid;
@@ -1078,8 +1166,8 @@ textarea:focus-visible {
   line-height: 18px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  background: #eef0f3;
-  color: #3c4350;
+  background: var(--tint);
+  color: var(--tint-fg);
 }
 .action-click,
 .action-hover,
@@ -1092,8 +1180,8 @@ textarea:focus-visible {
 .action-pick,
 .action-menu,
 .action-drop_file {
-  background: #f1ebfb;
-  color: #5b3a99;
+  background: var(--input-tint);
+  color: var(--input-fg);
 }
 .action-wait,
 .action-hold {
@@ -1106,9 +1194,9 @@ textarea:focus-visible {
   color: var(--success);
 }
 .action-hook {
-  background: #e9edf1;
-  color: #2f3b47;
-  outline: 1px dashed #9aa6b2;
+  background: var(--hook-tint);
+  color: var(--hook-fg);
+  outline: 1px dashed var(--hook-line);
   outline-offset: -1px;
 }
 .action-unknown {
@@ -1127,7 +1215,7 @@ textarea:focus-visible {
   border-radius: 999px;
   font-size: 11.5px;
   line-height: 18px;
-  color: #3c4350;
+  color: var(--tint-fg);
   background: var(--surface);
   white-space: nowrap;
   max-width: 260px;
@@ -1135,7 +1223,7 @@ textarea:focus-visible {
   text-overflow: ellipsis;
 }
 .chip-irreversible {
-  border-color: #f2c3bd;
+  border-color: var(--danger-line);
   color: var(--danger);
 }
 .thumb {
@@ -1143,7 +1231,7 @@ textarea:focus-visible {
   height: 90px;
   border-radius: 4px;
   overflow: hidden;
-  background: #eceef2;
+  background: var(--thumb-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1153,7 +1241,7 @@ textarea:focus-visible {
   width: 160px;
   height: 90px;
   object-fit: contain;
-  background: #1c1f24;
+  background: var(--ink-soft);
 }
 .thumb-words {
   padding: 6px;
@@ -1163,7 +1251,7 @@ textarea:focus-visible {
   text-align: center;
 }
 .thumb-none {
-  background: repeating-linear-gradient(135deg, #f1f2f5, #f1f2f5 6px, #eceef2 6px, #eceef2 12px);
+  background: repeating-linear-gradient(135deg, var(--thumb-stripe), var(--thumb-stripe) 6px, var(--thumb-bg) 6px, var(--thumb-bg) 12px);
 }
 .yaml-card .card-title {
   display: flex;
@@ -1174,7 +1262,7 @@ textarea:focus-visible {
   margin: 0;
   padding: 0 0 0 52px;
   font: 12.5px/1.55 var(--mono);
-  color: #262a31;
+  color: var(--fg-soft);
   overflow-x: auto;
 }
 .yaml li {
@@ -1188,7 +1276,7 @@ textarea:focus-visible {
 }
 .yaml li.focus {
   background: var(--warning-soft);
-  outline: 1px solid #efd6a8;
+  outline: 1px solid var(--warning-line);
 }
 .yaml code {
   font-size: inherit;
@@ -1288,7 +1376,7 @@ textarea:focus-visible {
 }
 .button.danger {
   color: var(--danger);
-  border-color: #e7b4ae;
+  border-color: var(--danger-line-strong);
 }
 .edit-bar .button {
   max-width: 44ch;
@@ -1337,7 +1425,7 @@ textarea:focus-visible {
 }
 .form-field input:disabled,
 .form-field select:disabled {
-  background: #f9fafb;
+  background: var(--field-off);
   color: var(--muted);
 }
 .form-field.has-error input,
@@ -1474,7 +1562,7 @@ textarea:focus-visible {
 .live-box {
   position: relative;
   aspect-ratio: 16 / 9;
-  background: #16181d;
+  background: var(--ink);
   border-radius: 6px;
   overflow: hidden;
   display: grid;
@@ -1494,7 +1582,7 @@ textarea:focus-visible {
   max-width: 80%;
   padding: 10px 14px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--veil);
   color: var(--fg);
   text-align: center;
 }
@@ -1539,6 +1627,7 @@ textarea:focus-visible {
 }
 .run-row.is-current {
   background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .run-row-what {
   flex: 1 1 200px;
@@ -1563,7 +1652,7 @@ textarea:focus-visible {
   padding: 8px;
   max-height: 280px;
   overflow: auto;
-  background: #fafbfc;
+  background: var(--subtle);
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 12.5px;
@@ -1628,7 +1717,7 @@ textarea:focus-visible {
   display: none;
 }
 .confirm-dialog::backdrop {
-  background: rgba(22, 24, 29, 0.35);
+  background: var(--backdrop);
 }
 .confirm-dialog ul {
   margin: 4px 0 0;
@@ -1675,7 +1764,7 @@ textarea:focus-visible {
   /* Its height sets its width (the aspect ratio is the video's): the preview, the transport and the tracks fit a laptop screen. */
   height: min(44vh, 460px);
   max-width: 100%;
-  background: #16181d;
+  background: var(--ink);
   border-radius: 6px;
   overflow: hidden;
   display: grid;
@@ -1693,14 +1782,14 @@ textarea:focus-visible {
 /* The frame only displays: every control is the page's (L4.6 draws comment regions over it). */
 .preview-frame {
   pointer-events: none;
-  background: #16181d;
+  background: var(--ink);
 }
 .tl-preview-note {
   position: relative;
   max-width: 80%;
   padding: 8px 14px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--veil);
   color: var(--fg);
   text-align: center;
 }
@@ -1729,7 +1818,6 @@ textarea:focus-visible {
 .tl-zoomer .button[aria-pressed='true'] {
   background: var(--accent-soft);
   color: var(--accent-strong);
-  border-color: var(--accent-soft);
 }
 .tl-keys {
   width: min(100%, 980px);
@@ -1804,7 +1892,7 @@ textarea:focus-visible {
   padding: 0 5px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
-  background: #f1f3f6;
+  background: var(--hover);
   color: var(--fg);
   font: inherit;
   font-size: 11.5px;
@@ -1819,7 +1907,7 @@ textarea:focus-visible {
   display: flex;
   gap: 6px;
   background: var(--accent-soft);
-  border-color: #c6d4f6;
+  border-color: var(--accent-line-soft);
 }
 .tl-seg-name {
   font-weight: 620;
@@ -1831,15 +1919,15 @@ textarea:focus-visible {
 }
 .tl-seg-card > button,
 .tl-seg-interstitial > button {
-  background: #f4effc;
-  border-color: #dccff3;
+  background: var(--card-tint);
+  border-color: var(--card-line);
 }
 .tl-seg-intro > button,
 .tl-seg-outro > button {
-  background: #eef1f4;
+  background: var(--outro-tint);
 }
 .tl-seg.is-missing > button {
-  background: repeating-linear-gradient(45deg, var(--warning-soft) 0 6px, #fff 6px 12px);
+  background: repeating-linear-gradient(45deg, var(--warning-soft) 0 6px, var(--surface) 6px 12px);
   border-color: var(--warning);
 }
 .tl-seg.is-joined > button {
@@ -1851,17 +1939,17 @@ textarea:focus-visible {
   top: 0;
   bottom: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(35, 87, 217, 0.28), rgba(35, 87, 217, 0));
+  background: linear-gradient(90deg, var(--accent-fade), var(--accent-clear));
   border-radius: 4px 0 0 4px;
 }
 .tl-caption > button {
   background: var(--warning-soft);
-  border-color: #efd9ad;
+  border-color: var(--warning-line-soft);
 }
 .tl-step > button {
   text-align: center;
   padding: 0 2px;
-  background: #fff;
+  background: var(--surface);
 }
 .tl-step.is-still > button {
   border-style: dashed;
@@ -1870,18 +1958,18 @@ textarea:focus-visible {
 .tl-cam > button,
 .tl-speed > button {
   position: relative;
-  background: #fff;
+  background: var(--surface);
 }
 .tl-ramp {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(90deg, rgba(29, 107, 58, 0.18) 0 2px, transparent 2px 5px);
+  background: repeating-linear-gradient(90deg, var(--success-fade) 0 2px, transparent 2px 5px);
 }
 .tl-speed.is-fast > button {
   background: var(--success-soft);
-  border-color: #bfe0c9;
+  border-color: var(--success-line);
 }
 .tl-tick {
   width: 0;
@@ -1931,13 +2019,13 @@ textarea:focus-visible {
   padding: 6px 8px;
   border-radius: 6px;
   background: var(--fg);
-  color: #fff;
+  color: var(--on-ink);
   font-size: 12px;
   white-space: normal;
 }
 .tl-tip-head {
   display: block;
-  color: #c9ced8;
+  color: var(--on-ink-muted);
   font-size: 11px;
 }
 .tl-pin:hover .tl-tip,
@@ -1971,7 +2059,7 @@ textarea:focus-visible {
 }
 .tl-speed.is-held > button {
   color: var(--muted);
-  background: repeating-linear-gradient(90deg, #f1f3f6 0 3px, #fff 3px 6px);
+  background: repeating-linear-gradient(90deg, var(--hover) 0 3px, var(--surface) 3px 6px);
 }
 
 /* Timeline inspector (L4.5 part D): the preview and the inspector side by side; switches as radio chips */
@@ -2096,14 +2184,14 @@ textarea:focus-visible {
 }
 .tl-radios[aria-disabled='true'] .tl-radio.is-checked {
   border-color: var(--line-strong);
-  background: #f3f4f6;
+  background: var(--faint);
   color: var(--muted);
 }
 /* An option the use cannot take: its reason on the chip, a dashed border (never colour alone). */
 .tl-radio.is-unusable {
   border-style: dashed;
   border-radius: 8px;
-  background: #f7f8fa;
+  background: var(--unusable);
 }
 .tl-why {
   color: var(--muted);
@@ -2123,6 +2211,12 @@ textarea:focus-visible {
   outline: 2px solid var(--accent-strong);
   outline-offset: -2px;
   font-weight: 650;
+}
+/* Focused and selected: the ring outside, the selection kept inside (the selection's outline hid the focus, L4.9). */
+.tl-seg.is-selected > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: inset 0 0 0 2px var(--accent-strong);
 }
 
 /* Renders (L4.5 part E): the Render bar, the queue, the list and a render's review with its contact sheets */
@@ -2303,12 +2397,13 @@ textarea:focus-visible {
   color: var(--fg);
 }
 .cl-item > a:hover {
-  background: #f6f8fb;
+  background: var(--link-hover);
   text-decoration: none;
 }
 .cl-item.is-current > a {
   border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .cl-line {
   display: flex;
@@ -2336,7 +2431,7 @@ textarea:focus-visible {
   position: relative;
   margin: 0 auto;
   max-width: 100%;
-  background: #16181d;
+  background: var(--ink);
   border-radius: 4px;
   overflow: hidden;
   display: grid;
@@ -2354,7 +2449,7 @@ textarea:focus-visible {
   -webkit-user-drag: none;
 }
 .cv-loading {
-  color: #c9ced8;
+  color: var(--on-ink-muted);
 }
 .cv-stale {
   position: absolute;
@@ -2362,13 +2457,13 @@ textarea:focus-visible {
   left: 6px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(22, 24, 29, 0.75);
-  color: #fff;
+  background: var(--ink-veil);
+  color: var(--on-ink);
 }
 .cv-region {
   position: absolute;
-  border: 2px solid #ffd43b;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  border: 2px solid var(--mark-on-video);
+  box-shadow: 0 0 0 1px var(--mark-edge), inset 0 0 0 1px var(--mark-edge);
   pointer-events: none;
 }
 .cv-region.is-draft {
@@ -2379,8 +2474,8 @@ textarea:focus-visible {
   top: -1px;
   left: -1px;
   padding: 0 4px;
-  background: #ffd43b;
-  color: #16181d;
+  background: var(--mark-on-video);
+  color: var(--ink);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
@@ -2407,6 +2502,11 @@ textarea:focus-visible {
   position: absolute;
   top: 0;
   width: 0;
+}
+/* Ticks at the same frame overlap: the focused one is raised, never hidden under its neighbour (L4.9, WCAG 2.4.11). */
+.cv-tick:focus-within,
+.tl-tick:focus-within {
+  z-index: 2;
 }
 .cv-tick > a,
 .cv-tick > button {
@@ -2536,11 +2636,11 @@ textarea:focus-visible {
 .th-entry {
   padding: 8px 10px;
   border-left: 3px solid var(--line-strong);
-  background: #fafbfc;
+  background: var(--subtle);
   border-radius: 0 6px 6px 0;
 }
 .th-entry[data-via='mcp'] {
-  border-left-color: #e8b04a;
+  border-left-color: var(--warning-mark);
 }
 .th-entry-head {
   display: flex;
@@ -2575,7 +2675,7 @@ textarea:focus-visible {
   width: 100%;
 }
 .tl-tip-link {
-  color: #9cc0ff;
+  color: var(--on-ink-link);
   font-weight: 600;
 }
 
@@ -2603,9 +2703,9 @@ textarea:focus-visible {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #e8b04a;
+  border: 1px solid var(--warning-mark);
   border-radius: var(--radius);
-  background: #fffdf8;
+  background: var(--warning-faint);
 }
 .pp > p {
   margin: 0;
@@ -2704,12 +2804,11 @@ textarea:focus-visible {
 }
 .pd-gap {
   color: var(--muted);
-  background: #f3f4f6;
+  background: var(--faint);
   font-style: italic;
 }
 .pd-mark {
-  color: #8a6d00;
-  opacity: 0.85;
+  color: var(--warning);
 }
 .pd-char {
   color: var(--danger);
@@ -2771,7 +2870,7 @@ textarea:focus-visible {
   border: 0;
   min-width: 0;
 }
-.chips legend {
+.chips legend:not(.sr-only) {
   width: 100%;
   margin-bottom: 4px;
   padding: 0;
@@ -2801,6 +2900,8 @@ textarea:focus-visible {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-strong);
+  /* The accent edge doubled (2 px at 5:1): more than a tint. */
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .chip:focus-within {
   outline: 2px solid var(--accent);
@@ -2809,7 +2910,7 @@ textarea:focus-visible {
 .lib-notices {
   margin-bottom: 14px;
   padding: 10px 14px;
-  border: 1px solid #efd6a8;
+  border: 1px solid var(--warning-line);
   border-radius: var(--radius);
   background: var(--warning-soft);
 }
@@ -2885,7 +2986,7 @@ textarea:focus-visible {
   display: grid;
   place-items: center;
   aspect-ratio: 16 / 9;
-  background: #eef0f3;
+  background: var(--tint);
   border-bottom: 1px solid var(--line);
   overflow: hidden;
 }
@@ -2913,7 +3014,7 @@ textarea:focus-visible {
   bottom: 8px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--veil);
   font-size: 11.5px;
   color: var(--fg);
 }
@@ -3110,7 +3211,7 @@ textarea:focus-visible {
   position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
-  background: #16181d;
+  background: var(--ink);
   border-radius: 6px;
   overflow: hidden;
   display: grid;
@@ -3379,7 +3480,7 @@ textarea:focus-visible {
   min-width: 0;
 }
 .rec-step.is-insert {
-  border: 1px dashed #b8cbf5;
+  border: 1px dashed var(--accent-line);
   background: var(--accent-soft);
 }
 .rec-step.is-helper .step-label,
@@ -3397,7 +3498,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 4px;
   padding: 1px 4px 1px 9px;
-  border: 1px dashed #8eaaf0;
+  border: 1px dashed var(--accent-line-strong);
   border-radius: 999px;
   background: var(--accent-soft);
   font-size: 12px;
@@ -3490,7 +3591,7 @@ textarea:focus-visible {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fafbfc;
+  background: var(--subtle);
 }
 .rec-disclosure {
   display: contents;

@@ -20,7 +20,7 @@ import { LIBRARY_DIR, PREVIEW_FILE } from '@demo-studio/components';
 import { renderComponentPreviews, loadPreviewTheme } from '@demo-studio/editor';
 import { createEngine, historyFile, runWorker } from '../src/index.js';
 import type { Engine, JobRecord, PreviewJobResult } from '../src/index.js';
-import { SHARED_CACHE, TEMPLATES, hasTool, pixelAt } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, pixelAt } from '../../editor/test/render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -91,8 +91,7 @@ beforeAll(async () => {
   const dir = join(root, 'projects', 'demo');
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await linkSharedCache(root);
   b = createServer((req, res) => {
     hits.push(req.url ?? '');
     res.writeHead(200, { 'Access-Control-Allow-Origin': '*' }).end('x');

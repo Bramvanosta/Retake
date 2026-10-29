@@ -32,7 +32,7 @@ import type { RenderRecord } from '@demo-studio/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
-import { SHARED_CACHE, hasTool } from '../../editor/test/render-helpers.js';
+import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
 const gated = process.env.DEMO_STUDIO_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
@@ -162,8 +162,7 @@ beforeAll(async () => {
   const yaml = await readFile(join(dir, 'project.yaml'), 'utf8');
   await writeFile(join(dir, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
   await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await linkSharedCache(root);
   studio = await startStudioServer({ root, startWorker: false, pollMs: 100 });
   mcp = await createEngine({ root, client: 'mcp', autoStartWorker: false });
   browser = await chromium.launch({ channel: 'chrome', headless: true });

@@ -8,7 +8,7 @@
  * again by the worker. Needs ffmpeg and a headless shell.
  */
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION } from '@demo-studio/core';
@@ -17,7 +17,7 @@ import { FileJobQueue, createEngine, historyFile, runWorker } from '../src/index
 import type { Engine, ExportJobResult, ReviewJobResult } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Workspace } from '../../review/test/helpers.js';
-import { SHARED_CACHE } from '../../editor/test/render-helpers.js';
+import { linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -51,8 +51,7 @@ beforeAll(async () => {
   await makeCase(ws, 'long', scenesTimeline([19, 19, 21]));
   outside = join(ws.root, 'outside');
   await mkdir(outside, { recursive: true });
-  await mkdir(join(ws.root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(ws.root, '.demo-studio', 'cache'));
+  await linkSharedCache(ws.root);
   engine = await createEngine({ root: ws.root, client: 'test', autoStartWorker: false });
   queue = new FileJobQueue(ws.root);
 }, LONG);

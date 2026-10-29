@@ -4,7 +4,7 @@
  * n), so a rendered frame tells which source frame it shows.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,17 @@ export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 export const TEMPLATES = join(REPO, 'templates');
 /** Bundles shared by the render tests and real renders of the repo (git-ignored). */
 export const SHARED_CACHE = join(REPO, '.demo-studio', 'cache');
+
+/**
+ * Links a test workspace's render cache (`<root>/.demo-studio/cache`) to SHARED_CACHE (no rebundle per test file). The
+ * target is made first: a fresh clone or worktree has none, and the bundler cannot make a folder through a dangling link
+ * (a test file linking it must not depend on another having run first).
+ */
+export async function linkSharedCache(root: string): Promise<void> {
+  await mkdir(SHARED_CACHE, { recursive: true });
+  await mkdir(join(root, '.demo-studio'), { recursive: true });
+  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+}
 
 export const RUN_ID = '20260101-120000-synthetic';
 export const CAPTURE_SECONDS = 4;

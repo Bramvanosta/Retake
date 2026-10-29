@@ -68,9 +68,9 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L4.6 | Frame comments UI | M | **done** (live checks: MACOS-CHECKLIST 13g) |
 | L4.7 | Component library (with animated previews) + theme editor screens | M | **done** (live checks: MACOS-CHECKLIST 13h) |
 | L4.8 | Record screen | M | **done** (live checks: MACOS-CHECKLIST 13i) |
-| L4.9 | Studio acceptance, accessibility pass | S | **next** (when the user asks) |
+| L4.9 | Studio acceptance, accessibility pass | S | **done** — phase 4 done (live checks: MACOS-CHECKLIST 13j) |
 | L5.1 | Fixes found by the macOS verification pass (L1.5): Node guard, starter templates, scene rest points… | S | **done** |
-| L5.2 | Tauri desktop shell (macOS) | M | todo |
+| L5.2 | Tauri desktop shell (macOS) | M | **next** (when the user asks) |
 | L5.3 | iOS Simulator runner (simctl, idb/XCUITest, touch overlay) | L | todo |
 | L5.4 | Phase 5 acceptance | S | todo |
 | L5.5 | Field feedback: edit without re-capture (filmed vs edit fingerprint), text-based card durations, edit defaults | M | **done** |
@@ -804,7 +804,16 @@ field asked beyond them is in `docs/BACKLOG.md` (BL-81 – BL-89).
   read-only for recordings Claude or the CLI started. Two independent reviews fixed with mutation-checked tests; L3.4's
   generator pinned by golden drafts. Cuts: BL-118, BL-119. Live checks: MACOS-CHECKLIST 13i.
 
-### L4.9, L5.2 – L5.4, L6
+### L4.9 — Studio acceptance, accessibility pass (S)
+- **Goal:** prove the Studio end to end and make it accessible, with one calm visual identity.
+- **Done (2026-10-29, in a worktree):** a closed token palette with one blue accent, Geist / Geist Mono named locally
+  (bundling: BL-120), contrast / overflow / focus / selected-state fixes, an in-repo accessibility checker and lints
+  (no new dependency), two tours with a keyboard-only path in the default suite, and the R-ACC4-01 acceptance in the
+  installed Chrome (projects → blocks → run → timeline switch with preview → render + review → comment → proposal
+  applied). Two independent reviews fixed with mutation-checked rules. Cuts: BL-120 – BL-123. Live checks:
+  MACOS-CHECKLIST 13j.
+
+### L5.2 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with
 the same structure (goal, scope, acceptance, packages, size). Key contracts already written: SPEC §8 (MCP tools),
 §11 (components), §12 (Studio app), DESIGN-phase2 §4 (frame comments), the canvas mock-ups (screens 1–7) and

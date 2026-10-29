@@ -1245,6 +1245,41 @@ POST localhost:4401/api/reset`.
   where the focus went after each Cmd-Tab; the seconds from Stop to *passed*; a screenshot of the Studio during step 5;
   the saved `hand-quote.yaml`.
 
+## 13j. The Studio in Safari, Firefox and with VoiceOver; keyboard only (L4.9)
+
+What the automated tests cannot reach: the L4.9 checker and its two screen tours run in Playwright's Chromium, the
+R-ACC4-01 acceptance in the installed Chrome; WebKit was run once from a cached build, Firefox and Safari not at all,
+and no test hears a screen reader. The workspace of 13a with a capture, a render and a comment thread on `highlights`
+(13f / 13g leave one), `studio ui` as in 13b; open the link in each browser in turn.
+
+1. **Safari.** Settings → Advanced → turn on *Press Tab to highlight each item in a webpage*. Visit: Projects, the
+   project page, `highlights` (Blocks, YAML), its Run screen, the timeline, Comments, the library, Themes and the theme
+   editor, Record. On each: nothing scrolls sideways at a normal window width (≈ 1280–1440 px), the search fields'
+   placeholder text is readable (grey, not pale), badges carry words. The timeline's preview plays the fixture's H.264
+   capture. ⌘+ twice: still usable (a horizontal scroll is acceptable then, BL-122). Fonts: system fonts are expected
+   (Safari shows no installed font to a page; the Geist files are BL-120).
+2. **Keyboard only (Safari, then Chrome).** No mouse from the Projects screen on: Tab → *Skip to content* → Enter →
+   Tab to *Northfield (fixture)* → Enter → `highlights` → Tab into the steps (one tab stop): ↑ / ↓ select a step, the
+   inspector follows; Alt+↓ moves it; ⌘Z puts it back. Shift+Tab to *Open timeline* → Enter; `]` / `[` select segments;
+   Tab into *Layout*, ← / → move, Space picks; ⌘Z. Every focused control shows a visible ring (note any that does not:
+   the screen and the control). The selected step, the current comment row, a chosen filter chip and a pressed zoom
+   button stay recognisable in greyscale (System Settings → Accessibility → Display → Colour filters → Greyscale): an
+   accent bar on the left or a doubled edge, not a tint alone. Open *Create with Claude* (library) and the *Discard* confirmation of a recording:
+   focus goes inside, Escape closes, focus is back on the button you pressed.
+3. **Firefox.** The same tour as step 1 (placeholders readable: the Studio sets its own colour), the preview plays.
+4. **VoiceOver (Cmd-F5) in Safari.** On the steps list: each step's name as it is read; after a move, what the edit's
+   live region says. On the Run screen during a dry run: the status line (one polite announcement, not every frame).
+   On the timeline: a radio group (*Layout*), its checked option, a disabled option and its reason. On Comments: the
+   composer's fields (the time field, the four region fields, the text). A dialog: its title read on open, Escape.
+   Record: the row buttons (*Insert after step n of …*) as in 13i step 5.
+5. **Chrome.** Code, paths and YAML in Geist Mono (installed on this Mac); the interface text in the system font (Geist
+   sans not installed: expected until BL-120).
+
+- **Expected:** no sideways scroll, readable placeholders, a ring on every focused control, selected states readable
+  in greyscale, dialogs that take and give back focus, every control named by VoiceOver.
+- **Send back:** for each step, OK or what you saw / heard instead (the screen, the control, the browser); a screenshot
+  of anything unreadable or without a ring.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16
