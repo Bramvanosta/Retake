@@ -11,6 +11,8 @@ The current goal is **a local tool for our own use**; selling it is a later topi
    requirements (source of truth: `docs/requirements.json`).
 3. `docs/SPEC.md` (brief), `docs/DESIGN.md` + `docs/DESIGN-phase2.md` (contracts), `docs/reference/look.md`
    (target look), `README.md` (usage, scenario language, CLI).
+4. `docs/AGENTS.md` — how a lot is run with sub-agents (plan, critique, worktree, reviews, fixes) and the rules every
+   sub-agent follows.
 
 ## Working agreement
 - **One lot at a time**; the user decides how many lots to chain. Don't start the next lot unasked.
@@ -52,6 +54,7 @@ node packages/cli/dist/bin.js components preview --all --stale     # regenerate 
 node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/REQUIREMENTS.md / list a lot
 node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 node scripts/requirements.mjs --check-cites                   # fails when an evidence string quotes a missing test title
+node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests: no lost title, expect or test id vs a git ref
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)
