@@ -6,12 +6,12 @@
  * - Cut to scalars and a flat target (critique C2): a field is text, a number, an integer, yes / no or one of a list.
  *   A property that is a target (TargetSpec) becomes a group of flat fields — text, role, name, label, aria,
  *   placeholder, css, testid, `in` (the scope keywords), nth, exact. Anything else (lists, points, nested targets, `in`
- *   as a row or a target, `contains`, code) stays in the YAML tab: listed, shown read-only.
+ *   as a row or a target, `contains`, code) stays in the YAML view: listed, shown read-only.
  * - Modifiers: caption (text, kicker), hold, speed, mark.
  * - Values are read in object form: a shorthand (`click: Save`, `caption: Hello`, `type.into: Message`) reads as the
  *   field it means (core normalizeStep / normalizeTarget), so the form shows `text: Save`; writing it back keeps the
  *   shorthand when only that field changes (step-edits.ts set_step).
- * - `eval`, `emit` and `cursor` take no form (code, custom events, points: the YAML tab); the palette offers the ≈ 15
+ * - `eval`, `emit` and `cursor` take no form (code, custom events, points: the YAML view); the palette offers the ≈ 15
  *   actions whose required values fit these fields.
  */
 import { z } from 'zod';
@@ -49,7 +49,7 @@ export interface ActionForm {
   action: ActionName;
   description: string;
   fields: FormField[];
-  /** Its values the forms leave to the YAML tab (dotted paths: "click.outside", "click.offset"). */
+  /** Its values the forms leave to the YAML view (dotted paths: "click.outside", "click.offset"). */
   yaml_only: string[];
   /** Offered in the palette (new steps). */
   palette: boolean;
@@ -67,7 +67,7 @@ export interface StepForms {
 /** The actions of the palette (critique C3): those whose required values fit the form fields. */
 export const PALETTE_ACTIONS: readonly ActionName[] = ['open', 'click', 'double_click', 'hover', 'type', 'press', 'select', 'wait', 'wait_for', 'hold', 'screenshot', 'scroll', 'menu', 'date', 'notify', 'hook'];
 
-/** Actions without a form: code, custom events, cursor points (the YAML tab). */
+/** Actions without a form: code, custom events, cursor points (the YAML view). */
 const NO_FORM: ReadonlySet<ActionName> = new Set<ActionName>(['eval', 'emit', 'cursor']);
 
 /** The flat keys of a target in a form (critique C2). */
@@ -111,7 +111,7 @@ function scalarField(key: string, s: Json, defs: Record<string, Json>, required:
     ...(group !== undefined ? { group } : {}),
   };
   if (Array.isArray(n.anyOf)) {
-    // The scope of a target (`in`): its keywords; a row or a target as scope stays in the YAML tab.
+    // The scope of a target (`in`): its keywords; a row or a target as scope stays in the YAML view.
     const branches = (n.anyOf as Json[]).map((b) => deref(b, defs).s);
     const scope = branches.find((b) => Array.isArray(b.enum) && (b.enum as unknown[]).includes('dialog'));
     if (scope) return { ...base, kind: 'enum', options: (scope.enum as string[]).slice() };
@@ -161,7 +161,7 @@ function objectFields(prefix: string, obj: Json, defs: Record<string, Json>, out
     }
     const d = deref(ps, defs);
     if (d.ref === 'TargetSpec' && !o.nested) {
-      // A target: its flat fields as one group (a target inside a target stays in the YAML tab).
+      // A target: its flat fields as one group (a target inside a target stays in the YAML view).
       const tObj = deref((d.s.anyOf as Json[]).find((b) => typeof b.$ref === 'string') ?? {}, defs).s;
       objectFields(key, tObj, defs, out, { group: key, nested: true });
       continue;
@@ -300,7 +300,7 @@ export interface StepFormValues {
   action: ActionName;
   /** Each field's value (fields without a value are absent). */
   values: Record<string, FormValue>;
-  /** Fields whose value a form cannot show (a list, a row scope, a URL with a password…): edited in the YAML tab. */
+  /** Fields whose value a form cannot show (a list, a row scope, a URL with a password…): edited in the YAML view. */
   locked: Record<string, string>;
   /** What else the step holds that no field edits (dotted paths: "overlay", "click.outside"). */
   yaml_only: string[];
@@ -321,13 +321,13 @@ export function stepFormValues(raw: unknown): StepFormValues | undefined {
   for (const f of fields) {
     const r = readField(raw, action, f.key);
     if ('value' in r) {
-      if (fieldKindProblem(f, r.value)) locked[f.key] = 'written in a form these fields do not show: edit it in the YAML tab';
-      else if (typeof r.value === 'string' && USERINFO.test(r.value)) locked[f.key] = 'holds a URL with sign-in details (user@): edit it in the YAML tab';
+      if (fieldKindProblem(f, r.value)) locked[f.key] = 'written in a form these fields do not show: edit it in the YAML view';
+      else if (typeof r.value === 'string' && USERINFO.test(r.value)) locked[f.key] = 'holds a URL with sign-in details (user@): edit it in the YAML view';
       else if (typeof r.value === 'string' && firstHiddenChar(r.value) !== undefined) {
-        // An input would show it as nothing (review A): the YAML tab marks the line.
-        locked[f.key] = `holds ${hiddenCharName(firstHiddenChar(r.value)!)}, which a form cannot show: edit it in the YAML tab`;
+        // An input would show it as nothing (review A): the YAML view marks the line.
+        locked[f.key] = `holds ${hiddenCharName(firstHiddenChar(r.value)!)}, which a form cannot show: edit it in the YAML view`;
       } else values[f.key] = r.value;
-    } else if ('complex' in r) locked[f.key] = 'written in a form these fields do not show: edit it in the YAML tab';
+    } else if ('complex' in r) locked[f.key] = 'written in a form these fields do not show: edit it in the YAML view';
   }
   // What else it holds: keys of the step, of its action's object form and of its targets that no field covers.
   const known = new Set(fields.map((f) => f.key));

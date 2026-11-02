@@ -1,7 +1,6 @@
 {
   "CommentsScreen.tsx": 230,
   "CommentsTab.tsx": 3,
-  "Inspector.tsx": 64,
   "LibraryScreen.tsx": 245,
   "LiveView.tsx": 14,
   "PreviewFrame.tsx": 2,
@@ -10,19 +9,12 @@
   "RecordScreen.tsx": 274,
   "Renders.tsx": 73,
   "RunScreen.tsx": 130,
-  "ScenarioScreen.tsx": 236,
   "Sessions.tsx": 48,
-  "StepEditing.tsx": 29,
-  "StepForm.tsx": 68,
-  "TextEditing.tsx": 30,
   "ThemeEditor.tsx": 191,
   "ThemesScreen.tsx": 167,
-  "Thumb.tsx": 5,
   "TimelineInspector.tsx": 67,
   "TimelineScreen.tsx": 112,
   "TimelineTracks.tsx": 40,
-  "YamlTab.tsx": 50,
-  "YamlView.tsx": 12,
   "bits.tsx": 5,
   "main.tsx": 10
 }

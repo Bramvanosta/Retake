@@ -94,3 +94,23 @@ export function bindingWords(b: StepBinding | undefined, hasSource: boolean): st
   // L4.3: a step moved since the run keeps its picture, which shows it at its old place.
   return b.moved ? `${words} · moved since this run` : words;
 }
+
+/** The newest capture that finished with its video (the timeline plans the take on it; Render edits it), or undefined. */
+export function timelineRun(v: Pick<View, 'runs'>): string | undefined {
+  return v.runs.find((r) => r.mode === 'capture' && r.status === 'succeeded' && r.pictures === 'video')?.id;
+}
+
+/** L5.10b: a step's verb on its frame (B32: "Hover", "Wait for", "Drop file"), from its category. */
+export function verbWords(category: string): string {
+  if (category === 'unknown') return 'Unknown';
+  const w = category.replace(/_/g, ' ');
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
+/** L5.10b: a step's state in the source run as a mark (a shape beside its words: never colour alone). */
+export function bindingMark(b: StepBinding | undefined, hasSource: boolean): 'ok' | 'fail' | 'warn' | 'idle' | 'waiting' {
+  if (!hasSource || !b) return 'idle';
+  if ('missing' in b) return b.missing === 'new' ? 'waiting' : b.missing === 'changed' || b.missing === 'scene_changed' ? 'warn' : 'idle';
+  if (b.moved) return 'warn';
+  return b.status === 'ok' ? 'ok' : b.status === 'failed' ? 'fail' : 'idle';
+}

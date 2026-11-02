@@ -4,7 +4,7 @@
  * state on the left, information, the actions on the right; a labelled region), `SourceList` (the browser: a `nav` of
  * headed groups of links, the current one `aria-current="page"` with the selection fill and weight 600, nested items,
  * a count or a flag in words), `InspectorSection` (a titled section, collapsible as a native `<details>`),
- * `Facts` (L5.10a: read-only rows), `Disclosure` (L5.10a: a native `<details>`), `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
+ * `Facts` (L5.10a: read-only rows), `Disclosure` (L5.10a: a native `<details>`), `Callout` (L5.10b: a short note), `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
  * polite "Copied").
  */
 import { useId, useLayoutEffect, useRef, useState } from 'react';
@@ -99,7 +99,10 @@ export function StatusBar({ state, info, actions, label = 'Status' }: { state: R
 
 export interface SourceItem {
   key: string;
-  to: Route;
+  /** A place (a link) … */
+  to?: Route;
+  /** … or, L5.10b, an action (a `<button>` row: the scenes browser selects an entry into the inspector). */
+  onSelect?: () => void;
   label: ReactNode;
   current: boolean;
   /** A count (tabular figures) or a flag in words ("unsaved", "does not load"). */
@@ -122,6 +125,25 @@ export interface SourceItem {
   testId?: string;
   /** L5.10a fixes (review B-L1): a second line under the label that wraps (never cut: what tells two rows apart). */
   detail?: ReactNode;
+  /** L5.10b: a 2 px bar under the row (0–1 of the longest: a scene's length; decorative, the value says it). */
+  bar?: number;
+}
+
+/** A row: a link to its place, or a button that acts (the current one `aria-current`: "page" for a place, "true" for a pick). */
+function SourceRow({ i, children }: { i: SourceItem; children: ReactNode }) {
+  const cls = `k-source-item${i.current ? ' is-current' : ''}${i.quiet ? ' is-quiet' : ''}${i.bar !== undefined ? ' has-bar' : ''}${i.className ? ` ${i.className}` : ''}`;
+  if (i.onSelect || !i.to) {
+    return (
+      <button type="button" className={cls} aria-current={i.current ? 'true' : undefined} data-testid={i.testId} onClick={i.onSelect}>
+        {shown(children)}
+      </button>
+    );
+  }
+  return (
+    <a href={hrefTo(i.to)} className={cls} aria-current={i.current ? 'page' : undefined} data-testid={i.testId}>
+      {shown(children)}
+    </a>
+  );
 }
 
 export interface SourceGroup {
@@ -136,7 +158,7 @@ function SourceItems({ items, label, depth }: { items: SourceItem[]; label?: str
     <ul className={`k-source-items k-source-depth-${depth}`} aria-label={label}>
       {items.map((i) => (
         <li key={i.key}>
-          <a href={hrefTo(i.to)} className={`k-source-item${i.current ? ' is-current' : ''}${i.quiet ? ' is-quiet' : ''}${i.className ? ` ${i.className}` : ''}`} aria-current={i.current ? 'page' : undefined} data-testid={i.testId}>
+          <SourceRow i={i}>
             {i.icon && <Icon name={i.icon} className="k-source-icon" />}
             {i.lead !== undefined && <span className="k-source-lead k-mono">{shown(i.lead)}</span>}
             {i.detail !== undefined ? (
@@ -150,7 +172,12 @@ function SourceItems({ items, label, depth }: { items: SourceItem[]; label?: str
             {i.flag && <span className="k-source-flag">{shown(i.flag)}</span>}
             {i.value !== undefined && <span className="k-source-count k-mono">{shown(i.value)}</span>}
             {i.count !== undefined && <span className="k-source-count k-mono">{shown(i.count)}</span>}
-          </a>
+            {i.bar !== undefined && (
+              <span className="k-source-bar" aria-hidden="true">
+                <span className="k-source-bar-fill" style={{ width: `${Math.round(Math.max(0.04, Math.min(1, i.bar)) * 100)}%` }} />
+              </span>
+            )}
+          </SourceRow>
           {i.children && i.children.length > 0 && <SourceItems items={i.children} depth={depth + 1} {...(i.childrenLabel ? { label: i.childrenLabel } : {})} />}
         </li>
       ))}
@@ -171,18 +198,18 @@ export function SourceList({ label, groups }: { label: string; groups: SourceGro
   );
 }
 
-export function InspectorSection({ title, children, collapsible, defaultOpen = true }: { title: ReactNode; children: ReactNode; collapsible?: boolean; defaultOpen?: boolean }) {
+export function InspectorSection({ title, children, collapsible, defaultOpen = true, testId }: { title: ReactNode; children: ReactNode; collapsible?: boolean; defaultOpen?: boolean; testId?: string }) {
   const id = useId();
   if (collapsible) {
     return (
-      <details className="k-section" open={defaultOpen}>
+      <details className="k-section" open={defaultOpen} data-testid={testId}>
         <summary className="k-section-title">{shown(title)}</summary>
         <div className="k-section-body">{shown(children)}</div>
       </details>
     );
   }
   return (
-    <section className="k-section" aria-labelledby={id}>
+    <section className="k-section" aria-labelledby={id} data-testid={testId}>
       <h3 id={id} className="k-section-title">
         {shown(title)}
       </h3>
@@ -217,9 +244,9 @@ export function Facts({ rows, label }: { rows: Array<{ key: string; label: React
  * L5.10a: a disclosure — a native `<details>` with its summary (the platform's keyboard and state; closed by default).
  * The one place a collapsible lives outside the inspector (the ratchet bans `<details>` outside the kit: critique M5).
  */
-export function Disclosure({ summary, children, defaultOpen = false }: { summary: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
+export function Disclosure({ summary, children, defaultOpen = false, testId }: { summary: ReactNode; children: ReactNode; defaultOpen?: boolean; testId?: string }) {
   return (
-    <details className="k-disclosure" open={defaultOpen}>
+    <details className="k-disclosure" open={defaultOpen} data-testid={testId}>
       <summary className="k-disclosure-summary">
         <Icon name="chevron-right" className="k-disclosure-chevron" />
         {shown(summary)}
@@ -240,6 +267,50 @@ export function EmptyState({ title, children, actions, level = 2 }: { title: Rea
       {children && <div className="k-empty-text">{shown(children)}</div>}
       {actions && <div className="k-empty-action">{shown(actions)}</div>}
     </section>
+  );
+}
+
+/**
+ * L5.10b: a callout — a short note in a pane-tone well: its state as a shape AND its title (the title says the state:
+ * "Unsaved YAML changes", "Not saved"), then its text. `role`: `status` (default), `alert` for what went wrong now,
+ * `note` for a standing fact. It replaces the legacy Notice on the rebuilt screens.
+ */
+export function Callout({ state = 'idle', title, children, role = 'status', testId }: { state?: MarkState; title: ReactNode; children?: ReactNode; role?: 'status' | 'alert' | 'note'; testId?: string }) {
+  return (
+    <div className="k-callout" data-state={state} role={role} data-testid={testId}>
+      <p className="k-callout-title">
+        <StatusMark state={state} word={title} />
+      </p>
+      {children !== undefined && children !== null && children !== false && <div className="k-callout-body">{shown(children)}</div>}
+    </div>
+  );
+}
+
+/**
+ * L5.10b: the command to type in a terminal (what a blocker or a refusal asks for) and, for a person without `studio` on
+ * their PATH, the same command through node — both as text to select (test ids kept from L4.2).
+ */
+export function TerminalCommands({ fix, fixNode }: { fix?: string; fixNode?: string }) {
+  if (!fix) return null;
+  return (
+    <div className="k-commands">
+      <p className="k-commands-line">
+        {'In a terminal: '}
+        <code className="k-commands-code k-mono" data-testid="blocker-fix">
+          <Txt text={fix} />
+        </code>
+      </p>
+      {fixNode && (
+        <p className="k-commands-line k-commands-quiet">
+          {'Without '}
+          <code className="k-mono">studio</code>
+          {' on your PATH: '}
+          <code className="k-commands-code k-mono" data-testid="blocker-fix-node">
+            <Txt text={fixNode} />
+          </code>
+        </p>
+      )}
+    </div>
   );
 }
 

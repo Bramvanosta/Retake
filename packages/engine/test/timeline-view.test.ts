@@ -227,7 +227,7 @@ describe('timeline view (L4.5)', () => {
     await writeFile(scenarioFile(), TEXT.replace('outro: false', 'outro: {tagline: Order in two clicks}'));
     const { view: v } = await view(engine.timeline.view({ project: 'demo', scenario: SCENARIO }));
     const outro = v.choices.segments.outro;
-    expect(outro.find((c) => c.field === 'outro')).toMatchObject({ current: true, editable: { why: "the outro has its own tagline here: turn it off or back to the theme's in the YAML tab (a switch would drop it)" } });
+    expect(outro.find((c) => c.field === 'outro')).toMatchObject({ current: true, editable: { why: "the outro has its own tagline here: turn it off or back to the theme's in the YAML view (a switch would drop it)" } });
     // Its component and duration still switch (they keep the tagline).
     expect(outro.find((c) => c.field === 'outro.component')?.editable).toBe(true);
     await writeFile(scenarioFile(), TEXT);

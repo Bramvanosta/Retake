@@ -119,6 +119,25 @@
   text-overflow: ellipsis;
   color: var(--ui-text-2);
 }
+/* A narrow window (review B L6): the app's name gives its room to the crumbs, the project crumb narrower, so the
+   scenario's name keeps its words (its full text in a tooltip) */
+@media (max-width: 1100px) {
+  .sh-appname {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sh-crumbs .k-btn {
+    max-width: 110px;
+  }
+  .sh-crumb-current {
+    flex: 0 1 auto;
+    min-width: 8ch;
+  }
+}
 
 /* Browser */
 .sh-browser {
@@ -184,6 +203,7 @@
 
 /* Inspector */
 .sh-inspector {
+  position: relative; /* its hidden heading scrolls with its content (never left over a picture: L5.10b) */
   grid-area: inspector;
   min-height: 0;
   background: var(--ui-pane);
@@ -215,4 +235,12 @@
   border-top: 1px solid var(--ui-hairline);
   border-radius: var(--ui-radius-card);
   background: var(--ui-pane);
+}
+/* L5.10b: a screen's own browser (the scenario's scenes) in place of the tree; the foot stays */
+.sh-slot-browser {
+  min-width: 0;
+}
+.sh-slot-browser:not([hidden]) {
+  display: grid;
+  gap: var(--ui-space-6);
 }

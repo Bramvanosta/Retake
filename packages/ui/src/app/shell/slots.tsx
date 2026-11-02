@@ -5,12 +5,13 @@
  * L5.10a fixes (review B-M1): a slot the person hid (the inspector toggle, ⌥⌘I) is `hidden`; a screen whose inspector is
  * the only home of what it shows (`inline`: the Project screen's project facts, README, recent runs, a location's pages)
  * then renders it in place, in the centre pane, under a heading of its own.
+ * L5.10b: `browser` — a screen replaces the browser's tree while it claims it (the scenario's scenes); the foot stays.
  */
 import { createContext, useContext, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-export type SlotName = 'inspector' | 'context' | 'actions';
+export type SlotName = 'inspector' | 'context' | 'actions' | 'browser';
 
 export interface SlotHost {
   targets: Partial<Record<SlotName, HTMLElement | null>>;

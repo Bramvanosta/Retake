@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page, Request, Route } from 'playwright-core';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml } from '@demo-studio/core';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -46,6 +46,40 @@ const ops = (op: string, since = 0) => requests.filter((r) => r.op === op && r.a
 const row = (key: string) => page.locator(`[data-testid="step"][data-key="${key}"]`);
 const live = () => page.getByTestId('edit-live').innerText();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Review B M3 (the flake's cascade): every route a test installs is removed after it — passed or failed — and the requests
+ * it held go on, so a failed test never leaves the next ones' reads held forever.
+ */
+const installed: Array<{ url: string; held: Route[] }> = [];
+async function holdRoute(url: string, handler?: (r: Route) => Promise<void>): Promise<{ held: Route[]; release: () => Promise<void> }> {
+  const entry = { url, held: [] as Route[] };
+  installed.push(entry);
+  await page.route(url, handler ?? ((r) => void entry.held.push(r)));
+  const release = async () => {
+    const i = installed.indexOf(entry);
+    if (i < 0) return;
+    installed.splice(i, 1);
+    await page.unroute(url);
+    for (const r of entry.held.splice(0)) await r.continue().catch(() => undefined);
+  };
+  return { held: entry.held, release };
+}
+/** `scenario_blocks` reads in flight and when the last one was asked. */
+const blocksInFlight = new Set<Request>();
+let blocksAskedAt = 0;
+/**
+ * Review B M3 (the flake's first failure): wait until no `scenario_blocks` read is on its way and none was asked for
+ * `ms` — a read already in flight when the test holds the reads would land after an outside write and show that version.
+ */
+async function readsQuiet(ms = 400): Promise<void> {
+  await expect.poll(() => blocksInFlight.size === 0 && Date.now() - blocksAskedAt >= ms, POLL).toBe(true);
+}
+/** Hold the screen's reads (once they are quiet) so it keeps showing the version it shows. */
+async function holdReads(): Promise<{ held: Route[]; release: () => Promise<void> }> {
+  await readsQuiet();
+  return holdRoute('**/v1/call/scenario_blocks');
+}
 
 async function shot(name: string): Promise<void> {
   if (!SHOTS) return;
@@ -96,10 +130,10 @@ async function centreColour(key: string): Promise<Rgb | null> {
   });
 }
 
-/** Drag a row onto the top or bottom edge of another (native HTML5 DnD driven by Playwright's mouse). */
-async function dragRow(from: string, to: string, edge: 'top' | 'bottom'): Promise<void> {
+/** Drag a frame onto the left or right half of another (native HTML5 DnD driven by Playwright's mouse; L5.10b: a grid). */
+async function dragRow(from: string, to: string, side: 'left' | 'right'): Promise<void> {
   const box = await row(to).boundingBox();
-  await row(from).dragTo(row(to), { targetPosition: { x: 80, y: edge === 'top' ? 6 : box!.height - 6 } });
+  await row(from).dragTo(row(to), { targetPosition: { x: side === 'left' ? 8 : box!.width - 8, y: box!.height / 2 } });
 }
 
 beforeAll(async () => {
@@ -129,10 +163,25 @@ beforeAll(async () => {
       /* not JSON */
     }
     requests.push({ op: m[1], at: Date.now(), body });
+    if (m[1] === 'scenario_blocks') {
+      blocksInFlight.add(r);
+      blocksAskedAt = Date.now();
+    }
   });
+  const done = (r: Request) => void blocksInFlight.delete(r);
+  page.on('requestfinished', done);
+  page.on('requestfailed', done);
   await page.goto(studio.launchUrl());
   await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
 }, 60_000);
+
+afterEach(async () => {
+  for (const e of [...installed].reverse()) {
+    installed.splice(installed.indexOf(e), 1);
+    await page.unroute(e.url).catch(() => undefined);
+    for (const r of e.held.splice(0)) await r.continue().catch(() => undefined);
+  }
+});
 
 afterAll(async () => {
   await browser?.close();
@@ -150,7 +199,7 @@ describe('drag & drop', () => {
     await row('one.1').scrollIntoViewIfNeeded();
     await expect.poll(async () => { const c = await centreColour('one.1'); return c ? colourName(c) : 'none'; }, POLL).toBe(colourName(GREEN));
     const t0 = Date.now();
-    await dragRow('one.1', 'one.0', 'top');
+    await dragRow('one.1', 'one.0', 'left');
     await expect.poll(() => live(), POLL).toBe('Moved step 2 of one to position 1. Saved.');
     const after = await settled('blocks');
     expect(value(after)).toEqual(moved(before, 'one', 1, 'one', 0));
@@ -169,7 +218,7 @@ describe('drag & drop', () => {
   it('across scenes and into an empty scene (steps: [] becomes a list; the scene left empty becomes steps: [])', async () => {
     await openBlocks('blocks');
     const before = await settled('blocks');
-    await dragRow('two.0', 'one.2', 'bottom');
+    await dragRow('two.0', 'one.2', 'right');
     await expect.poll(() => live(), POLL).toBe('Moved step 1 of two to position 4 of one. Saved.');
     const after = await settled('blocks');
     expect(value(after)).toEqual(moved(before, 'two', 0, 'one', 3));
@@ -197,7 +246,7 @@ describe('drag & drop', () => {
     const dt = await page.evaluateHandle(() => new DataTransfer());
     await row('a.0').dispatchEvent('dragstart', { dataTransfer: dt });
     const box = await row('b.1').boundingBox();
-    await row('b.1').dispatchEvent('dragover', { dataTransfer: dt, clientX: box!.x + 80, clientY: box!.y + box!.height - 4 });
+    await row('b.1').dispatchEvent('dragover', { dataTransfer: dt, clientX: box!.x + box!.width - 8, clientY: box!.y + box!.height / 2 });
     await expect.poll(() => row('b.1').getAttribute('class'), POLL).toContain('drop-after');
     expect(await row('a.0').getAttribute('class')).toContain('dragging');
     await row('b.1').scrollIntoViewIfNeeded();
@@ -232,7 +281,7 @@ describe('drag & drop', () => {
         },
         [type, kind] as const,
       );
-    const lines = () => page.locator('.step.drop-before, .step.drop-after').count();
+    const lines = () => page.locator('.k-frame.is-drop-before, .k-frame.is-drop-after').count();
     // Refused: the window guard cancels the default (a file would open in place of the page) with dropEffect none,
     // and no insertion line shows for a drag that did not start here.
     expect(await fire('dragover', 'foreign')).toEqual({ prevented: true, effect: 'none' });
@@ -292,7 +341,7 @@ describe('the keyboard path and undo / redo', () => {
     await expect.poll(() => live(), POLL).toBe('Redone: Moved step 1 of a to position 2.');
     expect(await settled('keys')).toBe(k1);
     // ⌘Z on the YAML tab is not a block undo.
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'YAML' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'YAML' }).click();
     await page.getByTestId('yaml-edit').waitFor(POLL);
     const t1 = Date.now();
     await page.keyboard.press('ControlOrMeta+z');
@@ -305,7 +354,7 @@ describe('the keyboard path and undo / redo', () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     await settled('keys');
-    await page.route('**/v1/call/scenario_edit', async (r) => {
+    const slow = await holdRoute('**/v1/call/scenario_edit', async (r) => {
       await sleep(700);
       await r.continue();
     });
@@ -318,7 +367,7 @@ describe('the keyboard path and undo / redo', () => {
     await page.getByTestId('step-actions').getByRole('button', { name: 'Duplicate' }).click({ force: true });
     await expect.poll(() => live(), POLL).toBe('Moved step 1 of a to position 2. Saved.');
     await settled('keys');
-    await page.unroute('**/v1/call/scenario_edit');
+    await slow.release();
     expect(ops('scenario_edit', t0)).toHaveLength(1);
     const t1 = Date.now();
     await page.locator('[role="listbox"][aria-label="Steps of scene a"]').dispatchEvent('keydown', { key: 'ArrowUp', altKey: true, repeat: true });
@@ -397,18 +446,16 @@ describe('conflicts and outside changes', () => {
     await openBlocks('keys');
     const k0 = await settled('keys');
     // Hold the screen's reads so it keeps showing the version before the outside write.
-    const held: Route[] = [];
-    await page.route('**/v1/call/scenario_blocks', (r) => void held.push(r));
+    let reads = await holdReads();
     const outside = k0.replace('      - hold: 0.5', '      - hold: 0.6');
     await writeFile(file('keys'), outside);
     await row('a.0').click();
     await page.keyboard.press('Alt+ArrowDown');
     await page.getByTestId('edit-conflict').waitFor(POLL);
-    expect(await page.getByTestId('edit-conflict').innerText()).toBe('Your edit (Move step 1 of a to position 2) was not applied. The blocks now show the new version.');
+    expect(await page.getByTestId('edit-conflict').innerText()).toBe('Your edit (Move step 1 of a to position 2) was not applied. The board now shows the new version.');
     await shot('edit-5-conflict');
     expect(await readFile(file('keys'), 'utf8')).toBe(outside);
-    await page.unroute('**/v1/call/scenario_blocks');
-    for (const r of held) await r.continue().catch(() => undefined);
+    await reads.release();
     await expect.poll(() => page.getByTestId('blocks').innerText(), POLL).toContain('0.6');
     await page.getByRole('button', { name: 'Apply it to the new version' }).click();
     await expect.poll(() => live(), POLL).toBe('Moved step 1 of a to position 2. Saved.');
@@ -417,16 +464,14 @@ describe('conflicts and outside changes', () => {
     expect(k1.includes('hold: 0.6')).toBe(true);
 
     // Stale: held reads again; outside, the step at a.0 is replaced; Apply → refused, nothing written.
-    held.length = 0;
-    await page.route('**/v1/call/scenario_blocks', (r) => void held.push(r));
+    reads = await holdReads();
     expect(k1.includes('      - click: A2\n      - click: A1')).toBe(true);
     const outside2 = k1.replace('      - click: A2\n      - click: A1', '      - click: A3\n      - click: A1');
     await writeFile(file('keys'), outside2);
     await row('a.0').click();
     await page.keyboard.press('Alt+ArrowDown');
     await page.getByTestId('edit-conflict').waitFor(POLL);
-    await page.unroute('**/v1/call/scenario_blocks');
-    for (const r of held) await r.continue().catch(() => undefined);
+    await reads.release();
     await expect.poll(() => page.getByTestId('blocks').innerText(), POLL).toContain('A3');
     await page.getByRole('button', { name: 'Apply it to the new version' }).click();
     await expect.poll(() => page.getByTestId('edit-error').innerText(), POLL).toContain('step 1 of a is not the step the edit was made on');
@@ -458,18 +503,18 @@ describe('when block editing is off', () => {
     await page.locator('#yaml-text').click();
     await page.keyboard.press('End');
     await page.keyboard.type('# draft');
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'Blocks' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'Board' }).click();
     await page.getByTestId('blocks-edit-off').waitFor(POLL);
-    expect(await page.getByTestId('blocks-edit-off').innerText()).toBe('Editing the blocks is off (moves, copies, deletes, forms and new steps): Save or discard your changes in the YAML tab first.');
+    expect(await page.getByTestId('blocks-edit-off').innerText()).toBe('Editing the board is off (moves, copies, deletes, forms and new steps): Save or discard your changes in the YAML view first.');
     expect(await row('a.0').getAttribute('draggable')).toBe('false');
-    expect(await page.locator('.grip').count()).toBe(0);
+    expect(await page.locator('[data-testid="step"][draggable="true"]').count()).toBe(0);
     const t0 = Date.now();
     await row('a.0').click();
     await page.keyboard.press('Alt+ArrowDown');
     await page.keyboard.press('Delete');
     await sleep(300);
     expect(ops('scenario_edit', t0)).toEqual([]);
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'YAML' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'YAML' }).click();
     await page.getByRole('button', { name: 'Discard changes' }).click();
     await page.getByRole('button', { name: 'Close the editor' }).click();
   });
@@ -479,9 +524,9 @@ describe('when block editing is off', () => {
     await openBlocks('owned');
     await page.getByTestId('blocks-edit-off').waitFor(POLL);
     await page.getByTestId('edit-bar').scrollIntoViewIfNeeded();
-    expect(await page.getByTestId('blocks-edit-off').innerText()).toMatch(/^Editing the blocks is off \(moves, copies, deletes, forms and new steps\): scenarios\/owned\.yaml holds what the Studio never writes \(line 12\)/);
+    expect(await page.getByTestId('blocks-edit-off').innerText()).toMatch(/^Editing the board is off \(moves, copies, deletes, forms and new steps\): scenarios\/owned\.yaml holds what the Studio never writes \(line 12\)/);
     await shot('edit-6-blocked');
-    expect(await page.locator('.grip').count()).toBe(0);
+    expect(await page.locator('[data-testid="step"][draggable="true"]').count()).toBe(0);
     expect(await page.getByTestId('step-actions').count()).toBe(0);
     const t0 = Date.now();
     await row('a.0').click();
@@ -493,6 +538,94 @@ describe('when block editing is off', () => {
   });
 });
 
+describe('L5.10b: the storyboard grid', () => {
+  /** A step's drag from the page itself: dragstart on a frame, dragover / drop on a scene's list at (x, y), dragend — each its own task (the screen re-renders between them, as with a real drag). */
+  async function dropAt(from: string, list: string, at: (r: { left: number; right: number; top: number; bottom: number }[]) => { x: number; y: number }): Promise<void> {
+    await page.evaluate((key) => {
+      const w = window as unknown as { __gridDt?: DataTransfer };
+      w.__gridDt = new DataTransfer();
+      document.querySelector(`[data-testid="step"][data-key="${key}"]`)!.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: w.__gridDt }));
+    }, from);
+    const rects = await page.locator(`[role="listbox"][aria-label="${list}"] > [role="option"]`).evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }));
+    const p = at(rects);
+    for (const type of ['dragover', 'drop']) {
+      await page.evaluate(([type, label, x, y]) => {
+        const w = window as unknown as { __gridDt?: DataTransfer };
+        document.querySelector(`[role="listbox"][aria-label="${label}"]`)!.dispatchEvent(new DragEvent(type as string, { bubbles: true, cancelable: true, dataTransfer: w.__gridDt, clientX: x as number, clientY: y as number }));
+      }, [type, list, p.x, p.y] as const);
+      if (type === 'dragover') await expect.poll(() => page.locator('.k-frame.is-drop-before, .k-frame.is-drop-after').count(), POLL).toBe(1);
+    }
+    await page.evaluate((key) => document.querySelector(`[data-testid="step"][data-key="${key}"]`)?.dispatchEvent(new DragEvent('dragend', { bubbles: true })), from);
+  }
+
+  it('⚑ the drop slot comes from the pointer over the whole list (critique M7): a drop in the gap between two frames and one in a trailing empty cell give the exact place', async () => {
+    await writeFile(file('blocks'), BLOCKS_YAML);
+    await openBlocks('blocks');
+    const b0 = await settled('blocks');
+    await row('one.0').scrollIntoViewIfNeeded();
+    // The gap between one.1 and one.2 (in neither frame): after one.1 — step 1 goes to position 2.
+    const t0 = Date.now();
+    await dropAt('one.0', 'Steps of scene one', (r) => ({ x: (r[1].right + r[2].left) / 2, y: (r[1].top + r[1].bottom) / 2 }));
+    await expect.poll(() => live(), POLL).toBe('Moved step 1 of one to position 2. Saved.');
+    const b1 = await settled('blocks');
+    expect(value(b1)).toEqual(moved(b0, 'one', 0, 'one', 1));
+    expect(ops('scenario_edit', t0).map((r) => r.body.edit)).toEqual([{ kind: 'move_step', from: { scene: 'one', index: 0, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, to: { scene: 'one', index: 1 } }]);
+    // Scene two's trailing empty cell (two frames in a row of three): the end of the scene.
+    const t1 = Date.now();
+    await dropAt('one.0', 'Steps of scene two', (r) => ({ x: r[1].right + (r[1].right - r[1].left) / 2 + 24, y: (r[1].top + r[1].bottom) / 2 }));
+    await expect.poll(() => live(), POLL).toBe('Moved step 1 of one to position 3 of two. Saved.');
+    const b2 = await settled('blocks');
+    expect(value(b2)).toEqual(moved(b1, 'one', 0, 'two', 2));
+    expect(ops('scenario_edit', t1).map((r) => (r.body.edit as { to: unknown }).to)).toEqual([{ scene: 'two', index: 2 }]);
+    await writeFile(file('blocks'), BLOCKS_YAML);
+  });
+
+  it('⚑ the write path is unchanged: add, move, duplicate, delete, a form\'s change and undo are each one scenario_edit naming the version shown (the file\'s sha256: if_match)', async () => {
+    await writeFile(file('keys'), KEYS);
+    await openBlocks('keys');
+    let text = await settled('keys');
+    const sent: Array<{ kind: string; hash: unknown; shown: string }> = [];
+    const step = async (act: () => Promise<void>, words: RegExp) => {
+      const shown = sha(text);
+      const t = Date.now();
+      await act();
+      await expect.poll(() => live(), POLL).toMatch(words);
+      text = await settled('keys');
+      const calls = ops('scenario_edit', t);
+      expect(calls).toHaveLength(1);
+      sent.push({ kind: (calls[0].body.edit as { kind: string }).kind, hash: calls[0].body.hash, shown });
+    };
+    // Add (the scene's own Add step: the palette placed at its end).
+    await step(async () => {
+      await page.locator('[data-scene="b"]').getByTestId('scene-add').click();
+      await page.getByTestId('palette').locator('[data-palette="click"]').click();
+      await page.getByTestId('palette-form').locator('[data-field="click.text"]').fill('B3');
+      expect(await page.getByTestId('palette-where').locator('option:checked').innerText()).toBe('At the end of b');
+      await page.getByTestId('palette-add').click();
+    }, /^Added .*\. Saved\./);
+    await page.getByTestId('palette').getByRole('button', { name: 'Close' }).click();
+    // Move (Alt+→: one place later), duplicate (the inspector), delete (the key), a form's change, then undo.
+    await step(async () => {
+      await row('a.0').click();
+      await page.keyboard.press('Alt+ArrowRight');
+    }, /^Moved step 1 of a to position 2\. Saved\./);
+    await step(() => page.getByTestId('step-actions').getByRole('button', { name: 'Duplicate' }).click(), /^Duplicated .*\. Saved\./);
+    await step(async () => {
+      await row('a.0').click();
+      await page.keyboard.press('Delete');
+    }, /^Deleted .*\. Saved\./);
+    await step(async () => {
+      await row('b.0').click();
+      await page.getByTestId('step-form').locator('[data-field="click.text"]').fill('B one');
+      await page.getByTestId('form-save').click();
+    }, /^Changed .*\. Saved\./);
+    await step(() => page.getByTestId('undo').click(), /^Undone: /);
+    expect(sent.map((x) => x.kind)).toEqual(['insert_step', 'move_step', 'duplicate_step', 'delete_step', 'set_step', 'restore']);
+    for (const x of sent) expect(x.hash, x.kind).toBe(x.shown);
+    await writeFile(file('keys'), KEYS);
+  });
+});
+
 describe('review fixes (L4.3 review B)', () => {
   it('L5: the insertion line goes away while dragging over what is not a place to drop', async () => {
     await writeFile(file('keys'), KEYS);
@@ -501,10 +634,10 @@ describe('review fixes (L4.3 review B)', () => {
     const dt = await page.evaluateHandle(() => new DataTransfer());
     await row('a.0').dispatchEvent('dragstart', { dataTransfer: dt });
     const box = await row('b.1').boundingBox();
-    await row('b.1').dispatchEvent('dragover', { dataTransfer: dt, clientX: box!.x + 80, clientY: box!.y + box!.height - 4 });
-    await expect.poll(() => page.locator('.step.drop-before, .step.drop-after').count(), POLL).toBe(1);
+    await row('b.1').dispatchEvent('dragover', { dataTransfer: dt, clientX: box!.x + box!.width - 8, clientY: box!.y + box!.height / 2 });
+    await expect.poll(() => page.locator('.k-frame.is-drop-before, .k-frame.is-drop-after').count(), POLL).toBe(1);
     await page.getByTestId('edit-bar').dispatchEvent('dragover', { dataTransfer: dt });
-    await expect.poll(() => page.locator('.step.drop-before, .step.drop-after').count(), POLL).toBe(0);
+    await expect.poll(() => page.locator('.k-frame.is-drop-before, .k-frame.is-drop-after').count(), POLL).toBe(0);
     await row('a.0').dispatchEvent('dragend', { dataTransfer: dt });
   });
 
@@ -530,7 +663,7 @@ describe('review fixes (L4.3 review B)', () => {
     await page.keyboard.press('Alt+ArrowDown');
     await expect.poll(() => live(), POLL).toBe('Moved step 1 of a to position 2. Saved.');
     await settled('keys');
-    const nav = (n: string) => page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: n });
+    const nav = (n: string) => page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: n });
     await nav('YAML').click();
     await page.getByTestId('yaml-edit').click(POLL);
     await page.locator('#yaml-text').click();
@@ -539,8 +672,8 @@ describe('review fixes (L4.3 review B)', () => {
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect.poll(() => readFile(file('keys'), 'utf8'), POLL).toContain('# saved from the tab');
     await page.getByRole('button', { name: 'Close the editor' }).click();
-    await nav('Blocks').click();
-    await expect.poll(() => live(), POLL).toBe('Saved from the YAML tab: the undo history of block edits was cleared.');
+    await nav('Board').click();
+    await expect.poll(() => live(), POLL).toBe('Saved from the YAML view: the undo history of block edits was cleared.');
     expect(await page.getByTestId('undo').isDisabled()).toBe(true);
     await writeFile(file('keys'), KEYS);
   });
@@ -549,17 +682,64 @@ describe('review fixes (L4.3 review B)', () => {
     await writeFile(file('keys'), KEYS);
     await openBlocks('keys');
     const k0 = await settled('keys');
-    const held: Route[] = [];
-    await page.route('**/v1/call/scenario_blocks', (r) => void held.push(r));
+    const reads = await holdReads();
     await writeFile(file('keys'), `${k0}  - id: [broken\n`);
     await row('a.0').click();
     await page.keyboard.press('Alt+ArrowDown');
     await page.getByTestId('edit-conflict').waitFor(POLL);
-    await page.unroute('**/v1/call/scenario_blocks');
-    for (const r of held) await r.continue().catch(() => undefined);
+    await reads.release();
     await page.getByTestId('edit-conflict-off').waitFor(POLL);
-    expect(await page.getByTestId('edit-conflict-off').innerText()).toBe('It cannot be applied to the new version: This file is not valid YAML: fix it in the YAML tab first.');
+    expect(await page.getByTestId('edit-conflict-off').innerText()).toBe('It cannot be applied to the new version: This file is not valid YAML: fix it in the YAML view first.');
     expect(await page.getByRole('button', { name: 'Apply it to the new version' }).isDisabled()).toBe(true);
+    await writeFile(file('keys'), KEYS);
+  });
+});
+
+describe('L5.10b fixes: the selection and the focus', () => {
+  it('B-M2: the selected step deleted from outside — nothing is selected in its place: no step inspector, no enabled Delete (the key does nothing), the scene shown instead', async () => {
+    await writeFile(file('keys'), KEYS);
+    await openBlocks('keys');
+    await settled('keys');
+    await row('b.1').click();
+    await expect.poll(() => page.getByTestId('inspector-step').innerText(), POLL).toBe('Step 2 · Hold');
+    const outside = KEYS.replace('      - hold: 0.5\n', '');
+    await writeFile(file('keys'), outside);
+    await expect.poll(() => page.locator('[data-testid="step"]').count(), POLL).toBe(3);
+    await expect.poll(() => page.getByTestId('scene-facts').getAttribute('data-scene'), POLL).toBe('b');
+    expect(await page.getByTestId('inspector-step').count()).toBe(0);
+    expect(await page.getByTestId('step-actions').count()).toBe(0);
+    expect(await page.getByTestId('inspector').getByRole('button', { name: 'Delete' }).count()).toBe(0);
+    expect(await page.locator('[role="option"][aria-selected="true"]').count()).toBe(0);
+    // The board and the browser say the same: scene b is the selection.
+    expect(await page.locator('[data-testid="scene"][data-scene="b"]').getByTestId('scene-meta').getAttribute('aria-pressed')).toBe('true');
+    const t0 = Date.now();
+    await page.locator('[role="listbox"][aria-label="Steps of scene b"]').dispatchEvent('keydown', { key: 'Delete' });
+    await sleep(300);
+    expect(ops('scenario_edit', t0)).toEqual([]);
+    expect(await readFile(file('keys'), 'utf8')).toBe(outside);
+    await writeFile(file('keys'), KEYS);
+  });
+
+  it('A-L1, A-L2: an inspector button keeps the focus after its edit (a second Enter moves the step again); its buttons promise no key that does nothing on them', async () => {
+    await writeFile(file('keys'), KEYS);
+    await openBlocks('keys');
+    await settled('keys');
+    await row('a.0').click();
+    const actions = page.getByTestId('step-actions');
+    await actions.waitFor(POLL);
+    expect(await actions.locator('[aria-keyshortcuts]').count()).toBe(0);
+    const t0 = Date.now();
+    await actions.getByRole('button', { name: 'Move down' }).focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(() => live(), POLL).toBe('Moved step 1 of a to position 2. Saved.');
+    await settled('keys');
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-step-action')), POLL).toBe('down');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => ops('scenario_edit', t0).length, POLL).toBe(2);
+    await expect.poll(() => live(), POLL).not.toBe('Moved step 1 of a to position 2. Saved.');
+    const k2 = await settled('keys');
+    // A1 moved down twice: below A2, then across the card to the start of scene b.
+    expect(value(k2)).toEqual(moved(KEYS, 'a', 0, 'b', 0));
     await writeFile(file('keys'), KEYS);
   });
 });

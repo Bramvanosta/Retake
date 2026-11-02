@@ -79,7 +79,7 @@ describe('static app from memory', () => {
     expect(INDEX_HTML).toContain('<title>Demo Studio</title>');
   });
 
-  it('the bundle: no eval, no node built-in, under 700 KB; the document has no inline script or style', async () => {
+  it('the bundle: no eval, no node built-in, under 800 KB; the document has no inline script or style', async () => {
     const t = Date.now();
     const assets = await buildUi();
     expect(Date.now() - t).toBeLessThan(5000);
@@ -88,7 +88,7 @@ describe('static app from memory', () => {
     // L4.5 review: tightened to 430 KB (≈ 415 KB after the fixes).
     // L4.6 part D1: the Comments screen (list, frame viewer, region, composer, thread) — 455.5 KB; room for the proposal view.
     // L4.7 part D2: the theme screens (list, editor, New theme, site panel) — ≈ 569 KB.
-    expect(js.length).toBeLessThan(700_000);
+    expect(js.length).toBeLessThan(800_000);
     expect(js).not.toMatch(/\beval\(|new Function\(/);
     expect(js).not.toMatch(/(?:from|import)\s*\(?\s*["']node:/);
     expect(INDEX_HTML).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i);

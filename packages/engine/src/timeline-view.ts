@@ -320,15 +320,15 @@ async function choicesOf(registry: ComponentRegistry, root: unknown, plan: EditP
   const make = async (at: FieldAt, field: string, range?: FieldChoice['range']): Promise<FieldChoice> => {
     const entry = entryOf(root, at);
     const cur = currentAt(entry, field);
-    // Review B H2: "Theme default" or "Off" would drop an intro / outro's own text and files — the YAML tab changes it.
+    // Review B H2: "Theme default" or "Off" would drop an intro / outro's own text and files — the YAML view changes it.
     const content = cur.content?.filter((k) => /^[a-z_]{1,40}$/.test(k)).slice(0, 6);
     const why =
       editable !== true
         ? editable
         : cur.map
-          ? { why: `${field} is written with params here: change it in the YAML tab` }
+          ? { why: `${field} is written with params here: change it in the YAML view` }
           : cur.content
-            ? { why: `the ${field} has its own ${content?.length ? content.join(', ') : 'content'} here: turn it off or back to the theme's in the YAML tab (a switch would drop it)` }
+            ? { why: `the ${field} has its own ${content?.length ? content.join(', ') : 'content'} here: turn it off or back to the theme's in the YAML view (a switch would drop it)` }
             : true;
     return { at, field, ...(cur.value !== undefined ? { current: cur.value } : {}), editable: why, options: await fieldOptions(registry, root, at, field), ...(range ? { range } : {}) };
   };

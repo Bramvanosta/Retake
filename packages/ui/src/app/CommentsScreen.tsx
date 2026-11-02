@@ -241,7 +241,7 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
         <p className="muted small">Comment a frame of a render: Claude reads the thread with the exact frame, where it points and your words.</p>
         <nav aria-label="Scenario views" className="tabs">
           <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })} className="tab">
-            Blocks
+            Board
           </a>
           <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })} className="tab">
             YAML

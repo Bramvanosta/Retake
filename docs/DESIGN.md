@@ -4314,7 +4314,7 @@ app's 900 px; ↑ ↓ move by the layout's computed row; no `aria-activedescenda
 `inline` field layout, TextField `maxLength` / `autoComplete` / `spellCheck` / `labelHidden` (a search icon), Txt
 `title` (a tooltip, controls made visible), LinkButton `testId`, Blocker without a word (no mark), icons film /
 components / location / person; Thumb sizes by a prop only (`size`: row, poster, inspector — critique M9: the legacy
-screens keep the row size and its classes).
+screens keep the row size and its classes; L5.10b: frame / poster / inspector, `th-*` boxes — §4l (b)).
 
 **Tests.** board-ops.test.ts (the op: allow-list, zod refusals, path-free, untrusted title; the facts through a
 capture, a render and its review, a newer capture, a failure, a filmed change; budgets; the views' memo untouched),
@@ -4329,6 +4329,166 @@ Expectations changed on purpose: the README preview shows a bidi control as a vi
 like every text from data — the editor keeps the exact bytes); the checker's state words gained "valid" (a persona's
 session; "invalid" was there, "validate" / "validation" stay out); its reachable rule accepts a focusable listbox with
 nothing selected and no `aria-activedescendant` (a checker self-test).
+
+### 4l (b). The Scenario screen: storyboard, step inspector, scenes browser, YAML source (L5.10b)
+
+R-UI-38 – R-UI-39. « Épure » 2, the scenario side. Reference: B32-Scenario and R4-Source (layout and drawing; R4-Light
+for the light appearance); built from the lot's plan (§1.4, §3, §4) corrected by its critique (H2 the minimal take
+strip, M1 the Location's conditions, M4 every capability's home, M5 the editor's text area, M7 the drop slot, M8 the
+guard, L1 the intrinsic sizes, L2 the title bar at 900 – 1280, L3 the grid keys). A rebuild, not a cut: every capability of
+L4.2 – L5.8's ScenarioScreen / Inspector / StepForm / StepEditing / YamlTab / YamlView / TextEditing / Thumb is kept —
+same ops, same write path (`scenario_edit` with the hash shown, the step guards, undo / redo by `restore`), same test
+ids. Cuts and deviations: BL-129.
+
+**The screen in the shell** (`ScenarioScreen.tsx`). The scenario's name is a visually hidden h1 (the title bar names
+it; it renders once the view is there — tests and screen readers wait on it). The title bar's context slot: **View**
+(`SegmentedLinks` "View": Board · YAML — `#/p/<slug>/s/<name>` and `…/yaml`, unchanged routes) and **Location** (critique
+M1): the project's environments, each option with its flags in words ("production · read-only"), default the file's
+own (`video.env`, else the project's default); a choice is remembered per scenario in this tab only (a module map —
+a reload goes back to the file's) and sent as `env` to `scenario_blocks` and `scenario_run` only when it differs from
+the file's — a default run's body is the pinned `{project, name, mode, hash}` as before; the take strip says "Dry run
+and Capture use the location …" and, when chosen, that Shoot (the Run screen) uses the file's own. Only a location
+project.yaml has is ever shown or sent (L5.10b fixes, review A M1): a remembered one it no longer has is never sent
+and is dropped once the project is read — from the map and the state —, said once above the take strip
+(`location-dropped`); the select and the strip name the same one. An option leaves out a flag word that repeats its
+name ("production · read-only", review A L7). A new shell slot
+`browser` (slots.tsx): while claimed, the screen's own list replaces the project tree (the foot stays) — and the
+board is not read behind a scenario screen (AppShell: `useBoard(null)` on scenario routes, critique M2). Comments
+moved to Review mode: the take strip keeps the open count as a link (`threads_counts`, "Comments · 3 open").
+
+**The take strip** (`TakeStrip.tsx`, minimal until L5.11 moves the run actions to the status bar): "Pictures from"
+(a kit Select over the runs, `run-picker`), the source run as a shape + words + when (`source-line`), the comments
+link; Dry run and
+Capture in one line, each with what stops it said before any click (the button disabled, "— needs the terminal" / "—
+fix the file first", the reason id read by the button) and the reasons with their commands folded under the line (a
+Disclosure: the blocker's words, `studio run …` and its node form — `TerminalCommands`, a kit piece the Run, Record and
+Timeline screens import too); Open timeline (or off with why); the location line; what the last click came to (queued
+with Watch it live, its outcome with the first line of its error, or the refusal with its command); what the pictures
+may not show (changed since the run with the filmed changes, only the edit changed, cannot tell, newer runs stopped
+early with "Show its pictures", the run's error "from the page"); ConfirmSessions as before. The running take (a
+callout: id, steps done, the current step, a progress bar, Watch live, Cancel: `running`, `run-cancel`) is the
+screen's, above both views — the YAML view shows it too (L5.10b fixes, review B M1).
+
+**The storyboard** (`Storyboard.tsx`). Entries in file order: a "Before filming" row card (the setup hooks; its
+inspector also lists the named hooks "during the take, off camera"), the filmed scenes numbered 1, 2, 3 (cards and
+interstitials as row cards between them: a 96 × 54 tile, the slots' title / kicker / text, "Card · component · 2.5 s"),
+an "After filming" row card. A scene: its h2 (the caption's kicker, else its id), the caption's text, its flags in
+words (skipped, off camera: played, not in the video, irreversible), "Scene 1 · shop, / · 9.3 s" (a button: the scene
+into the inspector) and Add step (the palette placed at the scene's end); its comment, note and issues; then its
+frames — the kit's **FrameGrid** (ONE listbox per scene; three columns while the board — a `k-board` container — is
+wider than 600 px, two down to 380 px, one below: the board's width, not the window's, L5.10b fixes A-L4 / B-L6; the
+one tab stop is the list holding the selection, else the selected scene's, else the first scene's;
+`aria-activedescendant` only there) of **FrameOption**s (measured at 1440 × 900: a frame 256 × 201, its picture
+244 × 137, 20 px gaps): the step's picture from the source run (Thumb.tsx, asked only on screen) or why there is none
+in words, its number over it, its verb (600: the action's own words when they start with it — "Wait for", never "Wait
+wait for") and its target, else its `summary` ("Wait 1.6 s", "Press Enter"), then its state in that run as a shape and
+words with "took 2.1 s", "matched by position: cannot tell whether it changed", its modifiers in words, the `summary`
+beside a target (B32's note) and its issues. Above the scenes: "25 steps in 4 scenes · scenarios/quote.yaml"
+(`board-count`). A scene's length beside its number: a capture's seconds, else "not shot yet" (no run with pictures),
+"no capture yet" (a dry run's pictures) or "not captured" (review A L5).
+Selected: the selection fill and a 2 px ring; dragged: a dashed outline and a dimmed picture (no opacity in the kit);
+an edit on its way: every frame's edge dashed (`aria-busy`). Keys (pure `board-keys.ts`, tested): ← / → the step
+before / after across scenes, ↑ / ↓ the frame in the same column of the row above / below (into the scene before's last
+row or the next scene's first, the column clamped, an empty scene skipped), Home / End, Page Up / Page Down three rows
+— index arithmetic on the step counts and the grid's computed columns, never a measure of a frame (a skipped scene has
+none); Alt+↑ / Alt+← move the selected step one place earlier, Alt+↓ / Alt+→ later (`keyboardMove`; Alt+← is
+prevented: Back in some browsers), Delete / Backspace delete it; a held key repeats no edit; ⌘Z / ⇧⌘Z as before.
+Entering the frames (L5.10b fixes, review A M2): a list that takes the focus with no selection in it (Tab with a scene,
+a card, the hooks or the video selected; a click in its gaps) selects its first step — the focus is never on a listbox
+with no active option —, a grid key with no selection in the list lands on its first step (End: the last of all), and
+a mouse-down on a frame (a click or the start of a drag) makes it the active option at once. One selection (review B
+M2): the screen resolves it once (`resolveSelection`) and the board, the browser and the inspector show that one; a
+picked step whose key leaves the file leaves its scene selected (else the video), a gone scene or card the video —
+never another step, whose Delete the person did not pick (keys are "<scene>.<index>": BL-129).
+Drag & drop (critique M7): the drag state lives in the page (never `dataTransfer` contents; an outside drag is refused
+by the window guard); the list takes `dragover` / `drop` itself, so the 20 px gaps are its; the slot is
+`slotFromPointer` (the nearest row by Y, the frame's half by X; past the last frame of the last row — the trailing
+empty cells — the end of the scene; tested) and the insertion bar is drawn on ONE side (after the frame before the gap;
+before the first frame for gap 0); an empty scene keeps its drop zone (`drop-empty`, in the kit); a locked scene
+refuses. Huge scenarios: no virtualization — each scene is `content-visibility: auto` with its own intrinsic block
+size (120 px of header + rows × the row height: critique L1 — the columns and the row height measured on a rendered
+scene and kept up to date on resize, review A L4; 236 px and three columns before the first measure; the inline size
+stays the board's — a remembered width overflowed the 900 px centre), frames memoised (the source run one object, so
+a selection re-renders the two frames it changes, not the board: review A L3, a React commit hook in
+studio-e2e-scenario counts them). Measured (studio-e2e-scenario, 1,200 steps from the Project screen): interactive with
+its first picture 295 ms after the route change, one `scenario_blocks`, ≤ 2 `run_thumbs` calls of ≤ 24 keys before any
+scroll (scene s0's keys only), End → only s11's keys; a fast scroll: 21 calls, 20 aborted, at most 1 in flight.
+
+**The inspector** (`ScenarioInspector.tsx`, replacing Inspector.tsx). A step, in B32's order (L5.10b fixes, review B
+L4): its picture (the inspector's width, 288 × 162 measured), "Step 3 · Click" (`inspector-step`), its scene and "took
+1.6 s in this capture / dry run", its form (the Action fields, then the Modifiers: at 1440 × 900 the last modifier row
+ends at 611 px, unscrolled) or its target, what the action does (`inspector-hint`), Move up / Move down / Duplicate /
+Delete in a toolbar (`step-actions`: no `aria-keyshortcuts` — the keys act in the frames, review A L2; the button an
+edit came from keeps the focus once editing is back on, so Enter again moves it again — `data-step-action`, review A
+L1), why it is read-only or where else to change it (`edit-hint`), its issues; "In this run" (open: `inspector-run`,
+Show in timeline, the "From the page" box); "As written" (folded
+while the form shows the values: `inspector-args`, the modifiers' chips, its comment, its lines `inspector-source`);
+"Show in the file · line 37" (the YAML view, the lines outlined). The form (`StepForm.tsx`): the kit's fields in the
+inspector's row layout (`data-field` kept), each named in words (`fieldLabel`: "Text", "Milliseconds", "Move time (ms)",
+"Typing speed (characters a second)" — not the schema's keys in mono), a target's empty ways to find it under "Other ways to find it (n)" and the
+empty optional fields under "More: …" (Disclosures, `form-more`), the **modifiers as switches** (caption, hold, speed,
+mark — core `MODIFIER_KEYS`, a local copy: the page imports no runtime code from core): on shows their fields, off
+empties them so Save sends their removal (the same `set_step` changes, each with what the form showed); its own unsaved
+mark only (the kit fields `unsaved={null}`: critique M5). A scene: its caption, flags and facts (page and URL — each
+page of a multi-page scene, `scene-pages` —, persona, speed, layout, captured length and this run's status, transition,
+cursor, still, tutorial), note, comment, issues. A card / an interstitial: component, file, length, slots or kicker and
+text, transition, issues. Before / After filming: the hooks (`hooks`, `hook`: kind, name, flags as words, what they
+run, rollback, a person needed, issues), this run's outcome, the named hooks (`named-hooks`). The video: its facts —
+its location is the file's own ("local (the project's default)") with the tab's choice beside it ("(Dry run and
+Capture: signed-in)", review A L6) —, the notes from the file (`video-block`), the comments link.
+
+**The scenes browser** (`ScenesBrowser.tsx`, the browser slot): Video (the total captured length), Before filming,
+each scene (its number, title, length and a 2 px bar against the longest: decorative), cards and interstitials
+(quieter, their length), After filming — kit `SourceItem` rows with `onSelect` (buttons, `aria-current="true"`). A row
+selects its entry and brings it into view: on the board the entry, in the YAML view its lines.
+
+**File-wide notices** (critique M4) above the edit bar: a YAML draft open (board edits off, `yaml-draft-open`), "This
+file is not valid YAML" (`invalid-yaml`), the file's issues with their lines (`issues`, unpositioned ones included),
+the steps limit (`steps-limit`). The edit bar (`StepEditing.tsx` `EditBar`, a kit Toolbar: Undo / Redo naming the
+edit, Add a step…, "Busy: saving…", the live region; why editing is off; the 409 offer; a refusal with its issues)
+and the palette (`StepForm.tsx` `Palette`) are the same flows on the kit. Every message says "the YAML view" (the core
+and engine refusals and reasons included — "fix it in the YAML view first"; the 409 offer says "The board now shows the
+new version"), and the Timeline and Comments screens' link back says "Board" (L5.10b fixes, review A L7 / B L2). Callouts (`Callout`, a kit piece) replace
+the legacy Notice; every mark's title or word carries a state word the checker knows ("Note:", "Warnings:", "Blocked:",
+"ready · nothing stops it").
+
+**The YAML source** (`YamlTab.tsx`, `YamlView.tsx`, R4-Source): a toolbar line (the file mono, "Comments and layout
+are kept when you edit the board.", Edit / Save / Discard changes / Close the editor); the read view — numbered lines
+with each issue under its line (a shape and a word), the focus lines outlined; the editor — the kit TextArea, now with
+`inputRef`, `maxLength` (500,000), spell check and auto-correction off, extra describing ids (the counter and the
+save state) and `unsaved={null}` (the draft's mark is drafts.ts's); drafts, `if_match`, the 409 panel, live
+`scenario_validate`, the read-only reasons and hidden characters as before (TextEditing.tsx on the kit, also used by
+the legacy README editor). The **File** inspector: valid or how many errors in words, warnings, unsaved changes in the
+editor, the "same checks as Claude's edits" sentence, hidden characters by line, lines · characters of the cap · steps,
+read-only. Syntax colours, Ln / Col and the Outline are cut (BL-129: the scenes browser plays the Outline's part).
+
+**Kit additions** (`ui-kit/frames.tsx`, panes, fields; a gallery section "Storyboard", kit-static, the hostile-SSR slots):
+FrameGrid / FrameOption / RowCard (`slotFromPointer`, `dropSide`), Callout, TerminalCommands, SourceItem `onSelect` and
+`bar`, Disclosure / InspectorSection `testId`, Switch `layout="row"`, TextField / Select `dataField` / `testId` /
+`title` / `describedBy` / `inputMode`, Select `error`, TextArea as above, `gridColumns` exported. Thumb.tsx: sizes
+`frame` (its column's width, 16:9), `poster`, `inspector`; its boxes' look is screens.css's `th-*` (the row size and app.css's
+`.thumb` classes are no longer used). The two real-control exceptions moved from ScenarioScreen.tsx to
+`ui-kit/frames.tsx` (the option and the empty scene's drop zone).
+
+**Ratchet.** ScenarioScreen.tsx (236), Inspector.tsx (64, deleted), StepForm.tsx (68), StepEditing.tsx (29),
+YamlTab.tsx (50), YamlView.tsx (12), TextEditing.tsx (30) and Thumb.tsx (5): 494 rows removed; the new files
+(Storyboard, TakeStrip, ScenarioInspector, ScenesBrowser, board-keys) have none. Left legacy as planned: Sessions.tsx,
+ReadmeEditor.tsx, Renders.tsx (its card in a closed "Renders and review" section at the board's end, `renders-card`,
+until L5.12), CommentsTab.tsx.
+
+**Tests.** app-source (every JSX child of the eleven scenario-side files through Txt / a kit slot — a planted bare
+target and scene title fail it —; no ratchet row and nothing off the kit; the ops they call — reads, `scenario_edit`,
+`scenario_run`, `run_cancel` — and every `scenario_edit` call naming the version shown), kit-static (the frames
+listbox, the row card, the callout, the source button row, the switch row, the commands; the drop slot table),
+storyboard-app (the keys, the intrinsic size), studio-e2e-scenario (the board, pictures, keys by column, events,
+hostile text in the scenes browser and scene titles, the 1,200-step budget, run actions, multi-page facts in the
+scene's inspector), studio-e2e-edit (+ a drop in a column gap and in a trailing cell with the exact place; add, move,
+duplicate, delete, a form's change and undo each one `scenario_edit` with the file's sha256), studio-e2e-forms
+(+ a switch off sends the removal), studio-e2e-yaml (+ the File inspector, a browser row outlining its lines, a file
+that does not parse), the tours (the board with a step selected at 1280 / 1440 dark, 1280 light and 900, a row card
+selected, the YAML view read and editing, a file that does not parse on the board and in YAML). The migrated files keep
+every test title, assertion count and test id (the scratch guard); listed renames: `comments-tab` → `comments-count`
+on the scenario screen.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

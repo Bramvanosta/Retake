@@ -214,22 +214,29 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.title()).toBe('quote · Scenario · Demo Studio');
     const scenes = page.getByTestId('scene');
     await expect.poll(() => scenes.count(), POLL).toBe(4);
-    const d = await page.locator('[data-scene="discover"]').innerText();
+    // L5.10b: a scene's facts are its inspector's (its "Scene 1 · …" button selects it).
+    await page.locator('[data-scene="discover"]').getByTestId('scene-meta').click();
+    const d = await page.getByTestId('scene-facts').innerText();
     expect(d).toContain('http://localhost:4402/');
     expect(d).toContain('shown as https://shop.northfield.example/');
     expect(d).toMatch(/Speed/);
     expect(d).toMatch(/Layout/);
     expect(d).toMatch(/Duration/);
-    expect(await page.locator('[data-scene="request"]').innerText()).toContain('continues from discover');
+    await page.locator('[data-scene="request"]').getByTestId('scene-meta').click();
+    await expect.poll(() => page.getByTestId('scene-facts').getAttribute('data-scene'), POLL).toBe('request');
+    expect(await page.getByTestId('scene-facts').innerText()).toContain('continues from discover');
     expect(await page.getByTestId('caption').first().innerText()).toContain('Award-winning lots');
     // Steps: an action badge in words, a target in plain words, chips.
     const first = row('discover.0');
     expect(await first.getByTestId('action-badge').innerText()).toMatch(/hover/i);
     expect(await page.locator('[data-chip]').count()).toBeGreaterThan(0);
-    // The hooks strip and what would stop a run from the Studio.
+    // The hooks (L5.10b: Before filming's inspector) and what would stop a run from the Studio.
+    await page.getByTestId('before-filming').click();
     expect(await page.getByTestId('hook').count()).toBeGreaterThan(1);
     expect(await page.getByTestId('hooks').innerText()).toMatch(/destructive|rollback/i);
     expect(await page.getByTestId('blockers-dry-run').innerText()).toContain('nothing stops it');
+    // L5.10b: the reasons fold under the strip's one line (critique H2): opened, they read as before.
+    await page.getByTestId('blockers-capture').locator('summary').click();
     const cap = await page.getByTestId('blockers-capture').innerText();
     expect(cap).toContain('needs the terminal');
     expect(cap).toContain('The Studio cannot approve hooks yet');
@@ -246,13 +253,17 @@ describe('the scenario screen in Chromium', () => {
     await page.goto(`${studio.url}#/p/${P}/s/off-camera`);
     await page.getByRole('heading', { level: 1, name: 'off-camera' }).waitFor();
     const hook = row('requests.2');
+    await hook.waitFor(POLL);
+    await hook.scrollIntoViewIfNeeded(); // a scene off screen is not painted (content-visibility): its words show once in view
     expect(await hook.getByTestId('action-badge').innerText()).toMatch(/^hook$/i);
     expect(await hook.innerText()).toContain('off camera: cut from the video');
+    await page.getByTestId('before-filming').click();
     const named = await page.getByTestId('named-hooks').innerText();
     expect(named).toContain('run during the take by a hook step, off camera');
     expect(named).toMatch(/request[\s\S]*queue/);
     expect(named).toContain('Needs a person');
     expect(await page.locator('[data-scene="to-the-list"]').innerText()).toContain('off camera: played, not in the video');
+    await page.getByTestId('blockers-capture').locator('summary').click();
     expect(await page.getByTestId('blockers-capture').innerText()).toContain('The Studio cannot approve hooks yet');
     await shot('10b-scenario-off-camera');
   });
@@ -295,21 +306,29 @@ describe('the scenario screen in Chromium', () => {
     const selected = () => page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key');
     expect(await active()).toMatchObject({ role: 'listbox', label: 'Steps of scene one' });
     expect(await selected()).toBe('one.0');
+    // L5.10b: the frames are a grid — ↓ / ↑ by column (into the next scene), ← / → step by step.
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
+    expect(await selected()).toBe('two.0');
+    await page.keyboard.press('ArrowUp');
+    expect(await selected()).toBe('one.0');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
     expect(await selected()).toBe('one.2');
-    expect(await page.getByTestId('inspector-step').innerText()).toBe('Step 3 of scene one');
-    await page.keyboard.press('ArrowDown'); // into the next scene's list
+    expect(await page.getByTestId('inspector-step').innerText()).toBe('Step 3 · Hold');
+    await page.keyboard.press('ArrowRight'); // into the next scene's list
     expect(await selected()).toBe('two.0');
     expect(await active()).toMatchObject({ role: 'listbox', label: 'Steps of scene two' });
     const desc = (await active()).desc!;
     expect(await page.locator(`#${desc}`).getAttribute('data-key')).toBe('two.0');
     await page.keyboard.press('End');
     expect(await selected()).toBe('two.1');
+    // "As written" folds while the form shows the values (L5.10b): opened, the arguments as written.
+    await page.getByTestId('inspector').locator('summary', { hasText: 'As written' }).click();
     expect(await page.getByTestId('inspector-args').innerText()).toContain('Fourth');
     expect(await page.getByTestId('inspector-hint').innerText()).toMatch(/Click an element/);
     expect(await page.getByTestId('inspector-run').innerText()).toMatch(/ok · .* · picture from frame/);
     expect(await page.getByTestId('edit-hint').innerText()).toContain('scenarios/blocks.yaml');
+    await row('two.1').click(); // back to the frames (the summary took the focus)
     await page.keyboard.press('Home');
     expect(await selected()).toBe('one.0');
     expect(await page.locator('[role="listbox"][tabindex="0"]').count()).toBe(1);
@@ -317,17 +336,17 @@ describe('the scenario screen in Chromium', () => {
     // Tab leaves the step area at once (the other scene's list is not a tab stop).
     await page.keyboard.press('Tab');
     expect((await active()).role).not.toBe('listbox');
-    expect(await page.getByTestId('inspector').getByRole('heading', { name: 'Step inspector' }).count()).toBe(1);
+    expect(await page.getByTestId('inspector').getByRole('heading', { name: 'Step 1 · Click' }).count()).toBe(1);
     expect(await page.getByTestId('inspector-source').innerText()).toBe('click: First');
     await shot('13-scenario-inspector');
-    await page.getByRole('button', { name: 'Show in YAML' }).click();
+    await page.getByRole('button', { name: 'Show in the file · line 7' }).click();
     await page.waitForURL(/\/s\/blocks\/yaml$/);
     const focused = page.locator('[data-testid="yaml"] li[data-focus="true"]');
     await expect.poll(() => focused.count(), POLL).toBe(1);
     expect(await focused.innerText()).toContain('- click: First');
     expect(await page.getByTestId('yaml').locator('li').count()).toBe(BLOCKS_YAML.split('\n').length);
     await shot('14-scenario-yaml');
-    await page.getByRole('link', { name: 'Blocks' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'Board' }).click();
     await row('one.0').waitFor();
     expect(await page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key')).toBe('one.0');
   });
@@ -372,7 +391,7 @@ describe('the scenario screen in Chromium', () => {
     await writeFile(join(project(), 'scenarios', 'blocks.yaml'), BLOCKS_YAML.replace('    steps:\n      - click: First', '    steps:\n      - click: Zero\n      - click: First'));
     await expect.poll(() => page.getByText('What the browser does changed since this run').count(), POLL).toBe(1);
     // L5.5: the notice names the filmed part that changed.
-    expect(await page.locator('.notice', { hasText: 'What the browser does changed since this run' }).innerText()).toContain('Changed: scene one: step one.0 added.');
+    expect(await page.getByTestId('notice-changed').innerText()).toContain('Changed: scene one: step one.0 added.');
     await sleep(500);
     expect(ops('scenario_blocks', t3)).toHaveLength(1);
     expect(await row('one.0').innerText()).toContain('New since this run');
@@ -400,8 +419,13 @@ describe('the scenario screen in Chromium', () => {
     expect(from).not.toContain('secret');
     await row('evil.1').click();
     expect(await page.getByTestId('from-page').innerText()).toContain('<iframe srcdoc=');
+    // L5.10b: the video's facts are its inspector's (the browser's Video row); the scenes browser names each entry as text.
+    await page.getByTestId('scenes-video').click();
     expect(await page.getByTestId('video-block').innerText()).toContain('<img src=x onerror=window.__pwned=1>');
-    await page.getByRole('link', { name: 'YAML' }).click();
+    const browser = await page.getByRole('navigation', { name: 'Scenes' }).innerText();
+    expect(browser).toContain('<b onmouseover=window.__pwned=3>');
+    expect(await page.locator('[data-scene="evil"] h2').innerText()).toBe('<b onmouseover=window.__pwned=3>');
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'YAML' }).click();
     await page.getByTestId('yaml').waitFor();
     const yaml = await page.getByTestId('yaml').innerText();
     expect(yaml).toContain('<script>window.__pwned="comment"</script>');
@@ -508,6 +532,7 @@ describe('the scenario screen in Chromium', () => {
     const described = await capture.getAttribute('aria-describedby');
     expect(await page.locator(`#${described}`).innerText()).toBe('why, and the command to type, below');
     // Said once (review B L6), with the command and its node form for a person without `studio` on their PATH.
+    await page.getByTestId('blockers-capture').locator('summary').click();
     expect((await page.getByTestId('blockers-capture').innerText()).match(/needs the terminal/g)).toHaveLength(1);
     expect(await page.getByTestId('blockers-capture').getByTestId('blocker-fix').innerText()).toBe(`studio -C ${ws} run ${P} quote`);
     expect(await page.getByTestId('blockers-capture').getByTestId('blocker-fix-node').innerText()).toMatch(new RegExp(`/packages/cli/dist/bin\\.js -C ${ws.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} run ${P} quote$`));
@@ -549,7 +574,7 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.getByTestId('run-submitted').count(), 'the queued note goes once its run is over').toBe(0);
     // Its outcome instead (review B H1).
     await expect.poll(() => page.getByTestId('run-outcome').count(), POLL).toBe(1);
-    expect(await page.locator('.notice', { has: page.getByTestId('run-outcome') }).innerText()).toMatch(new RegExp(`The dry run ${runId} cancelled[\\s\\S]*It left no picture\\.`));
+    expect(await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText()).toMatch(new RegExp(`The dry run ${runId} cancelled[\\s\\S]*It left no picture\\.`));
     // The cancelled run is one of the picker's runs (it has no pictures: the source stays the capture).
     await expect.poll(() => page.getByTestId('run-picker').locator('option').allInnerTexts(), POLL).toContain(`Dry run ${runId} · cancelled · no pictures`);
     expect(await page.getByTestId('source-line').innerText()).toContain(CAPTURE);
@@ -581,6 +606,51 @@ describe('the scenario screen in Chromium', () => {
     return runId!;
   }
 
+  it('⚑ the Location (critique M1): its options carry their flags; a choice reads the view and runs there (`env` sent), the file\'s own sends none; a reload goes back to the file\'s', async () => {
+    await page.goto(`${studio.url}#/p/${P}/s/blocks`);
+    await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+    const select = page.getByTestId('location-select');
+    await select.waitFor(POLL);
+    expect(await select.inputValue()).toBe('local');
+    const options = await select.locator('option').allInnerTexts();
+    expect(options).toContain('local · default');
+    // Review A L7: a flag word that repeats the name is left out.
+    expect(options).toContain('production · read-only');
+    expect(await page.getByTestId('run-location').innerText()).toContain('Dry run and Capture use the location local.');
+    // Another location: the view is read there, the take strip says so and that Shoot keeps the file's own.
+    const t0 = Date.now();
+    await select.selectOption('signed-in');
+    await expect.poll(() => ops('scenario_blocks', t0).map((r) => r.body.env), POLL).toEqual(['signed-in']);
+    await expect.poll(() => page.getByTestId('run-location').innerText(), POLL).toContain("Dry run and Capture use the location signed-in. Shoot (the Run screen) uses the file's own location, local.");
+    // Review A L6: the Video inspector's Location is the file's own, the tab's choice beside it.
+    await page.getByTestId('scenes-video').click();
+    await expect.poll(() => page.getByTestId('video-block').innerText(), POLL).toContain("local (the project's default) (Dry run and Capture: signed-in)");
+    // A dry run there carries `env` (a run of the file's own location never does: the run-actions test pins its body).
+    const dry = page.getByTestId('run-dry');
+    await expect.poll(() => dry.isDisabled(), POLL).toBe(false);
+    const t1 = Date.now();
+    await dry.click();
+    await expect.poll(() => ops('scenario_run', t1).length, POLL).toBe(1);
+    expect(ops('scenario_run', t1)[0].body).toMatchObject({ project: P, name: 'blocks', mode: 'dry', env: 'signed-in' });
+    await page.getByTestId('run-cancel').click();
+    await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
+    // Critique M2: no project board read behind a scenario screen (its browser shows the scenes), runs and all.
+    expect(ops('project_board', t0)).toEqual([]);
+    // Back to the file's own: no env in the next read; a reload forgets any choice.
+    const t2 = Date.now();
+    await select.selectOption('local');
+    await expect.poll(() => ops('scenario_blocks', t2).length, POLL).toBeGreaterThan(0);
+    expect(ops('scenario_blocks', t2).every((r) => r.body.env === undefined)).toBe(true);
+    await select.selectOption('signed-in');
+    await expect.poll(() => select.inputValue(), POLL).toBe('signed-in');
+    const t3 = Date.now();
+    await page.reload();
+    await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+    await expect.poll(() => select.inputValue(), POLL).toBe('local');
+    expect(ops('scenario_blocks', t3).every((r) => r.body.env === undefined)).toBe(true);
+    expect(consoleErrors).toEqual([]);
+  });
+
   it('a Studio run that fails before its first step (the site down): its outcome and first error line, named over the pictures (review B H1)', async () => {
     await writeFile(join(project(), 'scenarios', 'down.yaml'), BLOCKS_YAML);
     await writeRun(project(), capture('20261020-090000-down', { scenario: 'down', video: false }));
@@ -591,7 +661,7 @@ describe('the scenario screen in Chromium', () => {
     await writeFile(file, JSON.stringify({ ...rec, status: 'failed', finished_at: new Date().toISOString(), error: { scene: 'one', step: 0, action: 'click', message: 'scene one, step 0 (click “First”): page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:4401/\nCall log: …' } }));
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     await expect.poll(() => page.getByTestId('run-outcome-error').count(), POLL).toBe(1);
-    const notice = await page.locator('.notice', { has: page.getByTestId('run-outcome') }).innerText();
+    const notice = await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText();
     expect(notice).toContain(`The dry run ${runId} failed at step 1 of one`);
     expect(notice).toContain('It left no picture.');
     // The runner's 0-based prefix in the screen's words (review B M2), its first line only.
@@ -599,7 +669,7 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.getByTestId('run-outcome-error').innerText()).not.toContain('Call log');
     // The source stays the capture; the failed run is named above the pictures.
     expect(await page.getByTestId('source-line').innerText()).toContain('20261020-090000-down');
-    expect(await page.locator('.notice', { hasText: 'Newer runs stopped early' }).innerText()).toContain(`${runId} (failed at step 1 of one, no pictures)`);
+    expect(await page.getByTestId('newer-partial').innerText()).toContain(`${runId} (failed at step 1 of one, no pictures)`);
     await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('23-scenario-run-failed');
     const job = await jobOf(runId);
@@ -619,7 +689,7 @@ describe('the scenario screen in Chromium', () => {
       const file = join(project(), 'runs', runId, 'run.json');
       const rec = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
       await writeFile(file, JSON.stringify({ ...rec, status: 'running', steps_done: 1, current: { scene: 'one', step: 1, action: 'click' } }));
-      await expect.poll(() => page.locator('.notice', { has: page.getByTestId('running') }).innerText().catch(() => ''), POLL).toContain('is running');
+      await expect.poll(() => page.locator('.k-callout', { has: page.getByTestId('running') }).innerText().catch(() => ''), POLL).toContain('is running');
       const t0 = Date.now();
       worker.kill('SIGKILL');
       await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
@@ -637,12 +707,19 @@ describe('the scenario screen in Chromium', () => {
     await page.goto(`${studio.url}#/p/${P}/s/phone-and-desktop`);
     await page.getByRole('heading', { level: 1, name: 'phone-and-desktop' }).waitFor();
     const phone = page.locator('[data-testid="scene"][data-scene="phone"]');
-    const pages = await phone.getByTestId('scene-pages').innerText();
+    // L5.10b: a scene's pages and layout are its inspector's.
+    await phone.getByTestId('scene-meta').click();
+    const facts = page.getByTestId('scene-facts');
+    await expect.poll(() => facts.getAttribute('data-scene'), POLL).toBe('phone');
+    const pages = await facts.getByTestId('scene-pages').innerText();
     expect(pages).toMatch(/desk \(Desktop\) · page shop · http:\/\/localhost:4402\/quotes/);
     expect(pages).toMatch(/phone \(Phone\) · page shop · http:\/\/localhost:4402\/products\/selowa-ridge/);
-    expect(await phone.innerText()).not.toContain('the first page');
-    expect(await phone.innerText()).toContain('2 pages, picture in picture (pip) — the video’s frame');
-    expect(await page.locator('[data-testid="scene"][data-scene="send"]').getByTestId('scene-pages').innerText()).toMatch(/desk · page shop · continues from phone/);
+    expect(await facts.innerText()).not.toContain('the first page');
+    expect(await facts.innerText()).toContain('2 pages, picture in picture (pip) — the video’s frame');
+    await page.locator('[data-testid="scene"][data-scene="send"]').getByTestId('scene-meta').click();
+    await expect.poll(() => facts.getAttribute('data-scene'), POLL).toBe('send');
+    expect(await facts.getByTestId('scene-pages').innerText()).toMatch(/desk · page shop · continues from phone/);
+    await page.getByTestId('scenes-video').click();
     const video = await page.getByTestId('video-block').innerText();
     expect(video).toContain('Notes from the file');
     expect(video).toContain('One account, two screens (L2.11): the same shop filmed on a desktop and on a phone');
@@ -654,8 +731,9 @@ describe('the scenario screen in Chromium', () => {
     // quote: two cards between its filmed scenes — the scenes are 1, 2, 3, 4 all the same.
     await page.goto(`${studio.url}#/p/${P}/s/quote`);
     await page.getByRole('heading', { level: 1, name: 'quote' }).waitFor();
-    const titles = await page.locator('[data-testid="scene"] .scene-title .muted').allInnerTexts();
-    expect(titles).toEqual(titles.map((_t, i) => `Scene ${i + 1}`));
+    // Text content: a scene off screen is not painted (content-visibility), its words are there all the same.
+    const titles = await page.getByTestId('scene-meta').allTextContents();
+    expect(titles.map((t) => t.split(' · ')[0])).toEqual(titles.map((_t, i) => `Scene ${i + 1}`));
     expect(await page.getByTestId('card').count()).toBeGreaterThan(0);
   });
 
@@ -675,7 +753,186 @@ describe('the scenario screen in Chromium', () => {
     await page.goto(`${studio.url}#/p/${P}/s/huge`);
     await page.getByRole('heading', { level: 1, name: 'huge' }).waitFor({ timeout: 10_000 });
     await expect.poll(() => page.locator('[data-testid="step"]').count(), { timeout: 15_000 }).toBe(2000);
-    expect(await page.locator('.notice', { has: page.getByTestId('steps-limit') }).innerText()).toContain('Showing the first 2,000 steps of 2,100');
+    expect(await page.locator('.k-callout', { has: page.getByTestId('steps-limit') }).innerText()).toContain('showing the first 2,000 steps of 2,100');
     expect(consoleErrors).toEqual([]);
+  });
+
+  it('L5.10b fixes A-M1: a location remembered in this tab that project.yaml no longer has is dropped once the project is read — never sent, said once, the select and the strip agree, the file not blamed', async () => {
+    const yamlPath = join(project(), 'project.yaml');
+    const before = await readFile(yamlPath, 'utf8');
+    try {
+      await page.goto(`${studio.url}#/p/${P}/s/blocks`);
+      await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+      const select = page.getByTestId('location-select');
+      await select.waitFor(POLL);
+      await select.selectOption('signed-in');
+      await expect.poll(() => page.getByTestId('run-location').innerText(), POLL).toContain('use the location signed-in');
+      // Renamed in project.yaml (its personas' section too), then the scenario opened again in the same tab.
+      await writeFile(yamlPath, before.replace(/\n {2}signed-in:/g, '\n  signed-in-renamed:'));
+      await page.goto(`${studio.url}#/p/${P}`);
+      await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
+      await expect.poll(() => page.locator('body').innerText(), POLL).toContain('signed-in-renamed');
+      const t0 = Date.now();
+      await page.goto(`${studio.url}#/p/${P}/s/blocks`);
+      await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+      await page.getByTestId('location-dropped').waitFor(POLL);
+      expect(await page.getByTestId('location-dropped').innerText()).toContain("The location signed-in chosen earlier is no longer in project.yaml: Dry run and Capture use the file's own, local.");
+      expect(ops('scenario_blocks', t0).every((r) => r.body.env === undefined)).toBe(true);
+      await expect.poll(() => select.inputValue(), POLL).toBe('local');
+      expect(await page.getByTestId('run-location').innerText()).toContain('Dry run and Capture use the location local.');
+      expect(await page.getByTestId('issues').count()).toBe(0);
+      expect(await page.getByTestId('run-dry').innerText()).toBe('Dry run');
+      // Said once: picking a location clears it.
+      await select.selectOption('production');
+      await expect.poll(() => page.getByTestId('location-dropped').count(), POLL).toBe(0);
+    } finally {
+      await writeFile(yamlPath, before);
+    }
+    expect(consoleErrors).toEqual([]);
+  });
+
+  it('L5.10b fixes A-M2: entering the frames by keyboard with a scene, a card, the hooks or the video selected lands on the first step of the tab stop\'s list (an active option); the next → goes to step 2; a mouse-down sets the active option', async () => {
+    await page.goto(`${studio.url}#/p/${P}/s/blocks`);
+    await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+    const selected = () => page.locator('[role="option"][aria-selected="true"]').getAttribute('data-key');
+    const active = () => page.evaluate(() => ({ label: document.activeElement?.getAttribute('aria-label'), desc: document.activeElement?.getAttribute('aria-activedescendant') }));
+    // Scene two selected by its scene button: Tab enters scene two's list on its first step.
+    const two = page.locator('[data-testid="scene"][data-scene="two"]');
+    await two.getByTestId('scene-meta').focus();
+    await two.getByTestId('scene-meta').press('Enter');
+    await expect.poll(() => page.getByTestId('scene-facts').getAttribute('data-scene'), POLL).toBe('two');
+    expect(await page.locator('[role="listbox"][tabindex="0"]').getAttribute('aria-label')).toBe('Steps of scene two');
+    // Tab past the scene's own buttons (Add step) into its frames.
+    for (let i = 0; i < 4 && (await page.evaluate(() => document.activeElement?.getAttribute('role'))) !== 'listbox'; i++) await page.keyboard.press('Tab');
+    expect((await active()).label).toBe('Steps of scene two');
+    await expect.poll(selected, POLL).toBe('two.0');
+    expect(await page.locator(`#${(await active()).desc}`).getAttribute('data-key')).toBe('two.0');
+    await page.keyboard.press('ArrowRight');
+    expect(await selected()).toBe('two.1');
+    // The video selected: the first scene's list is the tab stop; focusing it selects step 1, → step 2.
+    await page.getByTestId('scenes-video').click();
+    await page.getByTestId('video-block').waitFor(POLL);
+    expect(await page.locator('[role="option"][aria-selected="true"]').count()).toBe(0);
+    const one = page.locator('[role="listbox"][aria-label="Steps of scene one"]');
+    expect(await one.getAttribute('tabindex')).toBe('0');
+    await one.focus();
+    await expect.poll(selected, POLL).toBe('one.0');
+    await page.keyboard.press('ArrowRight');
+    expect(await selected()).toBe('one.1');
+    // A mouse-down (the start of a drag) on a frame of the other scene makes it the active option at once.
+    const box = (await row('two.1').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 20);
+    await page.mouse.down();
+    await expect.poll(selected, POLL).toBe('two.1');
+    expect(await active()).toMatchObject({ label: 'Steps of scene two' });
+    await page.mouse.up();
+    expect(consoleErrors).toEqual([]);
+  });
+
+  it('L5.10b fixes A-L3: a selection re-renders the two frames it changes, not the board (the source object is stable)', async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 } });
+    // A React devtools hook (no extension): each commit, the frames whose option element got new props.
+    await ctx.addInitScript(() => {
+      const w = window as unknown as { __frames: number[]; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown };
+      w.__frames = [];
+      type Fiber = { child: Fiber | null; sibling: Fiber | null; type: unknown; memoizedProps: Record<string, unknown> | null };
+      let seen = new WeakSet<Fiber>();
+      w.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        supportsFiber: true,
+        renderers: new Map(),
+        inject: () => 1,
+        checkDCE: () => undefined,
+        onScheduleFiberRoot: () => undefined,
+        onCommitFiberUnmount: () => undefined,
+        onPostCommitFiberRoot: () => undefined,
+        // A frame rendered in a commit is a fiber object the previous commit's tree did not hold (a memo that bails out
+        // leaves its subtree's fibers as they were).
+        onCommitFiberRoot: (_id: number, root: { current: Fiber }) => {
+          let n = 0;
+          const now = new WeakSet<Fiber>();
+          const stack: Fiber[] = [root.current];
+          while (stack.length) {
+            const f = stack.pop()!;
+            if (f.type === 'li' && f.memoizedProps?.role === 'option') {
+              if (!seen.has(f)) n++;
+              now.add(f);
+            }
+            if (f.child) stack.push(f.child);
+            if (f.sibling) stack.push(f.sibling);
+          }
+          seen = now;
+          w.__frames.push(n);
+        },
+      };
+    });
+    const p2 = await ctx.newPage();
+    try {
+      await p2.goto(studio.launchUrl());
+      await p2.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+      await p2.goto(`${studio.url}#/p/${P}/s/long`);
+      await p2.getByRole('heading', { level: 1, name: 'long' }).waitFor({ timeout: 10_000 });
+      await expect.poll(() => p2.locator('[data-testid="step"]').count(), { timeout: 10_000 }).toBe(LONG_SCENES * LONG_PER);
+      await p2.locator('[data-testid="step"][data-key="s0.0"]').click();
+      await sleep(500);
+      const counts: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        await p2.evaluate(() => ((window as unknown as { __frames: number[] }).__frames = []));
+        await p2.keyboard.press('ArrowRight');
+        await expect.poll(() => p2.locator('[role="option"][aria-selected="true"]').getAttribute('data-key'), POLL).toBe(`s0.${i + 1}`);
+        await sleep(150);
+        counts.push(Math.max(0, ...(await p2.evaluate(() => (window as unknown as { __frames: number[] }).__frames))));
+      }
+      if (SHOTS) await writeFile(join(SHOTS, 'frames-rerendered.json'), JSON.stringify(counts));
+      // The frame that loses the selection and the one that takes it (a picture arriving may add a few).
+      for (const c of counts) expect(c, `frames re-rendered by one selection: ${counts.join(', ')}`).toBeLessThanOrEqual(6);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  it('L5.10b fixes A-L4, B-L6, B-L8: the columns of the frames follow the board\'s width (three, two at 1100, one in a 900 window with the inspector); a skipped scene\'s height uses them; the title bar keeps the scenario\'s name; the step count is on the board', async () => {
+    const intrinsic = () =>
+      page.evaluate(() => {
+        const list = document.querySelector<HTMLElement>('.k-frames')!;
+        const frame = list.querySelector<HTMLElement>(':scope > [role="option"]')!;
+        const cols = getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length;
+        const rowPx = Math.round(frame.getBoundingClientRect().height + (parseFloat(getComputedStyle(list).rowGap) || 0));
+        const last = [...document.querySelectorAll<HTMLElement>('[data-testid="scene"]')].at(-1)!;
+        return { cols, rowPx, style: last.style.containIntrinsicBlockSize, steps: last.querySelectorAll('[role="option"]').length };
+      });
+    const expected = (m: { cols: number; rowPx: number; steps: number }) => `auto ${120 + Math.ceil(m.steps / m.cols) * m.rowPx}px`;
+    try {
+      await page.goto(`${studio.url}#/p/${P}/s/long`);
+      await page.getByRole('heading', { level: 1, name: 'long' }).waitFor({ timeout: 10_000 });
+      await expect.poll(() => page.locator('[data-testid="step"]').count(), { timeout: 10_000 }).toBe(LONG_SCENES * LONG_PER);
+      expect(await page.getByTestId('board-count').innerText()).toBe('1,200 steps in 12 scenes · scenarios/long.yaml');
+      const seen: number[] = [];
+      for (const width of [1440, 1100, 900]) {
+        await page.setViewportSize({ width, height: 860 });
+        await expect.poll(async () => {
+          const m = await intrinsic();
+          return m.style === expected(m);
+        }, POLL).toBe(true);
+        seen.push((await intrinsic()).cols);
+      }
+      expect(seen).toEqual([3, 2, 1]);
+      // The board's width, not the window's: at 1100 with the inspector hidden the board is wide again — three columns.
+      await page.setViewportSize({ width: 1100, height: 860 });
+      const toggle = page.getByRole('button', { name: 'Inspector' });
+      await toggle.click();
+      try {
+        await expect.poll(async () => (await intrinsic()).cols, POLL).toBe(3);
+      } finally {
+        await toggle.click();
+      }
+      await page.setViewportSize({ width: 900, height: 860 });
+      // 900 with the inspector: the scenario's name keeps its words (and its full text in a tooltip).
+      const crumb = page.locator('.sh-crumb-current');
+      expect(await crumb.getAttribute('title')).toBe('long');
+      expect(await crumb.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      await shot('26-scenario-900-columns');
+    } finally {
+      await page.setViewportSize({ width: 1360, height: 860 });
+    }
   });
 });

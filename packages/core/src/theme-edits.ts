@@ -305,12 +305,12 @@ function getAt(v: unknown, path: readonly string[]): unknown {
 /** The splice options of a theme: new top-level keys before `components:`, block maps with comments never rewritten. */
 const spliceOptions = (what: string): SetMapPathOptions => ({ insertBefore: 'components', keepComments: true, what, byHand: BY_HAND });
 
-/** A StepEditError's wording for a theme (the scenario editor's "YAML tab" is template.yaml by hand here). */
+/** A StepEditError's wording for a theme (the scenario editor's "YAML view" is template.yaml by hand here). */
 function themeWords<T>(fn: () => T): T {
   try {
     return fn();
   } catch (e) {
-    if (e instanceof StepEditError) throw new StepEditError(e.code, e.message.replace(/(?:change|edit|make) it in the YAML tab|in the YAML tab/g, BY_HAND), e.field);
+    if (e instanceof StepEditError) throw new StepEditError(e.code, e.message.replace(/(?:change|edit|make) it in the YAML view|in the YAML view/g, BY_HAND), e.field);
     throw e;
   }
 }
@@ -494,6 +494,6 @@ export function applyThemeEdit(text: string, edit: Exclude<ThemeEdit, { kind: 'r
   }
   // The splices verified every step; the whole edit is checked once more against its final value.
   const wrong = verifyEditText(out.text, out.intended);
-  if (wrong) throw new StepEditError('not_editable', `${wrong.replace(/change it in the YAML tab/, BY_HAND)}`);
+  if (wrong) throw new StepEditError('not_editable', `${wrong.replace(/change it in the YAML view/, BY_HAND)}`);
   return out;
 }

@@ -51,7 +51,7 @@ import { RenderBar, RendersPanel, useRenders } from './Renders.js';
 import { versionNote } from './render-words.js';
 import type { RenderTarget } from './Renders.js';
 import { hrefTo } from './route.js';
-import { Commands } from './ScenarioScreen.js';
+import { TerminalCommands as Commands } from './ui-kit/index.js';
 import { TimelineInspector, useSwitchEditor } from './TimelineInspector.js';
 import { Tracks } from './TimelineTracks.js';
 import { canPlay, cannotPlayWords, codecWords, frameWords, keyAction, landingOf, previewUrls, targetFrame, timecode, zoomFactor } from './timeline-words.js';
@@ -479,7 +479,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
         </p>
         <nav aria-label="Scenario views" className="tabs">
           <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })} className="tab">
-            Blocks
+            Board
           </a>
           <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })} className="tab">
             YAML

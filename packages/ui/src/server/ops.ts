@@ -195,7 +195,7 @@ const EditInput = z.strictObject({
   hash: sha256.describe('The file as the screen showed it (scenario_blocks `hash`): refused (409) when the file changed since.'),
   edit: z
     .discriminatedUnion('kind', [
-      z.strictObject({ kind: z.literal('replace_text'), text: editText.describe('The YAML tab\'s text (a final line break is added when missing).') }),
+      z.strictObject({ kind: z.literal('replace_text'), text: editText.describe('The YAML view\'s text (a final line break is added when missing).') }),
       z.strictObject({
         kind: z.literal('restore'),
         text: editText.describe('The exact text of an earlier version (undo / redo).'),
@@ -516,7 +516,7 @@ export function editOps(oneAtATime: OpChain = opChain()): ToolDef[] {
   const edit: ToolDef<typeof EditInput> = {
     name: 'scenario_edit',
     title: 'Edit a scenario from the Studio',
-    description: "Apply one edit (the YAML tab's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette, a timeline switch of an edit value) to a scenario, on the version the screen showed.",
+    description: "Apply one edit (the YAML view's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette, a timeline switch of an edit value) to a scenario, on the version the screen showed.",
     input: EditInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a, { engine }) {

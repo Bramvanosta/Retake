@@ -123,7 +123,7 @@ describe('forms derived from the schemas', () => {
         expect(() => newStepValue(a, without), `${a} without ${f.key}`).toThrow(/needs a value/);
       }
     }
-    expect(() => newStepValue('eval', { 'eval.js': 'x' } as never)).toThrow(/YAML tab/);
+    expect(() => newStepValue('eval', { 'eval.js': 'x' } as never)).toThrow(/YAML view/);
   });
 });
 
@@ -434,7 +434,7 @@ describe('layouts', () => {
   it('a field holding something a form cannot show (a scope written as a row, a URL with sign-in details) is locked, never written', () => {
     const t = 'video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: {text: Edit, in: {row: Order 12}}\n      - open: "https://u:pw@shop.example.test/x"\n';
     const f0 = stepFormValues(stepsOf(t, 'a')[0])!;
-    expect(f0.locked['click.in']).toMatch(/YAML tab/);
+    expect(f0.locked['click.in']).toMatch(/YAML view/);
     expect(() => set(t, 'a', 0, [change('click.in', undefined, 'dialog')])).toThrow(/click\.in written in a form/);
     const f1 = stepFormValues(stepsOf(t, 'a')[1])!;
     expect(f1.values).toEqual({});
@@ -446,7 +446,7 @@ describe('layouts', () => {
     const zw = String.fromCodePoint(0x200b);
     const t = `video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - type: {into: Name, text: "a${zw}b"}\n`;
     const f = stepFormValues(stepsOf(t, 'a')[0])!;
-    expect(f.locked['type.text']).toBe('holds U+200B (a zero-width space), which a form cannot show: edit it in the YAML tab');
+    expect(f.locked['type.text']).toBe('holds U+200B (a zero-width space), which a form cannot show: edit it in the YAML view');
     expect(f.values['type.text']).toBeUndefined();
     expect(() => set(t, 'a', 0, [change('type.text', undefined, 'ab')])).toThrow(/type\.text holds U\+200B/);
   });

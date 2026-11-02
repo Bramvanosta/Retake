@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-10-30, end of **L5.10a (Studio « Épure » 2, the project side)** — phases 1–4 are done (phases
-3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1, L5.2, L5.2b, L5.5 –
-L5.9, L5.10a done). **Next: L5.10b (the scenario side: storyboard, step inspector, scenes, YAML source, Location).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-11-02, end of lot **L5.10 (Studio « Épure » 2: Project and Scenario; L5.10a + L5.10b)** — phases
+1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
+L5.2, L5.2b, L5.5 – L5.10 done). **Next: L5.11 (Studio « Épure » 3: Shoot), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -24,12 +24,28 @@ automatically with themeable components, and let Claude operate everything throu
 6. `README.md` — usage, scenario language reference, CLI.
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
-   first version are not in the repo: edit it directly, next free id BL-129); `docs/COMPETITION.md` — competitive study
+   first version are not in the repo: edit it directly, next free id BL-130); `docs/COMPETITION.md` — competitive study
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.10a)
+## State (after L5.10b)
+- **L5.10b done (2026-11-02)** — L5.10 is complete. The scenario side of Épure 2 from B32-Scenario / R4-Source: the
+  storyboard (frames of the latest take three a row on a container-query board — 3 / 2 / 1 columns —, step number, verb
+  and target, state word, durations labelled, cards and Before / After filming as row cards, the step count), one
+  resolved selection driving the board, the scenes browser and the inspectors (step: picture, form with field labels in
+  words, "Other ways to find it", modifiers as switches, then the actions; scene, card, hooks, video) — a step that
+  disappears is never replaced by another; a minimal take strip (Pictures from, Dry run · Capture with folded reasons
+  and commands, Open timeline, the location line, the comments count) with the running run above the Board · YAML
+  switch on both views; Board · YAML and Location in the title bar (`env` sent only when it differs from the file's,
+  a stale remembered location dropped once the project is read); the YAML source with a File inspector. The write path
+  is unchanged (every edit through `scenario_edit` with the hash, tested); the 1,200-step budget holds (interactive with
+  its first picture in ≈ 0.2–0.4 s, one blocks read, 2 of 1,200 frames re-rendered per selection). Inspector.tsx
+  deleted; 8 files left the kit ratchet (494 legacy controls). Tests on the Mac: **3948 — 3859 pass, 84 skipped, 5
+  failures in the one full run under a machine load average of 12–14** (run-thumbs abort, capture-pause, choreography
+  date pickers, the keyboard path, timeline-switch 409 — all timing; each green alone straight after); `pnpm test:slow`
+  65/65; the gated acceptances (Chrome, run, record, themes, scenario-run) green once each. Requirements: 658 tracked —
+  617 done (R-UI-38, R-UI-39 added), 27 partial, 8 todo, 6 n/a-here. Live checks for the user: MACOS-CHECKLIST 14c (b).
 - **L5.10a done (2026-10-30)** — L5.10 is split in two (the critique sized it L): the project side first. A Studio-only
   READ op `project_board` (engine `project-board.ts`: one pass over the runs grouped by scenario, its own stat-keyed
   caches with a 60 s TTL that also re-stat the files the checks read, one renders read and one memoised queue pass per
@@ -507,7 +523,7 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.10b (the scenario side of Épure 2) per the roadmap** (L5.10a is done). **Decided
+**Next: L5.11 (Studio « Épure » 3: Shoot) per the roadmap**, only when the user asks (L5.10 is done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1445,6 +1461,14 @@ sandbox, a hook step and compact results through Claude Code).
   `project-board.ts`, `index-db/jobs-watch.ts`; core `checks/context.ts` (`filesRead`); ui `project-data.ts`,
   `board-words.ts`, `WelcomeScreen.tsx`, `ProductionsScreen.tsx`, `CastScreen.tsx`, `shell/`, `ui-kit/` (Sheet,
   CommandPalette, cards, panes, fields). Cuts: BL-128.
+- **L5.10b done** (the scenario side of Épure 2; R-UI-38, R-UI-39). Built from the L5.10 plan and critique (drag & drop on
+  the list with the slot from the pointer, no double unsaved mark on the YAML editor, a minimal take strip), reviewed by
+  two reviewers (the YAML view losing the running run, a stale selection whose Delete would hit a step never picked, the
+  edit e2e leaving a route installed after a failure, a stale remembered location breaking the screen, the keyboard
+  entering the frames in the wrong place…) and fixed with mutation-checked tests (≈ 45 mutations over L5.10b). Files: ui
+  `ScenarioScreen.tsx`, `Storyboard.tsx`, `TakeStrip.tsx`, `ScenarioInspector.tsx`, `ScenesBrowser.tsx`,
+  `board-keys.ts`, `scenario-words.ts`, StepForm / StepEditing / YamlTab / YamlView / TextEditing / Thumb on the kit,
+  `ui-kit/frames.tsx` (FrameGrid, FrameOption, RowCard), `Callout`, `TerminalCommands`. Cuts: BL-129.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1712,6 +1736,16 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.10b:
+- The scenario screen keeps one resolved selection (`resolveSelection`): a gone step falls back to its scene, then the
+  video — never to another step. The storyboard is a set of listboxes (one per scene) with grid keys from
+  `board-keys.ts`; a drop's slot comes from the pointer (`slotFromPointer`), so gaps are not dead zones.
+- `Running` (progress, Cancel) sits above the Board · YAML switch. The Location select sends `env` to `scenario_run`
+  only when it differs from the file's own and names a known environment.
+- E2e tests that install `page.route` release it in `afterEach` (`holdRoute`) and wait for reads to go quiet before a
+  conflict test (`holdReads`). The a11y checker skips `.k-sr` text like `.sr-only`.
+- "YAML view" (not "YAML tab") and "Board" (not "Blocks") everywhere in the UI and messages.
+
 Notes from L5.10a:
 - Project data comes from `project-data.ts` (one entry per project: project_get, project_board, auth_status; stable
   subscriptions, first read in an effect, errored entries retried with a backoff or on an event). Screens never call

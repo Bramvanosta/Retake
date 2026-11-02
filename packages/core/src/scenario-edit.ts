@@ -1,6 +1,6 @@
 /**
  * Scenario edits from the Studio (L4.3, R-UI-11 / R-UI-12): the rules every write of a scenario the Studio makes goes
- * through, pure and shared by the engine's write path (engine scenarios.edit) and its tests: the YAML tab
+ * through, pure and shared by the engine's write path (engine scenarios.edit) and its tests: the YAML view
  * (`replace_text`), undo / redo (`restore`) and the Blocks tab's step edits (step-edits.ts), all on the same rules.
  *
  * - Size: a scenario the Studio writes holds at most SCENARIO_EDIT_MAX_CHARS characters (MCP scenario_save's cap).
@@ -33,7 +33,7 @@ import { parseYaml } from './validation/yaml-source.js';
 export const SCENARIO_EDIT_MAX_CHARS = 500_000;
 
 /**
- * The kinds of `scenario_edit`: the YAML tab's text, undo / redo's byte-exact restore, the Blocks tab's step edits
+ * The kinds of `scenario_edit`: the YAML view's text, undo / redo's byte-exact restore, the Blocks tab's step edits
  * (step-edits.ts STEP_EDIT_KINDS — written out here: step-edits imports this module's input rules) and the timeline's
  * field edits (L4.5, field-edits.ts `set_field`).
  */
@@ -41,7 +41,7 @@ export const SCENARIO_EDIT_KINDS = ['replace_text', 'restore', 'move_step', 'del
 export type ScenarioEditKind = (typeof SCENARIO_EDIT_KINDS)[number];
 
 export type ScenarioEdit =
-  /** The YAML tab's text: written as given, with a final line break added when it has none (as scenario_save). */
+  /** The YAML view's text: written as given, with a final line break added when it has none (as scenario_save). */
   | { kind: 'replace_text'; text: string }
   /** Undo / redo: the exact bytes of an earlier version (`text_hash`: their sha256, checked), no line break added. */
   | { kind: 'restore'; text: string; text_hash: string }
@@ -233,7 +233,7 @@ export function verifyEditText(text: string, intended: unknown): string | null {
     const first = parsed.issues.find((i) => i.severity === 'error');
     return `the edit would not give valid YAML${first ? ` (${first.message}${first.line !== undefined ? `, line ${first.line}` : ''})` : ''}`;
   }
-  if (!isDeepStrictEqual(parsed.value, intended)) return 'the edit cannot be made without changing other parts of the file — change it in the YAML tab';
+  if (!isDeepStrictEqual(parsed.value, intended)) return 'the edit cannot be made without changing other parts of the file — change it in the YAML view';
   return null;
 }
 

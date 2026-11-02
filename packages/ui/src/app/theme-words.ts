@@ -422,7 +422,7 @@ export interface TemplateFieldEdit {
 /** "Use in this scenario": the edit, or that it already uses it, or why not. */
 export function useInScenarioPlan(s: ScenarioFacts, theme: string): { edit: TemplateFieldEdit } | { already: true } | { why: string } {
   if (!okTheme(theme)) return { why: 'not a theme name' };
-  if (!s.blocks.parsed) return { why: 'the scenario does not read as YAML: fix it in its YAML tab first' };
+  if (!s.blocks.parsed) return { why: 'the scenario does not read as YAML: fix it in its YAML view first' };
   if (!s.edit.blocks.ok) return { why: s.edit.blocks.why };
   const cur = s.blocks.video.template;
   if (cur === theme) return { already: true };

@@ -183,7 +183,7 @@ describe('set_field: stale and not editable', () => {
 
   it('a transition written with params is changed in the YAML tab', () => {
     const at = atOf(BASE, 'card', 'card-2');
-    expect(() => applyFieldEdit(BASE, { kind: 'set_field', at, field: 'card.transition', to: 'cut' })).toThrow(/written as a map \(with params\): change it in the YAML tab/);
+    expect(() => applyFieldEdit(BASE, { kind: 'set_field', at, field: 'card.transition', to: 'cut' })).toThrow(/written as a map \(with params\): change it in the YAML view/);
   });
 
   it('a card keeps the key of its kind: its last value cannot be removed here', () => {
@@ -246,7 +246,7 @@ describe('set_field: placement and forms', () => {
       }
       expect(err, JSON.stringify(edit)).toBeInstanceOf(StepEditError);
       expect((err as StepEditError).code).toBe('not_editable');
-      expect((err as StepEditError).message).toBe("the outro has its own tagline, image: turn it off or back to the theme's in the YAML tab (a switch would drop it)");
+      expect((err as StepEditError).message).toBe("the outro has its own tagline, image: turn it off or back to the theme's in the YAML view (a switch would drop it)");
     }
     // Its component and duration still switch inside the map (the tagline stays).
     const c = applied(t, { kind: 'set_field', at: { entry: 'top' }, field: 'outro.component', to: 'studio/outro-minimal' });

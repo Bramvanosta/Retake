@@ -38,6 +38,13 @@ import {
   PosterCard,
   PosterGrid,
   Progress,
+  Callout,
+  FrameGrid,
+  FrameOption,
+  RowCard,
+  TerminalCommands,
+  dropSide,
+  slotFromPointer,
   Segmented,
   SegmentedLinks,
   Select,
@@ -208,6 +215,51 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
 });
 
 describe('the overlays (L5.9 part C)', () => {
+  it('L5.10b: a scene\'s frames — one listbox (tab stop, horizontal, aria-activedescendant only when given), options with aria-selected and a name; the empty drop zone; a row card is a pressed button; a callout says its state in words; a source row that acts is a button with aria-current="true"; a switch row', () => {
+    const go = () => undefined;
+    const grid = renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps of scene one', tabbable: true, activeId: 'o1', children: [createElement(FrameOption, { key: 'a', id: 'o1', dataKey: 'one.0', testId: 'step', label: 'Step 1: click First. done', selected: true, picture: 'pic', number: '1', title: 'Click', draggable: true, drop: 'after', dragging: false, onPick: go })] }));
+    expect(grid).toMatch(/<ul role="listbox" aria-label="Steps of scene one" aria-orientation="horizontal" aria-activedescendant="o1" tabindex="0" class="k-frames">/);
+    expect(grid).toMatch(/<li id="o1" role="option" aria-selected="true" aria-label="Step 1: click First. done" class="k-frame is-selected is-draggable is-drop-after" data-key="one.0" data-testid="step" draggable="true">/);
+    const off = renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps', tabbable: false, children: [createElement(FrameOption, { key: 'a', id: 'o2', dataKey: 'a', label: 'x', selected: false, picture: 'p', number: '1', title: 't', draggable: false, drop: null, dragging: true, onPick: go })] }));
+    expect(off).not.toContain('aria-activedescendant');
+    expect(off).toContain('tabindex="-1"');
+    expect(off).toContain('class="k-frame is-dragging"');
+    expect(renderToStaticMarkup(createElement(FrameGrid, { label: 'Steps', tabbable: false, empty: 'No steps.', emptyTarget: true, children: [] }))).toMatch(/^<p class="k-frames-empty is-target" data-testid="drop-empty"><bdi>No steps\.<\/bdi><\/p>$/);
+    expect(renderToStaticMarkup(createElement(RowCard, { tile: 'Card', title: 'Step two', meta: 'Card · 2.5 s', selected: true, onSelect: go, testId: 'card' }))).toMatch(/^<button type="button" class="k-rowcard is-selected" aria-pressed="true" data-testid="card">/);
+    const callout = renderToStaticMarkup(createElement(Callout, { state: 'fail', role: 'alert', title: 'Not saved', children: 'x' }));
+    expect(callout).toMatch(/^<div class="k-callout" data-state="fail" role="alert">/);
+    expect(callout).toContain('<span class="k-mark-word"><bdi>Not saved</bdi></span>');
+    const row = renderToStaticMarkup(createElement(SourceList, { label: 'Scenes', groups: [{ key: 'g', items: [{ key: 'a', label: 'Discover', current: true, onSelect: go, bar: 0.5 }] }] }));
+    expect(row).toMatch(/<button type="button" class="k-source-item is-current has-bar" aria-current="true">/);
+    expect(row).toContain('<span class="k-source-bar" aria-hidden="true"><span class="k-source-bar-fill" style="width:50%"></span></span>');
+    const sw = renderToStaticMarkup(createElement(Switch, { label: 'Caption', hint: 'On this step', checked: false, onChange: go, layout: 'row' }));
+    expect(sw).toMatch(/^<label class="k-switch-row k-switch-row-layout">/);
+    expect(sw).toMatch(/<input type="checkbox" role="switch" class="k-switch-input" aria-labelledby="[^"]+" aria-describedby="[^"]+"\/>/);
+    const cmd = renderToStaticMarkup(createElement(TerminalCommands, { fix: 'studio run p q', fixNode: 'node bin.js run p q' }));
+    expect(cmd).toContain('data-testid="blocker-fix"><bdi>studio run p q</bdi>');
+    expect(cmd).toContain('data-testid="blocker-fix-node"><bdi>node bin.js run p q</bdi>');
+    expect(renderToStaticMarkup(createElement(TerminalCommands, {}))).toBe('');
+  });
+
+  it('L5.10b: the drop slot comes from the pointer (critique M7) — the nearest row by Y, the half by X, the trailing cells the end; the bar on one side', () => {
+    // Two rows of three 100 × 60 frames, 24 px gaps; the second row holds two.
+    const r = (col: number, row: number) => ({ left: col * 124, right: col * 124 + 100, top: row * 84, bottom: row * 84 + 60 });
+    const rects = [r(0, 0), r(1, 0), r(2, 0), r(0, 1), r(1, 1)];
+    expect(slotFromPointer(rects, 10, 30)).toBe(0);
+    expect(slotFromPointer(rects, 90, 30)).toBe(1);
+    expect(slotFromPointer(rects, 112, 30)).toBe(1); // in the gap between 0 and 1: the right half of 0
+    expect(slotFromPointer(rects, 320, 30)).toBe(3); // the right half of the row's last: after it
+    expect(slotFromPointer(rects, 300, 72)).toBe(3); // in the gap between the rows, at the right: the nearest row (the first), after its last
+    expect(slotFromPointer(rects, 10, 120)).toBe(3);
+    expect(slotFromPointer(rects, 300, 110)).toBe(5); // a trailing empty cell: the end of the scene
+    expect(slotFromPointer(rects, 10, 400)).toBe(3); // below everything: the last row
+    expect(slotFromPointer([], 0, 0)).toBe(0);
+    // The bar: gap 0 before the first frame, any other gap after the frame before it (never twice).
+    expect([0, 1, 2].map((i) => dropSide(0, i))).toEqual(['before', null, null]);
+    expect([0, 1, 2].map((i) => dropSide(3, i))).toEqual([null, null, 'after']);
+    expect([2, 3].map((i) => dropSide(3, i))).toEqual(['after', null]);
+  });
+
   it('menu: a trigger with aria-haspopup / aria-expanded / aria-controls / popovertarget, a popover menu of menuitem buttons with one tab stop', () => {
     const m = html(createElement(Menu, { label: 'More', icon: 'more', items: [{ id: 'a', label: 'Duplicate' }, 'separator', { id: 'b', label: 'Delete', danger: true }], onSelect: noop }));
     const id = /aria-controls="([^"]+)"/.exec(m)?.[1];

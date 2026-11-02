@@ -8,7 +8,7 @@ import type { BoardRun, BoardScenario, RenderReviewSummary } from '@demo-studio/
 import { MARK_STATES } from '../src/app/ui-kit/marks.js';
 import { boardEventAction } from '../src/app/project-data.js';
 import { onlyRunProgress } from '../src/app/events.js';
-import { contentWords, filterSort, groupCounts, lastTakeWords, lengthWords, productionState, reviewState, runningWords } from '../src/app/board-words.js';
+import { contentWords, envFlagWords, filterSort, groupCounts, lastTakeWords, lengthWords, productionState, reviewState, runningWords } from '../src/app/board-words.js';
 
 const H = 'a'.repeat(64);
 const base = (o: Partial<BoardScenario> = {}): BoardScenario => ({
@@ -186,5 +186,15 @@ describe('the open project\'s reads: what an event re-reads (project-data boardE
     expect(boardEventAction(ws({}), P, new Set(), new Set())).toEqual({ view: true, board: 'now', cast: 'now' });
     expect(boardEventAction({ type: 'resync' }, P, new Set(), new Set())).toEqual({ view: true, board: 'now', cast: 'now' });
     expect(boardEventAction({ type: 'index', generation: 3 }, P, new Set(), new Set())).toEqual({ view: false, board: null, cast: null });
+  });
+});
+
+describe('envFlagWords (L5.10b fixes A-L7)', () => {
+  it('beside its name, a flag word that repeats it is left out — "production · read-only", not "production · production · read-only"', () => {
+    const prod = { production: true, access: 'read-only' as const, sandbox: false };
+    expect(envFlagWords(prod, false)).toBe('production · read-only');
+    expect(envFlagWords(prod, false, 'production')).toBe('read-only');
+    expect(envFlagWords(prod, true, 'live')).toBe('default · production · read-only');
+    expect(envFlagWords({ production: false, access: 'read-write', sandbox: true }, false, 'sandbox')).toBe('');
   });
 });

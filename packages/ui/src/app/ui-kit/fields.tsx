@@ -7,7 +7,7 @@
  * cue: `aria-invalid`, `aria-describedby`).
  */
 import { useId } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { HTMLAttributes, KeyboardEvent, ReactNode, Ref } from 'react';
 import { useUnsavedMark } from '../drafts.js';
 import type { UnsavedItem } from '../drafts.js';
 import { Icon } from './Icon.js';
@@ -37,6 +37,16 @@ interface TextCommon {
   layout?: FieldLayout;
   id?: string;
   name?: string;
+  /** L5.10b: the field's key as a data attribute (a step form's `data-field`: tests and the form find it by it). */
+  dataField?: string;
+  /** L5.10b: a test id kept from an older screen. */
+  testId?: string;
+  /** L5.10b: a tooltip (the schema's description of a step field). */
+  title?: string;
+  /** L5.10b: more ids that describe the input (a counter, a save state), after the hint and the error. */
+  describedBy?: string;
+  /** L5.10b: the label visually hidden (still the input's name). */
+  labelHidden?: boolean;
 }
 
 function Frame({ id, label, hint, error, layout, labelHidden, children }: { id: string; label: ReactNode; hint?: ReactNode; error?: ReactNode; layout: FieldLayout; labelHidden?: boolean; children: ReactNode }) {
@@ -62,13 +72,13 @@ function Frame({ id, label, hint, error, layout, labelHidden, children }: { id: 
   );
 }
 
-const describedBy = (id: string, hint: ReactNode, error: ReactNode) => [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
+const describedBy = (id: string, hint: ReactNode, error: ReactNode, more?: string) => [hint ? `${id}-hint` : '', error ? `${id}-error` : '', more ?? ''].filter(Boolean).join(' ') || undefined;
 
 /**
  * L5.10a fixes (review B-L4, B-L6): a search keeps its limits (`maxLength`, no autocomplete, no spell check), and its
  * label may be visually hidden (`labelHidden`: still the input's name) with a search icon in the field.
  */
-export function TextField({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, type = 'text', onKeyDown, maxLength, autoComplete, spellCheck, labelHidden }: TextCommon & { type?: 'text' | 'search' | 'url' | 'email'; onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void; maxLength?: number; autoComplete?: string; spellCheck?: boolean; labelHidden?: boolean }) {
+export function TextField({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, type = 'text', onKeyDown, maxLength, autoComplete, spellCheck, labelHidden, dataField, testId, title, describedBy: more, inputMode }: TextCommon & { type?: 'text' | 'search' | 'url' | 'email'; onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void; maxLength?: number; autoComplete?: string; spellCheck?: boolean; inputMode?: HTMLAttributes<HTMLInputElement>['inputMode'] }) {
   useUnsavedMark(unsavedFor(value, baseline, unsaved));
   const own = useId();
   const fid = id ?? own;
@@ -88,8 +98,12 @@ export function TextField({ label, value, onChange, baseline = '', unsaved, mono
         maxLength={maxLength}
         autoComplete={autoComplete}
         spellCheck={spellCheck}
+        inputMode={inputMode}
+        title={title}
+        data-field={dataField}
+        data-testid={testId}
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(fid, hint, error)}
+        aria-describedby={describedBy(fid, hint, error, more)}
         onChange={(e) => onChange(e.currentTarget.value)}
         onKeyDown={onKeyDown}
       />
@@ -97,23 +111,34 @@ export function TextField({ label, value, onChange, baseline = '', unsaved, mono
   );
 }
 
-export function TextArea({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, rows = 4 }: TextCommon & { rows?: number }) {
+/**
+ * L5.10b (critique M5): a text area for an editor too — its element (`inputRef`: a caret moved to a line), a cap
+ * (`maxLength`), spell check and auto-correction off, more describing ids; `unsaved={null}` when the caller owns the
+ * mark (the YAML draft's is drafts.ts's: the quit question never lists it twice).
+ */
+export function TextArea({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, rows = 4, inputRef, maxLength, spellCheck, autoCorrect, testId, describedBy: more, labelHidden, tall }: TextCommon & { rows?: number; inputRef?: Ref<HTMLTextAreaElement>; maxLength?: number; spellCheck?: boolean; /** Off: auto-capitalisation and auto-correction off too (code, YAML). */ autoCorrect?: boolean; /** Fills the height its container gives (an editor). */ tall?: boolean }) {
   useUnsavedMark(unsavedFor(value, baseline, unsaved));
   const own = useId();
   const fid = id ?? own;
   return (
-    <Frame id={fid} label={label} hint={hint} error={error} layout={layout}>
+    <Frame id={fid} label={label} hint={hint} error={error} layout={layout} labelHidden={labelHidden}>
       <textarea
         id={fid}
+        ref={inputRef}
         name={name}
         rows={rows}
-        className={mono ? 'k-input k-textarea k-mono' : 'k-input k-textarea'}
+        className={`${mono ? 'k-input k-textarea k-mono' : 'k-input k-textarea'}${tall ? ' k-textarea-tall' : ''}`}
         value={value}
         placeholder={placeholder}
         disabled={disabled}
         readOnly={readOnly}
+        maxLength={maxLength}
+        spellCheck={spellCheck}
+        autoCapitalize={autoCorrect === false ? 'off' : undefined}
+        autoCorrect={autoCorrect === false ? 'off' : undefined}
+        data-testid={testId}
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(fid, hint, error)}
+        aria-describedby={describedBy(fid, hint, error, more)}
         onChange={(e) => onChange(e.currentTarget.value)}
       />
     </Frame>
@@ -127,13 +152,13 @@ export interface SelectOption {
 }
 
 /** A native select (the system draws its menu: nothing to build, nothing to trap). */
-export function Select({ label, value, options, onChange, disabled, hint, layout = 'stack', id }: { label: ReactNode; value: string; options: SelectOption[]; onChange: (value: string) => void; disabled?: boolean; hint?: ReactNode; layout?: FieldLayout; id?: string }) {
+export function Select({ label, value, options, onChange, disabled, hint, error, layout = 'stack', id, dataField, testId, title, labelHidden }: { label: ReactNode; value: string; options: SelectOption[]; onChange: (value: string) => void; disabled?: boolean; hint?: ReactNode; /** L5.10b: an error in words ("Error: …"), as the text fields. */ error?: ReactNode; layout?: FieldLayout; id?: string; dataField?: string; testId?: string; title?: string; labelHidden?: boolean }) {
   const own = useId();
   const fid = id ?? own;
   return (
-    <Frame id={fid} label={label} hint={hint} layout={layout}>
+    <Frame id={fid} label={label} hint={hint} error={error} layout={layout} labelHidden={labelHidden}>
       <span className="k-select">
-        <select id={fid} className="k-select-input" value={value} disabled={disabled} aria-describedby={describedBy(fid, hint, undefined)} onChange={(e) => onChange(e.currentTarget.value)}>
+        <select id={fid} className="k-select-input" value={value} disabled={disabled} title={title} data-field={dataField} data-testid={testId} aria-invalid={error ? true : undefined} aria-describedby={describedBy(fid, hint, error)} onChange={(e) => onChange(e.currentTarget.value)}>
           {options.map((o) => (
             <option key={o.value} value={o.value} disabled={o.disabled}>
               {visibleControls(o.label)}

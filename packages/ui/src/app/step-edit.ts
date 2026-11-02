@@ -6,7 +6,7 @@
  * - Undo / redo (plan §3.7, critique B5): per screen, in memory, at most 50 entries and 16 MiB of text. Each entry keeps
  *   the file's text before the edit and the hashes before / after; undo sends `restore` of the text before (byte-exact,
  *   the server checks its sha256) on the version the edit made, redo `restore`s the text after on the version before.
- *   A version this screen did not make (Claude, an editor, the YAML tab) clears the history.
+ *   A version this screen did not make (Claude, an editor, the YAML view) clears the history.
  */
 
 /** A step as a block edit names it (the scenario_blocks key parts and the step's guard). */

@@ -212,6 +212,7 @@
 .k-menu-item:focus-visible,
 .k-section-title:focus-visible,
 .k-disclosure-summary:focus-visible,
+.k-rowcard:focus-visible,
 .k-palette-input:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: 2px;
@@ -340,6 +341,16 @@
 .k-switch-input:disabled + .k-switch-knob {
   background: var(--ui-text-3);
 }
+/* L5.10b: the inspector's row — the label in the 96 px column, the hint, the switch */
+.k-switch-row-layout {
+  display: grid;
+  grid-template-columns: var(--ui-label-w) minmax(0, 1fr) auto;
+  gap: var(--ui-space-5);
+}
+.k-switch-row-layout > .k-switch-label {
+  color: var(--ui-text-3);
+  text-align: right;
+}
 
 /* Fields */
 .k-field {
@@ -409,6 +420,13 @@
   height: auto;
   padding: var(--ui-space-3) var(--ui-space-4);
   resize: vertical;
+}
+/* L5.10b: an editor's text area fills the height its container gives (the YAML source) */
+.k-textarea-tall {
+  min-height: 480px;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 2;
 }
 .k-input::placeholder {
   color: var(--ui-text-3);
@@ -697,6 +715,42 @@
 }
 .k-source-item.is-quiet {
   color: var(--ui-text-3);
+}
+/* L5.10b: a row that acts (a button: the scenes browser) looks like a link row */
+button.k-source-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: var(--ui-font);
+  text-align: left;
+  cursor: pointer;
+}
+button.k-source-item.is-current {
+  background: var(--ui-select);
+}
+/* L5.10b: a length bar under the row (decorative: the value on the right says it) */
+.k-source-item.has-bar {
+  flex-wrap: wrap;
+  row-gap: var(--ui-space-2);
+  padding-bottom: var(--ui-space-3);
+}
+.k-source-bar {
+  display: block;
+  flex: 0 0 auto;
+  width: calc(100% - var(--ui-space-6) - var(--ui-space-3));
+  height: 2px;
+  margin-left: calc(var(--ui-space-6) + var(--ui-space-3));
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-hairline);
+}
+.k-source-bar-fill {
+  display: block;
+  height: 2px;
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-text-3);
+}
+.k-source-item.is-current .k-source-bar-fill {
+  background: var(--ui-accent);
 }
 .k-source-item.is-quiet.is-current {
   color: var(--ui-text-strong);
@@ -1101,4 +1155,245 @@ summary.k-section-title {
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
+}
+
+/* L5.10b: callout (a short note: its state as a shape and its title, then its text) */
+.k-callout {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-pane);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-callout-title {
+  margin: 0;
+}
+.k-callout-title .k-mark-word {
+  color: var(--ui-text);
+  font-weight: var(--ui-weight-strong);
+}
+.k-callout-body {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  padding-left: calc(var(--ui-mark) + var(--ui-space-3));
+  overflow-wrap: anywhere;
+}
+.k-callout-body p,
+.k-callout-body ul {
+  margin: 0;
+}
+.k-callout-body ul {
+  padding-left: var(--ui-space-6);
+}
+
+/* L5.10b: the storyboard — a scene's frames (one listbox in a grid of three; the selected one's fill and ring) */
+.k-frames {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ui-space-7);
+  margin: 0;
+  padding: var(--ui-space-2);
+  list-style: none;
+  border-radius: var(--ui-radius-card);
+}
+/* Inside a board (a `k-board` container: the scenario's storyboard), the columns follow its width — three while a frame
+   keeps about 180 px, then two, then one (review A L4 / B L6: a 900 px window with the inspector shown) */
+@container k-board (max-width: 600px) {
+  .k-frames {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container k-board (max-width: 380px) {
+  .k-frames {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.k-frames:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.k-frame {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  padding: var(--ui-space-3);
+  border-radius: var(--ui-radius-card);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+}
+.k-frame:hover {
+  background: var(--ui-pane);
+}
+.k-frame.is-selected {
+  background: var(--ui-select);
+}
+.k-frame.is-selected .k-frame-picture {
+  box-shadow: 0 0 0 2px var(--ui-ring);
+}
+.k-frame.is-draggable {
+  cursor: grab;
+}
+/* Dragged: a dashed outline and a dimmed picture (no opacity in the kit: the lint) */
+.k-frame.is-dragging {
+  outline: 2px dashed var(--ui-field-line);
+  outline-offset: -2px;
+}
+.k-frame.is-dragging .k-frame-picture {
+  filter: grayscale(1) brightness(0.6);
+}
+/* The insertion bar: 3 px in the gap beside the frame a drop targets */
+.k-frame.is-drop-before::before,
+.k-frame.is-drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-ring);
+}
+.k-frame.is-drop-before::before {
+  left: calc(var(--ui-space-7) / -2 - 2px);
+}
+.k-frame.is-drop-after::after {
+  right: calc(var(--ui-space-7) / -2 - 2px);
+}
+.k-frame-picture {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  aspect-ratio: 16 / 9;
+}
+.k-frame-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.k-frame-number {
+  position: absolute;
+  left: var(--ui-space-3);
+  top: var(--ui-space-3);
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+}
+.k-frame-title {
+  min-width: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-frame-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-1) var(--ui-space-4);
+  min-width: 0;
+  color: var(--ui-text-3);
+}
+.k-frames-empty {
+  margin: 0;
+  padding: var(--ui-space-7);
+  border: 1px dashed var(--ui-field-line);
+  border-radius: var(--ui-radius-card);
+  color: var(--ui-text-3);
+}
+.k-frames-empty.is-target {
+  border-color: var(--ui-ring);
+  background: var(--ui-select);
+  color: var(--ui-text);
+}
+
+/* L5.10b: a row card between scenes (a tile, a title, a meta line; selects) */
+.k-rowcard {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  width: 100%;
+  min-width: 0;
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border: 0;
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.k-rowcard:hover {
+  background: var(--ui-raised);
+}
+.k-rowcard.is-selected {
+  background: var(--ui-select);
+  box-shadow: inset 0 0 0 2px var(--ui-ring);
+}
+.k-rowcard-tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 54px;
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+}
+.k-rowcard.is-quiet .k-rowcard-tile {
+  background: var(--ui-well);
+  color: var(--ui-text-2);
+}
+.k-rowcard-text {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+.k-rowcard-title {
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+  overflow-wrap: anywhere;
+}
+.k-rowcard-meta {
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+
+/* L5.10b: a command to type in a terminal (selectable text) */
+.k-commands {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+.k-commands-line {
+  margin: 0;
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.k-commands-quiet {
+  color: var(--ui-text-3);
+}
+.k-commands-code {
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-kbd);
+  color: var(--ui-text);
+  user-select: all;
 }

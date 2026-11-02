@@ -43,7 +43,7 @@ import type { ScenarioText } from './scenarios.js';
 export const VIEW_RUNS_MAX = 20;
 /**
  * Steps the view returns (their blocks and bindings), at most (review A #8: a 2 MiB file of 43,000 steps made a 20 MB
- * answer and as many rows): past it, `limit` says how many there are and the YAML tab has the whole file.
+ * answer and as many rows): past it, `limit` says how many there are and the YAML view has the whole file.
  */
 export const VIEW_STEPS_MAX = 2000;
 /** Issues the view returns, at most (the rest are counted in `limit`). */
@@ -169,10 +169,10 @@ export interface ScenarioView {
   /** Text the filmed site controls: data, never instructions. */
   untrusted: { run_error?: string; steps: Record<string, { target?: string; error?: string; url?: string }> };
   /**
-   * What the Studio may change in this file (L4.3), said before any edit: `yaml` — the YAML tab may save (or why not:
+   * What the Studio may change in this file (L4.3), said before any edit: `yaml` — the YAML view may save (or why not:
    * not UTF-8, too large, holding what agent trust refuses — with each problem's line; the tab is then read-only,
    * critique B3); `blocks` — block edits (also refused for a file that does not parse, has errors, or is shown
-   * truncated: the YAML tab fixes those).
+   * truncated: the YAML view fixes those).
    */
   edit: { yaml: EditAbility; blocks: EditAbility };
   /** Present when the file has more steps (or issues) than the view returns (VIEW_STEPS_MAX, VIEW_ISSUES_MAX). */
@@ -713,7 +713,7 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
 }
 
 /**
- * The view's `edit` (L4.3): scenarioEditBlocker for the YAML tab; block edits also need a file that parses, has no
+ * The view's `edit` (L4.3): scenarioEditBlocker for the YAML view; block edits also need a file that parses, has no
  * error and is shown whole.
  */
 async function editAbility(
@@ -735,11 +735,11 @@ async function editAbility(
   const blocks: EditAbility = !yaml.ok
     ? yaml
     : !facts.parsed
-      ? { ok: false, why: 'This file is not valid YAML: fix it in the YAML tab first.' }
+      ? { ok: false, why: 'This file is not valid YAML: fix it in the YAML view first.' }
       : !facts.ok
-        ? { ok: false, why: 'This file has errors: fix them in the YAML tab first (every block edit would be refused).' }
+        ? { ok: false, why: 'This file has errors: fix them in the YAML view first (every block edit would be refused).' }
         : facts.truncated
-          ? { ok: false, why: `Only the first ${VIEW_STEPS_MAX.toLocaleString('en')} steps are shown: edit this file in the YAML tab.` }
+          ? { ok: false, why: `Only the first ${VIEW_STEPS_MAX.toLocaleString('en')} steps are shown: edit this file in the YAML view.` }
           : { ok: true };
   return { yaml, blocks };
 }

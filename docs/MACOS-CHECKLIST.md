@@ -1468,6 +1468,45 @@ desktop app (or Safari on `studio ui`'s link), the workspace of 13a with at leas
   scrolled to; while a take runs from a terminal the screen updates its poster's words without flicker.
 - **Send back:** for each step, OK or what you saw instead (a screenshot, with the appearance).
 
+### 14c (b). The Scenario screen in the app and in Safari (L5.10b)
+
+The automated checks run in Chromium; WKWebView's drag & drop, its keyboard and VoiceOver over skipped content are
+only reached here. `pnpm build`, the desktop app (or Safari on `studio ui`'s link), the workspace of 13a with a capture
+of `quote`; dark, then light; "Keyboard navigation" on, then off for step 3.
+
+1. **The board.** Open `quote`: the browser lists Video, Before filming, the scenes (number, title, length, a bar) and
+   the cards; the title bar holds View (Board · YAML) and Location; the take strip shows Pictures from, the source run,
+   Dry run · Capture (Capture "needs the terminal" with its reasons folded under the line: open them, Copy works by
+   selecting the command) and the location line; each scene's frames are three a row, its title the caption's kicker.
+2. **Frames by keyboard.** Select a scene by its "Scene n · …" button, then Tab: the frames take the focus on that
+   scene's first step (VoiceOver reads it), → goes to its second. Tab reaches the frames once (one stop for all the scenes); → / ← go step by step across
+   scenes, ↓ / ↑ by column into the next / previous scene, Home / End, Page Up / Page Down; the inspector follows;
+   ⌥↓ / ⌥→ move the selected step one place (the file changes, the live region says so), Delete removes it, ⌘Z
+   undoes. VoiceOver reads each frame's step, verb, target and state words — also after End (the last scene was skipped
+   by the page until then).
+3. **The same with "Keyboard navigation" off.** Tab still reaches the frames' list and its arrows still move; the
+   inspector's buttons (Move up…, Save) are reachable as the platform allows; Enter on Move down moves the step and the
+   focus stays on the button (Enter again moves it again).
+4. **Drag & drop in WKWebView.** Drag a frame onto another's right half, into the gap between two frames, into a
+   scene's empty last cell, into an empty scene: the insertion bar shows on one side only, the drop moves the step there
+   (the exact place); a file dragged from the Finder onto the board is refused (the page stays).
+5. **The step inspector.** A step's frame, "Step n · Verb", the form in rows; "Other ways to find it (n)" opens; the
+   modifiers are switches (Caption on shows its fields; off and Save removes them); Show in the file · line n opens the
+   YAML view with the lines outlined; a row card (Before filming, a card) and a scene's "Scene n · …" button show their
+   inspectors.
+6. **The YAML source.** View › YAML: the numbered lines with issues under their line; Edit → the editor (⌘S saves,
+   the File inspector says Valid / n errors and "Unsaved changes in the editor"); a browser row outlines its lines.
+7. **Location and the narrow window.** Pick another location: the take strip says Dry run and Capture use it and that
+   Shoot uses the file's own; reload: back to the file's. Start a Dry run and open View › YAML: its progress and Cancel
+   show there too. Make the window 1100 px wide: two frames a row; hide the inspector: three again (the columns follow
+   the board, not the window). At 900 px with the inspector: one frame a row, the title bar keeps the scenario's name
+   (its full name in a tooltip), the Location's label hidden (the select still named), no sideways scroll; hide the
+   inspector (⌥⌘I): it shows under the board.
+
+- **Expected:** as written; no picture fetched for frames off screen until scrolled to; no flicker while a take runs
+  from a terminal (only the running callout's words change).
+- **Send back:** for each step, OK or what you saw instead (a screenshot, with the appearance).
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

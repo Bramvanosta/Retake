@@ -88,9 +88,10 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     const { page } = t;
     // The write is held until the audits are done (then it goes through: the step moves back on the next station's reload).
     await go(page, at(`/p/${N}/s/quote`), '[data-testid="step"]');
-    // A step's words without its number (the numbers follow the order).
-    const unnumbered = (text: string) => text.split('\n').filter((l) => !/^\d+$/.test(l.trim())).join('|');
-    const before = (await page.locator('[data-testid="step"]').allInnerTexts()).map(unnumbered);
+    // A step's words without its number (the numbers follow the order). L5.10b: each frame's title as text — a scene off
+    // screen is not painted (content-visibility), its words are there all the same.
+    const titles = () => page.locator('[data-testid="step"] .k-frame-title').allTextContents();
+    const before = await titles();
     let release: () => void = () => undefined;
     const held = new Promise<void>((r) => (release = r));
     let passed: Promise<void> = Promise.resolve();
@@ -114,33 +115,56 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
         { busy: '[data-testid="blocks"]', walk: false, exemptMax: 40 },
       );
       expect(r.findings, r.report).toEqual([]);
-      expect(await page.locator('[data-testid="step"]').first().evaluate((el) => [getComputedStyle(el).borderTopStyle, getComputedStyle(el.closest('.steps')!).opacity])).toEqual(['dashed', '1']);
+      // L5.10b: the frames wait with a dashed edge, never a fade.
+      expect(await page.locator('[data-testid="step"]').first().evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el.closest('.k-frames')!).opacity])).toEqual(['dashed', '1']);
     } finally {
       release();
       await passed;
       await page.unroute('**/v1/call/scenario_edit', hold);
     }
     // The step moved; moved back where it was (the next stations read the scenario as written).
-    const order = async () => (await page.locator('[data-testid="step"]').allInnerTexts()).map(unnumbered);
+    const order = titles;
     await expect.poll(async () => (await order())[2] === before[1], POLL).toBe(true);
     await expect.poll(() => page.locator('[data-testid="blocks"]').getAttribute('aria-busy'), POLL).toBe('false');
     await page.keyboard.press('Alt+ArrowUp');
     await expect.poll(order, POLL).toEqual(before);
   }, 180_000);
 
+  // L5.10b: the board with a step selected (and at 900), a row card selected, YAML read and editing, a file that does
+  // not parse on the board and in YAML (the title kept: the guard compares titles with HEAD).
   it('blocks with a step selected, YAML, a YAML file that does not parse', async () => {
     const { page } = t;
-    let r = await station(t, 'blocks', async () => {
+    const selectStep = async () => {
       await go(page, at(`/p/${N}/s/quote`), '[data-testid="step"]');
       await page.locator('[data-testid="step"]').nth(1).click();
       await page.getByTestId('inspector').waitFor(POLL);
+      await page.getByTestId('inspector-step').waitFor(POLL);
+    };
+    let r = await station(t, 'blocks', selectStep);
+    expect(r.findings, r.report).toEqual([]);
+    // L5.10b: the desktop app's narrowest window — two frames a row, the title bar's Location without its label.
+    r = await station(t, 'blocks-900', selectStep, { schemes: [{ scheme: 'dark', widths: [900] }, { scheme: 'light', widths: [900] }] });
+    expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'blocks-row-card', async () => {
+      await go(page, at(`/p/${N}/s/quote`), '[data-testid="before-filming"]');
+      await page.getByTestId('before-filming').click();
+      await page.getByTestId('hooks').waitFor(POLL);
     });
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'yaml', () => go(page, at(`/p/${N}/s/quote/yaml`), '[data-testid="yaml"]'));
     expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'yaml-editing', async () => {
+      await go(page, at(`/p/${N}/s/quote/yaml`), '[data-testid="yaml-edit"]');
+      await page.getByTestId('yaml-edit').click();
+      await page.getByTestId('yaml-editor').waitFor(POLL);
+    });
+    expect(r.findings, r.report).toEqual([]);
+    await page.getByRole('button', { name: 'Close the editor' }).click();
+    r = await station(t, 'blocks-invalid', () => go(page, at('/p/demo/s/broken'), '[data-testid="invalid-yaml"]'));
+    expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'yaml-error', () => go(page, at('/p/demo/s/broken/yaml'), 'main :text("YAML: Flow sequence")'));
     expect(r.findings, r.report).toEqual([]);
-  }, 180_000);
+  }, 240_000);
 
   it('the run preflight, a failed dry run, the sessions confirmation (a dialog: focus in, Escape, focus back)', async () => {
     const { page } = t;

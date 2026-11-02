@@ -30,7 +30,7 @@ import { LOG_KEEP, pauseMaxWords, stepCounts, stepKey, stepStatus, useRunLive } 
 import type { HookRow, LiveFrame, LogLine, OutlineStep, RunLiveState, RunStatusLite, StepRowStatus } from './run-live.js';
 import { MODE, RUN_STATUS_WORDS, runErrorWords, seconds, stepWords } from './scenario-words.js';
 import type { View } from './scenario-words.js';
-import { Commands } from './ScenarioScreen.js';
+import { TerminalCommands as Commands } from './ui-kit/index.js';
 import { ConfirmSessions, SessionsTable } from './Sessions.js';
 import type { SessionRowData, SessionToConfirm } from './Sessions.js';
 

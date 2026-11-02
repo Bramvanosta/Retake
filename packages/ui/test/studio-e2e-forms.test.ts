@@ -162,18 +162,34 @@ describe("the step's form", () => {
     await form().waitFor(POLL);
     const folds = () => form().getByTestId('form-more').locator('summary').allInnerTexts();
     const visible = () => form().locator('[data-field]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-field')));
-    expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter', 'More: hold, speed, mark']);
+    // L5.10b: the modifiers are switches (on: their fields; off: emptied) — no "More:" fold for them.
+    expect(await folds()).toEqual(['Other ways to find it (10)', 'More: clear, enter']);
     expect(await visible()).toEqual(['type.into.label', 'type.text', 'type.cps', 'caption.text', 'caption.kicker']);
+    expect(await form().locator('[data-switch]').evaluateAll((els) => els.map((e) => `${e.getAttribute('data-switch')}:${(e as HTMLInputElement).checked}`))).toEqual(['caption:true', 'hold:false', 'speed:false', 'mark:false']);
     await shot('form-0-folded');
-    await form().getByText('More: hold, speed, mark').click();
+    await form().locator('[data-switch="hold"]').check();
     await input('hold').fill('0.5');
     expect(await input('hold').isVisible()).toBe(true);
     await page.getByTestId('form-save').click();
     await expect.poll(() => live(), POLL).toMatch(/^Changed .* of step 2 of a\. Saved\./);
     const t1 = await settled('forms');
     expect(value(t1).scenes[0].steps![1]).toEqual({ ...value(t0).scenes[0].steps![1], hold: 0.5 });
-    await expect.poll(() => folds(), POLL).toEqual(['Other ways to find it (10)', 'More: clear, enter', 'More: speed, mark']);
+    await expect.poll(() => folds(), POLL).toEqual(['Other ways to find it (10)', 'More: clear, enter']);
     expect(await visible()).toContain('hold');
+    expect(await form().locator('[data-switch="hold"]').isChecked()).toBe(true);
+    // A modifier switched off empties its fields: Save sends their removal — the same set_step changes as before.
+    const tOff = Date.now();
+    await form().locator('[data-switch="caption"]').uncheck();
+    expect(await input('caption.text').count()).toBe(0);
+    await expect.poll(() => page.getByTestId('form-save').innerText(), POLL).toBe('Save 2 changes');
+    await page.getByTestId('form-save').click();
+    await expect.poll(() => live(), POLL).toMatch(/^Changed caption.* of step 2 of a\. Saved\./);
+    const t2 = await settled('forms');
+    expect(value(t2).scenes[0].steps![1].caption).toBeUndefined();
+    expect(ops('scenario_edit', tOff).map((r) => r.body.edit)).toEqual([
+      { kind: 'set_step', at: { scene: 'a', index: 1, guard: expect.stringMatching(/^[0-9a-f]{16}$/) }, changes: [{ path: ['caption', 'text'], from: 'Leave a note' }, { path: ['caption', 'kicker'], from: 'Note' }] },
+    ]);
+    expect(await form().locator('[data-switch="caption"]').isChecked()).toBe(false);
     // A hold step: its `hold` (seconds) is the action's own field, above the Modifiers heading.
     await row('a.2').click();
     await expect.poll(async () => (await form().innerText()).toLowerCase().indexOf('seconds'), POLL).toBeGreaterThan(-1);
@@ -213,7 +229,10 @@ describe("the step's form", () => {
     const t1 = await settled('forms');
     expect((value(t1).scenes[0].steps![1].type as { text: string }).text).toBe(markup);
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
-    expect(await page.locator('.blocks img[src="x"], .inspector img[src="x"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="blocks"] img[src="x"], [data-testid="inspector"] img[src="x"]').count()).toBe(0);
+    // Its line as written (in the inspector's "As written", folded while the form shows the values): opened, the rendered
+    // text holds the markup as text (review B L8: innerText, not textContent — what the page shows).
+    await page.getByTestId('inspector').locator('summary', { hasText: 'As written' }).click();
     await expect.poll(() => page.getByTestId('inspector').innerText(), POLL).toContain(markup);
     await writeFile(file('forms'), FORMS);
   });
@@ -228,14 +247,21 @@ describe("the step's form", () => {
     // Hold the screen's reads so it keeps showing the version before the outside write.
     const held: Route[] = [];
     await page.route('**/v1/call/scenario_blocks', (r) => void held.push(r));
+    // L5.10b fixes (review B M3's lesson): the reads are let go whatever happens, so a failure here never holds the next tests'.
+    const release = async () => {
+      await page.unroute('**/v1/call/scenario_blocks').catch(() => undefined);
+      for (const r of held.splice(0)) await r.continue().catch(() => undefined);
+    };
     const outside = t0.replace('text: "Leave a note"', 'text: "Their caption"');
-    await writeFile(file('forms'), outside);
-    await page.getByTestId('form-save').click();
-    await page.getByTestId('edit-conflict').waitFor(POLL);
-    expect(await page.getByTestId('edit-conflict').innerText()).toBe('Your edit (Change type text of step 2 of a) was not applied. The blocks now show the new version.');
-    expect(await readFile(file('forms'), 'utf8')).toBe(outside);
-    await page.unroute('**/v1/call/scenario_blocks');
-    for (const r of held) await r.continue().catch(() => undefined);
+    try {
+      await writeFile(file('forms'), outside);
+      await page.getByTestId('form-save').click();
+      await page.getByTestId('edit-conflict').waitFor(POLL);
+      expect(await page.getByTestId('edit-conflict').innerText()).toBe('Your edit (Change type text of step 2 of a) was not applied. The board now shows the new version.');
+      expect(await readFile(file('forms'), 'utf8')).toBe(outside);
+    } finally {
+      await release();
+    }
     await expect.poll(() => page.getByTestId('inspector').innerText(), POLL).toContain('Their caption');
     await shot('form-4-conflict');
     await page.getByRole('button', { name: 'Apply it to the new version' }).click();
@@ -310,5 +336,40 @@ describe('review fixes (L4.3 review B)', () => {
     await writeFile(file('empties'), t1.replace('{label: Name}', '{label: Your name}'));
     await expect.poll(async () => input('type.into.label').inputValue(), POLL).toBe('Your name');
     expect(await page.getByTestId('form-dropped').innerText()).toBe('type into label: Full name');
+  });
+});
+
+describe('L5.10b fixes B-L4: the step inspector as B32 lays it out', () => {
+  it('at 1440 × 900: the picture, the title, then the form — the Action fields and the Modifiers on the first screen of the inspector, unscrolled; field labels in words', async () => {
+    await writeFile(file('forms'), FORMS);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    try {
+      await openBlocks('forms');
+      await settled('forms');
+      await row('a.1').click();
+      await form().waitFor(POLL);
+      const m = await page.getByTestId('inspector').evaluate((el) => {
+        let pane: HTMLElement | null = el;
+        while (pane && !/(auto|scroll)/.test(getComputedStyle(pane).overflowY)) pane = pane.parentElement;
+        const bottom = Math.min(window.innerHeight, pane ? pane.getBoundingClientRect().bottom : window.innerHeight);
+        const top = (q: string) => el.querySelector(q)?.getBoundingClientRect() ?? null;
+        const switches = [...el.querySelectorAll<HTMLElement>('[data-switch]')].map((s) => (s.closest('.sb-modifier') ?? s).getBoundingClientRect().bottom);
+        const labels = [...el.querySelectorAll('[data-testid="step-form"] .k-field-label')].map((l) => ({ text: (l as HTMLElement).innerText, mono: l.querySelector('.k-mono') !== null }));
+        return { scrolled: pane?.scrollTop ?? 0, bottom, picture: top('.sb-inspector-picture')?.top ?? 0, title: top('[data-testid="inspector-step"]')?.top ?? 0, form: top('[data-testid="step-form"]')?.top ?? 0, actions: top('[data-testid="step-actions"]')?.top ?? 0, switches, labels };
+      });
+      if (SHOTS) await writeFile(join(SHOTS, 'inspector-1440.json'), JSON.stringify(m));
+      expect(m.scrolled).toBe(0);
+      // B32's order: picture, title, form; the edit buttons after the form.
+      expect(m.picture).toBeLessThan(m.title);
+      expect(m.title).toBeLessThan(m.form);
+      expect(m.form).toBeLessThan(m.actions);
+      expect(m.switches).toHaveLength(4);
+      for (const b of m.switches) expect(b, `a modifier's row ends at ${b}, the inspector at ${m.bottom}`).toBeLessThanOrEqual(m.bottom);
+      expect(m.labels.map((l) => l.text)).toContain('Typing speed (characters a second)');
+      expect(m.labels.some((l) => l.mono)).toBe(false);
+      await shot('form-1440-inspector');
+    } finally {
+      await page.setViewportSize({ width: 1360, height: 1000 });
+    }
   });
 });

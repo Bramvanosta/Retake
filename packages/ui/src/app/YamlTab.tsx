@@ -1,6 +1,7 @@
 /**
- * The scenario's YAML tab (L4.3, R-UI-11): the file read-only (YamlView) until the person presses Edit, then a plain
- * textarea (no highlighting: no dependency, no HTML from data) saved through `scenario_edit` `replace_text` — the
+ * The scenario's YAML view (L4.3, R-UI-11; L5.10b: R4-Source on the kit, its File in the inspector): the file read-only
+ * (YamlView) until the person presses Edit, then the kit's text area (no highlighting: no dependency, no HTML from data;
+ * its unsaved mark is the draft's, drafts.ts — never twice: critique M5) saved through `scenario_edit` `replace_text` — the
  * Studio's one write path: the hash the text was based on as if_match, validated by the server (errors refuse the save
  * and come back with their lines, the draft kept; warnings save), worded "from the Studio".
  *
@@ -21,15 +22,18 @@
  *   server refuses one it did not have, or one moved to another line).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ValidationIssue } from '@demo-studio/core';
 import { CallError, call, errorText } from './api.js';
-import { Badge, Notice, plural, Txt } from './bits.js';
-import { crlfToLf, detectEol, getDraft, isDirty, scenarioKey, setDraft, toEol } from './drafts.js';
+import { Txt, plural, shown } from './bits.js';
+import { crlfToLf, detectEol, getDraft, isDirty, scenarioKey, setDraft, toEol, useDirty } from './drafts.js';
 import type { Draft } from './drafts.js';
 import type { View } from './scenario-words.js';
 import { SessionEnded } from './session.js';
+import { IssueLines } from './StepEditing.js';
 import { DiskBanner, KeptText, TextConflict } from './TextEditing.js';
 import { YamlView } from './YamlView.js';
+import { Button, Callout, InspectorSection, Kbd, StatusMark, TextArea } from './ui-kit/index.js';
 
 /** The largest scenario the Studio writes (core SCENARIO_EDIT_MAX_CHARS: MCP scenario_save's cap), final line break included. */
 export const YAML_MAX = 500_000;
@@ -54,20 +58,6 @@ function hiddenLines(text: string): string[] {
     if (m) out.push(`line ${i + 1} (${hex(m[0])})`);
   });
   return out;
-}
-
-function Issues({ issues, testid }: { issues: ValidationIssue[]; testid: string }) {
-  return (
-    <ul className="issues" data-testid={testid}>
-      {issues.map((i, n) => (
-        <li key={n}>
-          <Badge tone={i.severity === 'error' ? 'danger' : 'warning'}>{i.severity}</Badge>{' '}
-          {i.line !== undefined && <span className="mono small">{`line ${i.line}${i.col !== undefined ? `:${i.col}` : ''}`} </span>}
-          <Txt text={i.message} />
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 interface SaveAnswer {
@@ -267,17 +257,35 @@ function Editor({
   const shownIssues = liveIssues ?? (dirty ? [] : null);
 
   return (
-    <section className="card yaml-card yaml-editor" aria-labelledby="yaml-edit-h" data-testid="yaml-editor">
-      <h2 id="yaml-edit-h" className="card-title">
-        <Txt className="path" text={v.file} /> <span className="muted small">editing</span>
-      </h2>
+    <section className="yv-editor" aria-label={`Editing ${v.file}`} data-testid="yaml-editor">
+      <Head file={v.file}>
+        <Button size="sm" variant="primary" disabled={saving || !dirty || conflict !== null} onClick={() => void save()} aria-keyshortcuts="Meta+S Control+S">
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={saving || !dirty || conflict !== null} onClick={() => update({ text: draft.base.text, base: draft.base })}>
+          Discard changes
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={saving || dirty}
+          why={dirty ? 'Save or discard your changes first' : undefined}
+          onClick={() => {
+            setDraft(key, undefined);
+            onClose();
+          }}
+        >
+          Close the editor
+        </Button>
+      </Head>
       {notice && (
-        <Notice tone="info">
-          <p>{notice}</p>
-          <button type="button" className="button small" onClick={() => setNotice(null)}>
-            Dismiss
-          </button>
-        </Notice>
+        <Callout state="idle" title={notice}>
+          <div>
+            <Button size="sm" variant="ghost" onClick={() => setNotice(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </Callout>
       )}
       {showDisk && <DiskBanner what={v.file} onLoad={() => loadDisk(disk)} onKeep={() => setDismissed(disk.hash)} />}
       {conflict && (
@@ -293,80 +301,56 @@ function Editor({
       )}
       {kept !== null && <KeptText text={kept} onDismiss={() => setKept(null)} />}
       {error && (
-        <Notice tone="danger" role="alert" title="Not saved">
-          <p className="pre-line" data-testid="yaml-save-error">
+        <Callout state="fail" role="alert" title="Not saved">
+          <p className="sb-pre" data-testid="yaml-save-error">
             <Txt text={error.message} />
           </p>
-          {error.issues.length > 0 && <Issues issues={error.issues} testid="yaml-save-issues" />}
-        </Notice>
+          <IssueLines issues={error.issues} testId="yaml-save-issues" />
+        </Callout>
       )}
       {hidden.length > 0 && (
-        <Notice tone="warning" role="note" title="Hidden characters">
+        <Callout state="warn" role="note" title="Warning: hidden characters">
           <p data-testid="yaml-hidden">
-            {hidden.join(', ')} hold a direction control or an invisible character: they can make a line read differently from what it does. The Studio saves only those the file already had.
+            {shown(`${hidden.join(', ')} hold a direction control or an invisible character: they can make a line read differently from what it does. The Studio saves only those the file already had.`)}
           </p>
-        </Notice>
+        </Callout>
       )}
-      <div className="editor" hidden={conflict !== null}>
-        <label htmlFor="yaml-text" className="label">
-          YAML of {name}
-        </label>
-        <textarea
+      <div className="yv-edit" hidden={conflict !== null}>
+        <TextArea
           id="yaml-text"
-          ref={area}
-          className="yaml-input"
+          label={`YAML of ${name}`}
+          labelHidden
+          mono
+          tall
+          rows={24}
           value={draft.text}
+          inputRef={area}
           maxLength={YAML_MAX}
           readOnly={conflict !== null}
           spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          aria-describedby="yaml-count yaml-state"
-          onChange={(e) => {
+          autoCorrect={false}
+          describedBy="yaml-count yaml-state"
+          // The draft's mark is drafts.ts's (scenario:<slug>/<name>): the quit question lists it once (critique M5).
+          unsaved={null}
+          onChange={(text) => {
             setError(null);
             setNotice(null);
-            update({ text: e.target.value, base: draftRef.current.base });
+            update({ text, base: draftRef.current.base });
           }}
         />
-        <div className="editor-bar">
-          <button type="button" className="button primary" disabled={saving || !dirty || conflict !== null} onClick={() => void save()}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-          <button type="button" className="button quiet" disabled={saving || !dirty || conflict !== null} onClick={() => update({ text: draft.base.text, base: draft.base })}>
-            Discard changes
-          </button>
-          <button
-            type="button"
-            className="button quiet"
-            disabled={saving || dirty}
-            title={dirty ? 'Save or discard your changes first' : undefined}
-            onClick={() => {
-              setDraft(key, undefined);
-              onClose();
-            }}
-          >
-            Close the editor
-          </button>
-          <span id="yaml-state" className="save-state" role="status" aria-live="polite" data-testid="yaml-state">
-            {state}
+        <div className="yv-bar">
+          <span id="yaml-state" className="yv-state" role="status" aria-live="polite" data-testid="yaml-state">
+            {shown(state)}
           </span>
-          <span className="spacer" />
-          <span id="yaml-count" className={draft.text.length >= YAML_MAX ? 'counter at-limit' : 'counter'}>
-            {draft.text.length.toLocaleString('en')} / {YAML_MAX.toLocaleString('en')} characters
+          <span className="sb-spacer" />
+          <span id="yaml-count" className={draft.text.length >= YAML_MAX ? 'yv-count is-full' : 'yv-count'}>
+            {shown(`${draft.text.length.toLocaleString('en')} / ${YAML_MAX.toLocaleString('en')} characters`)}
           </span>
-          <span className="muted small">
-            <kbd>⌘S</kbd> / <kbd>Ctrl+S</kbd>
-          </span>
+          <Kbd keys={['⌘S', 'Ctrl+S']} />
         </div>
         {shownIssues !== null && (
-          <div className="live-issues" aria-live="polite" data-testid="yaml-live">
-            {liveIssues === null ? (
-              <p className="muted small">Checking…</p>
-            ) : liveIssues.length === 0 ? (
-              <p className="muted small">No issue in this text.</p>
-            ) : (
-              <Issues issues={liveIssues} testid="yaml-live-issues" />
-            )}
+          <div className="yv-live" aria-live="polite" data-testid="yaml-live">
+            {liveIssues === null ? <p className="sc-quiet">Checking…</p> : liveIssues.length === 0 ? <p className="sc-quiet">No issue in this text.</p> : <IssueLines issues={liveIssues} testId="yaml-live-issues" />}
           </div>
         )}
       </div>
@@ -374,31 +358,69 @@ function Editor({
   );
 }
 
+/** The view's toolbar line (R4-Source): the file, what the board keeps, then the view's actions. */
+function Head({ file, children }: { file: string; children: ReactNode }) {
+  return (
+    <div className="yv-head">
+      <Txt className="k-mono" text={file} />
+      <span className="sc-quiet">Comments and layout are kept when you edit the board.</span>
+      <span className="sb-spacer" />
+      <div className="sb-actions">{shown(children)}</div>
+    </div>
+  );
+}
+
 /** Why the Studio does not save this file, with each problem's line, and any unsaved text to copy. */
 function Blocked({ why, problems, draft }: { why: string; problems: Array<{ line?: number; message: string }>; draft: Draft | undefined }) {
   return (
-    <div data-testid="yaml-readonly">
-      <Notice tone="warning" role="alert" title="The Studio does not save this file">
-        <p className="pre-line">
+    <div className="sb-stack" data-testid="yaml-readonly">
+      <Callout state="warn" role="alert" title="Read-only: the Studio does not save this file">
+        <p className="sb-pre">
           <Txt text={why} />
         </p>
         {problems.length > 0 && (
-          <ul className="issues" data-testid="yaml-readonly-problems">
+          <ul data-testid="yaml-readonly-problems">
             {problems.map((p, i) => (
               <li key={i}>
-                {p.line !== undefined && <span className="mono small">{`line ${p.line} `}</span>}
+                {p.line !== undefined && <span className="k-mono">{shown(`line ${p.line} `)}</span>}
                 <Txt text={p.message} />
               </li>
             ))}
           </ul>
         )}
-      </Notice>
+      </Callout>
       {draft && isDirty(draft) && (
-        <Notice tone="info" title="Your unsaved text">
+        <Callout state="idle" title="Your unsaved text">
           <p>Not saved anywhere: copy it before you leave.</p>
-          <textarea className="kept" readOnly aria-label="Your unsaved text" value={draft.text} rows={6} />
-        </Notice>
+          <TextArea label="Your unsaved text" labelHidden value={draft.text} onChange={() => undefined} unsaved={null} readOnly mono rows={6} />
+        </Callout>
       )}
+    </div>
+  );
+}
+
+/**
+ * The File inspector (R4-Source): valid or how many errors, in words; the warnings (hints); when the file holds hidden
+ * characters, their lines; the size against the Studio's cap; the sentence that says a save from here passes the same
+ * checks as Claude's edits; unsaved text in the editor, said.
+ */
+export function FileInspector({ v, slug, name, issues }: { v: View; slug: string; name: string; issues: ValidationIssue[] }) {
+  const errors = issues.filter((i) => i.severity === 'error').length;
+  const warnings = issues.length - errors;
+  const hidden = hiddenLines(v.text);
+  const dirty = useDirty(scenarioKey(slug, name));
+  return (
+    <div data-testid="file-inspector">
+      <InspectorSection title="File">
+        <Txt className="k-mono" text={v.file} />
+        <StatusMark state={!v.blocks.parsed ? 'fail' : errors > 0 ? 'fail' : 'ok'} word={!v.blocks.parsed ? 'Not valid YAML' : errors > 0 ? `${plural(errors, 'error')}` : 'Valid'} />
+        {warnings > 0 && <StatusMark state="warn" word={plural(warnings, 'warning')} />}
+        {dirty && <StatusMark state="waiting" word="Unsaved changes in the editor" />}
+        <p className="sc-quiet">Saved with the same checks as Claude's edits: the schema, hooks left unchanged, no hidden characters it did not already have.</p>
+        {hidden.length > 0 && <StatusMark state="attention" word={`Hidden characters: ${hidden.join(', ')}`} />}
+        <p className="sc-quiet">{shown(`${plural(v.text.split('\n').length, 'line')} · ${v.text.length.toLocaleString('en')} of ${YAML_MAX.toLocaleString('en')} characters · ${plural(v.blocks.step_count, 'step')}`)}</p>
+        {!v.edit.yaml.ok && <StatusMark state="warn" word="Read-only here" />}
+      </InspectorSection>
     </div>
   );
 }
@@ -418,7 +440,7 @@ export function YamlTab({
   focus: { line: number; end_line: number } | null;
   issues: ValidationIssue[];
   reload: () => void;
-  /** A save from this tab (its hash): the Blocks tab's undo history says it in its own words. */
+  /** A save from this view (its hash): the board's undo history says it in its own words. */
   onSaved?: (hash: string) => void;
 }) {
   const key = scenarioKey(slug, name);
@@ -426,24 +448,22 @@ export function YamlTab({
   const ability = v.edit.yaml;
   if (!ability.ok) {
     return (
-      <>
+      <div className="sb-stack">
+        <Head file={v.file}>{null}</Head>
         <Blocked why={ability.why} problems={ability.problems ?? []} draft={getDraft(key)} />
         <YamlView v={v} focus={focus} issues={issues} />
-      </>
+      </div>
     );
   }
   if (editing) return <Editor v={v} slug={slug} name={name} focus={focus} reload={reload} onClose={() => setEditing(false)} {...(onSaved ? { onSaved } : {})} />;
   return (
-    <YamlView
-      v={v}
-      focus={focus}
-      issues={issues}
-      readOnly={false}
-      actions={
-        <button type="button" className="button small" onClick={() => setEditing(true)} data-testid="yaml-edit">
+    <div className="sb-stack">
+      <Head file={v.file}>
+        <Button size="sm" onClick={() => setEditing(true)} data-testid="yaml-edit">
           Edit
-        </button>
-      }
-    />
+        </Button>
+      </Head>
+      <YamlView v={v} focus={focus} issues={issues} />
+    </div>
   );
 }

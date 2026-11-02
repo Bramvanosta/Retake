@@ -302,22 +302,477 @@
   gap: var(--ui-space-6);
 }
 
-/* Thumb.tsx at the poster and inspector sizes (a prop: the row size keeps app.css's look) */
-.thumb[data-size] {
+/* Thumb.tsx's boxes (L5.10b: every size on the kit's tokens; the picture fills its 16:9 box) */
+.th-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: auto;
+  overflow: hidden;
   aspect-ratio: 16 / 9;
   border-radius: var(--ui-radius-frame);
   background: var(--ui-video);
 }
-.thumb[data-size] img {
+.th-box img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   background: var(--ui-video);
 }
-.thumb[data-size] .thumb-words {
+.th-words {
+  padding: var(--ui-space-3);
   color: var(--ui-on-video);
   font-size: var(--ui-type-sm);
   line-height: var(--ui-lead-sm);
+  text-align: center;
+}
+/* L5.10b: the scenario (B32-Scenario) — the take strip, the board, the inspector, the YAML source (R4-Source) */
+.sb-screen {
+  gap: var(--ui-space-6);
+}
+.sb-context {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-5);
+  min-width: 0;
+}
+.sb-context .k-field-inline {
+  min-width: 0;
+}
+.sb-context .k-select {
+  max-width: 220px;
+}
+/* A narrow window (critique L2): the Location's label hidden (still the select's name), the select narrower */
+@media (max-width: 1180px) {
+  .sb-context .k-field-inline > .k-field-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sb-context .k-field-inline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sb-context .k-select {
+    max-width: 150px;
+  }
+}
+.sb-take,
+.sb-stack,
+.sb-inspector,
+.sb-form,
+.sb-fields,
+.sb-modifier,
+.sb-palette,
+.sb-editbar {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.sb-take {
+  padding-bottom: var(--ui-space-5);
+  border-bottom: 1px solid var(--ui-hairline);
+}
+.sb-take-line,
+.sb-line,
+.sb-editbar-line,
+.sb-actions,
+.sb-palette-head,
+.sb-palette-actions,
+.yv-head,
+.yv-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-4);
+  min-width: 0;
+}
+.sb-spacer {
+  flex: 1 1 auto;
+}
+.sb-source {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* A narrow centre (900 px): the picker never wider than the strip (its options are long run names) */
+.sb-take-line > .k-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.sb-take-line .k-select {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+}
+/* The runs in one line: each run's button and reason; its reasons, folded, on a line of their own after them */
+.sb-runs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+  min-width: 0;
+}
+.sb-run {
+  display: contents;
+}
+.sb-run-item {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.sb-run-reasons {
+  order: 2;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.sb-run .sb-blocker {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-pane);
+}
+.sb-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.sb-from-page {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-4);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+  overflow-wrap: anywhere;
+}
+.sb-from-page p {
+  margin: 0;
+}
+.sb-from-page-title {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-strong);
+}
+.sb-issues {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sb-issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  overflow-wrap: anywhere;
+}
+.sb-live {
+  flex: 1 1 200px;
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.sb-keys {
+  font-size: var(--ui-type-sm);
+}
+.sb-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-space-8);
+  min-width: 0;
+  /* The frames' columns follow the board's own width, not the window's (review A L4 / B L6: kit.css's container rules) */
+  container: k-board / inline-size;
+}
+.sb-count {
+  margin: 0;
+  font-size: var(--ui-type-sm);
+  overflow-wrap: anywhere;
+}
+.sb-scene {
+  display: grid;
+  gap: var(--ui-space-5);
+  min-width: 0;
+  /* content-visibility clips the paint to the scene's box: room for the insertion bar beside an edge frame */
+  margin: 0 calc(var(--ui-space-6) * -1);
+  padding: 0 var(--ui-space-6);
+}
+.sb-scene-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-4) var(--ui-space-6);
+}
+.sb-scene-titles {
+  display: grid;
+  flex: 1 1 280px;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.sb-scene-title {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+  overflow-wrap: anywhere;
+}
+.sb-caption {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  overflow-wrap: anywhere;
+}
+.sb-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+  margin: 0;
+}
+.sb-scene-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+.sb-verb {
+  font-weight: var(--ui-weight-strong);
+}
+.sb-state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.sb-chip,
+.sb-note {
+  overflow-wrap: anywhere;
+}
+.sb-entry {
+  min-width: 0;
+}
+.sb-renders {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin-top: var(--ui-space-4);
+}
+.sb-inspector {
+  gap: 0;
+}
+.sb-inspector-foot {
+  padding: var(--ui-space-5) var(--ui-space-6);
+}
+/* B32's order (review B L4): the step's picture first, above its title */
+.sb-inspector-picture {
+  padding: var(--ui-space-5) var(--ui-space-6) 0;
+}
+.sb-step-actions {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.sb-step-actions .k-toolbar {
+  flex-wrap: wrap;
+}
+.sb-slice {
+  max-height: 240px;
+  margin: 0;
+  padding: var(--ui-space-4);
+  overflow: auto;
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+  color: var(--ui-text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sb-pages,
+.sb-hooks {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sb-scene-facts {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.sb-scene-facts p {
+  margin: 0;
+}
+.sb-hook {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-4);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+  overflow-wrap: anywhere;
+}
+.sb-hook p {
+  margin: 0;
+}
+.sb-hook-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+}
+.sb-hook-kind {
+  color: var(--ui-text-3);
+}
+.sb-hook-name {
+  font-weight: var(--ui-weight-strong);
+}
+.sb-hook-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+}
+.sb-hook-summary {
+  color: var(--ui-text-2);
+}
+.sb-h4 {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.sb-error {
+  margin: 0;
+  color: var(--ui-danger-text);
+}
+.sb-palette {
+  padding: var(--ui-space-6);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}
+.sb-palette-head {
+  justify-content: space-between;
+}
+.sb-conflict {
+  display: grid;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-6);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}
+.sb-conflict p {
+  margin: 0;
+}
+.sb-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--ui-space-5);
+}
+/* The YAML source (R4-Source): the toolbar line, the numbered lines (issues under their line), the editor */
+.yv,
+.yv-editor,
+.yv-edit {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.yv-edit[hidden] {
+  display: none;
+}
+.yv-head {
+  padding-bottom: var(--ui-space-4);
+  border-bottom: 1px solid var(--ui-hairline);
+}
+.yv-lines {
+  margin: 0;
+  padding: var(--ui-space-4) var(--ui-space-4) var(--ui-space-4) calc(var(--ui-space-10) + var(--ui-space-4));
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  overflow-x: auto;
+}
+.yv-line {
+  padding-left: var(--ui-space-3);
+}
+.yv-line::marker {
+  color: var(--ui-text-3);
+}
+.yv-line.is-focus {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -1px;
+  background: var(--ui-select);
+}
+.yv-code {
+  font-family: var(--ui-mono);
+  white-space: pre;
+}
+.yv-issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  margin: var(--ui-space-1) 0 var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-4);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-pane);
+  font-family: var(--ui-font);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.yv-state {
+  color: var(--ui-text-2);
+}
+.yv-count {
+  color: var(--ui-text-3);
+  font-family: var(--ui-mono);
+}
+.yv-count.is-full {
+  color: var(--ui-danger-text);
+}
+.yv-live {
+  min-width: 0;
+}
+/* An edit on its way: the frames wait (a dashed edge, not a fade: the board's input is off until the new view) */
+.sb-board[aria-busy='true'] .k-frame {
+  outline: 1px dashed var(--ui-field-line);
+  outline-offset: -1px;
+}
+
+.sb-hook-flag {
+  color: var(--ui-text-2);
+}
+.sb-hook-flag.is-strong,
+.sb-strong {
+  color: var(--ui-text);
+  font-weight: var(--ui-weight-strong);
+}
+/* A narrow centre: the edit bar's buttons wrap, a long label ("Undo: Moved step 3 of discover…") is cut with an ellipsis */
+.sb-editbar .k-toolbar {
+  flex-wrap: wrap;
+}
+.sb-editbar .k-btn,
+.sb-scene-tools .k-btn,
+.sb-runs .k-btn {
+  max-width: 100%;
+}
+.sb-editbar .k-btn-label,
+.sb-scene-tools .k-btn-label,
+.sb-runs .k-btn-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The desktop app's narrowest window: View keeps its width; the Location select gives way */
+.sb-context .k-seg {
+  flex: none;
+}
+@media (max-width: 960px) {
+  .sb-context {
+    gap: var(--ui-space-3);
+  }
+  .sb-context .k-select {
+    max-width: 112px;
+  }
 }

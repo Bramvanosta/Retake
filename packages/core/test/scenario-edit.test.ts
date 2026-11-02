@@ -30,7 +30,7 @@ describe('verifyEditText', () => {
   it('accepts a text whose value is the intended one, refuses another value, invalid YAML and an alias before its anchor', () => {
     expect(verifyEditText('a: [1, 2]\nb: x # c\n', { a: [1, 2], b: 'x' })).toBeNull();
     expect(verifyEditText('a: [1, 2]\n- eval: x\n', { a: [1, 2] })).toMatch(/^the edit would not give valid YAML/);
-    expect(verifyEditText('a: 123\n', { a: '123' })).toBe('the edit cannot be made without changing other parts of the file — change it in the YAML tab');
+    expect(verifyEditText('a: 123\n', { a: '123' })).toBe('the edit cannot be made without changing other parts of the file — change it in the YAML view');
     // yaml 2.9 reports no error for an alias whose anchor comes after it: only toJS throws — parseYaml catches it.
     expect(verifyEditText('a: *x\nb: &x 1\n', { a: 1, b: 1 })).toMatch(/^the edit would not give valid YAML/);
   });

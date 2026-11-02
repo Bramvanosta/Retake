@@ -29,7 +29,7 @@ import { sceneId } from './steps.js';
 import type { Scenario } from './types.js';
 import { parseYaml } from './validation/yaml-source.js';
 
-/** A value `set_field` writes: a scalar (a map such as `{component, params}` is changed in the YAML tab). */
+/** A value `set_field` writes: a scalar (a map such as `{component, params}` is changed in the YAML view). */
 export type FieldValue = string | number | boolean;
 
 /** Where a field is: the scenario's top level, or a scene / card / interstitial by id with its guard (stepGuard of the entry). */
@@ -178,7 +178,7 @@ function currentOf(value: Obj, segs: readonly string[], kind: FieldKind, what: s
   }
   if (isFieldValue(v)) return v;
   if (kind === 'switch' && isObj(v)) return true;
-  throw new StepEditError('not_editable', `${what} is written as ${Array.isArray(v) ? 'a list' : 'a map (with params)'}: change it in the YAML tab`);
+  throw new StepEditError('not_editable', `${what} is written as ${Array.isArray(v) ? 'a list' : 'a map (with params)'}: change it in the YAML view`);
 }
 
 /** A value for a label. */
@@ -190,14 +190,14 @@ const say = (v: FieldValue | undefined): string => (v === undefined ? "the theme
  */
 export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied {
   const parsed = parseYaml(text);
-  if (parsed.value === undefined || parsed.issues.some((i) => i.severity === 'error')) throw new StepEditError('not_editable', 'the file is not valid YAML: fix it in the YAML tab first');
+  if (parsed.value === undefined || parsed.issues.some((i) => i.severity === 'error')) throw new StepEditError('not_editable', 'the file is not valid YAML: fix it in the YAML view first');
   const root = parsed.value as Obj;
-  if (!isObj(root) || !Array.isArray(root.scenes)) throw new StepEditError('not_editable', 'the file has no `scenes:` list: edit it in the YAML tab');
+  if (!isObj(root) || !Array.isArray(root.scenes)) throw new StepEditError('not_editable', 'the file has no `scenes:` list: edit it in the YAML view');
   const at = edit.at;
   if (!at || !Object.hasOwn(FIELD_PATHS, at.entry)) throw new StepEditError('invalid', 'at.entry is one of top, scene, card, interstitial');
   const allowed = FIELD_PATHS[at.entry] as readonly string[];
   if (typeof edit.field !== 'string' || !allowed.includes(edit.field)) {
-    throw new StepEditError('invalid', `${String(edit.field).slice(0, 60)} is not a value the timeline sets on ${at.entry === 'top' ? 'the video' : `a ${at.entry}`} (it sets ${allowed.join(', ')}): change it in the YAML tab`);
+    throw new StepEditError('invalid', `${String(edit.field).slice(0, 60)} is not a value the timeline sets on ${at.entry === 'top' ? 'the video' : `a ${at.entry}`} (it sets ${allowed.join(', ')}): change it in the YAML view`);
   }
   const field = edit.field;
   const kind = fieldKindOf(field);
@@ -215,13 +215,13 @@ export function applyFieldEdit(text: string, edit: FieldEdit): FieldEditApplied 
   }
   if (isDeepStrictEqual(current, edit.to)) throw new StepEditError('invalid', `nothing to change: ${what} is already ${say(edit.to)}`, field);
   // Review B H2: the intro / outro switch replaces or removes the whole map — never over its own content (a title, a
-  // tagline, an image): only a map of component / duration is switched; the YAML tab changes the rest.
+  // tagline, an image): only a map of component / duration is switched; the YAML view changes the rest.
   if (kind === 'switch') {
     const v = getAt(loc.value, segs);
     const content = isObj(v) ? Object.keys(v).filter((k) => k !== 'component' && k !== 'duration') : [];
     if (content.length) {
       const named = content.filter((k) => /^[a-z_]{1,40}$/.test(k)).slice(0, 6);
-      throw new StepEditError('not_editable', `the ${field} has its own ${named.length ? named.join(', ') : 'content'}: turn it off or back to the theme's in the YAML tab (a switch would drop it)`, field);
+      throw new StepEditError('not_editable', `the ${field} has its own ${named.length ? named.join(', ') : 'content'}: turn it off or back to the theme's in the YAML view (a switch would drop it)`, field);
     }
   }
   const protectedKey = at.entry === 'card' || at.entry === 'interstitial' ? at.entry : undefined;

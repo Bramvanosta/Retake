@@ -121,7 +121,9 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await page.goto(`${studio.url}#/p/demo/s/nocap`);
     await page.getByRole('heading', { level: 1, name: 'nocap' }).waitFor();
     await expect.poll(() => page.getByTestId('open-timeline-off').isDisabled(), POLL).toBe(true);
-    expect(await page.locator('#timeline-why').innerText()).toContain('no finished capture yet');
+    // L5.10b: the kit button says why it is off (aria-describedby).
+    const why = await page.getByTestId('open-timeline-off').getAttribute('aria-describedby');
+    expect(await page.locator(`[id="${why}"]`).innerText()).toContain('no finished capture yet');
 
     await page.goto(`${studio.url}#/p/demo/s/bits`);
     await page.getByRole('heading', { level: 1, name: 'bits' }).waitFor();
@@ -129,6 +131,8 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/demo/s/bits/timeline/${RUN}`);
     await page.getByTestId('tracks').waitFor();
     expect(await page.title()).toBe('bits · Timeline · Demo Studio');
+    // L5.10b fixes (review B L2): its link back to the scenario says "Board", as the scenario's View does.
+    expect(await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link').allInnerTexts()).toEqual(expect.arrayContaining(['Board', 'YAML']));
 
     const m = plan.view.model;
     expect(await page.getByTestId('tl-segment').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')))).toEqual(m.segments.map((s) => s.id));

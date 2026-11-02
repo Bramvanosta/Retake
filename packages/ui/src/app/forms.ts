@@ -209,6 +209,32 @@ export function editAgain(op: StepEditOp, anchor: StepAnchor | null, v: View): {
 }
 
 /** "type text", "caption kicker". */
+/** A field's words in a form's label (review B L4: words, not the schema's keys): its name, written out where a key is terse. */
+const FIELD_LABELS: Record<string, string> = {
+  ms: 'Milliseconds',
+  'hover ms': 'Hover (ms)',
+  'after ms': 'Pause after (ms)',
+  'move ms': 'Move time (ms)',
+  cps: 'Typing speed (characters a second)',
+  css: 'CSS selector',
+  testid: 'Test id',
+  aria: 'ARIA label',
+  nth: 'Which match (nth)',
+  url: 'URL',
+  href: 'Link (href)',
+  in: 'Inside',
+  mime: 'MIME type',
+  as: 'Save as',
+  'not text': 'Text gone',
+  'expect popup': 'Expects a popup',
+  'close current': 'Close the current tab',
+};
+
+export function fieldLabel(name: string): string {
+  const w = FIELD_LABELS[name] ?? name;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
 export function fieldWords(key: string): string {
   return key.replace(/[._]/g, ' ');
 }

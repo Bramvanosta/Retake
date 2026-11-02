@@ -114,7 +114,7 @@ describe('the YAML tab saves through scenario_edit', () => {
     const i = want.scenes.findIndex((s) => s.caption?.text === 'Choose the quantity, the bag size and the grind.');
     want.scenes[i].caption!.text = 'Pick the quantity, bag and grind.';
     expect(got).toEqual(want);
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'Blocks' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'Board' }).click();
     await expect.poll(() => page.getByTestId('blocks').innerText(), POLL).toContain('Pick the quantity, bag and grind.');
     await writeFile(file('quote'), before);
   });
@@ -179,14 +179,14 @@ describe('the YAML tab saves through scenario_edit', () => {
     await openEditor('short');
     const draft = (await textarea().inputValue()).replace('hold: 0.4', 'hold: 0.9');
     await retype(draft);
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'Blocks' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'Board' }).click();
     await page.getByTestId('yaml-draft-open').waitFor(POLL);
     await shot('yaml-4-blocks-draft');
-    expect(await page.getByTestId('yaml-draft-open').innerText()).toContain('Block editing stays off until you save or discard your changes');
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'YAML' }).click();
+    expect(await page.getByTestId('yaml-draft-open').innerText()).toContain('Editing the board stays off until you save or discard your changes');
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'YAML' }).click();
     await expect.poll(() => textarea().inputValue(), POLL).toBe(draft);
     await page.getByRole('button', { name: 'Discard changes' }).click();
-    await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link', { name: 'Blocks' }).click();
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'Board' }).click();
     await page.getByTestId('blocks').waitFor(POLL);
     expect(await page.getByTestId('yaml-draft-open').count()).toBe(0);
   });
@@ -203,5 +203,50 @@ describe('a file the Studio does not write (critique B3, B11)', () => {
     expect(await page.getByTestId('yaml-edit').count()).toBe(0);
     expect(await textarea().count()).toBe(0);
     expect(sha(await readFile(file('owned')))).toBe(h0);
+  });
+});
+
+describe('L5.10b: the YAML source (R4-Source)', () => {
+  it('the File inspector says valid or how many errors in words; a browser row brings its lines into view (outlined); a file that is not valid YAML says so on the board and in the File', async () => {
+    const TWO = `${SHORT}  - id: b\n    steps:\n      - hold: 0.1\n`;
+    await writeFile(file('two-scenes'), TWO);
+    await page.goto(`${studio.url}#/p/${P}/s/two-scenes/yaml`);
+    await page.getByTestId('yaml').waitFor(POLL);
+    const inspector = page.getByTestId('file-inspector');
+    await expect.poll(() => inspector.innerText(), POLL).toContain('Valid');
+    expect(await inspector.innerText()).toContain(`${TWO.length.toLocaleString('en')} of 500,000 characters`);
+    // The scenes browser: scene b's row outlines its lines (10–12) in the read view.
+    await page.getByRole('navigation', { name: 'Scenes' }).getByRole('button', { name: /b/ }).last().click();
+    const focused = page.locator('[data-testid="yaml"] li[data-focus="true"]');
+    await expect.poll(() => focused.count(), POLL).toBe(3);
+    expect(await focused.first().innerText()).toContain('- id: b');
+    // Not valid YAML: the board says so (and why editing is off), the File inspector says it in words, each issue under its line.
+    await writeFile(file('broken'), 'video: broken\nscenes:\n  - id: a\n    steps: [\n      - click: Save\n');
+    await page.goto(`${studio.url}#/p/${P}/s/broken`);
+    await page.getByTestId('invalid-yaml').waitFor(POLL);
+    expect(await page.getByTestId('invalid-yaml').innerText()).toContain('This file is not valid YAML');
+    expect(await page.getByTestId('blocks-edit-off').innerText()).toContain('not valid YAML');
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'YAML' }).click();
+    await expect.poll(() => page.getByTestId('file-inspector').innerText(), POLL).toContain('Not valid YAML');
+    expect(await page.getByTestId('yaml').locator('li', { hasText: '- click: Save' }).innerText()).toMatch(/error/);
+    await shot('yaml-6-invalid');
+  });
+
+  it('L5.10b fixes B-M1: a run of this scenario queued or running shows on the YAML view too — its progress and Cancel', async () => {
+    await writeFile(file('runs-yaml'), SHORT);
+    await page.goto(`${studio.url}#/p/${P}/s/runs-yaml`);
+    await page.getByRole('heading', { level: 1, name: 'runs-yaml' }).waitFor(POLL);
+    await expect.poll(() => page.getByTestId('run-dry').isDisabled(), POLL).toBe(false);
+    await page.getByTestId('run-dry').click();
+    // No worker here: it stays queued until Cancel.
+    await page.getByTestId('running').waitFor(POLL);
+    await page.getByRole('navigation', { name: 'View' }).getByRole('link', { name: 'YAML' }).click();
+    await page.getByTestId('yaml').waitFor(POLL);
+    await page.getByTestId('running').waitFor(POLL);
+    expect(await page.getByTestId('running').innerText()).toMatch(/runs-yaml/);
+    expect(await page.getByTestId('run-cancel').isDisabled()).toBe(false);
+    await shot('yaml-7-running');
+    await page.getByTestId('run-cancel').click();
+    await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
   });
 });

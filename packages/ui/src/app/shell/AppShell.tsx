@@ -191,7 +191,8 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const readmeDirty = useDirty(readmeKey(openSlug ?? ''));
   const project = openSlug !== null ? projects.find((p) => p.slug === openSlug) : undefined;
   // L5.10a: the open project's shared reads (the browser and the screens read the same entries).
-  const open: OpenProject = { view: useProjectView(openSlug), board: useBoard(openSlug), cast: useCast(openSlug) };
+  // L5.10b (critique M2): no board read behind a scenario screen (its browser shows the scenes, not the smart groups).
+  const open: OpenProject = { view: useProjectView(openSlug), board: useBoard(route.name === 'scenario' ? null : openSlug), cast: useCast(openSlug) };
   useProjectDataEvents(openSlug);
   useSyncExternalStore(contextWatch.subscribe, contextWatch.version);
   const ctx = scenarioInContext(route, undefined, project?.scenarios);
@@ -214,7 +215,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
 
   // Slots: the panes a screen fills.
   const [targets, setTargets] = useState<Partial<Record<SlotName, HTMLElement | null>>>({});
-  const [claims, setClaims] = useState<Record<SlotName, number>>({ inspector: 0, context: 0, actions: 0 });
+  const [claims, setClaims] = useState<Record<SlotName, number>>({ inspector: 0, context: 0, actions: 0, browser: 0 });
   const claim = useCallback((name: SlotName) => {
     setClaims((c) => ({ ...c, [name]: c[name] + 1 }));
     return () => setClaims((c) => ({ ...c, [name]: c[name] - 1 }));
@@ -222,7 +223,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   // One stable ref callback per slot (a new function each render would detach and re-attach it every time).
   const slotRefs = useMemo(() => {
     const at = (name: SlotName) => (el: HTMLElement | null) => setTargets((t) => (t[name] === el ? t : { ...t, [name]: el }));
-    return { inspector: at('inspector'), context: at('context'), actions: at('actions') };
+    return { inspector: at('inspector'), context: at('context'), actions: at('actions'), browser: at('browser') };
   }, []);
   const hasInspector = claims.inspector > 0;
   const [inspectorOff, setInspectorOff] = useState(false);
@@ -347,7 +348,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
                     <span className="sh-crumb-sep" aria-hidden="true">
                       ›
                     </span>
-                    <Txt className="sh-crumb-current" text={ctx.scenario} />
+                    <Txt className="sh-crumb-current" text={ctx.scenario} title={ctx.scenario} />
                   </>
                 )}
               </span>
@@ -362,7 +363,8 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           </div>
         </header>
         <aside className="sh-browser sidebar" aria-label="Browser">
-          <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />
+          {claims.browser === 0 && <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />}
+          <div className="sh-slot-browser" ref={slotRefs.browser} hidden={claims.browser === 0} />
           <div className="sh-browser-foot">
             <p className="sh-foot-line">
               <span className="sh-foot-label">Workspace</span>

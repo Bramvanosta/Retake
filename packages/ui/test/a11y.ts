@@ -353,7 +353,9 @@ function install(): void {
       if (!text) continue;
       const el = n.parentElement;
       if (!el || seen.has(el)) continue;
-      if (el.closest('svg, script, style, noscript, template, option, optgroup, select, .sr-only')) continue;
+      // A visually hidden text (`.k-sr`, the kit's; `.sr-only`, the legacy's) is not painted: no contrast to measure (L5.10b
+      // fixes: the inspector's hidden heading overflows its 1 px box onto the step's picture, now the pane's first child).
+      if (el.closest('svg, script, style, noscript, template, option, optgroup, select, .sr-only, .k-sr')) continue;
       if (!shown(el)) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
@@ -372,7 +374,7 @@ function install(): void {
     }
     // ::before / ::after text (quoted content).
     for (const el of [root, ...root.querySelectorAll('*')]) {
-      if (el.closest('svg, script, style, template, .sr-only') || !shown(el)) continue;
+      if (el.closest('svg, script, style, template, .sr-only, .k-sr') || !shown(el)) continue;
       for (const which of ['::before', '::after']) {
         const pc = getComputedStyle(el, which);
         if (!pc.content || pc.content === 'none' || pc.content === 'normal' || pc.display === 'none' || pc.visibility !== 'visible') continue;

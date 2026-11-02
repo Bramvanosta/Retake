@@ -257,7 +257,7 @@ export interface ScenarioEditResult {
 }
 
 /**
- * Why the Studio (an agent channel) may not save this file at all, with each problem's line (critique B3: the YAML tab
+ * Why the Studio (an agent channel) may not save this file at all, with each problem's line (critique B3: the YAML view
  * read-only when the file is blocked; B11 lines), or null: not UTF-8 (a save would replace bytes with U+FFFD), larger
  * than SCENARIO_EDIT_MAX_CHARS, holding a carriage return without a line feed (review A M2), a link to a file outside
  * scenarios/ (review A L1, agent channels), or holding what agent trust refuses (a secret reference, an outside file,
@@ -277,7 +277,7 @@ export function scenarioEditBlocker(
   }
   const cr = /\r(?!\n)/.exec(file.yaml);
   if (cr) {
-    // Review A M2: a text editor (the YAML tab's textarea included) shows a line break where YAML reads none — the
+    // Review A M2: a text editor (the YAML view's textarea included) shows a line break where YAML reads none — the
     // file's text and what it runs differ, and a save from the tab would turn a comment into a step.
     const line = file.yaml.slice(0, cr.index).split('\n').length;
     return {

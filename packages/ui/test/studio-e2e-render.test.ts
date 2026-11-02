@@ -159,7 +159,9 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     // The scenario screen's Renders card: the same render, the same verdict.
     const verdict = await row.getAttribute('data-review');
     await page.goto(`${studio.url}#/p/demo/s/tiny`);
-    const card = page.locator('.renders-card');
+    // L5.10b: in the closed "Renders and review" section at the board's end (until L5.12).
+    await page.getByTestId('renders-section').locator('summary').click();
+    const card = page.getByTestId('renders-card');
     await card.waitFor();
     const sRow = card.locator('[data-testid="render-row"][data-id="tiny-v1"]');
     await expect.poll(() => sRow.getAttribute('data-review'), POLL).toBe(verdict);

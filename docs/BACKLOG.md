@@ -1998,6 +1998,30 @@ and `job_end` lines); what remains:
   hook edit reaches the board at its next read — a focus, another event); Welcome's "Recent projects" are listed by name, not by
   recency; the Recent activity (`Lately`) still re-reads on every job event (a render's progress).
 
+### BL-129 — « Épure » 2 extras cut from L5.10b (the scenario side)
+*S–M · cut in L5.10b · builds on: L5.10b*
+
+- The step inspector: the canvas's action Type select (changing a step's action stays the YAML's: a form per action
+  today) and its "Rest ms" field; a Zoom (camera) modifier switch (the forms' modifiers are core `MODIFIER_KEYS`:
+  caption, hold, speed, mark); verified alternative targets from the page under "Other ways to find it" (a live probe,
+  the recorder's kind — today the target's other fields of the form).
+- The YAML source: syntax colours (tokens with contrast in both appearances), Ln / Col in the status bar, R4's Outline
+  (the scenes browser plays its part), Show in Finder.
+- The Location: remembered across reloads and honoured by the Run screen (Shoot uses the file's own, said beside the
+  buttons), a Location on the Project screen (a meaning to define).
+- The storyboard: a type-ahead in a scene's frames, several steps dragged at once, scenes reordered from the browser,
+  a frame's picture from the render rather than the capture, per-scene colours (B·3c, not chosen); windowed scenes if
+  a file past the view's 2,000-step cap ever needs them (content-visibility holds the 1,200-step budget today).
+- The take strip stays above the board until L5.11 moves Dry run / Capture ("Rehearse") to the status bar's actions;
+  the renders stay the legacy card in a closed section until L5.12 (planned there, not a backlog item). Until then the
+  strip pushes the first frames down at 1440 × 900 when two picture notices show (review B L5: watched, not changed).
+- The scenes browser's layout (review B L4): B32 puts the total length beside "Scenes" and a Video block (title,
+  outro) at the bottom; the browser keeps "Video" as its first row with the total.
+- The selection follows a step by its key ("<scene>.<index>", the language's): a step deleted from outside before the
+  selected one shifts the keys, so the selection lands on the step now at that place (the inspector and the board show
+  the same one); a gone key leaves its scene selected (L5.10b fixes, review B M2). Following a step by its content
+  across outside edits is a later topic.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

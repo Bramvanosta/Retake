@@ -29,6 +29,10 @@ import {
   Menu,
   PosterCard,
   PosterGrid,
+  Callout,
+  FrameGrid,
+  FrameOption,
+  RowCard,
   Progress,
   Segmented,
   SegmentedLinks,
@@ -80,6 +84,9 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [take, setTake] = useState('2');
   const [card, setCard] = useState(1);
   const [poster, setPoster] = useState<string | null>(null);
+  const [frame, setFrame] = useState(0);
+  const [rowCard, setRowCard] = useState(false);
+  const [caption, setCaption] = useState(true);
   const [pressed, setPressed] = useState(true);
   const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -287,6 +294,46 @@ function Column({ appearance }: { appearance: Appearance }) {
               { id: 'reports', picture: <Frame />, title: 'Reports', meta: <StatusMark state="fail" word="Failed at step 3 of export" /> },
             ]}
           />
+        </div>
+      </Section>
+      <Section title="Storyboard (frames, a row card, a callout, a switch row)">
+        <div className="gl-pane">
+          <FrameGrid
+            label={`Sample frames (${name})`}
+            tabbable
+            activeId={`gl-frame-${appearance}-${frame}`}
+            onKeyDown={(e) => {
+              const to = e.key === 'ArrowRight' ? Math.min(2, frame + 1) : e.key === 'ArrowLeft' ? Math.max(0, frame - 1) : e.key === 'Home' ? 0 : e.key === 'End' ? 2 : -1;
+              if (to < 0) return;
+              e.preventDefault();
+              setFrame(to);
+            }}
+          >
+            {['Hover “Finca Lirandel”', 'Scroll to “Fresh arrivals”', 'Click “Selowa Ridge”'].map((t, i) => (
+              <FrameOption
+                key={t}
+                id={`gl-frame-${appearance}-${i}`}
+                dataKey={`discover.${i}`}
+                label={`Step ${i + 1}: ${t}. done`}
+                selected={frame === i}
+                picture={<Frame />}
+                number={String(i + 1)}
+                title={t}
+                meta={<StatusMark state="ok" word="done 0.7 s" />}
+                draggable={false}
+                drop={null}
+                dragging={false}
+                onPick={() => setFrame(i)}
+              />
+            ))}
+          </FrameGrid>
+        </div>
+        <RowCard tile="Card" title="Step two — Ask the roaster for a quote" meta="Card · the theme's card · 2.5 s" selected={rowCard} onSelect={() => setRowCard((v) => !v)} />
+        <Callout state="warn" title="Note: what the browser does changed since this run">
+          A render of this run shows the take as it was captured.
+        </Callout>
+        <div className="gl-pane">
+          <Switch layout="row" label="Caption" hint={caption ? 'On this step' : 'No caption on this step'} checked={caption} onChange={setCaption} />
         </div>
       </Section>
       <Section title="Facts and disclosure">

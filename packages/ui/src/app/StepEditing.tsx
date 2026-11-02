@@ -1,25 +1,27 @@
 /**
- * Step editing on the Blocks tab (L4.3 part 2, R-UI-12): one hook holding the screen's edit loop and the bar above the
- * blocks that shows it (undo / redo naming the edit, the live region, a refusal, the conflict offer).
+ * Step editing on the board (L4.3 part 2, R-UI-12; L5.10b: the bar on the kit): one hook holding the screen's edit loop
+ * and the bar above the board that shows it (undo / redo naming the edit, the live region, a refusal, the conflict offer).
  *
  * - Each edit is saved at once through `scenario_edit` on the version shown (`hash`); the screen then re-reads the view.
  *   Non-optimistic: the blocks change when the new view lands. From the send until then editing input is off
  *   (`busy`, critique B7) — a held Alt+↓ or a double drop never builds a second edit on a stale view.
- * - Off too while the YAML tab holds an unsaved draft (critique B7) or when the view says block edits are not possible
+ * - Off too while the YAML view holds an unsaved draft (critique B7) or when the view says block edits are not possible
  *   (`edit.blocks`: a file that does not parse, has errors, is shown in part, or the Studio does not write — why shown).
  * - A 409 (the file changed meanwhile): "your edit … was not applied", with **Apply it to the new version** (the same
  *   edit on the version now shown — the step's guard refuses it as stale when that place holds another step, never a
  *   neighbour moved; a form's changes go to the same step found again, each applied only while that field still holds
  *   what the form showed: critique B2) and **Leave it**.
  * - Undo / redo (step-edit.ts EditHistory): `restore` of the exact earlier bytes; a version this screen did not make
- *   clears the history, with a notice (its own words for a save from this screen's YAML tab).
+ *   clears the history, with a notice (its own words for a save from this screen's YAML view).
  * - After a 409, Apply is off (with why) when the new version turns block editing off (review B L9).
  * - Announcements: one polite status region ("Moved step 3 of request to position 1. Saved."); refusals in an alert.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ValidationIssue } from '@demo-studio/core';
 import { CallError, call, errorText } from './api.js';
-import { Badge, Notice, Txt } from './bits.js';
+import { Txt, shown } from './bits.js';
+import { Button, Callout, StatusMark, Toolbar } from './ui-kit/index.js';
 import type { View } from './scenario-words.js';
 import { SessionEnded } from './session.js';
 import { anchorOf, editAgain } from './forms.js';
@@ -58,7 +60,7 @@ export interface StepEditor {
   dismiss: () => void;
   /** Say something in the live region (a key that moves nothing: "already the first step"). */
   say: (text: string) => void;
-  /** This screen's YAML tab saved a version (its hash): the history is cleared in those words. */
+  /** This screen's YAML view saved a version (its hash): the history is cleared in those words. */
   ownSave: (hash: string) => void;
 }
 
@@ -106,7 +108,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
       h.know(hash);
       setAnnounce(
         ownSaves.current.has(hash)
-          ? 'Saved from the YAML tab: the undo history of block edits was cleared.'
+          ? 'Saved from the YAML view: the undo history of block edits was cleared.'
           : 'The file changed outside this screen: the undo history was cleared.',
       );
       ownSaves.current.clear();
@@ -115,7 +117,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
   }, [hash]);
 
   const enabled = !!v && v.edit.blocks.ok && !yamlDraft;
-  const why = !v ? null : !v.edit.blocks.ok ? v.edit.blocks.why : yamlDraft ? 'Save or discard your changes in the YAML tab first.' : null;
+  const why = !v ? null : !v.edit.blocks.ok ? v.edit.blocks.why : yamlDraft ? 'Save or discard your changes in the YAML view first.' : null;
 
   /** Send one edit on the version shown; `after` runs with the answer (the history's bookkeeping). */
   const run = useCallback(
@@ -253,67 +255,86 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
   };
 }
 
-/** The bar above the blocks: undo / redo, the live region, a refusal, the conflict offer, why editing is off. */
-export function EditBar({ ed }: { ed: StepEditor }) {
+/**
+ * The line above the board (L5.10b: on the kit): undo / redo naming the edit, Add a step, the saving mark, the live
+ * region; then why editing is off, the conflict offer, a refusal (each a callout: its state as a shape and words).
+ */
+export function EditBar({ ed, add }: { ed: StepEditor; /** The board's "Add a step…" (the palette). */ add?: ReactNode }) {
   return (
-    <div className="edit-bar-wrap" data-testid="edit-bar">
-      <div className="edit-bar">
-        <button type="button" className="button small" data-testid="undo" disabled={!ed.enabled || ed.busy || ed.undoLabel === null} onClick={ed.undo} aria-keyshortcuts="Meta+Z Control+Z">
-          {ed.undoLabel ? <span>Undo: <Txt text={ed.undoLabel} /></span> : 'Undo'}
-        </button>
-        <button type="button" className="button small" data-testid="redo" disabled={!ed.enabled || ed.busy || ed.redoLabel === null} onClick={ed.redo} aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z">
-          {ed.redoLabel ? <span>Redo: <Txt text={ed.redoLabel} /></span> : 'Redo'}
-        </button>
-        {ed.busy && <Badge tone="info">Saving…</Badge>}
-        <p className="edit-live small" role="status" aria-live="polite" data-testid="edit-live">
-          {ed.announce}
+    <div className="sb-editbar" data-testid="edit-bar">
+      <div className="sb-editbar-line">
+        <Toolbar label="Edits">
+          <Button size="sm" icon="undo" data-testid="undo" disabled={!ed.enabled || ed.busy || ed.undoLabel === null} onClick={ed.undo} aria-keyshortcuts="Meta+Z Control+Z">
+            {ed.undoLabel ? <span>{'Undo: '}<Txt text={ed.undoLabel} /></span> : 'Undo'}
+          </Button>
+          <Button size="sm" icon="redo" data-testid="redo" disabled={!ed.enabled || ed.busy || ed.redoLabel === null} onClick={ed.redo} aria-keyshortcuts="Shift+Meta+Z Shift+Control+Z">
+            {ed.redoLabel ? <span>{'Redo: '}<Txt text={ed.redoLabel} /></span> : 'Redo'}
+          </Button>
+          {shown(add)}
+        </Toolbar>
+        {ed.busy && <StatusMark state="running" word="Busy: saving…" />}
+        <p className="sb-live" role="status" aria-live="polite" data-testid="edit-live">
+          {shown(ed.announce)}
         </p>
       </div>
       {ed.why !== null && (
-        <p className="muted small" data-testid="blocks-edit-off">
-          Editing the blocks is off (moves, copies, deletes, forms and new steps): <Txt text={ed.why} />
+        <p className="sc-quiet" data-testid="blocks-edit-off">
+          {'Editing the board is off (moves, copies, deletes, forms and new steps): '}
+          <Txt text={ed.why} />
         </p>
       )}
       {ed.conflict && (
-        <Notice tone="warning" role="alert" title="The file changed on disk">
+        <Callout state="warn" role="alert" title="The file changed on disk">
           <p data-testid="edit-conflict">
-            Your edit (<Txt text={ed.conflict.words} />) was not applied. The blocks now show the new version.
+            {'Your edit ('}
+            <Txt text={ed.conflict.words} />
+            {') was not applied. The board now shows the new version.'}
           </p>
           {!ed.enabled && ed.why !== null && (
-            <p className="small" data-testid="edit-conflict-off">
-              It cannot be applied to the new version: <Txt text={ed.why} />
+            <p data-testid="edit-conflict-off">
+              {'It cannot be applied to the new version: '}
+              <Txt text={ed.why} />
             </p>
           )}
-          <p>
-            <button type="button" className={`button small${ed.enabled ? ' primary' : ''}`} disabled={ed.busy || !ed.enabled} onClick={ed.applyConflict}>
+          <div className="sb-actions">
+            <Button size="sm" variant={ed.enabled ? 'primary' : 'secondary'} disabled={ed.busy || !ed.enabled} onClick={ed.applyConflict}>
               Apply it to the new version
-            </button>{' '}
-            <button type="button" className="button small quiet" onClick={ed.dismiss}>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={ed.dismiss}>
               Leave it
-            </button>
-          </p>
-        </Notice>
+            </Button>
+          </div>
+        </Callout>
       )}
       {ed.error && (
-        <Notice tone="danger" role="alert" title={ed.error.title}>
-          <p className="pre-line" data-testid="edit-error">
+        <Callout state="fail" role="alert" title={ed.error.title}>
+          <p className="sb-pre" data-testid="edit-error">
             <Txt text={ed.error.message} />
           </p>
-          {ed.error.issues.length > 0 && (
-            <ul className="issues">
-              {ed.error.issues.map((i, n) => (
-                <li key={n}>
-                  <Badge tone={i.severity === 'error' ? 'danger' : 'warning'}>{i.severity}</Badge> {i.line !== undefined && <span className="mono small">{`line ${i.line} `}</span>}
-                  <Txt text={i.message} />
-                </li>
-              ))}
-            </ul>
-          )}
-          <button type="button" className="button small quiet" onClick={ed.dismiss}>
-            Dismiss
-          </button>
-        </Notice>
+          {ed.error.issues.length > 0 && <IssueLines issues={ed.error.issues} />}
+          <div>
+            <Button size="sm" variant="ghost" onClick={ed.dismiss}>
+              Dismiss
+            </Button>
+          </div>
+        </Callout>
       )}
     </div>
+  );
+}
+
+/** A file's issues, each with its severity as a shape and a word, its line and its message (text). */
+export function IssueLines({ issues, testId }: { issues: ValidationIssue[]; testId?: string }) {
+  if (issues.length === 0) return null;
+  return (
+    <ul className="sb-issues" data-testid={testId}>
+      {issues.map((i, n) => (
+        <li key={n} className="sb-issue">
+          <StatusMark state={i.severity === 'error' ? 'fail' : 'warn'} word={i.severity === 'error' ? 'error' : 'warning'} />
+          {i.line !== undefined && <span className="k-mono sc-quiet">{shown(`line ${i.line}${i.col !== undefined ? `:${i.col}` : ''}`)}</span>}
+          <Txt text={i.message} />
+        </li>
+      ))}
+    </ul>
   );
 }

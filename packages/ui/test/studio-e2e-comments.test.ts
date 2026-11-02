@@ -233,9 +233,9 @@ let at = 0;
 describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)', () => {
 
   it('timeline Comment → the exact frame; a dragged region and the chips; Post writes studio under the Studio\'s name; viewer = still = thread', async () => {
-    // The scenario screen: Comments (0 open).
+    // The scenario screen: its open comments (L5.10b: a link in the take strip, critique M4).
     await page.goto(`${studio.url}#/p/demo/s/bits`);
-    await expect.poll(() => page.getByTestId('comments-tab').innerText(), POLL).toBe('Comments (0 open)');
+    await expect.poll(() => page.getByTestId('comments-count').innerText(), POLL).toBe('Comments · 0 open');
 
     // The timeline: v1 is a render of the version shown, so Comment is offered; at the second step of scene a.
     await page.goto(`${studio.url}#/p/demo/s/bits/timeline`);

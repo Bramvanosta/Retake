@@ -162,8 +162,9 @@ export function filterSort(list: readonly BoardScenario[], query: string, sort: 
 }
 
 /** An environment's flags in words: "default · production · read-only · sandbox" (empty: none). */
-export function envFlagWords(e: { production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean }, isDefault: boolean): string {
-  return [...(isDefault ? ['default'] : []), ...(e.production ? ['production'] : []), ...(e.access === 'read-only' ? ['read-only'] : []), ...(e.sandbox ? ['sandbox'] : [])].join(' · ');
+export function envFlagWords(e: { production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean }, isDefault: boolean, name?: string): string {
+  // L5.10b fixes (review A L7): beside its name, a flag word that only repeats it is left out ("production · read-only").
+  return [...(isDefault ? ['default'] : []), ...(e.production ? ['production'] : []), ...(e.access === 'read-only' ? ['read-only'] : []), ...(e.sandbox ? ['sandbox'] : [])].filter((w) => w !== name).join(' · ');
 }
 
 /** The one flag a browser row has room for (production, read-only, sandbox, default — the riskiest first). */

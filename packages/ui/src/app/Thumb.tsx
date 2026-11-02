@@ -11,20 +11,18 @@
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
+import { shown } from './bits.js';
 import { THUMB_DATA_MAX, ThumbLoader, imageDataUrl, jpegDataUrl } from './thumbs.js';
 import type { ImageCap, ImageFormat, MissingReason, ThumbEntry, ThumbFetch } from './thumbs.js';
 
-/** The width and height a picture is shown at (CSS px); the server sends ≤ 480 px for 2× screens. */
-export const THUMB_W = 160;
-export const THUMB_H = 90;
-
 /**
- * L5.10a: the sizes a picture is drawn at (critique M9: a prop only — the legacy screens keep the row size and its
- * classes): a row (160 × 90), a poster (248 × 140: the Project screen's grid, 100 % of its column) and the inspector's
- * (280 × 158). The attributes give the box its ratio before the picture comes (no layout shift).
+ * The sizes a picture is drawn at (L5.10a: a prop; L5.10b: the scenario's frames rebuilt — no row size left): a frame
+ * (248 × 140: the storyboard's, 100 % of its column), a poster (the same: the Project screen's grid) and the
+ * inspector's (280 × 158). The attributes give the box its ratio before the picture comes (no layout shift); the server
+ * sends ≤ 480 px for 2× screens. The boxes' look is screens.css's (`th-*`).
  */
-export type ThumbSize = 'row' | 'poster' | 'inspector';
-const SIZES: Record<ThumbSize, [number, number]> = { row: [THUMB_W, THUMB_H], poster: [248, 140], inspector: [280, 158] };
+export type ThumbSize = 'frame' | 'poster' | 'inspector';
+const SIZES: Record<ThumbSize, [number, number]> = { frame: [248, 140], poster: [248, 140], inspector: [280, 158] };
 
 interface ThumbsCtx {
   loader: ThumbLoader;
@@ -61,7 +59,7 @@ export function ThumbsProvider({ fetch, children }: { fetch: ThumbFetch; childre
     // The fetch closes over the project only: one loader per screen (the screen is keyed by project and scenario).
   }, []);
   useEffect(() => () => value.loader.close(), [value]);
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={value}>{shown(children)}</Ctx.Provider>;
 }
 
 const REASON: Record<MissingReason, string> = {
@@ -83,7 +81,7 @@ function useEntry(loader: ThumbLoader, run: string, key: string): ThumbEntry | u
 }
 
 /** The picture of the run's step `runKey` (the run's own key), or why there is none. */
-export function Thumb({ run, runKey, alt, size = 'row' }: { run: string; runKey: string; alt: string; size?: ThumbSize }) {
+export function Thumb({ run, runKey, alt, size = 'frame' }: { run: string; runKey: string; alt: string; size?: ThumbSize }) {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('Thumb outside ThumbsProvider');
   const box = useRef<HTMLDivElement>(null);
@@ -104,11 +102,11 @@ export function Thumb({ run, runKey, alt, size = 'row' }: { run: string; runKey:
   }, [ctx, run, runKey]);
   const ok = entry?.state === 'ok' && jpegDataUrl(entry.base64) !== null ? entry : null;
   return (
-    <div ref={box} className="thumb" data-testid="thumb" data-size={size === 'row' ? undefined : size} data-state={ok ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
+    <div ref={box} className="th-box" data-testid="thumb" data-size={size} data-state={ok ? 'ok' : (entry?.state === 'missing' ? entry.reason : 'loading')}>
       {ok ? (
         <Jpeg base64={ok.base64} max={THUMB_DATA_MAX} width={SIZES[size][0]} height={SIZES[size][1]} alt={alt} />
       ) : (
-        <span className="thumb-words">{entry?.state === 'missing' ? REASON[entry.reason] : 'Loading the picture…'}</span>
+        <span className="th-words">{shown(entry?.state === 'missing' ? REASON[entry.reason] : 'Loading the picture…')}</span>
       )}
     </div>
   );
@@ -131,10 +129,10 @@ export function Jpeg({ base64, max, width, height, alt }: { base64: string; max:
 }
 
 /** The same box with words instead of a picture (a step the run cannot picture). */
-export function NoThumb({ children, size = 'row' }: { children: ReactNode; size?: ThumbSize }) {
+export function NoThumb({ children, size = 'frame' }: { children: ReactNode; size?: ThumbSize }) {
   return (
-    <div className="thumb thumb-none" data-testid="thumb" data-size={size === 'row' ? undefined : size} data-state="none">
-      <span className="thumb-words">{children}</span>
+    <div className="th-box th-none" data-testid="thumb" data-size={size} data-state="none">
+      <span className="th-words">{shown(children)}</span>
     </div>
   );
 }

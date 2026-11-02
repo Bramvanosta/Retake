@@ -66,7 +66,7 @@ import { z } from 'zod';
  * Projects screen's cards in one call (projects_overview). L4.2: a run's status (`run_status`, without its long-poll:
  * the running banner's progress), the scenario screen's reads (scenario_blocks, run_thumbs), its Dry run / Capture
  * (`scenario_run`, an own op with pinned arguments: no sandbox, no until, no wait — critique B11) and Cancel
- * (`run_cancel`). L4.3: the YAML tab's live check (`scenario_validate`, read-only) and the scenario write path
+ * (`run_cancel`). L4.3: the YAML view's live check (`scenario_validate`, read-only) and the scenario write path
  * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`).
  * L4.4: the Run screen's Pause / Resume (`run_pause`) and preflight panel (`scenario_sessions`), the Sessions panel
  * (`auth_status`, read-only; `auth_login` NARROWED to a headed window for the person, never a wait; `sign_in_cancel`).

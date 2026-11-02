@@ -41,7 +41,7 @@ export interface SetMapPathOptions {
   keepComments?: boolean;
   /** Words for refusals ("the layout of scene request"). */
   what: string;
-  /** Where the person changes it instead ("change it in the YAML tab"). */
+  /** Where the person changes it instead ("change it in the YAML view"). */
   byHand?: string;
 }
 
@@ -239,7 +239,7 @@ export function setMapPath(text: string, root: Obj, path: readonly string[], to:
     ...(o.entry !== undefined ? { entry: o.entry } : {}),
     ...(o.insertBefore !== undefined ? { insertBefore: o.insertBefore } : {}),
     keepComments: o.keepComments === true,
-    byHand: o.byHand ?? 'change it in the YAML tab',
+    byHand: o.byHand ?? 'change it in the YAML view',
   };
   /** The whole file's value with the container as it is now. */
   const wholeWith = (): Obj => {

@@ -37,7 +37,7 @@ import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, Loading, Notice, plural, Txt, visibleControls, When } from './bits.js';
 import { recordEventAction, useEvents } from './events.js';
 import { hrefTo } from './route.js';
-import { Commands } from './ScenarioScreen.js';
+import { TerminalCommands as Commands } from './ui-kit/index.js';
 import { SignIn, StoredState } from './Sessions.js';
 import { stepWords } from './scenario-words.js';
 import {

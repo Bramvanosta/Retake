@@ -80,8 +80,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.7 | Field feedback: capture performance and disk (limiter kept, encode during the take, perf report, prune) | M | **done** (2026-10-26) |
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
 | L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **done** (live checks: MACOS-CHECKLIST 14b) |
-| L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **L5.10a done** (project side; live checks: MACOS-CHECKLIST 14c); **L5.10b next** (scenario side) |
-| L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | todo |
+| L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **done** — L5.10a (project side) and L5.10b (scenario side) (live checks: MACOS-CHECKLIST 14c) |
+| L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | **next** (when the user asks) |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | todo — right after L5.13 |
@@ -897,6 +897,15 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   Welcome, the Productions poster grid with search, sort, New scenario and inspectors; ProjectsScreen / ProjectPage
   replaced; two product races fixed (dialog focus return, a job the Studio could miss). Two independent reviews fixed with
   mutation-checked tests. Cuts: BL-128. L5.10b: the scenario storyboard, step inspector, scenes, YAML source, Location.
+
+### L5.10b — Studio « Épure » 2b: the scenario side (split from L5.10)
+- **Goal:** the Scenario screen from the validated B32 design — storyboard, inspectors, scenes, YAML source — without
+  losing any editing capability.
+- **Done (2026-11-02, in a worktree):** the storyboard of real frames per scene with one selection driving board,
+  browser and inspectors, the step inspector (form, other ways to find it, modifiers), scene / card / hooks / video
+  inspectors, a minimal take strip, Board · YAML and Location in the title bar, the YAML source with its File inspector;
+  the verified write path and the 1,200-step budget unchanged. Two independent reviews fixed with mutation-checked
+  tests. Cuts: BL-129.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

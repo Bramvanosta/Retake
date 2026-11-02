@@ -334,7 +334,7 @@ describe('review B fixes', () => {
     // neighbour says the same (it needs where that step ends).
     const odd = 'video: x\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A\n      - &a\t{click: B}\n';
     const scene = scenarioBlocks(odd).entries.find((e) => e.type === 'scene');
-    const why = 'step 2 of its scene is not written as a plain "- " item (a tab after the dash or its anchor, something before it on the line): edit these steps in the YAML tab';
+    const why = 'step 2 of its scene is not written as a plain "- " item (a tab after the dash or its anchor, something before it on the line): edit these steps in the YAML view';
     expect(scene?.type === 'scene' ? [scene.steps_locked, scene.steps.map((s) => s.locked)] : null).toEqual([why, [why, why]]);
     expect(() => del(odd, 'a', 1)).toThrow('step 2 of a is not written as a plain "- " item');
   });

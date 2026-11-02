@@ -119,7 +119,7 @@ describe('move, delete, duplicate through scenarios.edit', () => {
     const before = await snapshot('keep');
     const e = await failure(ui.scenarios.edit(P, 'keep', { hash: h, edit: { kind: 'move_step', from: at(t, 'a', 1), to: { scene: 'a', index: 0 } } }));
     expect(e.code).toBe('refused');
-    expect(e.message).toBe('not saved: the edit cannot be made without changing other parts of the file — change it in the YAML tab');
+    expect(e.message).toBe('not saved: the edit cannot be made without changing other parts of the file — change it in the YAML view');
     expect(await snapshot('keep')).toEqual(before);
   });
 
@@ -158,8 +158,8 @@ describe('move, delete, duplicate through scenarios.edit', () => {
     const v = await ui.scenarios.view(P, 'locks');
     const [a, b] = v.blocks.entries.filter((e) => e.type === 'scene');
     if (a.type !== 'scene' || b.type !== 'scene') throw new Error('scenes');
-    expect(a.steps.map((s) => s.locked ?? null)).toEqual([null, 'written as a YAML alias: edit it in the YAML tab']);
-    expect(b.steps_locked).toBe('its scene writes its steps as a flow list ([…]): edit them in the YAML tab');
+    expect(a.steps.map((s) => s.locked ?? null)).toEqual([null, 'written as a YAML alias: edit it in the YAML view']);
+    expect(b.steps_locked).toBe('its scene writes its steps as a flow list ([…]): edit them in the YAML view');
     expect(b.steps.every((s) => s.locked === b.steps_locked)).toBe(true);
     expect(a.steps.every((s) => typeof s.guard === 'string' && /^[0-9a-f]{16}$/.test(s.guard))).toBe(true);
   });

@@ -232,14 +232,14 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.keyboard.press('Enter');
     await page.waitForURL('**#/p/demo/s/bits');
 
-    // The steps listbox: one tab stop; the arrows select, the inspector follows.
-    await tabTo(page, 'ul.steps[role="listbox"]');
+    // L5.10b: the frames listbox (a grid): one tab stop; the arrows select, the inspector follows.
+    await tabTo(page, 'ul.k-frames[role="listbox"]');
     const selected = () => page.evaluate(() => document.querySelector('[data-testid="step"][aria-selected="true"]')?.getAttribute('data-key') ?? null);
     // The first arrow selects (the list may already hold the first step as its current option); ↑ comes back to it.
     await page.keyboard.press('ArrowDown');
     await expect.poll(selected, POLL).not.toBeNull();
     for (let i = 0; i < 3 && (await selected()) !== 'a.0'; i++) {
-      await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('Home');
       await expect.poll(selected, { timeout: 2000 }).not.toBe(null);
     }
     await expect.poll(selected, POLL).toBe('a.0');

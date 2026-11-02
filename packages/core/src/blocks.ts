@@ -101,7 +101,7 @@ export interface StepBlock {
   aliased?: true;
   /** core stepGuard of the step as written (modifiers included): what a block edit names it by (L4.3, critique B2). */
   guard?: string;
-  /** Why the Blocks tab cannot move, delete or duplicate it (an alias, a flow list of steps): edited in the YAML tab. */
+  /** Why the Blocks tab cannot move, delete or duplicate it (an alias, a flow list of steps): edited in the YAML view. */
   locked?: string;
   /**
    * Its values for the inspector's form (L4.3 part 3, step-forms.ts): object form, a URL with a password never shown;
@@ -816,7 +816,7 @@ function stepBlock(raw: unknown, index: number, sceneId: string, seq: At, src: S
   const at = childAt(seq, index);
   const comment = commentOf(seq, at, index);
   const range = rangeOf(at, src);
-  const locked = stepsLocked ?? (at.aliased ? 'written as a YAML alias: edit it in the YAML tab' : undefined);
+  const locked = stepsLocked ?? (at.aliased ? 'written as a YAML alias: edit it in the YAML view' : undefined);
   const base = {
     key: `${sceneId}.${index}`,
     index,

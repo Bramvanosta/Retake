@@ -163,7 +163,10 @@ The legacy steps' in-flight edge `--busy-edge` (`#80858f` / `#7d828c`) is a mark
   **Library** (Components, Themes); **Locations** (one row per environment, its riskiest flag in a word: production,
   read-only, sandbox, default); **Cast** (Sessions, then each persona's session as a shape and a word); **Project**
   (README with "unsaved" while dirty, Record a scenario). Its foot: the workspace path, the version and the worker's
-  pid, the UI gallery link. L5.10b adds the scenes of a scenario.
+  pid, the UI gallery link. A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
+  slot; the foot stays) — Video (the total length), Before filming, each scene (number, title, length, a 2 px bar against
+  the longest), the cards (quieter), After filming; a row selects its entry and brings it into view (on the board the
+  entry, in the YAML view its lines).
 - **Centre.** The only scroller: the bars never move. It starts at the top when the screen changes, and keeps its
   place when the screen moves inside itself (a thread, a frame, a run, a theme picked).
 - **Inspector.** Shown only while the screen fills it; titled sections, the inspector's field rows (a right-aligned
@@ -196,9 +199,13 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | Progress | determinate (values), indeterminate | no motion under reduced motion |
 | Toolbar | one tab stop; arrows, Home, End over its visible controls (a radio group counts once) | groups controls inside a pane (not the title bar); a menu, a segmented control or a field inside it keeps its own keys |
 | StatusBar | state, information, actions | one per window (the shell's) and samples |
-| SourceList | headed groups, nested items, current (`aria-current`, select fill + 600), a count or a flag in words; L5.10a: an icon, a lead column, a value (mono), a quiet row, a test id | the label truncates first; the flag, the count and the value never wrap |
+| SourceList | headed groups, nested items, current (`aria-current`, select fill + 600), a count or a flag in words; L5.10a: an icon, a lead column, a value (mono), a quiet row, a test id; L5.10b: a row that acts (`onSelect`: a button, `aria-current="true"`) and a 2 px bar | the label truncates first; the flag, the count and the value never wrap |
 | Facts | a `<dl>` of read-only rows, the label in the 96 px right-aligned column (L5.10a); a name goes on a `group` around it, never on the `dl` | read-only values; FieldRow stays for controls |
 | Disclosure | a native `<details>`, closed by default (L5.10a) | the one collapsible outside the inspector (the ratchet bans `<details>` elsewhere) |
+| FrameGrid, FrameOption | ONE listbox per scene (L5.10b): three columns (two under 1100 px), options with `aria-selected` and a name (scene, number, verb, target, state words), the list holding the selection the one tab stop; selected: select fill + 2 px ring; a drop: a 3 px bar on one side; dragged: a dashed outline, a dimmed picture | the caller's keys (`board-keys.ts`: ← → by step, ↑ ↓ by column across scenes, Home / End, Page Up / Down three rows, Alt+arrows move); the list takes the drag over its gaps, the slot from the pointer (`slotFromPointer`); an empty scene's drop zone |
+| RowCard | a pressed button: a 96 × 54 tile, a title, a meta line (L5.10b) | cards between scenes, Before / After filming |
+| Callout | a short note in a pane well: its state as a shape and its title (a state word), then its text (L5.10b) | replaces the legacy Notice on rebuilt screens |
+| TerminalCommands | the command to type and its node form, selectable (L5.10b) | blockers and refusals (the Run, Record and Timeline screens use it too) |
 | PosterGrid | ONE listbox (L5.10a): options with `aria-selected`, the selected one the active descendant (no `aria-activedescendant` while none is), select fill + 2 px ring; as many columns as fit, 200 px at least | arrows (↑ ↓ move by the row the layout shows: three at 1440, one at 900), Home / End, Enter opens, Space selects, Escape clears; a click selects, a double-click opens; nothing selected at first |
 | InspectorSection | titled; collapsible (`<details>`) | |
 | FrameCard, PosterCard | selected (select fill + 2 px ring) or not; a button that selects or a link that goes | the picture comes from Thumb.tsx (the one image source) |
@@ -233,8 +240,33 @@ Studio keeps `APP_NAME` (L5.13 renames).
   search's label is visually hidden behind a search icon (B32). The Cast (`#/p/<slug>/cast`) hosts the Sessions panel
   until L5.11; the browser's Cast rows put a persona's location on a second line that wraps. Deviations: the canvas's
   Location select on this screen is cut (BL-128).
-- **Scenario** — a storyboard of real frames per scene (≈ 248 × 140, three a row), the step inspector (B32-Scenario). L5.10b.
-- **Scenario source** — the YAML, a View segmented control (Blocks · YAML) in the title bar's context slot (R4-Source). L5.10b.
+- **Scenario** (B32-Scenario) — built in L5.10b: the title bar's context holds View (Board · YAML) and Location (the
+  environments with their flags in words; a choice holds in this tab only and changes what Dry run and Capture use —
+  said beside them —, never what Shoot uses; one project.yaml no longer has is dropped and said once); the scenario's
+  name is a visually hidden h1 (the title bar keeps it readable at 900 px, its full text in a tooltip). Above the board
+  and the YAML view alike: the running take (progress, Watch live, Cancel). The take strip (minimal until
+  L5.11 moves the run actions to the status bar): Pictures from, the source run as a shape and words, the open comments,
+  Dry run · Capture with what stops each (the reasons and commands folded under the line), Open
+  timeline, the location, what the last click came to, what the pictures may not show. The file's notices, the edit
+  bar (Undo / Redo naming the edit, Add a step…), the palette. The storyboard: the step count and the file, Before
+  filming, the scenes (title = the caption's kicker, its caption, flags in words, "Scene 1 · shop, / · 9.3 s" — "no
+  capture yet" under a dry run's pictures — and Add step, then its frames, three a row while the board is wider than
+  600 px, two to 380 px, one below (the board's width: a container query) — 256 × 201 with a 244 × 137 picture and
+  20 px gaps at 1440 —: picture or why there is none, number, verb and target ("Wait for …"; without a target, what it
+  does: "Wait 1.6 s"), "took …", state words, modifiers, the step's note), cards between them, After filming; a closed
+  "Renders and review" section at its end (the legacy card until L5.12). One selection drives the board, the browser and
+  the inspector; a selected step gone from the file leaves its scene selected, never another step. The inspector: a
+  step in B32's order (its picture 288 × 162, "Step 3 · Click", scene and "took …", its form — fields in words, "Other
+  ways to find it (n)", the modifiers as switches, all on the first screen at 1440 × 900 —, what it does, Move up /
+  Move down / Duplicate / Delete — the button keeps the focus —, In this run, As written, Show in the file · line n), a
+  scene's facts, a card's, the hooks, the video's (its location: the file's own, the tab's choice beside it). Deviations: the canvas's
+  action Type select and Rest field, the Zoom modifier and verified alternative targets are cut (BL-129); "Rehearse" is
+  still "Dry run" (L5.11).
+- **Scenario source** (R4-Source) — built in L5.10b: View › YAML: a toolbar line (the file, "Comments and layout are
+  kept when you edit the board.", Edit / Save / Discard changes / Close the editor), the numbered lines with each issue
+  under its line, the focus lines outlined; the editor is the kit's text area (same drafts, conflicts, live checks); the
+  File inspector (valid or n errors in words, warnings, unsaved, hidden characters, the size against the cap). Deviations:
+  no syntax colours, no Ln / Col, the scenes browser in place of the Outline, no Show in Finder (BL-129).
 - **Shoot — prepare a take** — the checklist; a blocking hook in one line with Copy command. L5.11.
 - **Shoot — a live rehearsal / capture** — the live picture, the steps, Stop. L5.11.
 - **Shoot — record a scenario** — the Record screen in the shell. L5.11.

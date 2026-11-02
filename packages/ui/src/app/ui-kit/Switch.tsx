@@ -8,9 +8,29 @@ import { useId } from 'react';
 import type { ReactNode } from 'react';
 import { shown } from '../bits.js';
 
-export function Switch({ label, checked, onChange, hint, disabled }: { label: ReactNode; checked: boolean; onChange: (on: boolean) => void; hint?: ReactNode; disabled?: boolean }) {
+/**
+ * L5.10b: `layout="row"` — the inspector's row (B32's modifiers): the label in the 96 px right-aligned column, the hint
+ * and the switch on the right.
+ */
+export function Switch({ label, checked, onChange, hint, disabled, layout, dataField }: { label: ReactNode; checked: boolean; onChange: (on: boolean) => void; hint?: ReactNode; disabled?: boolean; layout?: 'row'; dataField?: string }) {
   const hintId = useId();
   const labelId = useId();
+  if (layout === 'row') {
+    return (
+      <label className="k-switch-row k-switch-row-layout">
+        <span id={labelId} className="k-switch-label">
+          {shown(label)}
+        </span>
+        <span id={hintId} className="k-hint">
+          {shown(hint ?? '')}
+        </span>
+        <span className="k-switch">
+          <input type="checkbox" role="switch" className="k-switch-input" checked={checked} disabled={disabled} aria-labelledby={labelId} aria-describedby={hint ? hintId : undefined} data-switch={dataField} onChange={(e) => onChange(e.currentTarget.checked)} />
+          <span className="k-switch-knob" aria-hidden="true" />
+        </span>
+      </label>
+    );
+  }
   return (
     <label className="k-switch-row">
       <span className="k-switch-text">

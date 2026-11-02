@@ -1,13 +1,13 @@
 /**
  * Unsaved text of the app's text editors, kept while the person moves around the app (this tab only, never stored):
- * a project's README (`readme:<slug>`, L4.1) and a scenario's YAML tab (`scenario:<slug>/<name>`, L4.3). The editor
+ * a project's README (`readme:<slug>`, L4.1) and a scenario's YAML view (`scenario:<slug>/<name>`, L4.3). The editor
  * starts from it, the sidebar marks the project's README "unsaved", the scenario screen turns block editing off while
  * its YAML draft is open (critique B7), closing or reloading the tab warns, and when the session ends the text stays
  * on screen to copy (main.tsx).
  *
  * Line breaks: a textarea gives its text back with LF line breaks whatever it was given (CR LF and lone CR become LF),
  * so the editor works on LF text and remembers the file's own line breaks (`eol`) to save with them (review B M1): a
- * CR LF README stays CR LF, and loading one is not an unsaved change. A scenario's YAML tab turns only CR LF into LF
+ * CR LF README stays CR LF, and loading one is not an unsaved change. A scenario's YAML view turns only CR LF into LF
  * (`crlfToLf`): a lone CR is not a line break to YAML, so a scenario holding one is shown read-only (the view's
  * `edit.yaml`, L4.3 review A M2) rather than saved back with a new line where the file had none.
  *
@@ -32,7 +32,7 @@ export function normalizeEol(s: string): string {
   return s.replace(/\r\n?/g, '\n');
 }
 
-/** CR LF → LF, a lone CR kept (a scenario's YAML tab: see the header). */
+/** CR LF → LF, a lone CR kept (a scenario's YAML view: see the header). */
 export function crlfToLf(s: string): string {
   return s.replace(/\r\n/g, '\n');
 }

@@ -3404,6 +3404,30 @@ running: the MCP server keeps working without it.
   that is not UTF-8 text, or a symbolic link leading out of the project, opens read-only with the reason (convert or
   replace it in your editor); one linked to another file of the project is saved into that file. A project without a
   README.md says that saving creates it.
+- **The Scenario screen (L5.10b).** A storyboard: the browser lists the scenario's entries (the video, *Before
+  filming*, each scene with its length and a bar, the cards, *After filming*: a click selects one and brings it into
+  view); the title bar holds *View* (Board · YAML) and *Location* (pick another environment for Dry run and Capture in
+  this tab — the take strip says so, and that the Run screen keeps the file's own; a reload goes back to it, and a
+  location project.yaml no longer has is dropped, said once). A run of the scenario in progress shows above the board
+  and the YAML view alike (its progress, *Watch live*, *Cancel*). Above the board, the take strip: *Pictures from*, the
+  source run, the open comments, Dry run · Capture (what stops each is said before any click, its reasons and command
+  folded under the line), Open timeline. The board says how many steps and scenes the file has; each scene shows its
+  frames three a row — two or one when the board is narrow (a small window, the inspector open) — the step's picture,
+  its number, its verb and target ("Wait for …", "Wait 1.6 s"), how long it took and its state in words; a scene
+  filmed only by a dry run says *no capture yet* beside its number. The cards sit between scenes as one-line cards.
+  The frames are one keyboard stop: Tab into them lands on the first step of the selected scene (or of the first
+  scene), ← → step by step, ↑ ↓ by column (across scenes), Home / End; ⌥ + an arrow moves the selected step, Delete
+  removes it, drag a frame onto another's half, into a gap or an empty cell. The inspector shows what is selected: a
+  step (its picture, its title, its form — the fields named in words, the target's *Other ways to find it*, the
+  modifiers as switches —, what it does, Move up / Move down / Duplicate / Delete — the button keeps the focus, so Enter
+  again moves it again —, *In this run*, its lines, *Show in the file*), a scene's facts, a card, the hooks, the video
+  (its location: the file's own, and the one Dry run and Capture use when you picked another). A selected step that
+  disappears from the file (an outside edit) leaves its scene selected — never another step. *View › YAML* shows the
+  file's numbered lines with each issue under its line, *Edit* opens the editor, and the inspector says whether the
+  file is valid. The renders sit in a closed *Renders and review* section at the board's end (until L5.12). The points
+  below come from earlier lots and still hold, in the board's words: a step's row is its frame, a scene's card is its
+  inspector, the *Blocks* tab is the board and the *YAML* tab the YAML view, and the runs from the Studio sit in the
+  take strip.
 - **Scenarios as blocks** (read-only: edits are made in the file). A project's scenario names open the scenario screen: the video's
   settings and the notes at the top of the file (without editor directives such as `yaml-language-server:`), the setup
   and teardown hooks (each with its kind, what it does, *destructive* / *with rollback* in words and whether it needs
@@ -3420,12 +3444,12 @@ running: the MCP server keeps working without it.
   since that run, its scene skipped, a step with two actions — and when the scenario changed since
   the run a banner says so (a step whose arguments did not change keeps its picture). Selecting a step (click, or the
   arrow keys, Home and End: the steps are one stop for the Tab key) shows it in the inspector: what the action does,
-  its arguments, its lines in the file (*Show in YAML* opens the YAML tab there), what the run did, and what
+  its arguments, its lines in the file (*Show in the file* opens the YAML view there), what the run did, and what
   the run found on the page, in a box of its own (text the filmed site controls). The pictures are made when a step
   comes on screen (a 1,200-step scenario opens in a fraction of a second on a recent Mac), kept in memory only — never
   written to disk — and the screen follows the files: an edit of the scenario or a run of it that starts or finishes
   shows within about a second. Steps are numbered from 1 everywhere on the screen ("failed at step 3 of proposal"). A
-  scenario of more than 2,000 steps shows its first 2,000 and says so (the YAML tab has the whole file).
+  scenario of more than 2,000 steps shows its first 2,000 and says so (the YAML view has the whole file).
 - **Editing a scenario's YAML.** The *YAML* tab shows the file; **Edit** turns it into a text box (no highlighting).
   ⌘S / Ctrl+S or **Save** writes it — with the file's own line breaks (CR LF stays CR LF) and a final line break — and
   the blocks show the result; the issues of what you type appear below it as you go. A save is checked like one Claude

@@ -164,7 +164,7 @@ export function stepsDashWhy(text: string, stepsNode: unknown): string | undefin
     const node = stepsNode.items[i] as Node | null;
     if (!node || isAlias(node) || !node.range) continue;
     const d = dashOf(text, node);
-    if ('why' in d) return `step ${i + 1} of its scene ${d.why}: edit these steps in the YAML tab`;
+    if ('why' in d) return `step ${i + 1} of its scene ${d.why}: edit these steps in the YAML view`;
   }
   return undefined;
 }
@@ -173,9 +173,9 @@ export function stepsDashWhy(text: string, stepsNode: unknown): string | undefin
 function itemLines(text: string, seq: YAMLSeq, i: number, what: string): Pick<Span, 'dashLine' | 'dashCol' | 'contentEnd'> {
   const node = seq.items[i] as Node | null;
   const range = node?.range;
-  if (!node || !range) throw new StepEditError('not_editable', `${what} has no position in the file: edit it in the YAML tab`);
+  if (!node || !range) throw new StepEditError('not_editable', `${what} has no position in the file: edit it in the YAML view`);
   const d = dashOf(text, node);
-  if ('why' in d) throw new StepEditError('not_editable', `${what} ${d.why}: edit it in the YAML tab`);
+  if ('why' in d) throw new StepEditError('not_editable', `${what} ${d.why}: edit it in the YAML view`);
   const p = d.at;
   const dashLine = lineStartOf(text, p);
   let e = range[1];
@@ -208,7 +208,7 @@ function reindent(block: string, from: number, to: number): string {
     .map((l) => {
       if (l.trim() === '') return l;
       const cur = /^ */.exec(l)![0].length;
-      if (cur < from) throw new StepEditError('not_editable', 'a line of this step is less indented than its dash: move it in the YAML tab');
+      if (cur < from) throw new StepEditError('not_editable', 'a line of this step is less indented than its dash: move it in the YAML view');
       return ' '.repeat(cur - from + to) + l.slice(cur);
     })
     .join('');
@@ -226,7 +226,7 @@ function applySplices(text: string, splices: Splice[]): string {
   let out = text;
   let limit = Infinity;
   for (const s of sorted) {
-    if (s.at + s.remove > limit) throw new StepEditError('not_editable', 'this edit touches overlapping parts of the file: make it in the YAML tab');
+    if (s.at + s.remove > limit) throw new StepEditError('not_editable', 'this edit touches overlapping parts of the file: make it in the YAML view');
     out = out.slice(0, s.at) + s.insert + out.slice(s.at + s.remove);
     limit = s.at;
   }
@@ -268,17 +268,17 @@ interface Ctx {
 function context(text: string): Ctx {
   const parsed = parseYaml(text);
   if (parsed.value === undefined || parsed.issues.some((i) => i.severity === 'error')) {
-    throw new StepEditError('not_editable', 'the file is not valid YAML: fix it in the YAML tab first');
+    throw new StepEditError('not_editable', 'the file is not valid YAML: fix it in the YAML view first');
   }
   const doc = parsed.source.doc;
   const root = doc.contents;
   const value = parsed.value as Record<string, unknown>;
   if (!isMap(root) || !value || typeof value !== 'object' || !Array.isArray(value.scenes)) {
-    throw new StepEditError('not_editable', 'the file has no `scenes:` list: edit it in the YAML tab');
+    throw new StepEditError('not_editable', 'the file has no `scenes:` list: edit it in the YAML view');
   }
   const pair = root.items.find((p) => isScalar(p.key) && p.key.value === 'scenes');
   const seq = pair?.value;
-  if (!isSeq(seq)) throw new StepEditError('not_editable', '`scenes:` is written as a YAML alias: edit the file in the YAML tab');
+  if (!isSeq(seq)) throw new StepEditError('not_editable', '`scenes:` is written as a YAML alias: edit the file in the YAML view');
   return { text, eol: eolOf(text), value: value as Ctx['value'], scenesSeq: seq };
 }
 
@@ -286,20 +286,20 @@ function sceneSteps(ctx: Ctx, id: string): SceneSteps {
   const k = ctx.value.scenes.findIndex((e) => e && typeof e === 'object' && (e as { id?: unknown }).id === id && Array.isArray((e as { steps?: unknown }).steps));
   if (k < 0) throw new StepEditError('stale', `the file has no scene "${id}" with steps (any more): read it again`);
   const node = ctx.scenesSeq.items[k] as Node | null;
-  if (isAlias(node)) throw new StepEditError('not_editable', `scene ${id} is written as a YAML alias: edit it in the YAML tab`);
-  if (!isMap(node)) throw new StepEditError('not_editable', `scene ${id} is not a mapping: edit it in the YAML tab`);
+  if (isAlias(node)) throw new StepEditError('not_editable', `scene ${id} is written as a YAML alias: edit it in the YAML view`);
+  if (!isMap(node)) throw new StepEditError('not_editable', `scene ${id} is not a mapping: edit it in the YAML view`);
   const pair = (node as YAMLMap).items.find((p) => isScalar(p.key) && p.key.value === 'steps') as Pair<Node, Node | null> | undefined;
   const seq = pair?.value;
-  if (!pair || isAlias(seq) || !isSeq(seq)) throw new StepEditError('not_editable', `the steps of scene ${id} are written as a YAML alias: edit them in the YAML tab`);
+  if (!pair || isAlias(seq) || !isSeq(seq)) throw new StepEditError('not_editable', `the steps of scene ${id} are written as a YAML alias: edit them in the YAML view`);
   const key = pair.key as Node;
   const keyRange = key.range!;
   let c = keyRange[1];
   while (ctx.text[c] === ' ') c++;
-  if (ctx.text[c] !== ':') throw new StepEditError('not_editable', `the \`steps\` key of scene ${id} is not written as \`steps:\`: edit it in the YAML tab`);
+  if (ctx.text[c] !== ':') throw new StepEditError('not_editable', `the \`steps\` key of scene ${id} is not written as \`steps:\`: edit it in the YAML view`);
   const keyLine = lineStartOf(ctx.text, keyRange[0]);
   const values = (ctx.value.scenes[k] as { steps: unknown[] }).steps;
   if (seq.flow && seq.items.length > 0) {
-    throw new StepEditError('not_editable', `the steps of scene ${id} are written as a flow list ([…]): edit them in the YAML tab`);
+    throw new StepEditError('not_editable', `the steps of scene ${id} are written as a flow list ([…]): edit them in the YAML view`);
   }
   return { entry: k, id, values, seq, flow: !!seq.flow, colon: c + 1, keyCol: keyRange[0] - keyLine, lower: lineEndOf(ctx.text, c) };
 }
@@ -314,7 +314,7 @@ function stepAt(ctx: Ctx, at: StepAt): { scene: SceneSteps; span: Span; node: No
   const raw = scene.values[at.index];
   if (stepGuard(raw) !== at.guard) throw new StepEditError('stale', `${what} is not the step the edit was made on (it changed or moved): read the file again`);
   const node = scene.seq.items[at.index] as Node;
-  if (isAlias(node)) throw new StepEditError('not_editable', `${what} is written as a YAML alias: edit it in the YAML tab`);
+  if (isAlias(node)) throw new StepEditError('not_editable', `${what} is written as a YAML alias: edit it in the YAML view`);
   return { scene, span: itemSpan(ctx.text, scene.seq, at.index, scene.lower, what), node, raw };
 }
 
@@ -400,7 +400,7 @@ function moveStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'move_step' }>): Ste
   const { scene: src, span } = stepAt(ctx, edit.from);
   const same = edit.to.scene === edit.from.scene;
   const dst = same ? src : sceneSteps(ctx, edit.to.scene);
-  if (dst.flow && dst.values.length > 0) throw new StepEditError('not_editable', `the steps of scene ${dst.id} are written as a flow list: edit them in the YAML tab`);
+  if (dst.flow && dst.values.length > 0) throw new StepEditError('not_editable', `the steps of scene ${dst.id} are written as a flow list: edit them in the YAML view`);
   const room = dst.values.length - (same ? 1 : 0);
   const j = edit.to.index;
   if (!Number.isInteger(j) || j < 0 || j > room) throw new StepEditError('stale', `scene ${dst.id} has no position ${j + 1} (any more): read the file again`);
@@ -455,12 +455,12 @@ function pairRemoval(text: string, map: YAMLMap, pair: Pair<Node, Node | null>, 
     // line break — a comment there would go with the cut, though it belongs to the keys that stay.
     const v = pair.value;
     const between = isScalar(v) && v.range ? text.slice(cut[0], v.range[0]) + text.slice(v.range[1], cut[1]) : text.slice(cut[0], cut[1]);
-    if (/[#\r\n]/.test(between)) throw new StepEditError('not_editable', 'this {…} map is written over several lines or holds comments: change it in the YAML tab');
+    if (/[#\r\n]/.test(between)) throw new StepEditError('not_editable', 'this {…} map is written over several lines or holds comments: change it in the YAML view');
     return cut;
   }
   if (lineStartOf(text, keyStart) === dashLine) {
     // The pair on the dash line: the next key takes its place there.
-    if (k + 1 >= items.length) throw new StepEditError('not_editable', 'this step cannot be copied without its id or mark: duplicate it in the YAML tab');
+    if (k + 1 >= items.length) throw new StepEditError('not_editable', 'this step cannot be copied without its id or mark: duplicate it in the YAML view');
     return [keyStart, items[k + 1].key.range![0]];
   }
   const col = keyStart - lineStartOf(text, keyStart);
@@ -477,7 +477,7 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
   const { scene, span, node, raw } = stepAt(ctx, edit.at);
   const i = edit.at.index;
   const anchor = holdsAnchor(node);
-  if (anchor) throw new StepEditError('not_editable', `step ${i + 1} of ${scene.id} defines the YAML anchor &${anchor}: a copy would define it twice — duplicate it in the YAML tab`);
+  if (anchor) throw new StepEditError('not_editable', `step ${i + 1} of ${scene.id} defines the YAML anchor &${anchor}: a copy would define it twice — duplicate it in the YAML view`);
   const copy = cloneValue(raw) as Record<string, unknown>;
   const notices: string[] = [];
   const cuts: Splice[] = [];
@@ -517,10 +517,10 @@ function duplicateStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'duplicate_step
       let n = 2;
       while (taken.has(`${old}-${n}`)) n++;
       const name = `${old}-${n}`;
-      if (!isScalar(asNode) || !asNode.range) throw new StepEditError('not_editable', 'this capture\'s `as` is not a plain value: duplicate it in the YAML tab');
+      if (!isScalar(asNode) || !asNode.range) throw new StepEditError('not_editable', 'this capture\'s `as` is not a plain value: duplicate it in the YAML view');
       const [s, e] = asNode.range;
       const at = asNode.type === 'PLAIN' ? e : asNode.type === 'QUOTE_DOUBLE' || asNode.type === 'QUOTE_SINGLE' ? e - 1 : -1;
-      if (at < 0 || (asNode.type === 'PLAIN' && ctx.text.slice(s, e) !== old)) throw new StepEditError('not_editable', 'this capture\'s `as` is not written on one line: duplicate it in the YAML tab');
+      if (at < 0 || (asNode.type === 'PLAIN' && ctx.text.slice(s, e) !== old)) throw new StepEditError('not_editable', 'this capture\'s `as` is not written on one line: duplicate it in the YAML view');
       cuts.push({ at, remove: 0, insert: `-${n}` });
       (copy[action!] as { as: string }).as = name;
       notices.push(`The copy saves its ${kind} as "${name}": names of captures are unique (the original keeps "${old}").`);
@@ -613,13 +613,13 @@ function planField(step: Record<string, unknown>, action: ActionName, segs: read
     if (isFormValue(next)) {
       // A shorthand (`click: Save`): changed in place when the new value still reads as that one field, else an object.
       const expanded = expandShorthand(action, containerPath.join('.'), next);
-      if (!expanded) throw new StepEditError('not_editable', `${containerPath.join('.')} is written in a form these fields cannot change: edit it in the YAML tab`);
+      if (!expanded) throw new StepEditError('not_editable', `${containerPath.join('.')} is written in a form these fields cannot change: edit it in the YAML view`);
       const obj = structuredClone(expanded);
       let o: Record<string, unknown> = obj;
       const rest = segs.slice(i + 1);
       for (const k of rest.slice(0, -1)) {
         if (o[k] === undefined) o[k] = {};
-        if (!isPlainObj(o[k])) throw new StepEditError('not_editable', `${segs.join('.')} cannot be changed here: edit it in the YAML tab`);
+        if (!isPlainObj(o[k])) throw new StepEditError('not_editable', `${segs.join('.')} cannot be changed here: edit it in the YAML view`);
         o = o[k] as Record<string, unknown>;
       }
       if (to === undefined) delete o[rest[rest.length - 1]];
@@ -629,7 +629,7 @@ function planField(step: Record<string, unknown>, action: ActionName, segs: read
       if (only !== undefined) return [{ op: 'scalar', path: containerPath, value: only }];
       return [{ op: 'replace', path: containerPath, value: obj }];
     }
-    if (!isPlainObj(next)) throw new StepEditError('not_editable', `${containerPath.join('.')} is written in a form these fields cannot change: edit it in the YAML tab`);
+    if (!isPlainObj(next)) throw new StepEditError('not_editable', `${containerPath.join('.')} is written in a form these fields cannot change: edit it in the YAML view`);
     cur = next;
   }
   const existing = cur[f];
@@ -645,7 +645,7 @@ function planField(step: Record<string, unknown>, action: ActionName, segs: read
   }
   if (existing === undefined) return [{ op: 'add', path: segs.slice(0, -1), key: f, value: to }];
   if (isFormValue(existing)) return [{ op: 'scalar', path: [...segs], value: to }];
-  throw new StepEditError('not_editable', `${segs.join('.')} is written in a form these fields cannot change: edit it in the YAML tab`);
+  throw new StepEditError('not_editable', `${segs.join('.')} is written in a form these fields cannot change: edit it in the YAML view`);
 }
 
 /** The text and composed document of a file, with each node's source token (CST edits). */
@@ -659,11 +659,11 @@ function composeWithTokens(text: string): { tokens: CST.Token[]; contents: Node 
 function nodeIn(from: Node | null, path: readonly string[], what: string): Node | null {
   let cur: Node | null = from;
   for (const k of path) {
-    if (isAlias(cur)) throw new StepEditError('not_editable', `${what} is written with a YAML alias: edit it in the YAML tab`);
+    if (isAlias(cur)) throw new StepEditError('not_editable', `${what} is written with a YAML alias: edit it in the YAML view`);
     if (!isMap(cur)) return null;
     cur = ((cur as YAMLMap).items.find((p) => isScalar(p.key) && (p.key as Scalar).value === k)?.value ?? null) as Node | null;
   }
-  if (isAlias(cur)) throw new StepEditError('not_editable', `${what} is written with a YAML alias: edit it in the YAML tab`);
+  if (isAlias(cur)) throw new StepEditError('not_editable', `${what} is written with a YAML alias: edit it in the YAML view`);
   return cur;
 }
 
@@ -712,7 +712,7 @@ function applyRawOpText(ctx: Ctx, text: string, entry: number, index: number, op
   const whole = cloneValue(ctx.value);
   (whole.scenes[entry] as { steps: unknown[] }).steps[index] = want;
   const check = (out: string): boolean => verifyStepText(out, whole);
-  const refuse = () => new StepEditError('not_editable', `${what} cannot be written here without changing other parts of the file: change it in the YAML tab`);
+  const refuse = () => new StepEditError('not_editable', `${what} cannot be written here without changing other parts of the file: change it in the YAML view`);
   const { tokens, contents } = composeWithTokens(text);
   const step = stepNodeOf(contents, entry, index);
   if (!step) throw refuse();
@@ -786,7 +786,7 @@ function setStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'set_step' }>): StepE
   const { scene, raw } = stepAt(ctx, edit.at);
   const what = `step ${edit.at.index + 1} of ${scene.id}`;
   const form = stepFormValues(raw);
-  if (!form || !isPlainObj(raw)) throw new StepEditError('not_editable', `${what} has no form (not one action, or an action edited in the YAML tab)`);
+  if (!form || !isPlainObj(raw)) throw new StepEditError('not_editable', `${what} has no form (not one action, or an action edited in the YAML view)`);
   const action = form.action;
   if (!Array.isArray(edit.changes) || edit.changes.length === 0) throw new StepEditError('invalid', 'no change to make');
   const seen = new Set<string>();
@@ -796,7 +796,7 @@ function setStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'set_step' }>): StepE
   for (const c of edit.changes) {
     const key = c.path.join('.');
     const field = fieldOf(action, key);
-    if (!field) throw new StepEditError('invalid', `${key} is not a value the Studio edits on a ${action} step: change it in the YAML tab`);
+    if (!field) throw new StepEditError('invalid', `${key} is not a value the Studio edits on a ${action} step: change it in the YAML view`);
     if (seen.has(key)) throw new StepEditError('invalid', `${key} is changed twice in one edit`);
     seen.add(key);
     if (form.locked[key]) throw new StepEditError('not_editable', `${key} ${form.locked[key]}`, key);
@@ -827,7 +827,7 @@ function setStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'set_step' }>): StepE
   // when it still means the same thing).
   const after = stepFormValues(work);
   if (!after || !isDeepStrictEqual(after.values, expected)) {
-    throw new StepEditError('not_editable', `${what} cannot take these values without changing what else it says: change it in the YAML tab`);
+    throw new StepEditError('not_editable', `${what} cannot take these values without changing what else it says: change it in the YAML view`);
   }
   // Apply the operations one by one to the text, each checked against the step it must give.
   let text = ctx.text;
@@ -854,7 +854,7 @@ function setStep(ctx: Ctx, edit: Extract<StepEdit, { kind: 'set_step' }>): StepE
 export function newStepValue(action: ActionName, values: Record<string, FormValue>): Record<string, unknown> {
   if (!(ACTION_NAMES as readonly string[]).includes(action)) throw new StepEditError('invalid', `unknown action "${String(action).slice(0, 40)}"`);
   const form = actionFormOf(action);
-  if (!form.palette) throw new StepEditError('invalid', `a ${action} step is added in the YAML tab (it is not in the palette)`);
+  if (!form.palette) throw new StepEditError('invalid', `a ${action} step is added in the YAML view (it is not in the palette)`);
   const entries = Object.entries(values ?? {});
   for (const [key, v] of entries) {
     const field = form.fields.find((f) => f.key === key);
@@ -952,8 +952,8 @@ export function applyStepEdit(text: string, edit: StepEdit): StepEditApplied {
  * alias, or as a non-empty flow list.
  */
 export function stepsLockedWhy(stepsNode: unknown, aliased: boolean): string | undefined {
-  if (aliased || isAlias(stepsNode)) return 'written as a YAML alias: edit it in the YAML tab';
-  if (isSeq(stepsNode) && stepsNode.flow && stepsNode.items.length > 0) return 'its scene writes its steps as a flow list ([…]): edit them in the YAML tab';
+  if (aliased || isAlias(stepsNode)) return 'written as a YAML alias: edit it in the YAML view';
+  if (isSeq(stepsNode) && stepsNode.flow && stepsNode.items.length > 0) return 'its scene writes its steps as a flow list ([…]): edit them in the YAML view';
   return undefined;
 }
 
