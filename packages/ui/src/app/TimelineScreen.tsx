@@ -60,19 +60,19 @@ import type { FrameNote } from './EditNotes.js';
 import { EditPreview } from './EditPreview.js';
 import { EditStatus, renderOff } from './EditStatus.js';
 import { PreviewFrame } from './PreviewFrame.js';
-import { ProposalBanner } from './ProposalPanel.js';
-import { RenderOutcome, useRenders } from './Renders.js';
+import { ProposalBanner } from './ProposalBanner.js';
+import { RenderOutcome, useRenders, useReportEntry } from './Renders.js';
 import { useShownFile } from './shoot-data.js';
 import { PROPOSAL_RENDER, versionNote, versionWords } from './render-words.js';
 import type { RenderTarget } from './Renders.js';
 import { hrefTo } from './route.js';
-import { PRIORITY, useShellCommand } from './shell/command-bus.js';
+import { PRIORITY, usePaletteGroup, useShellCommand } from './shell/command-bus.js';
 import { say } from './shell/say.js';
 import { BrowserCollapsed, ShellSlot } from './shell/slots.js';
 import { Callout, EmptyState, LinkButton, Playhead, Scrubber, Select, TerminalCommands as Commands, studioShell } from './ui-kit/index.js';
 import { TimelineInspector, useSwitchEditor } from './TimelineInspector.js';
 import { Tracks } from './TimelineTracks.js';
-import { canPlay, cannotPlayWords, frameWords, keyAction, landingOf, previewUrls, targetFrame, timecode, zoomFactor } from './timeline-words.js';
+import { canPlay, cannotPlayWords, frameWords, keyAction, landingOf, previewUrls, segmentWords, targetFrame, timecode, zoomFactor } from './timeline-words.js';
 import type { CodecProbe, KeyTarget } from './timeline-words.js';
 
 type Ready = Extract<TimelineViewAnswer, { run_id: string; model: unknown }>;
@@ -509,6 +509,14 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   );
   // A segment gone from the new version (renamed, deleted): nothing selected.
   const segment = m.segments.find((s) => s.id === selected) ?? null;
+  // L5.12b: ⌘K's Scenes (a pick selects the segment and seeks to it), its Themes (the theme the take is edited with:
+  // the theme editor — the palette never sets one) and the Review report with the last render's words.
+  usePaletteGroup(
+    'scenes',
+    m.segments.map((s) => ({ id: `segment-${s.id}`, label: s.kind === 'clip' ? `Scene ${s.id}` : segmentWords(s), hint: timecode(landingOf(s), m.fps), icon: 'scene' as const, run: () => onSelect(s.id, landingOf(s)) })),
+  );
+  usePaletteGroup('themes', [{ id: v.theme, label: v.theme, hint: 'set for this scenario', icon: 'theme', run: () => (location.hash = hrefTo({ name: 'themes', slug, theme: v.theme })) }]);
+  useReportEntry(slug, name, renders);
   const stepsOf = useCallback((id: string) => new Set(m.steps.filter((s) => s.scene === id && s.step >= 0).map((s) => s.key)).size, [m.steps]);
 
   const previewOn = urls !== null && playable === true && stopped === null;

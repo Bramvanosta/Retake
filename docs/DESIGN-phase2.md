@@ -1542,9 +1542,14 @@ via, path, marker, time, scenario or proposal field anywhere (a `proposal` from 
 R-UI-27, R-UI-29). Routes `#/p/<slug>/s/<name>/comments` (the list; the viewer on the newest finished render),
 `…/comments/<comment id>` (a thread open; the viewer on its render at its frame, or a notice and the thread's still
 when that render is gone) and `…/comments/at/<render id>/<frame>` (a render's frame, composer ready) — ids are inert
-strings the server checks, a frame a whole number ≤ 10,000,000. Three columns (stacked under 1,180 px; from 1,181 to
-1,440 px with a proposal open, the frame and the thread side by side and the list below them — three columns left the
-frame ≈ 165 px wide at 1280: review B M1):
+strings the server checks, a frame a whole number ≤ 10,000,000. **L5.12b (« Épure » 4b): the layout is the shell's
+panes** — the list in the browser pane, the frame and the composer in the centre, the thread and its proposal in the
+inspector (DESIGN §4n (b)); the 1,180 px breakpoint and the three-column grid went (the shell narrows its panes; the
+frame stays ≥ 300 px wide at 1280 with a proposal open, ≥ 260 px at 900 with the diff's lines wrapped and nothing
+scrolling sideways — L5.12b fixes; the status bar is Review's own line, shared with the report: "Rendered · when · vN ·
+n open · n resolved", Open in Edit, Render). The files: CommentsScreen.tsx, ThreadList.tsx, FrameViewer.tsx,
+Composer.tsx, ThreadPanel.tsx, ProposalCard.tsx, ProposalBanner.tsx (ProposalPanel.tsx and CommentsTab.tsx are gone).
+What each part holds (L4.6, unchanged in substance):
 - **The list**: `threads_list` with radio buttons Open (default) / Resolved / All in a fieldset "Show" and "This render
   only"; a `<ul>` of links (`aria-current` on the open one): status as a word, timecode, "on vN" or "render gone",
   where it points (its step, else its segment), the comment's first line (Txt), the channel in words, the entry count, the newest proposal's
@@ -1581,8 +1586,8 @@ frame ≈ 165 px wide at 1280: review B M1):
   it", reads the thread again and sends nothing by itself. The screen says once what channels mean: "Terminal, Studio
   and Agent · MCP name how an entry was written, not who typed it: Studio means this Studio page (or a program holding
   its session token)".
-- **Elsewhere**: the scenario views' tabs (Blocks / YAML on the scenario screen, the timeline's tabs) carry
-  **"Comments (N open)"** (`threads_counts`, re-read on the scenario's comments event; no project-page counts, C2). The
+- **Elsewhere**: the scenario views' tabs (L5.12a/b: Review's View, Report · Comments; the scenario screen's take strip)
+  carry **"Comments (N open)"** (`threads_counts`, re-read on the scenario's comments event; no project-page counts, C2). The
   timeline's transport has **Comment** (key C, never while typing) when a succeeded render of the version shown exists
   (L4.5's "from this version": the same plan signature and theme files — its frame f is the preview's frame f): it
   opens `…/comments/at/<render>/<playhead frame>`; without one the button is off with why. A pin's tooltip has **Open

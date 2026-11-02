@@ -25,6 +25,8 @@ export type { ChoiceChip } from './ChoiceChips.js';
 export { Playhead, Scrubber, TARGET_PX, Track, TrackItem, spaceTicks, spanStyle, tickStyle } from './tracks.js';
 export type { TrackItemProps, TrackItemVariant } from './tracks.js';
 export { ContactSheet, Tag } from './ContactSheet.js';
+export { DiffTable, RegionOverlay } from './DiffTable.js';
+export type { DiffPiece, DiffRow } from './DiffTable.js';
 export type { ContactSheetItem } from './ContactSheet.js';
 export { Menu } from './Menu.js';
 export type { MenuEntry, MenuItemDef } from './Menu.js';

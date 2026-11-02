@@ -265,6 +265,12 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     expect(await viewerBits()).toBe(at);
     expect(Number(await page.getByTestId('frame-slider').inputValue())).toBe(at);
     expect(await page.getByTestId('no-threads').innerText()).toBe('No open comment on this scenario yet.');
+    // L5.12b fixes (review B-M3): Review's own status line on Comments, as on the report — never Shoot's actions.
+    await expect.poll(() => page.getByTestId('review-counts').innerText(), POLL).toBe('· 0 open · 0 resolved');
+    expect((await page.getByTestId('review-state').textContent())!.replace(/\s+/g, ' ').trim()).toMatch(/^Rendered · .+ · v1 · 0 open · 0 resolved$/);
+    expect(await page.getByTestId('review-open-edit').getAttribute('href')).toBe(`#/p/demo/s/bits/timeline/${RUN}`);
+    expect(await page.getByTestId('render').innerText()).toBe('Render again');
+    for (const shoot of ['status-actions', 'status-scenario', 'run-dry', 'run-capture']) expect(await page.getByTestId(shoot).count(), shoot).toBe(0);
     // The time field's example is a time of this render (part E: a fixed "00:12.40" lay past a 6 s render's end).
     const example = (await page.getByTestId('viewer-time-input').getAttribute('placeholder')) ?? '';
     expect(example).toBe(timeExample(land.frames, land.fps));
@@ -372,7 +378,8 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     expect(await mcpEntry.getAttribute('data-via')).toBe('mcp');
     expect(await mcpEntry.innerText()).toContain('Agent · MCP');
     // The channel alone for an MCP entry (its author is always the server's "agent": review B N2).
-    expect((await mcpEntry.locator('.th-entry-head').textContent())!.replace(/\s+/g, ' ')).toMatch(/^Agent · MCP replied · /);
+    // (L5.12b: the entry's head is a test id — its class left with the legacy styles.)
+    expect((await mcpEntry.getByTestId('entry-head').textContent())!.replace(/\s+/g, ' ')).toMatch(/^Agent · MCP replied · /);
     expect(await mcpEntry.getByTestId('entry-proposal').getAttribute('data-state')).toBe('pending');
     expect(await mcpEntry.getByTestId('entry-proposal').innerText()).toContain('1 line added, 1 removed, in 1 place');
     await expect.poll(() => page.locator('[data-testid="thread-item"]').innerText(), POLL).toContain('Proposal pending');
@@ -396,7 +403,20 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     await expect.poll(() => page.getByTestId('thread').getAttribute('data-status'), POLL).toBe('resolved');
     expect((await readThread(id)).entries.at(-1)).toMatchObject({ kind: 'resolve', author: { via: 'studio', name: AUTHOR } });
     await expect.poll(() => page.getByTestId('no-threads').count(), POLL).toBe(1);
+    // L5.12b: while another filter is read the list shown stays (busy) — the browser pane never jumps back to "Loading" —
+    // and (fixes, review B-L1) its words stay the list's own: the Open filter's, until the resolved list arrives.
+    await page.route('**/v1/call/threads_list', async (route) => {
+      await new Promise((r) => setTimeout(r, 800));
+      await route.continue();
+    });
     await page.getByTestId('filter-resolved').check();
+    await expect.poll(() => page.locator('[data-testid="thread-list"] [aria-busy="true"]').count(), POLL).toBe(1);
+    expect(await page.getByTestId('thread-list').getByText('Loading the threads…').count()).toBe(0);
+    expect(await page.getByTestId('no-threads').innerText()).toBe('No open comment on this scenario yet.');
+    // The held answer arrives (the list no longer busy) before the route goes — review B-H1: a route released while its
+    // handler still waits throws "Route is already handled!" (an unhandled error: the file exits 1).
+    await expect.poll(() => page.locator('[data-testid="thread-list"] [aria-busy="true"]').count(), POLL).toBe(0);
+    await page.unrouteAll({ behavior: 'wait' });
     await expect.poll(() => page.locator('[data-testid="thread-item"][data-status="resolved"]').count(), POLL).toBe(1);
     await page.getByTestId('filter-all').check();
     await expect.poll(() => page.locator('[data-testid="thread-item"]').count(), POLL).toBe(1);
@@ -425,6 +445,174 @@ describe.skipIf(!canRun)('the Comments screen in Chromium (L4.6 part D1, T14a)',
     await page.waitForURL(`**#/p/demo/s/bits/comments/${id}`);
     await page.getByTestId('thread').waitFor(POLL);
   });
+
+  it('⚑ L5.12b fixes: a frame step re-renders neither the shell, the list nor the thread (A-L1 / A-L2); the alt names the frame shown, one status line (A-L5); no arrow behind a modal (A-L9); Comment this frame brings the text and Post into view at 1440×900 (B-L4); a cancelled pointer draws nothing (A-L4); the palette rows on Comments, the report and Edit write nothing (B-M2)', async () => {
+    const ops: string[] = [];
+    const onOp = (r: { url(): string; method(): string }) => {
+      const m = /\/v1\/call\/([a-z_]+)$/.exec(r.url());
+      if (m && r.method() === 'POST') ops.push(m[1]);
+    };
+    page.on('request', onOp);
+    const dialog = page.locator('dialog.k-palette[open]');
+    const palette = async () => {
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
+    };
+    const row = (group: string, label: string | RegExp) => dialog.getByRole('group', { name: group }).getByRole('option').filter({ hasText: label });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    try {
+      await page.goto(`${studio.url}#/p/demo/s/bits/comments/${id}`);
+      await page.getByTestId('thread').waitFor(POLL);
+      await expect.poll(shownFrame, POLL).toBe(at);
+      await expect.poll(() => page.getByTestId('review-counts').innerText(), POLL).toBe('· 1 open · 0 resolved');
+
+      // A-L1 / A-L2: 30 frame steps re-render neither the shell (the palette's words hold no frame), the thread list nor the
+      // thread (memoised): the props of their outer elements' fibers stay the same objects.
+      const probe = () => page.evaluate(() => {
+        const w = window as unknown as { __props?: Record<string, unknown[]> };
+        const sel: Record<string, string> = { shell: '.sh-app', list: '[data-testid="thread-list"]', thread: '[data-testid="thread"]' };
+        const changed: string[] = [];
+        const first = w.__props === undefined;
+        w.__props ??= {};
+        for (const [k, q] of Object.entries(sel)) {
+          const el = document.querySelector(q) as unknown as Record<string, { memoizedProps: unknown; alternate?: { memoizedProps: unknown } | null }>;
+          const f = el[Object.keys(el).find((x) => x.startsWith('__reactFiber$'))!];
+          const now = [f.memoizedProps, f.alternate?.memoizedProps];
+          if (!first && (now[0] !== w.__props[k][0] || now[1] !== w.__props[k][1])) changed.push(k);
+          w.__props[k] = now;
+        }
+        return changed;
+      });
+      const status = page.getByTestId('viewer-status');
+      expect(await page.locator('[data-testid="viewer-frame"] [role="status"]').count()).toBe(1);
+      const statusNode = await status.elementHandle();
+      await blur();
+      await page.waitForTimeout(300);
+      expect(await probe()).toEqual([]);
+      for (let i = 0; i < 30; i++) await page.keyboard.press('ArrowRight');
+      await expect.poll(shownFrame, POLL).toBe(at + 30);
+      await page.waitForTimeout(300);
+      expect(await probe(), 'a frame step re-rendered these').toEqual([]);
+      // A-L5: one status line all along (the same node), empty once the frame came; the alt names the frame shown.
+      expect(await statusNode!.evaluate((el) => el.isConnected)).toBe(true);
+      expect(await page.locator('[data-testid="viewer-frame"] [role="status"]').count()).toBe(1);
+      expect(await status.textContent()).toBe('');
+      expect(await page.locator('[data-testid="viewer-frame"] img').getAttribute('alt')).toMatch(new RegExp(`^Frame ${at + 30} of v1 `));
+      // A frame slow to come: the picture (and its alt) stay the frame shown; the status line says it after a pause.
+      await page.route('**/v1/call/render_frame', async (route) => {
+        await new Promise((r) => setTimeout(r, 1200));
+        await route.continue();
+      });
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(() => page.getByTestId('viewer').getAttribute('data-frame'), POLL).toBe(String(at + 31));
+      expect(await page.locator('[data-testid="viewer-frame"] img').getAttribute('alt')).toMatch(new RegExp(`^Frame ${at + 30} of v1 `));
+      await expect.poll(() => status.textContent(), POLL).toBe(`Loading frame ${at + 31}…`);
+      await expect.poll(shownFrame, POLL).toBe(at + 31);
+      await expect.poll(() => status.textContent(), POLL).toBe('');
+      expect(await statusNode!.evaluate((el) => el.isConnected)).toBe(true);
+      await page.unrouteAll({ behavior: 'wait' });
+
+      // A-L9: behind an open modal (the palette) the arrows move no frame, even with the focus out of its field.
+      await palette();
+      await dialog.waitFor(POLL);
+      await blur();
+      for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+      await page.waitForTimeout(300);
+      expect(await page.getByTestId('viewer').getAttribute('data-frame')).toBe(String(at + 31));
+      await palette();
+      await dialog.waitFor({ state: 'detached' });
+
+      // B-M2 on Comments: "Comment at this frame" names the render only (A-L1) and goes to the frame shown; on the composer it
+      // focuses the text. Neither posts.
+      await palette();
+      const here = row('Commands', 'Comment at this frame');
+      await here.waitFor(POLL);
+      expect(await here.locator('.k-palette-hint').innerText()).toBe('v1, the frame shown');
+      await here.click();
+      await page.waitForURL(`**#/p/demo/s/bits/comments/at/bits-v1/${at + 31}`);
+      await page.getByTestId('composer').waitFor(POLL);
+      await blur();
+      await palette();
+      await row('Commands', 'Comment at this frame').click();
+      await dialog.waitFor({ state: 'detached' });
+      await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('comment-text');
+
+      // B-L4: from the thread, Comment this frame — at 1440×900 the text box and Post come into view, the text focused.
+      await page.goto(`${studio.url}#/p/demo/s/bits/comments/${id}`);
+      await page.getByTestId('thread').waitFor(POLL);
+      await page.getByTestId('comment-this-frame').click();
+      await page.waitForURL(/#\/p\/demo\/s\/bits\/comments\/at\/bits-v1\/\d+$/);
+      await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('comment-text');
+      const inView = (testId: string) => page.getByTestId(testId).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const bar = document.querySelector('.sh-statusbar-wrap')!.getBoundingClientRect().top;
+        return r.top >= 0 && r.bottom <= bar;
+      });
+      expect(await inView('comment-text')).toBe(true);
+      expect(await inView('post-comment')).toBe(true);
+      // The text box is described by the characters left and how ⌘↩ posts (B-L5).
+      const described = (await page.getByTestId('comment-text').getAttribute('aria-describedby'))!.split(' ');
+      expect(described).toHaveLength(2);
+      expect(await page.locator(`[id="${described[1]}"]`).innerText()).toContain('⌘↩ posts');
+
+      // A-L4: a cancelled pointer (a system gesture, a lost capture) draws nothing, like Esc.
+      await page.getByTestId('viewer-frame').scrollIntoViewIfNeeded();
+      await page.evaluate(() => {
+        document.addEventListener('pointerdown', (e) => ((window as unknown as { __pid: number }).__pid = e.pointerId), { capture: true, once: true });
+      });
+      const words = await page.getByTestId('region-words').innerText();
+      const box = (await page.getByTestId('viewer-frame').boundingBox())!;
+      await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.6, { steps: 4 });
+      await expect.poll(() => page.locator('[data-testid="viewer-region"].is-draft').count(), POLL).toBe(1);
+      await page.getByTestId('viewer-frame').evaluate((el) => el.dispatchEvent(new PointerEvent('pointercancel', { pointerId: (window as unknown as { __pid: number }).__pid, bubbles: true })));
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      expect(await page.getByTestId('viewer-region').count()).toBe(0);
+      expect(await page.getByTestId('region-words').innerText()).toBe(words);
+
+      // B-M2 / B-M3: the report row (from Comments) opens the report, whose status line counts the comments too.
+      await palette();
+      await row('Go to', 'Review report').click();
+      await page.waitForURL(/#\/p\/demo\/s\/bits\/review/);
+      await page.getByTestId('review-report').waitFor(POLL);
+      await expect.poll(() => page.getByTestId('review-counts').innerText(), POLL).toBe('· 1 open · 0 resolved');
+
+      // B-M2 on Edit: every Scenes row (a seek), its Themes rows (the theme editor) and the report row.
+      const edit = `#/p/demo/s/bits/timeline`;
+      await page.goto(`${studio.url}${edit}`);
+      await page.getByTestId('tracks').waitFor(POLL);
+      await palette();
+      await dialog.waitFor(POLL);
+      const scenes = await dialog.getByRole('group', { name: 'Scenes' }).getByRole('option').count();
+      const themes = (await dialog.getByRole('group', { name: 'Themes' }).getByRole('option').allInnerTexts()).map((t) => t.split('\n')[0]);
+      expect(scenes).toBeGreaterThan(1);
+      expect(themes).toContain('All themes');
+      await palette();
+      await dialog.waitFor({ state: 'detached' });
+      const runs: Array<[string, number]> = [...Array.from({ length: scenes }, (_x, i): [string, number] => ['Scenes', i]), ...themes.map((_t, i): [string, number] => ['Themes', i]), ['report', 0]];
+      for (const [group, i] of runs) {
+        await palette();
+        await dialog.waitFor(POLL);
+        await (group === 'report' ? row('Go to', 'Review report') : dialog.getByRole('group', { name: group }).getByRole('option').nth(i)).click();
+        await dialog.waitFor({ state: 'detached' });
+        await page.waitForTimeout(250);
+        if (!new URL(page.url()).hash.startsWith(edit)) {
+          await page.evaluate((h) => (location.hash = h), edit);
+          await page.getByTestId('tracks').waitFor(POLL);
+        }
+      }
+      await page.waitForTimeout(300);
+      const WRITES = /^(?:scenario_(?:edit|save|run|render)|theme_(?:edit|copy|create)|thread_(?:add|reply|resolve|reopen|apply)|project_update_readme|render_cancel|run_cancel|run_pause|preview_allow|review_export|record_[a-z]+)$/;
+      expect(ops.filter((op) => WRITES.test(op))).toEqual([]);
+      expect(ops).toEqual(expect.arrayContaining(['render_frame', 'theme_list']));
+    } finally {
+      page.off('request', onOp);
+      await page.unrouteAll({ behavior: 'wait' });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }
+    expect(consoleErrors).toEqual([]);
+  }, 180_000);
 
   it('⚑ a drag on the vertical render: the fields are the drag on the image itself; past the edge it is clamped inside', async () => {
     await page.goto(`${studio.url}#/p/demo/s/bits/comments`);
@@ -494,7 +682,14 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
     expect(await rows.count()).toBe(view.rows.length);
     expect(await page.locator('[data-testid="entry-proposal"]').first().getAttribute('data-state')).toBe('superseded');
     const lineOf = async (kind: string, start: string) => {
-      const texts = await page.locator(`[data-testid="proposal"] [data-testid="diff-row"][data-kind="${kind}"] [data-testid="diff-line"]`).allInnerTexts();
+      // The line as drawn (L5.12b fixes, review A-L7: the words read for edge spaces and tabs are for assistive technology).
+      const texts = await page.locator(`[data-testid="proposal"] [data-testid="diff-row"][data-kind="${kind}"] [data-testid="diff-line"]`).evaluateAll((els) =>
+        els.map((el) => {
+          const c = el.cloneNode(true) as Element;
+          for (const sr of c.querySelectorAll('.k-sr')) sr.remove();
+          return c.textContent ?? '';
+        }),
+      );
       return texts.filter((t) => t.startsWith(start));
     };
     // ⚑ A trailing space is a visible mark: the removed and the added line differ on screen.
@@ -527,10 +722,23 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
     expect(await box.evaluate((el) => [getComputedStyle(el).overflowY, el.scrollHeight <= el.clientHeight + 1])).toEqual(['visible', true]);
     expect((await page.getByTestId('proposal-apply').boundingBox())!.y).toBeGreaterThan((await box.boundingBox())!.y + (await box.boundingBox())!.height - 1);
     expect(await page.getByTestId('diff-all').count()).toBe(0);
-    // ⚑ With a proposal open the frame stays readable at laptop widths (review B M1): ≥ 300 px wide at 1280 and 1440.
-    for (const width of [1280, 1440]) {
+    // ⚑ With a proposal open the frame stays readable at laptop widths (review B M1): ≥ 300 px wide at 1280 and 1440;
+    // (L5.12b fixes, review A-L6) at 900 the trade-off: no sideways scroll, the frame ≥ 260 px, the diff readable — its
+    // code column ≥ 160 px, no line cut (they wrap), the table inside its pane.
+    for (const width of [1280, 1440, 900]) {
       await page.setViewportSize({ width, height: 900 });
-      await expect.poll(async () => (await page.getByTestId('viewer-frame').boundingBox())!.width, POLL).toBeGreaterThanOrEqual(300);
+      await expect.poll(async () => (await page.getByTestId('viewer-frame').boundingBox())!.width, POLL).toBeGreaterThanOrEqual(width === 900 ? 260 : 300);
+      if (width === 900) {
+        const geo = await page.evaluate(() => {
+          const main = document.getElementById('main')!;
+          const ins = document.querySelector('.sh-inspector')!;
+          const box = document.querySelector('[data-testid="proposal-diff-box"]')!;
+          const code = document.querySelector('[data-testid="proposal"] .k-diff-code')!;
+          return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, main: main.scrollWidth - main.clientWidth, inspector: ins.scrollWidth - ins.clientWidth, box: box.scrollWidth - box.clientWidth, code: code.getBoundingClientRect().width };
+        });
+        expect(geo).toMatchObject({ page: 0, main: 0, inspector: 0, box: 0 });
+        expect(geo.code).toBeGreaterThanOrEqual(160);
+      }
       await shot(`7-proposal-${width}`);
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -628,13 +836,44 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
     // Previewing writes nothing.
     expect(await readFile(scenarioFile(), 'utf8')).toBe(BITS_TEXT);
     await shot('9-preview');
+    // ⚑ L5.12b fixes (reviews A-M1 / B-M1): every control of the banner clicked — whatever it is (a link, a button, a field)
+    // — sends no write, and the file stays as it was.
+    const preview = new URL(page.url()).hash;
+    const ops: string[] = [];
+    const onOp = (r: { url(): string; method(): string }) => {
+      const m = /\/v1\/call\/([a-z_]+)$/.exec(r.url());
+      if (m && r.method() === 'POST') ops.push(m[1]);
+    };
+    const CONTROL = 'a[href], button, input, select, textarea, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+    const controls = await page.locator(`[data-testid="proposal-banner"] :is(${CONTROL})`).count();
+    expect(controls).toBeGreaterThanOrEqual(1);
+    page.on('request', onOp);
+    try {
+      for (let i = 0; i < controls; i++) {
+        if (new URL(page.url()).hash !== preview) {
+          await page.evaluate((h) => (location.hash = h), preview);
+          await page.getByTestId('proposal-banner').waitFor(POLL);
+        }
+        const c = page.locator(`[data-testid="proposal-banner"] :is(${CONTROL})`).nth(i);
+        await c.waitFor(POLL);
+        await c.click();
+        await page.waitForTimeout(500);
+      }
+      await page.waitForTimeout(300);
+    } finally {
+      page.off('request', onOp);
+    }
+    expect(ops.filter((op) => /^(?:thread_(?:add|reply|resolve|reopen|apply)|scenario_(?:edit|save|run|render))$/.test(op))).toEqual([]);
+    expect(await readFile(scenarioFile(), 'utf8')).toBe(BITS_TEXT);
+    await page.evaluate((h) => (location.hash = h), preview);
+    await page.getByTestId('banner-back').waitFor(POLL);
 
     // Back to the comment: the thread, scrolled to its proposal (its heading focused); Apply and re-render there.
     await page.getByTestId('banner-back').click();
     await page.waitForURL(`**#/p/demo/s/bits/comments/${id}`);
     await page.getByTestId('proposal-apply-render').waitFor(POLL);
-    await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains('pp-head') ?? false), POLL).toBe(true);
-    const head = (await page.locator('[data-testid="proposal"] .pp-head').boundingBox())!;
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'proposal-head'), POLL).toBe(true);
+    const head = (await page.locator('[data-testid="proposal"] [data-testid="proposal-head"]').boundingBox())!;
     expect(head.y).toBeGreaterThanOrEqual(-1);
     expect(head.y).toBeLessThan(1000);
     expect(await readFile(scenarioFile(), 'utf8')).toBe(BITS_TEXT);

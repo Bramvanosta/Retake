@@ -72,6 +72,14 @@
 .gl-row > .k-source,
 .gl-row > .k-blocker,
 .gl-row > .k-empty,
+.gl-region {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+.gl-region img {
+  display: block;
+}
 .gl-pane,
 .gl-cards {
   flex: 1 1 100%;
@@ -1919,4 +1927,396 @@
   position: relative;
   width: 100%;
   padding: var(--ui-space-3);
+}
+
+/* L5.12b: Review › Comments (R4-Comments) — the list in the browser pane, the frame and the composer in the centre, the
+   thread in the inspector. The panes are the shell's (no breakpoint of its own: the shell narrows them). */
+.cm-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-6);
+  max-width: 1100px;
+  padding: var(--ui-space-8) var(--ui-space-9);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.cm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-4);
+}
+.cm-head-line {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.cm-head-frame {
+  color: var(--ui-text);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-h2 {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-h3 {
+  margin: 0;
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-quiet,
+.cm-small,
+.cm-label {
+  margin: 0;
+}
+.cm-quiet,
+.cm-quiet-inline {
+  color: var(--ui-text-3);
+}
+.cm-label {
+  color: var(--ui-text-2);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.cm-error {
+  color: var(--ui-danger-text);
+}
+.cm-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  margin: 0;
+}
+.cm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+
+/* The viewer: the frame (the render's own shape), its lanes, its controls. */
+.cm-viewer {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.cm-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  max-width: 100%;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+.cm-frame.is-drawing {
+  cursor: crosshair;
+}
+.cm-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-user-drag: none;
+}
+.cm-frame-note {
+  color: var(--ui-on-video);
+}
+.cm-frame-stale {
+  position: absolute;
+  top: var(--ui-space-3);
+  left: var(--ui-space-3);
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+}
+.cm-lanes {
+  display: grid;
+  min-width: 0;
+}
+.cm-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+.cm-time {
+  color: var(--ui-text-2);
+}
+.cm-goto {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--ui-space-2);
+  margin-left: auto;
+}
+.cm-goto .k-input {
+  width: 96px;
+}
+
+/* The composer: the region's fields, where it points, the text. */
+.cm-composer {
+  display: grid;
+  gap: var(--ui-space-5);
+  padding-top: var(--ui-space-6);
+  border-top: 1px solid var(--ui-hairline);
+}
+.cm-region,
+.cm-anchor {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.cm-region-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-4);
+}
+.cm-region-row .k-input-number {
+  width: 80px;
+}
+.cm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* An anchor chip wraps (a long step name, a component's path): never wider than its pane. */
+.cm-chips .k-tag {
+  display: inline-block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cm-chip-label {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-chip-note {
+  color: var(--ui-danger-text);
+}
+.cm-warnings {
+  margin: 0;
+  padding-left: var(--ui-space-6);
+  color: var(--ui-text-3);
+}
+
+/* The list (the browser pane). */
+.cm-list {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.cm-list-h {
+  margin: 0;
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-list-counts {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+}
+.cm-list-filters,
+.cm-list-body,
+.cm-group {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.cm-group-h {
+  margin: 0;
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.cm-rows {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cm-list > .cm-quiet,
+.cm-list-body > .cm-quiet {
+  padding: 0 var(--ui-space-2);
+}
+
+/* The thread (the inspector pane). */
+.cm-inspector {
+  padding: var(--ui-space-6);
+}
+.cm-thread,
+.cm-thread-actions,
+.cm-form,
+.cm-proposal,
+.cm-after {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.cm-thread-head,
+.cm-proposal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-2) var(--ui-space-4);
+}
+.cm-meta {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.cm-text {
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.cm-entries {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cm-entry {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+}
+.cm-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2);
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.cm-entry-text {
+  color: var(--ui-text);
+}
+.cm-still {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+}
+.cm-still img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--ui-radius-frame);
+}
+.cm-proposal {
+  padding-top: var(--ui-space-5);
+  border-top: 1px solid var(--ui-hairline);
+}
+.cm-proposal-head .cm-h3:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.cm-after:empty {
+  display: none;
+}
+.cm-thread-actions {
+  padding-top: var(--ui-space-5);
+  border-top: 1px solid var(--ui-hairline);
+}
+.cm-form {
+  justify-items: start;
+}
+.cm-form > .k-field {
+  justify-self: stretch;
+}
+.cm-help {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding-left: var(--ui-space-6);
+}
+/* The timeline's banner while it previews a proposal (Edit's stage, above the preview). */
+.cm-banner {
+  min-width: 0;
+}
+
+/* L5.12b: the README editor (on the kit). */
+.rd-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-6);
+  max-width: 1000px;
+  padding: var(--ui-space-8) var(--ui-space-9);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.rd-head {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.rd-h1 {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+}
+.rd-quiet {
+  margin: 0;
+  color: var(--ui-text-3);
+}
+.rd-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.rd-edit {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.rd-edit[hidden] {
+  display: none;
+}
+.rd-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-4);
+}
+.rd-state {
+  color: var(--ui-text-2);
+}
+.rd-spacer {
+  flex: 1;
+}
+.rd-count,
+.rd-keys {
+  color: var(--ui-text-3);
+}
+.rd-count.is-at-limit {
+  color: var(--ui-danger-text);
+  font-weight: var(--ui-weight-strong);
+}
+/* README.md is prose: its lines wrap (the YAML editor keeps its own). */
+.rd-screen .k-textarea-tall {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

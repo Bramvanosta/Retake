@@ -17,17 +17,20 @@
  *   rewritten with replacement characters. A project with no README.md says that saving creates it.
  * - Unsaved text survives moving around the app (drafts.ts) and the end of the session (main.tsx); Cmd/Ctrl+S saves;
  *   closing the tab asks first.
+ * L5.12b « Épure » 4b (R-UI-48): on the kit — a tall text area, Callouts for what changed or failed, the shared conflict
+ * panel and kept text (TextEditing.tsx), the save state in words; the title bar names the project, the browser marks the
+ * README "unsaved". Still no Markdown preview (deliberate: see above).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectView } from '@demo-studio/engine';
 import { CallError, call, errorText, useCall } from './api.js';
 import { useEvents } from './events.js';
-import { Loading, Notice, Txt } from './bits.js';
+import { Txt } from './bits.js';
 import { detectEol, getDraft, isDirty, normalizeEol, readmeKey, setDraft, toEol } from './drafts.js';
 import type { Draft } from './drafts.js';
-import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
 import { DiskBanner, KeptText, TextConflict } from './TextEditing.js';
+import { Button, Callout, Kbd, TextArea } from './ui-kit/index.js';
 
 /** project_update_readme's cap: README.md's characters, its final line break included. */
 export const README_MAX = 200_000;
@@ -39,20 +42,6 @@ const diskOf = (v: ProjectView): Disk => ({ text: normalizeEol(v.readme ?? ''), 
 
 /** What a save writes: the text with a final line break (the tool would add it) and the file's own line breaks. */
 const fileText = (text: string, eol: Draft['base']['eol']) => toEol(text.endsWith('\n') ? text : `${text}\n`, eol);
-
-function Breadcrumb({ slug, name }: { slug: string; name: string }) {
-  return (
-    <nav aria-label="Breadcrumb" className="breadcrumb">
-      <a href={hrefTo({ name: 'projects' })}>Projects</a>
-      <span aria-hidden="true"> / </span>
-      <a href={hrefTo({ name: 'project', slug })}>
-        <Txt text={name} />
-      </a>
-      <span aria-hidden="true"> / </span>
-      <span aria-current="page">README</span>
-    </nav>
-  );
-}
 
 function Editor({ view }: { view: ProjectView }) {
   const slug = view.slug;
@@ -199,27 +188,29 @@ function Editor({ view }: { view: ProjectView }) {
   const showDisk = disk !== null && !conflict && disk.hash !== dismissed;
 
   return (
-    <div className="screen editor-screen">
-      <Breadcrumb slug={slug} name={view.name} />
-      <header className="screen-head">
-        <h1>README.md</h1>
-        <p className="muted">
-          Of <Txt text={view.name} /> — plain text (Markdown), what Claude reads first about the product, the audience, the goals and the tone.
+    <div className="rd-screen">
+      <header className="rd-head">
+        <h1 className="rd-h1">README.md</h1>
+        <p className="rd-quiet">
+          {'Of '}
+          <Txt text={view.name} />
+          {' — plain text (Markdown), what Claude reads first about the product, the audience, the goals and the tone.'}
         </p>
       </header>
 
       {missing && !conflict && (
-        <p className="muted" data-testid="readme-missing">
+        <Callout state="idle" role="note" title="Note: no README.md yet" testId="readme-missing">
           This project has no README.md yet: what you write here creates it when you save.
-        </p>
+        </Callout>
       )}
       {notice && (
-        <Notice tone="info">
-          <p>{notice}</p>
-          <button type="button" className="button small" onClick={() => setNotice(null)}>
-            Dismiss
-          </button>
-        </Notice>
+        <Callout state="idle" title={notice}>
+          <div>
+            <Button size="sm" variant="ghost" onClick={() => setNotice(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </Callout>
       )}
       {showDisk && <DiskBanner what="README.md" onLoad={() => loadDisk(disk)} onKeep={() => setDismissed(disk.hash)} />}
       {conflict && (
@@ -235,47 +226,52 @@ function Editor({ view }: { view: ProjectView }) {
       )}
       {kept !== null && <KeptText text={kept} onDismiss={() => setKept(null)} />}
       {error && (
-        <Notice tone="danger" role="alert" title="Not saved">
-          <p>{error}</p>
-        </Notice>
+        <Callout state="fail" role="alert" title="Not saved">
+          <p data-testid="readme-save-error">
+            <Txt text={error} />
+          </p>
+        </Callout>
       )}
 
-      <div className="editor" hidden={conflict !== null}>
-        <label htmlFor="readme-text" className="label">
-          Text of README.md
-        </label>
-        <textarea
+      <div className="rd-edit" hidden={conflict !== null}>
+        <div className="rd-bar">
+          <Button size="sm" variant="primary" disabled={saving || !dirty || conflict !== null} onClick={() => void save()} aria-keyshortcuts="Meta+S Control+S">
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+          <Button size="sm" variant="ghost" disabled={saving || !dirty || conflict !== null} onClick={() => update({ text: draft.base.text, base: draft.base })}>
+            Discard changes
+          </Button>
+          <span id="readme-state" className="rd-state" role="status" aria-live="polite" data-testid="save-state">
+            <Txt text={state} />
+          </span>
+          <span className="rd-spacer" />
+          <span id="readme-count" className={draft.text.length >= README_MAX ? 'rd-count is-at-limit' : 'rd-count'}>
+            <Txt text={`${draft.text.length.toLocaleString('en')} / ${README_MAX.toLocaleString('en')} characters`} />
+          </span>
+          <span className="rd-keys">
+            <Kbd keys={['⌘', 'S']} />
+            {' / '}
+            <Kbd keys={['Ctrl', 'S']} />
+          </span>
+        </div>
+        <TextArea
           id="readme-text"
-          className="readme-input"
+          label="Text of README.md"
+          labelHidden
+          tall
+          rows={24}
           value={draft.text}
           maxLength={README_MAX}
           readOnly={conflict !== null}
           spellCheck
-          aria-describedby="readme-count readme-state"
-          onChange={(e) => {
+          unsaved={null}
+          describedBy="readme-count readme-state"
+          onChange={(text) => {
             setError(null);
             setNotice(null);
-            update({ text: e.target.value, base: draftRef.current.base });
+            update({ text, base: draftRef.current.base });
           }}
         />
-        <div className="editor-bar">
-          <button type="button" className="button primary" disabled={saving || !dirty || conflict !== null} onClick={() => void save()}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-          <button type="button" className="button quiet" disabled={saving || !dirty || conflict !== null} onClick={() => update({ text: draft.base.text, base: draft.base })}>
-            Discard changes
-          </button>
-          <span id="readme-state" className="save-state" role="status" aria-live="polite" data-testid="save-state">
-            {state}
-          </span>
-          <span className="spacer" />
-          <span id="readme-count" className={draft.text.length >= README_MAX ? 'counter at-limit' : 'counter'}>
-            {draft.text.length.toLocaleString('en')} / {README_MAX.toLocaleString('en')} characters
-          </span>
-          <span className="muted small">
-            <kbd>⌘S</kbd> / <kbd>Ctrl+S</kbd>
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -288,24 +284,23 @@ function Editor({ view }: { view: ProjectView }) {
 function ReadOnly({ view }: { view: ProjectView }) {
   const mine = getDraft(readmeKey(view.slug));
   return (
-    <div className="screen editor-screen">
-      <Breadcrumb slug={view.slug} name={view.name} />
-      <header className="screen-head">
-        <h1>README.md</h1>
+    <div className="rd-screen">
+      <header className="rd-head">
+        <h1 className="rd-h1">README.md</h1>
       </header>
       <div data-testid="readme-readonly">
-        <Notice tone="warning" role="alert" title="README.md cannot be edited here">
-          <p className="pre-line">
+        <Callout state="warn" role="alert" title="README.md cannot be edited here">
+          <p className="rd-pre">
             <Txt text={view.readme_error ?? ''} />
           </p>
-        </Notice>
+        </Callout>
       </div>
-      {view.readme !== null && <textarea className="readme-input" readOnly aria-label="README.md (read-only)" value={view.readme} />}
+      {view.readme !== null && <TextArea label="README.md (read-only)" labelHidden tall rows={24} value={view.readme} onChange={() => undefined} unsaved={null} readOnly />}
       {mine && isDirty(mine) && (
-        <Notice tone="info" title="Your unsaved text">
+        <Callout state="idle" title="Note: your unsaved text">
           <p>Not saved anywhere: copy it before you leave.</p>
-          <textarea className="kept" readOnly aria-label="Your unsaved text" value={mine.text} rows={6} />
-        </Notice>
+          <TextArea label="Your unsaved text" labelHidden rows={6} value={mine.text} onChange={() => undefined} unsaved={null} readOnly />
+        </Callout>
       )}
     </div>
   );
@@ -319,20 +314,22 @@ export function ReadmeEditor({ slug }: { slug: string }) {
   });
   if (view.state === 'loading') {
     return (
-      <div className="screen">
-        <Loading what="the README" />
+      <div className="rd-screen">
+        <p className="rd-quiet" role="status">
+          Loading the README…
+        </p>
       </div>
     );
   }
   if (view.state === 'error') {
     return (
-      <div className="screen">
-        <Breadcrumb slug={slug} name={slug} />
-        <Notice tone="danger" role="alert" title="This README cannot be opened">
-          <p className="pre-line">
+      <div className="rd-screen">
+        <h1 className="k-sr">README.md</h1>
+        <Callout state="fail" role="alert" title="This README cannot be opened">
+          <p className="rd-pre">
             <Txt text={view.error} />
           </p>
-        </Notice>
+        </Callout>
       </div>
     );
   }

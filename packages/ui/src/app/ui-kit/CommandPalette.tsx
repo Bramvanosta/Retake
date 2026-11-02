@@ -5,10 +5,18 @@
  * active option (its cue: the selection fill and a 3 px bar, more than colour), Enter runs it, a click runs it, Escape
  * closes; the focus goes back to where it was (to the centre pane, `#main`, when that is gone) — at once when the palette
  * closes itself, never on its late `close` event (a task that, under load, lands after the focus has moved on).
+ * L5.12b (R4-Palette): 640 px wide, "Search commands, scenes and themes", an icon per row (decorative: the label names
+ * it), Esc's key cap beside the field, and a footer legend (↑ ↓ Move · Return Run · Esc Close, and the caller's
+ * footnote: the desktop app's "Commands with a key are also in the menu bar").
+ * L5.12b fixes: the legend is read too (review A-L8: the footnote is information, not decoration); `aria-expanded` is
+ * false while no option is listed; an input method's composition-ending Enter is ignored by `isComposing` or its
+ * keyCode 229 (WebKit — the desktop app's view — can end a composition with `isComposing` false: review A-L9).
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { Kbd } from './Button.js';
+import { Icon } from './Icon.js';
+import type { IconName } from './Icon.js';
 import { Txt, shown } from '../bits.js';
 
 export interface Command {
@@ -17,6 +25,8 @@ export interface Command {
   group: string;
   hint?: string;
   kbd?: string[];
+  /** L5.12b: the row's icon. */
+  icon?: IconName;
   run: () => void;
 }
 
@@ -34,7 +44,7 @@ export function filterCommands(commands: Command[], query: string): Command[] {
   return groups.flatMap((g) => hits.filter((c) => c.group === g).sort((a, b) => starts(a) - starts(b)));
 }
 
-export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a place or run a command' }: { open: boolean; onClose: () => void; commands: Command[]; placeholder?: string }) {
+export function CommandPalette({ open, onClose, commands, placeholder = 'Search commands, scenes and themes', footnote }: { open: boolean; onClose: () => void; commands: Command[]; placeholder?: string; /** A last line in the footer legend. */ footnote?: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -83,7 +93,7 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
   };
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     // An input method composing a word owns its keys (Enter confirms the word, not a command: review A-L9).
-    if (e.nativeEvent.isComposing) return;
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (hits.length) setActive((a) => (e.key === 'ArrowDown' ? (a + 1) % hits.length : (a - 1 + hits.length) % hits.length));
@@ -119,12 +129,13 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
       <label className="k-sr" htmlFor={`${base}-input`}>
         Command
       </label>
-      <input
+      <div className="k-palette-field">
+        <input
         ref={input}
         id={`${base}-input`}
         className="k-palette-input"
         role="combobox"
-        aria-expanded={true}
+        aria-expanded={hits.length > 0}
         aria-controls={`${base}-list`}
         aria-autocomplete="list"
         aria-activedescendant={current ? optId(current) : undefined}
@@ -138,7 +149,12 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
         }}
         onKeyDown={onKey}
       />
-      <div id={`${base}-list`} role="listbox" aria-label="Commands" className="k-palette-list">
+        <span className="k-palette-esc" aria-hidden="true">
+          <Kbd keys={['Esc']} />
+        </span>
+      </div>
+      {/* Never a tab stop of its own (a long list scrolls: Chromium would make the scroller focusable) — the combobox drives it. */}
+      <div id={`${base}-list`} role="listbox" aria-label="Commands" className="k-palette-list" tabIndex={-1}>
         {groups.map((g, gi) => (
           <div key={g} role="group" aria-labelledby={`${base}-g${gi}`} className="k-palette-group">
             <div id={`${base}-g${gi}`} role="presentation" className="k-palette-heading">
@@ -148,6 +164,9 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
               .filter((c) => c.group === g)
               .map((c) => (
                 <div key={c.id} id={optId(c)} role="option" aria-selected={c === current} className={c === current ? 'k-palette-option is-active' : 'k-palette-option'} onClick={() => runAt(hits.indexOf(c))}>
+                  <span className="k-palette-icon" aria-hidden="true">
+                    {c.icon && <Icon name={c.icon} />}
+                  </span>
                   <span className="k-palette-label"><Txt text={c.label} /></span>
                   {c.hint && <span className="k-palette-hint"><Txt text={c.hint} /></span>}
                   {c.kbd && <Kbd keys={c.kbd} />}
@@ -158,6 +177,18 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Go to a
       </div>
       <p className="k-palette-none" role="status">
         {open && hits.length === 0 ? 'Nothing matches' : ''}
+      </p>
+      <p className="k-palette-legend">
+        <span className="k-palette-legend-item">
+          <Kbd keys={['↑', '↓']} /> Move
+        </span>
+        <span className="k-palette-legend-item">
+          <Kbd keys={['Return']} /> Run
+        </span>
+        <span className="k-palette-legend-item">
+          <Kbd keys={['Esc']} /> Close
+        </span>
+        {footnote !== undefined && <span className="k-palette-legend-note">{shown(footnote)}</span>}
       </p>
     </dialog>
   );

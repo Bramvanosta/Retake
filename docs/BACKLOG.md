@@ -2059,7 +2059,21 @@ and `job_end` lines); what remains:
   inspector keeps chips), the take as captured / proposed edit as a caption under the preview (the status bar says it).
 - A render queued from Edit opens its report by itself (Edit's status bar says "vN reviewed" with Open the review: the
   page stays where you work); the report opens one queued from the report.
-- Thread rows' 64 px thumbnails, the palette's "Open renders" — L5.12b's area, listed here as plan §8 cut them.
+- (Thread rows' thumbnails and the palette's "Open renders": moved to BL-133, L5.12b's.)
+
+### BL-133 — « Épure » 4 extras cut from L5.12b (frame comments, the proposal, README, ⌘K)
+*S–M · cut in L5.12b · builds on: L5.12b*
+
+- Thread rows' 64 px thumbnails (R4-Comments): one `thread_still` per visible row is a read storm — a batched still read
+  (one op, the visible rows' stills, capped) first; rows keep their timecode and first line.
+- The palette's "Open renders" as a place of its own (it is Review › Report) and R4-Palette's "Render <scenario> with
+  the theme X" wording (the project read carries no per-scenario theme; Edit's theme is in the Themes group).
+- The browser pane's Workspace footer: a long path wraps to three lines (every screen, the shell's foot) — shorten it in
+  the middle (`~` for the home folder), the full path on hover.
+- `useCall` reads again on every window focus: a tab coming back to the front (or the first key press in an unfocused
+  tab) sends every read of the screen at once (~10 on Comments) — a focus refresh throttled or limited to what is stale.
+- "Press C on any frame" on the Comments screen (the key belongs to Edit; Comments has "Comment at this frame" in ⌘K).
+- A Markdown preview of the README stays out (deliberate: a renderer is the largest script-injection surface).
 
 ## Guard-rails for planned lots (no new scope)
 

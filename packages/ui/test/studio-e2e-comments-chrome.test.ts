@@ -266,7 +266,14 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     expect(await proposal.getAttribute('data-state')).toBe('pending');
     expect(await proposal.getAttribute('data-verified')).toBe('yes');
     expect(await page.getByTestId('proposal-summary').innerText()).toBe(`A change to the scenario file ${S}: 1 line added, 1 removed, in 1 place.`);
-    const added = await page.locator('[data-testid="proposal"] [data-testid="diff-row"][data-kind="add"] [data-testid="diff-line"]').allInnerTexts();
+    // The line as drawn (L5.12b fixes, review A-L7: the words read for edge spaces are for assistive technology).
+    const added = await page.locator('[data-testid="proposal"] [data-testid="diff-row"][data-kind="add"] [data-testid="diff-line"]').evaluateAll((els) =>
+      els.map((el) => {
+        const c = el.cloneNode(true) as Element;
+        for (const sr of c.querySelectorAll('.k-sr')) sr.remove();
+        return c.textContent ?? '';
+      }),
+    );
     // Leading spaces drawn as `·` (YAML's indentation is its meaning), the line itself literally.
     expect(added).toEqual([`····caption: {kicker: Quotes, text: "${PROPOSED_CAPTION}"}`]);
     for (const b of ['proposal-apply', 'proposal-preview', 'proposal-apply-render']) expect(await page.getByTestId(b).count(), b).toBe(1);
@@ -302,7 +309,7 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     await page.getByTestId('banner-back').click();
     await page.waitForURL(`**#/p/${P}/s/${S}/comments/${ids.thread}`);
     await page.getByTestId('proposal-apply-render').waitFor(POLL);
-    await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains('pp-head') ?? false), POLL).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid') === 'proposal-head'), POLL).toBe(true);
     await page.getByTestId('proposal-apply-render').click();
     await expect.poll(() => readFile(scenarioFile(), 'utf8'), POLL).toBe(proposed);
     await expect.poll(() => page.getByTestId('proposal-render').getAttribute('data-state'), POLL).toBe('queued');
@@ -342,17 +349,20 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     }
     console.log(`viewer latency (render_frame → frame shown), 4K encode ${encodeMs} ms:\n  ${lines.join('\n  ')}`);
 
-    // L5.9: the shell is a fixed window of panes — the centre pane scrolls a tall screen, the page itself never does, and
-    // the browser stays where it is, under the title bar (a full-page screenshot shows the viewport: the panes scroll).
+    // L5.9: the shell is a fixed window of panes — a pane scrolls a tall content, the page itself never does, and the
+    // browser stays where it is, under the title bar (a full-page screenshot shows the viewport: the panes scroll).
+    // L5.12b: the thread and its proposal are the inspector pane's — the tall one on this screen (the centre holds the frame).
     await page.goto(`${studio.url}#/p/${P}/s/${S}/comments/${ids.thread}`);
     await page.getByTestId('thread').waitFor(POLL);
     await page.getByTestId('filter-all').check();
-    const tall = await page.evaluate(() => { const m = document.getElementById('main')!; return m.scrollHeight - m.clientHeight; });
+    const pane = '.sh-inspector';
+    const tall = await page.evaluate((sel) => { const m = document.querySelector(sel)!; return m.scrollHeight - m.clientHeight; }, pane);
     expect(tall).toBeGreaterThan(200);
-    await page.evaluate(() => { const m = document.getElementById('main')!; m.scrollTop = m.scrollHeight; });
-    await expect.poll(() => page.evaluate(() => document.getElementById('main')!.scrollTop), POLL).toBeGreaterThan(200);
+    await page.evaluate((sel) => { const m = document.querySelector(sel)!; m.scrollTop = m.scrollHeight; }, pane);
+    await expect.poll(() => page.evaluate((sel) => document.querySelector(sel)!.scrollTop, pane), POLL).toBeGreaterThan(200);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    expect(Math.abs((await page.locator('.sidebar').evaluate((el) => el.getBoundingClientRect().top)) - 48)).toBeLessThan(1);
+    // L5.12b: the shell's browser pane (it holds the thread list now) stays under the title bar.
+    expect(Math.abs((await page.getByRole('complementary', { name: 'Browser' }).evaluate((el) => el.getBoundingClientRect().top)) - 48)).toBeLessThan(1);
     await shot('8-scrolled');
 
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);

@@ -15,6 +15,8 @@ export interface SegmentOption<V extends string> {
   value: V;
   label: ReactNode;
   disabled?: boolean;
+  /** L5.12b: a test id on the option's radio (the comments filters keep theirs). */
+  testId?: string;
 }
 
 export function Segmented<V extends string>({ label, value, options, onChange, size = 'md' }: { label: string; value: V; options: Array<SegmentOption<V>>; onChange: (v: V) => void; size?: 'sm' | 'md' }) {
@@ -24,7 +26,7 @@ export function Segmented<V extends string>({ label, value, options, onChange, s
       <legend className="k-sr">{shown(label)}</legend>
       {options.map((o) => (
         <label key={o.value} className={o.value === value ? 'k-seg-item is-current' : 'k-seg-item'}>
-          <input type="radio" className="k-seg-input" name={name} value={o.value} checked={o.value === value} disabled={o.disabled} onChange={() => onChange(o.value)} />
+          <input type="radio" className="k-seg-input" name={name} value={o.value} checked={o.value === value} disabled={o.disabled} onChange={() => onChange(o.value)} data-testid={o.testId} />
           <span className="k-seg-label">{shown(o.label)}</span>
         </label>
       ))}

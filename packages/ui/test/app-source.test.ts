@@ -26,7 +26,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
@@ -43,7 +43,7 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, CommandPalette, ContactSheet, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
+import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, CommandPalette, ContactSheet, DiffTable, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RegionOverlay, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -349,12 +349,16 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
   it('⚑ no thread_* call of the app sends an author, a via, a proposal or a name', async () => {
     const calls = (await appSources()).flatMap(([f, text]) => threadCalls(code(text)).map((c) => ({ f, ...c })));
     const ops = new Set(calls.map((c) => c.op));
-    // Part D2: Apply and Resolve with vN call their ops directly (ProposalPanel.tsx).
+    // Part D2: Apply and Resolve with vN call their ops directly (L5.12b: ProposalCard.tsx).
     for (const op of ['thread_add', 'thread_get', 'thread_still', 'thread_apply', 'thread_resolve']) expect(ops, op).toContain(op);
-    // Reply, resolve and reopen go through one helper (ThreadActions' send): its op names are arguments.
-    const screen = code((await appSources()).find(([f]) => f === 'CommentsScreen.tsx')![1]);
+    // Reply, resolve and reopen go through one helper (ThreadActions' send — L5.12b: ThreadPanel.tsx): its op names are
+    // arguments. M1: the helper's call is pinned by name to its owner, and no other file of the app holds it.
+    const sources = await appSources();
+    const screen = code(sources.find(([f]) => f === 'ThreadPanel.tsx')![1]);
     for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
-    expect(screen).toMatch(/call\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \}\)/);
+    const HELPER = /call\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \}\)/g;
+    expect(screen.match(HELPER)?.length).toBe(1);
+    expect(sources.filter(([f, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['ThreadPanel.tsx']);
     for (const c of calls) expect(NAMED.test(c.args), `${c.f}: ${c.op} sends ${c.args}`).toBe(false);
     // Every send(...) of the thread's writes: its argument object names nobody either.
     for (const m of screen.matchAll(/\bsend\('[A-Za-z]+', '(thread_[a-z_]+)', (\{[^}]*\})/g)) expect(NAMED.test(m[2]), `${m[1]}: ${m[2]}`).toBe(false);
@@ -378,10 +382,14 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     expect(args).toBe(1);
     const timeline = code(files.find(([f]) => f === 'TimelineScreen.tsx')![1]);
     expect(timeline).toMatch(/useCall<TimelineViewAnswer>\('timeline_view', args,/);
-    // thread_apply sends the reply and the thread's hash shown, nothing else.
-    const panel = code(files.find(([f]) => f === 'ProposalPanel.tsx')![1]);
+    // thread_apply sends the reply and the proposal's hash shown, nothing else (L5.12b: ProposalCard.tsx, M1: the one call
+    // of the app — no other file applies).
+    const panel = code(files.find(([f]) => f === 'ProposalCard.tsx')![1]);
     const applies = threadCalls(panel).filter((c) => c.op === 'thread_apply');
     expect(applies.map((c) => c.args)).toEqual(["('thread_apply', { project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })"]);
+    const everywhere = files.flatMap(([f, text]) => threadCalls(code(text)).filter((c) => c.op === 'thread_apply').map(() => f));
+    expect(everywhere).toEqual(['ProposalCard.tsx']);
+    expect(files.filter(([, text]) => /thread_apply/.test(code(text))).map(([f]) => f)).toEqual(['ProposalCard.tsx']);
   });
 });
 
@@ -828,28 +836,26 @@ const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.t
 /** Text tokens × the backgrounds they may sit on: every pair reaches 4.5:1 (the static contrast guarantee). */
 const TEXT_ON_LIGHT = ['fg', 'fg-soft', 'hook-fg', 'tint-fg', 'muted', 'accent', 'accent-strong', 'danger', 'warning', 'info', 'success', 'input-fg'];
 // (L5.9: the names say "light" from L4.9; the sets hold by role in both appearances.)
-const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'link-hover', 'code-bg', 'faint', 'hover', 'thumb-stripe', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'warning-faint', 'info-soft', 'success-soft', 'input-tint', 'veil'];
+const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'code-bg', 'hover', 'thumb-stripe', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'info-soft', 'success-soft', 'input-tint', 'veil'];
 const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
   { text: TEXT_ON_LIGHT, on: LIGHT_BG },
-  // L5.9 (critique H3): text on the ink (a stale frame's veil); primary fills too. (L5.12a: the timeline's tooltip and its
-  // link colour left with its legacy rules.)
-  { text: ['on-ink', 'on-ink-muted'], on: ['ink', 'ink-soft', 'ink-veil'] },
+  // Primary fills. (L5.12a: the timeline's tooltip and its link colour left with its legacy rules; L5.12b: the comments'
+  // frame — the ink, its veil, the region on video — left with theirs: the kit's video tokens draw them.)
   { text: ['on-accent'], on: ['accent-fill', 'accent-strong-fill'] },
-  { text: ['ink'], on: ['mark-on-video'] },
 ];
 /** Pairs of those sets that never meet (a rule declaring one together still fails). */
 const NOT_MEANT: Array<[string, string, string]> = [];
-/** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead). */
-const NON_TEXT_BG = ['backdrop', 'danger', 'muted'];
+/** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead);
+ * L5.12b: the ink under a picture (a thumbnail, a poster) — its text left with the comments' frame. */
+const NON_TEXT_BG = ['backdrop', 'danger', 'muted', 'ink', 'ink-soft'];
 /** The kit's backgrounds that carry no text: marks (status, the switch's track and knob, a progress fill), the sheet's backdrop. */
 const UI_NON_TEXT_BG = ['ui-backdrop', 'ui-ring', 'ui-ok', 'ui-warn', 'ui-fail', 'ui-record', 'ui-idle', 'ui-waiting', 'ui-track', 'ui-knob', 'ui-hairline', 'ui-text-3'];
 /** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
-const OVER_MEDIA = ['veil', 'ink-veil'];
+const OVER_MEDIA = ['veil'];
 /** Non-text marks at 3:1 (WCAG 1.4.11): the focus ring on the light surfaces, the comment region on video, the status dots. */
 const NON_TEXT_PAIRS: Array<[string, string[]]> = [
   ['accent', ['bg', 'surface', 'subtle', 'hover', 'tint', 'accent-soft']],
   ['accent-strong', ['bg', 'surface', 'accent-soft']],
-  ['mark-on-video', ['ink']],
   ['danger', ['surface']],
   // L5.9 (review A-L2): the in-flight steps' dashed edge, on a step's every background (rest, hover, selected).
   ['busy-edge', ['surface', 'bg', 'accent-soft']],
@@ -917,7 +923,7 @@ const CLICK_ROLE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'ta
  * piece of the element's source line (a new element of the same kind is not excused).
  */
 const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<string, string>; line: string; why: string }> = [
-  { file: 'CommentsScreen.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: 'the region drag on the frame; its keyboard alternative is the four % fields' },
+  { file: 'FrameViewer.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: "the region drag on the frame (L5.12b: FrameViewer.tsx's FramePicture; RegionOverlay draws, presentational); its keyboard alternative is the composer's four % fields" },
   { file: 'ui-kit/frames.tsx', tag: 'li', attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' }, line: '<li', why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard" },
   { file: 'ui-kit/frames.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' }, line: '<p', why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows' },
   { file: 'ui-kit/ChoiceChips.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' }, line: '<div className="k-chips" role="radiogroup"', why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop" },
@@ -1036,7 +1042,8 @@ const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".th-color input
 describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
     const rules = cssRules(await appCss());
-    expect(rules.length).toBeGreaterThan(400);
+    // (L5.12b: the legacy layer shrinks as the screens move to the kit — d deletes the rest.)
+    expect(rules.length).toBeGreaterThan(300);
     const bad: string[] = [];
     for (const [f, text] of [['app.css', await appCss()] as [string, string], ...(await kitCss())]) {
       for (const r of cssRules(text)) {
@@ -1478,17 +1485,23 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(NumberField, { label: K('nflabel'), hint: K('nfhint'), error: K('nferror'), value: '1', onChange: go }),
       // L5.12a fixes (review A-L5): a row card that is a link.
       createElement(RowCard, { compact: true, tile: K('lrtile'), title: K('lrtitle'), meta: K('lrmeta'), selected: true, to: { name: 'projects' } }),
+      // L5.12b: the diff table (its code cells: visible marks, byte order — no <bdi> can go inside a bidi-overridden line),
+      // the region over a frame, the palette's footnote, a tick that is a link.
+      createElement(DiffTable, { label: 'Change', title: K('dttitle'), rows: [{ kind: 'add', sign: '+', word: K('dtword'), base: null, line: 3, pieces: [{ kind: 'text', text: K('dtcode') }], rtl: true }, { kind: 'gap', sign: '…', word: K('dtgap'), base: null, line: null, pieces: [], rtl: false }] }),
+      createElement(RegionOverlay, { region: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, label: K('rolabel') }),
+      createElement(CommandPalette, { open: true, onClose: go, footnote: K('pfoot'), commands: [{ id: 'b', label: 'Row', icon: 'theme', group: 'Themes', run: go }] }),
+      createElement(Track, { name: 'Pins', testId: 't2', count: 1, children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p2', to: { name: 'projects' }, tip: K('trltip'), children: K('trlitem') }) }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
     expect(raw, "a raw direction control").toEqual([]);
     expect(html).not.toMatch(/<img|onerror="/);
     const places = placesOf(html);
-    const marks = new Set(['opt', 'kbd']);
+    const marks = new Set(['opt', 'kbd', 'dtcode']);
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside', 'chlabel', 'chlabel2', 'chwhy', 'trname', 'trtip', 'tritem', 'sctime', 'scmark', 'cslabel', 'csmeta', 'cspic', 'cslabel2', 'cswords', 'tag', 'nflabel', 'nfhint', 'nferror', 'lrtile', 'lrtitle', 'lrmeta'];
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside', 'chlabel', 'chlabel2', 'chwhy', 'trname', 'trtip', 'tritem', 'sctime', 'scmark', 'cslabel', 'csmeta', 'cspic', 'cslabel2', 'cswords', 'tag', 'nflabel', 'nfhint', 'nferror', 'lrtile', 'lrtitle', 'lrmeta', 'dttitle', 'dtword', 'dtgap', 'rolabel', 'pfoot', 'trltip', 'trlitem'];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -1812,4 +1825,327 @@ describe('L5.12a: Edit and the Review report', () => {
     expect(code).not.toBe(report);
     expect(kitBareText('ReviewScreen.tsx', code)).toEqual([expect.stringContaining('{finding.code}')]);
   });
+});
+
+// ── L5.12b: Review › Comments, Claude's proposal, the README editor, the ⌘K palette (R4-Comments, R4-Palette) ─────────
+
+/** The files L5.12b rebuilt or added (kit only, every value from data through Txt / a kit slot). */
+const COMMENTS_SIDE = ['CommentsScreen.tsx', 'ThreadList.tsx', 'FrameViewer.tsx', 'Composer.tsx', 'ThreadPanel.tsx', 'ProposalCard.tsx', 'ProposalBanner.tsx', 'ReadmeEditor.tsx'];
+
+/** The ops each comments-side file may call (L5.12b fixes, reviews A-M1 / B-M1 — like SHOOT_OPS / SCENARIO_SIDE_OPS). */
+const COMMENTS_OPS: Record<string, string[]> = {
+  'CommentsScreen.tsx': [],
+  'ThreadList.tsx': ['threads_list'],
+  'FrameViewer.tsx': ['render_outline', 'render_frame'],
+  'Composer.tsx': ['frame_anchor', 'thread_add'],
+  // Its reads, and the one helper of the thread's writes (`call(op, …)`: Reply, Resolve, Reopen — sendOps).
+  'ThreadPanel.tsx': ['thread_get', 'thread_still', '(not a literal: op)'],
+  'ProposalCard.tsx': ['thread_apply', 'scenario_render', 'scenario_edit', 'thread_resolve'],
+  'ProposalBanner.tsx': ['thread_get'],
+  'proposal-focus.ts': [],
+};
+/** The timeline's proposal banner may import exactly these values (a read, words, the focus hand-off, the kit). */
+const BANNER_IMPORTS: Record<string, string[]> = {
+  api: ['useCall'],
+  bits: ['Txt'],
+  'comment-words': ['proposalButtons', 'proposalSummary'],
+  'proposal-focus': ['focusProposalOf'],
+  'render-words': ['versionWords'],
+  'ui-kit/index': ['Callout', 'LinkButton'],
+};
+
+const tsx = (text: string) => ts.createSourceFile('x.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+/** A file's value imports (type-only ones dropped), each module as an app-relative path without its extension. */
+function importsOf(file: string, text: string): Array<{ module: string; names: string[] }> {
+  const out: Array<{ module: string; names: string[] }> = [];
+  for (const st of tsx(text).statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue;
+    const spec = st.moduleSpecifier.text;
+    const module = spec.startsWith('.') ? posix.normalize(posix.join(posix.dirname(file), spec)).replace(/\.js$/, '') : spec;
+    const c = st.importClause;
+    const names: string[] = [];
+    if (c && !c.isTypeOnly) {
+      if (c.name) names.push(c.name.text);
+      if (c.namedBindings && ts.isNamedImports(c.namedBindings)) for (const el of c.namedBindings.elements) if (!el.isTypeOnly) names.push(el.name.text);
+      if (c.namedBindings && ts.isNamespaceImport(c.namedBindings)) names.push(`* as ${c.namedBindings.name.text}`);
+    }
+    out.push({ module, names });
+  }
+  return out;
+}
+
+/** The names a file exports as values (functions, classes, consts; types and interfaces left out). */
+function valueExports(text: string): string[] {
+  const out: string[] = [];
+  for (const st of tsx(text).statements) {
+    const exported = ts.canHaveModifiers(st) && (ts.getModifiers(st) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    if (!exported) continue;
+    if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name) out.push(st.name.text);
+    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) out.push(d.name.text);
+  }
+  return out;
+}
+
+/** The keys of an object literal argument (a property set to `undefined` is no key; a spread is `...`). */
+function keysOf(n: ts.Expression | undefined): string[] {
+  if (!n || !ts.isObjectLiteralExpression(n)) return ['(not an object literal)'];
+  return n.properties.flatMap((p) => {
+    if (ts.isSpreadAssignment(p)) return ['...'];
+    if (!p.name || !(ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) return [];
+    if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.initializer) && p.initializer.text === 'undefined') return [];
+    return [p.name.text];
+  });
+}
+
+/** How many `call(…)` of a source (the api's function, not a method) take an op that is not a string literal. */
+function nonLiteralCalls(text: string): number {
+  let n = 0;
+  const visit = (m: ts.Node) => {
+    if (ts.isCallExpression(m) && ts.isIdentifier(m.expression) && m.expression.text === 'call' && !(m.arguments[0] && ts.isStringLiteral(m.arguments[0]))) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(tsx(text));
+  return n;
+}
+
+/** The literal op names of ThreadPanel's helper calls (`send(what, op, args, …)`). */
+function sendOps(text: string): string[] {
+  const out: string[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'send' && n.arguments[1] && ts.isStringLiteral(n.arguments[1])) out.push(n.arguments[1].text);
+    ts.forEachChild(n, visit);
+  };
+  visit(tsx(text));
+  return out;
+}
+
+/** Every thread write of a source — `call('thread_…', {…})` or the helper's `send(what, 'thread_…', {…})` — and its argument keys. */
+function threadWrites(text: string): Array<{ op: string; keys: string[]; line: number }> {
+  const src = tsx(text);
+  const out: Array<{ op: string; keys: string[]; line: number }> = [];
+  const WRITES = new Set(['thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply']);
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
+      const at = n.expression.text === 'call' ? 0 : n.expression.text === 'send' ? 1 : -1;
+      const op = at >= 0 ? n.arguments[at] : undefined;
+      if (op && ts.isStringLiteral(op) && WRITES.has(op.text) && op.text !== 'thread_add') out.push({ op: op.text, keys: keysOf(n.arguments[at + 1]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+/** What writes, imported: `call`, the proposal's card, a render, a run, the bus's commands (the menu's: they act). */
+const WRITER_IMPORTS: Record<string, string[] | '*'> = {
+  api: ['call'],
+  ProposalCard: '*',
+  Renders: ['useRenders'],
+  'shoot-data': ['startRun', 'startRender', 'stopRun', 'pauseRun', 'openSheet'],
+  'shell/command-bus': ['runShellCommand'],
+};
+
+/**
+ * The palette's screen groups of a source (`usePaletteGroup(slot, …)`; the `scenario` slot is a live recording's own
+ * commands — Stop recording, Discard… — the menu's, which act) and the writers their entries reach: each identifier the
+ * group's code uses is followed to its definition in scope (a function, a const — a hook's callback, not its deps; a
+ * parameter stops it) and walked in turn; a call of `call`, or of anything imported from WRITER_IMPORTS, is a writer.
+ */
+function paletteGroupWriters(file: string, text: string): Array<{ slot: string; writers: string[] }> {
+  const src = tsx(text);
+  const writerNames = new Set<string>();
+  for (const i of importsOf(file, text)) {
+    const w = WRITER_IMPORTS[i.module];
+    if (w) for (const n of i.names) if (w === '*' || w.includes(n)) writerNames.add(n);
+  }
+  writerNames.add('call');
+  // Declarations by name, each with the scope that holds it (a block, the file, a function for its parameters); a
+  // parameter or a destructured name is a declaration with nothing to follow (it shadows).
+  const defs = new Map<string, Array<{ scope: ts.Node; body: ts.Node | null }>>();
+  const define = (name: string, scope: ts.Node, body: ts.Node | null) => defs.set(name, [...(defs.get(name) ?? []), { scope, body }]);
+  const blockOf = (n: ts.Node): ts.Node => {
+    for (let p = n.parent; p; p = p.parent) if (ts.isBlock(p) || ts.isSourceFile(p) || ts.isModuleBlock(p)) return p;
+    return src;
+  };
+  const names = (b: ts.BindingName, scope: ts.Node) => {
+    if (ts.isIdentifier(b)) define(b.text, scope, null);
+    else for (const el of b.elements) if (!ts.isOmittedExpression(el)) names(el.name, scope);
+  };
+  const collect = (n: ts.Node) => {
+    if (ts.isFunctionDeclaration(n) && n.name && n.body) define(n.name.text, blockOf(n), n.body);
+    if (ts.isVariableDeclaration(n)) {
+      if (ts.isIdentifier(n.name) && n.initializer) {
+        const init = n.initializer;
+        // A hook's callback (useCallback / useMemo): its function, never its dependency list.
+        const hook = ts.isCallExpression(init) && ts.isIdentifier(init.expression) && /^use(?:Callback|Memo)$/.test(init.expression.text) ? init.arguments[0] : undefined;
+        define(n.name.text, blockOf(n), hook ?? init);
+      } else names(n.name, blockOf(n));
+    }
+    if (ts.isParameter(n)) names(n.name, n.parent);
+    ts.forEachChild(n, collect);
+  };
+  collect(src);
+  /** The innermost declaration of `id` in scope at its place (a parameter or a binding: nothing to follow). */
+  const resolve = (id: ts.Identifier): ts.Node | null => {
+    const ds = defs.get(id.text) ?? [];
+    for (let p: ts.Node | undefined = id.parent; p; p = p.parent) {
+      const d = ds.find((x) => x.scope === p);
+      if (d) return d.body;
+    }
+    return null;
+  };
+  const out: Array<{ slot: string; writers: string[] }> = [];
+  const visitGroup = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'usePaletteGroup' && n.arguments[0] && ts.isStringLiteral(n.arguments[0]) && n.arguments[0].text !== 'scenario') {
+      const writers: string[] = [];
+      const seen = new Set<ts.Node>();
+      const walk = (m: ts.Node) => {
+        if (seen.has(m)) return;
+        seen.add(m);
+        if (ts.isCallExpression(m) && ts.isIdentifier(m.expression) && writerNames.has(m.expression.text)) writers.push(m.getText(src));
+        if (ts.isIdentifier(m) && !(ts.isPropertyAccessExpression(m.parent) && m.parent.name === m)) {
+          const d = resolve(m);
+          if (d) walk(d);
+        }
+        ts.forEachChild(m, walk);
+      };
+      walk(n.arguments[1]);
+      out.push({ slot: n.arguments[0].text, writers: [...new Set(writers)] });
+    }
+    ts.forEachChild(n, visitGroup);
+  };
+  visitGroup(src);
+  return out;
+}
+
+describe('L5.12b: Comments, the proposal, the README, the palette', () => {
+  it('⚑ every value from data is text: each JSX child of the Comments, proposal and README files goes through Txt / shown / a kit slot (a planted bare thread text, entry author or diff summary fails it)', async () => {
+    const files = (await appSources()).filter(([f]) => COMMENTS_SIDE.includes(f));
+    expect(files.map(([f]) => f).sort()).toEqual([...COMMENTS_SIDE].sort());
+    expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    const panel = files.find(([f]) => f === 'ThreadPanel.tsx')![1];
+    for (const [from, to, bare] of [
+      ['<Txt text={th.untrusted.text} />', '{th.untrusted.text}', '{th.untrusted.text}'],
+      ['<Txt text={u.author} />', '{u.author}', '{u.author}'],
+    ]) {
+      const planted = panel.replace(from, to);
+      expect(planted, from).not.toBe(panel);
+      expect(kitBareText('ThreadPanel.tsx', planted)).toEqual([expect.stringContaining(bare)]);
+    }
+    const card = files.find(([f]) => f === 'ProposalCard.tsx')![1];
+    const summary = card.replace('<Txt text={`: ${proposalSummary(p)}.`} />', '{proposalSummary(p)}');
+    expect(summary).not.toBe(card);
+    expect(kitBareText('ProposalCard.tsx', summary)).toEqual([expect.stringContaining('{proposalSummary(p)}')]);
+    const list = files.find(([f]) => f === 'ThreadList.tsx')![1];
+    const row = list.replace('title={<Txt text={firstLine(t.untrusted.text)} />}', 'title={<span>{firstLine(t.untrusted.text)}</span>}');
+    expect(row).not.toBe(list);
+    expect(kitBareText('ThreadList.tsx', row)).toEqual([expect.stringContaining('firstLine(t.untrusted.text)')]);
+  });
+
+  it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit; ProposalPanel.tsx and CommentsTab.tsx are gone (−339 legacy controls); their CSS left app.css', async () => {
+    const table = await readTable();
+    const found = await ratchetFindings();
+    for (const f of COMMENTS_SIDE) {
+      expect(table[f], f).toBeUndefined();
+      expect(found.get(f) ?? [], f).toEqual([]);
+    }
+    const names = (await appSources()).map(([f]) => f);
+    for (const gone of ['ProposalPanel.tsx', 'CommentsTab.tsx']) {
+      expect(names).not.toContain(gone);
+      expect(table[gone], gone).toBeUndefined();
+    }
+    const css = await appCss();
+    expect(css).not.toMatch(/\.(?:cv|cl|pp|pd)-[a-z]|\.th-(?:meta|text|entr|proposal|still|actions|form)|\.comments-|\.composer\b|\.readme-input|\.editor-bar|\.save-state/);
+    // The mutation: a native button in the composer counts (and Composer.tsx has no row to hold it).
+    const text = (await appSources()).find(([f]) => f === 'Composer.tsx')![1];
+    const planted = text.replace('<div className="cm-actions" ref={actionsRef}>', '<div className="cm-actions" ref={actionsRef}><button type="button">x</button>');
+    expect(planted).not.toBe(text);
+    const ctx = { appClasses: appCssClasses(css), tokens: new Set<string>() };
+    expect(offKit('Composer.tsx', planted, ctx).length).toBeGreaterThan(offKit('Composer.tsx', text, ctx).length);
+  });
+
+  it('⚑ the palette never writes (L5.12b fixes, reviews A-L3 / B-M2: structural): every screen group\'s handlers reach no writer — the identifiers its entries use are followed to their definitions in the file; the shell\'s builder calls engine_info only', async () => {
+    const files = await appSources();
+    const shell = code(files.find(([f]) => f === 'shell/AppShell.tsx')![1]);
+    const bus = code(files.find(([f]) => f === 'shell/command-bus.ts')![1]);
+    const groups = files.flatMap(([f, text]) => paletteGroupWriters(f, text).map((g) => ({ f, ...g })));
+    // Scenes (Scenario, Edit), Themes (Edit), Review (Comments), the report (Renders: the screens that hold renders).
+    expect(groups.map((g) => `${g.f}:${g.slot}`).sort()).toEqual(['CommentsScreen.tsx:review', 'Renders.tsx:report', 'ScenarioScreen.tsx:scenes', 'TimelineScreen.tsx:scenes', 'TimelineScreen.tsx:themes']);
+    for (const g of groups) expect(g.writers, `${g.f} ${g.slot}`).toEqual([]);
+    expect(opsCalled(bus)).toEqual([]);
+    // The shell's palette builder: commands go through the bus or a route; the one op the shell calls is engine_info.
+    expect(new Set(opsCalled(shell))).toEqual(new Set(['engine_info']));
+    // The mutations (reviews A-L3 / B-M2): a writer one definition away, a writer imported, the bus's commands.
+    const timeline = files.find(([f]) => f === 'TimelineScreen.tsx')![1];
+    const away = timeline.replace('run: () => onSelect(s.id, landingOf(s)) })),', 'run: () => pickScene(s.id) })),').replace('  // A segment gone from the new version', "  const pickScene = (id: string) => void call('scenario_edit', { project: slug, name, id });\n  // A segment gone from the new version");
+    expect(away).not.toBe(timeline);
+    expect(paletteGroupWriters('TimelineScreen.tsx', away).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('scenario_edit', { project: slug, name, id })"]);
+    const deep = timeline.replace('      setSelected(id);\n      seek(from);', "      setSelected(id);\n      seek(from);\n      void call('timeline_set', { id });");
+    expect(deep).not.toBe(timeline);
+    expect(paletteGroupWriters('TimelineScreen.tsx', deep).find((g) => g.slot === 'scenes')!.writers).toEqual(["call('timeline_set', { id })"]);
+    const comments = files.find(([f]) => f === 'CommentsScreen.tsx')![1];
+    const imported = comments.replace("import { ShellSlot } from './shell/slots.js';", "import { ShellSlot } from './shell/slots.js';\nimport { runShellCommand } from './shell/command-bus.js';").replace("if (composing) setTimeout(", "runShellCommand('render');\n              if (composing) setTimeout(");
+    expect(imported).not.toBe(comments);
+    expect(paletteGroupWriters('CommentsScreen.tsx', imported)[0].writers).toEqual(["runShellCommand('render')"]);
+  });
+
+  it('⚑ the comments side calls only its own ops (L5.12b fixes, reviews A-M1 / B-M1): an allow-list per file, like Shoot\'s and the scenario side\'s; the thread\'s writes through ThreadPanel\'s one helper', async () => {
+    const files = await appSources();
+    const found: Record<string, string[]> = {};
+    for (const f of Object.keys(COMMENTS_OPS)) found[f] = [...new Set(opsCalled(files.find(([x]) => x === f)![1]))].sort();
+    const want = Object.fromEntries(Object.entries(COMMENTS_OPS).map(([f, ops]) => [f, [...ops].sort()]));
+    expect(found).toEqual(want);
+    // The helper's literal ops (its op is an argument): Reply, Resolve, Reopen — nothing else.
+    const panel = files.find(([f]) => f === 'ThreadPanel.tsx')![1];
+    expect(sendOps(panel).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
+    // A call with an op that is not a literal: the thread's helper, the project reads' loader and api.ts itself — no other.
+    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['ThreadPanel.tsx', 'api.ts', 'project-data.ts']);
+    expect(nonLiteralCalls(panel)).toBe(1);
+    // The mutation (review A-M1): a resolve planted in the list fails its allow-list.
+    const list = files.find(([f]) => f === 'ThreadList.tsx')![1];
+    const planted = list.replace("  const first = useRef(true);", "  void call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' });\n  const first = useRef(true);");
+    expect(planted).not.toBe(list);
+    expect([...new Set(opsCalled(planted))].sort()).not.toEqual(want['ThreadList.tsx']);
+  });
+
+  it('⚑ the proposal\'s writers stay with their owner (L5.12b fixes, reviews A-M1 / B-M1: an import graph) — ProposalCard.tsx exports only its card, imported by ThreadPanel.tsx alone; the timeline\'s banner imports nothing that writes', async () => {
+    const files = await appSources();
+    const exportsOf = (f: string) => valueExports(files.find(([x]) => x === f)![1]).sort();
+    expect(exportsOf('ProposalCard.tsx')).toEqual(['ProposalCard']);
+    expect(exportsOf('ThreadPanel.tsx')).toEqual(['ChipList', 'ThreadPanel', 'threadMark']);
+    const importers = (mod: string) => files.flatMap(([f, text]) => importsOf(f, text).filter((i) => i.module === mod && i.names.length > 0).map((i) => `${f}: ${i.names.sort().join(', ')}`)).sort();
+    expect(importers('ProposalCard')).toEqual(['ThreadPanel.tsx: ProposalCard']);
+    expect(importers('ThreadPanel')).toEqual(['CommentsScreen.tsx: ThreadPanel', 'Composer.tsx: ChipList', 'ThreadList.tsx: threadMark']);
+    // The banner: exactly these imports (values) — a read (useCall), words, the focus hand-off, the kit. Nothing that writes.
+    const banner = files.find(([f]) => f === 'ProposalBanner.tsx')![1];
+    expect(Object.fromEntries(importsOf('ProposalBanner.tsx', banner).filter((i) => i.names.length > 0).map((i) => [i.module, i.names.sort()]))).toEqual(BANNER_IMPORTS);
+    // The mutation (reviews A-M1 / B-M1): the banner applying through the card's helper (exported again for it) fails both.
+    const card = files.find(([f]) => f === 'ProposalCard.tsx')![1];
+    const exported = card.replace('async function applyProposal(', 'export async function applyProposal(');
+    expect(exported).not.toBe(card);
+    expect(valueExports(exported).sort()).toEqual(['ProposalCard', 'applyProposal']);
+    const applying = banner.replace("import { focusProposalOf } from './proposal-focus.js';", "import { focusProposalOf } from './proposal-focus.js';\nimport { applyProposal } from './ProposalCard.js';");
+    expect(applying).not.toBe(banner);
+    expect(importsOf('ProposalBanner.tsx', applying).map((i) => i.module)).toContain('ProposalCard');
+  });
+
+  it('⚑ every thread write the engine guards carries the version shown (L5.12b fixes, review A-M1: checked on each call\'s argument object) — thread_resolve / thread_reopen / thread_apply name if_match; thread_reply, whose input has no if_match, sends its text only', async () => {
+    const files = await appSources();
+    const writes = files.flatMap(([f, text]) => threadWrites(text).map((w) => ({ f, ...w })));
+    expect(writes.map((w) => `${w.f}:${w.op}`).sort()).toEqual(['ProposalCard.tsx:thread_apply', 'ProposalCard.tsx:thread_resolve', 'ThreadPanel.tsx:thread_reopen', 'ThreadPanel.tsx:thread_reply', 'ThreadPanel.tsx:thread_resolve']);
+    for (const w of writes) {
+      if (w.op === 'thread_reply') expect(w.keys, `${w.f}: thread_reply`).toEqual(['text']);
+      else expect(w.keys, `${w.f}: ${w.op}`).toContain('if_match');
+    }
+    // The engine's own input: reply strict and without if_match, the three others requiring it.
+    const ops = await readFile(join(REPO, 'packages', 'ui', 'src', 'server', 'comment-ops.ts'), 'utf8');
+    expect(ops).toMatch(/const ReplyInput = z\.strictObject\(\{ project, comment_id: commentId, text: text\('The reply'\) \}\);/);
+    for (const input of ['ResolveInput', 'ReopenInput', 'ApplyInput']) expect(ops.slice(ops.indexOf(`const ${input} =`)).split('\n;')[0].split('});')[0]).toContain('if_match: ifMatch');
+    // The mutations (review A-M1): a resolve without its version — through the helper, or a direct call.
+    expect(threadWrites("send('Resolve', 'thread_resolve', { note, ...(answer ? { render_id: answer } : {}) }, 'Resolved', () => setNote(''));")).toEqual([{ op: 'thread_resolve', keys: ['note', '...'], line: 1 }]);
+    expect(threadWrites("call('thread_resolve', { project: p.slug, comment_id: 'x', note: 'n' })")).toEqual([{ op: 'thread_resolve', keys: ['project', 'comment_id', 'note'], line: 1 }]);
+    expect(threadWrites("call('thread_apply', { project, comment_id, entry_id, if_match: undefined })")[0].keys).not.toContain('if_match');
+  });
+
 });

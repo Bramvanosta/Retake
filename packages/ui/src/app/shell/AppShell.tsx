@@ -28,10 +28,11 @@ import type { EventMode } from '../events.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
 import { Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
-import type { Command, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
+import type { Command, IconName, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
 import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
-import { isShellCommand, runShellCommand, scenarioGroup } from './command-bus.js';
+import { isShellCommand, paletteGroup, runShellCommand } from './command-bus.js';
+import type { PaletteSlot } from './command-bus.js';
 import type { ShellCommand } from './command-bus.js';
 import { MODES, contextWatch, modeOf, modeTarget, noteReviewView, scenarioInContext, screenKey, slugOf } from './modes.js';
 import type { Mode } from './modes.js';
@@ -62,13 +63,21 @@ const UPDATES: Record<EventMode, string> = { connecting: '', stream: 'live updat
 /** How long a polite line stays (ms). */
 const SAID_MS = 6000;
 const MODE_COMMAND: Record<Mode, MenuCommand> = { script: 'mode-script', shoot: 'mode-shoot', edit: 'mode-edit', review: 'mode-review' };
+const MODE_ICON: Record<Mode, IconName> = { script: 'report', shoot: 'record', edit: 'film', review: 'check' };
 /** The Scenario menu's commands in the palette (a browser tab binds none of their keys: critique M3). */
-const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[] }> = [
-  { id: 'rehearse', label: 'Rehearse', kbd: ['⌘', 'R'] },
-  { id: 'capture', label: 'Capture', kbd: ['⇧', '⌘', 'R'] },
-  { id: 'render', label: 'Render', kbd: ['⌘', 'B'] },
-  { id: 'stop', label: 'Stop', kbd: ['⌘', '.'] },
+const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[]; icon: IconName }> = [
+  { id: 'rehearse', label: 'Rehearse', kbd: ['⌘', 'R'], icon: 'play' },
+  { id: 'capture', label: 'Capture', kbd: ['⇧', '⌘', 'R'], icon: 'record' },
+  { id: 'render', label: 'Render', kbd: ['⌘', 'B'], icon: 'export' },
+  { id: 'stop', label: 'Stop', kbd: ['⌘', '.'], icon: 'stop' },
 ];
+/**
+ * L5.12b (R4-Palette): the palette's groups, in this order — Commands (the Scenario menu's, or a live recording's own;
+ * Review's "Comment at this frame"; the inspector), Go to (the modes, the Review report, the project's pages, the
+ * workspace), Scenes (the screen's scenes), Themes (the theme set for the scenario shown, the project's, all themes),
+ * Scenarios, Projects. An entry goes somewhere or selects something; it never writes (a test counts the ops).
+ */
+const PALETTE_GROUPS = ['Commands', 'Go to', 'Scenes', 'Themes', 'Scenarios', 'Projects'] as const;
 
 /**
  * Worker state and version: `engine_info` now, when a job the page never saw appears (a new job may start a worker), on a
@@ -359,39 +368,64 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     };
   }, [run, inApp]);
 
-  useSyncExternalStore(scenarioGroup.subscribe, scenarioGroup.version);
-  const screenGroup = scenarioGroup.get();
+  useSyncExternalStore(paletteGroup.subscribe, paletteGroup.version);
+  const slotVersion = paletteGroup.version();
   const commands = useMemo<Command[]>(() => {
     const go = (r: Route) => () => {
       location.hash = hrefTo(r);
     };
-    const out: Command[] = [{ id: 'go-projects', label: 'All projects', hint: 'the Welcome screen', group: 'Go to', run: go({ name: 'projects' }) }];
-    if (ctx) for (const m of MODES) out.push({ id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, group: 'Go to', ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
-    // L5.11b fixes (review A-M2 / A-L1): a live recording's own entries (Stop recording, Discard…, named after it) take
-    // the Scenario group's place — with or without a scenario in context, never naming that scenario.
-    if (screenGroup) for (const c of screenGroup) out.push({ id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), group: 'Scenario', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
+    const screen = (slot: PaletteSlot) => paletteGroup.get(slot);
+    const out: Command[] = [];
+    const add = (group: (typeof PALETTE_GROUPS)[number], c: Omit<Command, 'group'>) => out.push({ ...c, group });
+    // Commands. L5.11b fixes (review A-M2 / A-L1): a live recording's own entries (Stop recording, Discard…, named after
+    // it) take the Scenario menu's place — with or without a scenario in context, never naming that scenario.
+    const recording = screen('scenario');
+    if (recording) for (const c of recording) add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'record', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
     // L5.11a: the Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
-    else if (ctx) for (const c of SCENARIO_COMMANDS) out.push({ id: c.id, label: c.label, hint: ctx.scenario, group: 'Scenario', ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
+    else if (ctx) for (const c of SCENARIO_COMMANDS) add('Commands', { id: c.id, label: c.label, hint: ctx.scenario, icon: c.icon, ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
+    for (const c of screen('review') ?? []) add('Commands', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'plus', run: c.run });
+    if (hasInspector) add('Commands', { id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', icon: 'inspector', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
+    // Go to: the modes, the Review report, the project's pages, the workspace.
+    if (ctx) for (const m of MODES) add('Go to', { id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, icon: MODE_ICON[m.mode], ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
+    if (ctx) {
+      // The report's entry with the last render's words when a screen holds the renders (never "passed": review-words).
+      const report = screen('report')?.[0];
+      add('Go to', { id: 'go-report', label: 'Review report', hint: report?.hint ?? ctx.scenario, icon: 'report', run: report ? report.run : go({ name: 'review', slug: ctx.slug, scenario: ctx.scenario }) });
+    }
     if (project) {
       const slug = project.slug;
-      const pages: Array<[string, string, Route]> = [
-        ['productions', 'Productions', { name: 'project', slug }],
-        ...BOARD_GROUPS.map((g): [string, string, Route] => [`g-${g}`, GROUP_LABEL[g], { name: 'group', slug, group: g }]),
-        ['library', 'Components', { name: 'library', slug }],
-        ['themes', 'Themes', { name: 'themes', slug }],
-        ['cast', 'Cast', { name: 'cast', slug }],
-        ['readme', 'README', { name: 'readme', slug }],
-        ['record', 'Record a scenario', { name: 'record', slug }],
+      const pages: Array<[string, string, Route, IconName]> = [
+        ['productions', 'Productions', { name: 'project', slug }, 'film'],
+        ...BOARD_GROUPS.map((g): [string, string, Route, IconName] => [`g-${g}`, GROUP_LABEL[g], { name: 'group', slug, group: g }, 'folder']),
+        ['library', 'Components', { name: 'library', slug }, 'components'],
+        ['cast', 'Cast', { name: 'cast', slug }, 'person'],
+        ['readme', 'README', { name: 'readme', slug }, 'report'],
+        ['record', 'Record a scenario', { name: 'record', slug }, 'record'],
       ];
-      if (open.view.state === 'ready') for (const e of open.view.data.environments) pages.push([`loc-${e.name}`, `Location ${e.name}`, { name: 'location', slug, env: e.name }]);
-      for (const [id, label, r] of pages) out.push({ id: `page-${id}`, label, hint: project.name, group: 'Go to', run: go(r) });
-      for (const name of project.scenarios) out.push({ id: `open-${name}`, label: `Open ${name}`, hint: 'scenario', group: 'Scenarios', run: go({ name: 'scenario', slug, scenario: name, tab: 'blocks' }) });
+      if (open.view.state === 'ready') for (const e of open.view.data.environments) pages.push([`loc-${e.name}`, `Location ${e.name}`, { name: 'location', slug, env: e.name }, 'location']);
+      for (const [id, label, r, icon] of pages) add('Go to', { id: `page-${id}`, label, hint: project.name, icon, run: go(r) });
     }
-    for (const p of projects) out.push({ id: `project-${p.slug}`, label: p.name, hint: 'project', group: 'Projects', run: go({ name: 'project', slug: p.slug }) });
-    out.push({ id: 'go-ui', label: 'UI gallery', hint: 'every component of the design system', group: 'Go to', run: go({ name: 'ui' }) });
-    if (hasInspector) out.push({ id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', group: 'Commands', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
-    return out;
-  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view, say, screenGroup]);
+    add('Go to', { id: 'go-projects', label: 'All projects', hint: 'the Welcome screen', icon: 'folder', run: go({ name: 'projects' }) });
+    add('Go to', { id: 'go-ui', label: 'UI gallery', hint: 'every component of the design system', icon: 'components', run: go({ name: 'ui' }) });
+    // Scenes: the screen's own (a pick or a seek).
+    for (const c of screen('scenes') ?? []) add('Scenes', { id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: c.icon ?? 'scene', run: c.run });
+    // Themes: the one set for the scenario shown (a screen's), the project's, every theme — each opens the theme editor.
+    if (project) {
+      const slug = project.slug;
+      const seen = new Set<string>();
+      for (const c of screen('themes') ?? []) {
+        seen.add(c.id);
+        add('Themes', { id: `theme-${c.id}`, label: c.label, ...(c.hint ? { hint: c.hint } : {}), icon: 'theme', run: c.run });
+      }
+      const own = open.view.state === 'ready' ? open.view.data.config.template : undefined;
+      if (own && !seen.has(own)) add('Themes', { id: `theme-${own}`, label: own, hint: "the project's theme", icon: 'theme', run: go({ name: 'themes', slug, theme: own }) });
+      add('Themes', { id: 'page-themes', label: 'All themes', hint: project.name, icon: 'theme', run: go({ name: 'themes', slug }) });
+    }
+    if (project) for (const name of project.scenarios) add('Scenarios', { id: `open-${name}`, label: `Open ${name}`, hint: 'scenario', icon: 'scene', run: go({ name: 'scenario', slug: project.slug, scenario: name, tab: 'blocks' }) });
+    for (const p of projects) add('Projects', { id: `project-${p.slug}`, label: p.name, hint: 'project', icon: 'folder', run: go({ name: 'project', slug: p.slug }) });
+    return PALETTE_GROUPS.flatMap((g) => out.filter((c) => c.group === g));
+    // slotVersion: a screen's group changed (the entries are read from the registry above).
+  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view, say, slotVersion]);
 
   // L5.11a: the scenario in context's state and actions (the buttons hide while a screen claims the slot).
   const shoot = useStatusActions({ route, ctx, say, claimed: claims.actions > 0, inApp });
@@ -503,7 +537,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           />
         </div>
         {shoot.overlay}
-        <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
+        <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} {...(inApp ? { footnote: 'Commands with a key are also in the menu bar' } : {})} />
       </div>
     </SlotContext.Provider>
   );

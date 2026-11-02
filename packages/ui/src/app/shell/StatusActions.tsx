@@ -203,9 +203,12 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   // window whole segments go, by priority (review A-L1 of L5.11a: never a word cut in half) — the last take's time
   // first, then the scenario's name and the last take itself (shell.css `data-drop`); a run going, the location and
   // the blocker's words stay.
+  // Review's two views (the report, the comments) have their own line and Render (ReviewChrome): Shoot's never show there
+  // (L5.12b fixes, review B-M3), not even before the screen claims the slot.
+  const inReview = route.name === 'review' || route.name === 'comments';
   const markNode = <StatusMark state={SHOOT_STATES[state].mark} word={<Txt text={`${word}${detail}`} />} />;
   const info: ReactNode =
-    ctx && slug && name && !onPrepare && !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'review')) ? (
+    ctx && slug && name && !onPrepare && !inReview && !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal')) ? (
       <span className="sh-scenario" data-testid="status-scenario" data-state={state}>
         {!('scenario' in route) && (
           <span className="sh-seg" data-drop="name">
@@ -241,7 +244,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const paused = Boolean(runLive?.paused || runLive?.pausing);
   const terminal = running?.job === null;
   // Prepare's buttons are on screen (its status bar is its own); a live run's screen claims the bar until the run ends.
-  const showButtons = !claimed && !onPrepare && ctx !== null && slug !== null && name !== null;
+  const showButtons = !claimed && !onPrepare && !inReview && ctx !== null && slug !== null && name !== null;
   const actions: ReactNode = showButtons ? (
     <div className="sh-actions" role="group" aria-label={`Actions for ${name}`} data-testid="status-actions">
       {line && <ShortBlocker b={line.b} slug={slug} name={name} mode={line.mode} testId={line.mode === 'capture' ? 'blockers-capture' : 'blockers-dry-run'} />}

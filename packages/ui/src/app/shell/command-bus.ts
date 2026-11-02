@@ -8,6 +8,7 @@
  * there is one Stop at a time.
  */
 import { useEffect, useRef } from 'react';
+import type { IconName } from '../ui-kit/index.js';
 
 export type ShellCommand = 'rehearse' | 'capture' | 'render' | 'stop';
 export const SHELL_COMMANDS: readonly ShellCommand[] = ['rehearse', 'capture', 'render', 'stop'];
@@ -70,59 +71,75 @@ export function useShellCommand(id: ShellCommand, handler: () => void, priority:
 
 /**
  * L5.11b fixes (review A-M2 / A-L1): a screen whose commands are not the scenario's — a live recording — gives the ⌘K
- * palette's Scenario group its own entries while it owns the commands ("Stop recording · <recording>", "Discard…"), in
- * place of Rehearse / Capture / Render / Stop of the scenario remembered in context (never named there). One screen at a
- * time: the latest mounted wins; null gives the group back.
+ * palette's commands its own entries while it owns them ("Stop recording · <recording>", "Discard…"), in place of
+ * Rehearse / Capture / Render / Stop of the scenario remembered in context (never named there).
+ * L5.12b (R4-Palette): generalised to the palette's screen groups (`paletteGroup`) — a screen registers entries under a
+ * slot while it is mounted: `scenario` (the recording's commands, above), `scenes` (the Scenario screen's and Edit's
+ * scenes: a pick, a seek), `review` (Review › Comments' "Comment at this frame"), `report` (the Review report entry with
+ * the last render's words, from a screen that holds the renders), `themes` (the theme set for the scenario shown). One
+ * screen per slot: the latest mounted wins; null gives the slot back. An entry only goes somewhere or selects something:
+ * the palette never writes (a test counts the ops a palette entry sends).
  */
 export interface ScreenCommand {
   id: string;
   label: string;
   hint?: string;
+  /** The row's icon (a kit icon name: decorative, the label names the row). */
+  icon?: IconName;
   run: () => void;
 }
 
-let group: ScreenCommand[] | null = null;
+export type PaletteSlot = 'scenario' | 'scenes' | 'review' | 'report' | 'themes';
+
+const groups = new Map<PaletteSlot, ScreenCommand[]>();
 let groupVersion = 0;
 const groupListeners = new Set<() => void>();
 
-export const scenarioGroup = {
+export const paletteGroup = {
   subscribe(fn: () => void): () => void {
     groupListeners.add(fn);
     return () => {
       groupListeners.delete(fn);
     };
   },
-  get(): ScreenCommand[] | null {
-    return group;
+  get(slot: PaletteSlot): ScreenCommand[] | null {
+    return groups.get(slot) ?? null;
   },
   version(): number {
     return groupVersion;
   },
 };
 
-function setGroup(next: ScreenCommand[] | null): void {
-  group = next;
+function setGroup(slot: PaletteSlot, next: ScreenCommand[] | null): void {
+  if (next) groups.set(slot, next);
+  else groups.delete(slot);
   groupVersion++;
   for (const fn of groupListeners) fn();
 }
 
-/** The palette's Scenario group while mounted with `commands` (null: the default group); each run reads the latest. */
-export function useScenarioGroup(commands: ScreenCommand[] | null): void {
+/** The palette's `slot` group while mounted with `commands` (null: none from this screen); each run reads the latest. */
+export function usePaletteGroup(slot: PaletteSlot, commands: ScreenCommand[] | null): void {
   const ref = useRef(commands);
   ref.current = commands;
-  // The entries' words (ids, labels, hints) decide a new group; their handlers are read at each run.
-  const words = commands ? JSON.stringify(commands.map((c) => [c.id, c.label, c.hint ?? ''])) : null;
+  // The entries' words (ids, labels, hints, icons) decide a new group; their handlers are read at each run.
+  const words = commands ? JSON.stringify(commands.map((c) => [c.id, c.label, c.hint ?? '', c.icon ?? ''])) : null;
   useEffect(() => {
     if (words === null) return undefined;
-    const ids = (JSON.parse(words) as Array<[string, string, string]>).map(([id, label, hint]) => ({
+    const ids = (JSON.parse(words) as Array<[string, string, string, string]>).map(([id, label, hint, icon]) => ({
       id,
       label,
       ...(hint ? { hint } : {}),
+      ...(icon ? { icon: icon as IconName } : {}),
       run: () => ref.current?.find((c) => c.id === id)?.run(),
     }));
-    setGroup(ids);
+    setGroup(slot, ids);
     return () => {
-      if (group === ids) setGroup(null);
+      if (groups.get(slot) === ids) setGroup(slot, null);
     };
-  }, [words]);
+  }, [slot, words]);
+}
+
+/** The palette's commands while mounted with `commands` (null: the scenario's Rehearse, Capture, Render, Stop). */
+export function useScenarioGroup(commands: ScreenCommand[] | null): void {
+  usePaletteGroup('scenario', commands);
 }

@@ -55,6 +55,7 @@
   --ui-mark: 7px;
   --ui-card-w: 248px;
   --ui-overlay-w: 560px;
+  --ui-palette-w: 640px;
   --ui-titlebar-inset: 0px;
   --radius: 8px;
   --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -107,9 +108,7 @@ html[data-titlebar='overlay'] {
   --surface: #18191c;
   --subtle: #1b1c20;
   --field-off: #1f2024;
-  --link-hover: #222428;
   --code-bg: #222428;
-  --faint: #1f2024;
   --hover: #25272b;
   --thumb-stripe: #222428;
   --tint: #25272b;
@@ -137,9 +136,7 @@ html[data-titlebar='overlay'] {
   --danger-line-strong: #82403a;
   --warning: #f2b84b;
   --warning-soft: #33291a;
-  --warning-faint: #221d14;
   --warning-line: #5e4a24;
-  --warning-mark: #e8b04a;
   --info: #8bb8f0;
   --info-soft: #192b3f;
   --info-line: #2f4a72;
@@ -149,13 +146,8 @@ html[data-titlebar='overlay'] {
   --input-fg: #c9b5f5;
   --ink: #0a0a0b;
   --ink-soft: #141518;
-  --ink-veil: rgba(10, 10, 11, 0.75);
-  --on-ink: #ffffff;
-  --on-ink-muted: #c9ced8;
   --veil: rgba(24, 25, 28, 0.92);
   --backdrop: rgba(6, 7, 8, 0.55);
-  --mark-on-video: #ffd43b;
-  --mark-edge: rgba(0, 0, 0, 0.6);
 }
 /* The system asks for light. */
 @media (prefers-color-scheme: light) {
@@ -200,9 +192,7 @@ html[data-titlebar='overlay'] {
     --surface: #ffffff;
     --subtle: #fafbfc;
     --field-off: #f9fafb;
-    --link-hover: #f6f8fb;
     --code-bg: #f4f5f7;
-    --faint: #f3f4f6;
     --hover: #f1f3f6;
     --thumb-stripe: #f1f2f5;
     --tint: #eef0f3;
@@ -230,9 +220,7 @@ html[data-titlebar='overlay'] {
     --danger-line-strong: #e7b4ae;
     --warning: #8a5300;
     --warning-soft: #fdf3e1;
-    --warning-faint: #fffdf8;
     --warning-line: #efd6a8;
-    --warning-mark: #e8b04a;
     --info: #1f5fae;
     --info-soft: #e8f1fb;
     --info-line: #c4d9f3;
@@ -242,13 +230,8 @@ html[data-titlebar='overlay'] {
     --input-fg: #5b3a99;
     --ink: #16181d;
     --ink-soft: #1c1f24;
-    --ink-veil: rgba(22, 24, 29, 0.75);
-    --on-ink: #ffffff;
-    --on-ink-muted: #c9ced8;
     --veil: rgba(255, 255, 255, 0.92);
     --backdrop: rgba(22, 24, 29, 0.35);
-    --mark-on-video: #ffd43b;
-    --mark-edge: rgba(0, 0, 0, 0.6);
   }
 }
 /* Scopes inside the page (the gallery, a legacy route kept light): after the media block, so a scope always wins. */
@@ -293,9 +276,7 @@ html[data-titlebar='overlay'] {
   --surface: #ffffff;
   --subtle: #fafbfc;
   --field-off: #f9fafb;
-  --link-hover: #f6f8fb;
   --code-bg: #f4f5f7;
-  --faint: #f3f4f6;
   --hover: #f1f3f6;
   --thumb-stripe: #f1f2f5;
   --tint: #eef0f3;
@@ -323,9 +304,7 @@ html[data-titlebar='overlay'] {
   --danger-line-strong: #e7b4ae;
   --warning: #8a5300;
   --warning-soft: #fdf3e1;
-  --warning-faint: #fffdf8;
   --warning-line: #efd6a8;
-  --warning-mark: #e8b04a;
   --info: #1f5fae;
   --info-soft: #e8f1fb;
   --info-line: #c4d9f3;
@@ -335,13 +314,8 @@ html[data-titlebar='overlay'] {
   --input-fg: #5b3a99;
   --ink: #16181d;
   --ink-soft: #1c1f24;
-  --ink-veil: rgba(22, 24, 29, 0.75);
-  --on-ink: #ffffff;
-  --on-ink-muted: #c9ced8;
   --veil: rgba(255, 255, 255, 0.92);
   --backdrop: rgba(22, 24, 29, 0.35);
-  --mark-on-video: #ffd43b;
-  --mark-edge: rgba(0, 0, 0, 0.6);
 }
 [data-appearance='dark'] {
   color-scheme: dark;
@@ -384,9 +358,7 @@ html[data-titlebar='overlay'] {
   --surface: #18191c;
   --subtle: #1b1c20;
   --field-off: #1f2024;
-  --link-hover: #222428;
   --code-bg: #222428;
-  --faint: #1f2024;
   --hover: #25272b;
   --thumb-stripe: #222428;
   --tint: #25272b;
@@ -414,9 +386,7 @@ html[data-titlebar='overlay'] {
   --danger-line-strong: #82403a;
   --warning: #f2b84b;
   --warning-soft: #33291a;
-  --warning-faint: #221d14;
   --warning-line: #5e4a24;
-  --warning-mark: #e8b04a;
   --info: #8bb8f0;
   --info-soft: #192b3f;
   --info-line: #2f4a72;
@@ -426,13 +396,8 @@ html[data-titlebar='overlay'] {
   --input-fg: #c9b5f5;
   --ink: #0a0a0b;
   --ink-soft: #141518;
-  --ink-veil: rgba(10, 10, 11, 0.75);
-  --on-ink: #ffffff;
-  --on-ink-muted: #c9ced8;
   --veil: rgba(24, 25, 28, 0.92);
   --backdrop: rgba(6, 7, 8, 0.55);
-  --mark-on-video: #ffd43b;
-  --mark-edge: rgba(0, 0, 0, 0.6);
 }
 /* ::backdrop inherits no custom property in Safari 17 and Firefox 120 (UI_TARGETS): the veils are declared on it. */
 ::backdrop {

@@ -13,6 +13,8 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { plural, shown, visibleControls } from '../bits.js';
+import { hrefTo } from '../route.js';
+import type { Route } from '../route.js';
 
 /** Left and width of a span of frames, as percentages of the video. */
 export function spanStyle(from: number, to: number, frames: number): CSSProperties {
@@ -102,16 +104,39 @@ export interface TrackItemProps {
   testId: string;
   /** Data attributes kept for tests and styles (`id`, `from`, `key`, `at`, `frame`, `status`). */
   data?: Partial<Record<'id' | 'from' | 'key' | 'at' | 'frame' | 'status', string | number>>;
-  onActivate: () => void;
+  /** Its action — or, L5.12b, `to`: a tick that opens another screen is a link (a comment's pin opens its thread). */
+  onActivate?: () => void;
+  to?: Route;
   children: ReactNode;
 }
 
-export function TrackItem({ variant, place, frames, label, title, states, pressed, band, tip, testId, data, onActivate, children }: TrackItemProps) {
+export function TrackItem({ variant, place, frames, label, title, states, pressed, band, tip, testId, data, onActivate, to, children }: TrackItemProps) {
   const tick = 'at' in place;
   const cls = ['k-trackitem', `k-trackitem-${variant}`, tick ? 'is-tick' : 'is-span', pressed ? 'is-pressed' : '', ...(states ?? []).map((s) => `is-${s}`)].filter(Boolean).join(' ');
   const bandNode = band !== undefined && band > 0 ? <span className="k-trackitem-band" aria-hidden="true" style={{ width: `${Math.min(1, band) * 100}%` }} /> : null;
+  const style = tick ? tickStyle(place.at, frames) : spanStyle(place.from, place.to, frames);
+  if (to) {
+    return (
+      <li className={cls} style={style}>
+        <a
+          href={hrefTo(to)}
+          className="k-trackitem-button"
+          data-testid={testId}
+          data-id={data?.id}
+          data-frame={data?.frame}
+          data-status={data?.status}
+          aria-label={visibleControls(label)}
+          title={title === undefined ? undefined : visibleControls(title)}
+        >
+          {shown(bandNode)}
+          <span className="k-trackitem-text">{shown(children)}</span>
+        </a>
+        {tip !== undefined && <span className="k-trackitem-tip">{shown(tip)}</span>}
+      </li>
+    );
+  }
   return (
-    <li className={cls} style={tick ? tickStyle(place.at, frames) : spanStyle(place.from, place.to, frames)}>
+    <li className={cls} style={style}>
       <button
         type="button"
         className="k-trackitem-button"
@@ -136,14 +161,14 @@ export function TrackItem({ variant, place, frames, label, title, states, presse
 }
 
 /** The playhead's range input on its lane (its own arrows move one frame), time labels under it (decorative). */
-export function Scrubber({ time, max, value, valueText, onChange, marks, testId }: { time: string; max: number; value: number; valueText: string; onChange: (frame: number) => void; marks?: Array<{ at: number; label: string }>; testId?: string }) {
+export function Scrubber({ time, max, value, valueText, onChange, marks, testId, label = 'Playhead' }: { time: string; max: number; value: number; valueText: string; onChange: (frame: number) => void; marks?: Array<{ at: number; label: string }>; testId?: string; /** L5.12b: its name (the comments viewer's "Frame"). */ label?: string }) {
   return (
     <div className="k-track k-scrub">
       <span className="k-track-label k-mono" aria-hidden="true">
         {shown(time)}
       </span>
       <div className="k-track-lane k-scrub-lane">
-        <input type="range" className="k-scrubber" data-testid={testId} min={0} max={max} step={1} value={value} aria-label="Playhead" aria-valuetext={visibleControls(valueText)} onChange={(e) => onChange(Number(e.currentTarget.value))} />
+        <input type="range" className="k-scrubber" data-testid={testId} min={0} max={max} step={1} value={value} aria-label={visibleControls(label)} aria-valuetext={visibleControls(valueText)} onChange={(e) => onChange(Number(e.currentTarget.value))} />
         {marks && marks.length > 0 && (
           <span className="k-scrub-marks" aria-hidden="true">
             {marks.map((m) => (

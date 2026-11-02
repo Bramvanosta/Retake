@@ -24,6 +24,8 @@ import {
   FieldRow,
   ChoiceChips,
   ContactSheet,
+  DiffTable,
+  RegionOverlay,
   FrameCard,
   IconButton,
   InspectorSection,
@@ -112,8 +114,8 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [at, setAt] = useState(40);
   const [speed, setSpeed] = useState('1.5');
   const commands: Command[] = [
-    { id: 'projects', label: 'Projects', group: 'Go to', run: () => (location.hash = '#/') },
-    { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', run: () => setAnswer('UI gallery') },
+    { id: 'projects', label: 'Projects', group: 'Go to', icon: 'folder', run: () => (location.hash = '#/') },
+    { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', icon: 'components', run: () => setAnswer('UI gallery') },
     { id: 'hello', label: 'Say hello', group: 'Commands', hint: 'writes the last answer', run: () => setAnswer('hello') },
     { id: 'inspector', label: 'Toggle the sample inspector', group: 'Commands', kbd: ['⌥', '⌘', 'I'], run: () => setAnswer('inspector') },
   ];
@@ -421,6 +423,23 @@ function Column({ appearance }: { appearance: Appearance }) {
           items={[
             { key: 'a', name: 'contact sheet (1 fps)', label: 'contact sheet (1 fps)', meta: '0:00 – 0:10', picture: <Frame />, state: 'ok' },
             { key: 'b', name: 'scene request', label: 'scene request', picture: null, words: 'Loading the contact sheet…', state: 'waiting' },
+          ]}
+        />
+      </Section>
+      <Section title="Comments (a diff table, a region over a frame)">
+        <div className="gl-region">
+          <Frame />
+          <RegionOverlay region={{ x: 0.2, y: 0.25, w: 0.5, h: 0.45 }} label="Region 1" />
+        </div>
+        <DiffTable
+          label="The proposed change, line by line"
+          title="scenarios/quote.yaml · line 104"
+          rows={[
+            { kind: 'gap', sign: '…', word: '3 unchanged lines not shown', base: null, line: null, pieces: [], rtl: false },
+            { kind: 'context', sign: '', word: 'unchanged', base: 103, line: 103, pieces: [{ kind: 'space', count: 4 }, { kind: 'text', text: 'component: studio/overlay-callout' }], rtl: false },
+            { kind: 'del', sign: '−', word: 'removed', base: 104, line: null, pieces: [{ kind: 'space', count: 4 }, { kind: 'text', text: 'duration: 2.5' }], rtl: false },
+            { kind: 'add', sign: '+', word: 'added', base: null, line: 104, pieces: [{ kind: 'space', count: 4 }, { kind: 'text', text: 'duration: 3.5' }, { kind: 'char', code: 'U+200B' }], rtl: false },
+            { kind: 'add', sign: '+', word: 'added', base: null, line: 105, pieces: [{ kind: 'text', text: '# עברית: a note' }], rtl: true },
           ]}
         />
       </Section>

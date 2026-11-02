@@ -1110,9 +1110,9 @@ summary.k-section-title {
   margin-top: var(--ui-space-8);
 }
 
-/* Command palette */
+/* Command palette (L5.12b: R4-Palette — 640 px, an icon per row, a footer legend) */
 .k-palette {
-  width: min(var(--ui-overlay-w), calc(100% - 32px));
+  width: min(var(--ui-palette-w), calc(100% - 32px));
   /* A modal dialog is fixed: its percentages are the window's (no vh in a height: the lint). */
   max-height: min(70%, 520px);
   margin: 12vh auto auto;
@@ -1151,6 +1151,23 @@ summary.k-section-title {
   outline-offset: -2px;
   border-radius: var(--ui-radius-overlay) var(--ui-radius-overlay) 0 0;
 }
+.k-palette-field {
+  position: relative;
+  flex: none;
+}
+/* Room for Esc's key cap at the field's end (the box keeps the dialog's width). */
+.k-palette-field > .k-palette-input {
+  box-sizing: border-box;
+  height: calc(var(--ui-control-lg) + 2 * var(--ui-space-6));
+  padding-right: 72px;
+}
+.k-palette-esc {
+  position: absolute;
+  top: 50%;
+  right: var(--ui-space-6);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 .k-palette-input::placeholder {
   color: var(--ui-text-3);
   opacity: 1;
@@ -1183,9 +1200,40 @@ summary.k-section-title {
   color: var(--ui-text-strong);
   box-shadow: inset 3px 0 0 var(--ui-ring);
 }
+.k-palette-icon {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: 18px;
+  color: var(--ui-text-3);
+}
+.k-palette-option.is-active .k-palette-icon {
+  color: var(--ui-text-2);
+}
 .k-palette-label {
   flex: 1;
   min-width: 0;
+}
+.k-palette-legend {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-6);
+  margin: 0;
+  padding: var(--ui-space-3) var(--ui-space-7);
+  border-top: 1px solid var(--ui-hairline);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-palette-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.k-palette-legend-note {
+  margin-left: auto;
 }
 .k-palette-hint {
   color: var(--ui-text-3);
@@ -1984,4 +2032,125 @@ summary.k-section-title {
 }
 .k-input-number {
   width: 88px;
+}
+
+/* L5.12b: the diff table — a change line by line, code-safe; no inner scroll (every row in the page's own scroll). */
+.k-diff {
+  min-width: 0;
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-field);
+  overflow: visible;
+}
+.k-diff-title {
+  margin: 0;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-hairline);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  overflow-wrap: anywhere;
+}
+.k-diff-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: var(--ui-text);
+  font-family: var(--ui-mono);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+/* The columns of a fixed layout: long lines wrap in the text column, never widen the table. */
+.k-diff-col-sign {
+  width: 1.9em;
+}
+.k-diff-col-n {
+  width: 3.4em;
+}
+.k-diff-table td {
+  padding: 1px var(--ui-space-2);
+  vertical-align: top;
+  /* A row clips its own ink (stacked marks, a long word): never drawn over the rows around it. */
+  overflow: hidden;
+}
+.k-diff-sign {
+  text-align: center;
+  font-weight: var(--ui-weight-strong);
+  user-select: none;
+}
+.k-diff-row.is-add .k-diff-sign {
+  box-shadow: inset 3px 0 0 var(--ui-ok);
+}
+.k-diff-row.is-del .k-diff-sign {
+  box-shadow: inset 3px 0 0 var(--ui-fail);
+}
+.k-diff-row.is-add,
+.k-diff-row.is-del {
+  font-weight: var(--ui-weight-strong);
+}
+.k-diff-n {
+  text-align: right;
+  color: var(--ui-text-3);
+  user-select: none;
+}
+.k-diff-code code {
+  display: block;
+  /* Byte order, left to right: right-to-left letters never reorder the digits and signs around them. */
+  direction: ltr;
+  unicode-bidi: bidi-override;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  font-family: var(--ui-mono);
+}
+.k-diff-mark {
+  color: var(--ui-text-3);
+}
+.k-diff-char {
+  color: var(--ui-danger-text);
+  font-weight: var(--ui-weight-strong);
+}
+.k-diff-rtl {
+  float: right;
+  margin-left: var(--ui-space-2);
+  padding: 0 var(--ui-space-1);
+  border: 1px solid var(--ui-field-line);
+  border-radius: var(--ui-radius-kbd);
+  color: var(--ui-text-3);
+  font-family: var(--ui-font);
+  font-weight: var(--ui-weight-regular);
+}
+.k-diff-gap {
+  background: var(--ui-well);
+  color: var(--ui-text-3);
+  font-family: var(--ui-font);
+  font-style: italic;
+}
+
+/* L5.12b: a region over a picture (a frame comment's) — presentational; dashed while drawn. */
+.k-region {
+  position: absolute;
+  border: 2px solid var(--ui-on-video);
+  box-shadow: 0 0 0 1px var(--ui-video), inset 0 0 0 1px var(--ui-video);
+  pointer-events: none;
+}
+.k-region.is-draft {
+  border-style: dashed;
+}
+.k-region-label {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  padding: 0 var(--ui-space-1);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+  white-space: nowrap;
+}
+/* A tick that is a link (a comment's pin): the button's look, no underline. */
+a.k-trackitem-button {
+  text-decoration: none;
 }

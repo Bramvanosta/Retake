@@ -3352,7 +3352,12 @@ running: the MCP server keeps working without it.
   default, following your system's appearance** (System Settings › Appearance: Light gives the light one, at once).
   **⌘K** opens the command palette (on a Mac; Ctrl+K elsewhere, outside a text field — on a Mac Ctrl+K stays a field's
   "delete to the end of the line"): go to a project, a page, a smart group, a location, a scenario ("Open quote"), a
-  mode, the UI gallery — and, L5.11a, the scenario in context's **Rehearse**, **Capture**, **Render** and **Stop**. The *UI gallery* (the
+  mode, the UI gallery — and, L5.11a, the scenario in context's **Rehearse**, **Capture**, **Render** and **Stop**.
+  L5.12b: search *commands, scenes and themes* — its groups *Commands*, *Go to* (the modes, *Review report — last
+  render v2 · 2 warnings*, the project's pages), *Scenes* (the scenes of the Script or Edit screen you are on: a pick
+  selects the scene — on the YAML view, its lines —, or seeks to it in Edit), *Themes* (the theme of the take Edit shows, the project's, all themes: each opens the
+  theme editor — the palette never changes anything by itself), *Scenarios*, *Projects*; on Review › Comments,
+  *Comment at this frame*. ↑ ↓ move, Return runs, Esc closes. The *UI gallery* (the
   browser's foot, or ⌘K) shows every component of the Studio's design system in both appearances
   ([docs/reference/studio-ui.md](docs/reference/studio-ui.md)). The screens move onto that design one by one
   (L5.10 – L5.12); until then each keeps its content inside the new window.
@@ -3393,7 +3398,8 @@ running: the MCP server keeps working without it.
   every open Studio tab within about a second (the server polls the workspace while a tab is open, never otherwise).
   The browser keeps one update stream to the server whatever the number of tabs (the others hear from it); the status
   line in the status bar says *live updates*, or *updates every 3 s* when it falls back to polling.
-- **README editor.** Plain text (no Markdown preview), saved with Save or Cmd/Ctrl+S as an atomic write of
+- **README editor** (L5.12b: on the design system — a tall text area, the save state in words, the character count and its
+  cap beside Save / Discard changes). Plain text (no Markdown preview), saved with Save or Cmd/Ctrl+S as an atomic write of
   `README.md`. If the file changes on disk while it is open (your editor, a terminal, Claude: the update stream says
   so), the editor loads the new
   version when you have no unsaved text, and otherwise keeps your edits and says so; a save that would overwrite a
@@ -3694,9 +3700,12 @@ running: the MCP server keeps working without it.
   after the newest video is said in Edit's status bar too (*v4 failed — why: in the Review report*), its message's
   first line on the report (no path, no stack). Watching a finished render in the preview and other review settings
   from the Studio: BL-109.
-- **Frame comments** (L4.6). **Comments (N open)** beside the scenario's tabs opens the Comments screen
-  (`#/p/<project>/s/<scenario>/comments`): the threads on the left — *Open*, *Resolved* or *All*, and *This render
-  only* —, a render's own frames in the middle, the open thread on the right. Pick a render (any finished one: an older
+- **Frame comments** (L4.6; L5.12b: Review › Comments in the window's panes). **Comments (N open)** in the Review mode's
+  View (beside *Report*) opens the Comments screen (`#/p/<project>/s/<scenario>/comments`): the threads in the browser
+  pane on the left — *Open*, *Resolved* or *All* (grouped Open, then Resolved), and *This render only* —, a render's
+  own frames in the middle with the comment form under them, the open thread and Claude's proposal in the inspector on
+  the right; the status bar says the render shown and the counts ("Rendered · … · v1 · 2 open · 3 resolved") beside
+  *Open in Edit* and *Render*, as on the report. Pick a render (any finished one: an older
   version, a vertical cut) and a frame — the slider, ← / → one frame, Shift one second, or a time typed as `12.4` or
   `00:12.40` (the frame on screen then, as `--at`) —; the frame is made by the Studio server from the render file (no
   video plays in the page: every browser shows the same exact frame). Drag a rectangle on the frame for a region, or

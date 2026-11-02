@@ -18,15 +18,17 @@
  *   (L5.12a fixes: never a toggle; its time of day shows when another row reads the same).
  * Every value from the server is a text node (Txt / a kit slot).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ScenarioRenderView, ScenarioRendersView } from '@demo-studio/engine';
 import type { ScenarioRenderAnswer } from '../server/ops.js';
 import { CallError, call, errorText, useCall } from './api.js';
 import type { Loaded } from './api.js';
 import { Txt, When } from './bits.js';
 import { useEvents } from './events.js';
+import { hrefTo } from './route.js';
+import { usePaletteGroup } from './shell/command-bus.js';
 import { SessionEnded } from './session.js';
-import { clockWords, sharedWhen } from './review-words.js';
+import { clockWords, reportHint, sharedWhen } from './review-words.js';
 import { jobVersionNote, jobWords, rendersEventAction, reviewBadge, shownJobsOf, sizeWords, versionNote, versionWords } from './render-words.js';
 import type { ReviewTone, ShownVersion } from './render-words.js';
 import { Button, Callout, Progress, RowCard, RowList, RowListItem, StatusMark } from './ui-kit/index.js';
@@ -124,7 +126,8 @@ export function useRenders(slug: string, name: string, onStale?: () => void): Re
     },
     [slug, reload],
   );
-  return { loaded, reload, sending, outcome, mine, cancelling, render, cancel };
+  // One object while nothing in it changes (review A-L2: a memoised consumer — the thread panel — keeps its props).
+  return useMemo(() => ({ loaded, reload, sending, outcome, mine, cancelling, render, cancel }), [loaded, reload, sending, outcome, mine, cancelling, render, cancel]);
 }
 
 /** "failed", "was cancelled", "was interrupted". */
@@ -281,4 +284,14 @@ export function RendersList({ r, slug, name, shown, limit, current }: { r: Rende
       )}
     </div>
   );
+}
+
+/**
+ * L5.12b (R4-Palette): the ⌘K palette's "Review report" entry while a screen holds the scenario's renders — the newest
+ * render's review in words ("last render v2 · 2 warnings"; never "passed": review-words reportHint), opening its report.
+ */
+export function useReportEntry(slug: string, name: string, r: RendersState): void {
+  const d = r.loaded.state === 'ready' ? r.loaded.data : null;
+  const newest = d?.renders.find((x) => x.status === 'succeeded');
+  usePaletteGroup('report', d ? [{ id: 'report', label: 'Review report', hint: reportHint(newest, d.renders.length), icon: 'report', run: () => (location.hash = hrefTo({ name: 'review', slug, scenario: name, ...(newest ? { render: newest.render_id } : {}) })) }] : null);
 }

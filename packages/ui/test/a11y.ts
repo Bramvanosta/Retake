@@ -197,6 +197,14 @@ function install(): void {
     }
     return false;
   };
+  /**
+   * L5.12b fixes (review B-L6): behind an open modal dialog (`showModal()`: the page is inert) — no keyboard reaches it by
+   * design, so the reachable rule and the shared-tab-stop families skip it.
+   */
+  const behindModal = (el: Element) => {
+    const m = document.querySelector('dialog:modal');
+    return m !== null && !m.contains(el);
+  };
 
   /**
    * What is painted under `el`: every ancestor's background (alternatives: gradient stops) and opacity, page first; or why
@@ -553,7 +561,7 @@ function install(): void {
     const ITEM = '[role="radio"], [role="option"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="treeitem"], [role="gridcell"], [role="row"]';
     const COMPOSITE = '[role="radiogroup"], [role="tablist"], [role="listbox"], [role="menu"], [role="menubar"], [role="tree"], [role="grid"]';
     for (const el of document.querySelectorAll(ROLES.map((r) => `[role="${r}"]`).join(','))) {
-      if (!shown(el) || inactive(el)) continue;
+      if (!shown(el) || inactive(el) || behindModal(el)) continue;
       const h = el as HTMLElement;
       if (h.tabIndex >= 0) continue;
       const group = el.closest(COMPOSITE) as HTMLElement | null;
@@ -1015,6 +1023,11 @@ export async function tabWalk(page: Page, o: { max?: number } = {}): Promise<Tab
  * own job); leaves nothing focused.
  */
 export async function familyWalk(page: Page, family: string): Promise<Finding[]> {
+  // L5.12b fixes (review B-L6): a family behind an open modal dialog is inert (nothing to walk: no keyboard reaches it).
+  if (await page.evaluate((f) => {
+    const m = document.querySelector('dialog:modal');
+    return m !== null && [...document.querySelectorAll(f)].every((g) => !m.contains(g));
+  }, family)) return [];
   const groups = await page.locator(family).count();
   const items = await page.locator(`${family} [role]`).count();
   await page.locator(`${family}[tabindex="0"]`).first().focus();

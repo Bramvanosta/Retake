@@ -4727,6 +4727,99 @@ line is plain words (B-L3); the inspector's empty answer line takes no room (`.e
 `clickLeavesKeys`: after a click focused one of its buttons (Chromium), the arrows, Home and End stay the playhead's
 (B-L5); the unused `mp4ExportCommand` went (B-L7).
 
+### 4n (b). Frame comments, Claude's proposal, the README editor, the ⌘K palette (L5.12b)
+
+R-UI-47, R-UI-48. « Épure » 4b. Reference: R4-Comments, R4-Palette (layout and drawing; "Retake" read as `APP_NAME`). A
+rebuild: every capability of L4.6's CommentsScreen / ProposalPanel / CommentsTab and L4.1's ReadmeEditor is kept (the
+FrameRequests contract — one frame request in flight, the newest wins, 429 backoff, 503 retried once, one session per
+tab —, `frame_anchor`'s 150 ms settle and sequence guard, the 409 reloads with the text kept, buttons from the server's
+`offer` only, Undo apply while today's file is the one the apply wrote, Apply and re-render, Resolve with vN, render
+gone / still, newer renders; the README's if_match saves, conflict, disk banner, 200,000 cap, CR LF kept, read-only on
+`readme_error`, drafts across navigation). Cuts: BL-133.
+
+**Review › Comments in the shell's panes** (no layout or breakpoint of its own: the shell narrows the panes). Context:
+Review's View, whose Comments segment carries the old tab's `comments-tab` and "Comments (n open)" on both views
+(CommentsTab.tsx deleted). Browser pane (`ShellSlot name="browser"`): `ThreadList.tsx` — Open · Resolved · All as a
+kit Segmented (the radios keep `filter-*`), "This render only" a Switch, the counts, rows as RowCard links (`to`,
+`aria-current="page"`: rows that navigate are links), "All" grouped Open (n) / Resolved (n); while a new filter is read
+the last list stays (`aria-busy`): the pane never flashes back to "Loading". Centre: `CommentsScreen.tsx` (placement,
+events, the head line and the render picker), `FrameViewer.tsx` (the frame with the kit's `RegionOverlay`, the
+Scrubber named "Frame", markers and pins on one Track — a pin is a TrackItem link to its thread —, ± 1 s / ◀ ▶, the
+typed time, ← → / Shift), `Composer.tsx` (the region as four NumberFields, Clear, the chips as Tags, a TextArea with its
+unsaved mark, ⌘↩). Inspector: `ThreadPanel.tsx` (the thread, its entries, Reply / Resolve with its note / Reopen through
+ONE `send` helper) and `ProposalCard.tsx` (the apply store, `applyProposal`, the card with the kit's `DiffTable`).
+`ProposalBanner.tsx` is a Callout over Edit's stage and never applies. The proposal focus hand-off (`focusProposalOf`)
+names its project and thread and is dropped by a route anywhere else (`proposalFocusRouteChanged` on hashchange) and by
+a thread that cannot be read. The pointer surface of the region drag is FrameViewer.tsx's (the real-controls exception,
+keyed exactly); RegionOverlay is presentational. The write rules are structural (see "Fixes after the two reviews"
+below): an allow-list of ops per file, an import graph, `if_match` on each guarded call's argument object.
+
+**DiffTable** (kit): the caller's rows (comment-words `diffRowsView`): a sign (shown) and its word (hidden), the line
+numbers, the line as a `<code dir="ltr">` cell with a bidi override (byte order), edge spaces `·`, tabs `→`, unseen
+characters `[U+…]`, a "right-to-left text" marker; every row shown, no inner scroll; add / del rows differ by a 3 px
+bar beside their sign (the colour-only rule: a row that starts with a sign). Its text pieces are shown as text with
+direction controls made visible — never inside a `<bdi>` (an isolate would undo the byte order).
+
+**README editor** on the kit: a tall TextArea (`#readme-text`, prose wraps), Callouts for the missing README, a notice,
+an error; the shared TextConflict / KeptText / DiskBanner; save-state words; ⌘S; the count and its cap; the read-only
+view on `readme_error` (its text and the person's unsaved draft in read-only TextAreas). Still no Markdown preview.
+
+**The ⌘K palette** (R4-Palette): 640 px (`--ui-palette-w`), "Search commands, scenes and themes", an icon per row, Esc's
+key cap in the field, a footer legend read by assistive technology too (↑ ↓ Move · Return Run · Esc Close; "Commands
+with a key are also in the menu bar" only in the desktop app — a row shows a key only when it is a menu bar item); its list is never a tab stop of its own (`tabIndex=-1`: a long list scrolls, which Chromium would
+make focusable). Groups, in order: **Commands** (the Scenario menu's — or a live recording's own, L5.11b —, Review's
+"Comment at this frame", the inspector), **Go to** (the modes, "Review report — last render · <words>" from the
+review's badge words, never "passed", the project's pages, All projects, UI gallery), **Scenes**, **Themes** (the theme
+set for the scenario Edit shows, the project's, All themes), **Scenarios**, **Projects**. Screens fill their groups
+through `paletteGroup` (command-bus.ts, generalising L5.11b's `scenarioGroup`: slots `scenario`, `scenes`, `review`,
+`report`, `themes`; the latest mounted per slot; `useScenarioGroup` kept as an alias). **The palette never writes**: an
+entry goes somewhere or selects something (a scene is picked — on the Scenario screen's YAML view, its lines, like
+the browser's pick —, a theme row opens the theme editor — setting a theme stays the inspector's). The Scenario menu's
+own commands (Rehearse, Capture, Render, Stop; a live recording's Stop recording / Discard…) are the exception: they
+act, as from the menu. Held by a static check (every screen group's handlers, followed to their definitions in scope,
+reach no writer) and e2e op counters: every row of the palette on the Scenario screen but those four commands, every
+Scenes and Themes row and the report row on Edit, the report row and "Comment at this frame" (both branches) on
+Comments.
+
+**Legacy:** CommentsScreen, CommentsTab, ProposalPanel and ReadmeEditor leave the ratchet (−339); their app.css rules
+went (comments, proposal, README editor) with the nine legacy tokens only they used (`link-hover`, `faint`,
+`warning-faint`, `warning-mark`, `ink-veil`, `on-ink`, `on-ink-muted`, `mark-on-video`, `mark-edge`); a11y stations
+for a thread with its proposal, the README conflict and the palette on Edit at dark 1280 / 1440 / 900 and light 1280.
+
+**Fixes after the two reviews (L5.12b).**
+- Writes, structurally: `COMMENTS_OPS`, the ops each comments-side file may call (ThreadList `threads_list`; FrameViewer
+  `render_outline`, `render_frame`; Composer `frame_anchor`, `thread_add`; ThreadPanel `thread_get`, `thread_still` and
+  its one helper; ProposalCard `thread_apply`, `scenario_render`, `scenario_edit`, `thread_resolve`; ProposalBanner
+  `thread_get`); ProposalCard.tsx exports only its card (`applyProposal` is private), imported by ThreadPanel.tsx alone;
+  the banner's value imports are an exact list (a read, words, the focus hand-off, the kit); every `thread_resolve` /
+  `thread_reopen` / `thread_apply` call — direct or through ThreadPanel's `send` — names `if_match` in its argument
+  object (`thread_reply`'s strict input has none: it sends its text only). An e2e clicks every control of the timeline's
+  banner and sees no write.
+- Review's status line is one component for both views (`ReviewChrome` in ReviewScreen.tsx, with `useReviewRender`):
+  "Rendered · when · vN · n open · n resolved", Open in Edit, Render (⌘B at the screen's priority) — on Comments, of the
+  render the viewer shows. Shoot's line and buttons never show on Review's routes (StatusActions stands down there).
+- The list's words are the list's own: an answer is tagged with the filter (and render) it was read with, so while
+  another filter is read the old list keeps its own groups and empty sentence (marked busy).
+- Performance: the palette's "Comment at this frame" names the render only (the frame is read when it runs: a frame in
+  its words rebuilt the shell's command list on every step); ThreadList and ThreadPanel are memoised (useRenders returns
+  one object while nothing in it changes), the diff's rows computed once per proposal read — a frame step re-renders
+  neither the shell, the list nor the thread (an e2e compares their fibers' props).
+- FrameViewer: the picture's alt names the frame it shows; one status line, always mounted, says a frame slow to come
+  after 600 ms; a `pointercancel` cancels like Esc; the arrows wait while a modal is open.
+- Composer: arriving at an `at` address (Comment this frame, the timeline's Comment or C), once the frame is laid out,
+  the text box and Post are scrolled into view (`block: 'nearest'`) and the text focused; the text box is described by
+  the characters left and "⌘↩ posts…"; a polite line speaks the characters left only as 200, 100, 50, 10 and 0 are
+  crossed (`charactersLeftAnnounced`).
+- DiffTable: the table is named by a caption; the edge-space dots and the tab arrow are `aria-hidden`, read as words
+  ("2 leading spaces", "1 trailing space", "a tab").
+- Palette: `aria-expanded` false while nothing is listed; the composition guard also checks keyCode 229 (WebKit ends a
+  composition with `isComposing` false); the report row reads "last render vN · not reviewed" for a render without a
+  review, "no finished render yet" when only failed ones exist.
+- The a11y checker skips what lies behind an open `dialog:modal` (the reachable rule and the families' walk: the page is
+  inert); the palette-on-Scenario station is back.
+- At 900 px (a trade-off, said in studio-ui.md): the frame ≥ 260 px, the diff's code column ≥ 160 px with its lines
+  wrapped, no sideways scroll — an e2e holds it.
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

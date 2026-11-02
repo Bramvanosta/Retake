@@ -45,6 +45,7 @@ import {
   anchorChips,
   channelWords,
   charactersLeft,
+  charactersLeftAnnounced,
   clampRegion,
   commentKey,
   entryWords,
@@ -65,6 +66,7 @@ import {
 } from '../src/app/comment-words.js';
 import type { FrameAsk, FrameOutcome } from '../src/app/comment-words.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
+import { dropProposalFocus, focusProposalOf, proposalFocusRouteChanged, takeProposalFocus } from '../src/app/proposal-focus.js';
 
 /** A deterministic random source (mulberry32). */
 function rng(seed: number): () => number {
@@ -109,6 +111,17 @@ describe('the words (channels, status, entries, proposals)', () => {
     expect(renderWords('odd')).toBe('odd');
     expect(charactersLeft('')).toBe('2,000 characters left');
     expect(charactersLeft('x'.repeat(1999))).toBe('1 character left');
+    // L5.12b fixes (review B-L5): the polite line speaks only as a threshold is crossed — the same words between two.
+    expect(charactersLeftAnnounced('')).toBe('');
+    expect(charactersLeftAnnounced('x'.repeat(1799))).toBe('');
+    expect(charactersLeftAnnounced('x'.repeat(1800))).toBe('At most 200 characters left');
+    expect(charactersLeftAnnounced('x'.repeat(1850))).toBe('At most 200 characters left');
+    expect(charactersLeftAnnounced('x'.repeat(1900))).toBe('At most 100 characters left');
+    expect(charactersLeftAnnounced('x'.repeat(1960))).toBe('At most 50 characters left');
+    expect(charactersLeftAnnounced('x'.repeat(1995))).toBe('At most 10 characters left');
+    expect(charactersLeftAnnounced('x'.repeat(2000))).toBe('No characters left');
+    const said = new Set(Array.from({ length: 2001 }, (_x, n) => charactersLeftAnnounced('x'.repeat(n))));
+    expect([...said]).toEqual(['', 'At most 200 characters left', 'At most 100 characters left', 'At most 50 characters left', 'At most 10 characters left', 'No characters left']);
   });
 });
 
@@ -611,5 +624,28 @@ describe('the proposal (L4.6 part D2, T13)', () => {
       expect(href.startsWith('#/p/')).toBe(true);
       expect(parseRoute(href)).toEqual(r);
     }
+  });
+});
+
+describe('the proposal focus hand-off (L5.12b)', () => {
+  it('⚑ Back to the comment: taken once by that thread; dropped by a route anywhere else or a thread that cannot be read', () => {
+    const at = (slug: string, scenario: string, thread?: string) => hrefTo({ name: 'comments', slug, scenario, ...(thread ? { thread } : {}) });
+    focusProposalOf('demo', 'c_1');
+    // On the way: the thread's own route keeps it; another thread does not take it.
+    proposalFocusRouteChanged(at('demo', 'bits', 'c_1'));
+    expect(takeProposalFocus('demo', 'c_2')).toBe(false);
+    expect(takeProposalFocus('other', 'c_1')).toBe(false);
+    expect(takeProposalFocus('demo', 'c_1')).toBe(true);
+    expect(takeProposalFocus('demo', 'c_1')).toBe(false);
+    // A route elsewhere (the list, another thread, Edit, another project) drops it.
+    for (const hash of [at('demo', 'bits'), at('demo', 'bits', 'c_2'), hrefTo({ name: 'timeline', slug: 'demo', scenario: 'bits' }), at('other', 'bits', 'c_1')]) {
+      focusProposalOf('demo', 'c_1');
+      proposalFocusRouteChanged(hash);
+      expect(takeProposalFocus('demo', 'c_1'), hash).toBe(false);
+    }
+    // A thread that cannot be read drops it.
+    focusProposalOf('demo', 'c_1');
+    dropProposalFocus();
+    expect(takeProposalFocus('demo', 'c_1')).toBe(false);
   });
 });

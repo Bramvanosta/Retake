@@ -80,7 +80,8 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       await page.getByRole('alert').filter({ hasText: 'README.md changed on disk' }).waitFor(POLL);
       await page.getByRole('button', { name: 'Save', exact: true }).click();
       await page.getByTestId('conflict').waitFor(POLL);
-    });
+      // L5.12b (M4): the README on the kit — dark at 1280, 1440 and 900, light at 1280.
+    }, { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] });
     expect(r.findings, r.report).toEqual([]);
   }, 180_000);
 
@@ -235,14 +236,53 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     const { page } = t;
     let r = await station(t, 'comments', () => go(page, at('/p/demo/s/bits/comments'), '[data-testid="viewer"][data-shown]'));
     expect(r.findings, r.report).toEqual([]);
-    r = await station(t, 'thread-proposal', async () => {
-      await go(page, at(`/p/demo/s/bits/comments/${THREAD}`), '[data-testid="proposal"] [data-testid="diff-row"]');
-      await page.getByTestId('viewer-region').waitFor(POLL);
-      expect(await page.locator('[data-testid="proposal"] .pd-mark').count()).toBeGreaterThan(0);
-    });
+    // L5.12b (M4): a thread with Claude's proposal in the inspector (the list in the browser pane, the frame in the centre)
+    // — dark at 1280, 1440 and 900, light at 1280.
+    r = await station(
+      t,
+      'thread-proposal',
+      async () => {
+        await go(page, at(`/p/demo/s/bits/comments/${THREAD}`), '[data-testid="proposal"] [data-testid="diff-row"]');
+        await page.getByTestId('viewer-region').waitFor(POLL);
+        expect(await page.locator('[data-testid="proposal"] .k-diff-mark').count()).toBeGreaterThan(0);
+        await page.getByTestId('proposal').scrollIntoViewIfNeeded();
+      },
+      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] },
+    );
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'comments-none', () => go(page, at(`/p/${N}/s/quote/comments`), '[data-testid="no-render"]'));
     expect(r.findings, r.report).toEqual([]);
+    // L5.12b (M4): the ⌘K palette open on Edit (a modal: the walk stays in it — its list is no tab stop of its own).
+    r = await station(
+      t,
+      'palette-edit',
+      async () => {
+        await go(page, at(`/p/demo/s/bits/timeline/${RUN}`), '[data-testid="tracks"]');
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
+        await page.locator('dialog.k-palette[open] [role="option"]').first().waitFor(POLL);
+      },
+      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }], exemptMax: 45 },
+    );
+    await page.keyboard.press('Escape');
+    await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
+    expect(r.findings, r.report).toEqual([]);
+    expect(r.result.walk!.stops).toBe(1);
+    // L5.12b fixes (review B-L6): the palette open on the Scenario screen — the storyboard's frames listbox beneath the modal
+    // is inert, and the checker now skips what lies behind an open modal (its reachable rule and the families' walk).
+    r = await station(
+      t,
+      'palette-scenario',
+      async () => {
+        await go(page, at('/p/demo/s/bits'), '[data-testid="step"]');
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
+        await page.locator('dialog.k-palette[open] [role="option"]').first().waitFor(POLL);
+      },
+      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }], exemptMax: 45 },
+    );
+    await page.keyboard.press('Escape');
+    await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
+    expect(r.findings, r.report).toEqual([]);
+    expect(r.result.walk!.stops).toBe(1);
     r = await station(t, 'timeline-preview-change', async () => {
       await go(page, at(`/p/demo/s/bits/proposal/${THREAD}/${t.entry}`), '[data-testid="proposal-banner"]');
       await page.locator('[data-testid="tl-segment"][data-id="a"]').click();

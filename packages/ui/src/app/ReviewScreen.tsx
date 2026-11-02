@@ -20,9 +20,10 @@
  * - Export: Export video (MP4) queues the engine's export job through the Studio's own `review_export` (one format, the
  *   project's exports folder, one at a time per render; followed in the activity) and the raw capture for an editing tool
  *   is a command to copy (`studio export-capture …`, built only from ids that pass their rules). Show in Finder: BL-132.
- * - Status bar (the screen's): "Render succeeded · when · vN", Open in Edit, and Render — re-render this scenario: its latest
- *   capture with the file on disk (no file is shown here), through useRenders (the same refusals; one render at a time;
- *   a render queued from here opens its report by itself once reviewed). The screen owns ⌘B at its priority.
+ * - Status bar (ReviewChrome, shared with Review › Comments: review B-M3 of L5.12b): "Rendered · when · vN · n open · n
+ *   resolved", Open in Edit, and Render — re-render this scenario: its latest capture with the file on disk (no file is
+ *   shown here), through useRenders (the same refusals; one render at a time; a render queued from here opens its report
+ *   by itself once reviewed). The screen owns ⌘B at its priority.
  * - An unknown render id (well formed, not in the list) is an honest empty state; nothing is read with it.
  * Every string from the server is a text node (Txt / a kit slot); finding messages and failures are untrusted.
  */
@@ -38,7 +39,7 @@ import { seekInEdit } from './edit-handoff.js';
 import { commentsEventAction, useEvents } from './events.js';
 import { useProjectView } from './project-data.js';
 import { busyWhy, RenderJobs, RenderOutcome, RendersList, TONE_MARK, failedWords, useRenders } from './Renders.js';
-import type { RenderTarget } from './Renders.js';
+import type { RenderTarget, RendersState } from './Renders.js';
 import { findingFrame, hasReport, reviewBadge, versionNote, versionWords } from './render-words.js';
 import { CHECK_FAMILIES, NOTHING_ELSE, agoWords, clockWords, countWords, exportReadsOn, familyOf, groupFindings, rawExportCommand, severityMark, sharedWhen, shortTime, stepKeyOf, whereWords } from './review-words.js';
 import { hrefTo } from './route.js';
@@ -61,38 +62,44 @@ interface ThreadCounts {
   scenarios: Record<string, { open: number; resolved: number }>;
 }
 
-/** Review's View (the title bar's context, on the report and on the comments): Report · Comments (n open). */
-export function ReviewViews({ slug, name, current }: { slug: string; name: string; current: 'report' | 'comments' }) {
+/** A scenario's thread counts (Review's View and its status line), read again on its comments' events; null while read. */
+function useThreadCounts(slug: string, name: string): { open: number; resolved: number } | null {
   const [counts, reload] = useCall<ThreadCounts>('threads_counts', { project: slug, name }, `${slug}\0${name}`);
   useEvents((e) => {
     if (commentsEventAction(e, slug, name).threads) reload();
   });
-  const open = counts.state === 'ready' ? (counts.data.scenarios[name]?.open ?? 0) : null;
+  return counts.state === 'ready' ? (counts.data.scenarios[name] ?? { open: 0, resolved: 0 }) : null;
+}
+
+/** Review's View (the title bar's context, on the report and on the comments): Report · Comments (n open). */
+function ReviewViews({ slug, name, current, open }: { slug: string; name: string; current: 'report' | 'comments'; open: number | null }) {
   return (
     <SegmentedLinks
       label="View"
       items={[
         { key: 'report', label: 'Report', to: { name: 'review', slug, scenario: name }, current: current === 'report' },
-        // The comments screen keeps its own tab with this test id until it is rebuilt (L5.12b).
-        { key: 'comments', label: open === null ? 'Comments' : `Comments (${open} open)`, to: { name: 'comments', slug, scenario: name }, current: current === 'comments', ...(current === 'report' ? { testId: 'comments-tab' } : {}) },
+        // L5.12b: the Comments segment carries the old tab's test id and its count ("Comments (1 open)") on both views.
+        { key: 'comments', label: open === null ? 'Comments' : `Comments (${open} open)`, to: { name: 'comments', slug, scenario: name }, current: current === 'comments', testId: 'comments-tab' },
       ]}
     />
   );
 }
 
-/** The report's h1 for assistive technology while no render is shown: the name as text (review A-M3). */
-function ReviewHeading({ name }: { name: string }) {
-  return (
-    <h1 className="k-sr">
-      <Txt text={name} />
-      {' — Review report'}
-    </h1>
-  );
+/** Render from Review: the latest capture with the file on disk, through useRenders (its refusals; one at a time). */
+export interface ReviewRender {
+  renders: RendersState;
+  /** Why Render is off, or null. */
+  off: string | null;
+  renderNow: () => void;
+  /** The capture and file Render would use (for the queue's "shown" words). */
+  shown: { run?: string; hash?: string };
 }
 
-export function ReviewScreen({ slug, name, render }: { slug: string; name: string; render?: string }) {
-  const renders = useRenders(slug, name);
-  // Render again: the latest capture with the file on disk — the status bar's read (one shared entry, no second read).
+/**
+ * Review's Render (both views: the report and the comments) — the status bar's read of the scenario's actions (one shared
+ * entry, no second read); the screen owns ⌘B at its priority.
+ */
+export function useReviewRender(slug: string, name: string, renders: RendersState): ReviewRender {
   const project = useProjectView(slug);
   const loc = useRunLocation(slug, name, project.state === 'ready' ? project.data.environments : null);
   const actions = useScenarioActions(slug, name, loc.sent);
@@ -104,29 +111,24 @@ export function ReviewScreen({ slug, name, render }: { slug: string; name: strin
     if (!renders.sending) renders.render(target);
   };
   useShellCommand('render', renderNow, PRIORITY.screen);
-  const inApp = useMemo(() => studioShell() !== null, []);
-
-  const d = renders.loaded.state === 'ready' ? renders.loaded.data : null;
-  // A render queued from this screen opens its report by itself once its review is written (once).
-  const opened = useRef(new Set<string>());
-  useEffect(() => {
-    if (!d) return;
-    const done = d.renders.find((x) => renders.mine.has(x.render_id) && !opened.current.has(x.render_id) && hasReport(x.review));
-    if (!done) return;
-    opened.current.add(done.render_id);
-    if (done.render_id !== render) location.hash = hrefTo({ name: 'review', slug, scenario: name, render: done.render_id });
-  }, [d, renders.mine, render, slug, name]);
-
-  const newest = d ? (d.renders.find((x) => x.status === 'succeeded') ?? d.renders[0]) : undefined;
-  const x = d ? (render !== undefined ? d.renders.find((r) => r.render_id === render) : newest) : undefined;
-  const shown = { ...(a?.capture ? { run: a.capture.id } : {}), ...(a ? { hash: a.hash } : {}) };
   const off = 'why' in target ? target.why : busyWhy(renders);
+  return { renders, off, renderNow, shown: { ...(a?.capture ? { run: a.capture.id } : {}), ...(a ? { hash: a.hash } : {}) } };
+}
 
+/**
+ * L5.12b fixes (review B-M3): Review's chrome, one for both views — the View in the title bar and the status bar's line:
+ * "Rendered · when · vN · n open · n resolved", Open in Edit, Render (the render shown: the report's, or the one the
+ * comments' viewer shows). Shoot's actions never show in Review (the slot is claimed; StatusActions also stands down on
+ * Review's routes).
+ */
+export function ReviewChrome({ slug, name, current, x, rr }: { slug: string; name: string; current: 'report' | 'comments'; x: ScenarioRenderView | undefined; rr: ReviewRender }) {
+  const counts = useThreadCounts(slug, name);
+  const inApp = useMemo(() => studioShell() !== null, []);
+  const d = rr.renders.loaded.state === 'ready' ? rr.renders.loaded.data : null;
   return (
-    <div className="rv-screen" data-testid="review-report">
-      <BrowserCollapsed />
+    <>
       <ShellSlot name="context">
-        <ReviewViews slug={slug} name={name} current="report" />
+        <ReviewViews slug={slug} name={name} current={current} open={counts?.open ?? null} />
       </ShellSlot>
       <ShellSlot name="actions">
         <span className="sh-scenario" data-testid="review-state">
@@ -145,7 +147,12 @@ export function ReviewScreen({ slug, name, render }: { slug: string; name: strin
           ) : x ? (
             <StatusMark state="fail" word={`${versionWords(x.render_id)} ${x.status}`} />
           ) : (
-            <StatusMark state="idle" word={d ? 'No render yet' : 'Loading the renders'} />
+            <StatusMark state="idle" word={d ? 'Not rendered yet' : 'Loading the renders'} />
+          )}
+          {counts && (
+            <span className="sh-seg" data-drop="when" data-testid="review-counts">
+              <Txt text={` · ${counts.open} open · ${counts.resolved} resolved`} />
+            </span>
           )}
         </span>
         {x && (
@@ -154,12 +161,49 @@ export function ReviewScreen({ slug, name, render }: { slug: string; name: strin
           </LinkButton>
         )}
         <span id="rv-render-why" className="k-sr">
-          <Txt text={off ? `Render: ${off}` : `Render ${name} again: its latest capture with the file on disk, then a review`} />
+          <Txt text={rr.off ? `Render: ${rr.off}` : `Render ${name} again: its latest capture with the file on disk, then a review`} />
         </span>
-        <Button size="sm" variant="primary" data-testid="render" disabled={off !== null || renders.sending} aria-describedby="rv-render-why" kbd={inApp ? ['⌘', 'B'] : undefined} onClick={renderNow}>
-          {renders.sending ? 'Starting the render…' : d && d.renders.length > 0 ? 'Render again' : 'Render'}
+        <Button size="sm" variant="primary" data-testid="render" disabled={rr.off !== null || rr.renders.sending} aria-describedby="rv-render-why" kbd={inApp ? ['⌘', 'B'] : undefined} onClick={rr.renderNow}>
+          {rr.renders.sending ? 'Starting the render…' : d && d.renders.length > 0 ? 'Render again' : 'Render'}
         </Button>
       </ShellSlot>
+    </>
+  );
+}
+
+/** The report's h1 for assistive technology while no render is shown: the name as text (review A-M3). */
+function ReviewHeading({ name }: { name: string }) {
+  return (
+    <h1 className="k-sr">
+      <Txt text={name} />
+      {' — Review report'}
+    </h1>
+  );
+}
+
+export function ReviewScreen({ slug, name, render }: { slug: string; name: string; render?: string }) {
+  const renders = useRenders(slug, name);
+  const rr = useReviewRender(slug, name, renders);
+  const { renderNow, off, shown } = rr;
+
+  const d = renders.loaded.state === 'ready' ? renders.loaded.data : null;
+  // A render queued from this screen opens its report by itself once its review is written (once).
+  const opened = useRef(new Set<string>());
+  useEffect(() => {
+    if (!d) return;
+    const done = d.renders.find((x) => renders.mine.has(x.render_id) && !opened.current.has(x.render_id) && hasReport(x.review));
+    if (!done) return;
+    opened.current.add(done.render_id);
+    if (done.render_id !== render) location.hash = hrefTo({ name: 'review', slug, scenario: name, render: done.render_id });
+  }, [d, renders.mine, render, slug, name]);
+
+  const newest = d ? (d.renders.find((x) => x.status === 'succeeded') ?? d.renders[0]) : undefined;
+  const x = d ? (render !== undefined ? d.renders.find((r) => r.render_id === render) : newest) : undefined;
+
+  return (
+    <div className="rv-screen" data-testid="review-report">
+      <BrowserCollapsed />
+      <ReviewChrome slug={slug} name={name} current="report" x={x} rr={rr} />
       <RenderOutcome r={renders} />
       {renders.loaded.state === 'loading' && (
         <>
@@ -212,7 +256,7 @@ export function ReviewScreen({ slug, name, render }: { slug: string; name: strin
           </EmptyState>
         </>
       )}
-      {d && x && <Report key={`${x.render_id}\0${x.created_at}`} slug={slug} name={name} x={x} renders={d.renders} r={renders} shown={shown} fileHash={a?.hash} />}
+      {d && x && <Report key={`${x.render_id}\0${x.created_at}`} slug={slug} name={name} x={x} renders={d.renders} r={renders} shown={shown} fileHash={shown.hash} />}
     </div>
   );
 }

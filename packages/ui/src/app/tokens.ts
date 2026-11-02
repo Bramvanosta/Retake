@@ -70,9 +70,7 @@ export const LEGACY_COLOURS: Record<string, Pair> = {
   surface: { light: '#ffffff', dark: '#18191c' },
   subtle: { light: '#fafbfc', dark: '#1b1c20' },
   'field-off': { light: '#f9fafb', dark: '#1f2024' },
-  'link-hover': { light: '#f6f8fb', dark: '#222428' },
   'code-bg': { light: '#f4f5f7', dark: '#222428' },
-  faint: { light: '#f3f4f6', dark: '#1f2024' },
   hover: { light: '#f1f3f6', dark: '#25272b' },
   'thumb-stripe': { light: '#f1f2f5', dark: '#222428' },
   tint: { light: '#eef0f3', dark: '#25272b' },
@@ -106,9 +104,7 @@ export const LEGACY_COLOURS: Record<string, Pair> = {
   'danger-line-strong': { light: '#e7b4ae', dark: '#82403a' },
   warning: { light: '#8a5300', dark: '#f2b84b' },
   'warning-soft': { light: '#fdf3e1', dark: '#33291a' },
-  'warning-faint': { light: '#fffdf8', dark: '#221d14' },
   'warning-line': { light: '#efd6a8', dark: '#5e4a24' },
-  'warning-mark': { light: '#e8b04a', dark: '#e8b04a' },
   info: { light: '#1f5fae', dark: '#8bb8f0' },
   'info-soft': { light: '#e8f1fb', dark: '#192b3f' },
   'info-line': { light: '#c4d9f3', dark: '#2f4a72' },
@@ -120,13 +116,8 @@ export const LEGACY_COLOURS: Record<string, Pair> = {
   // Video surfaces, tooltips, dialogs (video stays dark in both appearances)
   ink: { light: '#16181d', dark: '#0a0a0b' },
   'ink-soft': { light: '#1c1f24', dark: '#141518' },
-  'ink-veil': { light: 'rgba(22, 24, 29, 0.75)', dark: 'rgba(10, 10, 11, 0.75)' },
-  'on-ink': { light: '#ffffff', dark: '#ffffff' },
-  'on-ink-muted': { light: '#c9ced8', dark: '#c9ced8' },
   veil: { light: 'rgba(255, 255, 255, 0.92)', dark: 'rgba(24, 25, 28, 0.92)' },
   backdrop: { light: 'rgba(22, 24, 29, 0.35)', dark: 'rgba(6, 7, 8, 0.55)' },
-  'mark-on-video': { light: '#ffd43b', dark: '#ffd43b' },
-  'mark-edge': { light: 'rgba(0, 0, 0, 0.6)', dark: 'rgba(0, 0, 0, 0.6)' },
 };
 
 const SANS = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
@@ -175,6 +166,8 @@ export const UI_STATIC: Record<string, string> = {
   mark: '7px',
   'card-w': '248px',
   'overlay-w': '560px',
+  /** L5.12b: the command palette's width (R4-Palette). */
+  'palette-w': '640px',
   /** The window buttons' room at the title bar's left (0 on the web; 80px under the desktop's overlay title bar). */
   'titlebar-inset': '0px',
 };

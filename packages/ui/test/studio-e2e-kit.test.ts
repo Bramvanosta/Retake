@@ -23,7 +23,7 @@
  *   does) and a `studio:command` opens the palette; an id off the list does nothing; without it, inset 0; the mode
  *   switch centred on the window either way (B-L1).
  */
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -31,7 +31,7 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { fixtureWorkspace } from '../../engine/test/helpers.js';
+import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
@@ -413,6 +413,11 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await page.waitForTimeout(100);
     expect(await page.locator('dialog.k-palette[open]').count()).toBe(1);
     expect(await page.getByTestId('answer-dark').innerText()).not.toBe('Last answer: hello');
+    // L5.12b fixes (review A-L9): WebKit (the desktop app's view) may end a composition with isComposing false — keyCode 229.
+    await box.evaluate((el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, isComposing: false, bubbles: true, cancelable: true })));
+    await page.waitForTimeout(100);
+    expect(await page.locator('dialog.k-palette[open]').count()).toBe(1);
+    expect(await page.getByTestId('answer-dark').innerText()).not.toBe('Last answer: hello');
     await page.keyboard.press('Enter');
     await page.locator('dialog.k-palette[open]').waitFor({ state: 'detached' });
     expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: hello');
@@ -421,8 +426,11 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await box.waitFor(POLL);
     // The "Nothing matches" live region is in the accessibility tree before it speaks (review A-L5).
     expect(await page.locator('dialog.k-palette[open] .k-palette-none').evaluate((el) => [getComputedStyle(el).display, el.textContent])).toEqual(['block', '']);
+    expect(await box.getAttribute('aria-expanded')).toBe('true');
     await box.fill('zzz');
     expect(await page.locator('dialog.k-palette[open]').getByRole('option').count()).toBe(0);
+    // L5.12b fixes (review A-L8): nothing listed, nothing expanded.
+    expect(await box.getAttribute('aria-expanded')).toBe('false');
     expect(await box.getAttribute('aria-activedescendant')).toBeNull();
     expect(await page.locator('dialog.k-palette[open] .k-palette-none').innerText()).toBe('Nothing matches');
     await page.keyboard.press('Escape');
@@ -505,6 +513,99 @@ describe('the shell (L5.9 part E)', () => {
     await page.waitForTimeout(200);
     expect(page.url()).toMatch(/#\/ui$/);
   });
+
+  it('⚑ L5.12b: the palette (R4-Palette) — its groups in order, an icon per row, the legend; no entry writes (L5.12b fixes, review B-M2: EVERY row run on the Scenario screen — but the Scenario menu\'s Rehearse, Capture, Render and Stop, which act by design — the ops counted); a scene picked on the YAML view goes to its lines (B-L3)', async () => {
+    // A tab of its own (the earlier tests' pages hold sheets, palettes and sessions of theirs).
+    const page = await open(context);
+    const home = `#/p/${P}/s/quote`;
+    const back = async () => {
+      await page.evaluate((h) => (location.hash = h), home);
+      await page.locator('[data-testid="step"]').first().waitFor(POLL);
+    };
+    await page.goto(`${studio.url}${home}`);
+    await page.locator('[data-testid="step"]').first().waitFor(POLL);
+    // The ops the page sends, read in the page (its one fetch: api.ts) — kept across the hash navigations below.
+    await page.evaluate(() => {
+      const w = window as unknown as { __ops?: string[]; fetch: typeof fetch };
+      w.__ops = [];
+      const real = w.fetch.bind(window);
+      w.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+        const m = /\/v1\/call\/([a-z_]+)$/.exec(String(input));
+        if (m && init?.method === 'POST') w.__ops!.push(m[1]);
+        return real(input, init);
+      };
+    });
+    const sent = () => page.evaluate(() => [...((window as unknown as { __ops: string[] }).__ops)]);
+    const dialog = page.locator('dialog.k-palette[open]');
+    const openPalette = async () => {
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
+      await dialog.waitFor(POLL);
+    };
+    const rows = (group: string) => dialog.getByRole('group', { name: group }).getByRole('option');
+    try {
+      await openPalette();
+      expect(await page.getByRole('combobox', { name: 'Command' }).getAttribute('placeholder')).toBe('Search commands, scenes and themes');
+      expect(await dialog.locator('.k-palette-heading').allInnerTexts()).toEqual(['Commands', 'Go to', 'Scenes', 'Themes', 'Scenarios', 'Projects']);
+      // An icon per row (decorative), the legend; a browser tab says nothing of a menu bar.
+      const options = await dialog.getByRole('option').count();
+      expect(options, 'options').toBeGreaterThan(15);
+      expect(await dialog.locator('[role="option"] .k-palette-icon svg').count()).toBe(options);
+      expect((await dialog.locator('.k-palette-legend').innerText()).replace(/\s+/g, ' ')).toBe('↑ ↓ Move Return Run Esc Close');
+      // The report row says what the review found — no render of quote yet.
+      expect(await rows('Go to').filter({ hasText: 'Review report' }).innerText()).toContain('no render yet');
+      const themes = await rows('Themes').allInnerTexts();
+      expect(themes.map((t) => t.split('\n')[0])).toEqual(['editorial', 'All themes']);
+      expect((await rows('Scenes').allInnerTexts()).length, 'scenes').toBeGreaterThan(0);
+      // Every row, by its place in the list (labels repeat across groups): the Scenario menu's four commands act by design.
+      const all = await dialog.getByRole('option').evaluateAll((els) => els.map((el) => ({ group: el.closest('[role="group"]')!.querySelector('.k-palette-heading')!.textContent ?? '', label: el.querySelector('.k-palette-label')!.textContent ?? '' })));
+      const ACTS = new Set(['Rehearse', 'Capture', 'Render', 'Stop']);
+      const run = all.map((r, i) => ({ ...r, i })).filter((r) => !(r.group === 'Commands' && ACTS.has(r.label)));
+      expect(all.filter((r) => r.group === 'Commands' && ACTS.has(r.label)).map((r) => r.label)).toEqual(['Rehearse', 'Capture', 'Render', 'Stop']);
+      expect(run.length).toBe(all.length - 4);
+      await page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached' });
+      const before = (await sent()).length;
+      const visited: string[] = [];
+      for (const r of run) {
+        await openPalette();
+        const opt = dialog.getByRole('option').nth(r.i);
+        expect(await opt.locator('.k-palette-label').innerText(), `row ${r.i}`).toBe(r.label);
+        await opt.click();
+        await dialog.waitFor({ state: 'detached' });
+        // Let the destination read what it reads (its own ops are counted too), then come back.
+        await page.waitForTimeout(250);
+        visited.push(`${r.group}: ${r.label} → ${new URL(page.url()).hash}`);
+        if (new URL(page.url()).hash !== home) await back();
+        if (r.label === 'Hide inspector' || r.label === 'Show inspector') {
+          await openPalette();
+          await dialog.getByRole('option', { name: /inspector/ }).click();
+          await dialog.waitFor({ state: 'detached' });
+        }
+      }
+      await page.waitForTimeout(300);
+      // The theme editor's own preview lease (theme_preview, timeline_leave) is that screen's, not the palette's.
+      const WRITES = /^(?:scenario_(?:edit|save|run|render)|theme_(?:edit|copy|create)|thread_(?:add|reply|resolve|reopen|apply)|project_update_readme|render_cancel|run_cancel|run_pause|preview_allow|review_export|auth_login|record_(?:start|stop|discard|save|insert|pick|annotate))$/;
+      const ops = (await sent()).slice(before);
+      expect(ops.filter((op) => WRITES.test(op)), visited.join('\n')).toEqual([]);
+      expect(ops).toEqual(expect.arrayContaining(['theme_list', 'scenario_blocks']));
+      expect(visited.some((v) => v.startsWith('Projects: '))).toBe(true);
+
+      // B-L3: on the YAML view a scene picked in the palette goes to its lines, as the browser's pick does.
+      await page.evaluate((h) => (location.hash = `${h}/yaml`), home);
+      await page.getByTestId('yaml').waitFor(POLL);
+      expect(await page.locator('[data-testid="yaml"] li[data-focus="true"]').count()).toBe(0);
+      await openPalette();
+      const scene = rows('Scenes').last();
+      const id = (await scene.locator('.k-palette-hint').innerText()).replace(/^scene /, '');
+      await scene.click();
+      await dialog.waitFor({ state: 'detached' });
+      await expect.poll(() => page.locator('[data-testid="yaml"] li[data-focus="true"]').count(), POLL).toBeGreaterThan(0);
+      expect(await page.locator('[data-testid="yaml"] li[data-focus="true"]').first().innerText()).toContain(`id: ${id}`);
+      expect(new URL(page.url()).hash).toBe(`${home}/yaml`);
+    } finally {
+      await page.close();
+    }
+  }, 180_000);
 
   it('the modes follow the scenario in context (or say there is none); the centre keeps its scroll inside a screen, starts at the top of a new one', async () => {
     await page.goto(`${studio.url}#/`);
@@ -661,6 +762,25 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
       expect(await p.locator('dialog[open]').count()).toBe(0);
       await p.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
       await p.getByRole('combobox', { name: 'Command' }).waitFor(POLL);
+      await p.keyboard.press('Escape');
+      await p.locator('dialog[open]').waitFor({ state: 'detached' });
+      // L5.12b fixes (review B-L8): the footnote is true — every row showing a key is a menu bar item with that key.
+      await p.evaluate((h) => (location.hash = h), `#/p/${P}/s/quote`);
+      await p.locator('[data-testid="step"]').first().waitFor(POLL);
+      await p.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'palette' } })));
+      await p.getByRole('combobox', { name: 'Command' }).waitFor(POLL);
+      expect(await p.locator('dialog.k-palette[open] .k-palette-legend-note').innerText()).toBe('Commands with a key are also in the menu bar');
+      const menu = await readFile(join(REPO, 'apps', 'desktop', 'src', 'menu.rs'), 'utf8');
+      const CAP: Record<string, string> = { CmdOrCtrl: '⌘', Shift: '⇧', Alt: '⌥' };
+      const accelerators = new Set([...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) => m[1].split('+').map((k) => CAP[k] ?? k).join(' ')));
+      const keyed = await p.locator('dialog.k-palette[open] [role="option"]').evaluateAll((els) => els.flatMap((el) => {
+        const caps = [...el.querySelectorAll('.k-kbd')].map((k) => k.textContent ?? '');
+        return caps.length ? [{ label: el.querySelector('.k-palette-label')!.textContent ?? '', keys: caps.join(' ') }] : [];
+      }));
+      expect(keyed.map((k) => k.label)).toEqual(expect.arrayContaining(['Rehearse', 'Capture', 'Render', 'Stop', 'Script', 'Edit']));
+      for (const k of keyed) expect(accelerators.has(k.keys), `${k.label}: ${k.keys} is no menu bar key`).toBe(true);
+      // The palette's own rows without a menu item ("Comment at this frame", "Discard…", the pages) show no key.
+      expect(keyed.some((k) => /Review report|Open |All themes|UI gallery/.test(k.label))).toBe(false);
       await p.keyboard.press('Escape');
       await p.locator('dialog[open]').waitFor({ state: 'detached' });
       for (const detail of [{ id: 'reload' }, { id: 'eval' }, null, 'palette', { id: ['palette'] }]) await p.evaluate((d) => window.dispatchEvent(new CustomEvent('studio:command', { detail: d })), detail);

@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.12a (Studio « Épure » 4a: Edit and the Review report)** — phases
+Last updated: 2026-11-02, end of lot **L5.12b (Studio « Épure » 4b: frame comments, Claude's proposal, README, ⌘K)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.11, L5.12a done). **Next: L5.12b (frame comments, Claude's proposal, README, ⌘K), then L5.12c and
-L5.12d — L5.12 was asked as a whole.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.11, L5.12a, L5.12b done). **Next: L5.12c (the Library and the theme editor), then L5.12d — L5.12
+was asked as a whole.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -30,7 +30,21 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.12a)
+## State (after L5.12b)
+- **L5.12b done (2026-11-02)** — the Review mode's **Comments** view in the shell from R4-Comments: the thread list in
+  the browser pane (Open · Resolved · All, "This render only", rows as links), the frame in the centre (FrameViewer:
+  region drawing with the x / y / w / h fields as its keyboard alternative, the scrubber, marks and pins, typed time),
+  the Composer, the thread and Claude's proposal in the inspector (ThreadPanel, ProposalCard on a new kit DiffTable —
+  code-safe as before: `[U+…]` marks, `dir=ltr`, RTL lines labelled, every row shown), the proposal banner on Edit
+  (never applies). ProposalPanel.tsx and CommentsTab.tsx deleted; both Review views share one status line ("Rendered ·
+  when · vN · n open · n resolved · Open in Edit · Render"). **The README editor** on the kit. **The ⌘K palette** per
+  R4-Palette (640 px, an icon per row, Commands · Go to · Scenes · Themes · Scenarios · Projects through a
+  `paletteGroup` registry, the report row in review words, a footer legend; it never writes). The write rules of the
+  comments side are structural (an allowed-ops list per file, an import graph for the proposal's writer, `if_match`
+  read on each write's arguments, the palette's handlers traced to no writer); the a11y checker skips what a modal
+  dialog makes inert. Ratchet −339 (CommentsScreen, CommentsTab, ProposalPanel, ReadmeEditor → 0). Tests on the Mac:
+  **4034 — 3950 pass, 84 skipped, 0 failures in the one full run**; `pnpm test:slow` 65/65; the gated comments Chrome acceptance green once. Requirements: 667 tracked — 626 done (R-UI-47 / R-UI-48 added), 27 partial, 8 todo, 6 n/a-here. Live checks for the user: MACOS-CHECKLIST 14e (VoiceOver on the diff and the
+  frame line, the palette by keyboard and its footnote in the app, WebKit's composition Enter, the README at 900 px).
 - **L5.12a done (2026-11-02)** — L5.12 is split in four (the plan sized it L+: a Edit and the Review report, b comments /
   proposal / README / ⌘K, c Library and the theme editor, d the quit sheet and the end of the legacy layer). **Edit** in
   the shell from R4-Edit: the pinned PreviewFrame (the Player on its own origin, unchanged) with EditPreview / EditStatus
@@ -582,8 +596,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.12b (frame comments, Claude's proposal, README, ⌘K), then L5.12c and L5.12d** — the user asked for L5.12
-as a whole (L5.12a is done). **Decided
+**Next: L5.12c (the Library and the theme editor), then L5.12d** — the user asked for L5.12 as a whole (L5.12a and
+L5.12b are done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1549,6 +1563,16 @@ sandbox, a hook step and compact results through Claude Code).
   `record-words.ts`, `shell/command-bus.ts` (`useScenarioGroup`), ui-kit `RadioGroup`, `RowList` / `RowCard`
   (`option`, `compact`, `aside`); tests `studio-e2e-record-keys.test.ts` (answers the record ops itself to hold a view or
   a save back). Cuts: BL-131.
+- **L5.12b done** (Comments, the proposal, README, ⌘K; R-UI-47, R-UI-48). Built from the L5.12 plan's part b and the
+  critique's M1 (the lints pinned to the files the split moved, re-pointed by name with app-wide counts), reviewed by
+  two reviewers (the comments e2e file exiting 1 with every test ticked; "the banner never applies" and "the palette
+  never writes" proved by string matches a link or a helper slipped past; Shoot's actions in the Review mode's status
+  bar; the shell re-rendering on every frame step; a cancelled pointer committing a region; the a11y checker walking
+  into a modal's inert page…) and fixed with mutation-checked tests (17 + 31 mutations, all caught). Files: ui
+  `CommentsScreen.tsx`, `ThreadList.tsx`, `FrameViewer.tsx`, `Composer.tsx`, `ThreadPanel.tsx`, `ProposalCard.tsx`,
+  `ProposalBanner.tsx`, `proposal-focus.ts`, `ReadmeEditor.tsx`, `ReviewScreen.tsx` (`ReviewChrome`), ui-kit
+  `DiffTable.tsx` (DiffTable, RegionOverlay), `CommandPalette.tsx`, `shell/command-bus.ts` (`paletteGroup`); tests
+  `a11y.ts` (modal dialogs). Cuts: BL-133.
 - **L5.12a done** (Edit and the Review report; R-UI-45, R-UI-46). Planned (L+ → four parts), criticised (Edit's Render
   through the status bar would have rendered the file on disk from a proposal and lost RenderBar's refusals; exports
   only as copied commands did not deliver the roadmap's export; lints pinned to files the split moves), built in a
@@ -1830,6 +1854,18 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.12b:
+- Comments-side writes are checked structurally in app-source (`COMMENTS_OPS` per file, ProposalCard imported only by
+  ThreadPanel, `BANNER_IMPORTS`, `threadWrites` reads `if_match` on resolve / reopen / apply; thread_reply has no
+  `if_match` by design). A new comments file needs its row in `COMMENTS_OPS`.
+- A palette group registers through `paletteGroup` (`useScenarioGroup` is an alias); its handlers must not reach a
+  writer (traced in app-source; the kit and comments e2e run every row under an op counter). Rows with a key are the
+  menu bar's (checked against menu.rs).
+- Both Review views share `ReviewChrome` / `useReviewRender`; StatusActions stays hidden on the review and comments routes.
+- The a11y checker skips the page behind a `dialog:modal`.
+- A test file is green only when vitest exits 0 (a route released while its handler sleeps prints "Errors 1" with every
+  test ticked): `unrouteAll({ behavior: 'wait' })`.
+
 Notes from L5.12a:
 - Edit owns `render` at PRIORITY.screen in every state (loading, error, blocked, ready) and the status bar's
   `renderWhy` also refuses on a proposal route: two guards on purpose (a proposal never renders the file on disk).

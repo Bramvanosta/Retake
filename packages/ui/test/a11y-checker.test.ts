@@ -346,6 +346,22 @@ describe('the checker (L4.9 part A)', () => {
     expect(await familyWalk(page, r.stats.families[0])).toEqual([]);
   });
 
+  it('⚑ L5.12b fixes (review B-L6): behind an open modal dialog the page is inert — the reachable rule and the families\' walk skip it; closed, the same page is found again', async () => {
+    const page_ = '<div role="button" id="dead">Go</div><ul role="listbox" class="steps" tabindex="0" aria-label="a" aria-activedescendant="a1"><li role="option" id="a1">A1</li></ul><ul role="listbox" class="steps" tabindex="-1" aria-label="b" aria-activedescendant="b1"><li role="option" id="b1">B1</li></ul>';
+    const modal = '<dialog id="m" aria-label="Palette"><input aria-label="Command"><div role="button" id="inside">Lost inside</div></dialog><script>document.getElementById("m").showModal()</script>';
+    let r = await audit(page_ + modal);
+    // Inside the modal the rule still holds; behind it nothing is reported, no family is walked.
+    expect(of(r.findings, 'reachable').map((f) => f.el), formatFindings(r.findings)).toEqual(['div#inside']);
+    expect(r.stats.families).toEqual([]);
+    expect(await familyWalk(page, '[role="listbox"].steps')).toEqual([]);
+    // Closed: the page behind is checked again (the dead button, the family the arrows never cross).
+    await page.evaluate(() => (document.getElementById('m') as HTMLDialogElement).close());
+    r = await auditPage(page);
+    expect(of(r.findings, 'reachable').map((f) => f.el)).toEqual(['div#dead']);
+    expect(r.stats.families).toEqual(['[role="listbox"].steps']);
+    expect((await familyWalk(page, r.stats.families[0])).map((f) => f.detail)).toEqual([expect.stringContaining('never reach group 2 of 2')]);
+  });
+
   it('⚑ name: focusable content under aria-hidden, a picture with no alt; headings: a second level-1 role heading, a hidden one not counted', async () => {
     let r = await audit('<div aria-hidden="true"><button id="hid">Close</button><button tabindex="-1">Off</button></div><img id="pic" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="40" height="40"><img alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="40" height="40">');
     expect(of(r.findings, 'name').map((f) => f.el).sort(), formatFindings(r.findings)).toEqual(['button#hid', 'img#pic']);

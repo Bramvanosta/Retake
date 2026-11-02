@@ -188,7 +188,8 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await expect.poll(() => page.getByTestId('comments-tab').innerText(), POLL).toBe('Comments (1 open)');
     await expect.poll(() => page.getByTestId('review-verdict').innerText(), POLL).toContain('1 error, 1 warning, 1 note');
     // The status bar: what the render did, with a neutral mark — never a verdict beside the review's (review B-L1).
-    expect(await page.getByTestId('review-state').innerText()).toMatch(/^Rendered · .+ · v1$/);
+    // L5.12b fixes (review B-M3): the line Review shares with Comments ends with the scenario's comment counts.
+    expect((await page.getByTestId('review-state').textContent())!.replace(/\s+/g, ' ').trim()).toMatch(/^Rendered · .+ · v1 · \d+ open · \d+ resolved$/);
     expect(await page.getByTestId('review-state').locator('.k-mark-shape').getAttribute('class')).toContain('k-mark-idle');
     // v1 shows the version on screen: no "another version" note.
     expect(await page.getByTestId('review-other-version').count()).toBe(0);

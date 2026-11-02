@@ -60,9 +60,9 @@ export function Button({ variant = 'secondary', size = 'md', icon, kbd, busy, re
   );
 }
 
-export function LinkButton({ to, variant = 'secondary', size = 'md', icon, children, current, testId, label, dataRender }: { to: Route; variant?: Exclude<ButtonVariant, 'destructive' | 'record'>; size?: ButtonSize; icon?: IconName; children: ReactNode; current?: boolean; testId?: string; /** L5.12a: a fuller name than the visible label ("Comment frame 12 of render quote-v3"). */ label?: string; /** L5.12a: the render a link opens (Edit's Comment: tests read it). */ dataRender?: string }) {
+export function LinkButton({ to, variant = 'secondary', size = 'md', icon, children, current, testId, label, dataRender, onClick }: { to: Route; variant?: Exclude<ButtonVariant, 'destructive' | 'record'>; size?: ButtonSize; icon?: IconName; children: ReactNode; current?: boolean; testId?: string; /** L5.12a: a fuller name than the visible label ("Comment frame 12 of render quote-v3"). */ label?: string; /** L5.12a: the render a link opens (Edit's Comment: tests read it). */ dataRender?: string; /** L5.12b: run as it is followed (a hand-off to the screen it opens: the proposal's focus). */ onClick?: () => void }) {
   return (
-    <a href={hrefTo(to)} className={cls(variant, size)} aria-current={current ? 'page' : undefined} aria-label={label} data-testid={testId} data-render={dataRender}>
+    <a href={hrefTo(to)} className={cls(variant, size)} aria-current={current ? 'page' : undefined} aria-label={label} data-testid={testId} data-render={dataRender} onClick={onClick}>
       {icon && <Icon name={icon} />}
       <span className="k-btn-label">{shown(children)}</span>
     </a>

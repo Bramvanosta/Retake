@@ -216,13 +216,19 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | EmptyState | title, text, actions | |
 | Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions | the default holds the focus; a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
-| CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
+| CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape; L5.12b (R4-Palette): 640 px (`--ui-palette-w`), "Search commands, scenes and themes", an icon per row (`icon`, decorative), Esc's key cap in the field, a footer legend (↑ ↓ Move · Return Run · Esc Close, and a `footnote`); the list is never a tab stop of its own | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
 | ChoiceChips | L5.12a: a radio group of `<button role="radio">` named by its legend; one tab stop (the checked chip), arrows / Home / End move the focus, Space / Enter picks; checked = select fill + 600 + a ring; a chip that cannot be taken is `aria-disabled`, dashed, focusable, its reason after " — "; a whole group off is dashed | a choice written at once (Edit's switches); a pick never follows the arrows (one write per pick) |
 | Track, TrackItem | L5.12a: a labelled row (`group` "Name: N items") — a 96 px label column and a lane of items placed by percentages (a span, or a tick with a 24 px target centred on its frame); every item a 24 px target (24 px tall; a span narrower than 24 px a centred 24 px hit area; a lane's ticks nudged apart to 24 px while it has room: `spaceTicks`); an item is a button carrying its words; pressed = select fill + 600 + a 2 px ring; a band at its start under its words (a transition, a camera ramp); a tip beside a tick on hover and focus | timelines; memoise the rows and keep the playhead out of their props |
 | Scrubber, Playhead | L5.12a: the playhead's range input on a lane (its own arrows move one frame; its value text says where) with decorative time labels; the playhead a 2 px line over the lanes | one per timeline; the Playhead is drawn by the screen, never inside the tracks |
 | ContactSheet | L5.12a: figures in a grid, each picture a toggle (`aria-pressed`; one name, "<name>, larger" — the state is aria-pressed's) that spans the row when larger; words while it loads or cannot be read; the label and a meta line as the caption | the pictures come from Thumb.tsx; ask them one at a time |
 | Tag | L5.12a: a quiet label in a well — text, never a state | a source, a note's kind; a state is a StatusMark; not in the status bar (plain words there) |
-| NumberField | L5.12a: TextField's sibling, `type="number"`, min / max / step, Enter runs its action; no unsaved mark (a value written on Set) | a speed or a duration beside chips |
+| NumberField | L5.12a: TextField's sibling, `type="number"`, min / max / step, Enter runs its action; no unsaved mark (a value written on Set); L5.12b: `onBlur` | a speed or a duration beside chips; a comment's region in % |
+| DiffTable | L5.12b: a change line by line — every row (no inner scroll), a sign shown and its word hidden, the line numbers, the line a `<code dir="ltr">` cell in byte order (bidi override) with edge spaces `·`, tabs `→`, unseen characters `[U+…]` and a "right-to-left text" marker; add / del rows a 3 px bar beside their sign; a title line over the table; the table named by a caption, the dots and arrows hidden from assistive technology and read as words ("2 leading spaces", "a tab") | Claude's proposal (the caller passes comment-words' `diffRowsView` rows); never a `<bdi>` inside a line (an isolate undoes byte order) |
+| RegionOverlay | L5.12b: a region over a picture by its shares (0–1), its label at the corner, dashed while drawn; `aria-hidden` (the region is said in words beside it) | presentational: the drag surface is the caller's |
+
+L5.12b also gave the kit: Segmented options a `testId` (the comments' `filter-*`), TrackItem `to` (a tick that is a
+link: a comment's pin), Scrubber `label`, TextArea `onKeyDown` (⌘↩ posts), LinkButton `onClick` (a hand-off before it
+goes), RowListItem `status`.
 
 ## The screens (from the canvas)
 
@@ -386,8 +392,24 @@ Studio keeps `APP_NAME` (L5.13 renames).
   (⌘B: the report's). Empty states: no render (Render), a review queued (progress) or failed (its message), an unknown
   render. Deviations: "n passed", Open the step, Show in Finder, the per-scene rows with times (the review's own scene
   sheets as they are) — BL-132.
-- **Review — frame comments** — the frame, the thread, Claude's proposal. L5.12b (L5.12a: the View switch in its title
-  bar).
+- **Review — frame comments** (R4-Comments) — built in L5.12b (`#/…/comments[/<thread> | /at/<render>/<frame>]`): the
+  title bar's View (the Comments segment keeps `comments-tab`, "Comments (n open)"). Browser pane: the threads (Open ·
+  Resolved · All, This render only, counts; rows are links; All grouped Open / Resolved; the list shown stays while a
+  filter is read, with its own words — the filter it was read with — marked busy). Centre: "Frame N · vN · rendered … · theme …" with the render picker; the frame with the region
+  (RegionOverlay), the Scrubber "Frame", markers and pins on one lane ("Marks & pins"; a pin is a link to its thread),
+  ± 1 s and ◀ ▶, the typed time; the composer under it (the region's four % fields, Clear, "Where it points" as tags,
+  the text, ⌘↩, Post — arriving to comment a frame, the text and Post scroll into view and the text is focused) or
+  "Comment this frame" while a thread is open. Status bar: Review's line, shared with the report — "Rendered · when · vN
+  · n open · n resolved", Open in Edit, Render (never Shoot's actions). Inspector: the thread (status, channel, text, chips,
+  region, newer renders, still when gone, entries), Claude's proposal (summary, rewrite note, the DiffTable with
+  "scenarios/<name>.yaml · line N", the offered buttons, Undo apply, the render after it, Resolve with vN), Reply,
+  Resolve, Reopen; while none is open, how comments work. Edit shows the proposal's banner (a Callout: never applies).
+  Deviations: no 64 px thumbnail per row (a still read per row: BL-133); the inspector 320 px (the token), R4 380. At
+  900 px the panes keep their places (a trade-off: the frame ≥ 260 px, the diff's code column ≥ 160 px with its lines
+  wrapped, no sideways scroll — an e2e holds it); drawing a region there is easier with the four % fields.
+- **README** — built in L5.12b on the kit: a tall text area, the save state in words, Save / Discard changes, the count
+  and its cap, ⌘S; Callouts for a missing README, a notice, an error; the conflict panel and kept text (TextEditing.tsx);
+  read-only with why on `readme_error`. No Markdown preview (deliberate).
 - **Library** — the components (the browser's word "Components" until L5.12). L5.12.
 - **Theme editor** — tokens and their preview. L5.12.
 - **Confirmation sheet** — the kit's Sheet. Built in L5.9; screens adopt it in L5.10 – L5.12. L5.11a: the capture's
@@ -395,9 +417,16 @@ Studio keeps `APP_NAME` (L5.13 renames).
   canvas's Return on Capture anyway is not taken — a session known to be bad would run the hooks) · Capture anyway (the
   record variant); the personas with their states and what the capture does with each; one sheet in the shell for the
   status bar's Capture, ⇧⌘R and Prepare's Start capture.
-- **⌘K palette** — the kit's CommandPalette with the shell's commands (places, modes, the inspector). Built in L5.9;
-  L5.11a: a Scenario group (Rehearse, Capture, Render, Stop — the browser tab's way to them: ⌘R / ⇧⌘R / ⌘B / ⌘. stay the
-  browser's there); its content grows in L5.12.
+- **⌘K palette** (R4-Palette) — the kit's CommandPalette with the shell's commands. Built in L5.9; L5.11a: the
+  Scenario menu's commands (the browser tab's way to them: ⌘R / ⇧⌘R / ⌘B / ⌘. stay the browser's there). L5.12b: the
+  groups Commands (Rehearse · Capture · Render · Stop, or a live recording's own; "Comment at this frame"; the
+  inspector) · Go to (the modes, "Review report — last render · <words>", the project's pages, All projects, UI gallery) ·
+  Scenes (the Scenario screen's and Edit's, through `paletteGroup`) · Themes (the scenario's theme on Edit, the
+  project's, All themes) · Scenarios · Projects; an icon per row; the legend (read by assistive technology too);
+  "Commands with a key are also in the menu bar" only in the desktop app (a row shows a key only when it is a menu bar
+  item). An entry never writes (a theme row opens the theme editor; a scene on the YAML view goes to its lines) — but the
+  Scenario menu's own commands, which act as from the menu. Deviation: no "Open renders" entry (it is Review › Report:
+  BL-133).
 - **Light appearance** — the same layout, the mapped palette. Built in L5.9 (tokens).
 
 Until a screen is rebuilt it keeps its L4 content inside the shell's centre pane, in both appearances (the legacy

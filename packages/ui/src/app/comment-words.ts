@@ -408,6 +408,22 @@ export function charactersLeft(text: string): string {
   return `${n.toLocaleString('en')} ${n === 1 ? 'character' : 'characters'} left`;
 }
 
+/** The characters-left thresholds a screen reader hears (L5.12b fixes, review B-L5): never once per key. */
+export const CHARACTERS_LEFT_SAID = [200, 100, 50, 10] as const;
+
+/**
+ * What the composer's polite live line says of the characters left: nothing while more than the first threshold is left,
+ * then the threshold crossed ("At most 100 characters left"), "No characters left" at the cap — the same words for
+ * every key between two thresholds, so a live region speaks only when one is crossed.
+ */
+export function charactersLeftAnnounced(text: string): string {
+  const n = COMMENT_TEXT_MAX - text.length;
+  if (n <= 0) return 'No characters left';
+  let crossed: number | null = null;
+  for (const t of CHARACTERS_LEFT_SAID) if (n <= t) crossed = t;
+  return crossed === null ? '' : `At most ${crossed} characters left`;
+}
+
 // ── Proposals (part D2) ─────────────────────────────────────────────────────
 
 /** Past this share of the file a proposal says it is a rewrite (core PROPOSAL_REWRITE_NOTE_PCT; T13 checks they agree). */

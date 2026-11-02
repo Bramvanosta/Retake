@@ -42,6 +42,8 @@ import {
   Progress,
   Callout,
   ContactSheet,
+  DiffTable,
+  RegionOverlay,
   FrameGrid,
   FrameOption,
   RadioGroup,
@@ -63,6 +65,7 @@ import {
   TextField,
   Timecode,
   Toolbar,
+  TrackItem,
   defaultAction,
   filterCommands,
   formatTimecode,
@@ -329,6 +332,54 @@ describe('the overlays (L5.9 part C)', () => {
     expect(spaceTicks([50], 300)).toEqual([50]);
   });
 
+  it('⚑ L5.12b: a diff table — every row, a sign and its word (hidden), the code cell left to right in byte order, the marks; a region over a frame hidden from assistive technology; a tick that is a link; a segmented option\'s test id; the palette\'s icons and legend', () => {
+    const go = () => undefined;
+    const diff = renderToStaticMarkup(
+      createElement(DiffTable, {
+        label: 'The change',
+        title: 'scenarios/a.yaml · line 2',
+        testId: 'd',
+        boxTestId: 'db',
+        rows: [
+          { kind: 'gap', sign: '…', word: '3 unchanged lines not shown', base: null, line: null, pieces: [], rtl: false },
+          { kind: 'del', sign: '−', word: 'removed', base: 2, line: null, pieces: [{ kind: 'text', text: 'a: 1' }], rtl: false },
+          { kind: 'add', sign: '+', word: 'added', base: null, line: 2, pieces: [{ kind: 'space', count: 2 }, { kind: 'tab' }, { kind: 'text', text: 'עברית' }, { kind: 'char', code: 'U+200B' }], rtl: true },
+        ],
+      }),
+    );
+    // L5.12b fixes (review A-L7): the table itself is named (a caption: table navigation announces it).
+    expect(diff).toMatch(/^<div class="k-diff" data-testid="db">/);
+    expect(diff).toMatch(/<table class="k-diff-table" data-testid="d" aria-describedby="[^"]+"><caption class="k-sr">The change<\/caption>/);
+    expect(diff.match(/data-testid="diff-row"/g)).toHaveLength(3);
+    expect(diff).toContain('<code dir="ltr" data-testid="diff-line">');
+    expect(diff).toContain('<span aria-hidden="true"><bdi>+</bdi></span><span class="k-sr"><bdi>added</bdi></span>');
+    // The marks stay visual; edge spaces and tabs are read as words, never "middle dot" × n.
+    expect(diff).toContain('<span><span class="k-diff-mark" aria-hidden="true" title="2 spaces">··</span><span class="k-sr">2 leading spaces, </span></span><span><span class="k-diff-mark" aria-hidden="true" title="a tab">→</span><span class="k-sr"> a tab </span></span><span>עברית</span><span class="k-diff-mark k-diff-char" title="a character you cannot see">[U+200B]</span>');
+    const edges = renderToStaticMarkup(createElement(DiffTable, { label: 'x', rows: [{ kind: 'add', sign: '+', word: 'added', base: null, line: 1, pieces: [{ kind: 'text', text: 'a:' }, { kind: 'space', count: 1 }], rtl: false }, { kind: 'add', sign: '+', word: 'added', base: null, line: 2, pieces: [{ kind: 'space', count: 4 }], rtl: false }] }));
+    expect(edges).toContain('<span class="k-sr">, 1 trailing space</span>');
+    expect(edges).toContain('<span class="k-sr">4 spaces</span>');
+    expect(edges.match(/<span class="k-diff-mark"(?! aria-hidden="true")/g)).toBeNull();
+    expect(diff).toContain('data-testid="diff-rtl"');
+    expect(diff).not.toMatch(/<bdi>עברית|overflow|Show all/);
+    const region = renderToStaticMarkup(createElement(RegionOverlay, { region: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 }, label: 'Region', draft: true, testId: 'r' }));
+    expect(region).toMatch(/^<span class="k-region is-draft" data-testid="r" aria-hidden="true" style="left:10%;top:20%;width:30%;height:40%">/);
+    const pin = renderToStaticMarkup(createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Comment, open', testId: 'p', data: { id: 'c1' }, to: { name: 'comments', slug: 'demo', scenario: 'bits', thread: 'c1' }, children: '●' }));
+    expect(pin).toContain('<a href="#/p/demo/s/bits/comments/c1" class="k-trackitem-button" data-testid="p" data-id="c1" aria-label="Comment, open">');
+    expect(pin).not.toContain('<button');
+    const seg = renderToStaticMarkup(createElement(Segmented, { label: 'Show', value: 'open', options: [{ value: 'open', label: 'Open', testId: 'filter-open' }], onChange: go }));
+    expect(seg).toContain('data-testid="filter-open"');
+    const pal = renderToStaticMarkup(createElement(CommandPalette, { open: true, onClose: go, footnote: 'Commands with a key are also in the menu bar', commands: [{ id: 't', label: 'editorial', icon: 'theme', group: 'Themes', run: go }] }));
+    expect(pal).toContain('placeholder="Search commands, scenes and themes"');
+    expect(pal).toMatch(/<span class="k-palette-icon" aria-hidden="true"><svg class="k-icon"/);
+    // L5.12b fixes (review A-L8): the legend is read (its footnote is information); expanded only while it lists options.
+    expect(pal).toContain('<p class="k-palette-legend">');
+    expect(pal).toMatch(/Move<\/span>.*Run<\/span>.*Close<\/span><span class="k-palette-legend-note"><bdi>Commands with a key are also in the menu bar<\/bdi>/);
+    expect(pal).toContain('aria-expanded="true"');
+    const none = renderToStaticMarkup(createElement(CommandPalette, { open: true, onClose: go, commands: [] }));
+    expect(none).not.toContain('k-palette-legend-note');
+    expect(none).toContain('aria-expanded="false"');
+  });
+
   it('L5.10b: the drop slot comes from the pointer (critique M7) — the nearest row by Y, the half by X, the trailing cells the end; the bar on one side', () => {
     // Two rows of three 100 × 60 frames, 24 px gaps; the second row holds two.
     const r = (col: number, row: number) => ({ left: col * 124, right: col * 124 + 100, top: row * 84, bottom: row * 84 + 60 });
@@ -389,7 +440,7 @@ describe('the overlays (L5.9 part C)', () => {
     expect(html(createElement(CommandPalette, { open: false, onClose: noop, commands: cmds }))).not.toMatch(/role="option"|Nothing matches/);
     const list = /role="combobox" aria-expanded="true" aria-controls="([^"]+)"/.exec(p)?.[1];
     expect(list).toBeTruthy();
-    expect(p).toContain(`<div id="${list}" role="listbox" aria-label="Commands" class="k-palette-list">`);
+    expect(p).toContain(`<div id="${list}" role="listbox" aria-label="Commands" class="k-palette-list" tabindex="-1">`);
     expect(p).toMatch(/aria-activedescendant="([^"]+)".*<div id="\1" role="option" aria-selected="true" class="k-palette-option is-active">/);
     expect(p.match(/role="group"/g)).toHaveLength(2);
     expect(filterCommands(cmds, 'gal').map((c) => c.id)).toEqual(['g']);

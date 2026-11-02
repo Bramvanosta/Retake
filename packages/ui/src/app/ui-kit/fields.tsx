@@ -116,7 +116,7 @@ export function TextField({ label, value, onChange, baseline = '', unsaved, mono
  * (`maxLength`), spell check and auto-correction off, more describing ids; `unsaved={null}` when the caller owns the
  * mark (the YAML draft's is drafts.ts's: the quit question never lists it twice).
  */
-export function TextArea({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, rows = 4, inputRef, maxLength, spellCheck, autoCorrect, testId, describedBy: more, labelHidden, tall }: TextCommon & { rows?: number; inputRef?: Ref<HTMLTextAreaElement>; maxLength?: number; spellCheck?: boolean; /** Off: auto-capitalisation and auto-correction off too (code, YAML). */ autoCorrect?: boolean; /** Fills the height its container gives (an editor). */ tall?: boolean }) {
+export function TextArea({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, rows = 4, inputRef, maxLength, spellCheck, autoCorrect, testId, describedBy: more, labelHidden, tall, onKeyDown }: TextCommon & { rows?: number; inputRef?: Ref<HTMLTextAreaElement>; maxLength?: number; spellCheck?: boolean; /** Off: auto-capitalisation and auto-correction off too (code, YAML). */ autoCorrect?: boolean; /** Fills the height its container gives (an editor). */ tall?: boolean; /** L5.12b: a key of its own (the comment composer's ⌘↩ posts). */ onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void }) {
   useUnsavedMark(unsavedFor(value, baseline, unsaved));
   const own = useId();
   const fid = id ?? own;
@@ -140,6 +140,7 @@ export function TextArea({ label, value, onChange, baseline = '', unsaved, mono,
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(fid, hint, error, more)}
         onChange={(e) => onChange(e.currentTarget.value)}
+        onKeyDown={onKeyDown}
       />
     </Frame>
   );
@@ -149,7 +150,7 @@ export function TextArea({ label, value, onChange, baseline = '', unsaved, mono,
  * L5.12a: a number field (TextField's sibling: `type="number"`, min / max / step, `inputMode` decimal) — a value written
  * on Set (an inspector's speed, a duration), not typed text: no unsaved mark. Enter runs `onEnter`.
  */
-export function NumberField({ label, value, onChange, min, max, step, disabled, error, hint, layout = 'inline', id, testId, onEnter }: { label: ReactNode; value: string; onChange: (value: string) => void; min?: number; max?: number; step?: number; disabled?: boolean; error?: ReactNode; hint?: ReactNode; layout?: FieldLayout; id?: string; testId?: string; onEnter?: () => void }) {
+export function NumberField({ label, value, onChange, min, max, step, disabled, error, hint, layout = 'inline', id, testId, onEnter, onBlur }: { label: ReactNode; value: string; onChange: (value: string) => void; min?: number; max?: number; step?: number; disabled?: boolean; error?: ReactNode; hint?: ReactNode; layout?: FieldLayout; id?: string; testId?: string; onEnter?: () => void; /** L5.12b: the field left (a region's fields settle to the region drawn). */ onBlur?: () => void }) {
   const own = useId();
   const fid = id ?? own;
   return (
@@ -168,6 +169,7 @@ export function NumberField({ label, value, onChange, min, max, step, disabled, 
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(fid, hint, error)}
         onChange={(e) => onChange(e.currentTarget.value)}
+        onBlur={onBlur}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && onEnter) {
             e.preventDefault();

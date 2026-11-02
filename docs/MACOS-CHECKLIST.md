@@ -1564,7 +1564,7 @@ then light. (14c (b)'s items 1 and 7 now read: the run actions are in the status
    recording. At 900 px: the start form in two columns, a live recording usable (a row's "n alternatives" under its
    text, no word cut; the toolbar wrapping), the status bar's counts give way, nothing scrolls sideways.
 
-### 14e. Edit and the Review report in the app and in Safari (L5.12a)
+### 14e. Edit, the Review report, frame comments, the README and ⌘K in the app and in Safari (L5.12a, L5.12b)
 
 The automated checks run in Playwright's Chromium (no H.264: its preview says it cannot play the fixture's takes); the
 preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `pnpm build`, the desktop app (and Safari on
@@ -1602,6 +1602,31 @@ preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `
    Edit's way); the preview plays the H.264 take.
 6. **900 px.** Edit: the transport wraps, the tracks scroll sideways only when zoomed in; the report's head wraps, its
    check list and sheets stay readable, nothing scrolls sideways.
+7. **Frame comments with VoiceOver (L5.12b).** Review › Comments (the View's "Comments (n open)"): the threads are in the
+   browser pane — VoiceOver reads the filter as a radio group ("Show, Open, 1 of 3") and each row as a link (the open one
+   "current page"); "This render only" as a switch. In the centre, ← → / Shift move the frame (VoiceOver reads the slider
+   "Frame, frame 54, 00:01.80"); a pin on the marks lane is read as "Comment, open, at … : open the thread, link". Drag a
+   region, then type it in the four % fields: the words under them change ("Region from 20 % left…", read politely);
+   Where it points reads its tags. ⌘↩ posts. With a thread open, the inspector reads the thread (heading, status,
+   entries), then Claude's proposal: the diff table is read row by row with "added" / "removed" before each line, a
+   right-to-left line marked; the buttons follow the diff. Preview change, then Back to the comment: the proposal's
+   heading has the focus. Reply / Resolve / Reopen by keyboard only.
+   (L5.12b fixes) The diff table is announced by its name; a YAML line's indentation is read "4 leading spaces", never
+   "middle dot" four times. Hold → for a second: VoiceOver does not chatter "Loading frame…" per step, and the picture's
+   description names the frame it shows. Comment this frame (a 1440 × 900 window): the text box and Post are on screen,
+   the cursor in the text; VoiceOver reads "⌘↩ posts…" with the field, and the characters left only near the cap (at
+   200, 100, 50, 10, 0). With ⌘K open, ← → move no frame behind it. The status bar on Comments says "Rendered · … · v1 ·
+   n open · n resolved", Open in Edit, Render — the same line as the report's, never Rehearse / Capture. A trackpad
+   gesture or a Mission Control swipe in the middle of a region drag leaves no region. Type with a Japanese input
+   method in the palette's field: Return confirms the word, it runs nothing (WebKit).
+8. **The palette by keyboard (L5.12b).** ⌘K anywhere: "Search commands, scenes and themes"; type a scene's name on Script
+   or Edit — Return selects it (Edit: the playhead moves to it); type a theme's name — Return opens the theme editor,
+   nothing is changed; ↑ ↓ move (VoiceOver reads the option and its group), Esc closes and the focus goes back where it
+   was; the legend under the list ends with "Commands with a key are also in the menu bar" in the app (not in Safari) —
+   every row showing a key is in the menu bar with that key; VoiceOver reads the legend. On the scenario's YAML view, a
+   scene picked in ⌘K highlights its lines.
+9. **README.** The project's README: type, ⌘S (the state "Saved · …"); change README.md in an editor meanwhile and save:
+   both versions side by side, "Save mine over it" / "Load the version on disk"; dark, light, 900 px.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

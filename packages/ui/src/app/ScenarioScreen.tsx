@@ -28,7 +28,7 @@ import { Txt, plural } from './bits.js';
 import { envFlagWords } from './board-words.js';
 import { useScenarioEvents } from './events.js';
 import { useProjectView } from './project-data.js';
-import { RenderJobs, RenderOutcome, RendersList, useRenders } from './Renders.js';
+import { RenderJobs, RenderOutcome, RendersList, useRenders, useReportEntry } from './Renders.js';
 import type { RendersState } from './Renders.js';
 import { chooseLocation, useRunLocation } from './run-location.js';
 import { useFeedActions, useRunChanged, useRunProgress, useShownFile } from './shoot-data.js';
@@ -47,6 +47,7 @@ import { Palette } from './StepForm.js';
 import { ScenarioInspector } from './ScenarioInspector.js';
 import type { Selected, StepMoves } from './ScenarioInspector.js';
 import { ScenesBrowser } from './ScenesBrowser.js';
+import { usePaletteGroup } from './shell/command-bus.js';
 import { Storyboard } from './Storyboard.js';
 import type { BoardMoves, Subject } from './Storyboard.js';
 import { CommentsCount, Running, TakeStrip } from './TakeStrip.js';
@@ -277,6 +278,30 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     [refOf, slots],
   );
 
+  // L5.12b: ⌘K's Scenes — each scene of the file (a pick selects it and brings it into view, as the browser does: on the
+  // YAML view, the scene's lines — review B-L3) — and the Review report with the last render's words. A pick only selects:
+  // the palette never writes. (The browser's own pick, onBrowse, is defined after the loading return: read from a ref.)
+  const browse = useRef<((s: Subject, at: string) => void) | null>(null);
+  usePaletteGroup(
+    'scenes',
+    v
+      ? v.blocks.entries.flatMap((e) =>
+          e.type === 'scene'
+            ? [
+                {
+                  id: `scene-${e.index}`,
+                  label: e.caption?.kicker ?? e.id,
+                  hint: `scene ${e.id}`,
+                  icon: 'scene' as const,
+                  run: () => browse.current?.({ kind: 'scene', id: e.id }, `entry-${e.index}`),
+                },
+              ]
+            : [],
+        )
+      : null,
+  );
+  useReportEntry(slug, name, renders);
+
   if (view.state === 'loading' || !v) {
     return (
       // No h1 until the view is here (tests and assistive tech wait on the scenario's heading as the sign it loaded).
@@ -340,6 +365,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
       if (r) setFocus(r);
     } else document.getElementById(at)?.scrollIntoView({ block: 'start' });
   };
+  browse.current = onBrowse;
   const issues = allIssues(v);
   const comments = <CommentsCount slug={slug} name={name} />;
   return (

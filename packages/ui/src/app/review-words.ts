@@ -11,9 +11,10 @@
  * - "2 h ago" as a plain string (a select's option cannot hold a <time>), and the time of day where two renders would
  *   read the same (L5.12a fixes, review B-L2).
  */
-import type { ReviewFindingView } from '@demo-studio/engine';
+import type { RenderReviewSummary, ReviewFindingView } from '@demo-studio/engine';
 import type { StudioEvent } from './events.js';
 import type { MarkState } from './ui-kit/index.js';
+import { reviewBadge, versionWords } from './render-words.js';
 
 export interface CheckFamily {
   id: string;
@@ -154,4 +155,15 @@ export function whereWords(at: ReviewFindingView['at']): string {
 /** The step key a finding points at (`<scene>.<step>`, the run's own keys), or undefined. */
 export function stepKeyOf(at: ReviewFindingView['at']): string | undefined {
   return at?.scene && at.step !== undefined && at.step >= 0 ? `${at.scene}.${at.step}` : undefined;
+}
+
+/**
+ * L5.12b: the ⌘K palette's Review report hint — the newest finished render and its review in the badge's words ("last
+ * render v2 · clean", "last render v2 · 2 warnings", "last render v1 · not reviewed": L5.12b fixes, review B-L2 — a render
+ * without a review is never "no render yet"); "no finished render yet" when only failed ones exist, "no render yet" with
+ * none. Never "passed" (a test).
+ */
+export function reportHint(newest: { render_id: string; review: RenderReviewSummary } | undefined, renders = newest ? 1 : 0): string {
+  if (newest) return `last render ${versionWords(newest.render_id)} · ${reviewBadge(newest.review).words}`;
+  return renders > 0 ? 'no finished render yet' : 'no render yet';
 }
